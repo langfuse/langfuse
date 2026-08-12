@@ -1,367 +1,125 @@
-import {
-  EvalTargetObject,
-  JobConfigState,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { EvalTargetObject, LangfuseNotFoundError } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import type {
   EvaluationRuleEvaluatorFamilyReference,
   PrismaClientLike,
-  StoredPublicEvaluationRuleConfig,
-  StoredPublicEvaluatorTemplate,
+  StoredPublicV2EvaluationRule,
 } from "./types";
 import { toStoredEvaluatorType } from "./adapters";
-
-const PUBLIC_WRITABLE_EVAL_TARGETS = [
-  EvalTargetObject.EVENT,
-  EvalTargetObject.EXPERIMENT,
-];
-const PUBLIC_READABLE_EVAL_TARGETS = [
-  ...PUBLIC_WRITABLE_EVAL_TARGETS,
-  EvalTargetObject.TRACE,
-  EvalTargetObject.DATASET,
-];
 
 export function getPrismaClient(client?: PrismaClientLike) {
   return client ?? prisma;
 }
 
-export async function findPublicEvaluatorTemplateOrThrow(params: {
+export const publicV2RuleInclude = (projectId: string) => ({
+  assignments: {
+    where: { projectId, evaluator: { projectId } },
+    orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
+    include: {
+      evaluator: {
+        include: {
+          versions: { orderBy: { version: "desc" as const }, take: 1 },
+        },
+      },
+    },
+  },
+});
+
+export async function findPublicV2EvaluationRule(params: {
   client?: PrismaClientLike;
   projectId: string;
-  evaluatorId: string;
+  evaluationRuleId: string;
 }) {
   const client = getPrismaClient(params.client);
-
-  const template = await client.evalTemplate.findFirst({
-    where: {
-      id: params.evaluatorId,
-    },
-  });
-
-  if (
-    !template ||
-    (template.projectId !== params.projectId && template.projectId !== null)
-  ) {
-    throw new LangfuseNotFoundError(
-      "Evaluator not found within authorized project",
-    );
-  }
-
-  return template as StoredPublicEvaluatorTemplate;
+  return client.evaluationRule.findFirst({
+    where: { id: params.evaluationRuleId, projectId: params.projectId },
+    include: publicV2RuleInclude(params.projectId),
+  }) as Promise<StoredPublicV2EvaluationRule | null>;
 }
 
-export async function findLatestPublicEvaluatorTemplateInFamilyOrThrow(params: {
+export async function findPublicV2EvaluatorInFamily(params: {
   client?: PrismaClientLike;
   projectId: string;
   evaluator: EvaluationRuleEvaluatorFamilyReference;
 }) {
   const client = getPrismaClient(params.client);
-  const latestTemplate = await client.evalTemplate.findFirst({
+  const evaluator = await client.evaluator.findFirst({
     where: {
+      projectId: params.projectId,
       name: params.evaluator.name,
-      projectId: params.evaluator.scope === "project" ? params.projectId : null,
       type: toStoredEvaluatorType(params.evaluator.type),
     },
-    orderBy: {
-      version: "desc",
-    },
+    include: { versions: { orderBy: { version: "desc" }, take: 1 } },
   });
+  return evaluator?.versions.length ? evaluator : null;
+}
 
-  if (!latestTemplate) {
+export async function findPublicV2EvaluatorById(params: {
+  client?: PrismaClientLike;
+  projectId: string;
+  evaluatorId: string;
+}) {
+  const client = getPrismaClient(params.client);
+  const evaluator = await client.evaluator.findFirst({
+    where: { id: params.evaluatorId, projectId: params.projectId },
+    include: { versions: { orderBy: { version: "desc" }, take: 1 } },
+  });
+  return evaluator?.versions.length ? evaluator : null;
+}
+
+export async function findPublicV2EvaluatorByIdOrThrow(
+  params: Parameters<typeof findPublicV2EvaluatorById>[0],
+) {
+  const evaluator = await findPublicV2EvaluatorById(params);
+  if (!evaluator) {
     throw new LangfuseNotFoundError(
       "Latest evaluator version not found within authorized project",
     );
   }
-
-  return latestTemplate as StoredPublicEvaluatorTemplate;
+  return evaluator;
 }
 
-export async function countEvaluationRulesForEvaluator(params: {
-  client?: PrismaClientLike;
-  projectId: string;
-  evaluatorId: string;
-}) {
-  const client = getPrismaClient(params.client);
-
-  return client.jobConfiguration.count({
-    where: {
-      projectId: params.projectId,
-      targetObject: {
-        in: PUBLIC_READABLE_EVAL_TARGETS,
-      },
-      evalTemplateId: params.evaluatorId,
-    },
-  });
-}
-
-export async function countEvaluationRulesForEvaluatorIds(params: {
-  client?: PrismaClientLike;
-  projectId: string;
-  evaluatorIds: string[];
-}) {
-  if (params.evaluatorIds.length === 0) {
-    return {};
-  }
-
-  const client = getPrismaClient(params.client);
-  const groups = await client.jobConfiguration.groupBy({
-    by: ["evalTemplateId"],
-    where: {
-      projectId: params.projectId,
-      targetObject: {
-        in: PUBLIC_READABLE_EVAL_TARGETS,
-      },
-      evalTemplateId: {
-        in: params.evaluatorIds,
-      },
-    },
-    _count: {
-      _all: true,
-    },
-  });
-
-  return groups.reduce<Record<string, number>>((counts, group) => {
-    if (!group.evalTemplateId) {
-      return counts;
-    }
-
-    counts[group.evalTemplateId] = group._count._all;
-    return counts;
-  }, {});
-}
-
-export async function listPublicEvaluatorTemplates(params: {
-  projectId: string;
-  page: number;
-  limit: number;
-}) {
-  const offset = (params.page - 1) * params.limit;
-  const [evaluatorRows, totalItemsRes] = await Promise.all([
-    prisma.$queryRaw<Array<{ id: string }>>(
-      Prisma.sql`
-        WITH latest_templates AS (
-          SELECT DISTINCT ON (project_id, name, type)
-            id,
-            project_id,
-            name,
-            type,
-            updated_at
-          FROM eval_templates
-          WHERE (project_id = ${params.projectId} OR project_id IS NULL)
-          ORDER BY project_id, name, type, version DESC
-        )
-        SELECT id
-        FROM latest_templates
-        ORDER BY
-          CASE WHEN project_id IS NULL THEN 1 ELSE 0 END ASC,
-          name ASC,
-          updated_at DESC,
-          id ASC
-        LIMIT ${params.limit}
-        OFFSET ${offset}
-      `,
-    ),
-    prisma.$queryRaw<Array<{ count: bigint }>>(
-      Prisma.sql`
-        SELECT COUNT(*) as count
-        FROM (
-          SELECT DISTINCT project_id, name, type
-          FROM eval_templates
-          WHERE (project_id = ${params.projectId} OR project_id IS NULL)
-        ) latest_template_families
-      `,
-    ),
-  ]);
-
-  const totalItems =
-    totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
-  const templateIds = evaluatorRows.map((row) => row.id);
-
-  if (templateIds.length === 0) {
-    return {
-      totalItems,
-      templates: [],
-    };
-  }
-
-  const templates = await prisma.evalTemplate.findMany({
-    where: {
-      id: {
-        in: templateIds,
-      },
-    },
-  });
-
-  const templateById = new Map(
-    templates.map((template) => [
-      template.id,
-      template as StoredPublicEvaluatorTemplate,
-    ]),
-  );
-
-  return {
-    totalItems,
-    templates: templateIds
-      .map((id) => templateById.get(id))
-      .filter(
-        (template): template is StoredPublicEvaluatorTemplate =>
-          template !== undefined,
-      ),
-  };
-}
-
-export async function findPublicEvaluationRuleOrThrow(params: {
-  client?: PrismaClientLike;
-  projectId: string;
-  evaluationRuleId: string;
-}) {
-  return findEvaluationRuleOrThrow({
-    ...params,
-    targetObjects: PUBLIC_WRITABLE_EVAL_TARGETS,
-  });
-}
-
-export async function findReadablePublicEvaluationRuleOrThrow(params: {
-  client?: PrismaClientLike;
-  projectId: string;
-  evaluationRuleId: string;
-}) {
-  return findEvaluationRuleOrThrow({
-    ...params,
-    targetObjects: PUBLIC_READABLE_EVAL_TARGETS,
-  });
-}
-
-async function findEvaluationRuleOrThrow(params: {
-  client?: PrismaClientLike;
-  projectId: string;
-  evaluationRuleId: string;
-  targetObjects: EvalTargetObject[];
-}) {
-  const client = getPrismaClient(params.client);
-
-  const config = await client.jobConfiguration.findFirst({
-    where: {
-      id: params.evaluationRuleId,
-      projectId: params.projectId,
-      targetObject: {
-        in: params.targetObjects,
-      },
-      evalTemplate: {
-        is: {
-          OR: [{ projectId: params.projectId }, { projectId: null }],
-        },
-      },
-    },
-    include: {
-      evalTemplate: {
-        select: {
-          id: true,
-          projectId: true,
-          name: true,
-          type: true,
-        },
-      },
-    },
-  });
-
-  if (!config) {
+export async function findPublicV2EvaluatorInFamilyOrThrow(
+  params: Parameters<typeof findPublicV2EvaluatorInFamily>[0],
+) {
+  const evaluator = await findPublicV2EvaluatorInFamily(params);
+  if (!evaluator) {
     throw new LangfuseNotFoundError(
-      "Evaluation rule not found within authorized project",
+      "Latest evaluator version not found within authorized project",
     );
   }
-
-  return config as StoredPublicEvaluationRuleConfig;
+  return evaluator;
 }
 
-export async function loadEvaluatorForEvaluationRule(params: {
-  client?: PrismaClientLike;
-  projectId: string;
-  evaluator: EvaluationRuleEvaluatorFamilyReference;
-}) {
-  const template =
-    await findLatestPublicEvaluatorTemplateInFamilyOrThrow(params);
-
-  return {
-    template,
-  };
-}
-
-export async function countActiveEvaluationRules(params: {
-  client?: PrismaClientLike;
-  projectId: string;
-}) {
-  const client = getPrismaClient(params.client);
-  return client.jobConfiguration.count({
-    where: {
-      projectId: params.projectId,
-      jobType: "EVAL",
-      targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
-      },
-      status: JobConfigState.ACTIVE,
-      blockedAt: null,
-      evalTemplate: {
-        is: {
-          OR: [{ projectId: params.projectId }, { projectId: null }],
-        },
-      },
-    },
-  });
-}
-
-export async function listPublicEvaluationRuleConfigs(params: {
+export async function listPublicEvaluationRulePage(params: {
   projectId: string;
   page: number;
   limit: number;
 }) {
-  const [configs, totalItems] = await Promise.all([
-    prisma.jobConfiguration.findMany({
-      where: {
-        projectId: params.projectId,
-        targetObject: {
-          in: PUBLIC_READABLE_EVAL_TARGETS,
-        },
-        evalTemplate: {
-          is: {
-            OR: [{ projectId: params.projectId }, { projectId: null }],
-          },
-        },
-      },
-      include: {
-        evalTemplate: {
-          select: {
-            id: true,
-            projectId: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+  const where = {
+    projectId: params.projectId,
+    targetObject: {
+      in: [
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+        EvalTargetObject.TRACE,
+        EvalTargetObject.DATASET,
+      ],
+    },
+  };
+  const [records, totalItems] = await Promise.all([
+    prisma.evaluationRule.findMany({
+      where,
+      include: publicV2RuleInclude(params.projectId),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: params.limit,
       skip: (params.page - 1) * params.limit,
     }),
-    prisma.jobConfiguration.count({
-      where: {
-        projectId: params.projectId,
-        targetObject: {
-          in: PUBLIC_READABLE_EVAL_TARGETS,
-        },
-        evalTemplate: {
-          is: {
-            OR: [{ projectId: params.projectId }, { projectId: null }],
-          },
-        },
-      },
-    }),
+    prisma.evaluationRule.count({ where }),
   ]);
 
   return {
-    configs: configs as StoredPublicEvaluationRuleConfig[],
+    records: records as StoredPublicV2EvaluationRule[],
     totalItems,
   };
 }

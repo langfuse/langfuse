@@ -40,6 +40,12 @@ import {
   handleListManagedEvaluatorTemplates,
   listManagedEvaluatorTemplatesTool,
 } from "./tools/listManagedEvaluatorTemplates";
+import {
+  attachEvaluatorToEvaluationRuleTool,
+  detachEvaluatorFromEvaluationRuleTool,
+  handleAttachEvaluatorToEvaluationRule,
+  handleDetachEvaluatorFromEvaluationRule,
+} from "./tools/manageEvaluationRuleEvaluators";
 
 export const evalsFeature = {
   name: "evals",
@@ -79,6 +85,14 @@ export const evalsFeature = {
     {
       definition: updateEvaluationRuleTool,
       handler: handleUpdateEvaluationRule,
+    },
+    {
+      definition: attachEvaluatorToEvaluationRuleTool,
+      handler: handleAttachEvaluatorToEvaluationRule,
+    },
+    {
+      definition: detachEvaluatorFromEvaluationRuleTool,
+      handler: handleDetachEvaluatorFromEvaluationRule,
     },
     {
       definition: deleteEvaluationRuleTool,

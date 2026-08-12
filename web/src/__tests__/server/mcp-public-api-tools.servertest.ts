@@ -251,6 +251,7 @@ describe("MCP public API tools", () => {
     expect(destructiveToolNames).toEqual(
       [
         "addDashboardPlacement",
+        "attachEvaluatorToEvaluationRule",
         "createChatPrompt",
         "createDashboard",
         "createDashboardWidget",
@@ -270,6 +271,7 @@ describe("MCP public API tools", () => {
         "deleteEvaluator",
         "deleteModel",
         "deleteScoreConfig",
+        "detachEvaluatorFromEvaluationRule",
         "updateAnnotationQueueItem",
         "updateDashboard",
         "updateDashboardPlacement",

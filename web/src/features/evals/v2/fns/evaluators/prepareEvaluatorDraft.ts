@@ -12,6 +12,7 @@ type EvaluatorSetupDraftState = Pick<
   | "variableFields"
   | "modelMode"
   | "selectedModel"
+  | "modelParams"
   | "initialDefinition"
 >;
 
@@ -40,13 +41,7 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
                 ? (params.selectedModel?.model ?? null)
                 : null,
             modelParams:
-              params.modelMode === "custom" &&
-              params.initialDefinition?.type === "LLM_AS_JUDGE" &&
-              params.selectedModel?.provider ===
-                params.initialDefinition.provider &&
-              params.selectedModel.model === params.initialDefinition.model
-                ? params.initialDefinition.modelParams
-                : null,
+              params.modelMode === "custom" ? params.modelParams : null,
             vars: variables,
             variableMapping: mappings.map(({ variable, fieldState }) => ({
               templateVariable: variable,

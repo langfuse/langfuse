@@ -311,6 +311,71 @@ describe("evaluator v2 repository", () => {
     });
   });
 
+  describe("countProjectEvaluators", () => {
+    it("counts only requested evaluators in the project", async () => {
+      const [first, second, foreign] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+        createEvaluator({ targetProjectId: otherProjectId }),
+      ]);
+
+      await expect(
+        evaluatorRepository.countProjectEvaluators({
+          prisma,
+          projectId,
+          evaluatorIds: [first.id, second.id, foreign.id, "missing"],
+        }),
+      ).resolves.toBe(2);
+    });
+  });
+
+  describe("listEvaluatorOptions", () => {
+    it("returns an empty list", async () => {
+      await expect(
+        evaluatorRepository.listEvaluatorOptions({
+          prisma,
+          projectId,
+          limit: 50,
+        }),
+      ).resolves.toEqual([]);
+    });
+
+    it("returns limited matching options with their latest version", async () => {
+      const matching = await createEvaluator({ name: "Quality judge" });
+      await Promise.all([
+        createEvaluator({ name: "Unrelated" }),
+        createEvaluator({
+          targetProjectId: otherProjectId,
+          name: "Quality foreign",
+        }),
+      ]);
+      await prisma.$transaction((tx) =>
+        evaluatorRepository.appendEvaluatorVersion({
+          tx,
+          evaluatorId: matching.id,
+          version: 2,
+          definition: codeDefinition("return 2;"),
+          createdByUserId: null,
+        }),
+      );
+
+      await expect(
+        evaluatorRepository.listEvaluatorOptions({
+          prisma,
+          projectId,
+          search: "QUALITY",
+          limit: 1,
+        }),
+      ).resolves.toMatchObject([
+        {
+          id: matching.id,
+          name: "Quality judge",
+          latestVersion: { version: 2 },
+        },
+      ]);
+    });
+  });
+
   describe("findEvaluator", () => {
     it("returns only the latest version", async () => {
       const evaluator = await createEvaluator();

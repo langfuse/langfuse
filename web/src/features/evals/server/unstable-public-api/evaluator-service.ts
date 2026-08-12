@@ -4,7 +4,10 @@ import {
   LangfuseConflictError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import type { ApiAccessScope } from "@langfuse/shared/src/server";
+import {
+  invalidateProjectEvalConfigCaches,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
@@ -17,28 +20,32 @@ import {
   EvaluatorConfigurationError,
   EvaluatorVersionConflictError,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
-import { AssignmentService } from "@/src/features/evals/v2/server/assignments/assignmentService";
+import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import type { PostUnstableEvaluatorBodyParsedType } from "@/src/features/public-api/types/unstable-evaluators";
 import { PUBLIC_EVALUATOR_TYPE_CODE } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import { toApiEvaluator, toStoredOutputDefinition } from "./adapters";
+import {
+  toApiEvaluator,
+  toStoredOutputDefinition,
+  toStoredVariableMappings,
+} from "./adapters";
 import type { StoredPublicEvaluatorTemplate } from "./types";
 
-function serviceForPublicApi(params?: {
+function readServiceForPublicApi() {
+  return new EvaluatorService(prisma, async () => undefined);
+}
+
+function serviceForPublicApi(params: {
   projectId: string;
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  return new EvaluatorService({
-    prisma,
-    audit: params?.auditScope
-      ? ({ action, evaluatorId }) =>
-          auditPublicEvaluator(params, action, evaluatorId)
-      : undefined,
-  });
+  return new EvaluatorService(prisma, ({ action, evaluatorId }) =>
+    auditPublicEvaluator(params, action, evaluatorId),
+  );
 }
 
-function assignmentServiceForPublicApi() {
-  return new AssignmentService({ prisma });
+function ruleServiceForPublicApi() {
+  return new RuleService(prisma, async () => undefined);
 }
 
 function auditPublicEvaluator(
@@ -107,7 +114,14 @@ function toDefinition(
     model: input.modelConfig?.model ?? null,
     modelParams: null,
     vars: extractVariables(input.prompt),
-    variableMapping: null,
+    variableMapping:
+      input.mapping === undefined
+        ? null
+        : toStoredVariableMappings({
+            mappings: input.mapping,
+            variables: extractVariables(input.prompt),
+            target: "observation",
+          }),
     outputDefinition: toStoredOutputDefinition(input.outputDefinition),
   };
 }
@@ -141,6 +155,7 @@ function toLatestTemplate(
     outputDefinition: version.outputDefinition,
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
+    variableMapping: version.variableMapping,
     createdAt: evaluator.createdAt,
     updatedAt: evaluator.updatedAt,
   };
@@ -161,17 +176,17 @@ export async function listPublicEvaluators(params: {
   page: number;
   limit: number;
 }) {
-  const service = serviceForPublicApi();
-  const assignmentService = assignmentServiceForPublicApi();
+  const service = readServiceForPublicApi();
+  const ruleService = ruleServiceForPublicApi();
   const { evaluators, totalItems } = await service.list(params);
-  const ruleCounts =
-    await assignmentService.countEvaluatorAssignmentsForEvaluators(
-      params.projectId,
-      evaluators.map((evaluator) => evaluator.id),
-    );
+  const evaluatorIds = evaluators.map((evaluator) => evaluator.id);
+  const assignmentCounts = await ruleService.countRulesForEvaluators(
+    params.projectId,
+    evaluatorIds,
+  );
   return {
     data: evaluators.map((evaluator) =>
-      toPublicEvaluator(evaluator, ruleCounts[evaluator.id] ?? 0),
+      toPublicEvaluator(evaluator, assignmentCounts[evaluator.id] ?? 0),
     ),
     meta: {
       page: params.page,
@@ -186,14 +201,13 @@ export async function getPublicEvaluator(params: {
   projectId: string;
   evaluatorId: string;
 }) {
-  const service = serviceForPublicApi();
+  const service = readServiceForPublicApi();
   const evaluator = await service.get(params.projectId, params.evaluatorId);
-  const ruleCount =
-    await assignmentServiceForPublicApi().countEvaluatorAssignments(
-      params.projectId,
-      evaluator.id,
-    );
-  return toPublicEvaluator(evaluator, ruleCount);
+  const ruleCounts = await ruleServiceForPublicApi().countRulesForEvaluators(
+    params.projectId,
+    [evaluator.id],
+  );
+  return toPublicEvaluator(evaluator, ruleCounts[evaluator.id] ?? 0);
 }
 
 export async function createPublicEvaluator(params: {
@@ -220,12 +234,11 @@ export async function createPublicEvaluator(params: {
       null,
     );
     const { evaluator } = result;
-    const ruleCount =
-      await assignmentServiceForPublicApi().countEvaluatorAssignments(
-        params.projectId,
-        evaluator.id,
-      );
-    return toPublicEvaluator(evaluator, ruleCount);
+    const ruleCounts = await ruleServiceForPublicApi().countRulesForEvaluators(
+      params.projectId,
+      [evaluator.id],
+    );
+    return toPublicEvaluator(evaluator, ruleCounts[evaluator.id] ?? 0);
   } catch (error) {
     if (error instanceof EvaluatorConfigurationError) {
       throw createUnstablePublicApiError({
@@ -270,5 +283,7 @@ export async function deletePublicEvaluator(params: {
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const service = serviceForPublicApi(params);
+  await service.get(params.projectId, params.evaluatorId);
   await service.delete(params.projectId, params.evaluatorId);
+  await invalidateProjectEvalConfigCaches(params.projectId);
 }

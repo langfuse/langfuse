@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { buildJsonPathSuggestions } from "./buildJsonPathSuggestions";
-import { parseSampleField } from "@/src/features/evals/v2/fns/variableMapping/parseSampleField";
 
 describe("buildJsonPathSuggestions", () => {
   it("walks nested objects and a bounded sample of array entries", () => {
@@ -36,19 +35,5 @@ describe("buildJsonPathSuggestions", () => {
 
   it("returns no suggestions for scalar values", () => {
     expect(buildJsonPathSuggestions("42")).toEqual([]);
-  });
-
-  it("suggests paths inside encoded JSON fields once they are decoded", () => {
-    expect(
-      buildJsonPathSuggestions(
-        parseSampleField("output", '{"answer":{"text":"hello"}}'),
-      ),
-    ).toContain("$.answer.text");
-  });
-
-  it("leaves tool calls untouched so string-valued identifiers survive", () => {
-    expect(parseSampleField("toolCalls", [{ name: "true" }])).toEqual([
-      { name: "true" },
-    ]);
   });
 });

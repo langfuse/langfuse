@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 
-import { SampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelector/SampleObservationSelector";
+import { EvaluatorSampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleObservationSelector/EvaluatorSampleObservationSelector";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function SampleObservationSelectorContainer({
@@ -11,8 +11,12 @@ export function SampleObservationSelectorContainer({
 }: {
   store: EvaluatorSetupStore;
   projectId: string;
-  timeRange: Parameters<typeof SampleObservationSelector>[0]["timeRange"];
-  onOpenTrace: Parameters<typeof SampleObservationSelector>[0]["onOpenTrace"];
+  timeRange: Parameters<
+    typeof EvaluatorSampleObservationSelector
+  >[0]["timeRange"];
+  onOpenTrace: Parameters<
+    typeof EvaluatorSampleObservationSelector
+  >[0]["onOpenTrace"];
 }) {
   const selectedObservationId = useStore(
     store,
@@ -21,7 +25,7 @@ export function SampleObservationSelectorContainer({
   const actions = store.getState().actions;
 
   return (
-    <SampleObservationSelector
+    <EvaluatorSampleObservationSelector
       projectId={projectId}
       timeRange={timeRange}
       selectedObservationId={selectedObservationId}

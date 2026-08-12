@@ -40,6 +40,17 @@ describe("validateEvaluatorFiltersForTarget", () => {
       ] satisfies FilterState,
     },
     {
+      targetObject: EvalTargetObject.EVENT,
+      filter: [
+        {
+          type: "null",
+          column: "experimentId",
+          operator: "is not null",
+          value: "",
+        },
+      ] satisfies FilterState,
+    },
+    {
       targetObject: EvalTargetObject.EXPERIMENT,
       filter: [
         {

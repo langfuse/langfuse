@@ -69,7 +69,6 @@ export const WithJudgeModel = meta.story({
         />
         {evaluatorType === EvalTemplateTypeEnum.LLM_AS_JUDGE ? (
           <>
-            <span>with</span>
             <JudgeModelPicker
               open={modelPickerOpen}
               onOpenChange={setModelPickerOpen}
@@ -86,7 +85,9 @@ export const WithJudgeModel = meta.story({
                 setJudgeModelMode("custom");
               }}
               onConfigureProviders={fn()}
-              onConfigureDefault={fn()}
+              onConfigureModel={fn()}
+              canSetProjectDefault
+              onSetProjectDefault={fn()}
             >
               <PopoverTrigger asChild>
                 <JudgeModelPickerTrigger

@@ -4,6 +4,7 @@ import {
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
+  findModel,
   generateLLMText,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
@@ -22,6 +23,7 @@ vi.mock("@langfuse/shared/src/server", async () => ({
     fetchValidModelConfig: vi.fn(),
   },
   generateLLMText: vi.fn(),
+  findModel: vi.fn(),
   resolveConfiguredCodeEvalDispatcher: vi.fn(),
   runCodeBasedEvaluationDispatch: vi.fn(),
 }));
@@ -54,6 +56,29 @@ describe("testEvaluator", () => {
     });
     vi.mocked(generateLLMText).mockResolvedValue({
       output: { score: 1, reasoning: "Correct" },
+      usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+    } as never);
+    vi.mocked(findModel).mockResolvedValue({
+      model: null,
+      pricingTiers: [
+        {
+          id: "default-tier",
+          name: "Default",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: [
+            {
+              usageType: "input",
+              price: { mul: () => ({ toNumber: () => 0.001 }) },
+            },
+            {
+              usageType: "output",
+              price: { mul: () => ({ toNumber: () => 0.002 }) },
+            },
+          ],
+        },
+      ],
     } as never);
   });
 
@@ -92,6 +117,8 @@ describe("testEvaluator", () => {
     ).resolves.toMatchObject({
       success: true,
       result: { dataType: "NUMERIC", score: 1, reasoning: "Correct" },
+      estimatedCostUsd: 0.003,
+      durationMs: expect.any(Number),
     });
 
     expect(getObservationForEvalById).toHaveBeenCalledWith({

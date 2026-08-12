@@ -124,7 +124,9 @@ function LlmEvaluatorDefinitionView({
           onModeChange={noop}
           onSelectCustom={noop}
           onConfigureProviders={noop}
-          onConfigureDefault={noop}
+          onConfigureModel={noop}
+          canSetProjectDefault={false}
+          onSetProjectDefault={noop}
         >
           <PopoverTrigger asChild>
             <JudgeModelPickerTrigger

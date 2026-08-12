@@ -477,7 +477,7 @@ describe("evals trpc", () => {
           project_id: project.id,
           trace_id: traceId,
           type: "SPAN",
-          metadata_names: ["job_configuration_id"],
+          metadata_names: ["rule_id"],
           metadata_values: [evaluatorId],
           cost_details: { total: 0 },
         }),

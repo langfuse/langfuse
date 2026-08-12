@@ -1,13 +1,11 @@
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
-import type { VariableFieldState } from "./types";
+import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 import {
   EditableVariableMapping,
   type EditableVariableMappingProps,
 } from "./components/EditableVariableMapping/EditableVariableMapping";
 import { VariableMappingBinding } from "./components/VariableMappingBinding/VariableMappingBinding";
 import { ReadOnlyVariableMappingCardShell } from "./components/VariableMappingCardShell";
-
-export type { ActiveVariableMapping } from "./components/EditableVariableMapping/EditableVariableMapping";
 
 type VariableMappingProps = {
   mappings: Array<{ variable: string; fieldState: VariableFieldState }>;

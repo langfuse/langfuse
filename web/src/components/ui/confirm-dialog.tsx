@@ -46,6 +46,7 @@ export function ConfirmDialog({
   onCancel,
   onConfirm,
   loading = false,
+  loadingText,
   confirmDisabled = false,
   size,
   children,
@@ -61,9 +62,11 @@ export function ConfirmDialog({
   onCancel?: () => void | Promise<void>;
   onConfirm: () => void | Promise<void>;
   loading?: boolean;
+  loadingText?: React.ReactNode;
   confirmDisabled?: boolean;
   children?: React.ReactNode;
 } & VariantProps<typeof confirmDialogContentVariants>) {
+  const cancelButtonRef = React.useRef<HTMLButtonElement>(null);
   const content = (
     <DialogContent
       className={confirmDialogContentVariants({ size })}
@@ -71,6 +74,10 @@ export function ConfirmDialog({
       // dismisses it (the shared default keeps outside interaction blocked to
       // protect form dialogs).
       closeOnInteractionOutside
+      onOpenAutoFocus={(event) => {
+        event.preventDefault();
+        cancelButtonRef.current?.focus();
+      }}
     >
       <DialogHeader variant="action">
         <DialogTitle>{title}</DialogTitle>
@@ -83,6 +90,7 @@ export function ConfirmDialog({
       </DialogBody>
       <DialogFooter variant="action">
         <Button
+          ref={cancelButtonRef}
           variant="outline"
           disabled={loading}
           onClick={onCancel ?? (() => onOpenChange(false))}
@@ -92,6 +100,7 @@ export function ConfirmDialog({
         <Button
           variant={confirmVariant}
           loading={loading}
+          loadingText={loadingText}
           disabled={confirmDisabled}
           onClick={onConfirm}
         >

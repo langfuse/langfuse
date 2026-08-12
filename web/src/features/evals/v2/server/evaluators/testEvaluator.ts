@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   CODE_EVAL_TEMPLATE_VARIABLES,
   observationVariableMappingList,
@@ -10,9 +9,11 @@ import {
   createLLMOutput,
   executeLlmEvaluator,
   extractObservationVariables,
+  findModel,
   generateLLMText,
   LangfuseInternalTraceEnvironment,
   mapLegacyLLMCompletionParams,
+  matchPricingTier,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
   type ExtractedVariable,
@@ -23,13 +24,14 @@ import type { EvaluatorDefinition } from "./evaluatorTypes";
 export async function testEvaluator(params: {
   orgId: string;
   projectId: string;
-  evaluatorId?: string;
+  evaluatorId: string;
   definition: EvaluatorDefinition;
   observationId: string;
   traceId: string;
   startTime: Date;
   shouldReadFromObservationsTable?: boolean;
 }) {
+  const startedAt = Date.now();
   const observation = await getObservationForEvalById({
     projectId: params.projectId,
     id: params.observationId,
@@ -56,29 +58,30 @@ export async function testEvaluator(params: {
     targetObservationId: params.observationId,
   });
 
-  if (params.definition.type === "CODE") {
-    return testCodeEvaluator({
-      orgId: params.orgId,
-      projectId: params.projectId,
-      evaluatorId: params.evaluatorId,
-      definition: params.definition,
-      variables,
-      metadata,
-    });
-  }
+  const result =
+    params.definition.type === "CODE"
+      ? await testCodeEvaluator({
+          orgId: params.orgId,
+          projectId: params.projectId,
+          evaluatorId: params.evaluatorId,
+          definition: params.definition,
+          variables,
+          metadata,
+        })
+      : await testLlmEvaluator({
+          projectId: params.projectId,
+          evaluatorId: params.evaluatorId,
+          definition: params.definition,
+          variables,
+          metadata,
+        });
 
-  return testLlmEvaluator({
-    projectId: params.projectId,
-    evaluatorId: params.evaluatorId,
-    definition: params.definition,
-    variables,
-    metadata,
-  });
+  return { ...result, durationMs: Date.now() - startedAt };
 }
 
 async function testLlmEvaluator(params: {
   projectId: string;
-  evaluatorId?: string;
+  evaluatorId: string;
   definition: Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
   variables: ExtractedVariable[];
   metadata: ReturnType<typeof buildEvalExecutionMetadata>;
@@ -94,6 +97,7 @@ async function testLlmEvaluator(params: {
 
   const executionTraceId = createW3CTraceId();
   let interpolatedPrompt: string | undefined;
+  let estimatedCostUsd: number | null = null;
   try {
     const execution = await executeLlmEvaluator({
       templatePrompt: params.definition.prompt,
@@ -126,6 +130,15 @@ async function testLlmEvaluator(params: {
             metadata: params.metadata,
           },
         });
+        estimatedCostUsd = await calculateTestRunCost({
+          projectId: params.projectId,
+          model: modelConfig.config.model,
+          usage: {
+            input: result.usage.inputTokens ?? 0,
+            output: result.usage.outputTokens ?? 0,
+            total: result.usage.totalTokens ?? 0,
+          },
+        });
         return result.output;
       },
     });
@@ -138,6 +151,7 @@ async function testLlmEvaluator(params: {
           model: modelConfig.config.model,
           provider: modelConfig.config.provider,
           executionTraceId,
+          estimatedCostUsd,
         }
       : {
           success: false as const,
@@ -155,10 +169,38 @@ async function testLlmEvaluator(params: {
   }
 }
 
+async function calculateTestRunCost({
+  projectId,
+  model,
+  usage,
+}: {
+  projectId: string;
+  model: string;
+  usage: Record<string, number>;
+}) {
+  const { pricingTiers } = await findModel({ projectId, model });
+  const pricing = matchPricingTier(pricingTiers, usage);
+  if (!pricing) return null;
+
+  const costs = Object.fromEntries(
+    Object.entries(usage).flatMap(([usageType, units]) => {
+      const price = pricing.prices[usageType];
+      return price ? [[usageType, price.mul(units).toNumber()]] : [];
+    }),
+  );
+  if (costs.total !== undefined) return costs.total;
+  const itemizedCosts = Object.entries(costs).filter(
+    ([usageType]) => usageType !== "total",
+  );
+  return itemizedCosts.length > 0
+    ? itemizedCosts.reduce((total, [, cost]) => total + cost, 0)
+    : null;
+}
+
 async function testCodeEvaluator(params: {
   orgId: string;
   projectId: string;
-  evaluatorId?: string;
+  evaluatorId: string;
   definition: Extract<EvaluatorDefinition, { type: "CODE" }>;
   variables: ExtractedVariable[];
   metadata: ReturnType<typeof buildEvalExecutionMetadata>;
@@ -171,7 +213,6 @@ async function testCodeEvaluator(params: {
     };
   }
 
-  const evaluatorId = params.evaluatorId ?? randomUUID();
   const executionTraceId = createW3CTraceId();
 
   return runCodeBasedEvaluationDispatch({
@@ -180,7 +221,7 @@ async function testCodeEvaluator(params: {
     projectId: params.projectId,
     executionTraceId,
     jobExecutionId: executionTraceId,
-    evaluator: { id: evaluatorId },
+    evaluator: { id: params.evaluatorId },
     version: params.definition,
     extractedVariables: params.variables,
     traceName: "Test evaluator",

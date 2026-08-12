@@ -5,23 +5,25 @@ import { EvaluatorActionsCell } from "./EvaluatorActionsCell";
 
 const meta = preview.meta({ component: EvaluatorActionsCell });
 
-export const WithScores = meta.story({
+export const ActiveEvaluator = meta.story({
   args: {
     hasActiveRules: true,
     canViewExecutions: true,
     onViewScores: fn(),
     onViewExecutions: fn(),
+    onManageRules: fn(),
     onEdit: fn(),
     onDelete: fn(),
   },
 });
 
-export const WithoutScores = meta.story({
+export const InactiveEvaluator = meta.story({
   args: {
     hasActiveRules: false,
     canViewExecutions: true,
     onViewScores: fn(),
     onViewExecutions: fn(),
+    onManageRules: fn(),
     onEdit: fn(),
     onDelete: fn(),
   },
@@ -34,6 +36,7 @@ export const OpenMenu = meta.story({
     canViewExecutions: true,
     onViewScores: fn(),
     onViewExecutions: fn(),
+    onManageRules: fn(),
     onEdit: fn(),
     onDelete: fn(),
   },

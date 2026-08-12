@@ -180,6 +180,7 @@ export type ObservationEvalFilterColumnInternal =
     | "user_id"
     | "session_id"
     | "tags"
+    | "experiment_id"
     | "experiment_dataset_id"
     | "metadata"
     | "parent_span_id"
@@ -383,6 +384,14 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     id: "parentObservationId",
     type: "null",
     internal: "parent_span_id",
+    nullable: true,
+  },
+  {
+    name: "Experiment ID",
+    id: "experimentId",
+    type: "stringOptions",
+    internal: "experiment_id",
+    options: [], // to be filled at runtime
     nullable: true,
   },
   {

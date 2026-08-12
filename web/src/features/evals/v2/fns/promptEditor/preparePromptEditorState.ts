@@ -1,6 +1,6 @@
 import { extractValueFromObjectAsString } from "@langfuse/shared";
 
-import type { VariableFieldState } from "@/src/features/evals/v2/components/VariableMapping/types";
+import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import { buildInterpolatedPromptPreview } from "@/src/features/evals/v2/fns/promptEditor/buildInterpolatedPromptPreview";
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";

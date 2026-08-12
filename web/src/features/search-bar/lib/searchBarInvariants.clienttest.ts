@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { FIELDS } from "./fields";
+import { EVENTS_FIELD_REGISTRY } from "./fields";
+import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import { validateQuery } from "./validate";
+import { planCommit } from "./commit";
+import { planInputCompletions } from "./completions";
 import {
   generateQueryCases,
   runSearchBarInvariants,
@@ -12,7 +16,7 @@ import {
 // See README.md "Extending to other views (the universality contract)".
 const eventsView: RegistryUnderTest = {
   name: "events v4",
-  fields: FIELDS,
+  registry: EVENTS_FIELD_REGISTRY,
   // Grammar overlay: dot-path examples + pseudo-fields (README step 2).
   extraKeys: [
     "metadata.region",
@@ -82,6 +86,15 @@ const eventsView: RegistryUnderTest = {
   ],
 };
 
+const evaluationRulesView: RegistryUnderTest = {
+  name: "evaluation rules",
+  registry: RULE_FIELD_REGISTRY,
+  extraKeys: ["metadata.region", "has:version", "has:parentObservationId"],
+  scoreContexts: [],
+  fieldValues: ["x", "ERROR", "5", "true", "a b"],
+  freeTextValues: [],
+};
+
 describe("search bar invariants — events v4 registry", () => {
   it("generates a broad field × operator × value matrix", () => {
     // Sanity: the matrix actually exercises the registry (guards against a
@@ -103,5 +116,50 @@ describe("search bar invariants — events v4 registry", () => {
               "\n",
             )}${failures.length > 25 ? `\n  …and ${failures.length - 25} more` : ""}`,
     ).toEqual([]);
+  });
+});
+
+describe("search bar invariants — evaluation rules registry", () => {
+  it("isolates the rule language from events-only fields and free text", () => {
+    expect(
+      validateQuery("latency:>2", undefined, RULE_FIELD_REGISTRY).valid,
+    ).toBe(false);
+    expect(validateQuery("refund", undefined, RULE_FIELD_REGISTRY).valid).toBe(
+      false,
+    );
+
+    const completion = planInputCompletions(
+      {
+        input: "",
+        caret: 0,
+        observed: {},
+        recents: ["latency:>2"],
+        currentQueryText: "",
+      },
+      RULE_FIELD_REGISTRY,
+    );
+    expect(
+      completion?.sections
+        .flatMap((section) => section.options)
+        .some(
+          (option) => option.kind === "field" && option.fieldId === "latency",
+        ),
+    ).toBe(false);
+    expect(
+      completion?.sections
+        .flatMap((section) => section.options)
+        .some((option) => option.kind === "recent"),
+    ).toBe(false);
+
+    expect(
+      planCommit("tags:billing", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [{ column: "tags", type: "arrayOptions" }],
+    });
+  });
+
+  it("holds commit parity and FilterState round-trips", () => {
+    expect(runSearchBarInvariants(evaluationRulesView)).toEqual([]);
   });
 });

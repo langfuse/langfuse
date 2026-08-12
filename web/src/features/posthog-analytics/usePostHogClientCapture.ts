@@ -162,7 +162,15 @@ export const events = {
     "delete_form_open",
     "delete_template_button_click",
   ],
-  evaluators: ["create", "update", "delete", "test"],
+  evaluators: ["create", "update", "delete", "test", "default_model_update"],
+  evaluation_rules: [
+    "create",
+    "update",
+    "delete",
+    "status_change",
+    "attach_evaluator",
+    "detach_evaluator",
+  ],
   integrations: [
     "posthog_form_submitted",
     "blob_storage_form_submitted",

@@ -22,7 +22,8 @@ import {
 const APIEvaluationRuleBase = {
   id: z.string(),
   name: z.string(),
-  evaluator: PublicEvaluationRuleEvaluator,
+  // Null when the rule has no evaluator assignments. Prefer `evaluators`.
+  evaluator: PublicEvaluationRuleEvaluator.nullable(),
   enabled: z.boolean(),
   status: PublicEvaluationRuleStatus,
   pausedReason: z.string().nullable(),
@@ -35,6 +36,12 @@ const APIEvaluationRuleBase = {
 export const APIEvaluationRule = z
   .object({
     ...APIEvaluationRuleBase,
+    evaluators: z.array(
+      z.object({
+        evaluator: PublicEvaluationRuleEvaluator,
+        mapping: z.array(PublicEvaluationRuleMapping).nullable(),
+      }),
+    ),
     target: PublicEvaluationRuleTarget,
     filter: z.array(PublicEvaluationRuleFilter),
     mapping: z.array(PublicEvaluationRuleMapping),
@@ -44,6 +51,12 @@ export const APIEvaluationRule = z
 export const APILegacyEvaluationRule = z
   .object({
     ...APIEvaluationRuleBase,
+    evaluators: z.array(
+      z.object({
+        evaluator: PublicEvaluationRuleEvaluator,
+        mapping: z.array(LegacyEvaluationRuleMapping).nullable(),
+      }),
+    ),
     target: PublicEvaluationRuleLegacyTarget,
     delay: z.number().int().nonnegative(),
     timeScope: z.array(JobTimeScopeZod),
@@ -75,13 +88,25 @@ export const GetUnstableEvaluationRuleResponse = APIReadableEvaluationRule;
 
 export const EvaluationRuleCreateBase = {
   name: z.string().min(1),
-  evaluator: PublicEvaluationRuleEvaluatorReference,
+  evaluator: PublicEvaluationRuleEvaluatorReference.optional(),
   enabled: z.boolean(),
   sampling: z.number().gt(0).lte(1).default(1),
 };
 
+function evaluatorAssignment<T extends z.ZodType>(mapping: T) {
+  return z.object({
+    evaluator: PublicEvaluationRuleEvaluatorReference,
+    mapping: z.array(mapping).optional(),
+  });
+}
+
 const PostUnstableObservationEvaluationRuleBody = z.object({
   ...EvaluationRuleCreateBase,
+  evaluators: z
+    .array(evaluatorAssignment(ObservationEvaluationRuleMapping))
+    .min(1)
+    .max(100)
+    .optional(),
   target: z.literal("observation"),
   filter: z.array(ObservationEvaluationRuleFilter).default([]),
   mapping: z.array(ObservationEvaluationRuleMapping).optional(),
@@ -89,35 +114,46 @@ const PostUnstableObservationEvaluationRuleBody = z.object({
 
 const PostUnstableExperimentEvaluationRuleBody = z.object({
   ...EvaluationRuleCreateBase,
+  evaluators: z
+    .array(evaluatorAssignment(ExperimentEvaluationRuleMapping))
+    .min(1)
+    .max(100)
+    .optional(),
   target: z.literal("experiment"),
   filter: z.array(ExperimentEvaluationRuleFilter).default([]),
   mapping: z.array(ExperimentEvaluationRuleMapping).optional(),
 });
 
-// `code` evaluators use a fixed runtime mapping managed by Langfuse and must
-// omit `mapping`; `llm_as_judge` evaluators require it.
+// `code` evaluators use a fixed runtime mapping managed by Langfuse. LLM
+// mappings may be omitted to inherit the evaluator version's default mapping.
 export const PostUnstableEvaluationRuleBody = z
   .discriminatedUnion("target", [
     PostUnstableObservationEvaluationRuleBody,
     PostUnstableExperimentEvaluationRuleBody,
   ])
+  .refine((data) => Boolean(data.evaluator) !== Boolean(data.evaluators), {
+    path: ["evaluators"],
+    message: "Provide exactly one of evaluator or evaluators.",
+  })
+  .refine((data) => !data.evaluators || data.mapping === undefined, {
+    path: ["mapping"],
+    message:
+      "`mapping` is the deprecated single-evaluator alias and cannot be combined with `evaluators`. Set the mapping on the matching entry in `evaluators` instead.",
+  })
   .refine(
     (data) =>
-      data.evaluator.type !== PUBLIC_EVALUATOR_TYPE_CODE ||
-      data.mapping === undefined,
+      (!data.evaluator ||
+        data.evaluator.type !== PUBLIC_EVALUATOR_TYPE_CODE ||
+        data.mapping === undefined) &&
+      (data.evaluators ?? []).every(
+        (assignment) =>
+          assignment.evaluator.type !== PUBLIC_EVALUATOR_TYPE_CODE ||
+          assignment.mapping === undefined,
+      ),
     {
       path: ["mapping"],
       message:
         "Code evaluator mappings are managed by Langfuse and cannot be provided in the request body.",
-    },
-  )
-  .refine(
-    (data) =>
-      data.evaluator.type === PUBLIC_EVALUATOR_TYPE_CODE ||
-      data.mapping !== undefined,
-    {
-      path: ["mapping"],
-      message: "LLM-as-judge evaluation rules require a variable mapping.",
     },
   );
 export type PostUnstableEvaluationRuleBodyType = z.infer<
@@ -139,8 +175,28 @@ export const EvaluationRulePatchBase = {
   sampling: z.number().gt(0).lte(1).optional(),
 };
 
+// Replacing `evaluators` is a full set replacement: entries not listed are
+// detached. Mutually exclusive with the deprecated `evaluator`/`mapping` pair,
+// which only ever addressed the first assignment.
+function patchEvaluators<T extends z.ZodType>(mapping: T) {
+  return z.array(evaluatorAssignment(mapping)).min(1).max(100).optional();
+}
+
+function assertExclusiveEvaluatorFields<
+  T extends { evaluator?: unknown; mapping?: unknown; evaluators?: unknown },
+>(data: T) {
+  return (
+    !data.evaluators ||
+    (data.evaluator === undefined && data.mapping === undefined)
+  );
+}
+
+const EXCLUSIVE_EVALUATOR_FIELDS_MESSAGE =
+  "`evaluators` replaces the whole assignment set and cannot be combined with the deprecated `evaluator` or `mapping` fields.";
+
 const UntargetedEvaluationRulePatch = z.object({
   ...EvaluationRulePatchBase,
+  evaluators: patchEvaluators(ObservationEvaluationRuleMapping),
   target: z.undefined().optional(),
   filter: z.undefined().optional(),
   mapping: z.undefined().optional(),
@@ -148,6 +204,7 @@ const UntargetedEvaluationRulePatch = z.object({
 
 const ObservationEvaluationRulePatch = z.object({
   ...EvaluationRulePatchBase,
+  evaluators: patchEvaluators(ObservationEvaluationRuleMapping),
   target: z.literal("observation"),
   filter: z.array(ObservationEvaluationRuleFilter).optional(),
   mapping: z.array(ObservationEvaluationRuleMapping).optional(),
@@ -155,6 +212,7 @@ const ObservationEvaluationRulePatch = z.object({
 
 const ExperimentEvaluationRulePatch = z.object({
   ...EvaluationRulePatchBase,
+  evaluators: patchEvaluators(ExperimentEvaluationRuleMapping),
   target: z.literal("experiment"),
   filter: z.array(ExperimentEvaluationRuleFilter).optional(),
   mapping: z.array(ExperimentEvaluationRuleMapping).optional(),
@@ -169,6 +227,10 @@ export const PatchUnstableEvaluationRuleBody = z
   .refine((data) => Object.keys(data).length > 0, {
     message:
       "Request body cannot be empty. At least one field must be provided for update.",
+  })
+  .refine(assertExclusiveEvaluatorFields, {
+    path: ["evaluators"],
+    message: EXCLUSIVE_EVALUATOR_FIELDS_MESSAGE,
   });
 export type PatchUnstableEvaluationRuleBodyType = z.infer<
   typeof PatchUnstableEvaluationRuleBody

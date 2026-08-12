@@ -10,9 +10,9 @@ import {
   PersistedEvalOutputDefinitionSchema,
   resolvePersistedEvalOutputDefinition,
   singleFilter,
-  variableMappingList,
   type ObservationVariableMapping,
   type PersistedEvalOutputDefinition,
+  variableMappingList,
 } from "@langfuse/shared";
 import { InternalServerError } from "@langfuse/shared";
 import { EvalTemplateType } from "@langfuse/shared/src/db";
@@ -20,14 +20,16 @@ import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
   ExperimentEvaluationRuleFilter,
-  type LegacyEvaluationRuleMappingType,
+  LegacyEvaluationRuleMapping,
   ObservationEvaluationRuleFilter,
+  ObservationEvaluationRuleMapping,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   type PublicEvaluationRuleFilterType,
   type PublicEvaluationRuleMappingType,
   type PublicEvaluationRuleReadTargetType,
   type PublicEvaluationRuleTargetType,
+  type LegacyEvaluationRuleMappingType,
   type PublicEvaluatorModelConfigType,
   type PublicEvaluatorOutputDefinitionType,
   type PublicEvaluatorTypeType,
@@ -35,11 +37,11 @@ import {
 import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type {
-  ApiEvaluationRuleRecord,
   ApiEvaluatorRecord,
+  ApiEvaluationRuleRecord,
   ApiWritableEvaluationRuleRecord,
-  StoredPublicEvaluationRuleConfig,
   StoredPublicEvaluatorTemplate,
+  StoredPublicV2EvaluationRule,
 } from "./types";
 import {
   validateEvaluationRuleFilters,
@@ -60,13 +62,10 @@ export function toStoredEvaluatorType(
     : EvalTemplateType.LLM_AS_JUDGE;
 }
 
-const PUBLIC_TARGET_TO_INTERNAL_TARGET_OBJECT: Record<
-  PublicEvaluationRuleTargetType,
-  string
-> = {
+const PUBLIC_TARGET_TO_INTERNAL_TARGET_OBJECT = {
   observation: EvalTargetObject.EVENT,
   experiment: EvalTargetObject.EXPERIMENT,
-};
+} satisfies Record<PublicEvaluationRuleTargetType, EvalTargetObject>;
 
 const INTERNAL_TARGET_OBJECT_TO_PUBLIC_TARGET: Record<
   string,
@@ -126,7 +125,7 @@ export function deriveEvaluatorVariables(
     : extractVariables(template.prompt ?? "");
 }
 
-function toStoredVariableMappings(params: {
+export function toStoredVariableMappings(params: {
   mappings: PublicEvaluationRuleMappingType[];
   variables: string[];
   target: PublicEvaluationRuleTargetType;
@@ -137,8 +136,19 @@ function toStoredVariableMappings(params: {
     target: params.target,
   });
 
+  return toStoredMappingList(params.mappings);
+}
+
+/**
+ * Shape-only translation of the public mapping contract to storage. Use this
+ * where the evaluator's variables are not known and coverage is validated
+ * elsewhere; prefer `toStoredVariableMappings` when they are.
+ */
+export function toStoredMappingList(
+  mappings: PublicEvaluationRuleMappingType[],
+) {
   return observationVariableMappingList.parse(
-    params.mappings.map((mapping) => ({
+    mappings.map((mapping) => ({
       templateVariable: mapping.variable,
       selectedColumnId:
         PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN[mapping.source],
@@ -236,20 +246,6 @@ export function toApiModelConfig(
   };
 }
 
-function toApiEvaluationRuleStatus(
-  config: Pick<StoredPublicEvaluationRuleConfig, "status" | "blockedAt">,
-): ApiEvaluationRuleRecord["status"] {
-  if (config.status === JobConfigState.INACTIVE) {
-    return "inactive";
-  }
-
-  if (config.blockedAt) {
-    return "paused";
-  }
-
-  return "active";
-}
-
 function assertPublicTarget(
   targetObject: string,
 ): PublicEvaluationRuleReadTargetType {
@@ -290,7 +286,9 @@ function toApiFilter(
   return filter as PublicEvaluationRuleFilterType;
 }
 
-function toApiMappings(mappings: unknown): PublicEvaluationRuleMappingType[] {
+export function toApiMappings(
+  mappings: unknown,
+): PublicEvaluationRuleMappingType[] {
   const parsed = observationVariableMappingList.safeParse(mappings);
 
   if (!parsed.success) {
@@ -316,25 +314,68 @@ function toApiMappings(mappings: unknown): PublicEvaluationRuleMappingType[] {
   });
 }
 
-function toApiLegacyMappings(
+export function toApiLegacyMappings(
   mappings: unknown,
 ): LegacyEvaluationRuleMappingType[] {
   const parsed = variableMappingList.safeParse(mappings);
 
   if (!parsed.success) {
-    logger.error("Failed to parse unstable public evaluation rule mappings", {
+    logger.error("Failed to parse unstable public legacy rule mappings", {
       issues: parsed.error.issues,
     });
     throw new InternalServerError("Evaluation rule mapping is corrupted");
   }
 
-  return parsed.data.map((mapping) => ({
+  const publicMappings = parsed.data.map((mapping) => ({
     variable: mapping.templateVariable,
     langfuseObject: mapping.langfuseObject,
     objectName: mapping.objectName ?? null,
     source: mapping.selectedColumnId,
     ...(mapping.jsonSelector ? { jsonPath: mapping.jsonSelector } : {}),
   }));
+  const parsedPublicMappings = z
+    .array(LegacyEvaluationRuleMapping)
+    .safeParse(publicMappings);
+  if (!parsedPublicMappings.success) {
+    logger.error("Failed to parse unstable public legacy rule mappings", {
+      issues: parsedPublicMappings.error.issues,
+    });
+    throw new InternalServerError("Evaluation rule mapping is corrupted");
+  }
+  return parsedPublicMappings.data;
+}
+
+function toDefaultLegacyMappings(
+  mappings: unknown,
+  target: "trace" | "dataset",
+): LegacyEvaluationRuleMappingType[] {
+  return toApiMappings(mappings).map((mapping) => ({
+    ...mapping,
+    langfuseObject: target === "trace" ? "trace" : "dataset_item",
+    objectName: null,
+  }));
+}
+
+function getLegacyCodeEvalVariableMapping(target: "trace" | "dataset") {
+  return variableMappingList.parse(
+    CODE_EVAL_TEMPLATE_VARIABLES.map((variable) => ({
+      templateVariable: variable,
+      langfuseObject: target === "trace" ? "trace" : "dataset_item",
+      objectName: null,
+      selectedColumnId: variable,
+      jsonSelector: null,
+    })),
+  );
+}
+
+function toApiObservationMappings(mappings: unknown) {
+  const parsed = z
+    .array(ObservationEvaluationRuleMapping)
+    .safeParse(toApiMappings(mappings));
+  if (!parsed.success) {
+    throw new InternalServerError("Evaluator default mapping is corrupted");
+  }
+  return parsed.data;
 }
 
 function toApiFilters(
@@ -366,22 +407,6 @@ function toApiFilters(
   return parsedPublicFilters.data;
 }
 
-// Legacy rules must retain the persisted singleFilter shape. The v4 target
-// schemas below are intentionally target-specific and would reject valid
-// legacy columns such as traceTags, timestamp, release, or bookmarked.
-function toApiLegacyFilters(filters: unknown): z.infer<typeof singleFilter>[] {
-  const storedFilters = z.array(singleFilter).safeParse(filters);
-
-  if (!storedFilters.success) {
-    logger.error("Failed to parse unstable public evaluation rule filters", {
-      issues: storedFilters.error.issues,
-    });
-    throw new InternalServerError("Evaluation rule filter is corrupted");
-  }
-
-  return storedFilters.data;
-}
-
 export function toApiEvaluator(params: {
   template: StoredPublicEvaluatorTemplate;
   evaluationRuleCount: number;
@@ -391,8 +416,11 @@ export function toApiEvaluator(params: {
     id: template.id,
     name: template.name,
     version: template.version,
-    scope: template.projectId === null ? "managed" : "project",
     variables: deriveEvaluatorVariables(template),
+    mapping:
+      template.variableMapping == null
+        ? null
+        : toApiObservationMappings(template.variableMapping),
     evaluationRuleCount: params.evaluationRuleCount,
     createdAt: template.createdAt,
     updatedAt: template.updatedAt,
@@ -425,86 +453,112 @@ export function toApiEvaluator(params: {
   };
 }
 
-export function toApiEvaluationRule(
-  config: StoredPublicEvaluationRuleConfig,
+export function toApiV2EvaluationRule(
+  rule: StoredPublicV2EvaluationRule,
 ): ApiEvaluationRuleRecord {
-  if (!config.evalTemplate?.id) {
-    throw new InternalServerError("Evaluation rule evaluator is corrupted");
-  }
+  // A rule can legitimately have no assignments (e.g. its last evaluator was
+  // detached). The compatibility `evaluator`/`mapping` aliases then report
+  // null/empty rather than the resource 404ing.
+  const assignment = rule.assignments[0] ?? null;
+  const evaluator = assignment?.evaluator ?? null;
 
-  const target = assertPublicTarget(config.targetObject);
-  const base = {
-    id: config.id,
-    name: config.scoreName,
-    evaluator: {
-      id: config.evalTemplate.id,
-      name: config.evalTemplate.name,
-      scope: config.evalTemplate.projectId === null ? "managed" : "project",
-      type: toPublicEvaluatorType(config.evalTemplate.type),
-    },
-    enabled: config.status === JobConfigState.ACTIVE,
-    status: toApiEvaluationRuleStatus(config),
-    pausedReason: config.blockReason ?? null,
-    pausedMessage: config.blockMessage ?? null,
-    sampling: Number(config.sampling),
-    createdAt: config.createdAt,
-    updatedAt: config.updatedAt,
-  } as const;
-
+  const toEvaluator = (candidate: NonNullable<typeof assignment>) => ({
+    id: candidate.evaluator.id,
+    name: candidate.evaluator.name,
+    type: toPublicEvaluatorType(candidate.evaluator.type),
+  });
+  const target = assertPublicTarget(rule.targetObject);
   if (target === "trace" || target === "dataset") {
-    const parsedTimeScope = z
-      .array(JobTimeScopeZod)
-      .safeParse(config.timeScope);
-
-    if (!parsedTimeScope.success) {
-      logger.error(
-        "Failed to parse unstable public evaluation rule time scope",
-        {
-          issues: parsedTimeScope.error.issues,
-          evaluationRuleId: config.id,
-        },
-      );
+    const evaluators = rule.assignments.map((candidate) => ({
+      evaluator: toEvaluator(candidate),
+      mapping:
+        candidate.variableMapping == null
+          ? null
+          : toApiLegacyMappings(candidate.variableMapping),
+    }));
+    const effectiveFirstMapping =
+      assignment === null || evaluator === null
+        ? []
+        : assignment.variableMapping != null
+          ? toApiLegacyMappings(assignment.variableMapping)
+          : evaluator.type === EvalTemplateType.CODE
+            ? toApiLegacyMappings(getLegacyCodeEvalVariableMapping(target))
+            : toDefaultLegacyMappings(
+                evaluator.versions[0]?.variableMapping,
+                target,
+              );
+    const timeScope = z.array(JobTimeScopeZod).safeParse(rule.timeScope);
+    if (!timeScope.success) {
       throw new InternalServerError("Evaluation rule time scope is corrupted");
     }
 
     return {
-      ...base,
+      id: rule.id,
+      name: rule.name,
+      evaluator: assignment === null ? null : toEvaluator(assignment),
+      evaluators,
+      enabled: rule.status === JobConfigState.ACTIVE,
+      status: rule.status === JobConfigState.ACTIVE ? "active" : "inactive",
+      pausedReason: null,
+      pausedMessage: null,
+      sampling: Number(rule.sampling),
       target,
-      delay: config.delay,
-      timeScope: parsedTimeScope.data,
-      filter: toApiLegacyFilters(config.filter),
-      mapping: toApiLegacyMappings(config.variableMapping),
+      delay: rule.delay,
+      timeScope: timeScope.data,
+      filter: z.array(singleFilter).parse(rule.filter),
+      mapping: effectiveFirstMapping,
+      createdAt: rule.createdAt,
+      updatedAt: rule.updatedAt,
     };
   }
 
-  return {
-    ...base,
-    target,
-    filter: toApiFilters(config.filter, target),
-    mapping: toApiMappings(
-      config.evalTemplate.type === EvalTemplateType.CODE
+  const evaluators = rule.assignments.map((candidate) => ({
+    evaluator: toEvaluator(candidate),
+    mapping:
+      candidate.variableMapping == null
+        ? null
+        : toApiMappings(candidate.variableMapping),
+  }));
+  const effectiveFirstMapping =
+    assignment === null || evaluator === null
+      ? []
+      : evaluator.type === EvalTemplateType.CODE
         ? getCodeEvalVariableMapping()
-        : config.variableMapping,
-    ),
+        : (assignment.variableMapping ??
+          evaluator.versions[0]?.variableMapping);
+
+  return {
+    id: rule.id,
+    name: rule.name,
+    evaluator: assignment === null ? null : toEvaluator(assignment),
+    evaluators,
+    enabled: rule.status === JobConfigState.ACTIVE,
+    status: rule.status === JobConfigState.ACTIVE ? "active" : "inactive",
+    pausedReason: null,
+    pausedMessage: null,
+    sampling: Number(rule.sampling),
+    target,
+    filter: toApiFilters(rule.filter, target),
+    mapping: toApiMappings(effectiveFirstMapping),
+    createdAt: rule.createdAt,
+    updatedAt: rule.updatedAt,
   };
 }
 
-export function toApiWritableEvaluationRule(
-  config: StoredPublicEvaluationRuleConfig,
+export function toApiWritableV2EvaluationRule(
+  rule: StoredPublicV2EvaluationRule,
 ): ApiWritableEvaluationRuleRecord {
-  const evaluationRule = toApiEvaluationRule(config);
-
+  const evaluationRule = toApiV2EvaluationRule(rule);
   if (
     evaluationRule.target !== "observation" &&
     evaluationRule.target !== "experiment"
   ) {
     throw new InternalServerError("Evaluation rule target is corrupted");
   }
-
   return evaluationRule;
 }
 
-export function toJobConfigurationInput(params: {
+export function toEvaluationRuleInput(params: {
   input: {
     name: string;
     target: PublicEvaluationRuleTargetType;
@@ -516,29 +570,53 @@ export function toJobConfigurationInput(params: {
   evaluatorVariables: string[];
   evaluatorType: PublicEvaluatorTypeType;
 }) {
-  validateEvaluationRuleFilters({
-    target: params.input.target,
-    filters: params.input.filter,
-  });
-  const variableMapping =
-    params.evaluatorType === PUBLIC_EVALUATOR_TYPE_CODE
-      ? getCodeEvalVariableMapping()
-      : toStoredVariableMappings({
-          mappings: params.input.mapping ?? [],
-          variables: params.evaluatorVariables,
-          target: params.input.target,
-        });
+  return {
+    ...toEvaluationRuleFields(params.input),
+    variableMapping: toStoredAssignmentMapping({
+      target: params.input.target,
+      mapping: params.input.mapping,
+      evaluatorVariables: params.evaluatorVariables,
+      evaluatorType: params.evaluatorType,
+    }),
+  };
+}
+
+/**
+ * Rule-level columns. Independent of any evaluator, so a rule with no
+ * assignments can still be written.
+ */
+export function toEvaluationRuleFields(input: {
+  name: string;
+  target: PublicEvaluationRuleTargetType;
+  enabled: boolean;
+  sampling: number;
+  filter: PublicEvaluationRuleFilterType[];
+}) {
+  const target = input.target;
+
+  validateEvaluationRuleFilters({ target, filters: input.filter });
 
   return {
-    scoreName: params.input.name,
-    targetObject: PUBLIC_TARGET_TO_INTERNAL_TARGET_OBJECT[params.input.target],
-    filter: params.input.filter.map((filter) =>
-      toStoredFilter(filter, params.input.target),
-    ),
-    variableMapping,
-    sampling: params.input.sampling,
-    status: params.input.enabled
-      ? JobConfigState.ACTIVE
-      : JobConfigState.INACTIVE,
+    scoreName: input.name,
+    targetObject: PUBLIC_TARGET_TO_INTERNAL_TARGET_OBJECT[target],
+    filter: input.filter.map((filter) => toStoredFilter(filter, target)),
+    sampling: input.sampling,
+    status: input.enabled ? JobConfigState.ACTIVE : JobConfigState.INACTIVE,
   };
+}
+
+/** Stored mapping for one assignment. Code evaluators use the fixed runtime mapping. */
+export function toStoredAssignmentMapping(params: {
+  target: PublicEvaluationRuleTargetType;
+  mapping?: PublicEvaluationRuleMappingType[];
+  evaluatorVariables: string[];
+  evaluatorType: PublicEvaluatorTypeType;
+}) {
+  return params.evaluatorType === PUBLIC_EVALUATOR_TYPE_CODE
+    ? getCodeEvalVariableMapping()
+    : toStoredVariableMappings({
+        mappings: params.mapping ?? [],
+        variables: params.evaluatorVariables,
+        target: params.target,
+      });
 }

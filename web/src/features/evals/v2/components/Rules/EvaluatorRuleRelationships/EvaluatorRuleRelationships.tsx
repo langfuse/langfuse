@@ -1,0 +1,373 @@
+import {
+  EvalTemplateType,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
+import { Link2, ListTree, Plus, Unlink } from "lucide-react";
+import { useRouter } from "next/router";
+import { useState } from "react";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
+import { PopoverTrigger } from "@/src/components/ui/popover";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/src/components/ui/sheet";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { ActivationConfirmationDialog } from "@/src/features/evals/v2/components/Rules/ActivationConfirmationDialog/ActivationConfirmationDialog";
+import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
+import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
+import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { api } from "@/src/utils/api";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { cn } from "@/src/utils/tailwind";
+
+function RuleCount({ count }: { count: number }) {
+  return (
+    <span className="bg-muted ml-1 rounded-full px-1.5 py-0.5 text-xs tabular-nums">
+      {count}
+    </span>
+  );
+}
+
+function RuleRelationshipButton({
+  count,
+  onClick,
+}: {
+  count: number;
+  onClick: () => void;
+}) {
+  return (
+    <Button type="button" variant="outline" onClick={onClick}>
+      <ListTree className="mr-2 h-4 w-4" />
+      Rules
+      <RuleCount count={count} />
+    </Button>
+  );
+}
+
+export function EvaluatorRuleRelationships({
+  projectId,
+  evaluatorId,
+  evaluatorName,
+  evaluatorType,
+  evaluatorDefaultVariableMapping,
+}: {
+  projectId: string;
+  evaluatorId: string;
+  evaluatorName: string;
+  evaluatorType: EvalTemplateType;
+  evaluatorDefaultVariableMapping: ObservationVariableMapping[];
+}) {
+  const [open, setOpen] = useState(false);
+  const assignments = api.evalsV2.rules.listRulesForEvaluator.useQuery({
+    projectId,
+    evaluatorId,
+  });
+
+  return (
+    <>
+      <RuleRelationshipButton
+        count={assignments.data?.length ?? 0}
+        onClick={() => setOpen(true)}
+      />
+      <EvaluatorRuleRelationshipsSheet
+        projectId={projectId}
+        evaluatorId={evaluatorId}
+        evaluatorName={evaluatorName}
+        evaluatorType={evaluatorType}
+        evaluatorDefaultVariableMapping={evaluatorDefaultVariableMapping}
+        source="evaluator_detail"
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
+  );
+}
+
+export function EvaluatorRuleRelationshipsSheet({
+  projectId,
+  evaluatorId,
+  evaluatorName,
+  evaluatorType,
+  evaluatorDefaultVariableMapping,
+  source,
+  open,
+  onOpenChange,
+}: {
+  projectId: string;
+  evaluatorId: string;
+  evaluatorName: string;
+  evaluatorType: EvalTemplateType;
+  evaluatorDefaultVariableMapping: ObservationVariableMapping[];
+  source: "evaluator_detail" | "evaluator_overview";
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [ruleSearch, setRuleSearch] = useState("");
+  const [ruleSearchQuery, setRuleSearchQuery] = useState("");
+  const debouncedRuleSearch = useDebounce(setRuleSearchQuery, 300, false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const activationConfirmation = useActivationConfirmation({ projectId });
+  const isEstimating = activationConfirmation.estimate.status === "estimating";
+  const hasWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalJob:CUD",
+  });
+  const assignments = api.evalsV2.rules.listRulesForEvaluator.useQuery(
+    { projectId, evaluatorId },
+    { enabled: open },
+  );
+  const rules = api.evalsV2.rules.list.useQuery(
+    {
+      projectId,
+      page: 1,
+      limit: 100,
+      search: ruleSearchQuery.trim() || undefined,
+    },
+    { enabled: open && pickerOpen },
+  );
+  const invalidate = () =>
+    Promise.all([
+      utils.evalsV2.rules.listRulesForEvaluator.invalidate({
+        projectId,
+        evaluatorId,
+      }),
+      utils.evalsV2.rules.list.invalidate({ projectId }),
+      utils.evalsV2.list.invalidate({ projectId }),
+    ]);
+  const attach = api.evalsV2.rules.attach.useMutation({
+    onError: trpcErrorToast,
+    onSuccess: async () => {
+      capture("evaluation_rules:attach_evaluator", {
+        evaluatorCount: 1,
+        source,
+      });
+      setPickerOpen(false);
+      await invalidate();
+    },
+  });
+  const updateRule = api.evalsV2.rules.update.useMutation({
+    onError: trpcErrorToast,
+  });
+  const detach = api.evalsV2.rules.detach.useMutation({
+    onError: trpcErrorToast,
+    onSuccess: async () => {
+      capture("evaluation_rules:detach_evaluator", {
+        evaluatorCount: 1,
+        source,
+      });
+      await invalidate();
+    },
+  });
+  const attachedRuleIds = new Set(
+    (assignments.data ?? []).map(({ evaluationRule }) => evaluationRule.id),
+  );
+  const assignmentCount = assignments.data?.length ?? 0;
+
+  return (
+    <>
+      <Sheet open={open} modal={false} onOpenChange={onOpenChange}>
+        <SheetContent className="flex flex-col gap-5 overflow-y-auto sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Rules</SheetTitle>
+            <SheetDescription>
+              {assignments.isPending
+                ? "Loading attached rules…"
+                : `This evaluator is used by ${assignmentCount} ${assignmentCount === 1 ? "rule" : "rules"}. Attach it to another rule or remove an existing connection.`}
+            </SheetDescription>
+          </SheetHeader>
+
+          {assignments.isPending ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {assignmentCount > 0 ? (
+                <ul className="divide-y rounded-md border">
+                  {(assignments.data ?? []).map(({ evaluationRule }) => (
+                    <li
+                      key={evaluationRule.id}
+                      className="flex min-w-0 items-center gap-2 px-3 py-2"
+                    >
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 truncate text-left text-sm hover:underline"
+                        title={evaluationRule.name}
+                        onClick={() =>
+                          router.push(
+                            `/project/${projectId}/evals/v2/rules?rule=${encodeURIComponent(evaluationRule.id)}`,
+                          )
+                        }
+                      >
+                        {evaluationRule.name}
+                      </button>
+                      <Badge
+                        variant={
+                          evaluationRule.enabled ? "default" : "secondary"
+                        }
+                        className={cn(
+                          "shrink-0",
+                          evaluationRule.enabled &&
+                            "bg-light-green text-dark-green hover:bg-light-green",
+                        )}
+                      >
+                        {evaluationRule.enabled ? "Active" : "Inactive"}
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2"
+                        disabled={!hasWriteAccess || detach.isPending}
+                        onClick={() =>
+                          detach.mutate({
+                            projectId,
+                            ruleId: evaluationRule.id,
+                            evaluatorId,
+                          })
+                        }
+                      >
+                        <Unlink className="h-3.5 w-3.5" />
+                        Disconnect
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              <EvaluationRulePicker
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
+                search={ruleSearch}
+                onSearchChange={(value) => {
+                  setRuleSearch(value);
+                  debouncedRuleSearch(value);
+                }}
+                loading={rules.isPending || attach.isPending || isEstimating}
+                disabledRules={(rules.data?.rules ?? [])
+                  .filter((rule) => attachedRuleIds.has(rule.id))
+                  .map((rule) => ({
+                    rule,
+                    reason: "This evaluator is already attached.",
+                  }))}
+                availableRules={(rules.data?.rules ?? []).filter(
+                  (rule) => !attachedRuleIds.has(rule.id),
+                )}
+                onSelectAvailableRule={(rule) => {
+                  activationConfirmation
+                    .requestActivation({
+                      targets:
+                        rule.enabled &&
+                        evaluatorType === EvalTemplateType.LLM_AS_JUDGE
+                          ? [
+                              {
+                                evaluatorId,
+                                evaluatorName,
+                                filter: rule.filter,
+                                sampling: rule.sampling,
+                              },
+                            ]
+                          : [],
+                      title: "Attach LLM evaluator?",
+                      description:
+                        "This rule is active. Based on matching observations from the last seven days and the latest evaluator test call:",
+                      confirmLabel: "Attach evaluator",
+                      onConfirm: async (sampling) => {
+                        if (
+                          sampling !== undefined &&
+                          sampling !== rule.sampling
+                        ) {
+                          await updateRule.mutateAsync({
+                            projectId,
+                            ruleId: rule.id,
+                            sampling,
+                          });
+                        }
+                        await attach.mutateAsync({
+                          projectId,
+                          ruleId: rule.id,
+                          evaluatorId,
+                          variableMapping: null,
+                        });
+                      },
+                    })
+                    .catch(() => undefined);
+                }}
+                onCreateRule={() => {
+                  setPickerOpen(false);
+                  setCreateOpen(true);
+                }}
+                align="start"
+              >
+                {() => (
+                  <PopoverTrigger asChild>
+                    {assignmentCount === 0 ? (
+                      <button
+                        type="button"
+                        className="border-border hover:bg-muted/50 focus-visible:ring-ring flex w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed px-4 py-6 text-center transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!hasWriteAccess}
+                      >
+                        <span className="flex items-center gap-2 text-sm font-bold">
+                          <Link2 className="h-4 w-4" />
+                          Attach to rule
+                        </span>
+                        <span className="text-muted-foreground text-xs font-normal">
+                          Choose a rule that should run this evaluator.
+                        </span>
+                      </button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-foreground hover:text-foreground h-auto px-0 py-0 text-xs underline-offset-4 hover:bg-transparent hover:underline"
+                        disabled={!hasWriteAccess}
+                      >
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        Attach another rule
+                      </Button>
+                    )}
+                  </PopoverTrigger>
+                )}
+              </EvaluationRulePicker>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+      {createOpen ? (
+        <CreateRuleDialog
+          projectId={projectId}
+          open
+          initialEvaluator={{
+            id: evaluatorId,
+            name: evaluatorName,
+            type: evaluatorType,
+            defaultVariableMapping: evaluatorDefaultVariableMapping,
+          }}
+          onOpenChange={setCreateOpen}
+        />
+      ) : null}
+      <ActivationConfirmationDialog
+        confirmation={activationConfirmation.confirmation}
+        estimate={activationConfirmation.estimate}
+        onOpenChange={activationConfirmation.setOpen}
+        onSamplingChange={activationConfirmation.setSampling}
+        onConfirm={() =>
+          activationConfirmation.confirmActivation().catch(() => undefined)
+        }
+      />
+    </>
+  );
+}

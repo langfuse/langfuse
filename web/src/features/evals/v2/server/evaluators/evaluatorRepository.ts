@@ -8,6 +8,7 @@ import type {
   EvaluatorDefinition,
 } from "./evaluatorTypes";
 import { EvaluatorVersionConflictError } from "./evaluatorErrors";
+import { setRuleStatus } from "../rules/ruleRepository";
 
 type PrismaTransaction = Prisma.TransactionClient;
 
@@ -114,6 +115,48 @@ export async function listEvaluatorIds(params: {
   return evaluators.map(({ id }) => id);
 }
 
+export function countProjectEvaluators(params: {
+  prisma: PrismaClient | PrismaTransaction;
+  projectId: string;
+  evaluatorIds: string[];
+}) {
+  return params.prisma.evaluator.count({
+    where: { projectId: params.projectId, id: { in: params.evaluatorIds } },
+  });
+}
+
+export async function listEvaluatorOptions(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  search?: string;
+  limit: number;
+}) {
+  const evaluators = await params.prisma.evaluator.findMany({
+    where: {
+      projectId: params.projectId,
+      ...(params.search
+        ? { name: { contains: params.search, mode: "insensitive" } }
+        : {}),
+    },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    take: params.limit,
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      versions: {
+        orderBy: { version: "desc" },
+        take: 1,
+        select: { id: true, version: true, variableMapping: true },
+      },
+    },
+  });
+  return evaluators.map(({ versions, ...evaluator }) => ({
+    ...evaluator,
+    latestVersion: versions[0] ?? null,
+  }));
+}
+
 export function findEvaluator(params: {
   prisma: PrismaClient | PrismaTransaction;
   projectId: string;
@@ -121,6 +164,22 @@ export function findEvaluator(params: {
 }) {
   return params.prisma.evaluator.findFirst({
     where: { id: params.evaluatorId, projectId: params.projectId },
+    include: {
+      versions: latestVersion,
+    },
+  });
+}
+
+export function findEvaluatorsByIds(params: {
+  prisma: PrismaClient | PrismaTransaction;
+  projectId: string;
+  evaluatorIds: string[];
+}) {
+  return params.prisma.evaluator.findMany({
+    where: {
+      id: { in: params.evaluatorIds },
+      projectId: params.projectId,
+    },
     include: {
       versions: latestVersion,
     },
@@ -171,6 +230,7 @@ export function createEvaluator(params: {
 }) {
   return params.prisma.evaluator.create({
     data: {
+      id: params.input.evaluatorId,
       projectId: params.input.projectId,
       name: params.input.name,
       description: params.input.description,
@@ -234,5 +294,13 @@ export async function deleteEvaluator(params: {
   const result = await params.prisma.evaluator.deleteMany({
     where: { id: params.evaluatorId, projectId: params.projectId },
   });
+  if (result.count > 0) {
+    await setRuleStatus({
+      prisma: params.prisma,
+      projectId: params.projectId,
+      enabled: false,
+      unassignedOnly: true,
+    });
+  }
   return result.count > 0;
 }

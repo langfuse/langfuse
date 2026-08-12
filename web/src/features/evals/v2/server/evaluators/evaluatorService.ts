@@ -1,22 +1,21 @@
 import { isDeepStrictEqual } from "node:util";
+import { z } from "zod";
 import {
   EvalTemplateType,
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import type { Prisma, PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   ChatMessageRole,
   ChatMessageType,
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getRecentEvaluatorExecutionTraces,
-  getRecentEvaluatorExecutionTracesFromObservations,
   getTotalCostByEvaluatorIds,
-  getTotalCostByEvaluatorIdsFromObservations,
+  invalidateProjectEvalConfigCaches,
   logger,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
 import type {
   CreateEvaluatorInput,
@@ -52,24 +51,27 @@ export type EvaluatorAuditEvent = {
   evaluatorId: string;
 };
 
+// Persisted evaluators carry cuids; only the client-side draft ids the setup
+// editor generates before the first save are UUIDs.
+const isPregeneratedEvaluatorId = (evaluatorId: string) =>
+  z.uuid().safeParse(evaluatorId).success;
+
 export class EvaluatorService {
   constructor(
-    private readonly dependencies: {
-      prisma: PrismaClient;
-      audit?: (event: EvaluatorAuditEvent) => Promise<void>;
-    },
+    private readonly prisma: PrismaClient,
+    private readonly audit: (event: EvaluatorAuditEvent) => Promise<void>,
   ) {}
 
   list(params: { projectId: string; page: number; limit: number }) {
     return repository.listEvaluators({
-      prisma: this.dependencies.prisma,
+      prisma: this.prisma,
       ...params,
     });
   }
 
   async get(projectId: string, evaluatorId: string) {
     const evaluator = await repository.findEvaluator({
-      prisma: this.dependencies.prisma,
+      prisma: this.prisma,
       projectId,
       evaluatorId,
     });
@@ -84,7 +86,7 @@ export class EvaluatorService {
     limit: number;
   }) {
     const page = await repository.listEvaluatorVersions({
-      prisma: this.dependencies.prisma,
+      prisma: this.prisma,
       ...params,
       cursor: params.cursor?.version,
     });
@@ -106,16 +108,10 @@ export class EvaluatorService {
     ) as Record<string, EvaluatorExecutionTrace[]>;
     if (params.evaluatorIds.length === 0) return result;
 
-    const traces =
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
-        ? await getRecentEvaluatorExecutionTracesFromObservations(
-            params.projectId,
-            params.evaluatorIds,
-          )
-        : await getRecentEvaluatorExecutionTraces(
-            params.projectId,
-            params.evaluatorIds,
-          );
+    const traces = await getRecentEvaluatorExecutionTraces(
+      params.projectId,
+      params.evaluatorIds,
+    );
 
     for (const trace of traces) {
       result[trace.evaluatorId]?.push({
@@ -129,16 +125,10 @@ export class EvaluatorService {
   }
 
   async getTotalCosts(params: { projectId: string; evaluatorIds: string[] }) {
-    const costs =
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
-        ? await getTotalCostByEvaluatorIdsFromObservations(
-            params.projectId,
-            params.evaluatorIds,
-          )
-        : await getTotalCostByEvaluatorIds(
-            params.projectId,
-            params.evaluatorIds,
-          );
+    const costs = await getTotalCostByEvaluatorIds(
+      params.projectId,
+      params.evaluatorIds,
+    );
     return Object.fromEntries(
       costs.map(({ evaluatorId, totalCost }) => [evaluatorId, totalCost]),
     );
@@ -146,9 +136,24 @@ export class EvaluatorService {
 
   async create(input: CreateEvaluatorInput, createdByUserId: string | null) {
     await assertEvaluatorConfigurationValid(input);
-    const evaluator = await this.dependencies.prisma.$transaction((prisma) =>
-      repository.createEvaluator({ prisma, input, createdByUserId }),
-    );
+    const evaluator = await this.prisma
+      .$transaction((prisma) =>
+        repository.createEvaluator({ prisma, input, createdByUserId }),
+      )
+      .catch((error) => {
+        // Callers may pre-generate the id so test runs can be attributed
+        // before the first save. Ids are globally unique, so a collision with
+        // another project must not surface as an unhandled 500.
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new LangfuseConflictError(
+            "An evaluator with this id already exists",
+          );
+        }
+        throw error;
+      });
     await this.audit({
       action: "create",
       projectId: input.projectId,
@@ -164,51 +169,49 @@ export class EvaluatorService {
     createdByUserId: string | null,
   ) {
     await assertEvaluatorConfigurationValid(input);
-    const result = await this.dependencies.prisma.$transaction(
-      async (prisma) => {
-        const matches = await repository.findEvaluatorsByName({
-          prisma,
-          projectId: input.projectId,
-          name: input.name,
-        });
-        if (matches.length > 1) {
-          throw new LangfuseConflictError(
-            `Multiple evaluators named "${input.name}" exist in this project`,
-          );
-        }
+    const result = await this.prisma.$transaction(async (prisma) => {
+      const matches = await repository.findEvaluatorsByName({
+        prisma,
+        projectId: input.projectId,
+        name: input.name,
+      });
+      if (matches.length > 1) {
+        throw new LangfuseConflictError(
+          `Multiple evaluators named "${input.name}" exist in this project`,
+        );
+      }
 
-        const existing = matches[0];
-        if (!existing) {
-          return {
-            action: "create" as const,
-            evaluator: await repository.createEvaluator({
-              prisma,
-              input,
-              createdByUserId,
-            }),
-          };
-        }
-        if (existing.type !== input.definition.type) {
-          throw new LangfuseConflictError(
-            `An evaluator named "${input.name}" already exists with a different type`,
-          );
-        }
-
+      const existing = matches[0];
+      if (!existing) {
         return {
-          action: "update" as const,
-          evaluator: await updateEvaluator({
-            tx: prisma,
-            input: {
-              ...input,
-              evaluatorId: existing.id,
-              description: existing.description,
-            },
+          action: "create" as const,
+          evaluator: await repository.createEvaluator({
+            prisma,
+            input,
             createdByUserId,
-            forceNewVersion: true,
           }),
         };
-      },
-    );
+      }
+      if (existing.type !== input.definition.type) {
+        throw new LangfuseConflictError(
+          `An evaluator named "${input.name}" already exists with a different type`,
+        );
+      }
+
+      return {
+        action: "update" as const,
+        evaluator: await updateEvaluator({
+          tx: prisma,
+          input: {
+            ...input,
+            evaluatorId: existing.id,
+            description: existing.description,
+          },
+          createdByUserId,
+          forceNewVersion: true,
+        }),
+      };
+    });
     await this.audit({
       action: result.action,
       projectId: input.projectId,
@@ -223,7 +226,7 @@ export class EvaluatorService {
     options?: { forceNewVersion?: boolean },
   ) {
     await assertEvaluatorConfigurationValid(input);
-    const evaluator = await this.dependencies.prisma.$transaction((tx) =>
+    const evaluator = await this.prisma.$transaction((tx) =>
       updateEvaluator({
         tx,
         input,
@@ -240,34 +243,34 @@ export class EvaluatorService {
   }
 
   async delete(projectId: string, evaluatorId: string) {
-    await this.dependencies.prisma.$transaction((prisma) =>
+    await this.prisma.$transaction((prisma) =>
       deleteEvaluator({ prisma, projectId, evaluatorId }),
     );
+    await invalidateProjectEvalConfigCaches(projectId);
     await this.audit({ action: "delete", projectId, evaluatorId });
   }
 
   async deleteMany(input: DeleteEvaluatorsInput) {
-    const evaluatorIds = await this.dependencies.prisma.$transaction(
-      async (prisma) => {
-        const ids =
-          "evaluatorIds" in input
-            ? input.evaluatorIds
-            : await repository.listEvaluatorIds({
-                prisma,
-                projectId: input.projectId,
-                search: input.search,
-              });
+    const evaluatorIds = await this.prisma.$transaction(async (prisma) => {
+      const ids =
+        "evaluatorIds" in input
+          ? input.evaluatorIds
+          : await repository.listEvaluatorIds({
+              prisma,
+              projectId: input.projectId,
+              search: input.search,
+            });
 
-        for (const evaluatorId of ids) {
-          await deleteEvaluator({
-            prisma,
-            projectId: input.projectId,
-            evaluatorId,
-          });
-        }
-        return ids;
-      },
-    );
+      for (const evaluatorId of ids) {
+        await deleteEvaluator({
+          prisma,
+          projectId: input.projectId,
+          evaluatorId,
+        });
+      }
+      return ids;
+    });
+    await invalidateProjectEvalConfigCaches(input.projectId);
     await Promise.all(
       evaluatorIds.map((evaluatorId) =>
         this.audit({
@@ -280,20 +283,24 @@ export class EvaluatorService {
     return evaluatorIds;
   }
 
-  private audit(event: EvaluatorAuditEvent) {
-    return this.dependencies.audit?.(event) ?? Promise.resolve();
-  }
-
   async testEvaluator(params: Parameters<typeof executeEvaluatorTest>[0]) {
-    if (params.evaluatorId) {
-      await this.get(params.projectId, params.evaluatorId);
+    const evaluator = await this.prisma.evaluator.findFirst({
+      where: { id: params.evaluatorId, projectId: params.projectId },
+      select: { id: true },
+    });
+    // The setup editor pre-generates a UUID so a test run can be attributed to
+    // the evaluator before it is first saved. Every other id must resolve
+    // inside the project — never look it up unscoped, which would turn the
+    // response into a cross-project existence oracle.
+    if (!evaluator && !isPregeneratedEvaluatorId(params.evaluatorId)) {
+      throw new LangfuseNotFoundError("Evaluator not found");
     }
     return executeEvaluatorTest(params);
   }
 
   async suggestName(params: SuggestEvaluatorNameParams) {
     const availability = await resolveLangfuseAiFeatureAvailability({
-      prisma: this.dependencies.prisma,
+      prisma: this.prisma,
       projectId: params.projectId,
     });
     if (!availability.available) {
@@ -358,7 +365,10 @@ async function updateEvaluator(params: {
   // version. Stable ID-based updates only version actual definition changes.
   if (
     params.forceNewVersion ||
-    !isDeepStrictEqual(toDefinition(current.type, latest), input.definition)
+    !isDeepStrictEqual(
+      toEvaluatorDefinition(current.type, latest),
+      input.definition,
+    )
   ) {
     await repository.appendEvaluatorVersion({
       tx,
@@ -378,7 +388,7 @@ async function updateEvaluator(params: {
   return updated;
 }
 
-function toDefinition(
+export function toEvaluatorDefinition(
   type: EvalTemplateType,
   version: {
     prompt: string | null;

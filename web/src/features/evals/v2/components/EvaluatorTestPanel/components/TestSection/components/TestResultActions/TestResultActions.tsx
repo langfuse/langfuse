@@ -1,7 +1,7 @@
 import { useStore } from "zustand";
 
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
-import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelector/SampleObservationSelector";
+import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import {
   TestResultTraceActions,
   TestResultTraceActionsTrigger,

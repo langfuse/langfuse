@@ -25,6 +25,8 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
   availableRules,
   loading = false,
   align = "start",
+  search,
+  onSearchChange,
   onOpenChange,
   onSelectAvailableRule,
   onCreateRule,
@@ -36,6 +38,12 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
   availableRules: Rule[];
   loading?: boolean;
   align?: "start" | "center" | "end";
+  /**
+   * Provide together with `onSearchChange` to search server-side; the caller
+   * then owns filtering, so more rules than one page are reachable.
+   */
+  search?: string;
+  onSearchChange?: (search: string) => void;
   onOpenChange?: (open: boolean) => void;
   onSelectAvailableRule: (rule: Rule) => void;
   onCreateRule: () => void;
@@ -57,8 +65,12 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
     <Popover open={resolvedOpen} onOpenChange={changeOpen}>
       {children(resolvedOpen)}
       <PopoverContent align={align} className="w-96 p-0">
-        <Command>
-          <CommandInput placeholder="Find a rule..." />
+        <Command shouldFilter={onSearchChange === undefined}>
+          <CommandInput
+            placeholder="Find a rule..."
+            value={search}
+            onValueChange={onSearchChange}
+          />
           <CommandList>
             <CommandEmpty>No rule found.</CommandEmpty>
             <CommandGroup>

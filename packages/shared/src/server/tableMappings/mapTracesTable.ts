@@ -78,6 +78,13 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "t.metadata['evaluator_id']",
   },
   {
+    uiTableName: "Rule ID",
+    uiTableId: "ruleId",
+    clickhouseTableName: "traces",
+    clickhouseSelect:
+      "if(notEmpty(t.metadata['rule_id']), t.metadata['rule_id'], t.metadata['job_configuration_id'])",
+  },
+  {
     uiTableName: "Version",
     uiTableId: "version",
     clickhouseTableName: "traces",

@@ -6,6 +6,7 @@ import {
   ZodModelConfig,
   jsonSchema,
   paginationLimitZod,
+  singleFilter,
 } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -26,7 +27,7 @@ const decodeEvaluatorVersionCursor = (value: string) => {
   }
 };
 
-export const EvaluatorVersionCursorSchema = z
+const EvaluatorVersionCursorSchema = z
   .string()
   .describe("Base64url-encoded cursor for pagination")
   .transform(decodeEvaluatorVersionCursor)
@@ -67,6 +68,7 @@ export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
 
 export const CreateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
+  evaluatorId: z.uuid().optional(),
   definition: EvaluatorDefinitionSchema,
 });
 
@@ -90,6 +92,16 @@ export const EvaluatorIdsSchema = z.object({
   projectId: z.string(),
   evaluatorIds: z.array(z.string()).min(1).max(100),
 });
+
+export const ActivationCostEstimatesSchema = EvaluatorIdsSchema.extend({
+  filter: z.array(singleFilter),
+  sampling: z.number().min(0).max(1),
+  shouldRunMissingTest: z.boolean().optional().default(true),
+  knownTestRunCostUsd: z.number().nonnegative().optional(),
+}).refine(
+  ({ evaluatorIds }) => new Set(evaluatorIds).size === evaluatorIds.length,
+  { message: "Evaluator IDs must be unique", path: ["evaluatorIds"] },
+);
 
 export const DeleteEvaluatorsSchema = z.union([
   EvaluatorIdsSchema,

@@ -18,16 +18,12 @@ import {
   it,
   vi,
 } from "vitest";
-import {
-  EvaluatorService,
-  type EvaluatorAuditEvent,
-} from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import {
   EvaluatorConfigurationError,
   EvaluatorVersionConflictError,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
 import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
-import { AssignmentService } from "@/src/features/evals/v2/server/assignments/assignmentService";
 import type {
   CreateEvaluatorInput,
   EvaluatorDefinition,
@@ -118,6 +114,8 @@ const llmInput = (
   },
 });
 
+const createService = () => new EvaluatorService(prisma, async () => undefined);
+
 beforeAll(async () => {
   const [first, second] = await Promise.all([
     createOrgProjectAndApiKey(),
@@ -160,7 +158,7 @@ afterAll(async () => {
 
 describe("EvaluatorService", () => {
   it("lists evaluators with pagination and project isolation", async () => {
-    const service = new EvaluatorService({ prisma });
+    const service = createService();
     const [older, newer] = await Promise.all([
       service.create(llmInput("Older evaluator"), null),
       service.create(llmInput("Newer evaluator"), null),
@@ -195,15 +193,15 @@ describe("EvaluatorService", () => {
   });
 
   it("creates an evaluator with version one and rejects cross-project reads", async () => {
-    const audit = vi.fn(async ({ evaluatorId }: EvaluatorAuditEvent) => {
-      await expect(
-        prisma.evaluator.findUnique({ where: { id: evaluatorId } }),
-      ).resolves.not.toBeNull();
-    });
-    const service = new EvaluatorService({ prisma, audit });
-    const created = await service.create(llmInput("Create evaluator"), null);
+    const service = createService();
+    const evaluatorId = crypto.randomUUID();
+    const created = await service.create(
+      { ...llmInput("Create evaluator"), evaluatorId },
+      null,
+    );
 
     expect(created).toMatchObject({
+      id: evaluatorId,
       projectId,
       name: "Create evaluator",
       versions: [expect.objectContaining({ version: 1 })],
@@ -214,15 +212,33 @@ describe("EvaluatorService", () => {
     await expect(service.get(otherProjectId, created.id)).rejects.toThrow(
       "Evaluator not found",
     );
-    expect(audit).toHaveBeenCalledWith({
-      action: "create",
-      projectId,
-      evaluatorId: created.id,
-    });
+  });
+
+  it("audits successful evaluator mutations", async () => {
+    const audit = vi.fn().mockResolvedValue(undefined);
+    const service = new EvaluatorService(prisma, audit);
+    const input = llmInput("Audited evaluator");
+
+    const created = await service.create(input, null);
+    await service.update(
+      {
+        ...input,
+        evaluatorId: created.id,
+        name: "Updated audited evaluator",
+      },
+      null,
+    );
+    await service.delete(projectId, created.id);
+
+    expect(audit.mock.calls.map(([event]) => event)).toEqual([
+      { action: "create", projectId, evaluatorId: created.id },
+      { action: "update", projectId, evaluatorId: created.id },
+      { action: "delete", projectId, evaluatorId: created.id },
+    ]);
   });
 
   it("does not persist evaluator changes when configuration validation fails", async () => {
-    const service = new EvaluatorService({ prisma });
+    const service = createService();
     mocks.assertEvaluatorConfigurationValid.mockRejectedValueOnce(
       new EvaluatorConfigurationError("Invalid evaluator configuration"),
     );
@@ -254,10 +270,7 @@ describe("EvaluatorService", () => {
   });
 
   it("creates and updates an evaluator through name-based upsert", async () => {
-    const audit = vi
-      .fn<(event: EvaluatorAuditEvent) => Promise<void>>()
-      .mockResolvedValue(undefined);
-    const service = new EvaluatorService({ prisma, audit });
+    const service = createService();
     const input = llmInput("Legacy evaluator");
 
     const created = await service.upsertByName(input, null);
@@ -271,20 +284,10 @@ describe("EvaluatorService", () => {
       action: "update",
       evaluator: { id: created.evaluator.id, versions: [{ version: 2 }] },
     });
-    expect(audit).toHaveBeenNthCalledWith(1, {
-      action: "create",
-      projectId,
-      evaluatorId: created.evaluator.id,
-    });
-    expect(audit).toHaveBeenNthCalledWith(2, {
-      action: "update",
-      projectId,
-      evaluatorId: created.evaluator.id,
-    });
   });
 
   it("updates metadata without a version and appends a version for definition changes", async () => {
-    const service = new EvaluatorService({ prisma });
+    const service = createService();
     const input = llmInput("Version decisions");
     const created = await service.create(input, null);
 
@@ -355,7 +358,7 @@ describe("EvaluatorService", () => {
   });
 
   it("returns a retryable conflict when an evaluator version advances concurrently", async () => {
-    const service = new EvaluatorService({ prisma });
+    const service = createService();
     const input = llmInput("Concurrent version update");
     const created = await service.create(input, null);
 
@@ -385,8 +388,9 @@ describe("EvaluatorService", () => {
 
   it("tests an evaluator without persisting an evaluator or version", async () => {
     mocks.testEvaluator.mockResolvedValue({ score: 1 });
-    const service = new EvaluatorService({ prisma });
+    const service = createService();
     const evaluator = await service.create(llmInput("Test evaluator"), null);
+    const newEvaluatorId = crypto.randomUUID();
     const observation = {
       observationId: "test-observation-id",
       traceId: "test-trace-id",
@@ -401,13 +405,30 @@ describe("EvaluatorService", () => {
       service.testEvaluator({
         orgId,
         projectId,
+        evaluatorId: newEvaluatorId,
+        definition: llmInput("Test evaluator").definition,
+        ...observation,
+      }),
+    ).resolves.toEqual({ score: 1 });
+
+    await expect(
+      service.testEvaluator({
+        orgId,
+        projectId,
         evaluatorId: evaluator.id,
         definition: llmInput("Test evaluator").definition,
         ...observation,
       }),
     ).resolves.toEqual({ score: 1 });
 
-    expect(mocks.testEvaluator).toHaveBeenCalledOnce();
+    expect(mocks.testEvaluator).toHaveBeenCalledTimes(2);
+    expect(mocks.testEvaluator).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId,
+        evaluatorId: newEvaluatorId,
+        ...observation,
+      }),
+    );
     expect(mocks.testEvaluator).toHaveBeenCalledWith(
       expect.objectContaining({
         orgId,
@@ -434,7 +455,7 @@ describe("EvaluatorService", () => {
     mocks.generateLangfuseAIText
       .mockResolvedValueOnce('  "Concise quality judge"  ')
       .mockRejectedValueOnce(new Error("AI unavailable"));
-    const service = new EvaluatorService({ prisma });
+    const service = createService();
     const definition = {
       type: "LLM_AS_JUDGE" as const,
       prompt: "Judge quality",
@@ -492,7 +513,7 @@ describe("EvaluatorService", () => {
   });
 
   it("deletes only the evaluator in the selected project", async () => {
-    const service = new EvaluatorService({ prisma });
+    const service = createService();
     const created = await service.create(llmInput("Delete evaluator"), null);
 
     await expect(service.delete(otherProjectId, created.id)).rejects.toThrow(
@@ -505,14 +526,13 @@ describe("EvaluatorService", () => {
   });
 
   it("deletes an evaluator and its rule assignments", async () => {
-    const service = new EvaluatorService({ prisma });
-    const assignmentService = new AssignmentService({ prisma });
+    const service = createService();
     const created = await service.create(llmInput("Assigned evaluator"), null);
     const rule = await prisma.evaluationRule.create({
       data: {
         projectId,
         name: "Assigned rule",
-        status: "INACTIVE",
+        status: "ACTIVE",
         targetObject: "EVENT",
         filter: [],
         sampling: 1,
@@ -528,11 +548,10 @@ describe("EvaluatorService", () => {
     });
 
     await expect(
-      assignmentService.countEvaluatorAssignments(projectId, created.id),
+      prisma.evaluationRuleEvaluatorAssignment.count({
+        where: { projectId, evaluatorId: created.id },
+      }),
     ).resolves.toBe(1);
-    await expect(
-      assignmentService.countEvaluatorAssignments(otherProjectId, created.id),
-    ).resolves.toBe(0);
 
     await expect(
       service.delete(projectId, created.id),
@@ -542,13 +561,16 @@ describe("EvaluatorService", () => {
         where: { evaluationRuleId: rule.id, evaluatorId: created.id },
       }),
     ).resolves.toBe(0);
+    await expect(
+      prisma.evaluationRule.findUnique({
+        where: { id: rule.id },
+        select: { status: true },
+      }),
+    ).resolves.toEqual({ status: "INACTIVE" });
   });
 
-  it("deletes an explicit evaluator selection and audits each deletion", async () => {
-    const audit = vi
-      .fn<(event: EvaluatorAuditEvent) => Promise<void>>()
-      .mockResolvedValue(undefined);
-    const service = new EvaluatorService({ prisma, audit });
+  it("deletes an explicit evaluator selection", async () => {
+    const service = createService();
     const [first, second, otherProjectEvaluator] = await Promise.all([
       service.create(llmInput("First selected evaluator"), null),
       service.create(llmInput("Second selected evaluator"), null),
@@ -557,8 +579,6 @@ describe("EvaluatorService", () => {
         null,
       ),
     ]);
-    audit.mockClear();
-
     const deletedIds = await service.deleteMany({
       projectId,
       evaluatorIds: [first.id, second.id],
@@ -573,17 +593,10 @@ describe("EvaluatorService", () => {
     await expect(
       prisma.evaluator.findUnique({ where: { id: otherProjectEvaluator.id } }),
     ).resolves.not.toBeNull();
-    expect(audit.mock.calls.map(([event]) => event)).toEqual([
-      { action: "delete", projectId, evaluatorId: first.id },
-      { action: "delete", projectId, evaluatorId: second.id },
-    ]);
   });
 
   it("deletes all search matches without crossing project boundaries", async () => {
-    const audit = vi
-      .fn<(event: EvaluatorAuditEvent) => Promise<void>>()
-      .mockResolvedValue(undefined);
-    const service = new EvaluatorService({ prisma, audit });
+    const service = createService();
     const [firstMatch, secondMatch, keep, otherProjectMatch] =
       await Promise.all([
         service.create(llmInput("Bulk match one"), null),
@@ -594,8 +607,6 @@ describe("EvaluatorService", () => {
           null,
         ),
       ]);
-    audit.mockClear();
-
     const deletedIds = await service.deleteMany({
       projectId,
       isBatchAction: true,
@@ -613,13 +624,10 @@ describe("EvaluatorService", () => {
     ).resolves.toEqual(
       expect.arrayContaining([{ id: keep.id }, { id: otherProjectMatch.id }]),
     );
-    expect(
-      new Set(audit.mock.calls.map(([event]) => event.evaluatorId)),
-    ).toEqual(new Set([firstMatch.id, secondMatch.id]));
   });
 
   it("returns recent traces by stable evaluator ID", async () => {
-    const service = new EvaluatorService({ prisma });
+    const service = createService();
     const [firstEvaluator, secondEvaluator, otherEvaluator] = await Promise.all(
       [
         service.create(llmInput("First execution evaluator"), null),

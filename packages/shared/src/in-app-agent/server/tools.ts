@@ -198,6 +198,14 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "evalJob:CUD" },
   },
+  attachEvaluatorToEvaluationRule: {
+    approval: "approval",
+    availability: { scope: "evalJob:CUD" },
+  },
+  detachEvaluatorFromEvaluationRule: {
+    approval: "approval",
+    availability: { scope: "evalJob:CUD" },
+  },
   deleteEvaluationRule: {
     approval: "approval",
     availability: { scope: "evalJob:CUD" },

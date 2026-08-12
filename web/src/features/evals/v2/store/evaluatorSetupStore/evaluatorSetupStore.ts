@@ -2,15 +2,19 @@ import {
   EvalTemplateTypeEnum,
   observationVariableMappingList,
   ScoreDataTypeEnum,
+  type ModelConfig,
   type EvalTemplateSourceCodeLanguage,
   type EvalTemplateType,
 } from "@langfuse/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import { inferDefaultMapping } from "@/src/features/evals/utils/evaluator-form-utils";
-import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelector/SampleObservationSelector";
-import type { ActiveVariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
-import type { VariableFieldState } from "@/src/features/evals/v2/components/VariableMapping/types";
+import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import type {
+  ActiveVariableMapping,
+  VariableFieldState,
+} from "@/src/features/evals/v2/types/variableMapping";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
@@ -71,6 +75,7 @@ type EvaluatorSetupStoreActions = {
   setModelPickerOpen: (modelPickerOpen: boolean) => void;
   setModelMode: (modelMode: "default" | "custom") => void;
   selectModel: (selectedModel: JudgeModel) => void;
+  configureModel: (selectedModel: JudgeModel, modelParams: ModelConfig) => void;
   setSelectedObservation: (
     selectedObservation: SampleObservation | null,
   ) => void;
@@ -93,6 +98,7 @@ export type EvaluatorSetupStoreState = {
   modelPickerOpen: boolean;
   modelMode: "default" | "custom";
   selectedModel: JudgeModel | null;
+  modelParams: ModelConfig | null;
   selectedObservation: SampleObservation | null;
   promptPreviewEnabled: boolean;
   testPanelOpen: boolean;
@@ -125,7 +131,9 @@ export function createEvaluatorSetupStore({
         ? initialDefinition.prompt
         : DEFAULT_PROMPT,
     sourceCode:
-      initialDefinition?.type === "CODE" ? initialDefinition.sourceCode : "",
+      initialDefinition?.type === "CODE"
+        ? initialDefinition.sourceCode
+        : getDefaultCodeEvalSource("TYPESCRIPT"),
     sourceCodeLanguage:
       initialDefinition?.type === "CODE"
         ? initialDefinition.sourceCodeLanguage
@@ -154,6 +162,10 @@ export function createEvaluatorSetupStore({
             model: initialDefinition.model,
           }
         : null,
+    modelParams:
+      initialDefinition?.type === "LLM_AS_JUDGE"
+        ? initialDefinition.modelParams
+        : null,
     selectedObservation: null,
     promptPreviewEnabled: false,
     testPanelOpen: true,
@@ -176,7 +188,17 @@ export function createEvaluatorSetupStore({
       setModelPickerOpen: (modelPickerOpen) => set({ modelPickerOpen }),
       setModelMode: (modelMode) => set({ modelMode }),
       selectModel: (selectedModel) =>
-        set({ selectedModel, modelMode: "custom" }),
+        set((state) => ({
+          selectedModel,
+          modelMode: "custom",
+          modelParams:
+            state.selectedModel?.provider === selectedModel.provider &&
+            state.selectedModel.model === selectedModel.model
+              ? state.modelParams
+              : null,
+        })),
+      configureModel: (selectedModel, modelParams) =>
+        set({ selectedModel, modelParams, modelMode: "custom" }),
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
       setPromptPreviewEnabled: (promptPreviewEnabled) =>

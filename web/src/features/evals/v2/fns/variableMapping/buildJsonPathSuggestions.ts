@@ -12,7 +12,7 @@ const MAX_OBJECT_KEYS = 25;
 /**
  * Builds JSONPath suggestions (e.g. `$.messages[0].content`) by walking a
  * sample value — the LangSmith-style "map from example" list. The value must
- * already be decoded; run field values through `parseSampleField` first.
+ * already be decoded.
  */
 export function buildJsonPathSuggestions(value: unknown): string[] {
   if (value === null || typeof value !== "object") return [];

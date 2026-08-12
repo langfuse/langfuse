@@ -5160,7 +5160,13 @@ paths:
                 password:
                   type: string
                   nullable: true
-                  description: Initial password for the user
+                  description: >-
+                    Ignored. Accepted only for compatibility with identity
+                    providers that always send a password on user creation (Okta
+                    sends a placeholder value even when password sync is
+                    disabled). No credential is created for the user;
+                    provisioned users authenticate via SSO or set a password
+                    themselves through the password reset flow.
               required:
                 - userName
                 - name
@@ -7552,8 +7558,11 @@ paths:
 
         - `target` must be `observation` or `experiment`
 
-        - `evaluator.name` + `evaluator.scope` must identify an existing
-        evaluator family returned by the evaluator endpoints
+        - provide either the compatibility `evaluator` field or the new
+        `evaluators` array, never both
+
+        - each evaluator `name` + `type` must identify an existing evaluator
+        family returned by the evaluator endpoints
 
         - Langfuse resolves that family to its latest version before saving the
         evaluation rule
@@ -7561,8 +7570,11 @@ paths:
         - for `target=experiment`, use dataset `id` values from `GET
         /api/public/v2/datasets` when filtering by `datasetId`
 
-        - for `llm_as_judge` evaluators, every evaluator prompt variable must be
-        mapped exactly once
+        - an omitted LLM-as-judge assignment mapping inherits the evaluator
+        version's default mapping
+
+        - the effective mapping must map every evaluator prompt variable exactly
+        once
 
         - for `code` evaluators, Langfuse uses the fixed code runtime mapping;
         omit `mapping` in create and update requests
@@ -7574,7 +7586,8 @@ paths:
         can currently run
 
         - at most 50 evaluation rules can be effectively active in one project
-        at the same time
+        at the same time (enforced identically by the API, the MCP tools, and
+        the app)
 
 
         If an evaluation rule with the same `name` already exists in the
@@ -8047,7 +8060,7 @@ paths:
         whether future scores will be numeric, boolean, or categorical.
 
         4. Create one or more evaluation rules that reference the returned
-        evaluator family using `name` and `scope`.
+        evaluator family using `name` and `type`.
 
 
         Code evaluator validation:
@@ -8153,19 +8166,12 @@ paths:
             schema:
               $ref: '#/components/schemas/unstableCreateEvaluatorRequest'
     get:
-      description: >-
+      description: |-
         List the evaluators available to the authenticated project.
 
-
         Important behavior:
-
         - This endpoint returns the latest version of each available evaluator.
-
-        - Results can include evaluators from your project and Langfuse-managed
-        evaluators.
-
-        - If the same evaluator name exists in both places, both are returned as
-        separate items with different `scope` values.
+        - Every evaluator is owned by the authenticated project.
       operationId: unstable_evaluators_list
       tags:
         - UnstableEvaluators
@@ -8305,9 +8311,6 @@ paths:
 
         - Evaluation rule assignments referencing the evaluator are also
         deleted.
-
-        - Langfuse-managed evaluators (`scope=managed`) cannot be deleted; the
-        API returns `403`.
 
         - Scores already produced by the evaluator are not deleted.
       operationId: unstable_evaluators_delete
@@ -14252,17 +14255,6 @@ components:
         - PYTHON
         - TYPESCRIPT
       description: Code evaluator runtime language.
-    unstableEvaluatorScope:
-      title: unstableEvaluatorScope
-      type: string
-      enum:
-        - project
-        - managed
-      description: |-
-        Where an evaluator comes from.
-
-        - `project`: created in your project
-        - `managed`: provided by Langfuse
     unstableEvaluationRuleTarget:
       title: unstableEvaluationRuleTarget
       type: string
@@ -15935,7 +15927,10 @@ components:
         evaluator:
           $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
           description: >-
-            Evaluator currently used by this rule.
+            Deprecated compatibility alias for `evaluators[0].evaluator`, or
+            `null`
+
+            when the rule currently has no evaluator assignments.
 
 
             `id` identifies the evaluator family. The rule automatically uses
@@ -15990,6 +15985,13 @@ components:
       title: unstableEvaluationRule
       type: object
       properties:
+        evaluators:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorAssignment'
+          description: >-
+            Evaluators attached to this rule in deterministic assignment order.
+            A `null` mapping inherits the evaluator version's default mapping.
         target:
           $ref: '#/components/schemas/unstableEvaluationRuleTarget'
           description: Target object type that should trigger scoring.
@@ -16005,9 +16007,10 @@ components:
           items:
             $ref: '#/components/schemas/unstableEvaluationRuleMapping'
           description: >-
-            Variable mappings used to populate evaluator runtime variables from
-            the live target object.
+            Deprecated compatibility alias containing the effective mapping for
+            `evaluators[0]`.
       required:
+        - evaluators
         - target
         - filter
         - mapping
@@ -16022,11 +16025,15 @@ components:
 
 
         This resource is read-only through the unstable public API. Its mapping
-        preserves the trace, dataset item, or named observation that each
-        evaluator variable previously read from. Its filters use the persisted
-        legacy filter format so migration clients can read the configuration
-        without losing information.
+        preserves the trace, dataset item, or named observation selected for
+        each evaluator variable.
       properties:
+        evaluators:
+          type: array
+          items:
+            $ref: >-
+              #/components/schemas/unstableLegacyEvaluationRuleEvaluatorAssignment
+          description: Evaluators attached to this rule in deterministic assignment order.
         target:
           $ref: '#/components/schemas/unstableLegacyEvaluationRuleTarget'
         delay:
@@ -16052,6 +16059,7 @@ components:
             Stored variable mappings, including the trace, dataset item, or
             named observation selected for each variable.
       required:
+        - evaluators
         - target
         - delay
         - timeScope
@@ -16088,6 +16096,8 @@ components:
       oneOf:
         - $ref: '#/components/schemas/unstableCreateLlmAsJudgeEvaluationRuleRequest'
         - $ref: '#/components/schemas/unstableCreateCodeEvaluationRuleRequest'
+        - $ref: >-
+            #/components/schemas/unstableCreateEvaluationRuleWithEvaluatorsRequest
       description: >-
         Request body for creating an evaluation rule.
 
@@ -16095,7 +16105,7 @@ components:
         Checklist for agents and SDK clients:
 
         - reference an existing evaluator family by `evaluator.name` and
-        `evaluator.scope`
+        `evaluator.type`
 
         - choose `target=observation` or `target=experiment`
 
@@ -16112,6 +16122,43 @@ components:
         - optionally narrow execution with `filter`
 
         - set `enabled=true` only when you want live execution immediately
+    unstableCreateEvaluationRuleWithEvaluatorsRequest:
+      title: unstableCreateEvaluationRuleWithEvaluatorsRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable deployment name.
+        evaluators:
+          type: array
+          items:
+            $ref: >-
+              #/components/schemas/unstableCreateEvaluationRuleEvaluatorAssignment
+          description: >-
+            One or more evaluator assignments. Providing the deprecated
+            top-level `evaluator` or `mapping` fields alongside this is rejected
+            with `400`.
+
+
+            Multiple assignments are supported on writable targets.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+        enabled:
+          type: boolean
+        sampling:
+          type: number
+          format: double
+          nullable: true
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          nullable: true
+      required:
+        - name
+        - evaluators
+        - target
+        - enabled
     unstableCreateLlmAsJudgeEvaluationRuleRequest:
       title: unstableCreateLlmAsJudgeEvaluationRuleRequest
       type: object
@@ -16126,9 +16173,9 @@ components:
             LLM-as-judge evaluator family to use.
 
 
-            Use `name`, `scope`, and `type` from the evaluator endpoints. If
-            `type` is omitted, Langfuse defaults it to `llm_as_judge` for
-            backwards compatibility.
+            Use `name` and `type` from the evaluator endpoints. If `type` is
+            omitted, Langfuse defaults it to `llm_as_judge` for backwards
+            compatibility.
 
             Langfuse resolves that family to its latest version before saving
             the rule.
@@ -16191,7 +16238,7 @@ components:
             Code evaluator family to use.
 
 
-            Use `name`, `scope`, and `type` from the evaluator endpoints.
+            Use `name` and `type` from the evaluator endpoints.
 
             Langfuse resolves that family to its latest version before saving
             the rule.
@@ -16245,6 +16292,14 @@ components:
         - If you only want to rename the rule or change sampling, send just
         those fields.
 
+        - To add, remove, or remap evaluators, send `evaluators`. It replaces
+        the whole assignment set, so include every evaluator the rule should
+        keep.
+
+        - `evaluators` cannot be combined with the deprecated
+        `evaluator`/`mapping` pair, which only ever addressed the first
+        assignment.
+
         - If you change to an LLM-as-judge `evaluator`, send a fresh `mapping`
         unless you are certain the existing mapping still matches the evaluator
         variables.
@@ -16262,19 +16317,35 @@ components:
           type: string
           nullable: true
           description: Updated deployment name.
+        evaluators:
+          type: array
+          items:
+            $ref: >-
+              #/components/schemas/unstableCreateEvaluationRuleEvaluatorAssignment
+          nullable: true
+          description: >-
+            Full replacement of the rule's evaluator assignments: entries that
+            are
+
+            not listed are detached.
+
+
+            Mutually exclusive with the deprecated `evaluator` and `mapping`
+            fields.
         evaluator:
           $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorReference'
           nullable: true
           description: >-
-            Updated evaluator family.
+            Deprecated single-evaluator alias: updates the first assignment
+            only. Prefer `evaluators`.
 
 
             Langfuse resolves the provided evaluator family to its latest
             version before saving the rule.
 
-            A rule's evaluator type cannot be changed: provide `name` and
-            `scope` for an evaluator family of the rule's current type. To use a
-            different evaluator type, create a new rule.
+            A rule's evaluator type cannot be changed: provide `name` for an
+            evaluator family of the rule's current type. To use a different
+            evaluator type, create a new rule.
         target:
           $ref: '#/components/schemas/unstableEvaluationRuleTarget'
           nullable: true
@@ -16328,8 +16399,8 @@ components:
         Evaluator family reference used when updating an evaluation rule.
 
 
-        `name` and `scope` identify the evaluator family in the authenticated
-        project context.
+        `name` identifies the evaluator family in the authenticated project
+        context.
 
         A rule's evaluator type cannot be changed, so this reference does not
         accept a `type`; the family must match the rule's current evaluator
@@ -16338,12 +16409,8 @@ components:
         name:
           type: string
           description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
       required:
         - name
-        - scope
     unstableLlmAsJudgeEvaluationRuleEvaluatorReference:
       title: unstableLlmAsJudgeEvaluationRuleEvaluatorReference
       type: object
@@ -16354,16 +16421,12 @@ components:
         name:
           type: string
           description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
         type:
           $ref: '#/components/schemas/unstableLlmAsJudgeEvaluatorType'
           nullable: true
           description: Evaluator engine type. Defaults to `llm_as_judge` when omitted.
       required:
         - name
-        - scope
     unstableCodeEvaluationRuleEvaluatorReference:
       title: unstableCodeEvaluationRuleEvaluatorReference
       type: object
@@ -16372,22 +16435,73 @@ components:
         name:
           type: string
           description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
         type:
           type: string
           const: code
           description: Must be `code`.
       required:
         - name
-        - scope
         - type
     unstableLlmAsJudgeEvaluatorType:
       title: unstableLlmAsJudgeEvaluatorType
       type: string
       enum:
         - llm_as_judge
+    unstableEvaluationRuleEvaluator:
+      title: unstableEvaluationRuleEvaluator
+      type: object
+      description: |-
+        Resolved evaluator currently used by the evaluation rule.
+
+        `id` identifies the evaluator family. Evaluation runs automatically use
+        the latest available evaluator version.
+      properties:
+        id:
+          type: string
+          description: >-
+            Identifier of the exact evaluator version currently used by the
+            rule.
+        name:
+          type: string
+          description: Evaluator family name.
+        type:
+          $ref: '#/components/schemas/unstableEvaluatorType'
+          description: Evaluator engine type.
+      required:
+        - id
+        - name
+        - type
+    unstableEvaluationRuleEvaluatorAssignment:
+      title: unstableEvaluationRuleEvaluatorAssignment
+      type: object
+      properties:
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          nullable: true
+          description: >-
+            Rule-specific override, or `null` to inherit the evaluator version's
+            default mapping.
+      required:
+        - evaluator
+        - mapping
+    unstableLegacyEvaluationRuleEvaluatorAssignment:
+      title: unstableLegacyEvaluationRuleEvaluatorAssignment
+      type: object
+      properties:
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableLegacyEvaluationRuleMapping'
+          nullable: true
+      required:
+        - evaluator
+        - mapping
     unstableEvaluationRuleTimeScope:
       title: unstableEvaluationRuleTimeScope
       type: string
@@ -16409,12 +16523,8 @@ components:
       properties:
         variable:
           type: string
-          description: Evaluator prompt variable populated by this mapping.
         langfuseObject:
           $ref: '#/components/schemas/unstableLegacyEvaluationObject'
-          description: >-
-            Trace, dataset item, or observation type from which the value is
-            read.
         objectName:
           type: string
           nullable: true
@@ -16423,11 +16533,9 @@ components:
             `trace` or `dataset_item`.
         source:
           type: string
-          description: Stored field selected from the trace, dataset item, or observation.
         jsonPath:
           type: string
           nullable: true
-          description: Optional JSONPath selector applied to the selected field.
       required:
         - variable
         - langfuseObject
@@ -16449,34 +16557,34 @@ components:
         - embedding
         - guardrail
         - dataset_item
-    unstableEvaluationRuleEvaluator:
-      title: unstableEvaluationRuleEvaluator
+    unstableCreateEvaluationRuleEvaluatorAssignment:
+      title: unstableCreateEvaluationRuleEvaluatorAssignment
       type: object
-      description: |-
-        Resolved evaluator currently used by the evaluation rule.
-
-        `id` identifies the evaluator family. Evaluation runs automatically use
-        the latest available evaluator version.
       properties:
-        id:
-          type: string
+        evaluator:
+          $ref: '#/components/schemas/unstableCreateEvaluationRuleEvaluatorReference'
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          nullable: true
           description: >-
-            Identifier of the exact evaluator version currently used by the
-            rule.
+            Optional rule-specific override. Omit to inherit the evaluator
+            version's default mapping. Omit for code evaluators.
+      required:
+        - evaluator
+    unstableCreateEvaluationRuleEvaluatorReference:
+      title: unstableCreateEvaluationRuleEvaluatorReference
+      type: object
+      properties:
         name:
           type: string
-          description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
         type:
           $ref: '#/components/schemas/unstableEvaluatorType'
-          description: Evaluator engine type.
+          nullable: true
+          description: Defaults to `llm_as_judge`.
       required:
-        - id
         - name
-        - scope
-        - type
     unstableDeleteEvaluatorResponse:
       title: unstableDeleteEvaluatorResponse
       type: object
@@ -16558,11 +16666,6 @@ components:
         version:
           type: integer
           description: Version number of this evaluator.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: >-
-            Where this evaluator comes from: your project or Langfuse-managed
-            defaults.
         variables:
           type: array
           items:
@@ -16574,6 +16677,14 @@ components:
             LLM evaluators require every variable to be mapped exactly once.
             Code evaluators always expose the fixed runtime payload fields and
             Langfuse maps them automatically.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          nullable: true
+          description: >-
+            Default variable mapping for this evaluator version, or `null` when
+            no default is configured.
         evaluationRuleCount:
           type: integer
           description: >-
@@ -16591,8 +16702,8 @@ components:
         - id
         - name
         - version
-        - scope
         - variables
+        - mapping
         - evaluationRuleCount
         - createdAt
         - updatedAt
@@ -16716,6 +16827,14 @@ components:
           description: >-
             Optional explicit model configuration. Omit or set to `null` to use
             the project default evaluation model.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          nullable: true
+          description: >-
+            Optional default variable mapping inherited by rule assignments that
+            do not provide an override.
       required:
         - name
         - prompt

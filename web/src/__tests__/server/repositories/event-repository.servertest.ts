@@ -15,7 +15,9 @@ import {
   getTracesIdentifierForSessionFromEvents,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
+  getLatestEvaluatorTestRunCost,
   getRecentEvaluatorExecutionTraces,
+  getRecentRuleExecutionTraces,
   getTotalCostByEvaluatorIds,
   getTotalCostByRule,
   createScoresCh,
@@ -66,20 +68,60 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("evaluator execution metrics", () => {
-    it("returns costs separately by evaluator and rule ID", async () => {
-      const traceId = randomUUID();
+    it("returns evaluator costs from the last seven days", async () => {
       const evaluatorId = randomUUID();
-      const ruleId = randomUUID();
       const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
 
       await createEventsCh([
         createEvent({
           project_id: projectId,
-          trace_id: traceId,
           metadata_names: ["evaluator_id"],
           metadata_values: [evaluatorId],
           cost_details: { total: 1.5 },
         }),
+        createEvent({
+          project_id: projectId,
+          start_time: eightDaysAgo,
+          metadata_names: ["evaluator_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 20 },
+        }),
+      ]);
+
+      await expect(
+        getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
+    });
+
+    it("returns the latest evaluator test trace cost", async () => {
+      const evaluatorId = randomUUID();
+      const traceId = randomUUID();
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          metadata_names: ["evaluator_id", "evaluator_test"],
+          metadata_values: [evaluatorId, "true"],
+          cost_details: { total: 0.1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          cost_details: { total: 0.9 },
+        }),
+      ]);
+
+      await expect(
+        getLatestEvaluatorTestRunCost(projectId, evaluatorId),
+      ).resolves.toBe(1);
+    });
+
+    it("returns recent evaluator traces", async () => {
+      const traceId = randomUUID();
+      const evaluatorId = randomUUID();
+      await createEventsCh([
         createEvent({
           project_id: projectId,
           trace_id: traceId,
@@ -89,36 +131,89 @@ describe("Clickhouse Events Repository Test", () => {
           metadata_values: [evaluatorId],
           cost_details: { total: 0 },
         }),
-        createEvent({
-          project_id: projectId,
-          start_time: eightDaysAgo,
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
-          cost_details: { total: 20 },
-        }),
-        createEvent({
-          project_id: projectId,
-          metadata_names: ["job_configuration_id"],
-          metadata_values: [ruleId],
-          cost_details: { total: 30 },
-        }),
       ]);
 
       await expect(
         getRecentEvaluatorExecutionTraces(projectId, [evaluatorId]),
       ).resolves.toEqual([
-        expect.objectContaining({
-          id: traceId,
-          evaluatorId,
-          level: "ERROR",
+        expect.objectContaining({ id: traceId, evaluatorId, level: "ERROR" }),
+      ]);
+    });
+  });
+
+  maybe("rule execution metrics", () => {
+    it("returns seven-day costs, falling back to job_configuration_id", async () => {
+      const ruleId = randomUUID();
+      const legacyRuleId = randomUUID();
+      const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          metadata_names: ["rule_id", "job_configuration_id"],
+          metadata_values: [ruleId, randomUUID()],
+          cost_details: { total: 4 },
+        }),
+        createEvent({
+          project_id: projectId,
+          metadata_names: ["job_configuration_id"],
+          metadata_values: [legacyRuleId],
+          cost_details: { total: 30 },
+        }),
+        createEvent({
+          project_id: projectId,
+          start_time: eightDaysAgo,
+          metadata_names: ["rule_id"],
+          metadata_values: [ruleId],
+          cost_details: { total: 50 },
         }),
       ]);
+
+      // `rule_id` wins when both keys are present; executions written before
+      // the rename resolve through `job_configuration_id`.
       await expect(
-        getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
-      ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
-      await expect(getTotalCostByRule(projectId, [ruleId])).resolves.toEqual([
-        { ruleId, totalCost: 30 },
+        getTotalCostByRule(projectId, [ruleId, legacyRuleId]),
+      ).resolves.toEqual(
+        expect.arrayContaining([
+          { ruleId, totalCost: 4 },
+          { ruleId: legacyRuleId, totalCost: 30 },
+        ]),
+      );
+    });
+
+    it("returns the last five traces using rule_id only", async () => {
+      const ruleId = randomUUID();
+      const legacyRuleId = randomUUID();
+      const traceIds = Array.from({ length: 6 }, () => randomUUID());
+      const legacyTraceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        ...traceIds.map((traceId, index) =>
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            start_time: now - index * 1_000_000,
+            metadata_names: ["rule_id", "job_configuration_id"],
+            metadata_values: [ruleId, randomUUID()],
+          }),
+        ),
+        createEvent({
+          project_id: projectId,
+          trace_id: legacyTraceId,
+          metadata_names: ["job_configuration_id"],
+          metadata_values: [legacyRuleId],
+        }),
       ]);
+
+      const traces = await getRecentRuleExecutionTraces(projectId, [
+        ruleId,
+        legacyRuleId,
+      ]);
+
+      expect(traces.filter((trace) => trace.ruleId === ruleId)).toHaveLength(5);
+      expect(traces.map(({ id }) => id)).not.toContain(traceIds[5]);
+      expect(traces.map(({ id }) => id)).not.toContain(legacyTraceId);
     });
   });
 

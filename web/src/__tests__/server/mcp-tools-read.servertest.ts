@@ -256,35 +256,27 @@ const createEvaluationRuleForMcpReadTest = async (
   setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
 ) => {
   const evaluatorName = `mcp-eval-${nanoid()}`;
-  const evaluator = await prisma.evalTemplate.create({
-    data: {
-      projectId: setup.projectId,
-      name: evaluatorName,
-      version: 1,
-      type: "LLM_AS_JUDGE",
-      prompt: "Judge {{input}} against {{output}}",
-      vars: ["input", "output"],
-      outputDefinition: { version: 2, ...mcpEvalOutputDefinition },
-    },
-  });
+  const evaluator = await createLlmEvaluatorForMcpReadTest(
+    setup,
+    evaluatorName,
+  );
   const ruleName = `mcp-rule-${nanoid()}`;
   const rule = (await handleCreateEvaluationRule(
     {
       name: ruleName,
-      evaluator: {
-        name: evaluatorName,
-        scope: "project",
-        type: "llm_as_judge",
-      },
-      enabled: false,
+      evaluatorAssignments: [
+        {
+          evaluatorId: evaluator.id,
+          variableMapping: [
+            { variable: "input", source: "input" },
+            { variable: "output", source: "output" },
+          ],
+        },
+      ],
+      enabled: true,
       sampling: 1,
-      target: "observation",
       filter: [
         { column: "version", operator: "=", value: "1.0.0", type: "string" },
-      ],
-      mapping: [
-        { variable: "input", source: "input" },
-        { variable: "output", source: "output" },
       ],
     },
     setup.context,
@@ -655,6 +647,55 @@ describe("MCP Read Tools", () => {
       )) as { data: Array<{ id: string }> };
 
       expect(result.data.map((item) => item.id)).toContain(rule.id);
+    });
+
+    it("returns multi-evaluator rules with all assignments", async () => {
+      const setup = await createMcpTestSetup();
+      const [firstEvaluator, secondEvaluator] = await Promise.all([
+        createLlmEvaluatorForMcpReadTest(setup),
+        createLlmEvaluatorForMcpReadTest(setup),
+      ]);
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId: setup.projectId,
+          name: `mcp-multi-evaluator-rule-${nanoid()}`,
+          targetObject: "event",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: [firstEvaluator, secondEvaluator].map((evaluator) => ({
+              projectId: setup.projectId,
+              evaluatorId: evaluator.id,
+              variableMapping: [],
+            })),
+          },
+        },
+      });
+
+      const result = (await handleListEvaluationRules(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data).toContainEqual(
+        expect.objectContaining({
+          id: rule.id,
+          evaluators: expect.arrayContaining([
+            expect.objectContaining({ evaluatorId: firstEvaluator.id }),
+            expect.objectContaining({ evaluatorId: secondEvaluator.id }),
+          ]),
+        }),
+      );
+      await expect(
+        handleGetEvaluationRule({ evaluationRuleId: rule.id }, setup.context),
+      ).resolves.toMatchObject({
+        id: rule.id,
+        evaluators: expect.arrayContaining([
+          expect.objectContaining({ evaluatorId: firstEvaluator.id }),
+          expect.objectContaining({ evaluatorId: secondEvaluator.id }),
+        ]),
+      });
     });
   });
 

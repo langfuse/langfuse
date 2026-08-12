@@ -15,16 +15,6 @@ types:
       - PYTHON
       - TYPESCRIPT
 
-  EvaluatorScope:
-    docs: |
-      Where an evaluator comes from.
-
-      - `project`: created in your project
-      - `managed`: provided by Langfuse
-    enum:
-      - project
-      - managed
-
   EvaluationRuleTarget:
     docs: |
       The ingestion object type that should trigger evaluation runs.

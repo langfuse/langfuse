@@ -1,7 +1,7 @@
 import {
   DEFAULT_TRACE_ENVIRONMENT,
   getEventsStreamForEval,
-  getObservationById,
+  getObservationByIdFromObservationsTable,
 } from "@langfuse/shared/src/server";
 import {
   LangfuseNotFoundError,
@@ -69,8 +69,7 @@ async function getObservationForEvalByIdFromLegacyObservations(params: {
   traceId: string;
   startTime: Date;
 }): Promise<ObservationForEval> {
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  const observation = await getObservationById({
+  const observation = await getObservationByIdFromObservationsTable({
     projectId: params.projectId,
     id: params.id,
     traceId: params.traceId,

@@ -1,4 +1,11 @@
-import { ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  Link2,
+  ListTree,
+  MoreVertical,
+  Pencil,
+  SquarePercent,
+  Trash2,
+} from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -13,6 +20,7 @@ export function EvaluatorActionsCell({
   canViewExecutions,
   onViewScores,
   onViewExecutions,
+  onManageRules,
   onEdit,
   onDelete,
 }: {
@@ -20,19 +28,30 @@ export function EvaluatorActionsCell({
   canViewExecutions: boolean;
   onViewScores: () => void;
   onViewExecutions: () => void;
+  onManageRules: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <div className="flex w-full min-w-0 items-center justify-end gap-1">
       <Button
         type="button"
         variant="outline"
         size="sm"
-        className="w-[104px] shrink-0"
-        onClick={hasActiveRules ? onViewScores : undefined}
+        className="shrink-0"
+        onClick={hasActiveRules ? onViewScores : onManageRules}
       >
-        {hasActiveRules ? "View scores" : "Attach to rule"}
+        {hasActiveRules ? (
+          <>
+            <SquarePercent className="mr-2 h-4 w-4" />
+            View scores
+          </>
+        ) : (
+          <>
+            <Link2 className="mr-2 h-4 w-4" />
+            Attach to rule
+          </>
+        )}
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

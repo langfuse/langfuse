@@ -1,17 +1,17 @@
-import {
-  GetUnstableEvaluationRulesQuery,
-  GetUnstableEvaluationRulesResponse,
-} from "@/src/features/public-api/types/unstable-evaluation-rules";
-import { listPublicEvaluationRules } from "@/src/features/evals/server/unstable-public-api";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import {
+  EvaluationRulesResponseSchema,
+  ListEvaluationRulesInputSchema,
+} from "../rule-schema";
+import { createMcpRuleService, toMcpEvaluationRule } from "../rule-service";
 
 export const [listEvaluationRulesTool, handleListEvaluationRules] = defineTool({
   name: "listEvaluationRules",
   description:
-    "List evaluation rules in the current Langfuse project. Each rule attaches an evaluator to incoming observations or experiment items. Results are paginated.",
-  baseSchema: GetUnstableEvaluationRulesQuery,
-  inputSchema: GetUnstableEvaluationRulesQuery,
+    "List observation evaluation rules in the current Langfuse project, including all evaluator assignments. Results are paginated.",
+  baseSchema: ListEvaluationRulesInputSchema,
+  inputSchema: ListEvaluationRulesInputSchema,
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.evaluation_rules.list",
@@ -21,13 +21,19 @@ export const [listEvaluationRulesTool, handleListEvaluationRules] = defineTool({
         "mcp.pagination_limit": input.limit,
       },
       fn: async () => {
-        const result = await listPublicEvaluationRules({
+        const { rules, totalItems } = await createMcpRuleService(context).list({
           projectId: context.projectId,
-          page: input.page,
-          limit: input.limit,
+          ...input,
         });
-
-        return GetUnstableEvaluationRulesResponse.parse(result);
+        return EvaluationRulesResponseSchema.parse({
+          data: rules.map(toMcpEvaluationRule),
+          meta: {
+            page: input.page,
+            limit: input.limit,
+            totalItems,
+            totalPages: Math.ceil(totalItems / input.limit),
+          },
+        });
       },
     }),
   readOnlyHint: true,

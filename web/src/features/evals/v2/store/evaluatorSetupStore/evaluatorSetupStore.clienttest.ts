@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 import { createEvaluatorSetupStore } from "./evaluatorSetupStore";
 
 describe("createEvaluatorSetupStore", () => {
@@ -48,6 +49,25 @@ describe("createEvaluatorSetupStore", () => {
       initialType: "CODE",
     });
 
-    expect(store.getState().type).toBe("CODE");
+    expect(store.getState()).toMatchObject({
+      type: "CODE",
+      sourceCodeLanguage: "TYPESCRIPT",
+      sourceCode: getDefaultCodeEvalSource("TYPESCRIPT"),
+    });
+  });
+
+  it("keeps configured parameters for the selected model and resets them when the model changes", () => {
+    const store = createEvaluatorSetupStore({ initialEvaluator: null });
+    const { actions } = store.getState();
+
+    actions.configureModel(
+      { provider: "OpenAI", model: "gpt-4.1-mini" },
+      { temperature: 0.2 },
+    );
+    actions.selectModel({ provider: "OpenAI", model: "gpt-4.1-mini" });
+    expect(store.getState().modelParams).toEqual({ temperature: 0.2 });
+
+    actions.selectModel({ provider: "OpenAI", model: "gpt-4.1" });
+    expect(store.getState().modelParams).toBeNull();
   });
 });

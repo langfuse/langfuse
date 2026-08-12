@@ -120,6 +120,46 @@ describe("unstable evaluator API on stable evaluator storage", () => {
     });
   });
 
+  it("ignores stale legacy job configurations when counting evaluator rules", async () => {
+    const evaluator = await createPublicEvaluator({
+      projectId,
+      input: input("Public evaluator", "Judge {{output}}"),
+    });
+    await prisma.evalTemplate.create({
+      data: {
+        id: evaluator.id,
+        projectId,
+        name: evaluator.name,
+        version: 1,
+        prompt: "Judge {{output}}",
+        type: "LLM_AS_JUDGE",
+        vars: ["output"],
+        outputDefinition: Prisma.DbNull,
+      },
+    });
+    const legacyRule = await prisma.jobConfiguration.create({
+      data: {
+        projectId,
+        jobType: "EVAL",
+        status: "INACTIVE",
+        evalTemplateId: evaluator.id,
+        scoreName: "Stale legacy rule",
+        targetObject: "event",
+        filter: [],
+        variableMapping: [],
+        sampling: 1,
+        delay: 0,
+      },
+    });
+
+    await expect(
+      getPublicEvaluator({ projectId, evaluatorId: evaluator.id }),
+    ).resolves.toMatchObject({ evaluationRuleCount: 0 });
+
+    await prisma.jobConfiguration.delete({ where: { id: legacyRule.id } });
+    await prisma.evalTemplate.delete({ where: { id: evaluator.id } });
+  });
+
   it("rejects legacy version IDs and cross-project reads", async () => {
     const evaluator = await createPublicEvaluator({
       projectId,

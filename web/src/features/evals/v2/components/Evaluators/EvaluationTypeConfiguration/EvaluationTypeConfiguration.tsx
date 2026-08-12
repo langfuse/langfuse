@@ -38,11 +38,13 @@ export function EvaluationTypeConfiguration({
         </Tooltip>
       </Label>
       <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span>Run</span>
         <EvaluationTypeToggle
           value={mode}
           onValueChange={onModeChange}
           disabled={disabled}
         />
+        <span>{mode === "CODE" ? "written in" : "with"}</span>
         {children}
       </div>
     </div>

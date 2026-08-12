@@ -3,7 +3,7 @@ import { Clock, Coins } from "lucide-react";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { costFormatter } from "@/src/utils/numbers";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export type TestResultPanelState =
   | { status: "empty" }
@@ -73,7 +73,7 @@ function TestResultHeader({
           icon={Coins}
           title="Estimated cost of the test call — also feeds the daily projection when saving"
         >
-          {costFormatter(estimatedCostUsd)}
+          {usdFormatter(estimatedCostUsd)}
         </ResultStat>
       ) : null}
       <span className="ml-auto flex shrink-0 items-center gap-2">

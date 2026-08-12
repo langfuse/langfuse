@@ -3,14 +3,25 @@ import { fn } from "storybook/test";
 
 import preview from "../../../../../../../.storybook/preview";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import { JudgeModelPicker, JudgeModelPickerTrigger } from "./JudgeModelPicker";
+import {
+  JudgeModelPicker,
+  JudgeModelPickerTrigger,
+  type JudgeModelPickerProps,
+} from "./JudgeModelPicker";
 
-const meta = preview.meta({ component: JudgeModelPicker });
+type EvaluatorJudgeModelPickerProps = Exclude<
+  JudgeModelPickerProps,
+  { purpose: "projectDefault" }
+>;
 
-type JudgeModelPickerProps = Parameters<typeof JudgeModelPicker>[0];
+function EvaluatorJudgeModelPicker(props: EvaluatorJudgeModelPickerProps) {
+  return <JudgeModelPicker {...props} />;
+}
 
-function StatefulJudgeModelPicker(args: JudgeModelPickerProps) {
-  const [, updateArgs] = useArgs<JudgeModelPickerProps>();
+const meta = preview.meta({ component: EvaluatorJudgeModelPicker });
+
+function StatefulJudgeModelPicker(args: EvaluatorJudgeModelPickerProps) {
+  const [, updateArgs] = useArgs<EvaluatorJudgeModelPickerProps>();
 
   return (
     <JudgeModelPicker
@@ -46,7 +57,9 @@ const actions = {
   onModeChange: fn(),
   onSelectCustom: fn(),
   onConfigureProviders: fn(),
-  onConfigureDefault: fn(),
+  onConfigureModel: fn(),
+  canSetProjectDefault: true,
+  onSetProjectDefault: fn(),
 };
 
 export const ProjectDefault = meta.story({

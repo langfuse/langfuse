@@ -9,6 +9,7 @@ import { PromptEditor } from "@/src/features/evals/v2/components/Evaluators/Eval
 import { ScoreOutputEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ScoreOutputEditor/ScoreOutputEditor";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
 
 export function DefinitionStepContainer({
   projectId,
@@ -16,18 +17,22 @@ export function DefinitionStepContainer({
   isEditing,
   defaultModel,
   providerGroups,
+  providerAdapters,
+  canSetProjectDefault,
   onStepOpenChange,
   onConfigureProviders,
-  onConfigureDefault,
+  onSetProjectDefault,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
   isEditing: boolean;
   defaultModel: JudgeModel | null;
   providerGroups: Array<[string, string[]]>;
+  providerAdapters: Record<string, LLMAdapter>;
+  canSetProjectDefault: boolean;
   onStepOpenChange: (step: number, open: boolean) => void;
   onConfigureProviders: () => void;
-  onConfigureDefault: () => void;
+  onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
 }) {
   const state = useStore(
     store,
@@ -47,11 +52,14 @@ export function DefinitionStepContainer({
       isEditing={isEditing}
       typeConfiguration={
         <ModelSelector
+          projectId={projectId}
           store={store}
           defaultModel={defaultModel}
           providerGroups={providerGroups}
+          providerAdapters={providerAdapters}
+          canSetProjectDefault={canSetProjectDefault}
           onConfigureProviders={onConfigureProviders}
-          onConfigureDefault={onConfigureDefault}
+          onSetProjectDefault={onSetProjectDefault}
         />
       }
       promptEditor={<PromptEditor projectId={projectId} store={store} />}
@@ -69,3 +77,4 @@ export function DefinitionStepContainer({
     />
   );
 }
+import type { LLMAdapter } from "@langfuse/shared";

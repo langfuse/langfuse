@@ -40,6 +40,7 @@ describe("prepareEvaluatorDraft", () => {
         },
         modelMode: "custom",
         selectedModel: { provider: "openai", model: "gpt-test" },
+        modelParams: { temperature: 0.2 },
         initialDefinition,
       }),
     ).toMatchObject({

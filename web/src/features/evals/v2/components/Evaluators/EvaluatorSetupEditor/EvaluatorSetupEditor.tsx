@@ -5,6 +5,7 @@ import { NameStepContainer } from "@/src/features/evals/v2/components/Evaluators
 import { VariableMappingStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/VariableMappingStep/components/VariableMappingStepContainer/VariableMappingStepContainer";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
 
 export function EvaluatorSetupEditor({
   projectId,
@@ -12,20 +13,24 @@ export function EvaluatorSetupEditor({
   isEditing,
   defaultModel,
   providerGroups,
+  providerAdapters,
+  canSetProjectDefault,
   isSuggestingName,
   onStepOpenChange,
   onConfigureProviders,
-  onConfigureDefault,
+  onSetProjectDefault,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
   isEditing: boolean;
   defaultModel: JudgeModel | null;
   providerGroups: Array<[string, string[]]>;
+  providerAdapters: Record<string, LLMAdapter>;
+  canSetProjectDefault: boolean;
   isSuggestingName: boolean;
   onStepOpenChange: (step: number, open: boolean) => void;
   onConfigureProviders: () => void;
-  onConfigureDefault: () => void;
+  onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
 }) {
   const type = useStore(store, (state) => state.type);
 
@@ -37,9 +42,11 @@ export function EvaluatorSetupEditor({
         isEditing={isEditing}
         defaultModel={defaultModel}
         providerGroups={providerGroups}
+        providerAdapters={providerAdapters}
+        canSetProjectDefault={canSetProjectDefault}
         onStepOpenChange={onStepOpenChange}
         onConfigureProviders={onConfigureProviders}
-        onConfigureDefault={onConfigureDefault}
+        onSetProjectDefault={onSetProjectDefault}
       />
       {type === "LLM_AS_JUDGE" ? (
         <VariableMappingStepContainer
@@ -56,3 +63,4 @@ export function EvaluatorSetupEditor({
     </div>
   );
 }
+import type { LLMAdapter } from "@langfuse/shared";

@@ -12,12 +12,7 @@ export const LlmJudge = meta.story({
     mode: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     onModeChange: fn(),
     disabled: false,
-    children: (
-      <>
-        <span>with</span>
-        <Button variant="outline">OpenAI / gpt-4.1-mini</Button>
-      </>
-    ),
+    children: <Button variant="outline">OpenAI / gpt-4.1-mini</Button>,
   },
 });
 
@@ -26,6 +21,6 @@ export const Disabled = meta.story({
     mode: EvalTemplateTypeEnum.CODE,
     onModeChange: fn(),
     disabled: true,
-    children: <span>written in Python</span>,
+    children: <span>Python</span>,
   },
 });

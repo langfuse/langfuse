@@ -2,13 +2,15 @@ import { useMemo, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import type { VariableFieldState } from "@/src/features/evals/v2/components/VariableMapping/types";
+import type {
+  ActiveVariableMapping,
+  VariableFieldState,
+} from "@/src/features/evals/v2/types/variableMapping";
 import { JsonPathEditor } from "../JsonPathEditor/JsonPathEditor";
 import { SampleDataTreeSelector } from "../SampleDataTreeSelector/SampleDataTreeSelector";
 import { VariableMappingCardShell } from "../VariableMappingCardShell";
 import { VariableMappingBinding } from "../VariableMappingBinding/VariableMappingBinding";
 import { buildJsonPathSuggestions } from "@/src/features/evals/v2/fns/variableMapping/buildJsonPathSuggestions";
-import { parseSampleField } from "@/src/features/evals/v2/fns/variableMapping/parseSampleField";
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
 import {
   jsonPathToSegments,
@@ -20,6 +22,8 @@ import {
   eventTargetEvalVariableColumns,
   extractValueFromObjectAsString,
 } from "@langfuse/shared";
+
+const TOOL_CALLS_COLUMN_ID = "toolCalls";
 
 const focusEditingSurface = (element: HTMLDivElement | null) => {
   element?.focus();
@@ -114,7 +118,12 @@ function TreeSelectorBody({
         ? eventTargetEvalVariableColumns.map((column) => ({
             id: column.id,
             label: column.name,
-            value: parseSampleField(column.id, sourceObject[column.id]),
+            // Tool calls are already normalized; deep parsing can corrupt
+            // string-valued identifiers such as a tool named "true".
+            value:
+              column.id === TOOL_CALLS_COLUMN_ID
+                ? sourceObject[column.id]
+                : deepParseJsonIterative(sourceObject[column.id]),
           }))
         : [],
     [sourceObject],
@@ -123,7 +132,9 @@ function TreeSelectorBody({
     () =>
       sourceObject && selectedColumnId
         ? buildJsonPathSuggestions(
-            parseSampleField(selectedColumnId, sourceObject[selectedColumnId]),
+            selectedColumnId === TOOL_CALLS_COLUMN_ID
+              ? sourceObject[selectedColumnId]
+              : deepParseJsonIterative(sourceObject[selectedColumnId]),
           )
         : [],
     [sourceObject, selectedColumnId],
@@ -345,11 +356,6 @@ export type EditableVariableMappingProps = {
   hasMatchingObservations: boolean;
   sourceUnavailableMessage?: string;
 };
-
-export type ActiveVariableMapping = {
-  variable: string;
-  state: "preview" | "editing";
-} | null;
 
 export function EditableVariableMapping({
   mappings,

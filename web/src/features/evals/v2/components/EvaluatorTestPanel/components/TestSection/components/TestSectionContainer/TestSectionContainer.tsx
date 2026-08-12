@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 
-import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelector/SampleObservationSelector";
+import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { TestResultPanelView } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
 import { TestSection } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/TestSection";
 import { TestRerunAction } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestRerunAction/TestRerunAction";
@@ -38,6 +38,8 @@ export function TestSectionContainer({
     typeof testResult.executionTraceId === "string"
       ? testResult.executionTraceId
       : null;
+  const durationMs = readNumber(testResult, "durationMs");
+  const estimatedCostUsd = readNumber(testResult, "estimatedCostUsd");
 
   return (
     <TestSection
@@ -56,8 +58,8 @@ export function TestSectionContainer({
               isPending: testPending,
               result: testResult,
             })}
-            durationMs={null}
-            estimatedCostUsd={null}
+            durationMs={durationMs}
+            estimatedCostUsd={estimatedCostUsd}
             rawOutput={testResult}
             rawOpen={rawResultOpen}
             onRawOpenChange={onRawResultOpenChange}
@@ -82,4 +84,10 @@ export function TestSectionContainer({
       }
     />
   );
+}
+
+function readNumber(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || !(key in value)) return null;
+  const metric = (value as Record<string, unknown>)[key];
+  return typeof metric === "number" ? metric : null;
 }

@@ -25,6 +25,10 @@ import type {
   ObservedScoreNames,
 } from "@/src/features/search-bar/lib/observed-options";
 import { AI_GROUNDING_COLUMNS } from "@/src/features/search-bar/lib/ai-context";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
 import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
@@ -45,6 +49,7 @@ export function EventsSearchBarRow({
   aiDataContext,
   aiScoreNames,
   className,
+  registry = EVENTS_FIELD_REGISTRY,
 }: {
   projectId: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
@@ -84,6 +89,8 @@ export function EventsSearchBarRow({
    *  bar with the desktop toolbar row; the mobile Filters sheet passes flush
    *  padding so the bar lines up with the sheet's other sections. */
   className?: string;
+  /** The view-specific grammar and filter contract. */
+  registry?: FieldRegistry;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -109,6 +116,7 @@ export function EventsSearchBarRow({
           store={store}
           dataContext={aiDataContext}
           scoreNames={aiScoreNames}
+          registryId={registry.id}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}
         />
@@ -122,6 +130,7 @@ export function EventsSearchBarRow({
             freeTextReason={freeTextReason}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
+            registry={registry}
           />
         </SearchBarStoreProvider>
       )}

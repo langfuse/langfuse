@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { fn, userEvent } from "storybook/test";
 import preview from "../../../../../../.storybook/preview";
-import { type VariableFieldState } from "./types";
+import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
+
 import { VariableMapping } from "./VariableMapping";
 
 const meta = preview.meta({ component: VariableMapping });

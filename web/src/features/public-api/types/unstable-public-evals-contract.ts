@@ -31,7 +31,6 @@ export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =
   PUBLIC_EVALUATOR_TYPES;
 
 export const PublicEvaluatorType = z.enum(PUBLIC_EVALUATOR_TYPES);
-export const PublicEvaluatorScope = z.enum(["project", "managed"]);
 export const PublicCodeEvaluatorSourceCodeLanguage = z.enum([
   "PYTHON",
   "TYPESCRIPT",
@@ -92,9 +91,11 @@ export const PublicEvaluationRuleStatus = z.enum([
   "paused",
 ]);
 
+// No `scope`: every evaluator is project-owned, so the field could only ever
+// carry one value. Gallery templates are starter definitions that are copied
+// into the project on save, not addressable Langfuse-managed resources.
 export const PublicEvaluationRuleEvaluatorReference = z.object({
   name: z.string().min(1),
-  scope: PublicEvaluatorScope,
   type: PublicEvaluatorType.default(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
 });
 
@@ -105,7 +106,6 @@ export const PublicEvaluationRuleEvaluatorReference = z.object({
 // evaluator's variables). To use a different evaluator type, create a new rule.
 export const PublicEvaluationRuleEvaluatorReferencePatch = z.object({
   name: z.string().min(1),
-  scope: PublicEvaluatorScope,
 });
 
 export const PublicEvaluationRuleEvaluator =
@@ -159,13 +159,24 @@ export const PublicEvaluationRuleMapping = z.union([
   ExperimentEvaluationRuleMapping,
 ]);
 
-export const LegacyEvaluationRuleMapping = z.object({
-  variable: z.string().min(1),
-  langfuseObject: z.enum(langfuseObjects),
-  objectName: z.string().nullable(),
-  source: z.string().min(1),
-  jsonPath: z.string().min(1).optional(),
-});
+export const LegacyEvaluationRuleMapping = z
+  .object({
+    variable: z.string().min(1),
+    langfuseObject: z.enum(langfuseObjects),
+    objectName: z.string().nullable(),
+    source: z.string().min(1),
+    jsonPath: z.string().min(1).optional(),
+  })
+  .refine(
+    (mapping) =>
+      mapping.langfuseObject === "trace" ||
+      mapping.langfuseObject === "dataset_item" ||
+      mapping.objectName !== null,
+    {
+      path: ["objectName"],
+      message: "objectName is required for observation objects",
+    },
+  );
 
 const filterSchemaFactories = {
   datetime: (columnId: string) =>
@@ -245,7 +256,6 @@ export type PublicEvaluatorOutputDefinitionType = z.infer<
   typeof PublicEvaluatorOutputDefinition
 >;
 export type PublicEvaluatorTypeType = z.infer<typeof PublicEvaluatorType>;
-export type PublicEvaluatorScopeType = z.infer<typeof PublicEvaluatorScope>;
 export type PublicEvaluationRuleTargetType = z.infer<
   typeof PublicEvaluationRuleTarget
 >;
@@ -266,6 +276,9 @@ export type PublicEvaluationRuleEvaluatorType = z.infer<
 >;
 export type PublicEvaluationRuleMappingType = z.infer<
   typeof PublicEvaluationRuleMapping
+>;
+export type PublicObservationEvaluationRuleMappingType = z.infer<
+  typeof ObservationEvaluationRuleMapping
 >;
 export type LegacyEvaluationRuleMappingType = z.infer<
   typeof LegacyEvaluationRuleMapping

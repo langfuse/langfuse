@@ -2,10 +2,10 @@ import { z } from "zod";
 import {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+  ObservationEvaluationRuleMapping,
   PublicCodeEvaluatorDefinitionInput,
   PublicEvaluatorModelConfig,
   PublicEvaluatorOutputDefinition,
-  PublicEvaluatorScope,
   PublicLlmAsJudgeEvaluatorDefinitionInput,
   UnstablePublicApiPaginationQuery,
   UnstablePublicApiPaginationResponse,
@@ -16,8 +16,8 @@ const APIEvaluatorBase = z
     id: z.string(),
     name: z.string(),
     version: z.number().int().positive(),
-    scope: PublicEvaluatorScope,
     variables: z.array(z.string()),
+    mapping: z.array(ObservationEvaluationRuleMapping).nullable(),
     evaluationRuleCount: z.number().int().nonnegative(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
@@ -78,6 +78,7 @@ const PostUnstableLlmAsJudgeEvaluatorBody = z.object({
   ...EvaluatorCreateBase,
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
   ...PublicLlmAsJudgeEvaluatorDefinitionInput.shape,
+  mapping: z.array(ObservationEvaluationRuleMapping).optional(),
   sourceCode: z.never().optional(),
   sourceCodeLanguage: z.never().optional(),
 });
@@ -89,6 +90,7 @@ const PostUnstableCodeEvaluatorBody = z.object({
   prompt: z.never().optional(),
   outputDefinition: z.never().optional(),
   modelConfig: z.never().optional(),
+  mapping: z.never().optional(),
 });
 
 const PostUnstableTypedEvaluatorBody = z.discriminatedUnion("type", [

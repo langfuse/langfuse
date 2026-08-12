@@ -2,14 +2,17 @@ import {
   invalidateProjectEvalConfigCaches,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
-import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, Prisma, prisma } from "@langfuse/shared/src/db";
 import {
-  EvalTargetObject,
   JobConfigState,
+  LangfuseNotFoundError,
+  EvalTargetObject,
   type FilterCondition,
+  type FilterState,
+  type ObservationVariableMapping,
 } from "@langfuse/shared";
 import {
-  assertCodeEvalJobConfigCanRun,
+  assertCodeEvalRuleCanRun,
   CodeEvalJobConfigError,
 } from "@/src/features/evals/server/codeEvalJobConfigValidation";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -22,34 +25,115 @@ import type {
   PatchUnstableEvaluationRuleBodyType,
   PostUnstableEvaluationRuleBodyType,
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
+import type {
+  PublicEvaluationRuleMappingType,
+  PublicEvaluationRuleTargetType,
+} from "@/src/features/public-api/types/unstable-public-evals-contract";
 import {
   deriveEvaluatorVariables,
-  toApiEvaluationRule,
-  toApiWritableEvaluationRule,
-  toJobConfigurationInput,
+  toApiMappings,
+  toApiV2EvaluationRule,
+  toApiWritableV2EvaluationRule,
+  toEvaluationRuleFields,
+  toEvaluationRuleInput,
   toPublicEvaluatorType,
+  toStoredAssignmentMapping,
 } from "./adapters";
 import {
-  countActiveEvaluationRules,
-  findPublicEvaluationRuleOrThrow,
-  findReadablePublicEvaluationRuleOrThrow,
-  listPublicEvaluationRuleConfigs,
-  loadEvaluatorForEvaluationRule,
+  ActiveEvaluationRuleLimitError,
+  assertActiveRuleLimitNotExceeded,
+} from "@/src/features/evals/v2/server/rules/ruleErrors";
+import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
+import { replaceAssignments } from "@/src/features/evals/v2/server/rules/ruleRepository";
+import {
+  findPublicV2EvaluatorByIdOrThrow,
+  findPublicV2EvaluationRule,
+  findPublicV2EvaluatorInFamilyOrThrow,
+  listPublicEvaluationRulePage,
+  publicV2RuleInclude,
 } from "./queries";
-import type { StoredPublicEvaluatorTemplate } from "./types";
+import type {
+  EvaluationRuleEvaluatorFamilyReference,
+  StoredPublicEvaluatorTemplate,
+  StoredPublicV2EvaluationRule,
+} from "./types";
 import {
   assertEvaluationRuleFilterValuesExistForProject,
   assertEvaluatorDefinitionCanRunForPublicApi,
 } from "./validation";
+import { PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import { assertUnreachable } from "@/src/utils/types";
-import { deleteJobConfigurationWithExecutions } from "@/src/features/evals/server/evaluatorRepository";
 
-const MAX_ACTIVE_EVALUATION_RULES = 500;
+const ruleService = new RuleService(prisma, async () => undefined);
+
+function getRequestedEvaluatorAssignments(
+  input: PostUnstableEvaluationRuleBodyType,
+) {
+  if (input.evaluators) return input.evaluators;
+  return [{ evaluator: input.evaluator!, mapping: input.mapping }];
+}
+
+type PublicV2Evaluator = Awaited<
+  ReturnType<typeof findPublicV2EvaluatorInFamilyOrThrow>
+>;
+
+function toEvaluatorDefinition(
+  evaluator: PublicV2Evaluator,
+): StoredPublicEvaluatorTemplate {
+  const version = evaluator.versions[0];
+  if (!version) {
+    throw createUnstablePublicApiError({
+      httpCode: 500,
+      code: "internal_error",
+      message: "Evaluator version is missing",
+    });
+  }
+  return {
+    id: evaluator.id,
+    projectId: evaluator.projectId,
+    name: evaluator.name,
+    version: version.version,
+    type: evaluator.type,
+    prompt: version.prompt,
+    partner: version.partner,
+    provider: version.provider,
+    model: version.model,
+    modelParams: version.modelParams,
+    vars: version.vars,
+    outputDefinition: version.outputDefinition,
+    sourceCode: version.sourceCode,
+    sourceCodeLanguage: version.sourceCodeLanguage,
+    variableMapping: version.variableMapping,
+    createdAt: evaluator.createdAt,
+    updatedAt: evaluator.updatedAt,
+  };
+}
+
+function jsonValue(value: unknown) {
+  return value === null ? Prisma.DbNull : (value as Prisma.InputJsonValue);
+}
+
+async function resolveProjectEvaluator(params: {
+  projectId: string;
+  evaluator: EvaluationRuleEvaluatorFamilyReference;
+  evaluatorId?: string;
+}) {
+  return params.evaluatorId
+    ? findPublicV2EvaluatorByIdOrThrow({
+        projectId: params.projectId,
+        evaluatorId: params.evaluatorId,
+      })
+    : findPublicV2EvaluatorInFamilyOrThrow({
+        projectId: params.projectId,
+        evaluator: params.evaluator,
+      });
+}
 
 async function assertEvaluationRuleCanRunForPublicApi(params: {
   orgId: string;
   projectId: string;
+  evaluatorId: string;
   template: StoredPublicEvaluatorTemplate;
   target: EvalTargetObject;
   mapping: unknown;
@@ -70,20 +154,14 @@ async function assertEvaluationRuleCanRunForPublicApi(params: {
     return;
   }
 
-  // Code evaluators only run when the project has a configured dispatcher that
-  // supports the template language. Reject here so we never persist an active
-  // rule that would silently fail at execution time, matching the create path.
   if (!isCodeEvalEnabled()) {
     throw createUnstablePublicApiError({
       httpCode: 403,
       code: "access_denied",
       message: "Code evals are not enabled",
-      details: {
-        evaluatorName: params.template.name,
-      },
+      details: { evaluatorName: params.template.name },
     });
   }
-
   if (
     !isCodeEvalSourceCodeLanguageSupported(params.template.sourceCodeLanguage)
   ) {
@@ -92,73 +170,118 @@ async function assertEvaluationRuleCanRunForPublicApi(params: {
       code: "invalid_request",
       message:
         "This code evaluator language is not supported by the configured dispatcher.",
-      details: {
-        evaluatorName: params.template.name,
-      },
+      details: { evaluatorName: params.template.name },
     });
   }
 
   try {
-    await assertCodeEvalJobConfigCanRun({
+    await assertCodeEvalRuleCanRun({
       prisma,
       orgId: params.orgId,
       projectId: params.projectId,
-      evalTemplateId: params.template.id,
+      evaluatorId: params.evaluatorId,
       target: params.target,
       mapping: params.mapping,
       scoreName: params.scoreName,
       filter: params.filter,
     });
   } catch (error) {
-    if (error instanceof CodeEvalJobConfigError) {
-      const details = { evaluatorName: params.template.name };
-      switch (error.code) {
-        case "invalid_target":
-        case "invalid_request":
-          throw createUnstablePublicApiError({
-            httpCode: 400,
-            code: "invalid_request",
-            message: error.message,
-            details,
-          });
-        case "resource_not_found":
-          throw createUnstablePublicApiError({
-            httpCode: 404,
-            code: "resource_not_found",
-            message: error.message,
-            details,
-          });
-        case "preflight_failed":
-          throw createUnstablePublicApiError({
-            httpCode: 422,
-            code: "evaluator_preflight_failed",
-            message: error.message,
-            details,
-          });
-        default:
-          return assertUnreachable(error.code);
-      }
+    if (!(error instanceof CodeEvalJobConfigError)) throw error;
+    const details = { evaluatorName: params.template.name };
+    switch (error.code) {
+      case "invalid_target":
+      case "invalid_request":
+        throw createUnstablePublicApiError({
+          httpCode: 400,
+          code: "invalid_request",
+          message: error.message,
+          details,
+        });
+      case "resource_not_found":
+        throw createUnstablePublicApiError({
+          httpCode: 404,
+          code: "resource_not_found",
+          message: error.message,
+          details,
+        });
+      case "preflight_failed":
+        throw createUnstablePublicApiError({
+          httpCode: 422,
+          code: "evaluator_preflight_failed",
+          message: error.message,
+          details,
+        });
+      default:
+        return assertUnreachable(error.code);
     }
-
-    throw error;
   }
 }
 
+// The cap itself lives in the rule service so tRPC, MCP, and this API cannot
+// drift; only the error envelope is public-API specific.
 async function assertActivePublicApiEvaluationRuleLimitNotExceeded(
   projectId: string,
 ) {
-  const activeCount = await countActiveEvaluationRules({ projectId });
+  try {
+    await assertActiveRuleLimitNotExceeded({
+      prisma,
+      projectId,
+      additionalActiveRules: 1,
+    });
+  } catch (error) {
+    throwPublicRuleServiceError(error);
+  }
+}
 
-  if (activeCount >= MAX_ACTIVE_EVALUATION_RULES) {
+function throwPublicRuleServiceError(error: unknown): never {
+  if (error instanceof ActiveEvaluationRuleLimitError) {
     throw createUnstablePublicApiError({
       httpCode: 409,
       code: "conflict",
-      message: `This project already has the maximum number of active evaluation rules (${MAX_ACTIVE_EVALUATION_RULES}). Disable an existing active evaluation rule before enabling another one.`,
-      details: {
-        limit: MAX_ACTIVE_EVALUATION_RULES,
-      },
+      message: error.message,
+      details: { limit: error.limit },
     });
   }
+  throw error;
+}
+
+async function runRuleServiceMutation<T>(mutation: () => Promise<T>) {
+  try {
+    return await mutation();
+  } catch (error) {
+    throwPublicRuleServiceError(error);
+  }
+}
+
+async function findPublicV2EvaluationRuleOrThrow(params: {
+  projectId: string;
+  evaluationRuleId: string;
+}) {
+  const rule = await findPublicV2EvaluationRule(params);
+  if (!rule) {
+    throw new LangfuseNotFoundError(
+      "Evaluation rule not found within authorized project",
+    );
+  }
+  // A rule with no assignments is still a real, addressable resource: it must
+  // stay readable and deletable rather than 404 while consuming a slot.
+  return rule;
+}
+
+async function findPublicWritableV2EvaluationRuleOrThrow(params: {
+  projectId: string;
+  evaluationRuleId: string;
+}) {
+  const rule = await findPublicV2EvaluationRuleOrThrow(params);
+  if (
+    rule.targetObject !== EvalTargetObject.EVENT &&
+    rule.targetObject !== EvalTargetObject.EXPERIMENT
+  ) {
+    throw new LangfuseNotFoundError(
+      "Evaluation rule not found within authorized project",
+    );
+  }
+  return rule;
 }
 
 export async function listPublicEvaluationRules(params: {
@@ -166,10 +289,9 @@ export async function listPublicEvaluationRules(params: {
   page: number;
   limit: number;
 }) {
-  const { configs, totalItems } = await listPublicEvaluationRuleConfigs(params);
-
+  const { records, totalItems } = await listPublicEvaluationRulePage(params);
   return {
-    data: configs.map((config) => toApiEvaluationRule(config)),
+    data: records.map(toApiV2EvaluationRule),
     meta: {
       page: params.page,
       limit: params.limit,
@@ -183,118 +305,105 @@ export async function getPublicEvaluationRule(params: {
   projectId: string;
   evaluationRuleId: string;
 }) {
-  const config = await findReadablePublicEvaluationRuleOrThrow(params);
-  return toApiEvaluationRule(config);
+  return toApiV2EvaluationRule(await findPublicV2EvaluationRuleOrThrow(params));
 }
 
 export async function createPublicEvaluationRule(params: {
   orgId: string;
   projectId: string;
   input: PostUnstableEvaluationRuleBodyType;
+  evaluatorId?: string;
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  const existing = await prisma.jobConfiguration.findFirst({
-    where: {
-      projectId: params.projectId,
-      jobType: "EVAL",
-      targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
-      },
-      scoreName: params.input.name,
-      evalTemplate: {
-        is: {
-          OR: [{ projectId: params.projectId }, { projectId: null }],
-        },
-      },
-    },
-    select: {
-      id: true,
-    },
+  const existing = await prisma.evaluationRule.findFirst({
+    where: { projectId: params.projectId, name: params.input.name },
+    select: { id: true },
   });
-
   if (existing) {
     throw createUnstablePublicApiError({
       httpCode: 409,
       code: "name_conflict",
       message: `An evaluation rule named "${params.input.name}" already exists in this project. Use PATCH /api/public/unstable/evaluation-rules/${existing.id} to update it instead of creating a duplicate.`,
-      details: {
-        field: "name",
-      },
+      details: { field: "name" },
     });
   }
-
   if (params.input.enabled) {
     await assertActivePublicApiEvaluationRuleLimitNotExceeded(params.projectId);
   }
-
   await assertEvaluationRuleFilterValuesExistForProject({
     projectId: params.projectId,
     target: params.input.target,
     filters: params.input.filter,
   });
 
-  const { template } = await loadEvaluatorForEvaluationRule({
-    projectId: params.projectId,
-    evaluator: params.input.evaluator,
-  });
-
-  const data = toJobConfigurationInput({
-    input: {
-      name: params.input.name,
-      target: params.input.target,
-      enabled: params.input.enabled,
-      sampling: params.input.sampling,
-      filter: params.input.filter,
-      mapping: params.input.mapping,
-    },
-    evaluatorVariables: deriveEvaluatorVariables(template),
-    evaluatorType: toPublicEvaluatorType(template.type),
-  });
-
-  if (data.status === JobConfigState.ACTIVE) {
-    await assertEvaluationRuleCanRunForPublicApi({
-      orgId: params.orgId,
-      projectId: params.projectId,
-      template,
-      target: data.targetObject as EvalTargetObject,
-      mapping: data.variableMapping,
-      scoreName: data.scoreName,
-      filter: data.filter,
+  const requestedAssignments = getRequestedEvaluatorAssignments(params.input);
+  const evaluators = await Promise.all(
+    requestedAssignments.map(({ evaluator }, index) =>
+      resolveProjectEvaluator({
+        projectId: params.projectId,
+        evaluator,
+        evaluatorId:
+          params.evaluatorId && requestedAssignments.length === 1 && index === 0
+            ? params.evaluatorId
+            : undefined,
+      }),
+    ),
+  );
+  if (new Set(evaluators.map(({ id }) => id)).size !== evaluators.length) {
+    throw createUnstablePublicApiError({
+      httpCode: 409,
+      code: "conflict",
+      message: "An evaluator can only be attached once to an evaluation rule.",
     });
   }
 
-  const created = await prisma.jobConfiguration.create({
-    data: {
-      projectId: params.projectId,
-      jobType: "EVAL",
-      evalTemplateId: template.id,
-      scoreName: data.scoreName,
-      targetObject: data.targetObject,
-      filter: data.filter,
-      variableMapping: data.variableMapping,
-      sampling: data.sampling,
-      delay: 0,
-      status: data.status,
-      timeScope: ["NEW"],
-    },
-    include: {
-      evalTemplate: {
-        select: {
-          id: true,
-          projectId: true,
-          name: true,
-          type: true,
-        },
+  const preparedAssignments = requestedAssignments.map((assignment, index) => {
+    const evaluator = evaluators[index]!;
+    const template = toEvaluatorDefinition(evaluator);
+    const effectiveMapping =
+      assignment.mapping ??
+      (template.variableMapping == null
+        ? undefined
+        : toApiMappings(template.variableMapping));
+    const data = toEvaluationRuleInput({
+      input: {
+        name: params.input.name,
+        target: params.input.target,
+        enabled: params.input.enabled,
+        sampling: params.input.sampling,
+        filter: params.input.filter,
+        mapping: effectiveMapping,
       },
-    },
+      evaluatorVariables: deriveEvaluatorVariables(template),
+      evaluatorType: toPublicEvaluatorType(template.type),
+    });
+    return { assignment, evaluator, template, data };
   });
 
-  if (created.status === JobConfigState.ACTIVE) {
-    await invalidateProjectEvalConfigCaches(params.projectId);
-  }
+  await Promise.all(
+    preparedAssignments.map(({ evaluator, template, data }) =>
+      data.status === JobConfigState.ACTIVE
+        ? assertEvaluationRuleCanRunForPublicApi({
+            orgId: params.orgId,
+            projectId: params.projectId,
+            evaluatorId: evaluator.id,
+            template,
+            target: data.targetObject as EvalTargetObject,
+            mapping: data.variableMapping,
+            scoreName: data.scoreName,
+            filter: data.filter,
+          })
+        : Promise.resolve(),
+    ),
+  );
 
-  const evaluationRule = toApiWritableEvaluationRule(created);
-
+  const firstData = preparedAssignments[0]!.data;
+  const created = await createRuleWithRuleService({
+    projectId: params.projectId,
+    data: firstData,
+    assignments: preparedAssignments,
+  });
+  const evaluationRule = toApiWritableV2EvaluationRule(created);
   if (params.auditScope) {
     await auditLog({
       action: "create",
@@ -306,8 +415,133 @@ export async function createPublicEvaluationRule(params: {
       after: evaluationRule,
     });
   }
-
   return evaluationRule;
+}
+
+async function createRuleWithRuleService(params: {
+  projectId: string;
+  data: ReturnType<typeof toEvaluationRuleInput>;
+  assignments: Array<{
+    evaluator: PublicV2Evaluator;
+    assignment: { mapping?: PublicEvaluationRuleMappingType[] };
+    data: ReturnType<typeof toEvaluationRuleInput>;
+  }>;
+}) {
+  const created = await runRuleServiceMutation(() =>
+    ruleService.create(
+      {
+        projectId: params.projectId,
+        name: params.data.scoreName,
+        targetObject: params.data.targetObject,
+        enabled: params.data.status === JobConfigState.ACTIVE,
+        sampling: params.data.sampling,
+        filter: params.data.filter as FilterState,
+        evaluatorAssignments: params.assignments.map(
+          ({ assignment, evaluator, data }) => ({
+            evaluatorId: evaluator.id,
+            variableMapping:
+              assignment.mapping === undefined
+                ? null
+                : (data.variableMapping as ObservationVariableMapping[]),
+          }),
+        ),
+      },
+      null,
+    ),
+  );
+  return findPublicV2EvaluationRuleOrThrow({
+    projectId: params.projectId,
+    evaluationRuleId: created.id,
+  });
+}
+
+type PreparedAssignment = {
+  evaluatorId: string;
+  template: StoredPublicEvaluatorTemplate;
+  /** null stores "inherit the evaluator version's default mapping". */
+  storedMapping: unknown;
+  /** Mapping the rule would actually run with, for preflight validation. */
+  effectiveMapping: unknown;
+};
+
+/**
+ * Resolve one requested assignment (public shape) into its stored form.
+ * An omitted mapping inherits the evaluator version's default.
+ */
+async function prepareAssignment(params: {
+  projectId: string;
+  target: PublicEvaluationRuleTargetType;
+  evaluator: EvaluationRuleEvaluatorFamilyReference;
+  mapping?: PublicEvaluationRuleMappingType[];
+  evaluatorId?: string;
+}): Promise<PreparedAssignment> {
+  const evaluator = await resolveProjectEvaluator({
+    projectId: params.projectId,
+    evaluator: params.evaluator,
+    evaluatorId: params.evaluatorId,
+  });
+  const template = toEvaluatorDefinition(evaluator);
+  const inherited =
+    template.variableMapping == null
+      ? undefined
+      : toApiMappings(template.variableMapping);
+  const storedMapping =
+    params.mapping === undefined
+      ? null
+      : toStoredAssignmentMapping({
+          target: params.target,
+          mapping: params.mapping,
+          evaluatorVariables: deriveEvaluatorVariables(template),
+          evaluatorType: toPublicEvaluatorType(template.type),
+        });
+  const effectiveMapping = toStoredAssignmentMapping({
+    target: params.target,
+    mapping: params.mapping ?? inherited,
+    evaluatorVariables: deriveEvaluatorVariables(template),
+    evaluatorType: toPublicEvaluatorType(template.type),
+  });
+  return {
+    evaluatorId: evaluator.id,
+    template,
+    storedMapping,
+    effectiveMapping,
+  };
+}
+
+function assertUniqueEvaluators(assignments: Array<{ evaluatorId: string }>) {
+  const ids = assignments.map(({ evaluatorId }) => evaluatorId);
+  if (new Set(ids).size !== ids.length) {
+    throw createUnstablePublicApiError({
+      httpCode: 409,
+      code: "conflict",
+      message: "An evaluator can only be attached once to an evaluation rule.",
+    });
+  }
+}
+
+/** Preflight every assignment the rule would run with once it is active. */
+async function assertAssignmentsCanRun(params: {
+  orgId: string;
+  projectId: string;
+  assignments: PreparedAssignment[];
+  targetObject: EvalTargetObject;
+  scoreName: string;
+  filter: FilterCondition[] | null;
+}) {
+  await Promise.all(
+    params.assignments.map((assignment) =>
+      assertEvaluationRuleCanRunForPublicApi({
+        orgId: params.orgId,
+        projectId: params.projectId,
+        evaluatorId: assignment.evaluatorId,
+        template: assignment.template,
+        target: params.targetObject,
+        mapping: assignment.effectiveMapping,
+        scoreName: params.scoreName,
+        filter: params.filter,
+      }),
+    ),
+  );
 }
 
 export async function updatePublicEvaluationRule(params: {
@@ -317,19 +551,12 @@ export async function updatePublicEvaluationRule(params: {
   input: PatchUnstableEvaluationRuleBodyType;
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  const existing = await findPublicEvaluationRuleOrThrow({
-    projectId: params.projectId,
-    evaluationRuleId: params.evaluationRuleId,
-  });
-  const existingPublic = toApiWritableEvaluationRule(existing);
+  const existing = await findPublicWritableV2EvaluationRuleOrThrow(params);
+  const existingPublic = toApiWritableV2EvaluationRule(existing);
   const nextEnabled = params.input.enabled ?? existingPublic.enabled;
-  const shouldCountAgainstActiveLimit =
-    nextEnabled && existingPublic.status !== "active";
-
-  if (shouldCountAgainstActiveLimit) {
+  if (nextEnabled && existingPublic.status !== "active") {
     await assertActivePublicApiEvaluationRuleLimitNotExceeded(params.projectId);
   }
-
   const nextTarget =
     "target" in params.input && params.input.target !== undefined
       ? params.input.target
@@ -341,115 +568,188 @@ export async function updatePublicEvaluationRule(params: {
       filters: params.input.filter,
     });
   }
+  const nextFilter =
+    "filter" in params.input && params.input.filter !== undefined
+      ? params.input.filter
+      : existingPublic.filter;
 
-  // A rule's evaluator type cannot be changed via PATCH; always inherit the
-  // current type. This keeps the family lookup scoped to the same type, so a
-  // code rule cannot be retargeted to an LLM evaluator (which would inherit the
-  // synthesized code mapping and fail validation against the LLM variables).
-  const nextEvaluator = params.input.evaluator
-    ? {
-        name: params.input.evaluator.name,
-        scope: params.input.evaluator.scope,
-        type: existingPublic.evaluator.type,
-      }
-    : {
-        name: existingPublic.evaluator.name,
-        scope: existingPublic.evaluator.scope,
-        type: existingPublic.evaluator.type,
-      };
-  const { template } = await loadEvaluatorForEvaluationRule({
-    projectId: params.projectId,
-    evaluator: nextEvaluator,
+  const ruleFields = toEvaluationRuleFields({
+    name: params.input.name ?? existingPublic.name,
+    target: nextTarget,
+    enabled: nextEnabled,
+    sampling: params.input.sampling ?? existingPublic.sampling,
+    filter: nextFilter,
   });
 
+  const firstAssignment = existing.assignments[0];
+  const patchesFirstAssignment =
+    params.input.evaluator !== undefined ||
+    ("mapping" in params.input && params.input.mapping !== undefined);
+
   if (
-    template.type === EvalTemplateType.CODE &&
     "mapping" in params.input &&
-    params.input.mapping !== undefined
+    params.input.mapping !== undefined &&
+    firstAssignment?.evaluator.type === EvalTemplateType.CODE
   ) {
     throw createUnstablePublicApiError({
       httpCode: 400,
       code: "invalid_body",
       message:
         "Code evaluator mappings are managed by Langfuse and cannot be provided in the request body.",
-      details: {
-        field: "mapping",
-      },
+      details: { field: "mapping" },
+    });
+  }
+  if (patchesFirstAssignment && !firstAssignment && !params.input.evaluator) {
+    throw createUnstablePublicApiError({
+      httpCode: 400,
+      code: "invalid_body",
+      message:
+        "This evaluation rule has no evaluator assignments, so there is no mapping to update. Provide `evaluators` to attach one.",
+      details: { field: "mapping" },
     });
   }
 
-  const nextFilter =
-    "filter" in params.input && params.input.filter !== undefined
-      ? params.input.filter
-      : existingPublic.filter;
-  const nextMapping =
-    "mapping" in params.input && params.input.mapping !== undefined
-      ? params.input.mapping
-      : existingPublic.mapping;
+  // Three shapes: replace the whole set, patch the first assignment (deprecated
+  // aliases), or leave assignments untouched.
+  const replacementAssignments = params.input.evaluators
+    ? await Promise.all(
+        params.input.evaluators.map((assignment) =>
+          prepareAssignment({
+            projectId: params.projectId,
+            target: nextTarget,
+            evaluator: assignment.evaluator,
+            mapping: assignment.mapping,
+          }),
+        ),
+      )
+    : null;
+  if (replacementAssignments) assertUniqueEvaluators(replacementAssignments);
 
-  const data = toJobConfigurationInput({
-    input: {
-      name: params.input.name ?? existingPublic.name,
-      target: nextTarget,
-      enabled: params.input.enabled ?? existingPublic.enabled,
-      sampling: params.input.sampling ?? existingPublic.sampling,
-      filter: nextFilter,
-      mapping: nextMapping,
-    },
-    evaluatorVariables: deriveEvaluatorVariables(template),
-    evaluatorType: toPublicEvaluatorType(template.type),
-  });
-  const shouldResetBlockState = data.status === JobConfigState.ACTIVE;
+  const patchedFirstAssignment =
+    replacementAssignments || !patchesFirstAssignment
+      ? null
+      : await prepareAssignment({
+          projectId: params.projectId,
+          target: nextTarget,
+          evaluator: params.input.evaluator
+            ? {
+                ...params.input.evaluator,
+                // No current assignment to inherit a type from: the reference
+                // schema's own default applies.
+                type:
+                  existingPublic.evaluator?.type ??
+                  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+              }
+            : {
+                name: existingPublic.evaluator!.name,
+                type: existingPublic.evaluator!.type,
+              },
+          mapping:
+            "mapping" in params.input && params.input.mapping !== undefined
+              ? params.input.mapping
+              : (existingPublic.mapping ?? undefined),
+        });
+  if (patchedFirstAssignment) {
+    assertUniqueEvaluators([
+      patchedFirstAssignment,
+      ...existing.assignments.slice(1),
+    ]);
+  }
 
-  if (shouldResetBlockState) {
-    await assertEvaluationRuleCanRunForPublicApi({
+  // Assignments the rule ends up running with, whether or not this call rewrites them.
+  const effectiveAssignments: PreparedAssignment[] = replacementAssignments ?? [
+    ...(patchedFirstAssignment
+      ? [patchedFirstAssignment]
+      : firstAssignment
+        ? [toPreparedExistingAssignment(firstAssignment, nextTarget)]
+        : []),
+    ...existing.assignments
+      .slice(1)
+      .map((assignment) =>
+        toPreparedExistingAssignment(assignment, nextTarget),
+      ),
+  ];
+
+  if (ruleFields.status === JobConfigState.ACTIVE) {
+    await assertAssignmentsCanRun({
       orgId: params.orgId,
       projectId: params.projectId,
-      template,
-      target: data.targetObject as EvalTargetObject,
-      mapping: data.variableMapping,
-      scoreName: data.scoreName,
-      filter: data.filter,
+      assignments: effectiveAssignments,
+      targetObject: ruleFields.targetObject as EvalTargetObject,
+      scoreName: ruleFields.scoreName,
+      filter: ruleFields.filter,
     });
   }
 
-  const updated = await prisma.jobConfiguration.update({
-    where: {
-      id: params.evaluationRuleId,
-      projectId: params.projectId,
-    },
-    data: {
-      evalTemplateId: template.id,
-      scoreName: data.scoreName,
-      targetObject: data.targetObject,
-      filter: data.filter,
-      variableMapping: data.variableMapping,
-      sampling: data.sampling,
-      status: data.status,
-      ...(shouldResetBlockState
-        ? {
-            blockedAt: null,
-            blockReason: null,
-            blockMessage: null,
+  const usesRuleService = existingPublic.target === nextTarget;
+  const updated = usesRuleService
+    ? await updateRuleWithRuleService({
+        projectId: params.projectId,
+        evaluationRuleId: params.evaluationRuleId,
+        input: params.input,
+        fields: ruleFields,
+        existing,
+        replacementAssignments,
+        patchedFirstAssignment,
+        effectiveAssignmentCount: effectiveAssignments.length,
+      })
+    : await prisma.$transaction(async (tx) => {
+        if (replacementAssignments) {
+          await replaceAssignments({
+            prisma: tx,
+            projectId: params.projectId,
+            ruleId: params.evaluationRuleId,
+            assignments: replacementAssignments.map((assignment) => ({
+              evaluatorId: assignment.evaluatorId,
+              variableMapping: assignment.storedMapping as
+                | ObservationVariableMapping[]
+                | null,
+            })),
+          });
+        } else if (patchedFirstAssignment) {
+          const storedMapping = getPatchedFirstStoredMapping({
+            input: params.input,
+            firstAssignment,
+            patchedFirstAssignment,
+          });
+          if (firstAssignment) {
+            await tx.evaluationRuleEvaluatorAssignment.update({
+              where: { id: firstAssignment.id },
+              data: {
+                evaluatorId: patchedFirstAssignment.evaluatorId,
+                variableMapping: jsonValue(storedMapping),
+              },
+            });
+          } else {
+            await tx.evaluationRuleEvaluatorAssignment.create({
+              data: {
+                projectId: params.projectId,
+                evaluationRuleId: params.evaluationRuleId,
+                evaluatorId: patchedFirstAssignment.evaluatorId,
+                variableMapping: jsonValue(storedMapping),
+              },
+            });
           }
-        : {}),
-    },
-    include: {
-      evalTemplate: {
-        select: {
-          id: true,
-          projectId: true,
-          name: true,
-          type: true,
-        },
-      },
-    },
-  });
-
-  await invalidateProjectEvalConfigCaches(params.projectId);
-
-  const evaluationRule = toApiWritableEvaluationRule(updated);
-
+        }
+        return tx.evaluationRule.update({
+          where: { id: params.evaluationRuleId, projectId: params.projectId },
+          data: {
+            name: ruleFields.scoreName,
+            status:
+              effectiveAssignments.length === 0
+                ? JobConfigState.INACTIVE
+                : ruleFields.status,
+            targetObject: ruleFields.targetObject,
+            filter: ruleFields.filter,
+            sampling: ruleFields.sampling,
+          },
+          include: publicV2RuleInclude(params.projectId),
+        });
+      });
+  if (!usesRuleService) {
+    await invalidateProjectEvalConfigCaches(params.projectId);
+  }
+  const evaluationRule = toApiWritableV2EvaluationRule(updated);
   if (params.auditScope) {
     await auditLog({
       action: "update",
@@ -462,8 +762,103 @@ export async function updatePublicEvaluationRule(params: {
       after: evaluationRule,
     });
   }
-
   return evaluationRule;
+}
+
+function getPatchedFirstStoredMapping(params: {
+  input: PatchUnstableEvaluationRuleBodyType;
+  firstAssignment:
+    | StoredPublicV2EvaluationRule["assignments"][number]
+    | undefined;
+  patchedFirstAssignment: PreparedAssignment;
+}) {
+  return !("mapping" in params.input) || params.input.mapping === undefined
+    ? // Evaluator swapped without an explicit mapping: keep the stored
+      // override so an inherited mapping stays inherited.
+      (params.firstAssignment?.variableMapping ?? null)
+    : params.patchedFirstAssignment.storedMapping;
+}
+
+async function updateRuleWithRuleService(params: {
+  projectId: string;
+  evaluationRuleId: string;
+  input: PatchUnstableEvaluationRuleBodyType;
+  fields: ReturnType<typeof toEvaluationRuleFields>;
+  existing: StoredPublicV2EvaluationRule;
+  replacementAssignments: PreparedAssignment[] | null;
+  patchedFirstAssignment: PreparedAssignment | null;
+  effectiveAssignmentCount: number;
+}) {
+  const firstAssignment = params.existing.assignments[0];
+  const evaluatorMappings = params.replacementAssignments
+    ? params.replacementAssignments.map((assignment) => ({
+        evaluatorId: assignment.evaluatorId,
+        variableMapping: assignment.storedMapping as
+          | ObservationVariableMapping[]
+          | null,
+      }))
+    : params.patchedFirstAssignment
+      ? [
+          {
+            evaluatorId: params.patchedFirstAssignment.evaluatorId,
+            variableMapping: getPatchedFirstStoredMapping({
+              input: params.input,
+              firstAssignment,
+              patchedFirstAssignment: params.patchedFirstAssignment,
+            }) as ObservationVariableMapping[] | null,
+          },
+          ...params.existing.assignments.slice(1).map((assignment) => ({
+            evaluatorId: assignment.evaluatorId,
+            variableMapping: assignment.variableMapping as
+              | ObservationVariableMapping[]
+              | null,
+          })),
+        ]
+      : undefined;
+
+  await runRuleServiceMutation(() =>
+    ruleService.update({
+      projectId: params.projectId,
+      ruleId: params.evaluationRuleId,
+      name: params.fields.scoreName,
+      enabled:
+        params.effectiveAssignmentCount > 0 &&
+        params.fields.status === JobConfigState.ACTIVE,
+      sampling: params.fields.sampling,
+      filter: params.fields.filter as FilterState,
+      ...(evaluatorMappings === undefined ? {} : { evaluatorMappings }),
+    }),
+  );
+  return findPublicV2EvaluationRuleOrThrow({
+    projectId: params.projectId,
+    evaluationRuleId: params.evaluationRuleId,
+  });
+}
+
+/**
+ * Existing stored assignment in the shape the preflight needs, resolving an
+ * inherited (null) override against the evaluator version's default mapping.
+ */
+function toPreparedExistingAssignment(
+  assignment: StoredPublicV2EvaluationRule["assignments"][number],
+  target: PublicEvaluationRuleTargetType,
+): PreparedAssignment {
+  const template = toEvaluatorDefinition(assignment.evaluator);
+  const inherited = assignment.variableMapping ?? template.variableMapping;
+  return {
+    evaluatorId: assignment.evaluatorId,
+    template,
+    storedMapping: assignment.variableMapping,
+    effectiveMapping: toStoredAssignmentMapping({
+      target,
+      mapping:
+        template.type === EvalTemplateType.CODE || inherited == null
+          ? undefined
+          : toApiMappings(inherited),
+      evaluatorVariables: deriveEvaluatorVariables(template),
+      evaluatorType: toPublicEvaluatorType(template.type),
+    }),
+  };
 }
 
 export async function deletePublicEvaluationRule(params: {
@@ -471,17 +866,11 @@ export async function deletePublicEvaluationRule(params: {
   evaluationRuleId: string;
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  const existing = await findPublicEvaluationRuleOrThrow(params);
-  const existingPublic = toApiWritableEvaluationRule(existing);
-
-  await deleteJobConfigurationWithExecutions({
-    prisma,
-    projectId: params.projectId,
-    jobConfigurationId: params.evaluationRuleId,
-  });
-
-  await invalidateProjectEvalConfigCaches(params.projectId);
-
+  const existing = await findPublicWritableV2EvaluationRuleOrThrow(params);
+  const existingPublic = toApiWritableV2EvaluationRule(existing);
+  await runRuleServiceMutation(() =>
+    ruleService.delete(params.projectId, params.evaluationRuleId),
+  );
   if (params.auditScope) {
     await auditLog({
       action: "delete",
@@ -493,6 +882,5 @@ export async function deletePublicEvaluationRule(params: {
       before: existingPublic,
     });
   }
-
   return existing;
 }

@@ -131,8 +131,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         configList.map((evaluator) => ({ id: evaluator.id })),
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evaluators.isSuccess, evaluators.data]);
+  }, [evaluators.isSuccess, evaluators.data, setDetailPageList]);
 
   const columnHelper = createColumnHelper<EvaluatorDataRow>();
   const columns = [

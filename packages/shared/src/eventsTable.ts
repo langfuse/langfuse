@@ -299,6 +299,14 @@ const eventsTableColsDefinition = [
     options: [],
   },
   {
+    name: "Rule ID",
+    id: "ruleId",
+    type: "stringOptions",
+    internal:
+      "if(notEmpty(arrayElement(e.metadata_values, indexOf(e.metadata_names, 'rule_id'))), arrayElement(e.metadata_values, indexOf(e.metadata_names, 'rule_id')), arrayElement(e.metadata_values, indexOf(e.metadata_names, 'job_configuration_id')))",
+    options: [],
+  },
+  {
     name: "Trace Tags",
     id: "traceTags",
     type: "arrayOptions",

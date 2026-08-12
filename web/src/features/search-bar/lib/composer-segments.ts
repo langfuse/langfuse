@@ -10,6 +10,7 @@
 
 import type { ScoreTypeContext } from "./adapter";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import { lexTokens, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
@@ -125,6 +126,7 @@ function overlappingErrors(diagnostics: Diagnostic[], span: Span): string[] {
 // memoized scoreTypes so the cache still hits across renders).
 let cacheKey: string | null = null;
 let cacheScoreTypes: ScoreTypeContext | undefined;
+let cacheRegistry: FieldRegistry = EVENTS_FIELD_REGISTRY;
 let cacheVal: ComposerSegment[] = [];
 
 /**
@@ -141,10 +143,16 @@ let cacheVal: ComposerSegment[] = [];
 export function deriveComposerSegments(
   draftText: string,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): ComposerSegment[] {
-  if (draftText === cacheKey && scoreTypes === cacheScoreTypes) return cacheVal;
+  if (
+    draftText === cacheKey &&
+    scoreTypes === cacheScoreTypes &&
+    registry === cacheRegistry
+  )
+    return cacheVal;
 
-  const { ast, diagnostics } = validateQuery(draftText, scoreTypes);
+  const { ast, diagnostics } = validateQuery(draftText, scoreTypes, registry);
   const leaves: Leaf[] = [];
   if (ast !== null) collectLeaves(ast, draftText, leaves);
   const leafByFrom = new Map<number, Leaf>();
@@ -231,6 +239,7 @@ export function deriveComposerSegments(
   const coalesced = coalesceFreeText(segments, draftText);
   cacheKey = draftText;
   cacheScoreTypes = scoreTypes;
+  cacheRegistry = registry;
   cacheVal = coalesced;
   return coalesced;
 }

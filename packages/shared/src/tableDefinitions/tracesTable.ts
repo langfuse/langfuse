@@ -64,6 +64,14 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     options: [],
   },
   {
+    name: "Rule ID",
+    id: "ruleId",
+    type: "stringOptions",
+    internal:
+      "if(notEmpty(t.metadata['rule_id']), t.metadata['rule_id'], t.metadata['job_configuration_id'])",
+    options: [],
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",

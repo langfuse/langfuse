@@ -1,4 +1,8 @@
 import { formatDistanceToNowStrict } from "date-fns";
+import {
+  observationVariableMappingList,
+  ZodModelConfig,
+} from "@langfuse/shared";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
 import { type ComponentProps, useMemo, useState } from "react";
@@ -10,13 +14,15 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EvaluatorActionsCell } from "../components/Evaluators/EvaluatorActionsCell/EvaluatorActionsCell";
 import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBulkDeleteDialog/EvaluatorBulkDeleteDialog";
 import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
+import { EvaluatorRuleRelationshipsSheet } from "@/src/features/evals/v2/components/Rules/EvaluatorRuleRelationships/EvaluatorRuleRelationships";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
-import { EvaluatorExecutionHistory } from "../components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
+import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -35,7 +41,18 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
   evaluatorExecutionsUrl,
   evaluatorScoresUrl,
-} from "../fns/evaluators/evaluatorUrls";
+} from "../fns/evaluators/evaluatorScoresUrl";
+import {
+  EVALS_V2_TABS,
+  getEvalsV2Tabs,
+} from "@/src/features/navigation/utils/evals-v2-tabs";
+import { DefaultModelChangeConfirmationDialog } from "../components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
+import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
+import {
+  JudgeModelPicker,
+  JudgeModelPickerTrigger,
+} from "../components/Evaluators/JudgeModelPicker/JudgeModelPicker";
+import { JudgeModelConfigurationDialog } from "../components/Evaluators/JudgeModelConfigurationDialog/JudgeModelConfigurationDialog";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
 
@@ -141,6 +158,12 @@ export default function EvaluatorsPage() {
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [deleteAll, setDeleteAll] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [defaultModelPickerOpen, setDefaultModelPickerOpen] = useState(false);
+  const [defaultModelConfigurationOpen, setDefaultModelConfigurationOpen] =
+    useState(false);
+  const [attachEvaluatorId, setAttachEvaluatorId] = useState<string | null>(
+    null,
+  );
   const evaluators = api.evalsV2.list.useQuery(
     { projectId, ...pagination, search: searchQuery ?? undefined },
     { enabled: Boolean(projectId) },
@@ -149,10 +172,34 @@ export default function EvaluatorsPage() {
     () => evaluators.data?.evaluators.map(({ id }) => id) ?? [],
     [evaluators.data?.evaluators],
   );
+  const selectedRuleEvaluator = evaluators.data?.evaluators.find(
+    ({ id }) => id === attachEvaluatorId,
+  );
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:read",
   });
+  const projectDefaultModel = useProjectDefaultModel({
+    projectId,
+    source: "overview",
+  });
+  const defaultModelConnection = projectDefaultModel.connections.find(
+    ({ provider }) => provider === projectDefaultModel.defaultModel?.provider,
+  );
+  const parsedDefaultModelParams = ZodModelConfig.safeParse(
+    projectDefaultModel.defaultModel?.modelParams,
+  );
+  const defaultModelConfig =
+    projectDefaultModel.defaultModel && defaultModelConnection
+      ? {
+          provider: projectDefaultModel.defaultModel.provider,
+          model: projectDefaultModel.defaultModel.model,
+          adapter: defaultModelConnection.adapter,
+          modelParams: parsedDefaultModelParams.success
+            ? parsedDefaultModelParams.data
+            : {},
+        }
+      : null;
   const costs = api.evalsV2.costByEvaluatorIds.useQuery(
     { projectId, evaluatorIds },
     {
@@ -316,13 +363,13 @@ export default function EvaluatorsPage() {
       {
         accessorKey: "actions",
         id: "actions",
-        header: "Actions",
-        size: 140,
+        header: () => <div className="w-full text-right">Actions</div>,
+        size: 180,
         isFixedPosition: true,
         enableSorting: false,
         enableResizing: false,
         cell: ({ row }) => (
-          <div onClick={(event) => event.stopPropagation()}>
+          <div className="w-full" onClick={(event) => event.stopPropagation()}>
             <EvaluatorActionsCell
               hasActiveRules={row.original.hasActiveRules}
               canViewExecutions={hasExecutionReadAccess}
@@ -332,6 +379,7 @@ export default function EvaluatorsPage() {
               onViewExecutions={() =>
                 router.push(evaluatorExecutionsUrl(projectId, row.original.id))
               }
+              onManageRules={() => setAttachEvaluatorId(row.original.id)}
               onEdit={() =>
                 router.push(`/project/${projectId}/evals/v2/${row.original.id}`)
               }
@@ -368,11 +416,51 @@ export default function EvaluatorsPage() {
             "Create reusable evaluator definitions and test them before activation.",
         },
         actionButtonsRight: (
-          <Button onClick={() => setGalleryOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            New evaluator
-          </Button>
+          <div className="flex gap-2">
+            <JudgeModelPicker
+              purpose="projectDefault"
+              open={defaultModelPickerOpen}
+              defaultModel={projectDefaultModel.defaultModel}
+              providerGroups={projectDefaultModel.providerGroups}
+              onOpenChange={setDefaultModelPickerOpen}
+              onSelectProjectDefault={(model) => {
+                const connection = projectDefaultModel.connections.find(
+                  ({ provider }) => provider === model.provider,
+                );
+                if (!connection) return;
+                projectDefaultModel.update.requestUpdate({
+                  ...model,
+                  adapter: connection.adapter,
+                  modelParams: {},
+                });
+              }}
+              onConfigureProviders={projectDefaultModel.openProviderSettings}
+              onConfigureModel={() => setDefaultModelConfigurationOpen(true)}
+            >
+              <PopoverTrigger asChild>
+                <JudgeModelPickerTrigger
+                  mode="default"
+                  defaultModel={projectDefaultModel.defaultModel}
+                  selectedModel={null}
+                  disabled={
+                    !projectDefaultModel.canUpdate ||
+                    !projectDefaultModel.canRead ||
+                    projectDefaultModel.connectionsPending ||
+                    projectDefaultModel.update.isPending
+                  }
+                />
+              </PopoverTrigger>
+            </JudgeModelPicker>
+            <Button onClick={() => setGalleryOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New evaluator
+            </Button>
+          </div>
         ),
+        tabsProps: {
+          tabs: getEvalsV2Tabs(projectId),
+          activeTab: EVALS_V2_TABS.EVALUATORS,
+        },
       }}
     >
       <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
@@ -500,6 +588,44 @@ export default function EvaluatorsPage() {
           );
         }}
       />
+      {selectedRuleEvaluator ? (
+        <EvaluatorRuleRelationshipsSheet
+          projectId={projectId}
+          evaluatorId={selectedRuleEvaluator.id}
+          evaluatorName={selectedRuleEvaluator.name}
+          evaluatorType={selectedRuleEvaluator.type}
+          evaluatorDefaultVariableMapping={observationVariableMappingList
+            .catch([])
+            .parse(selectedRuleEvaluator.versions[0]?.variableMapping)}
+          source="evaluator_overview"
+          open
+          onOpenChange={(open) => {
+            if (!open) setAttachEvaluatorId(null);
+          }}
+        />
+      ) : null}
+      {projectDefaultModel.defaultModel &&
+      projectDefaultModel.update.pendingModel ? (
+        <DefaultModelChangeConfirmationDialog
+          open
+          currentModel={projectDefaultModel.defaultModel}
+          nextModel={projectDefaultModel.update.pendingModel}
+          loading={projectDefaultModel.update.isPending}
+          onOpenChange={(open) => {
+            if (!open) projectDefaultModel.update.dismissConfirmation();
+          }}
+          onConfirm={projectDefaultModel.update.confirmUpdate}
+        />
+      ) : null}
+      {defaultModelConfig ? (
+        <JudgeModelConfigurationDialog
+          open={defaultModelConfigurationOpen}
+          projectId={projectId}
+          initialModel={defaultModelConfig}
+          onOpenChange={setDefaultModelConfigurationOpen}
+          onSave={projectDefaultModel.update.updateConfiguration}
+        />
+      ) : null}
     </Page>
   );
 }

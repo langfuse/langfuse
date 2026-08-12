@@ -1,7 +1,7 @@
 import { extractVariables } from "@langfuse/shared";
 
 import { inferDefaultMapping } from "@/src/features/evals/utils/evaluator-form-utils";
-import type { VariableFieldState } from "@/src/features/evals/v2/components/VariableMapping/types";
+import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 
 export function buildEvaluatorVariableMappings({
   prompt,

@@ -2,7 +2,11 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "lucide-react";
-import { supportedModels, type EvalTemplateType } from "@langfuse/shared";
+import {
+  observationVariableMappingList,
+  type EvalTemplateType,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/page";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -13,7 +17,7 @@ import { EvaluatorVersionHistorySheet } from "../components/Evaluators/Evaluator
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
 import { EvaluatorSetupEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/EvaluatorSetupEditor";
-import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/EvaluatorSetupFooter/EvaluatorSetupFooter";
+import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
@@ -28,6 +32,11 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { EvaluatorSetupDraft } from "@/src/features/evals/v2/types/templateGallery";
+import { EvaluatorRuleRelationships } from "@/src/features/evals/v2/components/Rules/EvaluatorRuleRelationships/EvaluatorRuleRelationships";
+import { DefaultModelChangeConfirmationDialog } from "@/src/features/evals/v2/components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
+import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
+import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
+import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
 
 type InitialEvaluator = {
   id: string;
@@ -55,6 +64,9 @@ export function EvaluatorSetupPage(
   const initialEvaluator =
     props.mode === "edit" ? props.initialEvaluator : null;
   const initialDraft = props.mode === "create" ? props.initialDraft : null;
+  const [evaluatorId] = useState(
+    () => initialEvaluator?.id ?? safeRandomUUID(),
+  );
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -76,6 +88,10 @@ export function EvaluatorSetupPage(
     (state) => state.testPanelOpen,
   );
   const [testResult, setTestResult] = useState<unknown>(null);
+  const [hasCompletedTestCall, setHasCompletedTestCall] = useState(false);
+  const [lastTestRunCostUsd, setLastTestRunCostUsd] = useState<number | null>(
+    null,
+  );
   const [rawResultOpen, setRawResultOpen] = useState(false);
   const hasRequestedName = useRef(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -85,6 +101,14 @@ export function EvaluatorSetupPage(
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [versionConflictOpen, setVersionConflictOpen] = useState(false);
+  const [savedEvaluator, setSavedEvaluator] = useState<{
+    id: string;
+    name: string;
+    type: EvalTemplateType;
+    defaultVariableMapping: ObservationVariableMapping[];
+    hasCompletedTestCall: boolean;
+    testRunCostUsd: number | null;
+  } | null>(null);
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
   // Keep relative ranges stable across unrelated renders so the observations
   // query only changes when the selected range changes.
@@ -130,26 +154,10 @@ export function EvaluatorSetupPage(
     outputDefinition: version.outputDefinition,
   }));
 
-  const defaultModel = api.defaultLlmModel.fetchDefaultModel.useQuery(
-    { projectId },
-    { enabled: Boolean(projectId) },
-  );
-  const llmApiKeys = api.llmApiKey.all.useQuery(
-    { projectId },
-    { enabled: Boolean(projectId) },
-  );
-  const providerGroups: Array<[string, string[]]> =
-    llmApiKeys.data?.data.map((connection) => [
-      connection.provider,
-      Array.from(
-        new Set([
-          ...connection.customModels,
-          ...(connection.withDefaultModels
-            ? supportedModels[connection.adapter]
-            : []),
-        ]),
-      ),
-    ]) ?? [];
+  const projectDefaultModel = useProjectDefaultModel({
+    projectId,
+    source: "editor",
+  });
 
   const create = api.evalsV2.create.useMutation();
   const update = api.evalsV2.update.useMutation();
@@ -169,7 +177,16 @@ export function EvaluatorSetupPage(
     },
   });
   const testEvaluator = api.evalsV2.test.useMutation({
-    onSuccess: setTestResult,
+    onSuccess: (result) => {
+      setTestResult(result);
+      if ("executionTraceId" in result) setHasCompletedTestCall(true);
+      setLastTestRunCostUsd(
+        "estimatedCostUsd" in result &&
+          typeof result.estimatedCostUsd === "number"
+          ? result.estimatedCostUsd
+          : null,
+      );
+    },
     onError: (error) => {
       setTestResult({ requestError: error.message });
       trpcErrorToast(error);
@@ -210,31 +227,43 @@ export function EvaluatorSetupPage(
     const { definition } = prepareEvaluatorDraft(state);
     if (!definition || !state.name.trim()) return;
     try {
-      const evaluator = initialEvaluator
-        ? await update.mutateAsync({
-            projectId,
-            evaluatorId: initialEvaluator.id,
-            name: state.name,
-            description: state.description || null,
-            definition,
-          })
-        : await create.mutateAsync({
-            projectId,
-            name: state.name,
-            description: state.description || null,
-            definition,
-          });
-      capture(initialEvaluator ? "evaluators:update" : "evaluators:create", {
-        evaluatorType: state.type,
+      if (initialEvaluator) {
+        const evaluator = await update.mutateAsync({
+          projectId,
+          evaluatorId: initialEvaluator.id,
+          name: state.name,
+          description: state.description || null,
+          definition,
+        });
+        capture("evaluators:update", { evaluatorType: state.type });
+        showSuccessToast({
+          title: "Evaluator saved",
+          description: "Your evaluator changes are saved.",
+        });
+        initialSnapshot.current = getCurrentSnapshot(state);
+        await router.push(`/project/${projectId}/evals/v2/${evaluator.id}`);
+        return;
+      }
+
+      const evaluator = await create.mutateAsync({
+        projectId,
+        evaluatorId,
+        name: state.name,
+        description: state.description || null,
+        definition,
       });
-      showSuccessToast({
-        title: initialEvaluator ? "Evaluator saved" : "Evaluator created",
-        description: initialEvaluator
-          ? "Your evaluator changes are saved."
-          : "Evaluator was saved successfully.",
-      });
+      capture("evaluators:create", { evaluatorType: state.type });
       initialSnapshot.current = getCurrentSnapshot(state);
-      await router.push(`/project/${projectId}/evals/v2/${evaluator.id}`);
+      setSavedEvaluator({
+        id: evaluator.id,
+        name: state.name,
+        type: state.type,
+        defaultVariableMapping: observationVariableMappingList
+          .catch([])
+          .parse(definition.variableMapping),
+        hasCompletedTestCall,
+        testRunCostUsd: lastTestRunCostUsd,
+      });
     } catch (error) {
       if (
         initialEvaluator &&
@@ -273,7 +302,7 @@ export function EvaluatorSetupPage(
     });
     testEvaluator.mutate({
       projectId,
-      evaluatorId: initialEvaluator?.id,
+      evaluatorId,
       definition,
       observationId: selectedObservation.id,
       traceId: selectedObservation.traceId,
@@ -290,6 +319,15 @@ export function EvaluatorSetupPage(
         ],
         actionButtonsRight: initialEvaluator ? (
           <div className="flex gap-2">
+            <EvaluatorRuleRelationships
+              projectId={projectId}
+              evaluatorId={initialEvaluator.id}
+              evaluatorName={initialEvaluator.name}
+              evaluatorType={initialEvaluator.type}
+              evaluatorDefaultVariableMapping={observationVariableMappingList
+                .catch([])
+                .parse(initialEvaluator.definition.variableMapping)}
+            />
             <Button
               type="button"
               variant="outline"
@@ -321,18 +359,12 @@ export function EvaluatorSetupPage(
           projectId={projectId}
           store={evaluatorSetupStore}
           isEditing={Boolean(initialEvaluator)}
-          defaultModel={defaultModel.data ?? null}
-          providerGroups={providerGroups}
-          onConfigureProviders={() => {
-            router
-              .push(`/project/${projectId}/settings/llm-connections`)
-              .catch(trpcErrorToast);
-          }}
-          onConfigureDefault={() => {
-            router
-              .push(`/project/${projectId}/evals/default-model`)
-              .catch(trpcErrorToast);
-          }}
+          defaultModel={projectDefaultModel.defaultModel}
+          providerGroups={projectDefaultModel.providerGroups}
+          providerAdapters={projectDefaultModel.providerAdapters}
+          canSetProjectDefault={projectDefaultModel.canUpdate}
+          onConfigureProviders={projectDefaultModel.openProviderSettings}
+          onSetProjectDefault={projectDefaultModel.update.requestUpdate}
           onStepOpenChange={setStepOpen}
           isSuggestingName={suggestName.isPending}
         />
@@ -425,6 +457,30 @@ export function EvaluatorSetupPage(
         onDiscard={discardConflictingChanges}
         onOverride={overrideConflictingChanges}
       />
+      {savedEvaluator ? (
+        <EvaluatorSavedDialogContainer
+          projectId={projectId}
+          evaluator={savedEvaluator}
+          onFinish={async () => {
+            await router.push(
+              `/project/${projectId}/evals/v2/${savedEvaluator.id}`,
+            );
+          }}
+        />
+      ) : null}
+      {projectDefaultModel.defaultModel &&
+      projectDefaultModel.update.pendingModel ? (
+        <DefaultModelChangeConfirmationDialog
+          open
+          currentModel={projectDefaultModel.defaultModel}
+          nextModel={projectDefaultModel.update.pendingModel}
+          loading={projectDefaultModel.update.isPending}
+          onOpenChange={(open) => {
+            if (!open) projectDefaultModel.update.dismissConfirmation();
+          }}
+          onConfirm={projectDefaultModel.update.confirmUpdate}
+        />
+      ) : null}
     </Page>
   );
 }

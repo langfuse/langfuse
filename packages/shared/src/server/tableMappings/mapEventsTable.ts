@@ -189,6 +189,13 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
       "arrayElement(e.metadata_values, indexOf(e.metadata_names, 'evaluator_id'))",
   },
   {
+    uiTableName: "Rule ID",
+    uiTableId: "ruleId",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect:
+      "if(notEmpty(arrayElement(e.metadata_values, indexOf(e.metadata_names, 'rule_id'))), arrayElement(e.metadata_values, indexOf(e.metadata_names, 'rule_id')), arrayElement(e.metadata_values, indexOf(e.metadata_names, 'job_configuration_id')))",
+  },
+  {
     uiTableName: "Version",
     uiTableId: "version",
     clickhouseTableName: "events_proto",

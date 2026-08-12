@@ -119,6 +119,63 @@ export async function runCodeEvalTestForJobConfig(params: {
   });
 }
 
+export async function runCodeEvalTestForEvaluationRule(params: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evaluatorId: string;
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  filter: FilterCondition[] | null;
+}): Promise<CodeEvalTestRunResult | null> {
+  const observation = await getObservationForEvalByFilter({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    target: params.target,
+    filter: params.filter,
+  });
+
+  if (!observation) return null;
+
+  const evaluator = await params.prisma.evaluator.findFirst({
+    where: {
+      id: params.evaluatorId,
+      projectId: params.projectId,
+      type: EvalTemplateType.CODE,
+    },
+    include: {
+      versions: {
+        where: { sourceCode: { not: null }, sourceCodeLanguage: { not: null } },
+        orderBy: { version: "desc" },
+        take: 1,
+      },
+    },
+  });
+  const version = evaluator?.versions[0];
+  if (!evaluator || !version?.sourceCode || !version.sourceCodeLanguage) {
+    throw new CodeEvalTestRunSetupError(
+      "TEMPLATE_NOT_FOUND",
+      "Evaluator not found",
+    );
+  }
+
+  return runCodeEvalTestForObservationWithEvaluator({
+    ...params,
+    observation,
+    evaluator,
+    version: {
+      ...version,
+      sourceCode: version.sourceCode,
+      sourceCodeLanguage: version.sourceCodeLanguage,
+    },
+    evaluatorMetadata: {
+      evaluator_id: evaluator.id,
+      evaluator_version: version.version,
+    },
+  });
+}
+
 async function runCodeEvalTestForObservation(params: {
   prisma: PrismaClient;
   orgId: string;
@@ -129,15 +186,6 @@ async function runCodeEvalTestForObservation(params: {
   scoreName: string;
   observation: ObservationForEval;
 }): Promise<CodeEvalTestRunResult> {
-  const dispatcher = resolveConfiguredCodeEvalDispatcher();
-
-  if (!dispatcher) {
-    throw new CodeEvalTestRunSetupError(
-      "DISPATCHER_NOT_CONFIGURED",
-      "Code eval dispatcher is not configured",
-    );
-  }
-
   const codeTemplate = (await params.prisma.evalTemplate.findFirst({
     where: {
       id: params.evalTemplateId,
@@ -162,17 +210,59 @@ async function runCodeEvalTestForObservation(params: {
     );
   }
 
+  return runCodeEvalTestForObservationWithEvaluator({
+    ...params,
+    evaluator: codeTemplate,
+    version: codeTemplate,
+    evaluatorMetadata: {
+      eval_template_id: codeTemplate.id,
+      eval_template_version: codeTemplate.version,
+    },
+  });
+}
+
+async function runCodeEvalTestForObservationWithEvaluator(params: {
+  orgId: string;
+  projectId: string;
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  observation: ObservationForEval;
+  evaluator: { id: string; name: string };
+  version: {
+    version: number;
+    sourceCode: string;
+    sourceCodeLanguage: "PYTHON" | "TYPESCRIPT";
+  };
+  evaluatorMetadata: Record<string, unknown>;
+}): Promise<CodeEvalTestRunResult> {
+  const dispatcher = resolveConfiguredCodeEvalDispatcher();
+  if (!dispatcher) {
+    throw new CodeEvalTestRunSetupError(
+      "DISPATCHER_NOT_CONFIGURED",
+      "Code eval dispatcher is not configured",
+    );
+  }
+
+  if (
+    !isCodeEvalSourceCodeLanguageSupported(params.version.sourceCodeLanguage)
+  ) {
+    throw new CodeEvalTestRunSetupError(
+      "UNSUPPORTED_LANGUAGE",
+      "This code evaluator language is not supported by the configured dispatcher.",
+    );
+  }
+
   const extractedVariables = extractObservationVariables({
     observation: params.observation,
     variableMapping: params.mapping,
   });
   const executionTraceId = createW3CTraceId();
-  const traceName = `Test evaluator: ${codeTemplate.name}`;
+  const traceName = `Test evaluator: ${params.evaluator.name}`;
   const executionMetadata = {
     dispatcher_name: dispatcher.name,
-    code_eval_runtime: codeTemplate.sourceCodeLanguage,
-    eval_template_id: codeTemplate.id,
-    eval_template_version: codeTemplate.version,
+    code_eval_runtime: params.version.sourceCodeLanguage,
+    ...params.evaluatorMetadata,
     score_name: params.scoreName,
     target_object: params.target,
     target_trace_id: params.observation.trace_id,
@@ -185,8 +275,8 @@ async function runCodeEvalTestForObservation(params: {
     projectId: params.projectId,
     executionTraceId,
     jobExecutionId: executionTraceId,
-    evaluator: codeTemplate,
-    version: codeTemplate,
+    evaluator: params.evaluator,
+    version: params.version,
     extractedVariables,
     hasExperimentContext: Boolean(params.observation.experiment_id),
     traceName,
