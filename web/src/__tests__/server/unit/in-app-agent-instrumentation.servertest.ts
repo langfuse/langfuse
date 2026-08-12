@@ -1,6 +1,7 @@
 import { EventType } from "@ag-ui/core";
 
 import {
+  getInAppAgentConversationObservationId,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
 } from "@langfuse/shared/in-app-agent";
@@ -10,13 +11,20 @@ import { InAppAgentInstrumentation } from "@langfuse/shared/in-app-agent/server/
 const runId = "run-1";
 const traceId = getInAppAgentInstrumentationTraceId(runId);
 const agentRunObservationId = getInAppAgentInstrumentationObservationId(runId);
+const conversationObservationId = getInAppAgentConversationObservationId(runId);
 
 const mocks = vi.hoisted(() => {
+  const conversationSpan = {
+    observationId: "run-1-conversation",
+    update: vi.fn(),
+    end: vi.fn(),
+  };
   const agentGeneration = {
     observationId: "run-1",
     traceId: "run-1-trace",
     update: vi.fn(),
     end: vi.fn(),
+    span: vi.fn(() => conversationSpan),
   };
   const trace = {
     generation: vi.fn(() => agentGeneration),
@@ -31,6 +39,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     agentGeneration,
+    conversationSpan,
     trace,
     handler,
     processTracedEvents: vi.fn(async () => undefined),
@@ -654,6 +663,153 @@ describe("InAppAgentInstrumentation", () => {
         },
       }),
     );
+  });
+
+  it("records full conversation history on the conversation span while keeping agent-turn current-turn-only", () => {
+    const instrumentation = createInstrumentation({
+      messages: [
+        {
+          id: "message-system",
+          role: "system",
+          content: "You are a helpful assistant.",
+        },
+        {
+          id: "message-developer",
+          role: "developer",
+          content: "Internal developer instructions.",
+        },
+        {
+          id: "message-previous-user",
+          role: "user",
+          content: "previous question",
+        },
+        {
+          id: "message-previous-assistant",
+          role: "assistant",
+          content: "previous answer",
+          toolCalls: [
+            {
+              id: "tool-previous",
+              type: "function",
+              function: {
+                name: "getTrace",
+                arguments: '{"traceId":"trace-1"}',
+              },
+            },
+          ],
+        },
+        {
+          id: "message-previous-tool",
+          role: "tool",
+          toolCallId: "tool-previous",
+          content: '{"found":true}',
+        },
+        {
+          id: "message-activity",
+          role: "activity",
+          activityType: "loading",
+          content: { label: "Loading" },
+        },
+        {
+          id: "message-1",
+          role: "user",
+          content: "hello",
+        },
+      ],
+    });
+
+    expect(mocks.trace.generation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent-turn",
+        input: {
+          messages: [
+            { role: "system", content: "You are a helpful assistant." },
+            {
+              role: "developer",
+              content: "Internal developer instructions.",
+            },
+            { role: "user", content: "hello" },
+          ],
+        },
+      }),
+    );
+    expect(mocks.agentGeneration.span).toHaveBeenCalledWith({
+      id: conversationObservationId,
+      name: "conversation",
+      input: {
+        messages: [
+          { role: "user", content: "previous question" },
+          {
+            role: "assistant",
+            content: "previous answer",
+            tool_calls: [
+              {
+                id: "tool-previous",
+                name: "getTrace",
+                arguments: '{"traceId":"trace-1"}',
+                type: "function",
+              },
+            ],
+          },
+          {
+            role: "tool",
+            tool_call_id: "tool-previous",
+            content: { found: true },
+          },
+          { role: "user", content: "hello" },
+        ],
+      },
+      metadata: {
+        langfuse_project_id: "project-1",
+        langfuse_user_email: "user@example.com",
+        langfuse_user_project_role: "ADMIN",
+        langfuse_user_is_admin: true,
+      },
+    });
+
+    instrumentation.recordEvents([
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        delta: "second turn output",
+      },
+      {
+        type: EventType.RUN_FINISHED,
+      },
+    ]);
+
+    expect(mocks.conversationSpan.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "conversation",
+        input: {
+          messages: [
+            { role: "user", content: "previous question" },
+            {
+              role: "assistant",
+              content: "previous answer",
+              tool_calls: [
+                {
+                  id: "tool-previous",
+                  name: "getTrace",
+                  arguments: '{"traceId":"trace-1"}',
+                  type: "function",
+                },
+              ],
+            },
+            {
+              role: "tool",
+              tool_call_id: "tool-previous",
+              content: { found: true },
+            },
+            { role: "user", content: "hello" },
+          ],
+        },
+        output: {
+          messages: [{ role: "assistant", content: "second turn output" }],
+          text: "second turn output",
+        },
+      }),
+    );
+    expect(mocks.conversationSpan.end).toHaveBeenCalled();
   });
 
   it("compacts text message chunks before recording output", () => {

@@ -26,3 +26,9 @@ export const getInAppAgentInstrumentationObservationId = (runId: string) =>
 // level telemetry and feedback aggregate on the same per-turn trace.
 export const getInAppAgentInstrumentationTraceId = (runId: string) =>
   `${runId}-trace`;
+
+// Per-turn child span that carries the full conversation history for
+// observation-level session evals. Treat the observation name "conversation"
+// as a stable evaluator target.
+export const getInAppAgentConversationObservationId = (runId: string) =>
+  `${runId}-conversation`;

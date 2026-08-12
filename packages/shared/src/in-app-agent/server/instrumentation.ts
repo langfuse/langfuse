@@ -2,6 +2,7 @@ import { EventType } from "@ag-ui/core";
 import { getInternalTracingHandler, logger } from "../../server";
 
 import {
+  getInAppAgentConversationObservationId,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
 } from "../constants";
@@ -37,11 +38,16 @@ export type InAppAgentPromptMetadata = {
 };
 
 const IN_APP_AGENT_TURN_NAME = "agent-turn";
+// Stable observation name for session-level LLM-as-a-judge targeting.
+const IN_APP_AGENT_CONVERSATION_NAME = "conversation";
+// Cap full-history payload growth across long threads.
+const IN_APP_AGENT_CONVERSATION_HISTORY_MESSAGE_CAP = 100;
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
 type InAppAgentTrace = ReturnType<
   InternalTracingHandler["handler"]["langfuse"]["trace"]
 >;
 type InAppAgentGeneration = ReturnType<InAppAgentTrace["generation"]>;
+type InAppAgentSpan = ReturnType<InAppAgentGeneration["span"]>;
 type InAppAgentLangfuse = InternalTracingHandler["handler"]["langfuse"];
 type AgentRunToolCall = {
   id: string;
@@ -126,7 +132,9 @@ export class InAppAgentInstrumentation {
   private readonly langfuse: InAppAgentLangfuse;
   private readonly trace: InAppAgentTrace;
   private readonly agentRun: InAppAgentGeneration;
+  private readonly conversation: InAppAgentSpan;
   private agentRunInput: unknown;
+  private readonly conversationInput: unknown;
   private readonly prompt?: InAppAgentPromptMetadata;
   private readonly toolSpans = new Map<
     string,
@@ -182,6 +190,7 @@ export class InAppAgentInstrumentation {
         : {}),
     };
     this.agentRunInput = getAgentRunInput(params.input);
+    this.conversationInput = getConversationInput(params.input);
     this.prompt = params.prompt;
     this.model = params.model;
 
@@ -219,6 +228,12 @@ export class InAppAgentInstrumentation {
             promptVersion: params.prompt.version,
           }
         : {}),
+    });
+    this.conversation = this.agentRun.span({
+      id: getInAppAgentConversationObservationId(params.input.runId),
+      name: IN_APP_AGENT_CONVERSATION_NAME,
+      input: this.conversationInput,
+      metadata: this.metadata,
     });
   }
 
@@ -331,20 +346,22 @@ export class InAppAgentInstrumentation {
     const message = error instanceof Error ? error.message : String(error);
     this.endOpenToolSpans({ error: message }, message);
     this.flushTrailingThinking();
+    const output = this.getAgentRunOutput();
+    const metadata = {
+      ...this.metadata,
+      error: message,
+    };
     this.agentRun.update({
       name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
-      output: this.getAgentRunOutput(),
+      output,
       ...(this.completionStartTime
         ? { completionStartTime: this.completionStartTime }
         : {}),
       ...this.getAgentRunUsage(),
       level: "ERROR",
       statusMessage: message,
-      metadata: {
-        ...this.metadata,
-        error: message,
-      },
+      metadata,
       ...(this.prompt
         ? {
             promptName: this.prompt.name,
@@ -352,11 +369,20 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
+    this.conversation.update({
+      name: IN_APP_AGENT_CONVERSATION_NAME,
+      input: this.conversationInput,
+      output,
+      level: "ERROR",
+      statusMessage: message,
+      metadata,
+    });
     this.trace.update({
       input: this.agentRunInput,
-      output: this.getAgentRunOutput(),
-      metadata: { ...this.metadata, error: message },
+      output,
+      metadata,
     });
+    this.conversation.end();
     this.agentRun.end();
     this.ended = true;
   }
@@ -368,6 +394,7 @@ export class InAppAgentInstrumentation {
 
     this.endOpenToolSpans(params?.aborted ? { aborted: true } : undefined);
     this.flushTrailingThinking();
+    const output = this.getAgentRunOutput();
     const metadata = {
       ...this.metadata,
       ...(params?.aborted ? { aborted: true } : {}),
@@ -376,7 +403,7 @@ export class InAppAgentInstrumentation {
     this.agentRun.update({
       name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
-      output: this.getAgentRunOutput(),
+      output,
       ...(this.completionStartTime
         ? { completionStartTime: this.completionStartTime }
         : {}),
@@ -389,11 +416,18 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
-    this.trace.update({
-      input: this.agentRunInput,
-      output: this.getAgentRunOutput(),
+    this.conversation.update({
+      name: IN_APP_AGENT_CONVERSATION_NAME,
+      input: this.conversationInput,
+      output,
       metadata,
     });
+    this.trace.update({
+      input: this.agentRunInput,
+      output,
+      metadata,
+    });
+    this.conversation.end();
     this.agentRun.end();
     this.ended = true;
   }
@@ -785,6 +819,14 @@ function getAgentRunInput(input: AgUiRunAgentInput): unknown {
   };
 }
 
+function getConversationInput(input: AgUiRunAgentInput): unknown {
+  return {
+    messages: getAgentRunMessages(
+      capConversationHistory(getConversationMessages(input.messages)),
+    ),
+  };
+}
+
 function getCurrentTurnMessages(messages: AgUiMessage[]): AgUiMessage[] {
   const lastUserMessageIndex = messages.findLastIndex(
     (message) => message.role === "user",
@@ -800,6 +842,21 @@ function getCurrentTurnMessages(messages: AgUiMessage[]): AgUiMessage[] {
       message.role === "system" ||
       index >= lastUserMessageIndex,
   );
+}
+
+// Session evals care about the dialogue, not the repeated system prompt.
+function getConversationMessages(messages: AgUiMessage[]): AgUiMessage[] {
+  return messages.filter(
+    (message) => message.role !== "developer" && message.role !== "system",
+  );
+}
+
+function capConversationHistory(messages: AgUiMessage[]): AgUiMessage[] {
+  if (messages.length <= IN_APP_AGENT_CONVERSATION_HISTORY_MESSAGE_CAP) {
+    return messages;
+  }
+
+  return messages.slice(-IN_APP_AGENT_CONVERSATION_HISTORY_MESSAGE_CAP);
 }
 
 function addAvailableToolsToAgentRunInput(
