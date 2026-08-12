@@ -11,6 +11,10 @@ import {
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
+import {
+  getCustomInstrumentationSectionState,
+  getOtelSectionState,
+} from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import {
   buildDeprecatedEvaluatorsUrl,
@@ -28,20 +32,48 @@ export function V4MigrationDelayBadge() {
     enabled: v4UpgradeUiEnabled && Boolean(project),
   });
 
-  if (!v4UpgradeUiEnabled || !project || sdk.status !== "legacy") {
+  // Every delayed ingestion path shows the pill, matching the migration
+  // panel's per-path offender detectors (LFE-14861) — not just outdated SDKs.
+  // Unlike the panel's Update SDK section, the pill states a factual delay,
+  // so the SDK path needs a confirmed-outdated series: an unparsable version
+  // is grounds for review, not proof the data is delayed.
+  const isTransient = sdk.status === "checking" || sdk.status === "error";
+  const sdkActionable = !isTransient && sdk.upgradeRequiredCount > 0;
+  const otelActionable =
+    !isTransient && getOtelSectionState(sdk).delayedCount > 0;
+  const customActionable =
+    !isTransient && getCustomInstrumentationSectionState(sdk).series.length > 0;
+  const actionablePaths = [
+    sdkActionable,
+    otelActionable,
+    customActionable,
+  ].filter(Boolean).length;
+
+  if (!v4UpgradeUiEnabled || !project || actionablePaths === 0) {
     return null;
   }
 
   const handleClick = () => {
     capture("v4_migration:delay_badge_clicked");
-    openMigrationPanel({ id: project.id, name: project.name });
+    openMigrationPanel({ id: project.id, name: project.name }, "delay_badge");
   };
+
+  // The hover's action clause echoes the panel section the click opens;
+  // multiple delayed paths get the generic clause.
+  const description =
+    actionablePaths > 1
+      ? "Your setup is outdated. Upgrade for real-time data"
+      : sdkActionable
+        ? "Your setup is outdated. Update SDK for real-time data"
+        : otelActionable
+          ? "Your setup is outdated. Update OTel instrumentation for real-time data"
+          : "Your setup is outdated. Upgrade instrumentation for real-time data";
 
   return (
     <V4MigrationBadgeContent
       onClick={handleClick}
       title="New data in ~15 min"
-      description="Update your SDK for real-time data"
+      description={description}
     />
   );
 }
