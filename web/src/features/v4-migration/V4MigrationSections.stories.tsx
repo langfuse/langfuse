@@ -49,6 +49,14 @@ const outdatedPython = makeSeries({
   sdkVersion: "2.60.3",
   v4MigrationStatus: "upgrade_required",
 });
+// Scores-only offender: detection sees its score ingestions but the events
+// table has nothing for it, so the key renders as plain text, not a link.
+const scoresOnlyPython = makeSeries({
+  sdkVersion: "2.44.0",
+  v4MigrationStatus: "upgrade_required",
+  publicKey: "pk-lf-scores-only-0001",
+  eventsCount: 0,
+});
 const outdatedJavascript = makeSeries({
   sdkName: "javascript",
   sdkVersion: "3.38.5",
@@ -109,8 +117,13 @@ const customInstrumentation = makeSeries({
 
 const sdkOutdatedState = makeSdkState({
   status: "legacy",
-  sdkUsageSeries: [outdatedPython, outdatedJavascript, upgradedPython],
-  upgradeRequiredCount: 2,
+  sdkUsageSeries: [
+    outdatedPython,
+    scoresOnlyPython,
+    outdatedJavascript,
+    upgradedPython,
+  ],
+  upgradeRequiredCount: 3,
 });
 
 // An unrecognized SDK name is custom instrumentation, not an SDK state.
