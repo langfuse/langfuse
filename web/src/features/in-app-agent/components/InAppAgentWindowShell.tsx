@@ -82,9 +82,12 @@ export function InAppAgentWindowShell({
   // layer ORDER stacks the whole `agent` layer below every transient overlay.
   if (isExpanded) {
     return (
+      // `--banner-offset` carries the top inset; the other three edges add
+      // theirs here, because the viewport meta's `viewport-fit=cover` extends
+      // layout under the home indicator and, in landscape, the notch.
       <div
         ref={panelRef}
-        className="pointer-events-auto fixed inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3 origin-top-left"
+        className="pointer-events-auto fixed top-[calc(var(--banner-offset)+0.75rem)] right-[calc(0.75rem+env(safe-area-inset-right,0px))] bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] left-[calc(0.75rem+env(safe-area-inset-left,0px))] origin-top-left"
         data-ignore-outside-interaction
       >
         <div

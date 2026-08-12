@@ -397,6 +397,14 @@
     --banner-offset: calc(
       env(safe-area-inset-top, 0px) + var(--banner-height, 0px)
     );
+
+    /* `env()` is CSS-only, so mirror the insets into custom properties that JS
+       can read (getComputedStyle resolves them to px). Non-zero only because
+       the viewport meta sets `viewport-fit=cover` — see pages/_app.tsx. */
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
   }
 
   .dark {
@@ -572,6 +580,11 @@
   body {
     /* Prevent pull-to-refresh and rubber-banding on the page level only */
     overscroll-behavior-y: none;
+    /* Omitting `pinch-zoom` blocks pinch and double-tap zoom at the engine
+       level, which modern iOS honors where it ignores `user-scalable=no`
+       (viewport meta lives in pages/_app.tsx). Elements that own their own
+       gestures set their own `touch-action`. */
+    touch-action: pan-x pan-y;
   }
 
   body {
