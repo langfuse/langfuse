@@ -46,7 +46,7 @@ function SessionReadout() {
 }
 
 const tree = () => (
-  <ResilientSessionProvider>
+  <ResilientSessionProvider basePath="/api/auth">
     <SessionReadout />
   </ResilientSessionProvider>
 );
@@ -59,6 +59,18 @@ const storageKicks = (dispatch: DispatchSpy) =>
       event instanceof StorageEvent && event.key === "nextauth.message",
   ).length;
 
+/** The session endpoint's two answers, plus not answering at all. */
+const endpointSays = (body: Record<string, unknown>) =>
+  vi.fn().mockResolvedValue({ ok: true, json: async () => body });
+const endpointUnreachable = () =>
+  vi.fn().mockRejectedValue(new Error("Failed to fetch"));
+
+/** Runs the pending re-check timer and lets its probe resolve. */
+const advanceRecheck = (ms: number) =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+
 describe("ResilientSessionProvider", () => {
   let dispatch: DispatchSpy;
 
@@ -66,10 +78,12 @@ describe("ResilientSessionProvider", () => {
     vi.useFakeTimers();
     useSessionMock.mockReset();
     dispatch = vi.spyOn(window, "dispatchEvent");
+    vi.stubGlobal("fetch", endpointSays({}));
   });
 
   afterEach(() => {
     dispatch.mockRestore();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
@@ -102,24 +116,35 @@ describe("ResilientSessionProvider", () => {
     );
   });
 
-  it("reports unauthenticated once the re-checks agree the session is gone", async () => {
+  it("reports unauthenticated when the server says the session is gone", async () => {
+    useSessionMock.mockReturnValue(authenticated("demo@langfuse.com"));
+    const { rerender } = render(tree());
+
+    useSessionMock.mockReturnValue(noSession);
+    await act(async () => rerender(tree()));
+    await advanceRecheck(400);
+
+    expect(screen.getByTestId("session")).toHaveTextContent(
+      "unauthenticated:none",
+    );
+  });
+
+  it("never signs the user out while the session endpoint is unreachable", async () => {
+    vi.stubGlobal("fetch", endpointUnreachable());
     useSessionMock.mockReturnValue(authenticated("demo@langfuse.com"));
     const { rerender } = render(tree());
 
     useSessionMock.mockReturnValue(noSession);
     await act(async () => rerender(tree()));
 
-    // Two re-checks, each given time to land, both still find no session.
-    await act(async () => {
-      vi.advanceTimersByTime(400);
-    });
-    await act(async () => {
-      vi.advanceTimersByTime(400);
-    });
+    // Long past every re-check, with the endpoint still refusing to answer.
+    for (const ms of [400, 800, 1600, 3200, 10_000, 10_000]) {
+      await advanceRecheck(ms);
+    }
 
     expect(screen.getByTestId("session")).toHaveTextContent(
-      "unauthenticated:none",
+      "authenticated:demo@langfuse.com",
     );
-    expect(storageKicks(dispatch)).toBe(2);
+    expect(storageKicks(dispatch)).toBeGreaterThan(2);
   });
 });

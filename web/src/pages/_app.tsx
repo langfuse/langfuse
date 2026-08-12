@@ -122,6 +122,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
   const router = useRouter();
   const skipAppLayout =
     "skipAppLayout" in Component && Component.skipAppLayout === true;
+  const authBasePath = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`;
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
@@ -170,9 +171,9 @@ const MyApp: AppType<{ session: Session | null }> = ({
                 session={session}
                 refetchOnWindowFocus={true}
                 refetchInterval={5 * 60} // 5 minutes
-                basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
+                basePath={authBasePath}
               >
-                <ResilientSessionProvider>
+                <ResilientSessionProvider basePath={authBasePath}>
                   <DetailPageListsProvider>
                     <MarkdownContextProvider>
                       <ThemeProvider

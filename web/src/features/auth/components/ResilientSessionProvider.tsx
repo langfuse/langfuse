@@ -12,9 +12,12 @@ import {
   useState,
 } from "react";
 
-/** Re-checks of a session that went missing before its absence is believed. */
-const MAX_RECHECKS = 2;
+/** Delay before re-checking a session that went missing, doubling up to the cap. */
 const RECHECK_DELAY_MS = 400;
+const MAX_RECHECK_DELAY_MS = 10_000;
+
+const recheckDelay = (attempt: number) =>
+  Math.min(RECHECK_DELAY_MS * 2 ** attempt, MAX_RECHECK_DELAY_MS);
 
 /**
  * Asks next-auth's SessionProvider to re-fetch the session.
@@ -23,8 +26,8 @@ const RECHECK_DELAY_MS = 400;
  * window-focus and poll paths both bail out, and the exported `getSession()`
  * never writes back into provider state. Its cross-tab broadcast is the one
  * path that re-fetches a null session, so replay that message in this tab. If
- * next-auth ever renames the channel this becomes a no-op, which is where a
- * failed response leaves us anyway.
+ * next-auth ever renames the channel this becomes a no-op and we keep serving
+ * the last known session, which is better than the sign-out it replaces.
  */
 function refetchSessionInProvider() {
   window.dispatchEvent(
@@ -39,19 +42,46 @@ function refetchSessionInProvider() {
 }
 
 /**
- * Keeps a transient session gap from reading as a sign-out.
+ * Asks the session endpoint the one question next-auth's client cannot answer:
+ * is the user signed out, or did the request simply not get through? Anything
+ * short of a readable "no session" answer counts as unreachable.
+ */
+async function probeSession(
+  basePath: string,
+): Promise<"signed-in" | "signed-out" | "unreachable"> {
+  try {
+    const response = await fetch(`${basePath}/session`);
+    if (!response.ok) return "unreachable";
+    const body = (await response.json()) as Record<string, unknown> | null;
+    return body && Object.keys(body).length > 0 ? "signed-in" : "signed-out";
+  } catch {
+    return "unreachable";
+  }
+}
+
+/**
+ * Keeps a session gap from reading as a sign-out.
  *
  * next-auth returns the same "no session" value when `/api/auth/session` fails
  * as when the server says the user is signed out, so one failed response used
  * to unmount everything that reads the session — the entire page subtree via
- * `AppLayout`, plus every RBAC-gated control — taking open dialogs and unsaved
- * edits with it. While a session that was present goes missing, keep serving it
- * and re-check; the absence only reaches the app once the re-checks agree, so a
- * real sign-out (here or in another tab) still tears the session down.
+ * `AppLayout`, plus every session-gated control — taking open dialogs and
+ * unsaved edits with it.
+ *
+ * The rule here: only the server ends a session. While a session that was
+ * present goes missing, keep serving it, nudge next-auth to re-fetch, and ask
+ * the endpoint directly what happened. A "no session" answer is passed straight
+ * through, so a real sign-out (here or in another tab) still tears the session
+ * down; an unreachable endpoint is not an answer, so the page stays as it is
+ * for as long as it takes.
  */
-export function ResilientSessionProvider({ children }: PropsWithChildren) {
+export function ResilientSessionProvider({
+  basePath,
+  children,
+}: PropsWithChildren<{ basePath: string }>) {
   const session = useSession();
-  const [recheckCount, setRecheckCount] = useState(0);
+  const [attempt, setAttempt] = useState(0);
+  const [serverSaysSignedOut, setServerSaysSignedOut] = useState(false);
   const lastKnownSession = useRef<Session | null>(null);
   if (session.data) lastKnownSession.current = session.data;
 
@@ -59,24 +89,32 @@ export function ResilientSessionProvider({ children }: PropsWithChildren) {
   const isRechecking =
     session.status === "unauthenticated" &&
     knownSession !== null &&
-    recheckCount < MAX_RECHECKS;
+    !serverSaysSignedOut;
 
   useEffect(() => {
     if (session.status === "authenticated") {
-      if (recheckCount > 0) setRecheckCount(0);
+      if (attempt > 0) setAttempt(0);
+      if (serverSaysSignedOut) setServerSaysSignedOut(false);
       return;
     }
     if (!isRechecking) return;
 
+    let cancelled = false;
+    // Recovering flips the status, which re-runs this effect and cancels the
+    // timer before it can ask why the session went missing.
     refetchSessionInProvider();
-    // Count the re-check only once it had time to land: recovering flips the
-    // status, which re-runs this effect and cancels the timer.
-    const timer = setTimeout(
-      () => setRecheckCount((count) => count + 1),
-      RECHECK_DELAY_MS,
-    );
-    return () => clearTimeout(timer);
-  }, [session.status, recheckCount, isRechecking]);
+    const timer = setTimeout(async () => {
+      const verdict = await probeSession(basePath);
+      if (cancelled) return;
+      if (verdict === "signed-out") setServerSaysSignedOut(true);
+      else setAttempt((count) => count + 1);
+    }, recheckDelay(attempt));
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [session.status, attempt, isRechecking, serverSaysSignedOut, basePath]);
 
   const value = useMemo<SessionContextValue>(() => {
     if (!isRechecking || !knownSession) return session;
