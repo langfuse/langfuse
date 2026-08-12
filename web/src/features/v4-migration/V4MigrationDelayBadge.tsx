@@ -23,8 +23,7 @@ import {
 } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
 export function V4MigrationDelayBadge() {
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const rawFlag = useV4UpgradeUiFlag();
+  const v4UpgradeUiFlagEnabled = useV4UpgradeUiFlag();
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { project, organization } = useQueryProject();
   const forceV3 = useForceV3Experience(project?.id);
@@ -32,9 +31,9 @@ export function V4MigrationDelayBadge() {
 
   // Forced-v3 projects still see the data-delay badge (the ~15 min delay is
   // real for them too), but it points at the partner FAQ instead of the
-  // migration panel. It remains gated on the raw v4UpgradeUi flag, since
-  // `useV4UpgradeUiEnabled` is false for these projects.
-  const enabled = v4UpgradeUiEnabled || (rawFlag && forceV3);
+  // migration panel. Gated on the raw v4UpgradeUi flag because the master gate
+  // (useV4UpgradeUiEnabled) is false for forced projects.
+  const enabled = v4UpgradeUiFlagEnabled;
   const sdk = useProjectV4SdkData({
     projectId: project?.id,
     orgId: organization?.id,

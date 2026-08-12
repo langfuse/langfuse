@@ -28,6 +28,7 @@ export function V4MigrationNavItem() {
     experiments: migrationData.experiments,
     apis: migrationData.apis,
     exports: migrationData.exports,
+    forceV3Experience: migrationData.forceV3Experience,
   });
   if (readiness === "ready") {
     return null;

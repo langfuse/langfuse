@@ -249,8 +249,8 @@ function OrgStatusSection({
               unavailable: 0,
               checking: 1,
               "action-needed": 2,
-              "partner-managed": 3,
-              ready: 4,
+              ready: 3,
+              "partner-managed": 4,
             }[getProjectMigrationReadiness(row.status)]
           : 0;
       case "sdk":

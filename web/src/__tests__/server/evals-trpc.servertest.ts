@@ -1,14 +1,19 @@
 import { beforeEach, vi } from "vitest";
 import type * as SharedEnvModule from "@langfuse/shared/src/env";
 
-const { runCodeEvalTestForJobConfigMock } = vi.hoisted(() => {
-  process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
-  process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+const { runCodeEvalTestForJobConfigMock, forceV3ProjectIds } = vi.hoisted(
+  () => {
+    process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
+    process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
 
-  return {
-    runCodeEvalTestForJobConfigMock: vi.fn(),
-  };
-});
+    return {
+      runCodeEvalTestForJobConfigMock: vi.fn(),
+      // Mutable backing for the mocked LANGFUSE_FORCE_V3_EXPERIENCE list so
+      // individual tests can force a project onto the v3 experience.
+      forceV3ProjectIds: { current: [] as string[] },
+    };
+  },
+);
 
 vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
   const actual = await importOriginal<typeof SharedEnvModule>();
@@ -19,6 +24,9 @@ vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
       ...actual.env,
       LANGFUSE_CODE_EVAL_DISPATCHER: "insecure-local",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      get LANGFUSE_FORCE_V3_EXPERIENCE() {
+        return forceV3ProjectIds.current;
+      },
     },
   };
 });
@@ -54,9 +62,9 @@ import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type { Session } from "next-auth";
 import { env } from "@/src/env.mjs";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 
 beforeEach(() => {
+  forceV3ProjectIds.current = [];
   runCodeEvalTestForJobConfigMock.mockReset();
   runCodeEvalTestForJobConfigMock.mockResolvedValue({
     success: true,
@@ -1142,10 +1150,11 @@ describe("evals trpc", () => {
 
     it("allows new trace-target evaluators for force-v3 projects", async () => {
       const { project, caller } = await prepare();
+      // events_only is the strictest mode (no new legacy evals anywhere); the
+      // force list must still let this project through.
       const originalMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-      const originalForce = sharedEnv.LANGFUSE_FORCE_V3_EXPERIENCE;
       Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "events_only");
-      Reflect.set(sharedEnv, "LANGFUSE_FORCE_V3_EXPERIENCE", [project.id]);
+      forceV3ProjectIds.current = [project.id];
 
       try {
         const template = await createTraceTemplate(project.id);
@@ -1167,7 +1176,6 @@ describe("evals trpc", () => {
         expect(savedJob?.targetObject).toBe(EvalTargetObject.TRACE);
       } finally {
         Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalMode);
-        Reflect.set(sharedEnv, "LANGFUSE_FORCE_V3_EXPERIENCE", originalForce);
       }
     });
   });

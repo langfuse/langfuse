@@ -85,7 +85,9 @@ export type ProjectMigrationStatus = {
   experiments: MigrationActionState;
   apis: MigrationCountState;
   exports: MigrationCountState;
-  forceV3Experience?: boolean;
+  // Whether the project is forced onto the v3 experience (partner-managed
+  // upgrade). Always set; `true` short-circuits readiness to "partner-managed".
+  forceV3Experience: boolean;
 };
 
 export type ProjectMigrationReadiness =
