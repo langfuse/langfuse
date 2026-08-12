@@ -1,7 +1,9 @@
 ---
 name: cursor-cloud-issue-delivery
 description: |
-  End-to-end Cursor Cloud Agent workflow for Langfuse issues: investigate thoroughly,
+  End-to-end Cursor Cloud Agent workflow for Langfuse issues: investigate thoroughly
+  across all available read-only MCP signal sources (Linear, Datadog, Slack, PostHog,
+  Sentry, etc.),
   write and follow an implementation plan, verify locally on the Cloud stack, open a
   draft PR, address all review-agent comments on the PR, manually test in the PR
   preview with seeded sample data, post a structured handoff comment in Linear for
@@ -32,9 +34,17 @@ before investigation and a written plan are complete.
 
 Do not write production code until investigation is complete.
 
-1. **Intake every signal** in the issue, Linear thread, Datadog alert, or user report.
-   - For production failures: read and follow `debug-issue-with-datadog`.
-   - For UI-only bugs: locate the route/component and read the narrowest `AGENTS.md`.
+1. **Intake every signal** — start from the issue text, then sweep **all available
+   read-only MCP tools** for corroborating evidence. See
+   [`references/signal-sources.md`](references/signal-sources.md).
+   - Discover connected tools with `GetMcpTools`; typical sources include Linear,
+     GitHub, Datadog, incident.io, Pylon, Slack, PostHog, Sentry, Metabase,
+     ClickHouse Cloud, Google Drive, Circleback, and Langfuse Docs.
+   - For production failures: read and follow `debug-issue-with-datadog` (Datadog
+     is required, not sufficient — still check Pylon, Slack, incident.io, etc.).
+   - For UI-only bugs: locate the route/component and read the narrowest
+     `AGENTS.md`; also check Sentry and PostHog when available.
+   - Record each source queried and whether it returned signal or `none found`.
 2. **Reproduce or narrow the failure mode.**
    - Bugs: identify the smallest failing automated test or write one that proves the
      reported behavior before changing production code (root `AGENTS.md`).
@@ -44,6 +54,7 @@ Do not write production code until investigation is complete.
    - symptom
    - root cause hypothesis (with code paths cited)
    - repro command or seed scenario
+   - signal sources checked (MCP tools + `none found` where applicable)
    - what is in / out of scope
 
 If investigation is inconclusive, stop and report gaps instead of guessing.
@@ -217,6 +228,7 @@ Before ending the agent run, confirm:
 
 | Need | Skill |
 | --- | --- |
+| Signal source sweep | [`references/signal-sources.md`](references/signal-sources.md) |
 | Production telemetry | `debug-issue-with-datadog`, `datadog-query-recipes` |
 | Code navigation | `langfuse-codebase-navigator` |
 | Local / preview data | `seed-test-data` |
