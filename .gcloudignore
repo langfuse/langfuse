@@ -1,0 +1,6 @@
+# Keep Cloud Build source uploads lean (CIP fork, see FORK.md).
+.git
+node_modules
+**/node_modules
+**/.next
+**/dist

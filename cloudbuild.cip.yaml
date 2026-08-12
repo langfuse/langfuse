@@ -1,0 +1,21 @@
+# CIP fork (see FORK.md): builds the web image for the self-hosted deployment.
+# Usage:
+#   gcloud builds submit --config cloudbuild.cip.yaml \
+#     --substitutions _TAG=v3.137.0-cip.1 --project cip-data-staging
+substitutions:
+  _REPO: us-central1-docker.pkg.dev/cip-data-staging/langfuse
+  _TAG: dev
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - web/Dockerfile
+      - -t
+      - ${_REPO}/langfuse-web:${_TAG}
+      - .
+images:
+  - ${_REPO}/langfuse-web:${_TAG}
+timeout: 3600s
+options:
+  machineType: E2_HIGHCPU_32
