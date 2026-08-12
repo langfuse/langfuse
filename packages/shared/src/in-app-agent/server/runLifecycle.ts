@@ -9,14 +9,13 @@ import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
 import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
+import type { InAppAgentPrefixedLangfuseMcpToolName } from "./tools";
 import {
   InAppAgentRunRequestSchema,
   type InAppAgentRunRequest,
 } from "../../features/inAppAgent/types";
 import {
   ACTIVE_RUN_CONFLICT_MESSAGE,
-  FOREGROUND_RUN_STALE_AFTER_MS,
-  FOREGROUND_RUN_STALE_ERROR_MESSAGE,
   lockConversation,
   type InAppAgentTx,
 } from "./persistence";
@@ -204,6 +203,8 @@ export async function decideToolApproval(params: {
   toolCallId: string;
   approved: boolean;
   decidedByUserId: string;
+  /** Prefixed tool resolved from the persisted interrupt, never client input. */
+  alwaysAllowToolName?: InAppAgentPrefixedLangfuseMcpToolName;
   model?: string;
 }): Promise<InAppAgentRun> {
   const outcome = await params.prisma.$transaction(async (tx) => {
@@ -268,6 +269,33 @@ export async function decideToolApproval(params: {
       parentRun.request,
     );
 
+    // Persist the grant in the same transaction as the exactly-once decision CAS.
+    if (params.alwaysAllowToolName) {
+      const conversation = await tx.inAppAgentConversation.findUnique({
+        where: {
+          id_projectId: {
+            id: params.conversationId,
+            projectId: params.projectId,
+          },
+        },
+        select: { alwaysAllowedTools: true },
+      });
+
+      if (
+        !conversation?.alwaysAllowedTools.includes(params.alwaysAllowToolName)
+      ) {
+        await tx.inAppAgentConversation.update({
+          where: {
+            id_projectId: {
+              id: params.conversationId,
+              projectId: params.projectId,
+            },
+          },
+          data: { alwaysAllowedTools: { push: params.alwaysAllowToolName } },
+        });
+      }
+    }
+
     await appendConversationEventInTransaction({
       tx,
       projectId: params.projectId,
@@ -277,6 +305,9 @@ export async function decideToolApproval(params: {
         toolCallId: params.toolCallId,
         approved: params.approved,
         decidedByUserId: params.decidedByUserId,
+        ...(params.alwaysAllowToolName
+          ? { scope: "conversation" as const }
+          : {}),
       }),
     });
 
@@ -581,22 +612,10 @@ function classifyStaleRun(
   }
 
   if (run.status === InAppAgentRunStatus.RUNNING) {
-    if (
-      !run.claimedAt &&
-      !run.heartbeatAt &&
-      now - run.createdAt.getTime() > FOREGROUND_RUN_STALE_AFTER_MS
-    ) {
-      return {
-        errorCode: InAppAgentRunErrorCode.STALE,
-        errorMessage: FOREGROUND_RUN_STALE_ERROR_MESSAGE,
-      };
-    }
-
-    // Duration wins because a hung tool may keep renewing its heartbeat.
-    if (
-      run.claimedAt &&
-      now - run.claimedAt.getTime() > IN_APP_AGENT_RUN_MAX_DURATION_MS
-    ) {
+    // Duration wins because a hung tool may keep renewing its heartbeat. Use
+    // creation time as the defensive lower bound when claim metadata is absent.
+    const startedAt = run.claimedAt ?? run.createdAt;
+    if (now - startedAt.getTime() > IN_APP_AGENT_RUN_MAX_DURATION_MS) {
       return {
         errorCode: InAppAgentRunErrorCode.RUN_TIMEOUT,
         errorMessage: "The run exceeded the maximum duration",

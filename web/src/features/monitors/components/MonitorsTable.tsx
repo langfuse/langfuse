@@ -58,10 +58,10 @@ export function MonitorsTable() {
   const router = useRouter();
   const projectId = useProjectIdFromURL() ?? "";
   const utils = api.useUtils();
-  /** hasCUDAccess gates the edit, pause/resume, and delete row actions behind the monitors:CUD RBAC scope. */
+  /** hasCUDAccess gates the edit, pause/resume, and delete row actions behind the alerts:CUD RBAC scope. */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "monitors:CUD",
+    scope: "alerts:CUD",
   });
   /** isWiderThanPhone is true at viewports wider than the main nav's drawer breakpoint (768px / Tailwind `md`), the threshold at which the Tags column appears. */
   const isWiderThanPhone = useMediaQuery({ query: "(min-width: 768px)" });
@@ -71,16 +71,14 @@ export function MonitorsTable() {
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
-        title:
-          variables.status === "PAUSED" ? "Monitor paused" : "Monitor resumed",
+        title: variables.status === "PAUSED" ? "Alert paused" : "Alert resumed",
         description:
           variables.status === "PAUSED"
             ? "Evaluations are halted until you resume."
             : "Evaluations have resumed.",
       });
     },
-    onError: (e) =>
-      showErrorToast("Failed to update monitor status", e.message),
+    onError: (e) => showErrorToast("Failed to update alert status", e.message),
   });
 
   /** paginationState is the bound page index + size, defaulting to 50 per page and synced to the `pageIndex`/`pageSize` URL params. */
@@ -311,7 +309,7 @@ function MonitorRowActions({
       variant="ghost"
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess}
-      aria-label="Edit monitor"
+      aria-label="Edit alert"
       title="Edit"
       className={cn(!collapsed && rowActionIconColors)}
     >
@@ -330,7 +328,7 @@ function MonitorRowActions({
       variant="ghost"
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess || isStatusPending}
-      aria-label={isPaused ? "Resume monitor" : "Pause monitor"}
+      aria-label={isPaused ? "Resume alert" : "Pause alert"}
       title={isPaused ? "Resume" : "Pause"}
       className={cn(!collapsed && rowActionIconColors)}
       onClick={(e) => {
@@ -366,7 +364,7 @@ function MonitorRowActions({
       <div onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="xs" variant="ghost" aria-label="Monitor actions">
+            <Button size="xs" variant="ghost" aria-label="Alert actions">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -412,7 +410,7 @@ const filterStateToListMonitorFilter = (
 
 /** monitorHref is the project-scoped path to a monitor's page, the row-click and edit-action target. */
 const monitorHref = (projectId: string, monitorId: string): string =>
-  `/project/${projectId}/monitors/${encodeURIComponent(monitorId)}`;
+  `/project/${projectId}/alerts/${encodeURIComponent(monitorId)}`;
 
 /** buildStatusToggleUpdate returns a full update payload with only the status flipped between ACTIVE and PAUSED. */
 const buildStatusToggleUpdate = (monitor: Monitor): UpdateMonitor => ({

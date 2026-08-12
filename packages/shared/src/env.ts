@@ -147,6 +147,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
     .enum(["auto", "true", "false"])
     .default("auto"),
+  CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: z
+    .enum(["auto", "true", "false"])
+    .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
     .number()
     .default(32_000_000_000), // ~32GB
@@ -357,6 +360,14 @@ const EnvSchema = z.object({
   LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
     .number()
     .default(80e6), // 80MB
+  // How many observations the trace detail view loads (startTime ASC, so the
+  // chronological tail is what a bigger trace loses). Also a crash guard: the
+  // client builds one node per observation before it renders.
+  LANGFUSE_MAX_OBSERVATIONS_PER_TRACE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000),
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
@@ -441,6 +452,24 @@ const EnvSchema = z.object({
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST: z
     .string()
     .optional()
     .transform((s) =>
@@ -534,11 +563,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(24 * 60 * 60_000),
-  // Rollback switch for the in-app agent: flip to "foreground" and ship.
-  // Nothing sets this per region, so this default is the only place to change.
-  LANGFUSE_IN_APP_AGENT_EXECUTION_MODE: z
-    .enum(["background", "foreground"])
-    .default("background"),
   // Flat safety ceilings on concurrent non-terminal runs. Per region, so a
   // small region (JP, staging) can be tightened below its execution capacity.
   LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce

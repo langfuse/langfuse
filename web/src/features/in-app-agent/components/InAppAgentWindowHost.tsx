@@ -113,7 +113,9 @@ export function InAppAgentWindowHost() {
     floatingPanelHandle.initializeGeometry();
   }, [floatingPanelHandle, isExpanded, open]);
 
-  if (!canUseAgent || !open) {
+  // Only `canUseAgent` gates the tree: the shell owns the `open` guard so the
+  // handheld drawer stays mounted and can animate itself closed.
+  if (!canUseAgent) {
     return null;
   }
 
@@ -138,6 +140,10 @@ export function InAppAgentWindowHost() {
           <InAppAgentWindowShell
             floatingPanelHandle={floatingPanelHandle}
             isExpanded={isExpanded}
+            onClose={() => {
+              setOpen(false);
+            }}
+            open={open}
             panelRef={panelRef}
           >
             {({ isHeaderDragHandleEnabled }) => (

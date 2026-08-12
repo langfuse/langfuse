@@ -7,15 +7,15 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import {
   type ChatMLParserResult,
   useChatMLParser,
-} from "./hooks/useChatMLParser";
-import { ChatMessageList } from "./components/ChatMessageList";
+} from "../../hooks/useChatMLParser";
+import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
   type ExpansionStateProps,
   type IOPreviewContentMode,
 } from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
-import { isOnlyJsonMessage } from "./components/chat-message-utils";
+import { isOnlyJsonMessage } from "../../fns/chatMessageUtils";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;

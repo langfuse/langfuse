@@ -614,3 +614,50 @@ describe("membersRouter.updateProjectRole - orgMembership/userId consistency", (
     expect(row?.orgMembershipId).toBe(orgMembership.id);
   });
 });
+
+describe("membersRouter.updateProjectRole - project organization consistency", () => {
+  it("rejects a project from another organization without writing membership or audit log", async () => {
+    const { org, ownerUser, caller } = await prepare("cloud:core");
+    const { project: otherOrgProject } = await createTestOrg("cloud:core");
+
+    const orgMembership = await prisma.organizationMembership.findUniqueOrThrow(
+      {
+        where: {
+          orgId_userId: {
+            orgId: org.id,
+            userId: ownerUser.id,
+          },
+        },
+      },
+    );
+
+    await expect(
+      caller.members.updateProjectRole({
+        orgId: org.id,
+        orgMembershipId: orgMembership.id,
+        userId: ownerUser.id,
+        projectId: otherOrgProject.id,
+        projectRole: Role.OWNER,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const projectMembership = await prisma.projectMembership.findUnique({
+      where: {
+        projectId_userId: {
+          projectId: otherOrgProject.id,
+          userId: ownerUser.id,
+        },
+      },
+    });
+    expect(projectMembership).toBeNull();
+
+    const auditLogs = await prisma.auditLog.findMany({
+      where: {
+        orgId: org.id,
+        resourceType: "projectMembership",
+        resourceId: `${otherOrgProject.id}--${ownerUser.id}`,
+      },
+    });
+    expect(auditLogs).toHaveLength(0);
+  });
+});
