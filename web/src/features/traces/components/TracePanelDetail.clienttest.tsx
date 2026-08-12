@@ -74,7 +74,7 @@ describe("TracePanelDetail", () => {
   it("shows the selected observation even when it is outside the loaded list", () => {
     // Regression: the panel used to decide "is an observation selected" from the
     // tree's nodeMap, so an observation past the 10k cap silently rendered the
-    // TRACE detail instead (LFE-14992).
+    // TRACE detail instead.
     mockUseSelection.mockReturnValue({ selectedNodeId: "past-cap" });
     mockByIdQuery.mockReturnValue({ data: observation("past-cap") });
 

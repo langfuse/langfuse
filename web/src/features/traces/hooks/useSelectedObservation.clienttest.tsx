@@ -85,16 +85,44 @@ describe("useSelectedObservation", () => {
     },
   );
 
+  it("prefers a real observation over the trace-node id shape", () => {
+    // Observation ids are caller-supplied, so an observation can genuinely be
+    // named `trace-<traceId>`; a loaded row is the stronger evidence.
+    const collided = [observation("trace-t")];
+    const result = renderHook(() =>
+      useSelectedObservation({
+        selectedNodeId: "trace-t",
+        traceId: "t",
+        projectId: "p",
+        observations: collided,
+      }),
+    ).result.current;
+
+    expect(result).toMatchObject({ kind: "observation" });
+  });
+
   it.each([
-    { code: "NOT_FOUND", kind: "not-found" },
+    {
+      name: "NOT_FOUND",
+      error: { data: { code: "NOT_FOUND" } },
+      kind: "not-found",
+    },
     // A transient failure must not be reported as a deleted observation.
-    { code: "INTERNAL_SERVER_ERROR", kind: "error" },
-    { code: undefined, kind: "loading" },
-  ])("reports $code as $kind", ({ code, kind }) => {
-    mockByIdQuery.mockReturnValue({
-      data: undefined,
-      error: code ? { data: { code } } : null,
-    });
+    {
+      name: "a server error",
+      error: { data: { code: "INTERNAL_SERVER_ERROR" } },
+      kind: "error",
+    },
+    // Transport-level failures carry no `data.code` at all; keying on the code
+    // alone left the panel waiting on a skeleton forever.
+    {
+      name: "a transport failure",
+      error: { message: "fetch failed" },
+      kind: "error",
+    },
+    { name: "an in-flight fetch", error: null, kind: "loading" },
+  ])("reports $name as $kind", ({ error, kind }) => {
+    mockByIdQuery.mockReturnValue({ data: undefined, error });
 
     expect(render("past-cap")).toEqual({ kind, observationId: "past-cap" });
   });
