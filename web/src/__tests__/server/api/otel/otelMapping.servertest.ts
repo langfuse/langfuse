@@ -69,9 +69,11 @@ async function convertOtelSpanToIngestionEvent(
   resourceSpan: any,
   seenTraces: Set<string>,
   publicKey?: string,
+  config: Partial<OtelIngestionProcessorConfig> = {},
 ): Promise<TestIngestionEvent[]> {
   const processor = createTestOtelProcessor({
     publicKey: publicKey ?? "",
+    ...config,
   });
 
   // For tests, we bypass Redis initialization and directly set the seen traces
@@ -1333,6 +1335,8 @@ describe("OTel Resource Span Mapping", () => {
       const events = await convertOtelSpanToIngestionEvent(
         createOpenRouterBroadcastSpan(),
         new Set(),
+        undefined,
+        { isLangfuseInternal: true },
       );
 
       expect(events.map((event) => event.body.environment)).toEqual([

@@ -2162,9 +2162,7 @@ export class OtelIngestionProcessor {
         resourceAttributes,
       );
     if (openRouterEnvironment) {
-      return normalizeEnvironment(openRouterEnvironment, {
-        isLangfuseInternal: this.isLangfuseInternal,
-      });
+      return normalizeEnvironment(openRouterEnvironment);
     }
 
     return DEFAULT_TRACE_ENVIRONMENT;
