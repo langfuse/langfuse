@@ -5,10 +5,9 @@ description: |
   across all available read-only MCP signal sources (Linear, Datadog, Slack, PostHog,
   Sentry, etc.), research and plan with the research skill, implement, verify locally
   on the Cloud stack, open a draft PR, address all review-agent comments on the PR,
-  manually test in the PR preview with seeded sample data, post a structured handoff
-  comment in Linear for the assigned engineer, and add matching preview review
-  instructions on the PR. Use when a Cloud Agent owns an issue, bug fix, or feature
-  from triage through preview-ready handoff.
+  manually test in the PR preview with seeded sample data, and post a structured
+  handoff comment in Linear for the assigned engineer. Use when a Cloud Agent owns
+  an issue, bug fix, or feature from triage through preview-ready handoff.
 ---
 
 # Cursor Cloud Issue Delivery
@@ -27,7 +26,7 @@ before investigation and a written plan are complete.
 | 4. Test locally | Prove the fix on the Cloud stack | `frontend-browser-review`, `start-cursor-cloud.sh` |
 | 5. PR + babysit | Draft PR, fix CI, address review-agent comments | `git-workflow`, `code-review`, GitHub MCP |
 | 6. Preview QA | Verify on `pr-<N>.preview.langfuse.com` | `langfuse-previews`, `seed-test-data` |
-| 7. Handoff | Linear engineer report + PR preview instructions | [`references/linear-engineer-report-template.md`](references/linear-engineer-report-template.md), [`references/preview-review-template.md`](references/preview-review-template.md), Linear MCP |
+| 7. Handoff | Linear engineer report | [`references/linear-engineer-report-template.md`](references/linear-engineer-report-template.md), Linear MCP |
 
 ## Phase 1 — Investigate thoroughly
 
@@ -157,11 +156,6 @@ data in a preview.
 
 ## Phase 7 — Handoff to the engineer
 
-Handoff happens in **Linear first**, then on the PR. Do not mark the run complete
-until both are posted.
-
-### 7a. Linear report (primary)
-
 Post a structured comment on the originating Linear issue via the Linear MCP.
 Use [`references/linear-engineer-report-template.md`](references/linear-engineer-report-template.md).
 
@@ -181,14 +175,6 @@ Also include PR link, preview URL, and a short verification-performed summary.
 - Draft the comment in the agent thread if preview QA is still in progress; post
   to Linear only after Phase 6 passes and the PR is ready for review.
 
-### 7b. PR preview review (mirror item 3)
-
-Add a **Preview review** section to the PR body so GitHub reviewers see the same
-preview steps. Copy and fill
-[`references/preview-review-template.md`](references/preview-review-template.md).
-
-Keep item 3 in the Linear comment and the PR **Preview review** section aligned.
-
 Mark the PR ready for review only after Phases 4–7 are complete.
 
 ## Exit criteria
@@ -201,7 +187,6 @@ Before ending the agent run, confirm:
 - [ ] Draft PR opened, CI green, all review-agent comments addressed
 - [ ] Preview manually tested with appropriate sample data
 - [ ] Linear handoff comment posted (sections 1–3) on the originating issue
-- [ ] PR body includes filled preview review instructions (mirrors Linear §3)
 - [ ] Final summary quotes verification evidence, not claims
 
 ## Delegation guide

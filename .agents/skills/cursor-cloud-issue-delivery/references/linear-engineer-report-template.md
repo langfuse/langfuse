@@ -1,8 +1,8 @@
 # Linear engineer report template
 
-Post this as a **comment on the originating Linear issue** when Phases 6–7 are
-complete and the PR is ready for review. Linear is the primary handoff channel
-for the assigned engineer; the PR **Preview review** section should mirror item 3.
+Post this as a **comment on the originating Linear issue** when Phase 6 preview QA
+passes and the PR is ready for review. This is the only handoff report the engineer
+needs.
 
 Copy the block below and replace every `<placeholder>`.
 
@@ -51,5 +51,3 @@ state the action and the **expected outcome**. Include:>
 - Use the Linear MCP to add the comment; do not paste internal ticket ids into
   public GitHub commit messages or PR titles (repo `AGENTS.md` rule).
 - Post only after preview QA passes and the PR is marked ready for review.
-- Item 3 here and the PR **Preview review** section must stay in sync — update
-  both if preview steps change after posting.
