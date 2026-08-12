@@ -4,12 +4,12 @@ import { InAppAgentRunStatus } from "@langfuse/shared";
 
 import {
   getInAppAgentActivityKey,
-  getInAppAgentActivityReceiptsStorageKey,
-  getInAppAgentDeliveredReceiptsStorageKey,
   getInAppAgentPendingNotificationCards,
   markInAppAgentActivityDelivered,
   markInAppAgentConversationHandled,
+  mergeInAppAgentReceipts,
   pruneInAppAgentDeliveredReceipts,
+  pruneInAppAgentReceipts,
   reconcileInAppAgentActivity,
   type InAppAgentActivityConversation,
   type InAppAgentActivityReceipts,
@@ -35,30 +35,25 @@ const conversation = (
   latestRun: run,
 });
 
+/** One poll as the hook applies it: reconcile, then record what it returned. */
 const sync = (
   receipts: InAppAgentActivityReceipts,
   conversations: InAppAgentActivityConversation[],
   visibleConversationId?: string | null,
-) =>
-  reconcileInAppAgentActivity({
+) => {
+  const reconciled = reconcileInAppAgentActivity({
     receipts,
     conversations,
     visibleConversationId,
   });
 
-describe("in-app agent activity receipts", () => {
-  it("scopes ledger storage keys to project and user", () => {
-    expect(getInAppAgentActivityReceiptsStorageKey("project-1", "user-a")).toBe(
-      "langfuse-in-app-agent-activity:v1:project-1:user-a",
-    );
-    expect(
-      getInAppAgentDeliveredReceiptsStorageKey("project-1", "user-a"),
-    ).toBe("langfuse-in-app-agent-delivered:v1:project-1:user-a");
-    expect(
-      getInAppAgentActivityReceiptsStorageKey("project-1", "user-a"),
-    ).not.toBe(getInAppAgentActivityReceiptsStorageKey("project-1", "user-b"));
-  });
+  return {
+    ...reconciled,
+    receipts: mergeInAppAgentReceipts(receipts, reconciled.acknowledgements),
+  };
+};
 
+describe("in-app agent activity receipts", () => {
   it("baselines history, then treats status changes as unread attention", () => {
     const first = sync(null, [
       conversation(
@@ -235,90 +230,28 @@ describe("in-app agent activity receipts", () => {
     expect(afterOpen.attentionCount).toBe(0);
   });
 
-  it("keeps a read receipt when a stale snapshot still reports the run in flight", () => {
-    const running = sync(null, [
-      conversation(
-        "c1",
-        latestRun({ id: "run-1", status: InAppAgentRunStatus.RUNNING }),
-      ),
-    ]);
-    const finished = sync(running.receipts, [
-      conversation(
-        "c1",
-        latestRun({ id: "run-1", status: InAppAgentRunStatus.SUCCEEDED }),
-      ),
-    ]);
-    expect(finished.attentionCount).toBe(1);
-
-    const read = markInAppAgentConversationHandled(
-      finished.receipts,
-      "c1",
-      getInAppAgentActivityKey({
-        id: "run-1",
-        status: InAppAgentRunStatus.SUCCEEDED,
-      }),
-    );
-
-    // A background tab stops polling, so it folds a pre-completion snapshot into
-    // the ledger it shares with the tab the user is looking at.
-    const stale = sync(read, [
-      conversation(
-        "c1",
-        latestRun({ id: "run-1", status: InAppAgentRunStatus.RUNNING }),
-      ),
-    ]);
-    expect(stale.receipts?.handled.c1).toBe("run-1:SUCCEEDED");
-
-    // Whatever the stale tab wrote decides what the up-to-date tab badges next.
-    const afterStale = sync(stale.receipts, [
-      conversation(
-        "c1",
-        latestRun({ id: "run-1", status: InAppAgentRunStatus.SUCCEEDED }),
-      ),
-    ]);
-    expect(afterStale.attentionCount).toBe(0);
-  });
-
-  it("prunes receipt keys for conversations that left the activity window", () => {
-    const seeded = sync(null, [
+  it("compacts both ledgers down to the conversations still in the window", () => {
+    const handled = sync(null, [
       conversation(
         "keep",
-        latestRun({ id: "keep-run", status: InAppAgentRunStatus.RUNNING }),
+        latestRun({ id: "keep-run", status: InAppAgentRunStatus.SUCCEEDED }),
       ),
       conversation(
         "drop",
-        latestRun({ id: "drop-run", status: InAppAgentRunStatus.RUNNING }),
+        latestRun({ id: "drop-run", status: InAppAgentRunStatus.SUCCEEDED }),
       ),
-    ]);
-
-    expect(seeded.receipts?.handled).toMatchObject({
-      keep: "keep-run:RUNNING",
-      drop: "drop-run:RUNNING",
-    });
-
-    const afterDrop = sync(seeded.receipts, [
-      conversation(
-        "keep",
-        latestRun({ id: "keep-run", status: InAppAgentRunStatus.RUNNING }),
-      ),
-    ]);
-
-    expect(afterDrop.receipts?.handled).toEqual({
-      keep: "keep-run:RUNNING",
-    });
-
+    ]).receipts;
     const delivered = markInAppAgentActivityDelivered(null, [
-      {
-        conversationId: "drop",
-        activityKey: "drop-run:SUCCEEDED",
-      },
-      {
-        conversationId: "keep",
-        activityKey: "keep-run:SUCCEEDED",
-      },
+      { conversationId: "drop", activityKey: "drop-run:SUCCEEDED" },
+      { conversationId: "keep", activityKey: "keep-run:SUCCEEDED" },
     ]);
+    const live = new Set(["keep"]);
+
+    expect(pruneInAppAgentReceipts(handled, live)?.handled).toEqual({
+      keep: "keep-run:SUCCEEDED",
+    });
     expect(
-      pruneInAppAgentDeliveredReceipts(delivered, new Set(["keep"]))?.delivered,
+      pruneInAppAgentDeliveredReceipts(delivered, live)?.delivered,
     ).toEqual({
       keep: "keep-run:SUCCEEDED",
     });

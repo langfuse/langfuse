@@ -31,6 +31,12 @@ export type InAppAgentDeliveredReceipts = {
   delivered: Record<string, string>;
 } | null;
 
+/** A conversation's activity the user has now seen. */
+export type InAppAgentActivityAcknowledgement = {
+  conversationId: string;
+  activityKey: string;
+};
+
 export type InAppAgentActivityEntry = {
   activityKey: string;
   runId: string;
@@ -171,25 +177,34 @@ export function pruneInAppAgentDeliveredReceipts(
 }
 
 /**
- * Fold list summaries into handled receipts and derived UI state.
- * Returns the same receipts reference when nothing changed.
+ * An in-flight run can still be acknowledged by a tab whose poll froze before
+ * the run settled, so only keys that can badge are worth recording.
+ */
+function isBadgeWorthyStatus(status: InAppAgentRunStatus): boolean {
+  return (
+    status === InAppAgentRunStatus.AWAITING_APPROVAL ||
+    !isUnsettledInAppAgentRunStatus(status)
+  );
+}
+
+/**
+ * Read list summaries into UI state plus the receipts the caller should record.
+ * Never returns a ledger: every tab shares one, so a tab that restates entries
+ * it did not author can revert another tab's read receipt.
  */
 export function reconcileInAppAgentActivity(params: {
   receipts: InAppAgentActivityReceipts;
   conversations: readonly InAppAgentActivityConversation[];
   visibleConversationId?: string | null;
 }): {
-  receipts: InAppAgentActivityReceipts;
+  acknowledgements: InAppAgentActivityAcknowledgement[];
   activityByConversationId: InAppAgentActivityByConversationId;
   attentionCount: number;
 } {
   const isFirstSync = params.receipts === null;
-  const previousHandled = params.receipts?.handled ?? {};
-  const nextHandled: Record<string, string> = { ...previousHandled };
-  let handledChanged = isFirstSync;
-  const liveConversationIds = new Set(
-    params.conversations.map((conversation) => conversation.id),
-  );
+  const handled = params.receipts?.handled ?? {};
+  const acknowledgements: InAppAgentActivityAcknowledgement[] = [];
+  const acknowledgedKeys = new Map<string, string>();
 
   for (const conversation of params.conversations) {
     const run = conversation.latestRun;
@@ -198,31 +213,18 @@ export function reconcileInAppAgentActivity(params: {
     }
 
     const activityKey = getInAppAgentActivityKey(run);
-    const previousKey = previousHandled[conversation.id];
     const isVisible = params.visibleConversationId === conversation.id;
 
-    // Baseline on first sync, then ack only what the user is looking at. Acking an
-    // in-flight run lets a tab whose poll froze mid-run walk a newer receipt back.
-    if (isFirstSync || isVisible) {
-      if (previousKey !== activityKey) {
-        nextHandled[conversation.id] = activityKey;
-        handledChanged = true;
-      }
+    // Baseline on first sync, then ack only what the user is looking at.
+    if (
+      (isFirstSync || isVisible) &&
+      isBadgeWorthyStatus(run.status) &&
+      handled[conversation.id] !== activityKey
+    ) {
+      acknowledgements.push({ conversationId: conversation.id, activityKey });
+      acknowledgedKeys.set(conversation.id, activityKey);
     }
   }
-
-  const prunedHandled = pruneInAppAgentReceiptRecord(
-    nextHandled,
-    liveConversationIds,
-  );
-  handledChanged = handledChanged || prunedHandled.changed;
-
-  const receipts: InAppAgentActivityReceipts = handledChanged
-    ? {
-        v: IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION,
-        handled: prunedHandled.record,
-      }
-    : params.receipts;
 
   const activityByConversationId: InAppAgentActivityByConversationId =
     new Map();
@@ -234,11 +236,13 @@ export function reconcileInAppAgentActivity(params: {
       continue;
     }
 
+    const activityKey = getInAppAgentActivityKey(run);
     const entry = getActivityEntry({
       run,
       title: conversation.title,
       isHandled:
-        receipts?.handled[conversation.id] === getInAppAgentActivityKey(run),
+        handled[conversation.id] === activityKey ||
+        acknowledgedKeys.get(conversation.id) === activityKey,
     });
 
     if (!entry) {
@@ -251,7 +255,56 @@ export function reconcileInAppAgentActivity(params: {
     }
   }
 
-  return { receipts, activityByConversationId, attentionCount };
+  return { acknowledgements, activityByConversationId, attentionCount };
+}
+
+/**
+ * Record acknowledgements key by key. Returns the same reference when they are
+ * all already present so callers can write during render without looping.
+ */
+export function mergeInAppAgentReceipts(
+  receipts: InAppAgentActivityReceipts,
+  acknowledgements: readonly InAppAgentActivityAcknowledgement[],
+): InAppAgentActivityReceipts {
+  // A null ledger has never been baselined, so it must be written even when
+  // this sync had nothing to acknowledge — otherwise every later sync counts
+  // as the first one and keeps marking new activity as already seen.
+  let changed = receipts === null;
+  const next = { ...(receipts?.handled ?? {}) };
+
+  for (const acknowledgement of acknowledgements) {
+    if (next[acknowledgement.conversationId] !== acknowledgement.activityKey) {
+      next[acknowledgement.conversationId] = acknowledgement.activityKey;
+      changed = true;
+    }
+  }
+
+  return changed
+    ? { v: IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION, handled: next }
+    : receipts;
+}
+
+/** Drop ledger keys for conversations no longer in the activity window. */
+export function pruneInAppAgentReceipts(
+  receipts: InAppAgentActivityReceipts,
+  liveConversationIds: ReadonlySet<string>,
+): InAppAgentActivityReceipts {
+  if (!receipts) {
+    return receipts;
+  }
+
+  const pruned = pruneInAppAgentReceiptRecord(
+    receipts.handled,
+    liveConversationIds,
+  );
+  if (!pruned.changed) {
+    return receipts;
+  }
+
+  return {
+    v: IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION,
+    handled: pruned.record,
+  };
 }
 
 export function markInAppAgentConversationHandled(

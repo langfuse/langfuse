@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import useLocalStorage from "@/src/components/useLocalStorage";
 import {
@@ -8,8 +8,11 @@ import {
   hasUnsettledInAppAgentActivity,
   markInAppAgentActivityDelivered,
   markInAppAgentConversationHandled,
+  mergeInAppAgentReceipts,
   pruneInAppAgentDeliveredReceipts,
+  pruneInAppAgentReceipts,
   reconcileInAppAgentActivity,
+  type InAppAgentActivityAcknowledgement,
   type InAppAgentActivityByConversationId,
   type InAppAgentActivityConversation,
   type InAppAgentActivityReceipts,
@@ -18,6 +21,8 @@ import {
 import { api } from "@/src/utils/api";
 
 const ACTIVITY_POLL_INTERVAL_MS = 4_000;
+
+const EMPTY_ACKNOWLEDGEMENTS: InAppAgentActivityAcknowledgement[] = [];
 
 /**
  * Placeholder key while session.user.id is still loading. Never written —
@@ -80,7 +85,7 @@ export function useInAppAgentActivity(params: {
   const reconciled = useMemo(() => {
     if (!ledgerReady || activityQuery.data === undefined) {
       return {
-        receipts,
+        acknowledgements: EMPTY_ACKNOWLEDGEMENTS,
         activityByConversationId:
           new Map() as InAppAgentActivityByConversationId,
         attentionCount: 0,
@@ -104,25 +109,53 @@ export function useInAppAgentActivity(params: {
     visibleConversationId,
   ]);
 
-  // Adjust the localStorage ledger while rendering when the activity snapshot
-  // changes (https://react.dev/learn/you-might-not-need-an-effect). Idempotent:
-  // unchanged references skip setState, so React does not loop.
+  // Record read receipts while rendering when the activity snapshot changes
+  // (https://react.dev/learn/you-might-not-need-an-effect). Idempotent: once
+  // every acknowledgement is in the ledger the merge is a no-op, so React does
+  // not loop. The updater merges into the freshest state rather than into the
+  // memo's copy, which another tab may already have superseded.
   if (ledgerReady && activityQuery.data !== undefined) {
-    if (reconciled.receipts !== receipts) {
-      setReceipts(reconciled.receipts);
+    if (
+      mergeInAppAgentReceipts(receipts, reconciled.acknowledgements) !==
+      receipts
+    ) {
+      setReceipts((current) =>
+        mergeInAppAgentReceipts(current, reconciled.acknowledgements),
+      );
     }
+  }
+
+  // Compaction is storage hygiene and the only operation that deletes, so it
+  // runs once against the list this tab just fetched. A tab that has since
+  // stopped polling would otherwise delete receipts for conversations its own
+  // stale list no longer knows about.
+  const hasCompactedLedgers = useRef(false);
+  useEffect(() => {
+    if (
+      !ledgerReady ||
+      activityQuery.data === undefined ||
+      hasCompactedLedgers.current
+    ) {
+      return;
+    }
+    hasCompactedLedgers.current = true;
 
     const liveConversationIds = new Set(
       conversations.map((conversation) => conversation.id),
     );
-    const nextDelivered = pruneInAppAgentDeliveredReceipts(
-      delivered,
-      liveConversationIds,
+    setReceipts((current) =>
+      pruneInAppAgentReceipts(current, liveConversationIds),
     );
-    if (nextDelivered !== delivered) {
-      setDelivered(nextDelivered);
-    }
-  }
+    setDelivered((current) =>
+      pruneInAppAgentDeliveredReceipts(current, liveConversationIds),
+    );
+  }, [
+    activityQuery.data,
+    conversations,
+    ledgerReady,
+    setDelivered,
+    setReceipts,
+  ]);
 
   const markConversationHandled = useCallback(
     (conversationId: string, activityKey: string) => {
