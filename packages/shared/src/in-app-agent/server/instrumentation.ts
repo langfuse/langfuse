@@ -346,45 +346,14 @@ export class InAppAgentInstrumentation {
     const message = error instanceof Error ? error.message : String(error);
     this.endOpenToolSpans({ error: message }, message);
     this.flushTrailingThinking();
-    const output = this.getAgentRunOutput();
-    const metadata = {
-      ...this.metadata,
-      error: message,
-    };
-    this.agentRun.update({
-      name: IN_APP_AGENT_TURN_NAME,
-      input: this.agentRunInput,
-      output,
-      ...(this.completionStartTime
-        ? { completionStartTime: this.completionStartTime }
-        : {}),
-      ...this.getAgentRunUsage(),
+    this.finalizeObservations({
+      metadata: {
+        ...this.metadata,
+        error: message,
+      },
       level: "ERROR",
       statusMessage: message,
-      metadata,
-      ...(this.prompt
-        ? {
-            promptName: this.prompt.name,
-            promptVersion: this.prompt.version,
-          }
-        : {}),
     });
-    // Previous-history only — do not copy this turn's output (already on agent-turn).
-    this.conversationHistory.update({
-      name: IN_APP_AGENT_CONVERSATION_HISTORY_NAME,
-      input: this.conversationHistoryInput,
-      level: "ERROR",
-      statusMessage: message,
-      metadata,
-    });
-    this.trace.update({
-      input: this.agentRunInput,
-      output,
-      metadata,
-    });
-    this.conversationHistory.end();
-    this.agentRun.end();
-    this.ended = true;
   }
 
   end(params?: { aborted?: boolean; result?: unknown }) {
@@ -394,12 +363,21 @@ export class InAppAgentInstrumentation {
 
     this.endOpenToolSpans(params?.aborted ? { aborted: true } : undefined);
     this.flushTrailingThinking();
+    this.finalizeObservations({
+      metadata: {
+        ...this.metadata,
+        ...(params?.aborted ? { aborted: true } : {}),
+        ...(params?.result ? { result: params.result } : {}),
+      },
+    });
+  }
+
+  private finalizeObservations(params: {
+    metadata: Record<string, unknown>;
+    level?: "ERROR";
+    statusMessage?: string;
+  }) {
     const output = this.getAgentRunOutput();
-    const metadata = {
-      ...this.metadata,
-      ...(params?.aborted ? { aborted: true } : {}),
-      ...(params?.result ? { result: params.result } : {}),
-    };
     this.agentRun.update({
       name: IN_APP_AGENT_TURN_NAME,
       input: this.agentRunInput,
@@ -408,7 +386,9 @@ export class InAppAgentInstrumentation {
         ? { completionStartTime: this.completionStartTime }
         : {}),
       ...this.getAgentRunUsage(),
-      metadata,
+      ...(params.level ? { level: params.level } : {}),
+      ...(params.statusMessage ? { statusMessage: params.statusMessage } : {}),
+      metadata: params.metadata,
       ...(this.prompt
         ? {
             promptName: this.prompt.name,
@@ -416,10 +396,20 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
+    // History span keeps prior dialogue only; mark ERROR when the turn fails.
+    if (params.level === "ERROR") {
+      this.conversationHistory.update({
+        name: IN_APP_AGENT_CONVERSATION_HISTORY_NAME,
+        input: this.conversationHistoryInput,
+        level: "ERROR",
+        statusMessage: params.statusMessage,
+        metadata: params.metadata,
+      });
+    }
     this.trace.update({
       input: this.agentRunInput,
       output,
-      metadata,
+      metadata: params.metadata,
     });
     this.conversationHistory.end();
     this.agentRun.end();
