@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useRouter } from "next/router";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -9,17 +8,14 @@ import {
   useProjectV4SdkData,
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
-import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import {
   getCustomInstrumentationSectionState,
   getOtelSectionState,
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
-import {
-  buildDeprecatedEvaluatorsUrl,
-  buildEvaluatorUpgradeUrl,
-} from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { useRouter } from "next/router";
 
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
@@ -138,65 +134,6 @@ export function V4MigrationUpdateRequiredBadge() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         scope={{ type: "all" }}
-        assistantPrompt={upgradePlan.assistantPrompt}
-        onManualUpgrade={handleManualUpgrade}
-        onAssistantStarted={() => undefined}
-      />
-    </>
-  );
-}
-
-/** Opens the evaluator migration choices from an individual evaluator peek. */
-export function V4MigrationEvaluatorUpdateRequiredBadge({
-  projectId,
-  evaluatorId,
-}: {
-  projectId: string;
-  evaluatorId: string;
-}) {
-  const router = useRouter();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const capture = usePostHogClientCapture();
-  const canUseAssistant = useCanUseInAppAgent();
-  const { organization } = useQueryProject();
-  const upgradePlan = useEvalUpgradeAssistantPlan({
-    projectId,
-    orgId: organization?.id,
-    enabled: true,
-  });
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-
-  if (!v4UpgradeUiEnabled) return null;
-
-  const handleManualUpgrade = () => {
-    setDialogOpen(false);
-    router.push(buildEvaluatorUpgradeUrl(projectId, evaluatorId));
-  };
-
-  const handleClick = () => {
-    capture("v4_migration:update_required_badge_clicked", {
-      scope: "single",
-    });
-    if (!canUseAssistant) {
-      handleManualUpgrade();
-      return;
-    }
-    setDialogOpen(true);
-  };
-
-  return (
-    <>
-      <V4MigrationBadgeContent
-        onClick={handleClick}
-        title="Action required"
-        description={
-          canUseAssistant ? "Choose how to upgrade" : "Start upgrade now"
-        }
-      />
-      <EvaluatorMigrationDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        scope={{ type: "single" }}
         assistantPrompt={upgradePlan.assistantPrompt}
         onManualUpgrade={handleManualUpgrade}
         onAssistantStarted={() => undefined}
