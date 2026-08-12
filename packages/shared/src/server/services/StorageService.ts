@@ -371,6 +371,7 @@ const AZURE_USER_DELEGATION_KEY_MAX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 // Refresh before expiry so a signing call never lands on a key that expires
 // between generation and use.
 const AZURE_USER_DELEGATION_KEY_REFRESH_MARGIN_MS = 5 * 60 * 1000;
+const AZURE_USER_DELEGATION_KEY_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 class AzureBlobStorageService implements StorageService {
   private client: ContainerClient;
@@ -385,7 +386,9 @@ class AzureBlobStorageService implements StorageService {
   private userDelegationKey:
     | { key: UserDelegationKey; expiresOn: Date }
     | undefined;
-  private pendingUserDelegationKey: Promise<UserDelegationKey> | undefined;
+  private pendingUserDelegationKey:
+    | { promise: Promise<UserDelegationKey>; expiresOn: Date }
+    | undefined;
 
   constructor(params: {
     accessKeyId: string | undefined;
@@ -439,17 +442,31 @@ class AzureBlobStorageService implements StorageService {
   private async getUserDelegationKey(
     neededUntil: Date,
   ): Promise<UserDelegationKey> {
+    // A key is only usable for a SAS that expires before the key does, with the
+    // margin keeping an in-flight signing call clear of the boundary.
+    const covers = (expiresOn: Date) =>
+      expiresOn.getTime() - AZURE_USER_DELEGATION_KEY_REFRESH_MARGIN_MS >
+      neededUntil.getTime();
+
     const cached = this.userDelegationKey;
-    if (
-      cached &&
-      cached.expiresOn.getTime() - AZURE_USER_DELEGATION_KEY_REFRESH_MARGIN_MS >
-        neededUntil.getTime()
-    ) {
+    if (cached && covers(cached.expiresOn)) {
       return cached.key;
+    }
+    // Only join an in-flight fetch whose key will outlive what this caller
+    // needs. A caller asking for a longer-lived URL must not piggyback on a key
+    // sized for a shorter one, or its SAS would outlive the key that signed it.
+    const pending = this.pendingUserDelegationKey;
+    if (pending && covers(pending.expiresOn)) {
+      return pending.promise;
     }
 
     const now = Date.now();
-    const latestPossibleExpiry = now + AZURE_USER_DELEGATION_KEY_MAX_TTL_MS;
+    // Backdated for clock skew between Langfuse and Azure.
+    const startsOn = new Date(now - AZURE_USER_DELEGATION_KEY_CLOCK_SKEW_MS);
+    // Azure caps the startsOn..expiresOn window, so the ceiling is measured from
+    // the backdated start, not from now.
+    const latestPossibleExpiry =
+      startsOn.getTime() + AZURE_USER_DELEGATION_KEY_MAX_TTL_MS;
     // Refuse rather than clamp: a key expiring before the SAS it signs yields a
     // URL that works and then 403s partway through its stated lifetime.
     if (neededUntil.getTime() > latestPossibleExpiry) {
@@ -466,22 +483,23 @@ class AzureBlobStorageService implements StorageService {
         latestPossibleExpiry,
       ),
     );
-    // Backdated for clock skew between Langfuse and Azure.
-    const startsOn = new Date(now - 5 * 60 * 1000);
 
     // Memoize the in-flight request, not just the settled key, so concurrent
     // signing calls on a cold or just-expired cache share one fetch.
-    this.pendingUserDelegationKey ??= this.blobServiceClient
+    const promise = this.blobServiceClient
       .getUserDelegationKey(startsOn, expiresOn)
       .then((key) => {
         this.userDelegationKey = { key, expiresOn };
         return key;
       })
       .finally(() => {
-        this.pendingUserDelegationKey = undefined;
+        if (this.pendingUserDelegationKey?.promise === promise) {
+          this.pendingUserDelegationKey = undefined;
+        }
       });
+    this.pendingUserDelegationKey = { promise, expiresOn };
 
-    return this.pendingUserDelegationKey;
+    return promise;
   }
 
   /** Signs with the account key when configured, a delegation key otherwise. */

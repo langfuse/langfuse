@@ -514,6 +514,29 @@ describe("AzureBlobStorageService with a token credential", () => {
     expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
   });
 
+  // Joining an in-flight fetch is only safe when that key outlives what this
+  // caller needs, otherwise the longer-lived SAS is signed with a key that
+  // expires first and 403s before its stated expiry.
+  it("does not join an in-flight fetch whose key expires too early", async () => {
+    const service = makeService();
+    const { getUserDelegationKey } = stubAzureCalls(service);
+    const sixDays = 6 * 24 * 60 * 60;
+
+    await Promise.all([
+      service.getSignedUrl("events/project-1/short.json", 600),
+      service.getSignedUrl("events/project-1/long.json", sixDays),
+    ]);
+
+    expect(getUserDelegationKey).toHaveBeenCalledTimes(2);
+    // Every key requested must outlive the URL it was fetched for.
+    const longestExpiry = Math.max(
+      ...getUserDelegationKey.mock.calls.map(([, expiresOn]) =>
+        (expiresOn as Date).getTime(),
+      ),
+    );
+    expect(longestExpiry).toBeGreaterThan(Date.now() + sixDays * 1000);
+  });
+
   it("reuses the delegation key across signing calls", async () => {
     const service = makeService();
     const { getUserDelegationKey } = stubAzureCalls(service);
@@ -532,6 +555,24 @@ describe("AzureBlobStorageService with a token credential", () => {
     await expect(
       service.getSignedUrl("events/project-1/file.json", 8 * 24 * 60 * 60),
     ).rejects.toThrow();
+  });
+
+  // Azure caps the startsOn..expiresOn window, and startsOn is backdated for
+  // clock skew, so the usable ceiling is below a full 7 days. Exactly 7 days
+  // must be refused locally rather than rejected by Azure at signing time.
+  it("refuses a TTL of exactly the maximum key lifetime", async () => {
+    const service = makeService();
+    stubAzureCalls(service);
+
+    // getSignedUrl wraps failures, so the guard's message lands on the cause.
+    const error = await service
+      .getSignedUrl("events/project-1/file.json", 7 * 24 * 60 * 60)
+      .then(() => undefined)
+      .catch((err: unknown) => err as Error);
+
+    expect((error?.cause as Error | undefined)?.message).toMatch(
+      /7 day maximum/,
+    );
   });
 
   it("does not request a delegation key when an account key is configured", async () => {
