@@ -66,7 +66,11 @@ import {
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
-import { applyObservationFieldOverflow } from "../../features/observation-field-overflow/processObservationFieldOverflow";
+import {
+  applyLegacyObservationFieldOverflow,
+  applyObservationFieldOverflow,
+  getObservationOverflowTokenizationPolicy,
+} from "../../features/observation-field-overflow/processObservationFieldOverflow";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -246,6 +250,7 @@ export class IngestionService {
   public async createEventRecord(
     eventData: EventInput,
     fileKey: string,
+    options: { skipTokenizationForOverflow?: boolean } = {},
   ): Promise<EventRecordInsertType> {
     logger.debug(
       `Creating event record for project ${eventData.projectId} and span ${eventData.spanId}`,
@@ -269,6 +274,10 @@ export class IngestionService {
       Boolean(eventData.modelName) ||
       Object.keys(eventData.providedUsageDetails ?? {}).length > 0 ||
       Object.keys(eventData.providedCostDetails ?? {}).length > 0;
+    const overflowTokenizationPolicy =
+      shouldEnrichUsageAndCost && options.skipTokenizationForOverflow === true
+        ? getObservationOverflowTokenizationPolicy({ input, output })
+        : undefined;
 
     // Perform lookups for prompt and model/usage enrichment
     const [prompt, generationUsage] = await Promise.all([
@@ -294,10 +303,16 @@ export class IngestionService {
               trace_id: eventData.traceId,
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
+              usage_details: eventData.usageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
               input,
               output,
             },
+            skipTokenization:
+              overflowTokenizationPolicy?.shouldSkipTokenization,
+            // createEventRecord has no persisted observation baseline from
+            // which calculated usage could safely be inherited.
+            preserveExistingUsage: false,
           })
         : null,
     ]);
@@ -979,12 +994,27 @@ export class IngestionService {
       );
     }
 
+    const overflowResult = await applyLegacyObservationFieldOverflow(
+      mergedObservationRecord,
+    );
+    const persistedObservationRecord = overflowResult.record;
+    const hasIncomingTokenizationBasis = reversedRawRecords.some(
+      (record) =>
+        Boolean(record.body.input) ||
+        Boolean(record.body.output) ||
+        ("model" in record.body && Boolean(record.body.model)),
+    );
+
     const generationUsage = await this.getGenerationUsage({
       projectId,
-      observationRecord: mergedObservationRecord,
+      observationRecord: persistedObservationRecord,
+      skipTokenization: overflowResult.shouldSkipTokenization,
+      preserveExistingUsage:
+        overflowResult.shouldPreserveExistingUsage &&
+        !hasIncomingTokenizationBasis,
     });
     const finalObservationRecord = {
-      ...mergedObservationRecord,
+      ...persistedObservationRecord,
       ...generationUsage,
     };
 
@@ -1197,6 +1227,8 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
+    skipTokenization?: boolean;
+    preserveExistingUsage?: boolean;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1204,6 +1236,7 @@ export class IngestionService {
       | "id"
       | "provided_model_name"
       | "provided_usage_details"
+      | "usage_details"
       | "provided_cost_details"
       | "level"
       | "input"
@@ -1220,7 +1253,12 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const { projectId, observationRecord } = params;
+    const {
+      projectId,
+      observationRecord,
+      skipTokenization = false,
+      preserveExistingUsage = false,
+    } = params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1232,6 +1270,8 @@ export class IngestionService {
     const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
+      skipTokenization,
+      preserveExistingUsage,
     );
 
     // Match pricing tier based on usage_details. Skip when usage is empty
@@ -1294,6 +1334,7 @@ export class IngestionService {
       ObservationRecordInsertType,
       | "project_id"
       | "provided_usage_details"
+      | "usage_details"
       | "provided_cost_details"
       | "level"
       | "input"
@@ -1301,6 +1342,8 @@ export class IngestionService {
       | "id"
     >,
     model: Model | null | undefined,
+    skipTokenization: boolean,
+    preserveExistingUsage: boolean,
   ): Promise<
     Pick<
       ObservationRecordInsertType,
@@ -1319,12 +1362,27 @@ export class IngestionService {
       observationRecord.provided_cost_details ?? {},
     ).some((value) => value != null);
 
+    const shouldSkipManualTokenization =
+      skipTokenization &&
+      Boolean(model) &&
+      Object.keys(providedUsageDetails).length === 0 &&
+      !hasProvidedCostDetails &&
+      observationRecord.level !== ObservationLevel.ERROR;
+
+    if (shouldSkipManualTokenization) {
+      recordIncrement("langfuse.tokenisation.skipped", 1, {
+        reason: "observation_field_overflow",
+        tokenizer: model?.tokenizerId ?? "unknown",
+      });
+    }
+
     if (
       // Manual tokenisation when no user provided usage or cost and generation has not status ERROR
       model &&
       Object.keys(providedUsageDetails).length === 0 &&
       !hasProvidedCostDetails &&
-      observationRecord.level !== ObservationLevel.ERROR
+      observationRecord.level !== ObservationLevel.ERROR &&
+      !skipTokenization
     ) {
       try {
         let newInputCount: number | undefined;
@@ -1430,9 +1488,16 @@ export class IngestionService {
       }
     }
 
-    const usageDetails = { ...providedUsageDetails };
+    const usageDetails =
+      Object.keys(providedUsageDetails).length > 0
+        ? { ...providedUsageDetails }
+        : skipTokenization && preserveExistingUsage && !hasProvidedCostDetails
+          ? IngestionService.normalizeProvidedUsageDetails(
+              observationRecord.usage_details ?? {},
+            )
+          : {};
     if (Object.keys(usageDetails).length > 0 && !("total" in usageDetails)) {
-      usageDetails.total = Object.values(providedUsageDetails).reduce(
+      usageDetails.total = Object.values(usageDetails).reduce(
         (acc, value) => acc + value,
         0,
       );

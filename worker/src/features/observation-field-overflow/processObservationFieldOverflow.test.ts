@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MediaAssociationOrigin } from "@langfuse/shared";
-import type { EventRecordInsertType } from "@langfuse/shared/src/server";
+import type {
+  EventRecordInsertType,
+  ObservationRecordInsertType,
+} from "@langfuse/shared/src/server";
 
 const mocks = vi.hoisted(() => {
   const span = { setAttributes: vi.fn() };
@@ -38,7 +41,10 @@ vi.mock("../../env", () => ({
   env: mocks.env,
 }));
 
-import { applyObservationFieldOverflow } from "./processObservationFieldOverflow";
+import {
+  applyLegacyObservationFieldOverflow,
+  applyObservationFieldOverflow,
+} from "./processObservationFieldOverflow";
 
 const createEventRecord = (
   fields: Partial<EventRecordInsertType> = {},
@@ -153,6 +159,125 @@ describe("applyObservationFieldOverflow", () => {
       "langfuse.ingestion.observation_field_overflow.processing_duration_ms",
       expect.any(Number),
     );
+  });
+
+  it("replaces oversized fields on a legacy observation without mutating the merged record", async () => {
+    mocks.uploadMediaForTrace
+      .mockResolvedValueOnce({ mediaId: "input-media", outcome: "uploaded" })
+      .mockResolvedValueOnce({
+        mediaId: "metadata-media",
+        outcome: "uploaded",
+      });
+    const observationRecord = {
+      id: "observation-id",
+      project_id: "project-id",
+      trace_id: null,
+      input: "x".repeat(11),
+      output: "within cap",
+      metadata: {
+        small: "1234567890",
+        large: "y".repeat(11),
+      },
+    } as ObservationRecordInsertType;
+
+    const result = await applyLegacyObservationFieldOverflow(observationRecord);
+
+    expect(result).toEqual({
+      record: expect.objectContaining({
+        input: mediaReference("input-media"),
+        output: "within cap",
+        metadata: {
+          small: "1234567890",
+          large: mediaReference("metadata-media"),
+        },
+      }),
+      shouldSkipTokenization: true,
+      shouldPreserveExistingUsage: false,
+    });
+    expect(observationRecord).toMatchObject({
+      input: "x".repeat(11),
+      output: "within cap",
+      metadata: {
+        small: "1234567890",
+        large: "y".repeat(11),
+      },
+    });
+    expect(mocks.uploadMediaForTrace).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        projectId: "project-id",
+        traceId: "observation-id",
+        observationId: "observation-id",
+        field: "metadata",
+        contentBytes: Buffer.from("y".repeat(11)),
+      }),
+    );
+  });
+
+  it("keeps inherited overflow references non-tokenizable after overflow processing is disabled", async () => {
+    mocks.env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED = "false";
+    const observationRecord = {
+      id: "observation-id",
+      project_id: "project-id",
+      trace_id: "trace-id",
+      input: mediaReference("input-media"),
+      output: "within cap",
+      metadata: {},
+    } as ObservationRecordInsertType;
+
+    const result = await applyLegacyObservationFieldOverflow(observationRecord);
+
+    expect(result).toEqual({
+      record: observationRecord,
+      shouldSkipTokenization: true,
+      shouldPreserveExistingUsage: true,
+    });
+    expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
+  });
+
+  it("does not skip tokenization for metadata-only overflow", async () => {
+    mocks.uploadMediaForTrace.mockResolvedValueOnce({
+      mediaId: "metadata-media",
+      outcome: "uploaded",
+    });
+    const observationRecord = {
+      id: "observation-id",
+      project_id: "project-id",
+      trace_id: "trace-id",
+      input: "within cap",
+      output: "within cap",
+      metadata: { large: "x".repeat(11) },
+    } as ObservationRecordInsertType;
+
+    const result = await applyLegacyObservationFieldOverflow(observationRecord);
+
+    expect(result).toEqual({
+      record: expect.objectContaining({
+        metadata: { large: mediaReference("metadata-media") },
+      }),
+      shouldSkipTokenization: false,
+      shouldPreserveExistingUsage: false,
+    });
+  });
+
+  it("skips tokenization when oversized input upload fails open", async () => {
+    mocks.uploadMediaForTrace.mockRejectedValueOnce(new Error("upload failed"));
+    const observationRecord = {
+      id: "observation-id",
+      project_id: "project-id",
+      trace_id: "trace-id",
+      input: "x".repeat(11),
+      output: "within cap",
+      metadata: {},
+    } as ObservationRecordInsertType;
+
+    const result = await applyLegacyObservationFieldOverflow(observationRecord);
+
+    expect(result).toEqual({
+      record: expect.objectContaining({ input: "x".repeat(11) }),
+      shouldSkipTokenization: true,
+      shouldPreserveExistingUsage: false,
+    });
   });
 
   it("applies the limit to each metadata value rather than their aggregate size", async () => {

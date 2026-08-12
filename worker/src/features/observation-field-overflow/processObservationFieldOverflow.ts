@@ -2,6 +2,7 @@ import {
   type EventRecordInsertType,
   instrumentAsync,
   logger,
+  type ObservationRecordInsertType,
   recordDistribution,
   recordIncrement,
   uploadMediaForTrace,
@@ -9,16 +10,20 @@ import {
 import {
   MediaAssociationOrigin,
   MediaContentType,
+  MediaReferenceStringSchema,
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
 } from "@langfuse/shared";
 
 import { env } from "../../env";
 
 const OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE = 3;
+const MEDIA_REFERENCE_PREFIX = "@@@langfuseMedia:";
+const MEDIA_REFERENCE_SUFFIX = "@@@";
 
 type OverflowTarget =
   | { field: "input" | "output" }
-  | { field: "metadata"; metadataIndex: number };
+  | { field: "metadata"; metadataIndex: number }
+  | { field: "metadata"; metadataKey: string };
 
 type OverflowCandidate = OverflowTarget & {
   value: string;
@@ -32,20 +37,63 @@ type OverflowResult = {
   bytesRemoved: number;
 };
 
+type OverflowRecord = EventRecordInsertType | ObservationRecordInsertType;
+
+export type ObservationOverflowTokenizationPolicy = {
+  shouldSkipTokenization: boolean;
+  shouldPreserveExistingUsage: boolean;
+};
+
+type OverflowProcessingResult<T extends OverflowRecord> =
+  ObservationOverflowTokenizationPolicy & { record: T };
+
 export async function applyObservationFieldOverflow(
   eventRecord: EventRecordInsertType,
 ): Promise<EventRecordInsertType> {
+  // Preserve the direct-write feature gate as a true no-op. Only the legacy
+  // adapter needs to inspect inherited references while the gate is disabled.
   if (env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED !== "true") {
     return eventRecord;
   }
 
+  return (await processObservationFieldOverflow(eventRecord)).record;
+}
+
+/**
+ * Applies the same overflow policy to the fully merged legacy observation
+ * shape and reports whether input or output must skip fallback tokenization.
+ * This remains true for an inherited overflow reference even when new
+ * overflow processing is disabled.
+ */
+export async function applyLegacyObservationFieldOverflow(
+  observationRecord: ObservationRecordInsertType,
+): Promise<OverflowProcessingResult<ObservationRecordInsertType>> {
+  return processObservationFieldOverflow(observationRecord);
+}
+
+async function processObservationFieldOverflow<T extends OverflowRecord>(
+  record: T,
+): Promise<OverflowProcessingResult<T>> {
+  if (env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED !== "true") {
+    return {
+      record,
+      ...buildObservationOverflowTokenizationPolicy(record, false),
+    };
+  }
+
+  const candidates = collectOverflowCandidates(record);
+  const tokenizationPolicy = buildObservationOverflowTokenizationPolicy(
+    record,
+    candidates.some(({ field }) => field === "input" || field === "output"),
+  );
+  if (candidates.length === 0) {
+    return { record, ...tokenizationPolicy };
+  }
+
+  const context = getOverflowRecordContext(record);
+
   try {
     const mediaBucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
-    const candidates = collectOverflowCandidates(eventRecord);
-
-    if (candidates.length === 0) {
-      return eventRecord;
-    }
     if (!mediaBucket) {
       throw new Error("Media upload bucket is not configured");
     }
@@ -59,15 +107,15 @@ export async function applyObservationFieldOverflow(
 
         try {
           const results = await uploadOverflowCandidates(
-            eventRecord,
+            record,
             candidates,
             mediaBucket,
           );
 
           span.setAttributes({
-            "langfuse.project.id": eventRecord.project_id,
-            "langfuse.trace.id": eventRecord.trace_id,
-            "langfuse.observation.id": eventRecord.span_id,
+            "langfuse.project.id": context.projectId,
+            "langfuse.trace.id": context.traceId,
+            "langfuse.observation.id": context.observationId,
             "langfuse.ingestion.observation_field_overflow.candidates":
               candidates.length,
             "langfuse.ingestion.observation_field_overflow.fields":
@@ -90,7 +138,10 @@ export async function applyObservationFieldOverflow(
               ),
           });
 
-          return applyOverflowResults(eventRecord, results);
+          return {
+            record: applyOverflowResults(record, results),
+            ...tokenizationPolicy,
+          };
         } finally {
           recordDistribution(
             "langfuse.ingestion.observation_field_overflow.processing_duration_ms",
@@ -104,41 +155,50 @@ export async function applyObservationFieldOverflow(
       "Observation field overflow processing failed; persisting original record",
       {
         error,
-        projectId: eventRecord.project_id,
-        traceId: eventRecord.trace_id,
-        observationId: eventRecord.span_id,
+        projectId: context.projectId,
+        traceId: context.traceId,
+        observationId: context.observationId,
       },
     );
-    return eventRecord;
+    return { record, ...tokenizationPolicy };
   }
 }
 
 function collectOverflowCandidates(
-  eventRecord: EventRecordInsertType,
+  record: OverflowRecord,
 ): OverflowCandidate[] {
   const candidates: OverflowCandidate[] = [];
   const addCandidate = (target: OverflowTarget, value: string) => {
+    if (isObservationFieldOverflowReference(value)) {
+      return;
+    }
     const originalBytes = Buffer.byteLength(value, "utf8");
     if (originalBytes > env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES) {
       candidates.push({ ...target, value, originalBytes });
     }
   };
 
-  if (eventRecord.input != null) {
-    addCandidate({ field: "input" }, eventRecord.input);
+  if (record.input != null) {
+    addCandidate({ field: "input" }, record.input);
   }
-  if (eventRecord.output != null) {
-    addCandidate({ field: "output" }, eventRecord.output);
+  if (record.output != null) {
+    addCandidate({ field: "output" }, record.output);
   }
-  eventRecord.metadata_values.forEach((value, metadataIndex) => {
-    addCandidate({ field: "metadata", metadataIndex }, value);
-  });
+  if (isEventRecord(record)) {
+    record.metadata_values.forEach((value, metadataIndex) => {
+      addCandidate({ field: "metadata", metadataIndex }, value);
+    });
+  } else {
+    Object.entries(record.metadata).forEach(([metadataKey, value]) => {
+      addCandidate({ field: "metadata", metadataKey }, value);
+    });
+  }
 
   return candidates;
 }
 
 async function uploadOverflowCandidates(
-  eventRecord: EventRecordInsertType,
+  record: OverflowRecord,
   candidates: OverflowCandidate[],
   mediaBucket: string,
 ): Promise<OverflowResult[]> {
@@ -156,7 +216,7 @@ async function uploadOverflowCandidates(
     );
     const settledBatch = await Promise.allSettled(
       batch.map((candidate) =>
-        uploadOverflowCandidate(eventRecord, candidate, mediaBucket),
+        uploadOverflowCandidate(record, candidate, mediaBucket),
       ),
     );
 
@@ -171,13 +231,16 @@ async function uploadOverflowCandidates(
   return overflowResults;
 }
 
-function applyOverflowResults(
-  eventRecord: EventRecordInsertType,
+function applyOverflowResults<T extends OverflowRecord>(
+  record: T,
   results: OverflowResult[],
-): EventRecordInsertType {
-  let input = eventRecord.input;
-  let output = eventRecord.output;
-  const metadataValues = eventRecord.metadata_values.slice();
+): T {
+  let input = record.input;
+  let output = record.output;
+  const metadataValues = isEventRecord(record)
+    ? record.metadata_values.slice()
+    : undefined;
+  const metadata = isEventRecord(record) ? undefined : { ...record.metadata };
 
   for (const { candidate, overflowedValue } of results) {
     switch (candidate.field) {
@@ -188,30 +251,34 @@ function applyOverflowResults(
         output = overflowedValue;
         break;
       case "metadata":
-        metadataValues[candidate.metadataIndex] = overflowedValue;
+        if ("metadataIndex" in candidate) {
+          metadataValues![candidate.metadataIndex] = overflowedValue;
+        } else {
+          metadata![candidate.metadataKey] = overflowedValue;
+        }
         break;
     }
   }
 
-  return {
-    ...eventRecord,
-    input,
-    output,
-    metadata_values: metadataValues,
-  };
+  return (
+    isEventRecord(record)
+      ? { ...record, input, output, metadata_values: metadataValues }
+      : { ...record, input, output, metadata }
+  ) as T;
 }
 
 async function uploadOverflowCandidate(
-  eventRecord: EventRecordInsertType,
+  record: OverflowRecord,
   candidate: OverflowCandidate,
   mediaBucket: string,
 ): Promise<OverflowResult> {
   const { field, value, originalBytes } = candidate;
+  const context = getOverflowRecordContext(record);
 
   const uploadResult = await uploadMediaForTrace({
-    projectId: eventRecord.project_id,
-    traceId: eventRecord.trace_id,
-    observationId: eventRecord.span_id,
+    projectId: context.projectId,
+    traceId: context.traceId,
+    observationId: context.observationId,
     field,
     contentType: MediaContentType.TXT,
     contentBytes: Buffer.from(value, "utf8"),
@@ -223,9 +290,9 @@ async function uploadOverflowCandidate(
       "Oversized observation field upload failed; persisting original field",
       {
         error,
-        projectId: eventRecord.project_id,
-        traceId: eventRecord.trace_id,
-        observationId: eventRecord.span_id,
+        projectId: context.projectId,
+        traceId: context.traceId,
+        observationId: context.observationId,
         field,
         originalBytes,
       },
@@ -279,4 +346,76 @@ async function uploadOverflowCandidate(
     outcome: uploadResult.outcome,
     bytesRemoved,
   };
+}
+
+function isEventRecord(
+  record: OverflowRecord,
+): record is EventRecordInsertType {
+  return "metadata_values" in record;
+}
+
+function getOverflowRecordContext(record: OverflowRecord): {
+  projectId: string;
+  traceId: string;
+  observationId: string;
+} {
+  const observationId = isEventRecord(record) ? record.span_id : record.id;
+
+  return {
+    projectId: record.project_id,
+    traceId: record.trace_id ?? observationId,
+    observationId,
+  };
+}
+
+export function getObservationOverflowTokenizationPolicy(record: {
+  input?: string | null;
+  output?: string | null;
+}): ObservationOverflowTokenizationPolicy {
+  const inputAndOutput = [record.input, record.output];
+  const hasNewOverflow =
+    env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED === "true" &&
+    inputAndOutput.some(
+      (value) =>
+        typeof value === "string" &&
+        !isObservationFieldOverflowReference(value) &&
+        Buffer.byteLength(value, "utf8") >
+          env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
+    );
+
+  return buildObservationOverflowTokenizationPolicy(record, hasNewOverflow);
+}
+
+function buildObservationOverflowTokenizationPolicy(
+  record: { input?: string | null; output?: string | null },
+  hasNewOverflow: boolean,
+): ObservationOverflowTokenizationPolicy {
+  const hasExistingOverflowReference = [record.input, record.output].some(
+    (value) =>
+      typeof value === "string" && isObservationFieldOverflowReference(value),
+  );
+
+  return {
+    shouldSkipTokenization: hasExistingOverflowReference || hasNewOverflow,
+    // A marker carried through a partial update can retain usage calculated
+    // before the field was spilled. Newly oversized I/O may represent changed
+    // content, so retaining its merged usage would misattribute stale counts.
+    shouldPreserveExistingUsage:
+      hasExistingOverflowReference && !hasNewOverflow,
+  };
+}
+
+function isObservationFieldOverflowReference(value: string): boolean {
+  if (
+    !value.startsWith(MEDIA_REFERENCE_PREFIX) ||
+    !value.endsWith(MEDIA_REFERENCE_SUFFIX)
+  ) {
+    return false;
+  }
+
+  const parsed = MediaReferenceStringSchema.safeParse(value);
+  return (
+    parsed.success &&
+    parsed.data.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE
+  );
 }
