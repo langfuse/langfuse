@@ -4,9 +4,10 @@ description: |
   End-to-end Cursor Cloud Agent workflow for Langfuse issues: investigate thoroughly,
   write and follow an implementation plan, verify locally on the Cloud stack, open a
   draft PR, address all review-agent comments on the PR, manually test in the PR
-  preview with seeded sample data, and add preview review instructions for the human
-  engineer. Use when a Cloud Agent owns an issue, bug fix, or feature from triage
-  through preview-ready handoff.
+  preview with seeded sample data, post a structured handoff comment in Linear for
+  the assigned engineer, and add matching preview review instructions on the PR. Use
+  when a Cloud Agent owns an issue, bug fix, or feature from triage through
+  preview-ready handoff.
 ---
 
 # Cursor Cloud Issue Delivery
@@ -25,7 +26,7 @@ before investigation and a written plan are complete.
 | 4. Test locally | Prove the fix on the Cloud stack | `frontend-browser-review`, `start-cursor-cloud.sh` |
 | 5. PR + babysit | Draft PR, fix CI, address review-agent comments | `git-workflow`, `code-review`, GitHub MCP |
 | 6. Preview QA | Verify on `pr-<N>.preview.langfuse.com` | `langfuse-previews`, `seed-test-data` |
-| 7. Handoff | Preview review steps for the human engineer | [`references/preview-review-template.md`](references/preview-review-template.md) |
+| 7. Handoff | Linear engineer report + PR preview instructions | [`references/linear-engineer-report-template.md`](references/linear-engineer-report-template.md), [`references/preview-review-template.md`](references/preview-review-template.md), Linear MCP |
 
 ## Phase 1 — Investigate thoroughly
 
@@ -163,19 +164,39 @@ data in a preview.
    marking ready.
 6. When preview QA passes, proceed to Phase 7, then mark the PR ready for review.
 
-## Phase 7 — Engineer preview review instructions
+## Phase 7 — Handoff to the engineer
 
-Add a **Preview review** section to the PR body so a human can verify in minutes without
-re-deriving your steps. Copy and fill
+Handoff happens in **Linear first**, then on the PR. Do not mark the run complete
+until both are posted.
+
+### 7a. Linear report (primary)
+
+Post a structured comment on the originating Linear issue via the Linear MCP.
+Use [`references/linear-engineer-report-template.md`](references/linear-engineer-report-template.md).
+
+The comment **must** contain these three sections in order:
+
+1. **What exactly was the issue?** — symptom, impact, and confirmed root cause in
+   plain language.
+2. **How this was reproduced** — seed commands, failing test, or manual steps that
+   showed the bug before the fix.
+3. **How this can be tested in the preview deployment** — numbered preview URL
+   steps with expected outcomes, including any extra seeding.
+
+Also include PR link, preview URL, and a short verification-performed summary.
+
+- If the run was not linked to a Linear issue, ask which issue to comment on
+  before posting.
+- Draft the comment in the agent thread if preview QA is still in progress; post
+  to Linear only after Phase 6 passes and the PR is ready for review.
+
+### 7b. PR preview review (mirror item 3)
+
+Add a **Preview review** section to the PR body so GitHub reviewers see the same
+preview steps. Copy and fill
 [`references/preview-review-template.md`](references/preview-review-template.md).
 
-Minimum content:
-
-- preview URL and PR number
-- whether extra seeding was done (command or "default demo is enough")
-- numbered click-path with expected outcomes
-- known limitations or flows not covered
-- artifact links (screenshots / recording paths)
+Keep item 3 in the Linear comment and the PR **Preview review** section aligned.
 
 Mark the PR ready for review only after Phases 4–7 are complete.
 
@@ -188,7 +209,8 @@ Before ending the agent run, confirm:
 - [ ] Local Cloud stack verified (`start-cursor-cloud.sh` + seed + checks)
 - [ ] Draft PR opened, CI green, all review-agent comments addressed
 - [ ] Preview manually tested with appropriate sample data
-- [ ] PR body includes filled preview review instructions
+- [ ] Linear handoff comment posted (sections 1–3) on the originating issue
+- [ ] PR body includes filled preview review instructions (mirrors Linear §3)
 - [ ] Final summary quotes verification evidence, not claims
 
 ## Delegation guide
@@ -200,6 +222,7 @@ Before ending the agent run, confirm:
 | Local / preview data | `seed-test-data` |
 | Browser signoff | `frontend-browser-review` |
 | Preview deploy / kubectl | `langfuse-previews` |
+| Linear handoff comment | Linear MCP |
 | Commits / PR hygiene | `git-workflow` |
 | Responding to review findings | `code-review` |
 | Backend patterns | `backend-dev-guidelines` |
