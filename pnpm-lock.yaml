@@ -9,6 +9,9 @@ catalogs:
     '@aws-sdk/client-cloudwatch':
       specifier: 3.1074.0
       version: 3.1074.0
+    '@aws-sdk/client-eventbridge':
+      specifier: 3.1074.0
+      version: 3.1074.0
     '@aws-sdk/client-lambda':
       specifier: 3.1074.0
       version: 3.1074.0
@@ -474,6 +477,9 @@ importers:
       '@aws-crypto/sha256-browser':
         specifier: ^5.2.0
         version: 5.2.0
+      '@aws-sdk/client-eventbridge':
+        specifier: 'catalog:'
+        version: 3.1074.0
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
         version: 0.1.2(@opentelemetry/api@1.9.1)(@trpc/server@11.13.4(typescript@7.0.2))
@@ -1548,6 +1554,10 @@ packages:
 
   '@aws-sdk/client-cognito-identity@3.1074.0':
     resolution: {integrity: sha512-+Ty97ACrY0BEH/aWczd5Vs7VK/MAVpUGatxbv4Rkwkk5llLAHLvqJPwp8QUTQpa7DRuMuyUWbyMwIghLVf81MA==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-eventbridge@3.1074.0':
+    resolution: {integrity: sha512-6Fhu/JOC+zifM51+1Qx4N2mC/NHkulY87RFnnMcpgN89v3VgxVTVPvUcphcFIakEEiP7NtvkqSVicg5M8LsRMw==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-kendra@3.1013.0':
@@ -12640,6 +12650,20 @@ snapshots:
       '@aws-crypto/sha256-js': 5.2.0
       '@aws-sdk/core': 3.975.1
       '@aws-sdk/credential-provider-node': 3.972.66
+      '@aws-sdk/types': 3.974.0
+      '@smithy/core': 3.30.0
+      '@smithy/fetch-http-handler': 5.6.5
+      '@smithy/node-http-handler': 4.9.5
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/client-eventbridge@3.1074.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/core': 3.975.1
+      '@aws-sdk/credential-provider-node': 3.972.66
+      '@aws-sdk/signature-v4-multi-region': 3.996.39
       '@aws-sdk/types': 3.974.0
       '@smithy/core': 3.30.0
       '@smithy/fetch-http-handler': 5.6.5

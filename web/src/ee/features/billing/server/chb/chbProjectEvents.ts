@@ -1,25 +1,25 @@
+import {
+  EventBridgeClient,
+  PutEventsCommand,
+} from "@aws-sdk/client-eventbridge";
 import { backOff } from "exponential-backoff";
 
 import { env } from "@/src/env.mjs";
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  fetchWithSecureRedirects,
-  logger,
-  recordIncrement,
-} from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 
 /**
  * Project lifecycle events for ClickHouse Billing (CHB).
  *
  * CHB needs to know which projects exist per organization to poll our billing
- * metrics API. Delivery is direct best-effort HTTP from web, no queue: CHB's
- * event bus is an always-on managed endpoint; absorbing brief unavailability
- * is CHB's responsibility. At-most-once is acceptable by design — a lost
- * PROJECT_DELETED is benign (the metrics API returns zeros for deleted
- * projects by contract), a lost PROJECT_CREATED delays metering for one
- * project until CHB's own backfill pipeline catches it. If
- * `langfuse.billing_events.emit_failed` ever shows real loss, swap this
+ * metrics API. Delivery is a direct best-effort cross-account EventBridge
+ * PutEvents from web, no queue: the bus is an always-on managed endpoint;
+ * absorbing brief unavailability is CHB's responsibility. At-most-once is
+ * acceptable by design — a lost PROJECT_DELETED is benign (the metrics API
+ * returns zeros for deleted projects by contract), a lost PROJECT_CREATED
+ * delays metering for one project until CHB's own backfill pipeline catches
+ * it. If `langfuse.billing_events.emit_failed` ever shows real loss, swap this
  * helper's internals for a queue — call sites keep the same signature.
  *
  * Sync starts at checkout, not at signup. Nothing is mirrored to CHB until
@@ -35,9 +35,16 @@ export type ChbProjectEventType =
   | "LANGFUSE_PROJECT_CREATED"
   | "LANGFUSE_PROJECT_DELETED";
 
+// EventBridge `source` for everything we publish. Free-form on our side; CHB's
+// bus policy filters on detail-type, not source.
+const CHB_EVENT_SOURCE = "langfuse";
+
+const EVENT_BUS_REQUEST_TIMEOUT_MS = 5_000;
+
 // The envelope (type, CHB organizationId, Langfuse projectId, regionId) still
 // needs a final confirmation from CHB before rollout, so it is isolated here:
-// a contract change stays a one-function edit.
+// a contract change stays a one-function edit. `type` is repeated here and in
+// detail-type so a consumer reading either one sees it.
 const buildChbProjectEventPayload = (params: {
   type: ChbProjectEventType;
   chbOrganizationId: string;
@@ -50,47 +57,80 @@ const buildChbProjectEventPayload = (params: {
   createdAt: new Date().toISOString(),
 });
 
+// Memoized per bus region so a web instance that never touches CHB billing
+// never constructs a client, and one that does reuses its connection pool.
+let cachedClient: { region: string; client: EventBridgeClient } | undefined;
+
+const getEventBridgeClient = (region: string): EventBridgeClient => {
+  if (cachedClient?.region === region) return cachedClient.client;
+
+  cachedClient = {
+    region,
+    client: new EventBridgeClient({
+      region,
+      requestHandler: {
+        requestTimeout: EVENT_BUS_REQUEST_TIMEOUT_MS,
+        throwOnRequestTimeout: true,
+      },
+    }),
+  };
+  return cachedClient.client;
+};
+
 /**
- * POST a single project event to the CHB event bus, retrying over a few
+ * Publish a single project event to CHB's event bus, retrying over a few
  * seconds. Throws on terminal failure — callers decide whether that is
- * fire-and-forget noise (request path) or worth surfacing (webhook backfill).
+ * fire-and-forget noise (request path) or worth counting (checkout backfill).
+ *
+ * Authentication is SigV4 from the task role: infrastructure grants
+ * events:PutEvents on exactly this bus ARN, and CHB's side allows our account
+ * on the bus resource policy. No shared secret is involved — the CHB service
+ * token belongs to their REST API, not here.
  */
 export async function sendChbProjectEvent(params: {
   type: ChbProjectEventType;
   chbOrganizationId: string;
   projectId: string;
 }): Promise<void> {
-  const eventBusUrl = env.CLICKHOUSE_BILLING_EVENT_BUS_URL;
-  const serviceToken = env.CLICKHOUSE_BILLING_SERVICE_TOKEN;
-  if (!eventBusUrl || !serviceToken) {
+  const eventBusArn = env.CLICKHOUSE_BILLING_EVENT_BUS_ARN;
+  if (!eventBusArn) {
     throw new Error(
-      "CHB event bus is not configured (CLICKHOUSE_BILLING_EVENT_BUS_URL / CLICKHOUSE_BILLING_SERVICE_TOKEN)",
+      "CHB event bus is not configured (CLICKHOUSE_BILLING_EVENT_BUS_ARN)",
     );
   }
 
+  // CHB's buses live in their own regions, which do not match ours, and the ARN
+  // is the only place that region appears. env.mjs shape-checks the ARN, so the
+  // segment is present.
+  const region = eventBusArn.split(":")[3];
   const payload = buildChbProjectEventPayload(params);
 
   await backOff(
     async () => {
-      // The event-bus URL is operator-configured (env), not user input; skip
-      // DNS/IP validation but keep manual redirect handling so the bearer
-      // token is stripped on any cross-origin redirect.
-      const { response } = await fetchWithSecureRedirects(
-        eventBusUrl,
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${serviceToken}`,
-          },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(5_000),
-        },
-        { maxRedirects: 3, skipValidation: true },
+      const response = await getEventBridgeClient(region).send(
+        new PutEventsCommand({
+          Entries: [
+            {
+              EventBusName: eventBusArn,
+              // CHB's bus policy whitelists the allowed event types by
+              // detail-type, so the type has to travel here, not only in
+              // Detail — otherwise the bus rejects the entry.
+              DetailType: params.type,
+              Source: CHB_EVENT_SOURCE,
+              Detail: JSON.stringify(payload),
+            },
+          ],
+        }),
       );
-      if (!response.ok) {
+
+      // PutEvents answers 200 even when it rejected the entry (bad policy,
+      // throttling, malformed detail), so the failure count is the real status.
+      if (response.FailedEntryCount) {
+        const [entry] = response.Entries ?? [];
         throw new Error(
-          `CHB event bus responded with status ${response.status}`,
+          `CHB event bus rejected the event: ${entry?.ErrorCode ?? "unknown error"}${
+            entry?.ErrorMessage ? ` (${entry.ErrorMessage})` : ""
+          }`,
         );
       }
     },

@@ -38,6 +38,7 @@
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@astral-sh/ruff-wasm-web": "0.15.13",
     "@aws-crypto/sha256-browser": "^5.2.0",
+    "@aws-sdk/client-eventbridge": "catalog:",
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
     "@codemirror/autocomplete": "^6.17.0",
     "@codemirror/lang-javascript": "^6.2.5",
