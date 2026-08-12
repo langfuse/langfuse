@@ -569,8 +569,8 @@ resume_cloud_dependencies() {
 
   export PATH="$CODEX_SERVICES_ROOT/bin:$PATH"
 
-  for required_command in initdb pg_ctl psql pg_isready redis-server clickhouse-server clickhouse-client minio mc; do
-    if [ "$required_command" = "initdb" ] || [ "$required_command" = "pg_ctl" ] || [ "$required_command" = "pg_isready" ]; then
+  for required_command in initdb pg_ctl psql pg_isready redis-server clickhouse-server clickhouse-client minio mc migrate; do
+    if [ "$required_command" = "initdb" ] || [ "$required_command" = "pg_ctl" ] || [ "$required_command" = "psql" ] || [ "$required_command" = "pg_isready" ]; then
       if [ -z "$(find_postgres_bin "$required_command")" ]; then
         echo "Missing required command: $required_command" >&2
         missing_command="true"
