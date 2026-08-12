@@ -3,6 +3,8 @@ import { EventType } from "@ag-ui/core";
 import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
+  getInAppAgentLlmCallName,
+  getInAppAgentLlmCallObservationId,
 } from "@langfuse/shared/in-app-agent";
 import type { AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
 import { InAppAgentInstrumentation } from "@langfuse/shared/in-app-agent/server/instrumentation";
@@ -12,14 +14,8 @@ const traceId = getInAppAgentInstrumentationTraceId(runId);
 const agentRunObservationId = getInAppAgentInstrumentationObservationId(runId);
 
 const mocks = vi.hoisted(() => {
-  const agentGeneration = {
-    observationId: "run-1",
-    traceId: "run-1-trace",
-    update: vi.fn(),
-    end: vi.fn(),
-  };
   const trace = {
-    generation: vi.fn(() => agentGeneration),
+    generation: vi.fn(),
     update: vi.fn(),
   };
   const handler = {
@@ -30,7 +26,6 @@ const mocks = vi.hoisted(() => {
   };
 
   return {
-    agentGeneration,
     trace,
     handler,
     processTracedEvents: vi.fn(async () => undefined),
@@ -153,13 +148,7 @@ describe("InAppAgentInstrumentation", () => {
         input: expectedAgentRunInput,
       }),
     );
-    expect(mocks.trace.generation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: agentRunObservationId,
-        name: "agent-turn",
-        input: expectedAgentRunInput,
-      }),
-    );
+    expect(mocks.trace.generation).not.toHaveBeenCalled();
     expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
       "tool-create",
       expect.objectContaining({
@@ -179,10 +168,15 @@ describe("InAppAgentInstrumentation", () => {
       }),
     );
     expect(
-      mocks.handler.langfuse.enqueue.mock.calls[0]?.[1].metadata,
+      mocks.handler.langfuse.enqueue.mock.calls.find(
+        ([type]) => type === "tool-create",
+      )?.[1].metadata,
     ).not.toHaveProperty("toolCallApproval");
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
       expect.objectContaining({
+        id: agentRunObservationId,
+        traceId,
         name: "agent-turn",
         input: expectedAgentRunInput,
         output: {
@@ -202,9 +196,13 @@ describe("InAppAgentInstrumentation", () => {
           text: "hi there",
           tool_calls: [toolCall],
         },
-        completionStartTime: expect.any(Date),
       }),
     );
+    const agentCreateBody = mocks.handler.langfuse.enqueue.mock.calls.find(
+      ([type]) => type === "agent-create",
+    )?.[1];
+    expect(agentCreateBody).not.toHaveProperty("usageDetails");
+    expect(agentCreateBody).not.toHaveProperty("model");
     expect(mocks.handler.langfuse.enqueue).not.toHaveBeenCalledWith(
       "span-create",
       expect.anything(),
@@ -278,7 +276,7 @@ describe("InAppAgentInstrumentation", () => {
     },
   );
 
-  it("records run failures on the agent generation", () => {
+  it("records run failures on the root agent observation", () => {
     const instrumentation = createInstrumentation();
     const toolCall = {
       id: "tool-1",
@@ -313,8 +311,10 @@ describe("InAppAgentInstrumentation", () => {
         }),
       }),
     );
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
       expect.objectContaining({
+        id: agentRunObservationId,
         name: "agent-turn",
         input: expectedAgentRunInput,
         output: {
@@ -327,7 +327,6 @@ describe("InAppAgentInstrumentation", () => {
           ],
           tool_calls: [toolCall],
         },
-        completionStartTime: expect.any(Date),
         level: "ERROR",
         statusMessage: "agent failed",
         metadata: expect.objectContaining({ error: "agent failed" }),
@@ -335,7 +334,7 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("records available tools & skills on the agent generation input", () => {
+  it("records available tools & skills on the agent observation input", () => {
     const instrumentation = createInstrumentation();
 
     instrumentation.recordAvailableTools({
@@ -368,7 +367,8 @@ describe("InAppAgentInstrumentation", () => {
     ]);
     instrumentation.end();
 
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
       expect.objectContaining({
         name: "agent-turn",
         input: {
@@ -589,7 +589,7 @@ describe("InAppAgentInstrumentation", () => {
     },
   );
 
-  it("sets static prompt metadata on the trace and agent generation", () => {
+  it("sets static prompt metadata on the trace and root agent observation", () => {
     const instrumentation = createInstrumentation(undefined, {
       name: "in-app-agent-system-prompt",
       version: 3,
@@ -623,26 +623,14 @@ describe("InAppAgentInstrumentation", () => {
         },
       }),
     );
-    expect(mocks.trace.generation).toHaveBeenCalledWith({
-      id: agentRunObservationId,
-      name: "agent-turn",
-      input: expectedAgentRunInput,
-      metadata: {
-        langfuse_project_id: "project-1",
-        langfuse_user_email: "user@example.com",
-        langfuse_user_project_role: "ADMIN",
-        langfuse_user_is_admin: true,
-        prompt_name: "in-app-agent-system-prompt",
-        prompt_version: 3,
-      },
-      promptName: "in-app-agent-system-prompt",
-      promptVersion: 3,
-    });
+    expect(mocks.trace.generation).not.toHaveBeenCalled();
 
     instrumentation.end();
 
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
       expect.objectContaining({
+        id: agentRunObservationId,
         name: "agent-turn",
         input: expectedAgentRunInput,
         promptName: "in-app-agent-system-prompt",
@@ -664,7 +652,8 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
       expect.objectContaining({
         name: "agent-turn",
         input: expectedAgentRunInput,
@@ -672,7 +661,6 @@ describe("InAppAgentInstrumentation", () => {
           messages: [{ role: "assistant", content: "second turn output" }],
           text: "second turn output",
         },
-        completionStartTime: expect.any(Date),
       }),
     );
     expect(mocks.trace.update).toHaveBeenCalledWith(
@@ -686,7 +674,7 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("records AG-UI context in the agent generation input", () => {
+  it("records AG-UI context in the agent turn input", () => {
     createInstrumentation({
       context: [
         {
@@ -705,20 +693,7 @@ describe("InAppAgentInstrumentation", () => {
       ],
     });
 
-    expect(mocks.trace.generation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "agent-turn",
-        input: {
-          messages: [{ role: "user", content: "hello" }],
-          context: {
-            current_url:
-              "https://cloud.langfuse.com/project/project-1/traces?filter=value",
-            browser_languages: ["en-US", "en", "de"],
-            current_trace: { id: "trace-1" },
-          },
-        },
-      }),
-    );
+    expect(mocks.trace.generation).not.toHaveBeenCalled();
     expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
       expect.objectContaining({
         input: {
@@ -734,7 +709,7 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("records only the current turn messages in the agent generation input", () => {
+  it("records only the current turn messages in the agent turn input", () => {
     createInstrumentation({
       messages: [
         {
@@ -777,7 +752,7 @@ describe("InAppAgentInstrumentation", () => {
       ],
     });
 
-    expect(mocks.trace.generation).toHaveBeenCalledWith(
+    expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-turn",
         input: {
@@ -807,7 +782,8 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
       expect.objectContaining({
         name: "agent-turn",
         input: expectedAgentRunInput,
@@ -815,7 +791,6 @@ describe("InAppAgentInstrumentation", () => {
           messages: [{ role: "assistant", content: "chunk output" }],
           text: "chunk output",
         },
-        completionStartTime: expect.any(Date),
       }),
     );
   });
@@ -890,7 +865,8 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
       expect.objectContaining({
         name: "agent-turn",
         input: expectedAgentRunInput,
@@ -912,13 +888,12 @@ describe("InAppAgentInstrumentation", () => {
           text: "Done",
           tool_calls: [toolCall],
         },
-        completionStartTime: expect.any(Date),
       }),
     );
-    const updateArg = mocks.agentGeneration.update.mock.calls.at(-1)?.[0] as {
-      metadata?: Record<string, unknown>;
-    };
-    expect(updateArg.metadata).not.toHaveProperty("reasoning");
+    const agentCreateBody = mocks.handler.langfuse.enqueue.mock.calls.find(
+      ([type]) => type === "agent-create",
+    )?.[1] as { metadata?: Record<string, unknown> };
+    expect(agentCreateBody.metadata).not.toHaveProperty("reasoning");
   });
 
   it("records reasoning without a following assistant message as its own thinking message", () => {
@@ -935,7 +910,8 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
       expect.objectContaining({
         name: "agent-turn",
         output: {
@@ -969,9 +945,42 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("aggregates step usage and model onto the agent generation", () => {
+  it("emits one generation per LLM step with usage on children only", () => {
     const instrumentation = createInstrumentation();
 
+    instrumentation.recordStreamChunk({
+      type: "step-start",
+      payload: { request: { body: '{"model":"x"}' } },
+    });
+    instrumentation.recordStreamChunk({
+      type: "tool-call",
+      payload: { toolCallId: "tool-1", toolName: "listObservations" },
+    });
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-1",
+        toolCallName: "listObservations",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-1",
+        delta: '{"limit":10}',
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-1",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-1",
+        content: '{"ok":true}',
+      },
+    ]);
+    instrumentation.recordStreamChunk({
+      type: "tool-result",
+      payload: { toolCallId: "tool-1", toolName: "listObservations" },
+    });
     instrumentation.recordStepFinish({
       usage: {
         inputTokens: 1100,
@@ -980,7 +989,30 @@ describe("InAppAgentInstrumentation", () => {
         cachedInputTokens: 800,
         cacheCreationInputTokens: 100,
       },
+      finishReason: "tool-calls",
+      text: "",
+      response: {
+        messages: [
+          {
+            role: "assistant",
+            content: "",
+            tool_calls: [{ id: "tool-1" }],
+          },
+        ],
+      },
     });
+
+    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
+    instrumentation.recordStreamChunk({
+      type: "text-delta",
+      payload: { text: "Done" },
+    });
+    instrumentation.recordEvents([
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        delta: "Done",
+      },
+    ]);
     instrumentation.recordStepFinish({
       usage: {
         inputTokens: 1200,
@@ -988,37 +1020,222 @@ describe("InAppAgentInstrumentation", () => {
         totalTokens: 1230,
         cachedInputTokens: 1000,
       },
+      finishReason: "stop",
+      text: "Done",
     });
     instrumentation.end({});
 
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+    const generationCreates = mocks.handler.langfuse.enqueue.mock.calls.filter(
+      ([type]) => type === "generation-create",
+    );
+    expect(generationCreates).toHaveLength(2);
+
+    expect(generationCreates[0]?.[1]).toEqual(
       expect.objectContaining({
+        id: getInAppAgentLlmCallObservationId(runId, 1),
+        name: getInAppAgentLlmCallName(1),
+        parentObservationId: agentRunObservationId,
         model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
         usageDetails: {
-          // Mastra's inputTokens includes cache reads/writes; the priced
-          // `input` key must only contain non-cached input tokens.
-          input: 400,
-          output: 80,
-          cache_read_input_tokens: 1800,
+          input: 200,
+          output: 50,
+          cache_read_input_tokens: 800,
           cache_creation_input_tokens: 100,
-          total: 2380,
+          total: 1150,
         },
+        metadata: expect.objectContaining({
+          step_number: 1,
+          finish_reason: "tool-calls",
+          input_message_count: 1,
+          tool_call_count: 1,
+          request_bytes: Buffer.byteLength('{"model":"x"}'),
+        }),
+      }),
+    );
+    expect(generationCreates[0]?.[1].input.messages).toHaveLength(1);
+
+    expect(generationCreates[1]?.[1]).toEqual(
+      expect.objectContaining({
+        id: getInAppAgentLlmCallObservationId(runId, 2),
+        name: getInAppAgentLlmCallName(2),
+        parentObservationId: agentRunObservationId,
+        usageDetails: {
+          input: 200,
+          output: 30,
+          cache_read_input_tokens: 1000,
+          cache_creation_input_tokens: 0,
+          total: 1230,
+        },
+        metadata: expect.objectContaining({
+          step_number: 2,
+          finish_reason: "stop",
+          input_message_count: 3,
+          tool_call_count: 0,
+        }),
+      }),
+    );
+    expect(generationCreates[1]?.[1].input.messages.length).toBeGreaterThan(
+      generationCreates[0]?.[1].input.messages.length,
+    );
+
+    const agentCreateBody = mocks.handler.langfuse.enqueue.mock.calls.find(
+      ([type]) => type === "agent-create",
+    )?.[1];
+    expect(agentCreateBody).toEqual(
+      expect.objectContaining({
+        id: agentRunObservationId,
+        name: "agent-turn",
+      }),
+    );
+    expect(agentCreateBody).not.toHaveProperty("usageDetails");
+    expect(agentCreateBody).not.toHaveProperty("model");
+  });
+
+  it("uses stream chunk timestamps for parallel tool observations under the root", () => {
+    const instrumentation = createInstrumentation();
+    const toolAStart = new Date("2026-01-01T00:00:01.000Z");
+    const toolBStart = new Date("2026-01-01T00:00:02.000Z");
+    const toolAEnd = new Date("2026-01-01T00:00:03.000Z");
+    const toolBEnd = new Date("2026-01-01T00:00:04.000Z");
+
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
+
+    vi.setSystemTime(toolAStart);
+    instrumentation.recordStreamChunk({
+      type: "tool-call",
+      payload: { toolCallId: "tool-a", toolName: "listObservations" },
+    });
+    vi.setSystemTime(toolBStart);
+    instrumentation.recordStreamChunk({
+      type: "tool-call",
+      payload: { toolCallId: "tool-b", toolName: "getTrace" },
+    });
+
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-a",
+        toolCallName: "listObservations",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-a",
+        delta: "{}",
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-a",
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-b",
+        toolCallName: "getTrace",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-b",
+        delta: "{}",
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-b",
+      },
+    ]);
+
+    vi.setSystemTime(toolAEnd);
+    instrumentation.recordStreamChunk({
+      type: "tool-result",
+      payload: { toolCallId: "tool-a", toolName: "listObservations" },
+    });
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-a",
+        content: '{"a":1}',
+      },
+    ]);
+
+    vi.setSystemTime(toolBEnd);
+    instrumentation.recordStreamChunk({
+      type: "tool-result",
+      payload: { toolCallId: "tool-b", toolName: "getTrace" },
+    });
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-b",
+        content: '{"b":2}',
+      },
+    ]);
+
+    instrumentation.recordStepFinish({
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      finishReason: "tool-calls",
+    });
+
+    const toolCreates = mocks.handler.langfuse.enqueue.mock.calls.filter(
+      ([type]) => type === "tool-create",
+    );
+    expect(toolCreates).toHaveLength(2);
+    expect(toolCreates[0]?.[1]).toEqual(
+      expect.objectContaining({
+        id: "tool-a",
+        parentObservationId: agentRunObservationId,
+        startTime: toolAStart,
+        endTime: toolAEnd,
+      }),
+    );
+    expect(toolCreates[1]?.[1]).toEqual(
+      expect.objectContaining({
+        id: "tool-b",
+        parentObservationId: agentRunObservationId,
+        startTime: toolBStart,
+        endTime: toolBEnd,
+      }),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("closes an open LLM step as ERROR when the run is aborted", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
+    instrumentation.end({ aborted: true });
+
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "generation-create",
+      expect.objectContaining({
+        id: getInAppAgentLlmCallObservationId(runId, 1),
+        name: getInAppAgentLlmCallName(1),
+        parentObservationId: agentRunObservationId,
+        level: "ERROR",
+        statusMessage: "aborted",
+      }),
+    );
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
+      expect.objectContaining({
+        id: agentRunObservationId,
+        metadata: expect.objectContaining({ aborted: true }),
       }),
     );
   });
 
-  it("records aggregated usage when the run fails", () => {
+  it("emits a generation when step finish arrives without a prior step-start", () => {
     const instrumentation = createInstrumentation();
 
     instrumentation.recordStepFinish({
       usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+      finishReason: "stop",
     });
-    instrumentation.endWithError(new Error("agent failed"));
+    instrumentation.end({});
 
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "generation-create",
       expect.objectContaining({
-        level: "ERROR",
-        model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        id: getInAppAgentLlmCallObservationId(runId, 1),
         usageDetails: {
           input: 100,
           output: 10,
@@ -1026,21 +1243,29 @@ describe("InAppAgentInstrumentation", () => {
           cache_creation_input_tokens: 0,
           total: 110,
         },
+        model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
       }),
     );
   });
 
-  it("omits usage and model when no step reported usage", () => {
+  it("omits usage and model on LLM generations without reported usage", () => {
     const instrumentation = createInstrumentation();
 
+    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
     instrumentation.recordStepFinish(undefined);
-    instrumentation.recordStepFinish({ usage: { foo: 1 } });
     instrumentation.end({});
 
-    const agentGenerationBody = mocks.agentGeneration.update.mock.calls[0]?.[0];
+    const generationBody = mocks.handler.langfuse.enqueue.mock.calls.find(
+      ([type]) => type === "generation-create",
+    )?.[1];
+    expect(generationBody).not.toHaveProperty("usageDetails");
+    expect(generationBody).not.toHaveProperty("model");
 
-    expect(agentGenerationBody).not.toHaveProperty("usageDetails");
-    expect(agentGenerationBody).not.toHaveProperty("model");
+    const agentCreateBody = mocks.handler.langfuse.enqueue.mock.calls.find(
+      ([type]) => type === "agent-create",
+    )?.[1];
+    expect(agentCreateBody).not.toHaveProperty("usageDetails");
+    expect(agentCreateBody).not.toHaveProperty("model");
   });
 
   it("ignores step finish events after instrumentation ended", () => {
@@ -1051,8 +1276,9 @@ describe("InAppAgentInstrumentation", () => {
       usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
     });
 
-    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
-      expect.not.objectContaining({ usageDetails: expect.anything() }),
+    expect(mocks.handler.langfuse.enqueue).not.toHaveBeenCalledWith(
+      "generation-create",
+      expect.anything(),
     );
   });
 });

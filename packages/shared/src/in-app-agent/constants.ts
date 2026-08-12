@@ -26,3 +26,13 @@ export const getInAppAgentInstrumentationObservationId = (runId: string) =>
 // level telemetry and feedback aggregate on the same per-turn trace.
 export const getInAppAgentInstrumentationTraceId = (runId: string) =>
   `${runId}-trace`;
+
+// Per-LLM-call generation ids stay deterministic from the run so retries and
+// late flushes can address the same observation.
+export const getInAppAgentLlmCallObservationId = (
+  runId: string,
+  stepNumber: number,
+) => `${runId}-llm-${stepNumber}`;
+
+export const getInAppAgentLlmCallName = (stepNumber: number) =>
+  `llm-call-${stepNumber}`;

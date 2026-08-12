@@ -82,6 +82,7 @@ const instrumentationMocks = vi.hoisted(() => {
     recordAvailableTools: vi.fn(),
     recordToolCallApproval: vi.fn(),
     recordStepFinish: vi.fn(),
+    recordStreamChunk: vi.fn(),
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),
@@ -821,6 +822,16 @@ describe("createAgUiStream", () => {
     expect(
       instrumentationMocks.instrumentation.recordStepFinish,
     ).toHaveBeenCalledWith({ usage: { inputTokens: 10, outputTokens: 5 } });
+    const onChunk = (
+      agentConfig?.defaultOptions as
+        | { onChunk?: (chunk: unknown) => void }
+        | undefined
+    )?.onChunk;
+    expect(onChunk).toEqual(expect.any(Function));
+    onChunk?.({ type: "step-start", payload: {} });
+    expect(
+      instrumentationMocks.instrumentation.recordStreamChunk,
+    ).toHaveBeenCalledWith({ type: "step-start", payload: {} });
     expect(
       instrumentationMocks.instrumentation.recordEvents.mock.calls.flatMap(
         ([events]) => (events as AgUiEvent[]).map((event) => event.type),

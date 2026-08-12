@@ -228,6 +228,11 @@ export async function createAgUiStream(params: {
         instrumentation.recordStepFinish?.(event);
       }
     : undefined;
+  const onChunk = instrumentation
+    ? (chunk: unknown) => {
+        instrumentation.recordStreamChunk?.(chunk);
+      }
+    : undefined;
 
   let subscription: { unsubscribe: () => void } | undefined;
   let ending = false;
@@ -476,6 +481,7 @@ export async function createAgUiStream(params: {
         onToolsAvailable: (tools) =>
           instrumentation?.recordAvailableTools?.(tools),
         onStepFinish,
+        onChunk,
       })
         .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
@@ -544,6 +550,7 @@ export async function createAgUiStream(params: {
               awsProfile,
               instructions,
               onStepFinish,
+              onChunk,
             });
 
             if (ending || closed || params.signal.aborted) {
@@ -745,6 +752,7 @@ async function createMastraAdapter(params: {
   instructions: string;
   onToolsAvailable?: (tools: Record<string, unknown>) => void;
   onStepFinish?: (event: unknown) => void;
+  onChunk?: (chunk: unknown) => void;
 }) {
   const bedrock = createAmazonBedrock({
     ...(params.options.awsBedrock.region
@@ -859,6 +867,9 @@ async function createMastraAdapter(params: {
         // Fires once per LLM call with that call's token usage; the AG-UI
         // event stream itself never carries usage.
         ...(params.onStepFinish ? { onStepFinish: params.onStepFinish } : {}),
+        // Marks LLM-step boundaries and tool execution windows for per-call
+        // generation observations.
+        ...(params.onChunk ? { onChunk: params.onChunk } : {}),
         ...(reasoningProviderOptions
           ? { providerOptions: reasoningProviderOptions }
           : {}),
