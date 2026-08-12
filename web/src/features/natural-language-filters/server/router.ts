@@ -23,10 +23,13 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
     .input(CreateNaturalLanguageFilterCompletion)
     .mutation(async ({ input, ctx }) => {
       try {
+        // Generating a filter reads nothing a project member cannot already
+        // read by hand, so membership is the right bar; whether the org uses
+        // AI at all is governed by `aiFeaturesEnabled` below.
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "prompts:CUD",
+          scope: "project:read",
         });
 
         if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
