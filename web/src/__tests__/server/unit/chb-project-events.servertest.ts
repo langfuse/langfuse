@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     CLICKHOUSE_BILLING_SERVICE_TOKEN: "chb-token" as string | undefined,
   },
   findOrg: vi.fn(),
+  findProjects: vi.fn(),
   fetchWithSecureRedirects: vi.fn(),
   recordIncrement: vi.fn(),
 }));
@@ -17,7 +18,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
 
 vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: { organization: { findUnique: mocks.findOrg } },
+  prisma: {
+    organization: { findUnique: mocks.findOrg },
+    project: { findMany: mocks.findProjects },
+  },
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -31,6 +35,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 });
 
 import {
+  backfillChbProjectEvents,
   emitChbProjectEvent,
   sendChbProjectEvent,
 } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
@@ -67,6 +72,7 @@ describe("chbProjectEvents", () => {
     mocks.fetchWithSecureRedirects.mockResolvedValue({
       response: { ok: true, status: 200 },
     });
+    mocks.findProjects.mockResolvedValue([]);
   });
 
   it("posts the event envelope for a CHB-billed org", async () => {
@@ -131,7 +137,7 @@ describe("chbProjectEvents", () => {
       expect(mocks.recordIncrement).toHaveBeenCalledWith(
         "langfuse.billing_events.emit_failed",
         1,
-        { unit: "events" },
+        { unit: "events", source: "request" },
       ),
     );
     expect(loggerError).toHaveBeenCalled();
@@ -148,5 +154,91 @@ describe("chbProjectEvents", () => {
       }),
     ).rejects.toThrow("CHB event bus is not configured");
     expect(mocks.fetchWithSecureRedirects).not.toHaveBeenCalled();
+  });
+
+  describe("backfillChbProjectEvents", () => {
+    it("sends CREATED for every existing project once the org has checked out", async () => {
+      mocks.findOrg.mockResolvedValue(
+        orgRow({ clickhouse: { organizationId: CHB_ORG_ID } }),
+      );
+      mocks.findProjects.mockResolvedValue([
+        { id: "project-a" },
+        { id: "project-b" },
+      ]);
+
+      await expect(
+        backfillChbProjectEvents({ orgId: ORG_ID }),
+      ).resolves.toEqual({ sent: 2, failed: 0 });
+
+      // Soft-deleted projects must stay out of the backfill: CHB would start
+      // metering a project the org can no longer see.
+      expect(mocks.findProjects).toHaveBeenCalledWith({
+        where: { orgId: ORG_ID, deletedAt: null },
+        select: { id: true },
+      });
+      expect(
+        mocks.fetchWithSecureRedirects.mock.calls.map(
+          ([, options]) => JSON.parse(options.body).projectId,
+        ),
+      ).toEqual(["project-a", "project-b"]);
+      expect(
+        JSON.parse(mocks.fetchWithSecureRedirects.mock.calls[0][1].body),
+      ).toMatchObject({
+        type: "LANGFUSE_PROJECT_CREATED",
+        organizationId: CHB_ORG_ID,
+      });
+    });
+
+    // The whole point of the checkout-time backfill: projects are not synced
+    // before the org carries a CHB organization id.
+    it("sends nothing for an org that has not checked out", async () => {
+      mocks.findOrg.mockResolvedValue(
+        orgRow({ stripe: { customerId: "cus_1" } }),
+      );
+      mocks.findProjects.mockResolvedValue([{ id: "project-a" }]);
+
+      await expect(
+        backfillChbProjectEvents({ orgId: ORG_ID }),
+      ).resolves.toEqual({ sent: 0, failed: 0 });
+
+      expect(mocks.findProjects).not.toHaveBeenCalled();
+      expect(mocks.fetchWithSecureRedirects).not.toHaveBeenCalled();
+    });
+
+    it("isolates one project's failure and still sends the rest", async () => {
+      mocks.findOrg.mockResolvedValue(
+        orgRow({ clickhouse: { organizationId: CHB_ORG_ID } }),
+      );
+      mocks.findProjects.mockResolvedValue([
+        { id: "project-a" },
+        { id: "project-b" },
+      ]);
+      mocks.fetchWithSecureRedirects.mockImplementation((_url, options) =>
+        JSON.parse(options.body).projectId === "project-a"
+          ? Promise.reject(new Error("ECONNRESET"))
+          : Promise.resolve({ response: { ok: true, status: 200 } }),
+      );
+
+      await expect(
+        backfillChbProjectEvents({ orgId: ORG_ID }),
+      ).resolves.toEqual({ sent: 1, failed: 1 });
+
+      expect(mocks.recordIncrement).toHaveBeenCalledWith(
+        "langfuse.billing_events.emit_failed",
+        1,
+        { unit: "events", source: "backfill" },
+      );
+      expect(loggerError).toHaveBeenCalled();
+    });
+
+    // A failed backfill must never fail checkout.
+    it("does not throw when the org lookup itself fails", async () => {
+      mocks.findOrg.mockRejectedValue(new Error("postgres down"));
+
+      await expect(
+        backfillChbProjectEvents({ orgId: ORG_ID }),
+      ).resolves.toEqual({ sent: 0, failed: 0 });
+      expect(loggerError).toHaveBeenCalled();
+    });
   });
 });

@@ -18,10 +18,17 @@ import {
  * is CHB's responsibility. At-most-once is acceptable by design — a lost
  * PROJECT_DELETED is benign (the metrics API returns zeros for deleted
  * projects by contract), a lost PROJECT_CREATED delays metering for one
- * project until the `bundle.created` backfill or CHB's own backfill pipeline
- * catches it. If `langfuse.billing_events.emit_failed` ever shows real loss,
- * swap this helper's internals for a queue — call sites keep the same
- * signature.
+ * project until CHB's own backfill pipeline catches it. If
+ * `langfuse.billing_events.emit_failed` ever shows real loss, swap this
+ * helper's internals for a queue — call sites keep the same signature.
+ *
+ * Sync starts at checkout, not at signup. Nothing is mirrored to CHB until
+ * checkout persists `cloudConfig.clickhouse.organizationId`: before that CHB
+ * has no organization to attribute a project to, so an event would be
+ * unroutable, and the vast majority of orgs never check out at all.
+ * `resolveChbOrganizationId` is the single gate enforcing this, and checkout
+ * closes the gap it creates by calling `backfillChbProjectEvents` once for the
+ * projects the org already had.
  */
 
 export type ChbProjectEventType =
@@ -92,10 +99,20 @@ export async function sendChbProjectEvent(params: {
 }
 
 /**
- * Fire-and-forget emit for the project create/delete request paths. Loads the
- * org, no-ops unless it carries CHB state (CHB has nothing to meter
- * otherwise; projects that predate checkout are covered by the
- * `bundle.created` backfill), and never throws into the caller — project
+ * The CHB organization id to attribute events to, or null when the org has not
+ * checked out yet. Every outbound project event goes through this gate: an org
+ * without `cloudConfig.clickhouse.organizationId` is not a CHB customer, so
+ * there is nothing for CHB to route a project event to.
+ */
+async function resolveChbOrganizationId(orgId: string): Promise<string | null> {
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return null;
+  return parseDbOrg(org).cloudConfig?.clickhouse?.organizationId ?? null;
+}
+
+/**
+ * Fire-and-forget emit for the project create/delete request paths. No-ops
+ * unless the org has checked out, and never throws into the caller — project
  * create/delete latency and success are unaffected.
  */
 export function emitChbProjectEvent(params: {
@@ -104,12 +121,7 @@ export function emitChbProjectEvent(params: {
   projectId: string;
 }): void {
   (async () => {
-    const org = await prisma.organization.findUnique({
-      where: { id: params.orgId },
-    });
-    if (!org) return;
-    const chbOrganizationId =
-      parseDbOrg(org).cloudConfig?.clickhouse?.organizationId;
+    const chbOrganizationId = await resolveChbOrganizationId(params.orgId);
     if (!chbOrganizationId) return;
 
     await sendChbProjectEvent({
@@ -120,10 +132,86 @@ export function emitChbProjectEvent(params: {
   })().catch((error) => {
     recordIncrement("langfuse.billing_events.emit_failed", 1, {
       unit: "events",
+      source: "request",
     });
     logger.error(
       `[CHB Project Events] Failed to emit ${params.type} for project ${params.projectId} (org ${params.orgId})`,
       error,
     );
   });
+}
+
+/**
+ * Send LANGFUSE_PROJECT_CREATED for every project the org already has.
+ *
+ * Checkout calls this right after it persists
+ * `cloudConfig.clickhouse.organizationId`, which is the first moment CHB can
+ * attribute projects to an organization. Projects created before that point
+ * were deliberately never synced, so without this backfill CHB would only ever
+ * meter projects created after checkout.
+ *
+ * Best-effort and never throws: a failed backfill must not fail checkout. One
+ * project's delivery failure is isolated so the remaining projects still land,
+ * and each failure increments `langfuse.billing_events.emit_failed`
+ * (`source:backfill`) so a systematically broken backfill is alertable —
+ * silent failure here means CHB under-meters the org indefinitely.
+ *
+ * Deliveries are sequential: this runs off the request path, and a large org
+ * should not burst its whole project list at CHB's event bus at once. A
+ * concurrent project create during the backfill can produce a duplicate
+ * CREATED, which is harmless — CHB keys projects by id.
+ */
+export async function backfillChbProjectEvents(params: {
+  orgId: string;
+}): Promise<{ sent: number; failed: number }> {
+  let sent = 0;
+  let failed = 0;
+
+  try {
+    const chbOrganizationId = await resolveChbOrganizationId(params.orgId);
+    if (!chbOrganizationId) return { sent, failed };
+
+    const projects = await prisma.project.findMany({
+      where: { orgId: params.orgId, deletedAt: null },
+      select: { id: true },
+    });
+
+    for (const project of projects) {
+      try {
+        await sendChbProjectEvent({
+          type: "LANGFUSE_PROJECT_CREATED",
+          chbOrganizationId,
+          projectId: project.id,
+        });
+        sent += 1;
+      } catch (error) {
+        failed += 1;
+        recordIncrement("langfuse.billing_events.emit_failed", 1, {
+          unit: "events",
+          source: "backfill",
+        });
+        logger.error(
+          `[CHB Project Events] Failed to backfill LANGFUSE_PROJECT_CREATED for project ${project.id} (org ${params.orgId})`,
+          error,
+        );
+      }
+    }
+
+    logger.info(
+      `[CHB Project Events] Backfilled ${sent}/${projects.length} projects for org ${params.orgId} (${failed} failed)`,
+    );
+  } catch (error) {
+    // Loading the org or its projects failed — nothing was sent, and checkout
+    // still has to succeed.
+    recordIncrement("langfuse.billing_events.emit_failed", 1, {
+      unit: "events",
+      source: "backfill",
+    });
+    logger.error(
+      `[CHB Project Events] Failed to backfill projects for org ${params.orgId}`,
+      error,
+    );
+  }
+
+  return { sent, failed };
 }
