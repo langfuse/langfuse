@@ -1287,6 +1287,14 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
     );
+    const [eventsUsageQuery, scoresUsageQuery] =
+      clickhouseQuery?.query.split("UNION ALL") ?? [];
+    expect(eventsUsageQuery).toContain(
+      "AND NOT startsWith(environment, 'langfuse-')",
+    );
+    expect(scoresUsageQuery).toContain(
+      "AND NOT startsWith(environment, 'langfuse-')",
+    );
     expect(clickhouseQuery?.query).not.toContain("toDate(start_time)");
     expect(clickhouseQuery?.query).not.toContain("toDate(timestamp)");
     expect(clickhouseQuery?.query).toContain(
@@ -1762,6 +1770,14 @@ describe("v4TransitionRouter", () => {
     );
     expect(usageQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
+    );
+    const [eventsUsageQuery, scoresUsageQuery] =
+      usageQuery?.query.split("UNION ALL") ?? [];
+    expect(eventsUsageQuery).toContain(
+      "AND NOT startsWith(environment, 'langfuse-')",
+    );
+    expect(scoresUsageQuery).toContain(
+      "AND NOT startsWith(environment, 'langfuse-')",
     );
     expect(usageQuery?.query).not.toContain("toDate(start_time)");
     expect(usageQuery?.query).not.toContain("toDate(timestamp)");
