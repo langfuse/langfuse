@@ -180,9 +180,11 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       controller.signal,
     )
       .then((result) => {
+        clearTimeout(slowTimer); // a landed layout is not a slow one
         if (!cancelled) setLayout(result);
       })
       .catch((error) => {
+        clearTimeout(slowTimer);
         if (cancelled) return; // superseded — the rejection IS the cancellation
         // No warnMessage: the console line must carry ELK's own reason (e.g.
         // "too much recursion"), which is the whole diagnostic.
