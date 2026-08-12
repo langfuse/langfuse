@@ -1,5 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { useContext } from "react";
+import type { MockInstance } from "vitest";
+import type { Session } from "next-auth";
 import { SessionContext, type SessionContextValue } from "next-auth/react";
 import type * as nextAuthReactModule from "next-auth/react";
 
@@ -13,10 +15,7 @@ vi.mock("next-auth/react", async (importOriginal) => {
 });
 
 const authenticated = (email: string): SessionContextValue => ({
-  data: {
-    user: { email },
-    expires: "2999-01-01",
-  } as SessionContextValue["data"],
+  data: { user: { email }, expires: "2999-01-01" } as unknown as Session,
   status: "authenticated",
   update: vi.fn(),
 });
@@ -31,9 +30,18 @@ const noSession: SessionContextValue = {
 function SessionReadout() {
   const session = useContext(SessionContext);
   return (
-    <span data-testid="session">
-      {`${session?.status}:${session?.data?.user?.email ?? "none"}`}
-    </span>
+    <>
+      <span data-testid="session">
+        {`${session?.status}:${session?.data?.user?.email ?? "none"}`}
+      </span>
+      <button
+        onClick={() => {
+          session?.update();
+        }}
+      >
+        refresh session
+      </button>
+    </>
   );
 }
 
@@ -43,14 +51,16 @@ const tree = () => (
   </ResilientSessionProvider>
 );
 
-const storageKicks = (dispatch: ReturnType<typeof vi.spyOn>) =>
+type DispatchSpy = MockInstance<(event: Event) => boolean>;
+
+const storageKicks = (dispatch: DispatchSpy) =>
   dispatch.mock.calls.filter(
     ([event]) =>
       event instanceof StorageEvent && event.key === "nextauth.message",
   ).length;
 
 describe("ResilientSessionProvider", () => {
-  let dispatch: ReturnType<typeof vi.spyOn>;
+  let dispatch: DispatchSpy;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -77,6 +87,12 @@ describe("ResilientSessionProvider", () => {
       "authenticated:demo@langfuse.com",
     );
     expect(storageKicks(dispatch)).toBe(1);
+
+    // next-auth would drop an update() here, so it becomes a re-read instead.
+    await act(async () => {
+      screen.getByRole("button", { name: "refresh session" }).click();
+    });
+    expect(storageKicks(dispatch)).toBe(2);
 
     // The re-fetch lands, so the real session takes over again.
     useSessionMock.mockReturnValue(authenticated("demo@langfuse.com"));

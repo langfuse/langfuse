@@ -78,17 +78,21 @@ export function ResilientSessionProvider({ children }: PropsWithChildren) {
     return () => clearTimeout(timer);
   }, [session.status, recheckCount, isRechecking]);
 
-  const value = useMemo<SessionContextValue>(
-    () =>
-      isRechecking && knownSession
-        ? {
-            data: knownSession,
-            status: "authenticated",
-            update: session.update,
-          }
-        : session,
-    [isRechecking, knownSession, session],
-  );
+  const value = useMemo<SessionContextValue>(() => {
+    if (!isRechecking || !knownSession) return session;
+    return {
+      data: knownSession,
+      status: "authenticated",
+      // next-auth's own update() bails while it has no session, so passing it
+      // through here would drop the call. Callers use it to re-read the
+      // session, which is what a re-check does anyway.
+      update: async (data) => {
+        if (data !== undefined) return session.update(data);
+        refetchSessionInProvider();
+        return null;
+      },
+    };
+  }, [isRechecking, knownSession, session]);
 
   return (
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
