@@ -57,6 +57,7 @@ const ZOOM_STEP = 1.4;
 // Below this scale labels are unreadable noise — show only node shape + icon.
 const LABEL_HIDE_SCALE = 0.5;
 const CLICK_MOVE_THRESHOLD = 4; // px; beyond this a pointerup is a drag, not a click
+const SLOW_LAYOUT_HINT_MS = 4_000;
 
 function toPath(points: { x: number; y: number }[]): string {
   return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
@@ -118,6 +119,10 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   const [layout, setLayout] = useState<GraphLayout | null>(null);
   const [layoutError, setLayoutError] = useState(false);
   const [layoutAttempt, setLayoutAttempt] = useState(0);
+  // A layout past this point is a big graph (most finish in well under a second):
+  // say so, and say the rest of the view is still usable — the whole point of
+  // laying out off the main thread.
+  const [slowLayout, setSlowLayout] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
   // Discrete zoom derivation: labels hide below LABEL_HIDE_SCALE.
   const [compact, setCompact] = useState(false);
@@ -160,6 +165,11 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     setLayout(null);
     setLayoutError(false);
     setFitted(false);
+    setSlowLayout(false);
+    const slowTimer = setTimeout(
+      () => setSlowLayout(true),
+      SLOW_LAYOUT_HINT_MS,
+    );
     // A new graph gets a fresh fit; stale hover highlighting drops too.
     overrideRef.current = null;
     setHoveredId(null);
@@ -174,14 +184,14 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       })
       .catch((error) => {
         if (cancelled) return; // superseded — the rejection IS the cancellation
-        reportError(error, {
-          area: "trace-graph-layout",
-          warnMessage: "graph layout failed",
-        });
+        // No warnMessage: the console line must carry ELK's own reason (e.g.
+        // "too much recursion"), which is the whole diagnostic.
+        reportError(error, { area: "trace-graph-layout" });
         setLayoutError(true);
       });
     return () => {
       cancelled = true;
+      clearTimeout(slowTimer);
       controller.abort();
     };
   }, [graph, nodeToObservationsMap, layoutDirection, layoutAttempt]);
@@ -354,13 +364,22 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       onClick={handleBackgroundClick}
     >
       {!layout && !layoutError && (
-        <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-sm">
-          Laying out graph…
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
+          <span>Laying out graph…</span>
+          {slowLayout && (
+            <span>
+              This is a large graph — the tree and timeline stay usable while it
+              finishes.
+            </span>
+          )}
         </div>
       )}
       {layoutError && (
-        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm">
-          <span>Could not lay out the graph.</span>
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-sm">
+          <span>
+            Could not lay out the graph. Try the tree or timeline view to
+            explore this trace.
+          </span>
           <Button
             variant="outline"
             size="sm"
