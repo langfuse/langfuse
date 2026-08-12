@@ -118,7 +118,8 @@ const nextConfig = {
     browserToTerminal: true,
   },
   experimental: {
-    turbopackFileSystemCacheForBuild: true,
+    // Use the Rust port instead of the Babel transform
+    // turbopackRustReactCompiler: true,
   },
 
   /**
