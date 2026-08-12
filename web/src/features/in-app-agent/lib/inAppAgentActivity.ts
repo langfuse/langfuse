@@ -55,17 +55,24 @@ export const IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION = 1;
  * will not contribute badge/toast attention until it is bumped back into the
  * page (e.g. by a new message). Revisit if parked approvals must never drop off.
  *
- * Handled/delivered receipts are localStorage per browser profile — not synced
- * across devices. A new profile baselines the current newest-N as already seen.
+ * Handled/delivered receipts are localStorage per browser profile per user —
+ * not synced across devices or accounts. A new profile/user baselines the
+ * current newest-N as already seen.
  */
 export const IN_APP_AGENT_ACTIVITY_LIST_LIMIT = 50;
 
-export function getInAppAgentActivityReceiptsStorageKey(projectId: string) {
-  return `langfuse-in-app-agent-activity:v${IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION}:${projectId}`;
+export function getInAppAgentActivityReceiptsStorageKey(
+  projectId: string,
+  userId: string,
+) {
+  return `langfuse-in-app-agent-activity:v${IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION}:${projectId}:${userId}`;
 }
 
-export function getInAppAgentDeliveredReceiptsStorageKey(projectId: string) {
-  return `langfuse-in-app-agent-delivered:v${IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION}:${projectId}`;
+export function getInAppAgentDeliveredReceiptsStorageKey(
+  projectId: string,
+  userId: string,
+) {
+  return `langfuse-in-app-agent-delivered:v${IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION}:${projectId}:${userId}`;
 }
 
 export function getInAppAgentActivityKey(run: {

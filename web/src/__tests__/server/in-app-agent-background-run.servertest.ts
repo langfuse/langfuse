@@ -25,6 +25,7 @@ import {
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { env } from "@/src/env.mjs";
+import { serializeConversationLatestRun } from "@/src/features/in-app-agent/server/backgroundRunService";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -1291,8 +1292,6 @@ describe("in-app agent background runs", () => {
   });
 
   it("lists the caller's newest run and classifies a dead worker without writing", async () => {
-    const { serializeConversationLatestRun } =
-      await import("@/src/features/in-app-agent/server/backgroundRunService");
     const { projectId, userId } = await createCaller();
     const mine = await createConversation({ projectId, userId });
     const otherUserId = `user-${randomUUID()}`;

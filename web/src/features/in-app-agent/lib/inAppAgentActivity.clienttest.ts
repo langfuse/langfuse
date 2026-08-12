@@ -4,6 +4,8 @@ import { InAppAgentRunStatus } from "@langfuse/shared";
 
 import {
   getInAppAgentActivityKey,
+  getInAppAgentActivityReceiptsStorageKey,
+  getInAppAgentDeliveredReceiptsStorageKey,
   getInAppAgentPendingNotificationCards,
   markInAppAgentActivityDelivered,
   markInAppAgentConversationHandled,
@@ -45,6 +47,18 @@ const sync = (
   });
 
 describe("in-app agent activity receipts", () => {
+  it("scopes ledger storage keys to project and user", () => {
+    expect(getInAppAgentActivityReceiptsStorageKey("project-1", "user-a")).toBe(
+      "langfuse-in-app-agent-activity:v1:project-1:user-a",
+    );
+    expect(
+      getInAppAgentDeliveredReceiptsStorageKey("project-1", "user-a"),
+    ).toBe("langfuse-in-app-agent-delivered:v1:project-1:user-a");
+    expect(
+      getInAppAgentActivityReceiptsStorageKey("project-1", "user-a"),
+    ).not.toBe(getInAppAgentActivityReceiptsStorageKey("project-1", "user-b"));
+  });
+
   it("baselines history, then treats status changes as unread attention", () => {
     const first = sync(null, [
       conversation(

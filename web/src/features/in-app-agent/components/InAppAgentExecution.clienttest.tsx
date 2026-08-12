@@ -18,6 +18,10 @@ const providerMocks = vi.hoisted(() => {
   const startRun = vi.fn();
   const cancelRun = vi.fn();
   const decideToolApproval = vi.fn();
+  const activityQuery = {
+    data: undefined as undefined,
+    refetch: vi.fn(() => Promise.resolve({ data: undefined })),
+  };
 
   return {
     capture: vi.fn(),
@@ -30,10 +34,8 @@ const providerMocks = vi.hoisted(() => {
       decideToolApproval: { mutateAsync: decideToolApproval },
     },
     getConversation: vi.fn(),
-    activityQuery: {
-      data: undefined,
-      refetch: vi.fn(() => Promise.resolve({ data: undefined })),
-    },
+    activityQuery,
+    activityUseQuery: vi.fn(() => activityQuery),
     listQuery: {
       data: { pages: [{ conversations: [] }] },
       error: null,
@@ -98,17 +100,34 @@ vi.mock("next/router", () => ({
   }),
 }));
 
+const sessionMocks = vi.hoisted(() => ({
+  userId: "user-1" as string | undefined,
+  aiFeaturesEnabled: true,
+  isLangfuseCloud: true,
+}));
+
 vi.mock("next-auth/react", () => ({
-  useSession: () => ({ data: { user: { name: "Test User" } } }),
+  useSession: () => ({
+    data: {
+      user: { id: sessionMocks.userId, name: "Test User" },
+    },
+  }),
 }));
 
 vi.mock("@/src/features/entitlements/hooks", () => ({
   useHasEntitlement: () => true,
 }));
 
+vi.mock("@/src/features/organizations/hooks", () => ({
+  useLangfuseCloudRegion: () => ({
+    isLangfuseCloud: sessionMocks.isLangfuseCloud,
+    region: sessionMocks.isLangfuseCloud ? "US" : undefined,
+  }),
+}));
+
 vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
-    organization: { aiFeaturesEnabled: true },
+    organization: { aiFeaturesEnabled: sessionMocks.aiFeaturesEnabled },
   }),
 }));
 
@@ -123,7 +142,8 @@ vi.mock("@/src/utils/api", () => ({
       listConversations: {
         useInfiniteQuery: () => providerMocks.listQuery,
         // Bounded activity poll: same procedure, `limit: 50`.
-        useQuery: () => providerMocks.activityQuery,
+        useQuery: (...args: unknown[]) =>
+          providerMocks.activityUseQuery(...args),
       },
       getConversation: {
         useQuery: (...args: unknown[]) => {
@@ -246,6 +266,12 @@ function queryActivityIndicator() {
 
 describe("in-app agent execution", () => {
   beforeEach(() => {
+    sessionMocks.userId = "user-1";
+    sessionMocks.aiFeaturesEnabled = true;
+    sessionMocks.isLangfuseCloud = true;
+    providerMocks.activityUseQuery.mockImplementation(
+      () => providerMocks.activityQuery,
+    );
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({
@@ -262,6 +288,35 @@ describe("in-app agent execution", () => {
     vi.unstubAllGlobals();
     providerMocks.conversationQuery.data = undefined;
     window.sessionStorage.clear();
+  });
+
+  it("disables activity polling when AI features are off", () => {
+    sessionMocks.aiFeaturesEnabled = false;
+
+    render(
+      <InAppAiAgentProvider defaultOpen={false}>
+        <div />
+      </InAppAiAgentProvider>,
+    );
+
+    expect(providerMocks.activityUseQuery).toHaveBeenCalled();
+    const options = providerMocks.activityUseQuery.mock.calls[0]?.[1] as {
+      enabled?: boolean;
+    };
+    expect(options?.enabled).toBe(false);
+  });
+
+  it("enables activity polling when the assistant is server-available", () => {
+    render(
+      <InAppAiAgentProvider defaultOpen={false}>
+        <div />
+      </InAppAiAgentProvider>,
+    );
+
+    const options = providerMocks.activityUseQuery.mock.calls[0]?.[1] as {
+      enabled?: boolean;
+    };
+    expect(options?.enabled).toBe(true);
   });
 
   it("always allows a persisted background tool for the conversation", async () => {
@@ -992,6 +1047,12 @@ describe("in-app agent execution", () => {
 
 describe("in-app agent concurrent conversations", () => {
   beforeEach(() => {
+    sessionMocks.userId = "user-1";
+    sessionMocks.aiFeaturesEnabled = true;
+    sessionMocks.isLangfuseCloud = true;
+    providerMocks.activityUseQuery.mockImplementation(
+      () => providerMocks.activityQuery,
+    );
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({

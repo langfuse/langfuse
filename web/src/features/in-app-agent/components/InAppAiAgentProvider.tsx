@@ -263,14 +263,20 @@ function InAppAiAgentProjectProvider({
 }: InAppAiAgentProviderProps & {
   projectId: string;
 }) {
+  const session = useSession();
+  const userId = session.data?.user?.id ?? null;
   const [open, setOpen] = useSessionStorage<boolean>(
     `${OPEN_STORAGE_KEY_PREFIX}:${projectId}`,
     defaultOpen ?? false,
   );
 
+  // Remount when userId resolves so activity localStorage re-reads the
+  // user-scoped ledger key (useLocalStorage only loads on mount).
   return (
     <InAppAiAgentProviderInner
+      key={userId ?? "pending-session"}
       projectId={projectId}
+      userId={userId}
       open={open}
       setOpen={setOpen}
     >
@@ -281,6 +287,7 @@ function InAppAiAgentProjectProvider({
 
 type InAppAiAgentProviderInnerProps = PropsWithChildren<{
   projectId: string;
+  userId: string | null;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
 }>;
@@ -288,12 +295,15 @@ type InAppAiAgentProviderInnerProps = PropsWithChildren<{
 function InAppAiAgentProviderInner({
   children,
   projectId,
+  userId,
   open,
   setOpen,
 }: InAppAiAgentProviderInnerProps) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
   const [_selectedConversationId, setSelectedConversationId] =
@@ -426,6 +436,14 @@ function InAppAiAgentProviderInner({
       : error;
   const liveMessageVersion = backgroundExecutionView.liveMessageRevision;
 
+  // Mirror assertInAppAgentAvailable: entitlement alone is not enough — cloud
+  // + org AI toggle must be on, or listConversations 403/412s and the global
+  // tRPC handler surfaces Forbidden toasts on every page load/focus.
+  const activityPollingEnabled =
+    isLangfuseCloud &&
+    hasInAppAgentEntitlement &&
+    Boolean(organization?.aiFeaturesEnabled);
+
   const {
     activityByConversationId,
     attentionCount,
@@ -435,7 +453,8 @@ function InAppAiAgentProviderInner({
     markDelivered,
   } = useInAppAgentActivity({
     projectId,
-    enabled: true,
+    userId,
+    enabled: activityPollingEnabled,
     // Only what the user can actually see counts as looked at; a selected
     // conversation behind a closed window has not been read.
     visibleConversationId: open ? selectedConversationId : null,

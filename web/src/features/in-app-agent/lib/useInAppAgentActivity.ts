@@ -19,19 +19,37 @@ import { api } from "@/src/utils/api";
 
 const ACTIVITY_POLL_INTERVAL_MS = 4_000;
 
+/**
+ * Placeholder key while session.user.id is still loading. Never written —
+ * polling and ledger sync stay disabled until a real userId arrives (and the
+ * provider remounts the hook with that id so useLocalStorage re-reads).
+ */
+const PENDING_ACTIVITY_STORAGE_KEY =
+  "langfuse-in-app-agent-activity:v1:__pending__";
+const PENDING_DELIVERED_STORAGE_KEY =
+  "langfuse-in-app-agent-delivered:v1:__pending__";
+
 export function useInAppAgentActivity(params: {
   projectId: string;
+  userId: string | null;
   enabled: boolean;
   visibleConversationId: string | null;
 }) {
-  const { projectId, enabled, visibleConversationId } = params;
+  const { projectId, userId, enabled, visibleConversationId } = params;
+  const ledgerReady = Boolean(userId);
+  const pollEnabled = enabled && ledgerReady;
+
   const [receipts, setReceipts] = useLocalStorage<InAppAgentActivityReceipts>(
-    getInAppAgentActivityReceiptsStorageKey(projectId),
+    userId
+      ? getInAppAgentActivityReceiptsStorageKey(projectId, userId)
+      : PENDING_ACTIVITY_STORAGE_KEY,
     null,
   );
   const [delivered, setDelivered] =
     useLocalStorage<InAppAgentDeliveredReceipts>(
-      getInAppAgentDeliveredReceiptsStorageKey(projectId),
+      userId
+        ? getInAppAgentDeliveredReceiptsStorageKey(projectId, userId)
+        : PENDING_DELIVERED_STORAGE_KEY,
       null,
     );
 
@@ -39,7 +57,7 @@ export function useInAppAgentActivity(params: {
   const activityQuery = api.inAppAgent.listConversations.useQuery(
     { projectId, limit: IN_APP_AGENT_ACTIVITY_LIST_LIMIT },
     {
-      enabled,
+      enabled: pollEnabled,
       refetchInterval: (query) =>
         hasUnsettledInAppAgentActivity(query.state.data?.conversations ?? [])
           ? ACTIVITY_POLL_INTERVAL_MS
@@ -60,7 +78,7 @@ export function useInAppAgentActivity(params: {
   );
 
   const reconciled = useMemo(() => {
-    if (activityQuery.data === undefined) {
+    if (!ledgerReady || activityQuery.data === undefined) {
       return {
         receipts,
         activityByConversationId:
@@ -78,12 +96,18 @@ export function useInAppAgentActivity(params: {
           ? visibleConversationId
           : null,
     });
-  }, [activityQuery.data, conversations, receipts, visibleConversationId]);
+  }, [
+    activityQuery.data,
+    conversations,
+    ledgerReady,
+    receipts,
+    visibleConversationId,
+  ]);
 
   // Adjust the localStorage ledger while rendering when the activity snapshot
   // changes (https://react.dev/learn/you-might-not-need-an-effect). Idempotent:
   // unchanged references skip setState, so React does not loop.
-  if (activityQuery.data !== undefined) {
+  if (ledgerReady && activityQuery.data !== undefined) {
     if (reconciled.receipts !== receipts) {
       setReceipts(reconciled.receipts);
     }
@@ -102,22 +126,28 @@ export function useInAppAgentActivity(params: {
 
   const markConversationHandled = useCallback(
     (conversationId: string, activityKey: string) => {
+      if (!ledgerReady) {
+        return;
+      }
       setReceipts((current) =>
         markInAppAgentConversationHandled(current, conversationId, activityKey),
       );
     },
-    [setReceipts],
+    [ledgerReady, setReceipts],
   );
 
   const markDelivered = useCallback(
     (
       entries: ReadonlyArray<{ conversationId: string; activityKey: string }>,
     ) => {
+      if (!ledgerReady) {
+        return;
+      }
       setDelivered((current) =>
         markInAppAgentActivityDelivered(current, entries),
       );
     },
-    [setDelivered],
+    [ledgerReady, setDelivered],
   );
 
   useEffect(() => {

@@ -538,11 +538,7 @@ async function reconcileConversationRunsInTransaction(params: {
       projectId,
       conversationId,
       status: {
-        in: [
-          InAppAgentRunStatus.QUEUED,
-          InAppAgentRunStatus.RUNNING,
-          InAppAgentRunStatus.AWAITING_APPROVAL,
-        ],
+        in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES],
       },
     },
     select: {
