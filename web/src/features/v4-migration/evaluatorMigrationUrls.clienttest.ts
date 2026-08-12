@@ -11,27 +11,25 @@ describe("buildDeprecatedEvaluatorsUrl", () => {
     );
 
     expect(url.pathname).toBe("/project/project-1/evals");
-    expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual(
-      [
-        {
-          column: "status",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["ACTIVE", "PAUSED"],
-        },
-        {
-          column: "target",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["trace", "dataset"],
-        },
-        {
-          column: "timeScope",
-          type: "arrayOptions",
-          operator: "any of",
-          value: ["NEW"],
-        },
-      ],
-    );
+    expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
+      {
+        column: "status",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["ACTIVE", "PAUSED"],
+      },
+      {
+        column: "target",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace", "dataset"],
+      },
+      {
+        column: "timeScope",
+        type: "arrayOptions",
+        operator: "any of",
+        value: ["NEW"],
+      },
+    ]);
   });
 });
