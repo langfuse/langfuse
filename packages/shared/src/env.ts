@@ -365,6 +365,7 @@ const EnvSchema = z.object({
   // client builds one node per observation before it renders.
   LANGFUSE_MAX_OBSERVATIONS_PER_TRACE: z.coerce
     .number()
+    .int()
     .positive()
     .default(20_000),
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
