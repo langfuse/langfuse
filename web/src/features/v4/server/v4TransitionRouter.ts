@@ -854,6 +854,7 @@ ORDER BY bucket_time ASC, score_name ASC
     AND timestamp <= {toTimestamp: DateTime64(3)}
     AND NOT startsWith(environment, 'langfuse-')
     AND execution_trace_id IS NULL
+    AND source != 'ANNOTATION'
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
@@ -954,6 +955,7 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
     AND timestamp <= {toTimestamp: DateTime64(3)}
     AND NOT startsWith(environment, 'langfuse-')
     AND execution_trace_id IS NULL
+    AND source != 'ANNOTATION'
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
