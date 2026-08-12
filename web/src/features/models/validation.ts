@@ -14,10 +14,11 @@ export const TokenizerSchema = z.enum(["openai", "claude"]).nullish();
 // Input version: allows optional prices for form
 const PriceMapInputSchema = z.record(UsageTypeSchema, PriceSchema.optional());
 
-// Output version: filtered to only defined prices
+// Output version: filtered to only defined prices. A price of 0 is a real,
+// deliberate price — dropping it deleted the usage type on the next save.
 export const PriceMapSchema = PriceMapInputSchema.transform((obj) => {
   return Object.fromEntries(
-    Object.entries(obj).filter(([_, value]) => Boolean(value)),
+    Object.entries(obj).filter(([_, value]) => value != null),
   ) as Record<string, number>;
 }).pipe(z.record(UsageTypeSchema, PriceSchema));
 

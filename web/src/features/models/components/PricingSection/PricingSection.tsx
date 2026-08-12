@@ -1,4 +1,5 @@
 import { PlusCircle } from "lucide-react";
+import { useState } from "react";
 import { useFieldArray } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { FormDescription, FormLabel } from "@/src/components/ui/form";
@@ -26,6 +27,9 @@ const NEW_TIER_CONDITION = {
 
 export function PricingSection({ form }: PricingSectionProps) {
   const tiers = useFieldArray({ control: form.control, name: "pricingTiers" });
+  // Radix seeds `defaultValue` once, at mount, so a tier added later would
+  // render collapsed. Track what the user closed instead: new tiers are open.
+  const [collapsedTiers, setCollapsedTiers] = useState<string[]>([]);
   const usageTypes = useFieldArray({
     control: form.control,
     name: "usageTypes",
@@ -119,6 +123,7 @@ export function PricingSection({ form }: PricingSectionProps) {
   }
 
   const priorities = derivePriorities(tiers.fields);
+  const tierIds = tiers.fields.map((field) => field.id);
 
   // ACCORDION VIEW: Multiple tiers
   return (
@@ -133,7 +138,10 @@ export function PricingSection({ form }: PricingSectionProps) {
 
       <Accordion
         type="multiple"
-        defaultValue={tiers.fields.map((_, i) => `tier-${i}`)} // All expanded
+        value={tierIds.filter((id) => !collapsedTiers.includes(id))}
+        onValueChange={(open) =>
+          setCollapsedTiers(tierIds.filter((id) => !open.includes(id)))
+        }
         className="space-y-2"
       >
         {tiers.fields.map((field, index) => (
