@@ -17,6 +17,7 @@ describe("TraceTruncationNotice", () => {
     mockUseTraceData.mockReturnValue({
       truncatedAtObservations: 25_000,
       detachedObservationId: null,
+      detachedObservationParentLoaded: true,
     });
 
     render(<TraceTruncationNotice />);
@@ -28,18 +29,33 @@ describe("TraceTruncationNotice", () => {
     expect(screen.queryByText(/of 25,001|total/)).not.toBeInTheDocument();
   });
 
-  it("explains the separately loaded observation only when one is shown", () => {
+  it("only claims a wrong position when the detached row actually has one", () => {
+    // The row itself carries no marker, so this copy is the only thing standing
+    // between a root-placed observation and a tree that implies it is top-level.
     mockUseTraceData.mockReturnValue({
       truncatedAtObservations: 10_000,
       detachedObservationId: "obs-past-cap",
+      detachedObservationParentLoaded: false,
     });
     const { unmount } = render(<TraceTruncationNotice />);
-    expect(screen.getByText(/loaded separately/)).toBeInTheDocument();
+    expect(screen.getByText(/appears at the top level/)).toBeInTheDocument();
     unmount();
+
+    // Parent loaded: the row nests correctly, so no placement claim.
+    mockUseTraceData.mockReturnValue({
+      truncatedAtObservations: 10_000,
+      detachedObservationId: "obs-past-cap",
+      detachedObservationParentLoaded: true,
+    });
+    const second = render(<TraceTruncationNotice />);
+    expect(screen.getByText(/loaded separately/)).toBeInTheDocument();
+    expect(screen.queryByText(/top level/)).not.toBeInTheDocument();
+    second.unmount();
 
     mockUseTraceData.mockReturnValue({
       truncatedAtObservations: 10_000,
       detachedObservationId: null,
+      detachedObservationParentLoaded: true,
     });
     render(<TraceTruncationNotice />);
     expect(screen.queryByText(/loaded separately/)).not.toBeInTheDocument();
@@ -49,6 +65,7 @@ describe("TraceTruncationNotice", () => {
     mockUseTraceData.mockReturnValue({
       truncatedAtObservations: 10_000,
       detachedObservationId: null,
+      detachedObservationParentLoaded: true,
     });
     const { rerender } = render(<TraceTruncationNotice />);
 
@@ -64,6 +81,7 @@ describe("TraceTruncationNotice", () => {
     mockUseTraceData.mockReturnValue({
       truncatedAtObservations: 10_000,
       detachedObservationId: "obs-past-cap",
+      detachedObservationParentLoaded: true,
     });
     rerender(<TraceTruncationNotice />);
     expect(screen.getByText(/loaded separately/)).toBeInTheDocument();
@@ -73,6 +91,7 @@ describe("TraceTruncationNotice", () => {
     mockUseTraceData.mockReturnValue({
       truncatedAtObservations: undefined,
       detachedObservationId: null,
+      detachedObservationParentLoaded: true,
     });
 
     const { container } = render(<TraceTruncationNotice />);

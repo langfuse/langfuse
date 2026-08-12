@@ -15,7 +15,6 @@
 import { type TimelineGutterRowProps } from "./types";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { ChevronRight } from "lucide-react";
-import { DetachedObservationBadge } from "../DetachedObservationBadge";
 import { cn } from "@/src/utils/tailwind";
 
 const INDENT = 14; // px per depth level
@@ -25,9 +24,6 @@ const ICON_GAP = 6; // gap from a node's rail to its icon
 export function TimelineGutterRow({
   item,
   isSelected,
-  isDetached,
-  loadedObservationCount,
-  detachedParentLoaded = true,
   isHovered,
   onSelect,
   onHover,
@@ -121,19 +117,13 @@ export function TimelineGutterRow({
         </div>
         <span
           className={cn(
-            "min-w-0 truncate text-xs font-bold",
+            "min-w-0 flex-1 truncate text-xs font-bold",
             isSelected ? "text-foreground" : "dark:text-muted-foreground",
           )}
           title={node.name}
         >
           {node.name || `Unnamed ${node.type.toLowerCase()}`}
         </span>
-        {isDetached && (
-          <DetachedObservationBadge
-            loadedObservationCount={loadedObservationCount}
-            parentLoaded={detachedParentLoaded}
-          />
-        )}
       </div>
 
       {/* Expand/collapse caret, pinned right (as in the tree view). */}

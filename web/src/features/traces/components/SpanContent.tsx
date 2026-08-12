@@ -30,7 +30,6 @@ import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
-import { DetachedObservationBadge } from "./DetachedObservationBadge";
 import type Decimal from "decimal.js";
 
 // How many distinct score groups to show inline on a tree/search row before
@@ -57,13 +56,7 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const {
-    mergedScores,
-    traceLevelScoreOwnerIds,
-    detachedObservationId,
-    detachedObservationParentLoaded,
-    truncatedAtObservations,
-  } = useTraceData();
+  const { mergedScores, traceLevelScoreOwnerIds } = useTraceData();
   const {
     showDuration,
     showCostTokens,
@@ -137,13 +130,6 @@ export function SpanContent({
           </span>
 
           <div className="flex items-center gap-x-2">
-            {node.id === detachedObservationId && (
-              <DetachedObservationBadge
-                loadedObservationCount={truncatedAtObservations}
-                parentLoaded={detachedObservationParentLoaded}
-              />
-            )}
-
             {/* Comment count */}
             {showComments && commentCount !== undefined && (
               <CommentCountIcon count={commentCount} />

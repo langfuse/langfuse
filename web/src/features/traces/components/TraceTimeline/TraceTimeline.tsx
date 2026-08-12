@@ -234,9 +234,6 @@ export function TraceTimeline() {
     comments,
     traceStartTime,
     traceDuration,
-    detachedObservationId,
-    detachedObservationParentLoaded,
-    truncatedAtObservations,
   } = useTraceData();
   const { collapsedNodes, toggleCollapsed, selectedNodeId, setSelectedNodeId } =
     useSelection();
@@ -655,9 +652,6 @@ export function TraceTimeline() {
                   isHovered={hoveredNodeId === nodeId}
                   hasChildren={item.node.children.length > 0}
                   isCollapsed={collapsedNodes.has(nodeId)}
-                  isDetached={nodeId === detachedObservationId}
-                  loadedObservationCount={truncatedAtObservations}
-                  detachedParentLoaded={detachedObservationParentLoaded}
                   maxVisualDepth={gutterMaxVisualDepth}
                   onSelect={handleSelectNode}
                   onHover={handleHoverNode}

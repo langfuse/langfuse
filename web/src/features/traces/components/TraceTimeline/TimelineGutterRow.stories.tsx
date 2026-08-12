@@ -126,30 +126,6 @@ export const Collapsed = meta.story({
   ],
 });
 
-// The observation merged in from outside the loaded (capped) list: it sits at
-// root level because its parents were never loaded, and the marker is what keeps
-// that from reading as "this is a top-level observation".
-export const Detached = meta.story({
-  args: {
-    item: makeItem({
-      depth: 0,
-      treeLines: [],
-      isLastSibling: true,
-      node: makeTreeNode({ name: "rerank-candidate-passages", type: "SPAN" }),
-    }),
-    isDetached: true,
-    loadedObservationCount: 10_000,
-    detachedParentLoaded: false,
-  },
-  decorators: [
-    (Story) => (
-      <div className={ROW_BOX}>
-        <Story />
-      </div>
-    ),
-  ],
-});
-
 // Design showcase: a stacked mini-tree from the real flattening logic, so the
 // connectors connect parent→child across rows exactly as in the app.
 export const TreeShowcase = meta.story({

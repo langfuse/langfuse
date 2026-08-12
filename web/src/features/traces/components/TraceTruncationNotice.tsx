@@ -15,27 +15,40 @@ import { TriangleAlert, X } from "lucide-react";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 
 export function TraceTruncationNotice() {
-  const { truncatedAtObservations, detachedObservationId } = useTraceData();
+  const {
+    truncatedAtObservations,
+    detachedObservationId,
+    detachedObservationParentLoaded,
+  } = useTraceData();
 
   if (!truncatedAtObservations) return null;
 
+  // The detached row carries no marker of its own (deliberately — a per-row label
+  // is noise on every scroll), so this sentence is the ONLY place that can say
+  // the tree may be showing it out of position.
+  const detachedNote = !detachedObservationId
+    ? null
+    : detachedObservationParentLoaded
+      ? " The one you opened is loaded separately."
+      : " The one you opened is loaded separately, and appears at the top level because its parent is missing too.";
+
   return (
     <DismissableNotice
-      // Remount (and so un-dismiss) when the message gains its detached-row
-      // sentence: that is new information, not the notice nagging again.
-      key={detachedObservationId ? "with-detached" : "plain"}
+      // Remount (and so un-dismiss) when the message changes: that is new
+      // information, not the notice nagging again.
+      key={detachedNote ?? "plain"}
       loadedObservationCount={truncatedAtObservations}
-      hasDetachedObservation={!!detachedObservationId}
+      detachedNote={detachedNote}
     />
   );
 }
 
 function DismissableNotice({
   loadedObservationCount,
-  hasDetachedObservation,
+  detachedNote,
 }: {
   loadedObservationCount: number;
-  hasDetachedObservation: boolean;
+  detachedNote: string | null;
 }) {
   // Per trace view: dismissing frees the space for this visit, and the notice is
   // back on the next trace/reload rather than silently gone for good.
@@ -54,9 +67,7 @@ function DismissableNotice({
         </span>{" "}
         by start time. Later ones are missing here — find them in the
         observations table.
-        {hasDetachedObservation
-          ? " The one you opened is loaded separately, marked below."
-          : null}
+        {detachedNote}
       </p>
       <button
         type="button"
