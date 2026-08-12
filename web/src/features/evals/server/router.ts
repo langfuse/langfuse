@@ -1005,9 +1005,6 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      // Mirror the UI capability gate server-side: no new legacy-target
-      // (trace/dataset) evaluators unless the deployment allows legacy or the
-      // project is forced onto the v3 experience. Updates are unaffected.
       assertCanCreateLegacyEvalJob({
         projectId: input.projectId,
         target: input.target,

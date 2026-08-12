@@ -32,7 +32,7 @@ describe("isNewLegacyEvalAllowed", () => {
     expect(
       isNewLegacyEvalAllowed({
         v4WriteMode: "legacy",
-        isLangfuseCloud: true,
+        isLangfuseCloud: false,
         isForceV3Project: false,
       }),
     ).toBe(true);

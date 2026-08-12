@@ -85,9 +85,6 @@ export type ProjectMigrationStatus = {
   experiments: MigrationActionState;
   apis: MigrationCountState;
   exports: MigrationCountState;
-  // Project is forced onto the v3 experience: the upgrade is handled by its
-  // integration partner, not the user. Optional so call sites that never deal
-  // with forced projects (e.g. the sidebar nav item) need not set it.
   forceV3Experience?: boolean;
 };
 

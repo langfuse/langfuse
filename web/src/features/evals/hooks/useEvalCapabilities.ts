@@ -11,7 +11,6 @@ export interface EvalCapabilities {
   allowLegacy: boolean;
   isLoading: boolean;
   hasLegacyEvals: boolean;
-  // Project is forced onto the v3 experience: suppress v4 upgrade nags.
   forceV3Experience: boolean;
 }
 
@@ -38,14 +37,17 @@ export function useEvalCapabilities(
   // Query SDK version info from events table (only when v4 beta is enabled)
   const sdkVersionInfo = api.events.getSdkVersionInfo.useQuery(
     { projectId },
-    { enabled: isBetaEnabled },
+    { enabled: isBetaEnabled && Boolean(projectId) },
   );
 
   // Determine OTEL status from SDK version info
   const isOtel = sdkVersionInfo.data?.isOtel ?? false;
 
   // Get eval counts including legacy eval count
-  const evalCounts = api.evals.counts.useQuery({ projectId });
+  const evalCounts = api.evals.counts.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId) },
+  );
   const hasLegacyEvals = (evalCounts.data?.legacyConfigCount ?? 0) > 0;
 
   // The legacy eval experience depends on whether the deployment still writes

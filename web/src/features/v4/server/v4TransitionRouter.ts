@@ -571,7 +571,11 @@ export const v4TransitionRouter = createTRPCRouter({
   // Whether this project is forced onto the v3 experience
   forceV3Experience: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(({ input }) => isForceV3ExperienceProject(input.projectId)),
+    .query(({ input }) => {
+      return {
+        forceV3: isForceV3ExperienceProject(input.projectId),
+      };
+    }),
 
   summary: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -727,8 +731,6 @@ export const v4TransitionRouter = createTRPCRouter({
             legacyIntegrationCount:
               Object.values(legacyIntegrations).filter(Boolean).length,
             legacyIntegrations,
-            // Forced onto the v3 experience: the upgrade is handled by the
-            // project's integration partner, not the user.
             forceV3Experience: isForceV3ExperienceProject(project.id),
           };
         }),
