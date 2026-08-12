@@ -1,4 +1,4 @@
-import { CircleAlert, CircleCheck, CircleX, X } from "lucide-react";
+import { BotMessageSquare, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
@@ -32,19 +32,20 @@ export function selectInAppAgentActivityCards(
 }
 
 function getCardCopy(state: InAppAgentActivityCard["state"]) {
+  // Lead with "Assistant" so the toast reads as the same product as the
+  // launcher (BotMessageSquare), not a generic system alert.
   if (state === "approval") {
     return {
-      label: "Needs your approval",
-      Icon: CircleAlert,
+      label: "Assistant needs your approval",
       tone: "accent" as const,
     };
   }
 
   if (state === "failed-unread") {
-    return { label: "Run failed", Icon: CircleX, tone: "destructive" as const };
+    return { label: "Assistant run failed", tone: "destructive" as const };
   }
 
-  return { label: "Finished", Icon: CircleCheck, tone: "accent" as const };
+  return { label: "Assistant finished", tone: "accent" as const };
 }
 
 /** Pure floating stack: ordering/cap live here; callers own delivery lifecycle. */
@@ -66,7 +67,7 @@ export function InAppAgentActivityCards({
   return (
     <div className="top-banner-offset pointer-events-none fixed right-4 flex w-80 flex-col gap-2 pt-4">
       {visible.map((card) => {
-        const { label, Icon, tone } = getCardCopy(card.state);
+        const { label, tone } = getCardCopy(card.state);
         const conversationTitle = card.title?.trim() || "Untitled conversation";
 
         return (
@@ -75,13 +76,14 @@ export function InAppAgentActivityCards({
             role="status"
             className="bg-background pointer-events-auto flex items-start gap-2 rounded-md border p-3 shadow-lg"
           >
-            <Icon
+            <BotMessageSquare
               className={cn(
                 "mt-0.5 size-4 shrink-0",
                 tone === "destructive"
                   ? "text-destructive"
                   : "text-primary-accent",
               )}
+              aria-hidden
             />
             <button
               type="button"
