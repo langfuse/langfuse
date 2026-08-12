@@ -25,6 +25,24 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'e."ingestion_api_key"',
   },
   {
+    uiTableName: "SDK Name",
+    uiTableId: "ingestionSdkName",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: 'e."ingestion_sdk_name"',
+  },
+  {
+    uiTableName: "SDK Version",
+    uiTableId: "ingestionSdkVersion",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: 'e."ingestion_sdk_version"',
+  },
+  {
+    uiTableName: "Ingestion Source",
+    uiTableId: "ingestionSource",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: 'e."source"',
+  },
+  {
     uiTableName: "Type",
     uiTableId: "type",
     clickhouseTableName: "events_proto",

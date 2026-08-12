@@ -6,12 +6,12 @@ import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evalua
 import {
   mapLegacyToModernTarget,
   isTraceTarget,
-  isEventTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
+import { Callout } from "@/src/components/ui/callout";
 import { Separator } from "@/src/components/ui/separator";
 import {
   DropdownMenu,
@@ -19,9 +19,27 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { ChevronDown } from "lucide-react";
+import { BotMessageSquare, ChevronDown, Zap } from "lucide-react";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
+import { useQueryProject } from "@/src/features/projects/hooks";
+import {
+  useCanUseInAppAgent,
+  useInAppAiAgent,
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
+import {
+  DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING_V3,
+  DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
+} from "@/src/features/evals/utils/evaluator-constants";
+import { buildModernEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+
+const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+const EVAL_MIGRATION_DOCS_URL =
+  "https://langfuse.com/faq/all/llm-as-a-judge-migration";
 
 type LegacyEvalAction = "keep-active" | "mark-inactive" | "delete";
 
@@ -29,12 +47,32 @@ export default function RemapEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evalConfigId = router.query.evaluator as string;
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const capture = usePostHogClientCapture();
+  const { organization } = useQueryProject();
+  const canUseAssistant = useCanUseInAppAgent();
+  const { openAssistant, submit } = useInAppAiAgent();
+  const sdk = useProjectV4SdkData({
+    projectId,
+    orgId: organization?.id,
+    enabled: v4UpgradeUiEnabled && Boolean(projectId),
+  });
 
   const evalCapabilities = useEvalCapabilities(projectId);
+  const upgradePlan = useEvalUpgradeAssistantPlan({
+    projectId,
+    orgId: organization?.id,
+    enabled: v4UpgradeUiEnabled && Boolean(projectId),
+  });
 
   const [error, setError] = useState<string | null>(null);
   const [legacyAction, setLegacyAction] =
     useState<LegacyEvalAction>("mark-inactive");
+
+  const returnFilter =
+    typeof router.query.returnFilter === "string"
+      ? router.query.returnFilter
+      : undefined;
 
   // Fetch old eval config
   const { data: oldConfig, isLoading: isLoadingConfig } =
@@ -55,11 +93,34 @@ export default function RemapEvaluatorPage() {
 
   const utils = api.useUtils();
 
+  const traceLevelEvalSummary = api.v4Transition.traceLevelEvalSummary.useQuery(
+    { projectId },
+    {
+      enabled: v4UpgradeUiEnabled && Boolean(projectId),
+      refetchOnWindowFocus: false,
+    },
+  );
+
+  const redirectAfterSave = async () => {
+    utils.evals.invalidate();
+    const { data } = await traceLevelEvalSummary.refetch();
+    const remainingCount = data?.traceLevelEvalCount;
+
+    if (remainingCount === 0) {
+      await router.push(buildModernEvaluatorsUrl(projectId));
+      return;
+    }
+
+    const filterQuery = returnFilter
+      ? `?filter=${encodeURIComponent(returnFilter)}`
+      : "";
+    await router.push(`/project/${projectId}/evals${filterQuery}`);
+  };
+
   // Update mutation to set old eval to INACTIVE
   const updateJobMutation = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
       utils.evals.invalidate();
-      router.push(`/project/${projectId}/evals`);
     },
     onError: (err) => {
       setError(err.message ?? "Failed to update old eval configuration");
@@ -70,12 +131,13 @@ export default function RemapEvaluatorPage() {
   const deleteJobMutation = api.evals.deleteEvalJob.useMutation({
     onSuccess: () => {
       utils.evals.invalidate();
-      router.push(`/project/${projectId}/evals`);
     },
     onError: (err) => {
       setError(err.message ?? "Failed to delete old eval configuration");
     },
   });
+
+  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
 
   // Map old config to new config with modern target
   // Only copy scoreName - filters and variable mapping will be initialized fresh
@@ -90,7 +152,9 @@ export default function RemapEvaluatorPage() {
       jobType: oldConfig.jobType,
       filter:
         oldConfig.targetObject === "trace"
-          ? DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING
+          ? isV4BetaEnabled
+            ? DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING
+            : DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING_V3
           : [],
       variableMapping: [],
       sampling: oldConfig.sampling,
@@ -99,7 +163,7 @@ export default function RemapEvaluatorPage() {
       // Always set to NEW for remapped evals - new eval types cannot run on existing data
       timeScope: ["NEW"],
     };
-  }, [oldConfig]);
+  }, [oldConfig, isV4BetaEnabled]);
 
   const handleFormSuccess = async () => {
     if (!oldConfig) return;
@@ -108,8 +172,7 @@ export default function RemapEvaluatorPage() {
       switch (legacyAction) {
         case "keep-active":
           // Do nothing - both old and new evals will be active
-          utils.evals.invalidate();
-          router.push(`/project/${projectId}/evals`);
+          await redirectAfterSave();
           break;
         case "mark-inactive":
           // Set old eval to INACTIVE
@@ -120,6 +183,7 @@ export default function RemapEvaluatorPage() {
               status: "INACTIVE",
             },
           });
+          await redirectAfterSave();
           break;
         case "delete":
           // Delete old eval
@@ -127,6 +191,7 @@ export default function RemapEvaluatorPage() {
             projectId,
             evalConfigId,
           });
+          await redirectAfterSave();
           break;
       }
     } catch (err) {
@@ -135,7 +200,17 @@ export default function RemapEvaluatorPage() {
     }
   };
 
-  const isLoading = isLoadingConfig || isLoadingTemplate;
+  const handleUseAssistant = async () => {
+    capture("v4_migration:migrate_evals_with_agent_clicked");
+    const opened = openAssistant("v4_migration");
+    if (!opened) return;
+    await submit(upgradePlan.assistantPrompt, { newConversation: true });
+  };
+
+  const isLoading =
+    isLoadingConfig ||
+    isLoadingTemplate ||
+    (v4UpgradeUiEnabled && sdk.status === "checking");
 
   return (
     <Page
@@ -152,7 +227,58 @@ export default function RemapEvaluatorPage() {
       }}
     >
       <div className="space-y-4">
-        <div>
+        {v4UpgradeUiEnabled ? (
+          <Callout
+            id={"v4-evaluator-upgrade:" + evalConfigId}
+            ttlMs={7 * 24 * 60 * 60 * 1000}
+            variant="info"
+            align="top"
+            actions={() => (
+              <>
+                {canUseAssistant ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleUseAssistant}
+                  >
+                    <BotMessageSquare className="mr-1.5 h-4 w-4" />
+                    Use Assistant to help with upgrade
+                  </Button>
+                ) : null}
+                <Button asChild size="sm" variant="secondary">
+                  <a
+                    href={V4_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Docs
+                  </a>
+                </Button>
+              </>
+            )}
+          >
+            <div className="flex items-start gap-2">
+              <Zap className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                <span className="font-bold">
+                  This evaluator needs an upgrade for Langfuse v4.
+                </span>{" "}
+                Evaluators are moving to observation-level. Upgrade this
+                configuration to keep its scores aligned with the v4 data model.{" "}
+                <a
+                  href={EVAL_MIGRATION_DOCS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  Learn more about evaluator upgrades
+                </a>
+                .
+              </span>
+            </div>
+          </Callout>
+        ) : null}
+        <div className="min-w-0">
           <p className="text-muted-foreground text-sm">
             Review your legacy evaluator on the left and configure the new eval
             settings on the right.{" "}
@@ -166,20 +292,6 @@ export default function RemapEvaluatorPage() {
             </a>{" "}
             to upgrade successfully.
           </p>
-          {mappedConfig ? (
-            <Alert
-              variant="default"
-              className="border-light-yellow bg-light-yellow mt-2"
-            >
-              <AlertDescription>
-                <div className="flex flex-col gap-2">
-                  {isEventTarget(mappedConfig.targetObject ?? "event")
-                    ? "Running observation-targeting evaluators requires JS SDK ≥ 4.0.0 or Python SDK ≥ 3.0.0."
-                    : "Running observation-targeting evaluators requires JS SDK ≥ 4.4.0 or Python SDK ≥ 3.9.0."}
-                </div>
-              </AlertDescription>
-            </Alert>
-          ) : null}
         </div>
 
         <div>
@@ -195,9 +307,9 @@ export default function RemapEvaluatorPage() {
               </AlertDescription>
             </Alert>
           ) : (
-            <div className="grid grid-cols-[1fr_2px_1fr] items-start">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2px_minmax(0,1fr)] items-start">
               {/* LEFT: Read-only old config */}
-              <div className="space-y-4 p-3">
+              <div className="min-w-0 space-y-4 p-3">
                 <div className="flex items-center gap-2 pb-2">
                   <h3 className="text-lg font-bold">
                     Legacy Configuration{" "}
@@ -222,13 +334,14 @@ export default function RemapEvaluatorPage() {
                   preventRedirect={true}
                   renderFooter={() => null}
                   evalCapabilities={evalCapabilities}
+                  showPreviewTargetBadge={false}
                 />
               </div>
 
               <Separator orientation="vertical" className="self-stretch" />
 
               {/* RIGHT: Editable new config form */}
-              <div className="space-y-4 p-3">
+              <div className="min-w-0 space-y-4 p-3">
                 <h3 className="pb-2 text-lg font-bold">
                   New Configuration{" "}
                   {isTraceTarget(oldConfig.targetObject)
@@ -247,7 +360,9 @@ export default function RemapEvaluatorPage() {
                   preventRedirect={true}
                   hideAdvancedSettings={true}
                   evalCapabilities={evalCapabilities}
+                  showPreviewTargetBadge={false}
                   oldConfigId={evalConfigId}
+                  hideRootObservationFilter={!isV4BetaEnabled}
                   renderFooter={({ isLoading, isSaveDisabled }) => (
                     <div className="flex w-full flex-col items-end gap-4">
                       <div className="flex items-center">

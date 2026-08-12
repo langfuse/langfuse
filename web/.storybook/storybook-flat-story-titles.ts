@@ -3,7 +3,7 @@ import { storyNameFromExport, toId } from "storybook/internal/csf";
 import type { Plugin } from "vite";
 import { readFile } from "node:fs/promises";
 import { basename } from "path";
-import * as ts from "typescript";
+import * as ts from "@typescript/typescript6";
 
 const STORY_FILE_PATTERN = /\.stories\.[cm]?[jt]sx?$/;
 

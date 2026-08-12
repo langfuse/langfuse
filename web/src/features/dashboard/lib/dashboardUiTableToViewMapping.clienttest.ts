@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  displayNameForFilterColumn,
   mapViewFilterToUiTableFilter,
   mapWidgetUiTableFilterToView,
 } from "./dashboardUiTableToViewMapping";
@@ -28,4 +29,23 @@ describe("widget filter mappings", () => {
       ]);
     },
   );
+});
+
+describe("displayNameForFilterColumn", () => {
+  it.each([
+    ["providedModelName", "Model"],
+    ["model", "Model"],
+    ["Model", "Model"],
+    ["isRootObservation", "Is Root Observation"],
+    ["userId", "User"],
+    ["calledToolNames", "Tool Names (Called)"],
+  ])("resolves %s to %s", (column, expected) => {
+    expect(displayNameForFilterColumn(column)).toBe(expected);
+  });
+
+  it("unmapped column: falls back to the raw column", () => {
+    expect(displayNameForFilterColumn("totallyUnknownColumn")).toBe(
+      "totallyUnknownColumn",
+    );
+  });
 });

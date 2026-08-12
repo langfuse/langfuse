@@ -1,16 +1,59 @@
 import { ChevronRight } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
+
+// Status dots shared across the v4-migration surfaces (badge, panel section
+// rows, clean summary). This file sits on the no-raw-colors baseline; the raw
+// palette values are intentional — the semantic warning/success fills read
+// too muted at this size.
+export function V4MigrationStatusDot({
+  variant,
+}: {
+  variant: "action" | "done";
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "size-1.75 shrink-0 rounded-full",
+        variant === "action"
+          ? "bg-orange-400 dark:bg-orange-400"
+          : "bg-green-400 dark:bg-green-400",
+      )}
+    />
+  );
+}
 
 type V4MigrationBadgeContentProps = {
   onClick: () => void;
   title: string;
-  description: string;
+  description?: string;
+  showChevron?: boolean;
+  compact?: boolean;
 };
 
 export function V4MigrationBadgeContent({
   onClick,
   title,
   description,
+  showChevron = true,
+  compact = false,
 }: V4MigrationBadgeContentProps) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="hover:bg-muted/50 hover:text-foreground inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-bold whitespace-nowrap"
+      >
+        <span
+          aria-hidden
+          className="size-1.75 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
+        />
+        {title}
+      </button>
+    );
+  }
+
   return (
     <span className="inline-grid flex-none shrink-0">
       <span
@@ -19,8 +62,11 @@ export function V4MigrationBadgeContent({
       >
         <span className="size-1.75 shrink-0 rounded-full" />
         <span className="flex items-center">
-          {title}.&nbsp;{description}.
-          <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+          {title}
+          {description ? <>&nbsp;{description}.</> : null}
+          {showChevron ? (
+            <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+          ) : null}
         </span>
       </span>
 
@@ -29,16 +75,17 @@ export function V4MigrationBadgeContent({
         onClick={onClick}
         className="group ring-input hover:bg-muted/50 hover:text-foreground col-start-1 row-start-1 inline-flex w-fit flex-none shrink-0 items-center gap-1.5 justify-self-start rounded-full bg-transparent px-2 py-0.5 text-xs font-bold whitespace-nowrap ring"
       >
-        <span
-          aria-hidden
-          className="size-1.75 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
-        />
+        <V4MigrationStatusDot variant="action" />
         <span className="flex items-center">
           {title}
-          <span className="flex max-w-0 items-center overflow-hidden transition-[max-width] duration-300 ease-out group-hover:max-w-96 group-focus-visible:max-w-96">
-            <span className="whitespace-nowrap">.&nbsp;{description}.</span>
-          </span>
-          <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+          {description ? (
+            <span className="flex max-w-0 items-center overflow-hidden transition-[max-width] duration-300 ease-out group-hover:max-w-96 group-focus-visible:max-w-96">
+              <span className="whitespace-nowrap">.&nbsp;{description}.</span>
+            </span>
+          ) : null}
+          {showChevron ? (
+            <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+          ) : null}
         </span>
       </button>
     </span>

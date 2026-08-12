@@ -57,6 +57,24 @@ interface TraceDataContextValue {
   nodeMap: Map<string, TreeNode>;
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
+  /**
+   * Observation that was merged in from a by-id fetch because it sits outside the
+   * loaded (capped) list. Its ancestors are unknown, so treeBuilding places it at
+   * root level — the views MUST mark it, or a deeply nested observation silently
+   * reads as top-level.
+   */
+  detachedObservationId: string | null;
+  /**
+   * True when that observation renders at root level WITHOUT being a root: its
+   * own parent fell past the cap too, so treeBuilding could not resolve the
+   * reference and nulled it. The three cases collapse to this one question —
+   * a loaded parent nests correctly, and a genuinely parentless row IS a root —
+   * but they must not be conflated: reading "no parent" as "parent is loaded"
+   * is what made the UI claim a position it did not have.
+   */
+  detachedObservationIsMisplaced: boolean;
+  /** Observation cap this trace was loaded under, when it hit it. */
+  truncatedAtObservations?: number;
   comments: Map<string, number>;
   /** Timeline origin (the 0s mark): earliest start across the whole tree. The
    * single owner of the temporal frame — timeline, playhead, and graph all
@@ -82,6 +100,9 @@ interface TraceDataProviderProps {
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   comments: Map<string, number>;
+  detachedObservationId?: string | null;
+  detachedObservationIsMisplaced?: boolean;
+  truncatedAtObservations?: number;
   children: ReactNode;
 }
 
@@ -95,6 +116,9 @@ export function TraceDataProvider({
   serverScores,
   corrections,
   comments,
+  detachedObservationId = null,
+  detachedObservationIsMisplaced = false,
+  truncatedAtObservations,
   children,
 }: TraceDataProviderProps) {
   const { minObservationLevel } = useViewPreferences();
@@ -156,8 +180,14 @@ export function TraceDataProvider({
   );
 
   const traceLevelScoreOwnerIdSet = useMemo(
-    () => traceLevelScoreOwnerIds(uiData.roots),
-    [uiData.roots],
+    () =>
+      traceLevelScoreOwnerIds(
+        uiData.roots,
+        // Only a misplaced row is an impostor among the roots; a genuine root
+        // that happened to fall past the cap is still a root.
+        detachedObservationIsMisplaced ? detachedObservationId : null,
+      ),
+    [uiData.roots, detachedObservationId, detachedObservationIsMisplaced],
   );
 
   // Merge scores with optimistic cache
@@ -182,6 +212,9 @@ export function TraceDataProvider({
       nodeMap: uiData.nodeMap,
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
+      detachedObservationId,
+      detachedObservationIsMisplaced,
+      truncatedAtObservations,
       comments,
       traceStartTime,
       traceDuration,
@@ -196,6 +229,9 @@ export function TraceDataProvider({
       traceLevelScoreOwnerIdSet,
       filteredSearchItems,
       hiddenObservationsCount,
+      detachedObservationId,
+      detachedObservationIsMisplaced,
+      truncatedAtObservations,
       uiData.nodeMap,
       comments,
       traceStartTime,

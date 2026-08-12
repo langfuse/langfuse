@@ -76,7 +76,7 @@ export function useTraceDetailData({
       isError: false,
       isNotFound: false,
       isUnauthorized: false,
-      cutoffObservationsAfterMaxCount: false,
+      truncatedAtObservations: undefined,
     };
   }
 
@@ -100,8 +100,7 @@ export function useTraceDetailData({
       isNotFound:
         !eventsData.isLoading && !eventsData.data && !eventsData.error,
       isUnauthorized,
-      cutoffObservationsAfterMaxCount:
-        eventsData.cutoffObservationsAfterMaxCount,
+      truncatedAtObservations: eventsData.truncatedAtObservations,
     };
   }
 
@@ -112,6 +111,7 @@ export function useTraceDetailData({
     isError: tracesQuery.isError,
     isNotFound: tracesQuery.error?.data?.code === "NOT_FOUND",
     isUnauthorized: tracesQuery.error?.data?.code === "UNAUTHORIZED",
-    cutoffObservationsAfterMaxCount: false,
+    // The traces-table read path has no row cap.
+    truncatedAtObservations: undefined,
   };
 }

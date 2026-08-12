@@ -336,6 +336,8 @@ export const InnerEvaluatorForm = (props: {
   hideAdvancedSettings?: boolean;
   hideTargetSelection?: boolean;
   hidePreviewTable?: boolean;
+  hideRootObservationFilter?: boolean;
+  showPreviewTargetBadge?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
@@ -1156,6 +1158,12 @@ export const InnerEvaluatorForm = (props: {
                         // Event evaluators - use observation columns
                         return observationEvalFilterColsWithOptions(
                           observationEvalFilterOptions,
+                        ).filter(
+                          (column) =>
+                            !(
+                              props.hideRootObservationFilter &&
+                              column.id === "isRootObservation"
+                            ),
                         );
                       } else if (isTraceTarget(target)) {
                         return tracesTableColsWithOptions(
@@ -1348,6 +1356,7 @@ export const InnerEvaluatorForm = (props: {
           compatibilityCheckWasPerformed={
             props.evalCapabilities.compatibilityCheckWasPerformed
           }
+          showPreviewTargetBadge={props.showPreviewTargetBadge}
         />
       )}
     </div>

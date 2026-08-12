@@ -69,9 +69,11 @@ async function convertOtelSpanToIngestionEvent(
   resourceSpan: any,
   seenTraces: Set<string>,
   publicKey?: string,
+  config: Partial<OtelIngestionProcessorConfig> = {},
 ): Promise<TestIngestionEvent[]> {
   const processor = createTestOtelProcessor({
     publicKey: publicKey ?? "",
+    ...config,
   });
 
   // For tests, we bypass Redis initialization and directly set the seen traces
@@ -1270,6 +1272,112 @@ describe("OTel Resource Span Mapping", () => {
         unsigned: true,
       },
     };
+
+    const createOpenRouterBroadcastSpan = ({
+      serviceName = "openrouter",
+      source = "openrouter",
+      completion = null,
+      rawRequestEnvironment = "langfuse-llm-as-a-judge",
+      explicitEnvironment,
+    }: {
+      serviceName?: string;
+      source?: string;
+      completion?: unknown;
+      rawRequestEnvironment?: string;
+      explicitEnvironment?: string;
+    } = {}) => ({
+      resource: {
+        attributes: [
+          {
+            key: "service.name",
+            value: { stringValue: serviceName },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: { name: "openrouter" },
+          spans: [
+            {
+              ...defaultSpanProps,
+              attributes: [
+                {
+                  key: "openrouter.source",
+                  value: { stringValue: source },
+                },
+                ...(explicitEnvironment
+                  ? [
+                      {
+                        key: "langfuse.environment",
+                        value: { stringValue: explicitEnvironment },
+                      },
+                    ]
+                  : []),
+                {
+                  key: "gen_ai.completion",
+                  value: {
+                    stringValue: JSON.stringify({
+                      completion,
+                      rawRequest: {
+                        trace: { environment: rawRequestEnvironment },
+                      },
+                    }),
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    it("recovers the internal evaluator environment from failed OpenRouter Broadcast requests", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan(),
+        new Set(),
+        undefined,
+        { isLangfuseInternal: true },
+      );
+
+      expect(events.map((event) => event.body.environment)).toEqual([
+        "llm-as-a-judge",
+        "llm-as-a-judge",
+      ]);
+    });
+
+    it("prefers an explicit environment over the OpenRouter failed-request fallback", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "customer-production",
+        }),
+        new Set(),
+      );
+
+      expect(events.map((event) => event.body.environment)).toEqual([
+        "customer-production",
+        "customer-production",
+      ]);
+    });
+
+    it.each([
+      ["a non-OpenRouter service", { serviceName: "application" }],
+      ["a non-OpenRouter source", { source: "application" }],
+      ["a successful completion", { completion: {} }],
+      ["a customer environment", { rawRequestEnvironment: "production" }],
+    ])(
+      "does not recover evaluator provenance from %s",
+      async (_name, options) => {
+        const events = await convertOtelSpanToIngestionEvent(
+          createOpenRouterBroadcastSpan(options),
+          new Set(),
+        );
+
+        expect(events.map((event) => event.body.environment)).toEqual([
+          "default",
+          "default",
+        ]);
+      },
+    );
 
     it.each([
       ["missing attribute", undefined, false],

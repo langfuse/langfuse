@@ -119,6 +119,27 @@ const eventsTableColsDefinition = [
     options: [], // to be added at runtime
   },
   {
+    name: "SDK Name",
+    id: "ingestionSdkName",
+    type: "stringOptions",
+    internal: "e.ingestion_sdk_name",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "SDK Version",
+    id: "ingestionSdkVersion",
+    type: "stringOptions",
+    internal: "e.ingestion_sdk_version",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "Ingestion Source",
+    id: "ingestionSource",
+    type: "stringOptions",
+    internal: "e.source",
+    options: [], // to be added at runtime
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",
