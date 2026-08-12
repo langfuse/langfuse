@@ -21,7 +21,6 @@ import {
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useRouter } from "next/router";
 
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiFlagEnabled = useV4UpgradeUiFlag();
