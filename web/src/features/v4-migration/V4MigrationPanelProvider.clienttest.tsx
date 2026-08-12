@@ -77,7 +77,7 @@ describe("V4MigrationPanelProvider", () => {
         "delay_badge",
       ),
     );
-    // Redundant open from another surface while already open: no new entry.
+    // Redundant open of the SAME project from another surface: no new entry.
     act(() =>
       result.current.openForProject(
         { id: "project-id", name: "Project" },
@@ -89,6 +89,19 @@ describe("V4MigrationPanelProvider", () => {
       ([name]) => name === "v4_migration:panel_opened",
     );
     expect(openedCalls).toHaveLength(1);
+
+    // Retargeting the open panel to a DIFFERENT project is a new entry.
+    act(() =>
+      result.current.openForProject(
+        { id: "project-2", name: "Other project" },
+        "status_page_row",
+      ),
+    );
+    expect(
+      captureMock.mock.calls.filter(
+        ([name]) => name === "v4_migration:panel_opened",
+      ),
+    ).toHaveLength(2);
 
     // Close and reopen: a fresh funnel entry with the new source.
     act(() => result.current.setOpen(false));

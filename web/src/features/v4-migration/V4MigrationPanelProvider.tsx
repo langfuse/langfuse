@@ -50,14 +50,16 @@ export function V4MigrationPanelProvider({
     setRequestedOpen(v4UpgradeUiEnabled && nextOpen);
   };
   // Every open path goes through here (setOpen callers only ever close), so
-  // this is the single funnel-entry event; the closed→open guard keeps
-  // redundant opens from double-counting.
+  // this is the single funnel-entry event. A redundant open of the same
+  // project does not double-count, but retargeting the open panel to a
+  // different project is a new funnel entry.
   const openForProject = (
     project: V4MigrationTargetProject,
     source: V4MigrationPanelOpenSource,
   ) => {
     if (!v4UpgradeUiEnabled) return;
-    if (!open) capture("v4_migration:panel_opened", { source });
+    if (!open || project.id !== targetProject?.id)
+      capture("v4_migration:panel_opened", { source });
     setTargetProject(project);
     setRequestedOpen(true);
   };

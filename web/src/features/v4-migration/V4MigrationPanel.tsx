@@ -59,6 +59,10 @@ export const V4MigrationPanel = ({
 
         <div className="flex flex-col gap-6 px-4 pt-6 pb-16">
           <V4MigrationDetailsContent
+            // Keyed like the header: a project switch while the panel stays
+            // open remounts the content, so per-open analytics (the
+            // panel_checks_loaded fire-once ref) reset for the new project.
+            key={project?.id}
             onNavigate={() => setOpen(false)}
             projectId={project?.id}
           />

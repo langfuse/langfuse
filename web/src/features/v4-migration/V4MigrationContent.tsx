@@ -1200,17 +1200,27 @@ export function V4MigrationDetailsContent({
   // PostHog is the external system here: the panel's checks resolve
   // asynchronously after open, so the "how much work was shown" event can
   // only fire once they settle; the ref guards refetch-driven re-settles.
+  // Settled means no check is still in flight — readiness alone would report
+  // "unavailable" the moment one check errors while others are loading, and
+  // the event would lock in a mid-flight snapshot.
   const readiness = getProjectMigrationReadiness(migrationData);
+  const checksSettled =
+    migrationData.sdk.status !== "checking" &&
+    migrationData.experiments.status !== "loading" &&
+    migrationData.evals.status !== "loading" &&
+    migrationData.apis.status !== "loading" &&
+    migrationData.exports.status !== "loading";
   const checksLoadedCaptured = useRef(false);
   useEffect(() => {
-    if (checksLoadedCaptured.current || readiness === "checking") return;
+    if (checksLoadedCaptured.current || !checksSettled) return;
     checksLoadedCaptured.current = true;
     const sdkSection = getSdkSectionState(migrationData.sdk);
     const otelSection = getOtelSectionState(migrationData.sdk);
     const customSection = getCustomInstrumentationSectionState(
       migrationData.sdk,
     );
-    // Counts only — never keys, versions, or other row contents.
+    // Counts only — never keys, versions, or other row contents. Errored
+    // checks report null so they stay distinguishable from a clean zero.
     capture("v4_migration:panel_checks_loaded", {
       readiness,
       sdkStatus: migrationData.sdk.status,
@@ -1218,19 +1228,23 @@ export function V4MigrationDetailsContent({
       delayedOtelCount: otelSection.delayedCount,
       customInstrumentationCount: customSection.series.length,
       evalsCount:
-        migrationData.evals.status === "loaded" ? migrationData.evals.count : 0,
+        migrationData.evals.status === "loaded"
+          ? migrationData.evals.count
+          : null,
       apisCount:
-        migrationData.apis.status === "loaded" ? migrationData.apis.count : 0,
+        migrationData.apis.status === "loaded"
+          ? migrationData.apis.count
+          : null,
       integrationsCount:
         migrationData.exports.status === "loaded"
           ? migrationData.exports.count
-          : 0,
+          : null,
       experimentsResult:
         migrationData.experiments.status === "loaded"
           ? migrationData.experiments.result
           : migrationData.experiments.status,
     });
-  }, [readiness, migrationData, capture]);
+  }, [checksSettled, readiness, migrationData, capture]);
 
   // Sections in a good state collapse into one summary sentence instead of
   // rendering their own (green) rows. Loading and error states keep the row.
