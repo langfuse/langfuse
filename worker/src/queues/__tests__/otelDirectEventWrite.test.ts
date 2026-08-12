@@ -6,7 +6,6 @@ import {
   getSdkInfoFromResourceSpans,
   isLangfuseSdkTraffic,
   isOrgPastOtelDirectWriteCutoff,
-  resolveOtelEventWriteOptions,
   resolveOtelWritePath,
   shouldProcessLegacyOtelMedia,
   type SdkInfo,
@@ -240,50 +239,6 @@ describe("resolveOtelWritePath", () => {
           langfuseSdkTraffic: true,
         }),
       ).toEqual({ useDirectEventWrite: true, writePath });
-    },
-  );
-});
-
-describe("resolveOtelEventWriteOptions", () => {
-  it.each([
-    {
-      eventsTableEnabled: true,
-      useDirectEventWrite: true,
-      shouldWriteToEventsTable: true,
-      skipTokenizationForOverflow: false,
-      label: "direct events write",
-    },
-    {
-      eventsTableEnabled: true,
-      useDirectEventWrite: false,
-      shouldWriteToEventsTable: false,
-      skipTokenizationForOverflow: true,
-      label: "non-direct OTEL write",
-    },
-    {
-      eventsTableEnabled: false,
-      useDirectEventWrite: true,
-      shouldWriteToEventsTable: false,
-      skipTokenizationForOverflow: true,
-      label: "direct-qualified OTEL in legacy mode",
-    },
-  ])(
-    "resolves overflow tokenization for $label",
-    ({
-      eventsTableEnabled,
-      useDirectEventWrite,
-      shouldWriteToEventsTable,
-      skipTokenizationForOverflow,
-    }) => {
-      expect(
-        resolveOtelEventWriteOptions({
-          eventsTableEnabled,
-          useDirectEventWrite,
-        }),
-      ).toEqual({
-        shouldWriteToEventsTable,
-        skipTokenizationForOverflow,
-      });
     },
   );
 });

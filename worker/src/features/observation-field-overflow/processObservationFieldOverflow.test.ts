@@ -44,6 +44,7 @@ vi.mock("../../env", () => ({
 import {
   applyLegacyObservationFieldOverflow,
   applyObservationFieldOverflow,
+  hasObservationFieldOverflowReference,
 } from "./processObservationFieldOverflow";
 
 const createEventRecord = (
@@ -182,8 +183,8 @@ describe("applyObservationFieldOverflow", () => {
 
     const result = await applyLegacyObservationFieldOverflow(observationRecord);
 
-    expect(result).toEqual({
-      record: expect.objectContaining({
+    expect(result).toEqual(
+      expect.objectContaining({
         input: mediaReference("input-media"),
         output: "within cap",
         metadata: {
@@ -191,9 +192,7 @@ describe("applyObservationFieldOverflow", () => {
           large: mediaReference("metadata-media"),
         },
       }),
-      shouldSkipTokenization: true,
-      shouldPreserveExistingUsage: false,
-    });
+    );
     expect(observationRecord).toMatchObject({
       input: "x".repeat(11),
       output: "within cap",
@@ -214,7 +213,7 @@ describe("applyObservationFieldOverflow", () => {
     );
   });
 
-  it("keeps inherited overflow references non-tokenizable after overflow processing is disabled", async () => {
+  it("recognizes inherited overflow references after processing is disabled", async () => {
     mocks.env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED = "false";
     const observationRecord = {
       id: "observation-id",
@@ -227,15 +226,12 @@ describe("applyObservationFieldOverflow", () => {
 
     const result = await applyLegacyObservationFieldOverflow(observationRecord);
 
-    expect(result).toEqual({
-      record: observationRecord,
-      shouldSkipTokenization: true,
-      shouldPreserveExistingUsage: true,
-    });
+    expect(result).toBe(observationRecord);
+    expect(hasObservationFieldOverflowReference(result)).toBe(true);
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
   });
 
-  it("does not skip tokenization for metadata-only overflow", async () => {
+  it("does not classify metadata-only overflow as an input/output reference", async () => {
     mocks.uploadMediaForTrace.mockResolvedValueOnce({
       mediaId: "metadata-media",
       outcome: "uploaded",
@@ -251,16 +247,15 @@ describe("applyObservationFieldOverflow", () => {
 
     const result = await applyLegacyObservationFieldOverflow(observationRecord);
 
-    expect(result).toEqual({
-      record: expect.objectContaining({
+    expect(result).toEqual(
+      expect.objectContaining({
         metadata: { large: mediaReference("metadata-media") },
       }),
-      shouldSkipTokenization: false,
-      shouldPreserveExistingUsage: false,
-    });
+    );
+    expect(hasObservationFieldOverflowReference(result)).toBe(false);
   });
 
-  it("skips tokenization when oversized input upload fails open", async () => {
+  it("persists the original input when its overflow upload fails open", async () => {
     mocks.uploadMediaForTrace.mockRejectedValueOnce(new Error("upload failed"));
     const observationRecord = {
       id: "observation-id",
@@ -273,11 +268,7 @@ describe("applyObservationFieldOverflow", () => {
 
     const result = await applyLegacyObservationFieldOverflow(observationRecord);
 
-    expect(result).toEqual({
-      record: expect.objectContaining({ input: "x".repeat(11) }),
-      shouldSkipTokenization: true,
-      shouldPreserveExistingUsage: false,
-    });
+    expect(result).toEqual(expect.objectContaining({ input: "x".repeat(11) }));
   });
 
   it("applies the limit to each metadata value rather than their aggregate size", async () => {

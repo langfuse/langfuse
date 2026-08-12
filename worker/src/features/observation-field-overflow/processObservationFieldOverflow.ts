@@ -39,14 +39,6 @@ type OverflowResult = {
 
 type OverflowRecord = EventRecordInsertType | ObservationRecordInsertType;
 
-export type ObservationOverflowTokenizationPolicy = {
-  shouldSkipTokenization: boolean;
-  shouldPreserveExistingUsage: boolean;
-};
-
-type OverflowProcessingResult<T extends OverflowRecord> =
-  ObservationOverflowTokenizationPolicy & { record: T };
-
 export async function applyObservationFieldOverflow(
   eventRecord: EventRecordInsertType,
 ): Promise<EventRecordInsertType> {
@@ -56,38 +48,29 @@ export async function applyObservationFieldOverflow(
     return eventRecord;
   }
 
-  return (await processObservationFieldOverflow(eventRecord)).record;
+  return processObservationFieldOverflow(eventRecord);
 }
 
 /**
- * Applies the same overflow policy to the fully merged legacy observation
- * shape and reports whether input or output must skip fallback tokenization.
- * This remains true for an inherited overflow reference even when new
- * overflow processing is disabled.
+ * Applies the same overflow policy to the fully enriched legacy observation
+ * shape immediately before persistence.
  */
 export async function applyLegacyObservationFieldOverflow(
   observationRecord: ObservationRecordInsertType,
-): Promise<OverflowProcessingResult<ObservationRecordInsertType>> {
+): Promise<ObservationRecordInsertType> {
   return processObservationFieldOverflow(observationRecord);
 }
 
 async function processObservationFieldOverflow<T extends OverflowRecord>(
   record: T,
-): Promise<OverflowProcessingResult<T>> {
+): Promise<T> {
   if (env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED !== "true") {
-    return {
-      record,
-      ...buildObservationOverflowTokenizationPolicy(record, false),
-    };
+    return record;
   }
 
   const candidates = collectOverflowCandidates(record);
-  const tokenizationPolicy = buildObservationOverflowTokenizationPolicy(
-    record,
-    candidates.some(({ field }) => field === "input" || field === "output"),
-  );
   if (candidates.length === 0) {
-    return { record, ...tokenizationPolicy };
+    return record;
   }
 
   const context = getOverflowRecordContext(record);
@@ -138,10 +121,7 @@ async function processObservationFieldOverflow<T extends OverflowRecord>(
               ),
           });
 
-          return {
-            record: applyOverflowResults(record, results),
-            ...tokenizationPolicy,
-          };
+          return applyOverflowResults(record, results);
         } finally {
           recordDistribution(
             "langfuse.ingestion.observation_field_overflow.processing_duration_ms",
@@ -160,7 +140,7 @@ async function processObservationFieldOverflow<T extends OverflowRecord>(
         observationId: context.observationId,
       },
     );
-    return { record, ...tokenizationPolicy };
+    return record;
   }
 }
 
@@ -368,41 +348,14 @@ function getOverflowRecordContext(record: OverflowRecord): {
   };
 }
 
-export function getObservationOverflowTokenizationPolicy(record: {
+export function hasObservationFieldOverflowReference(record: {
   input?: string | null;
   output?: string | null;
-}): ObservationOverflowTokenizationPolicy {
-  const inputAndOutput = [record.input, record.output];
-  const hasNewOverflow =
-    env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED === "true" &&
-    inputAndOutput.some(
-      (value) =>
-        typeof value === "string" &&
-        !isObservationFieldOverflowReference(value) &&
-        Buffer.byteLength(value, "utf8") >
-          env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
-    );
-
-  return buildObservationOverflowTokenizationPolicy(record, hasNewOverflow);
-}
-
-function buildObservationOverflowTokenizationPolicy(
-  record: { input?: string | null; output?: string | null },
-  hasNewOverflow: boolean,
-): ObservationOverflowTokenizationPolicy {
-  const hasExistingOverflowReference = [record.input, record.output].some(
+}): boolean {
+  return [record.input, record.output].some(
     (value) =>
       typeof value === "string" && isObservationFieldOverflowReference(value),
   );
-
-  return {
-    shouldSkipTokenization: hasExistingOverflowReference || hasNewOverflow,
-    // A marker carried through a partial update can retain usage calculated
-    // before the field was spilled. Newly oversized I/O may represent changed
-    // content, so retaining its merged usage would misattribute stale counts.
-    shouldPreserveExistingUsage:
-      hasExistingOverflowReference && !hasNewOverflow,
-  };
 }
 
 function isObservationFieldOverflowReference(value: string): boolean {

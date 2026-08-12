@@ -3,8 +3,7 @@ import { beforeEach, expect, describe, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   applyLegacyObservationFieldOverflow: vi.fn(),
   applyObservationFieldOverflow: vi.fn(),
-  getObservationOverflowTokenizationPolicy: vi.fn(),
-  tokenCountAsync: vi.fn(),
+  hasObservationFieldOverflowReference: vi.fn(),
 }));
 
 vi.mock(
@@ -13,14 +12,10 @@ vi.mock(
     applyLegacyObservationFieldOverflow:
       mocks.applyLegacyObservationFieldOverflow,
     applyObservationFieldOverflow: mocks.applyObservationFieldOverflow,
-    getObservationOverflowTokenizationPolicy:
-      mocks.getObservationOverflowTokenizationPolicy,
+    hasObservationFieldOverflowReference:
+      mocks.hasObservationFieldOverflowReference,
   }),
 );
-
-vi.mock("../../../features/tokenisation/async-usage", () => ({
-  tokenCountAsync: mocks.tokenCountAsync,
-}));
 
 import { IngestionService } from "../../IngestionService";
 import {
@@ -35,22 +30,14 @@ describe("IngestionService unit tests", () => {
   beforeEach(() => {
     mocks.applyLegacyObservationFieldOverflow.mockReset();
     mocks.applyLegacyObservationFieldOverflow.mockImplementation(
-      async (record) => ({
-        record,
-        shouldSkipTokenization: false,
-        shouldPreserveExistingUsage: false,
-      }),
+      async (record) => record,
     );
     mocks.applyObservationFieldOverflow.mockReset();
     mocks.applyObservationFieldOverflow.mockImplementation(
       async (eventRecord) => eventRecord,
     );
-    mocks.getObservationOverflowTokenizationPolicy.mockReset();
-    mocks.getObservationOverflowTokenizationPolicy.mockReturnValue({
-      shouldSkipTokenization: false,
-      shouldPreserveExistingUsage: false,
-    });
-    mocks.tokenCountAsync.mockReset();
+    mocks.hasObservationFieldOverflowReference.mockReset();
+    mocks.hasObservationFieldOverflowReference.mockReturnValue(false);
   });
 
   it("writes the final serialized event size instead of the raw OTEL span size", async () => {
@@ -125,9 +112,6 @@ describe("IngestionService unit tests", () => {
       },
       "raw-event.json",
     );
-    expect(
-      mocks.getObservationOverflowTokenizationPolicy,
-    ).not.toHaveBeenCalled();
     mocks.applyObservationFieldOverflow.mockResolvedValueOnce({
       ...eventRecord,
       input:
@@ -185,150 +169,7 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.cost_details).toEqual({ total: 0.03 });
   });
 
-  it("skips overflow tokenization while creating eval records for non-direct OTEL observations", async () => {
-    const ingestionService = new IngestionService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-    );
-    mocks.getObservationOverflowTokenizationPolicy.mockReturnValueOnce({
-      shouldSkipTokenization: true,
-      shouldPreserveExistingUsage: false,
-    });
-    const getGenerationUsage = vi
-      .spyOn(ingestionService as any, "getGenerationUsage")
-      .mockResolvedValue({});
-
-    await ingestionService.createEventRecord(
-      {
-        projectId: "project-id",
-        traceId: "trace-id",
-        spanId: "observation-id",
-        name: "legacy-otel-eval",
-        type: "GENERATION",
-        environment: "default",
-        startTimeISO: "2026-08-03T00:00:00.000Z",
-        modelName: "model-name",
-        input: { prompt: "oversized" },
-        output: "output",
-        metadata: {},
-        source: "otel",
-      },
-      "otel/project-id/raw-event.json",
-      { skipTokenizationForOverflow: true },
-    );
-
-    expect(mocks.getObservationOverflowTokenizationPolicy).toHaveBeenCalledWith(
-      {
-        input: JSON.stringify({ prompt: "oversized" }),
-        output: "output",
-      },
-    );
-    expect(getGenerationUsage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        skipTokenization: true,
-        preserveExistingUsage: false,
-      }),
-    );
-  });
-
-  it("preserves existing calculated usage when overflow skips tokenization", async () => {
-    const ingestionService = new IngestionService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-    );
-
-    const result = await (ingestionService as any).getUsageUnits(
-      {
-        id: "observation-id",
-        project_id: "project-id",
-        provided_usage_details: {},
-        usage_details: { input: 7, output: 3 },
-        provided_cost_details: {},
-        level: "DEFAULT",
-        input:
-          "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
-        output: "output",
-      },
-      { id: "model-id", tokenizerId: "tokenizer-id" },
-      true,
-      true,
-    );
-
-    expect(mocks.tokenCountAsync).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      usage_details: { input: 7, output: 3, total: 10 },
-      provided_usage_details: {},
-    });
-  });
-
-  it("clears stale calculated usage when newly oversized input skips tokenization", async () => {
-    const ingestionService = new IngestionService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-    );
-
-    const result = await (ingestionService as any).getUsageUnits(
-      {
-        id: "observation-id",
-        project_id: "project-id",
-        provided_usage_details: {},
-        usage_details: { input: 7, output: 3, total: 10 },
-        provided_cost_details: {},
-        level: "DEFAULT",
-        input: "x".repeat(11),
-        output: "output",
-      },
-      { id: "model-id", tokenizerId: "tokenizer-id" },
-      true,
-      false,
-    );
-
-    expect(mocks.tokenCountAsync).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      usage_details: {},
-      provided_usage_details: {},
-    });
-  });
-
-  it("keeps provided usage authoritative when overflow skips tokenization", async () => {
-    const ingestionService = new IngestionService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-    );
-
-    const result = await (ingestionService as any).getUsageUnits(
-      {
-        id: "observation-id",
-        project_id: "project-id",
-        provided_usage_details: { input: 2, output: 3 },
-        usage_details: { input: 7, output: 3 },
-        provided_cost_details: {},
-        level: "DEFAULT",
-        input:
-          "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
-        output: "output",
-      },
-      { id: "model-id", tokenizerId: "tokenizer-id" },
-      true,
-      false,
-    );
-
-    expect(mocks.tokenCountAsync).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      usage_details: { input: 2, output: 3, total: 5 },
-      provided_usage_details: { input: 2, output: 3 },
-    });
-  });
-
-  it("overflows a merged legacy observation before usage enrichment and reuses it for staging", async () => {
+  it("overflows an enriched legacy observation and reuses it for staging", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -366,17 +207,13 @@ describe("IngestionService unit tests", () => {
       .mockResolvedValue({});
     mocks.applyLegacyObservationFieldOverflow.mockImplementationOnce(
       async (record) => ({
-        record: {
-          ...record,
-          input:
-            "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
-          metadata: {
-            large:
-              "@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@",
-          },
+        ...record,
+        input:
+          "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
+        metadata: {
+          large:
+            "@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@",
         },
-        shouldSkipTokenization: true,
-        shouldPreserveExistingUsage: false,
       }),
     );
 
@@ -402,13 +239,11 @@ describe("IngestionService unit tests", () => {
     );
     expect(getGenerationUsage).toHaveBeenCalledWith(
       expect.objectContaining({
-        skipTokenization: true,
-        preserveExistingUsage: false,
         observationRecord: expect.objectContaining({
-          input: expect.stringContaining("input-media"),
+          input,
           output,
           metadata: expect.objectContaining({
-            large: expect.stringContaining("metadata-media"),
+            large: metadataValue,
           }),
         }),
       }),
@@ -427,6 +262,64 @@ describe("IngestionService unit tests", () => {
         metadata: { large: expect.stringContaining("metadata-media") },
       });
     }
+  });
+
+  it("skips automatic usage enrichment for a persisted overflow reference", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2026-07-22T00:00:00.000Z";
+    const input =
+      "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@";
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "generation-update",
+        body: {
+          id: "observation-id",
+          traceId: "trace-id",
+          input,
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+    const getGenerationUsage = vi.spyOn(
+      ingestionService as any,
+      "getGenerationUsage",
+    );
+    mocks.hasObservationFieldOverflowReference.mockReturnValueOnce(true);
+
+    await (ingestionService as any).processObservationEventList({
+      projectId: "project-id",
+      entityId: "observation-id",
+      createdAtTimestamp: new Date(timestamp),
+      observationEventList,
+      writeToStagingTables: false,
+      attribution: {
+        ingestionApiKey: "api-key",
+        ingestionSdkName: "sdk",
+        ingestionSdkVersion: "1.0.0",
+      },
+    });
+
+    expect(getGenerationUsage).not.toHaveBeenCalled();
+    expect(mocks.applyLegacyObservationFieldOverflow).toHaveBeenCalledWith(
+      expect.objectContaining({ input }),
+    );
+    expect(
+      addToQueue.mock.calls.find(
+        ([table]) => table === TableName.Observations,
+      )?.[1],
+    ).toMatchObject({ input });
   });
 
   it("correctly sorts events in ascending order by timestamp", async () => {

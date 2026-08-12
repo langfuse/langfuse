@@ -330,22 +330,6 @@ export function resolveOtelWritePath(params: {
   return { useDirectEventWrite: false, writePath: "dual" };
 }
 
-export function resolveOtelEventWriteOptions(params: {
-  eventsTableEnabled: boolean;
-  useDirectEventWrite: boolean;
-}): {
-  shouldWriteToEventsTable: boolean;
-  skipTokenizationForOverflow: boolean;
-} {
-  const shouldWriteToEventsTable =
-    params.eventsTableEnabled && params.useDirectEventWrite;
-
-  return {
-    shouldWriteToEventsTable,
-    skipTokenizationForOverflow: !shouldWriteToEventsTable,
-  };
-}
-
 function extractBaseSdkVersion(sdkVersion: string): string {
   const version = sdkVersion.trim();
 
@@ -788,11 +772,8 @@ export const otelIngestionQueueProcessorBuilder = (
       }
 
       // Determine what processing is needed
-      const { shouldWriteToEventsTable, skipTokenizationForOverflow } =
-        resolveOtelEventWriteOptions({
-          eventsTableEnabled: v4WritesToEventsTable(env),
-          useDirectEventWrite,
-        });
+      const shouldWriteToEventsTable =
+        v4WritesToEventsTable(env) && useDirectEventWrite;
 
       const evalConfigs = await fetchObservationEvalConfigs(projectId).catch(
         (error) => {
@@ -840,13 +821,6 @@ export const otelIngestionQueueProcessorBuilder = (
             eventRecord = await ingestionService.createEventRecord(
               eventInput,
               fileKey,
-              {
-                // When this phase does not persist a direct event, the
-                // observation has already gone through the legacy overflow
-                // path. Eval scheduling still needs an EventRecord, but must
-                // not tokenize its raw oversized I/O a second time.
-                skipTokenizationForOverflow,
-              },
             );
           } catch (error) {
             traceException(error);
