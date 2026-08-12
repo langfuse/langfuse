@@ -13,6 +13,12 @@ const DEPRECATED_EVALUATOR_FILTERS: FilterState = [
     operator: "any of",
     value: ["trace", "dataset"],
   },
+  {
+    column: "timeScope",
+    type: "arrayOptions",
+    operator: "any of",
+    value: ["NEW"],
+  },
 ];
 
 const MODERN_EVALUATOR_FILTERS: FilterState = [
