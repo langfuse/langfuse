@@ -18,6 +18,7 @@ import {
   SquarePercent,
   ClipboardPen,
   Clock,
+  MessagesSquare,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -159,6 +160,14 @@ export const ROUTES: Route[] = [
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     icon: ClipboardPen,
+  },
+  // CIP fork route (see FORK.md): participatory elicitation sessions.
+  {
+    title: "Elicitations",
+    pathname: `/project/[projectId]/elicitations`,
+    group: RouteGroup.Evaluation,
+    section: RouteSection.Main,
+    icon: MessagesSquare,
   },
   {
     title: "Datasets",
