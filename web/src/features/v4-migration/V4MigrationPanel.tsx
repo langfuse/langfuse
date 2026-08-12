@@ -52,7 +52,7 @@ export const V4MigrationPanel = ({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto border-t">
-        <div className="bg-background sticky top-0 z-[1] px-4 pt-4">
+        <div className="px-4 pt-4">
           <V4MigrationHeaderContent
             key={project?.id}
             projectName={project?.name}
