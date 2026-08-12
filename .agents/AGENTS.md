@@ -88,6 +88,9 @@ langfuse/
 
 ### Cursor Cloud specific instructions
 
+- For end-to-end issue work (investigate → plan → implement → local test → draft
+  PR → preview QA → reviewer handoff), follow the
+  `cursor-cloud-issue-delivery` skill.
 - Cursor Cloud starts the complete source-built stack through
   `scripts/agents/start-cursor-cloud.sh`; do not start a second web or worker
   process on ports 3000 or 3030.
