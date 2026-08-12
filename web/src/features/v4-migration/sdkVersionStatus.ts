@@ -75,9 +75,7 @@ export const getV4MigrationSdkState = (params: {
 
   const sdkUsageSeries = sortSdkUsageSeries(params.summary.sdkUsageSeries);
   const upgradeRequiredCount = sdkUsageSeries.filter(
-    (series) =>
-      series.v4MigrationStatus === "upgrade_required" &&
-      !series.upgradeCompleted,
+    (series) => series.v4MigrationStatus === "upgrade_required",
   ).length;
   const delayedOtelIngestionCount = sdkUsageSeries.filter(
     requiresOtelIngestionHeader,
@@ -138,8 +136,7 @@ export const isOtelExporterSeries = (
 export const isActionableSdkSeries = (
   series: V4MigrationSdkUsageSeries,
 ): boolean =>
-  (series.v4MigrationStatus === "upgrade_required" &&
-    !series.upgradeCompleted) ||
+  series.v4MigrationStatus === "upgrade_required" ||
   // A recognized SDK with an unparsable version still needs the user's
   // attention; without it the section would hide while the project-level
   // status keeps reporting action needed.

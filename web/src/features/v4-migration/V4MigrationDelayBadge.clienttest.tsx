@@ -21,7 +21,6 @@ const makeSdkUsageSeries = (
   hasDelayedOtelEvents: null,
   attributionStatus: "attributed",
   v4MigrationStatus: "compatible",
-  upgradeCompleted: false,
   ...overrides,
 });
 
@@ -108,9 +107,7 @@ const setSdk = (
     status,
     sdkUsageSeries: series,
     upgradeRequiredCount: series.filter(
-      (usage) =>
-        usage.v4MigrationStatus === "upgrade_required" &&
-        !usage.upgradeCompleted,
+      (usage) => usage.v4MigrationStatus === "upgrade_required",
     ).length,
     delayedOtelIngestionCount: series.filter(
       (usage) =>

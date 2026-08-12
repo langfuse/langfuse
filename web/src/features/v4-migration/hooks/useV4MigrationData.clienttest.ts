@@ -52,7 +52,6 @@ const currentSdkSeries = {
   hasDelayedOtelEvents: true,
   attributionStatus: "attributed" as const,
   v4MigrationStatus: "compatible" as const,
-  upgradeCompleted: false,
 };
 
 describe("account v4 migration data", () => {

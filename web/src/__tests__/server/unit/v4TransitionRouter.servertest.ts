@@ -1342,92 +1342,6 @@ describe("v4TransitionRouter", () => {
     ]);
   });
 
-  it("detects a clean major SDK upgrade within the selected range", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        time: "2026-06-25T12:00:00Z",
-        sdkName: "python",
-        sdkVersion: "3.9.0",
-        publicKey: "pk-lf-python",
-        count: "8",
-        firstSeen: "2026-06-25T12:00:00Z",
-        lastSeen: "2026-06-25T12:10:00Z",
-        hasDelayedOtelEvents: "1",
-      },
-      {
-        time: "2026-06-25T12:20:00Z",
-        sdkName: "langfuse-python",
-        sdkVersion: "4.7.0",
-        publicKey: "pk-lf-python",
-        count: "13",
-        firstSeen: "2026-06-25T12:20:00Z",
-        lastSeen: "2026-06-25T12:30:00Z",
-        hasDelayedOtelEvents: "1",
-      },
-    ]);
-    const caller = createCaller();
-
-    const result = await caller.sdkUsageTimeSeries({
-      projectId,
-      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-      toTimestamp: new Date("2026-06-25T13:00:00Z"),
-      granularity: "auto",
-    });
-
-    expect(result.upgradeTransitions).toEqual([
-      {
-        canonicalSdkName: "python",
-        publicKey: "pk-lf-python",
-        fromVersions: ["3.9.0"],
-        toVersions: ["4.7.0"],
-        firstCurrentVersionSeenAt: "2026-06-25T12:20:00Z",
-        lastOutdatedVersionSeenAt: "2026-06-25T12:10:00Z",
-        status: "upgrade_detected",
-      },
-    ]);
-  });
-
-  it("keeps overlapping old and current SDK traffic marked as mixed versions", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        time: "2026-06-25T12:00:00Z",
-        sdkName: "python",
-        sdkVersion: "3.9.0",
-        publicKey: "pk-lf-python",
-        count: "8",
-        firstSeen: "2026-06-25T12:00:00Z",
-        lastSeen: "2026-06-25T12:30:00Z",
-        hasDelayedOtelEvents: "1",
-      },
-      {
-        time: "2026-06-25T12:20:00Z",
-        sdkName: "langfuse-python",
-        sdkVersion: "4.7.0",
-        publicKey: "pk-lf-python",
-        count: "13",
-        firstSeen: "2026-06-25T12:20:00Z",
-        lastSeen: "2026-06-25T12:40:00Z",
-        hasDelayedOtelEvents: "1",
-      },
-    ]);
-    const caller = createCaller();
-
-    const result = await caller.sdkUsageTimeSeries({
-      projectId,
-      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-      toTimestamp: new Date("2026-06-25T13:00:00Z"),
-      granularity: "auto",
-    });
-
-    expect(result.upgradeTransitions).toEqual([
-      expect.objectContaining({
-        canonicalSdkName: "python",
-        publicKey: "pk-lf-python",
-        status: "mixed_versions",
-      }),
-    ]);
-  });
-
   it.each(["MEMBER", "VIEWER"] as const)(
     "allows project %s roles to access project-level v4 data",
     async (role) => {
@@ -1608,7 +1522,7 @@ describe("v4TransitionRouter", () => {
     expect(rows).toEqual([
       {
         projectId,
-        outdatedSdkUsageSeriesCount: 1,
+        outdatedSdkUsageSeriesCount: 2,
         delayedOtelIngestionSeriesCount: 0,
         experimentInstrumentationMigration: {
           status: "sdk_usage_inconclusive",
@@ -1627,7 +1541,6 @@ describe("v4TransitionRouter", () => {
             hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
-            upgradeCompleted: true,
           },
           {
             sdkName: "python",
@@ -1641,7 +1554,6 @@ describe("v4TransitionRouter", () => {
             hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "compatible",
-            upgradeCompleted: false,
           },
           {
             sdkName: "python",
@@ -1655,7 +1567,6 @@ describe("v4TransitionRouter", () => {
             hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
-            upgradeCompleted: false,
           },
           {
             sdkName: "python",
@@ -1669,7 +1580,6 @@ describe("v4TransitionRouter", () => {
             hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "compatible",
-            upgradeCompleted: false,
           },
         ],
       },
@@ -1694,7 +1604,6 @@ describe("v4TransitionRouter", () => {
             hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
-            upgradeCompleted: false,
           },
           {
             sdkName: "unknown",
@@ -1708,7 +1617,6 @@ describe("v4TransitionRouter", () => {
             hasDelayedOtelEvents: false,
             attributionStatus: "missing_name_and_version",
             v4MigrationStatus: "unknown",
-            upgradeCompleted: false,
           },
           {
             sdkName: "custom-otel-writer",
@@ -1722,7 +1630,6 @@ describe("v4TransitionRouter", () => {
             hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "unknown",
-            upgradeCompleted: false,
           },
         ],
       },

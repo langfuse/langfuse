@@ -37,6 +37,7 @@ import {
   getCustomInstrumentationSectionState,
   getOtelSectionState,
   getSdkSectionState,
+  isActionableSdkSeries,
   type V4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
 } from "@/src/features/v4-migration/sdkVersionStatus";
@@ -442,7 +443,8 @@ export function V4MigrationSdkSection({
             {section.actionableCount === 1
               ? "configuration needs"
               : "configurations need"}{" "}
-            an update. See{" "}
+            an update, based on ingestion seen in the last{" "}
+            {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
             <ExternalLink
               href={SDK_UPGRADE_URL}
               analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
@@ -458,17 +460,10 @@ export function V4MigrationSdkSection({
         projectId={projectId}
         onNavigate={onNavigate}
         analyticsSection="sdk"
-        needsAction={(usage) =>
-          (usage.v4MigrationStatus === "upgrade_required" &&
-            !usage.upgradeCompleted) ||
-          usage.v4MigrationStatus === "unknown"
-        }
+        needsAction={isActionableSdkSeries}
         suffix={(usage) =>
-          usage.v4MigrationStatus === "upgrade_required" &&
-          !usage.upgradeCompleted ? (
+          usage.v4MigrationStatus === "upgrade_required" ? (
             <span>· {formatSdkUpgradeRequirement(usage.canonicalSdkName)}</span>
-          ) : usage.upgradeCompleted ? (
-            <span>· upgrade completed</span>
           ) : usage.v4MigrationStatus === "unknown" ? (
             <span>· version not recognized</span>
           ) : null
