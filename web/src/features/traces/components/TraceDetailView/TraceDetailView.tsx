@@ -47,7 +47,7 @@ import { useSession } from "next-auth/react";
 // Extracted components
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
-import { TRACE_VIEW_CONFIG } from "@/src/features/traces/config/trace-view-config";
+import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 

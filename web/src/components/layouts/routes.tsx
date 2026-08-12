@@ -131,10 +131,10 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Monitors",
-    pathname: "/project/[projectId]/monitors",
+    title: "Alerts",
+    pathname: "/project/[projectId]/alerts",
     icon: BellRing,
-    projectRbacScopes: ["monitors:read"],
+    projectRbacScopes: ["alerts:read"],
     show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
     group: RouteGroup.Observability,
     section: RouteSection.Main,

@@ -34,6 +34,10 @@ operations.
 - PR titles are validated by `.github/workflows/validate-pr-title.yml`.
 - In PR descriptions, list impacted packages and executed verification
   commands.
+- Keep internal ticket ids and Linear URLs out of commit messages, PR titles,
+  and PR descriptions — this repo is public, and a squash merge puts the PR
+  title into `main`'s permanent history. Describe the change on its own terms
+  and carry the identifier in the branch name instead.
 
 ## GitHub
 

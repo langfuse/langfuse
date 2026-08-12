@@ -36,6 +36,7 @@ export const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
   "userId",
   "sessionId",
   "version",
+  "release",
   "promptName",
   // NOTE: promptVersion is intentionally NOT forwardable. The search-bar
   // grammar registers it as a numeric field, so `promptVersion:>2` lowers to a

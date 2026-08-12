@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { encodeFiltersGeneric } from "@langfuse/shared";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -15,7 +16,7 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
@@ -52,6 +53,10 @@ import {
   TableIconButtonLoadingCell,
   TableTextLoadingCell,
 } from "@/src/components/table/loading-cells";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
+import { buildEvaluatorUpgradeUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
 function DeprecatedChipCell() {
   return (
@@ -65,6 +70,8 @@ function DeprecatedChipCell() {
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -123,6 +130,38 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
+  const openEvaluatorUpgrade = useCallback(
+    (evaluatorId: string) => {
+      if (!v4UpgradeUiEnabled) return;
+
+      capture("v4_migration:update_required_badge_clicked", {
+        scope: "single",
+      });
+      window.open(
+        buildEvaluatorUpgradeUrl(
+          projectId,
+          evaluatorId,
+          encodeFiltersGeneric(queryFilter.filterState),
+        ),
+        "_blank",
+        "noopener,noreferrer",
+      );
+    },
+    [capture, projectId, queryFilter.filterState, v4UpgradeUiEnabled],
+  );
+
+  const handleRowClick = useCallback(
+    (row: EvaluatorDataRow, event?: React.MouseEvent) => {
+      if (!v4UpgradeUiEnabled || !row.isLegacy) return;
+
+      // DataTable opens the peek only when the row click has not been
+      // prevented. Deprecated evaluators should go directly to upgrade.
+      event?.preventDefault();
+      openEvaluatorUpgrade(row.id);
+    },
+    [openEvaluatorUpgrade, v4UpgradeUiEnabled],
+  );
+
   useEffect(() => {
     if (evaluators.isSuccess) {
       const { configs: configList = [] } = evaluators.data ?? {};
@@ -139,10 +178,26 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("scoreName", {
       id: "scoreName",
       header: "Generated Score Name",
-      size: 200,
+      size: v4UpgradeUiEnabled ? 320 : 200,
       cell: (row) => {
         const scoreName = row.getValue();
-        return scoreName ? <TableIdOrName value={scoreName} /> : undefined;
+        if (!scoreName) return undefined;
+
+        return (
+          <div className="flex w-[calc(var(--col-scoreName-size)*1px-0.75rem)] items-center gap-2">
+            <TableIdOrName value={scoreName} className="min-w-[4px] flex-1" />
+            {v4UpgradeUiEnabled && row.row.original.isLegacy ? (
+              <span className="ml-auto justify-self-end">
+                <V4MigrationBadgeContent
+                  onClick={() => openEvaluatorUpgrade(row.row.original.id)}
+                  title="Upgrade now"
+                  showChevron={false}
+                  compact
+                />
+              </span>
+            ) : null}
+          </div>
+        );
       },
     }),
     columnHelper.accessor("status", {
@@ -157,6 +212,20 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <StatusBadge type={status.toLowerCase()} />
           </div>
         );
+      },
+    }),
+    columnHelper.accessor("isLegacy", {
+      id: "isLegacy",
+      header: "Eval Version",
+      size: 180,
+      enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
+      cell: (row) => {
+        // Set by useEvaluatorTableData only for active legacy evaluators with
+        // a NEW time scope — the ones that actually require migration.
+        if (!row.row.original.isLegacy) return null;
+
+        return <DeprecatedChipCell />;
       },
     }),
     columnHelper.accessor("totalCost", {
@@ -248,20 +317,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Updated At",
       enableSorting: true,
       size: 150,
-    }),
-    columnHelper.accessor("isLegacy", {
-      id: "isLegacy",
-      header: "Eval Version",
-      size: 180,
-      enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: (row) => {
-        // Set by useEvaluatorTableData only for active legacy evaluators with
-        // a NEW time scope — the ones that actually require migration.
-        if (!row.row.original.isLegacy) return null;
-
-        return <DeprecatedChipCell />;
-      },
     }),
     columnHelper.accessor("target", {
       id: "target",
@@ -434,6 +489,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               }}
               orderBy={orderByState}
               setOrderBy={setOrderByState}
+              onRowClick={handleRowClick}
               columnVisibility={columnVisibility}
               onColumnVisibilityChange={setColumnVisibility}
             />

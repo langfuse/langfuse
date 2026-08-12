@@ -27,6 +27,8 @@ Use this skill when a completed feature branch needs a changelog entry.
 ## Writing Rules
 
 - Write for users, not internal implementation detail
+- Never mention internal ticket ids or Linear URLs in the entry, even though
+  step 2 gathers the Linear issue for context
 - Prefer second person: "you can now..."
 - Focus on what changed, why it matters, and how to use it
 - Match the structure and tone of recent changelog posts

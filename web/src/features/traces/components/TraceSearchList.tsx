@@ -14,7 +14,7 @@ import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHan
 import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { VirtualizedList } from "./_shared/VirtualizedList";
+import { VirtualizedList } from "./VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";
 import { XIcon } from "lucide-react";

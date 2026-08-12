@@ -14,7 +14,7 @@ import { TestModelMatchButton } from "@/src/features/models/components/test-matc
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
-import { getMaxDecimals } from "@/src/features/models/utils";
+import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { useMemo, useState } from "react";

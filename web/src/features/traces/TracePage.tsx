@@ -1,21 +1,17 @@
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
 import { ErrorPage } from "@/src/components/error-page";
-import { TraceDetailActions } from "@/src/features/traces/TraceDetailActions";
-import { useTraceDetailData } from "@/src/features/traces/useTraceDetailData";
+import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
+import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import Page from "@/src/components/layouts/page";
-import {
-  TraceDetailBody,
-  traceDetailTitle,
-} from "@/src/features/traces/TraceDetailBody";
+import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
+import { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
 import { useSession } from "next-auth/react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useEffect } from "react";
 
 export function TracePage({
   traceId,
@@ -39,16 +35,6 @@ export function TracePage({
   const hasProjectAccess = useIsAuthenticatedAndProjectMember(
     projectIdForAccessCheck,
   );
-
-  useEffect(() => {
-    if (trace.cutoffObservationsAfterMaxCount) {
-      showErrorToast(
-        "Trace truncated",
-        "This trace has too many observations for the detail view. Only a subset is shown.",
-        "WARNING",
-      );
-    }
-  }, [trace.cutoffObservationsAfterMaxCount]);
 
   if (trace.isUnauthorized)
     return <ErrorPage message="You do not have access to this trace." />;
@@ -177,6 +163,7 @@ export function TracePage({
         <TraceDetailBody
           trace={trace.data}
           context={router.query.peek !== undefined ? "peek" : "fullscreen"}
+          truncatedAtObservations={trace.truncatedAtObservations}
         />
       </div>
     </Page>
