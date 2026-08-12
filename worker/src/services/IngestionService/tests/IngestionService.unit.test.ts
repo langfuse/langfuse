@@ -245,6 +245,40 @@ describe("IngestionService unit tests", () => {
     });
   });
 
+  it("preserves overflow-field usage when sibling tokenization fails", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const input =
+      "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@";
+    mocks.isObservationFieldOverflowReference.mockImplementation(
+      (value) => value === input,
+    );
+    mocks.tokenCountAsync.mockRejectedValueOnce(new Error("tokenizer timeout"));
+
+    const result = await (ingestionService as any).getUsageUnits(
+      {
+        id: "observation-id",
+        project_id: "project-id",
+        provided_usage_details: {},
+        usage_details: { input: 7, output: 2, total: 9 },
+        provided_cost_details: {},
+        level: "DEFAULT",
+        input,
+        output: "new output",
+      },
+      { id: "model-id", tokenizerId: "tokenizer-id" },
+    );
+
+    expect(result).toEqual({
+      usage_details: { input: 7, total: 7 },
+      provided_usage_details: {},
+    });
+  });
+
   it("overflows an enriched legacy observation and reuses it for staging", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(

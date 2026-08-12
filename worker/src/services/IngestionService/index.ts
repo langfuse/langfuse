@@ -1336,28 +1336,45 @@ export class IngestionService {
       observationRecord.level !== ObservationLevel.ERROR
     ) {
       try {
-        let newInputCount: number | undefined;
-        let newOutputCount: number | undefined;
+        const inputIsOverflowReference = isObservationFieldOverflowReference(
+          observationRecord.input,
+        );
+        const outputIsOverflowReference = isObservationFieldOverflowReference(
+          observationRecord.output,
+        );
+        let newInputCount = inputIsOverflowReference
+          ? observationRecord.usage_details?.input
+          : undefined;
+        let newOutputCount = outputIsOverflowReference
+          ? observationRecord.usage_details?.output
+          : undefined;
         await instrumentAsync(
           {
             name: "token-count",
           },
           async (span) => {
             try {
-              [newInputCount, newOutputCount] = await Promise.all([
-                isObservationFieldOverflowReference(observationRecord.input)
-                  ? observationRecord.usage_details?.input
-                  : tokenCountAsync({
-                      text: observationRecord.input,
-                      model,
-                    }),
-                isObservationFieldOverflowReference(observationRecord.output)
-                  ? observationRecord.usage_details?.output
-                  : tokenCountAsync({
-                      text: observationRecord.output,
-                      model,
-                    }),
-              ]);
+              const [tokenizedInputCount, tokenizedOutputCount] =
+                await Promise.all([
+                  inputIsOverflowReference
+                    ? undefined
+                    : tokenCountAsync({
+                        text: observationRecord.input,
+                        model,
+                      }),
+                  outputIsOverflowReference
+                    ? undefined
+                    : tokenCountAsync({
+                        text: observationRecord.output,
+                        model,
+                      }),
+                ]);
+              newInputCount = inputIsOverflowReference
+                ? newInputCount
+                : tokenizedInputCount;
+              newOutputCount = outputIsOverflowReference
+                ? newOutputCount
+                : tokenizedOutputCount;
             } catch (error) {
               // No synchronous fallback: payloads that make the worker thread
               // exceed its timeout would block the event loop for minutes if
