@@ -23,29 +23,7 @@ catalog:
 minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
-minimumReleaseAgeExclude:
-  - "brace-expansion@1.1.18"
-  - "brace-expansion@2.1.4"
-  - "brace-expansion@5.0.9"
-  - "@eslint/js@10.0.1"
-  - "eslint@10.8.0"
-  - "postcss@8.5.22"
-  - "@clickhouse/client@1.23.1"
-  - "@next/env@16.2.11"
-  - "@next/eslint-plugin-next@16.2.11"
-  - "next-auth@4.24.15"
-  - "@next/swc-darwin-arm64@16.2.11"
-  - "@next/swc-darwin-x64@16.2.11"
-  - "@next/swc-linux-arm64-gnu@16.2.11"
-  - "@next/swc-linux-arm64-musl@16.2.11"
-  - "@next/swc-linux-x64-gnu@16.2.11"
-  - "@next/swc-linux-x64-musl@16.2.11"
-  - "@next/swc-win32-arm64-msvc@16.2.11"
-  - "@next/swc-win32-x64-msvc@16.2.11"
-  - "eslint-config-next@16.2.11"
-  - "next@16.2.11"
-  - "ws@8.21.1"
-  - "fast-uri@3.1.5"
+# minimumReleaseAgeExclude:
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
