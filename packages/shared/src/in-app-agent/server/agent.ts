@@ -867,8 +867,7 @@ async function createMastraAdapter(params: {
         // Fires once per LLM call with that call's token usage; the AG-UI
         // event stream itself never carries usage.
         ...(params.onStepFinish ? { onStepFinish: params.onStepFinish } : {}),
-        // Marks LLM-step boundaries and tool execution windows for per-call
-        // generation observations.
+        // Tool execution windows (and optional step-start timing bookmarks).
         ...(params.onChunk ? { onChunk: params.onChunk } : {}),
         ...(reasoningProviderOptions
           ? { providerOptions: reasoningProviderOptions }

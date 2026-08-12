@@ -111,16 +111,14 @@ type AgentRunToolSpan = {
   failureMessage?: string;
   parentMessageId?: string;
 };
+// Lightweight bookmark for the in-flight Mastra step. Generations are emitted
+// from onStepFinish (which carries usage); this only supplies start timing and
+// the input-message boundary for context-growth visibility.
 type OpenLlmStep = {
   stepNumber: number;
   startTime: Date;
-  // Count of assistant/tool messages already recorded before this LLM call
-  // started; combined with agent-run input messages for the generation input.
   inputMessageCount: number;
-  modelOutputEndTime?: Date;
   completionStartTime?: Date;
-  toolCallIds: string[];
-  requestBytes?: number;
 };
 type ToolExecutionTimes = {
   startTime?: Date;
@@ -243,6 +241,11 @@ export class InAppAgentInstrumentation {
       metadata: this.metadata,
       tags: ["in-app-agent"],
     });
+
+    // Create the root observation immediately so tool/generation children
+    // emitted during the run have a parent that already exists (avoids
+    // orphans that attach to the trace as siblings of the late agent).
+    this.emitRootAgentObservation({ metadata: this.metadata });
   }
 
   recordEvents(events: AgUiEvent[]) {
@@ -285,8 +288,9 @@ export class InAppAgentInstrumentation {
     this.toolCallApprovals.set(approval.toolCallId, approval.status);
   }
 
-  // Mastra stream chunks mark LLM-step boundaries and tool execution windows.
-  // Richer usage/output still arrives via recordStepFinish.
+  // Mastra stream chunks: step-start bookmarks timing/input boundary for the
+  // next onStepFinish generation; tool-call/result override tool windows.
+  // Usage and output still come from recordStepFinish.
   recordStreamChunk(chunk: unknown) {
     if (this.ended || !isRecord(chunk)) {
       return;
@@ -301,31 +305,20 @@ export class InAppAgentInstrumentation {
     const now = new Date();
 
     if (type === "step-start") {
+      // A prior step should have been closed by onStepFinish. If not, emit it
+      // as an error so we never silently drop a generation.
       if (this.openLlmStep) {
         this.emitLlmGeneration(this.openLlmStep, undefined, {
           level: "ERROR",
           statusMessage: "LLM step closed by a subsequent step-start",
         });
-        this.openLlmStep = undefined;
       }
-
-      const request = isRecord(payload.request) ? payload.request : undefined;
-      const requestBody =
-        request && typeof request.body === "string" ? request.body : undefined;
 
       this.openLlmStep = {
         stepNumber: ++this.nextStepNumber,
         startTime: now,
         inputMessageCount: this.agentRunOutputMessages.length,
-        toolCallIds: [],
-        ...(requestBody !== undefined
-          ? { requestBytes: Buffer.byteLength(requestBody) }
-          : {}),
       };
-      return;
-    }
-
-    if (!this.openLlmStep) {
       return;
     }
 
@@ -335,13 +328,9 @@ export class InAppAgentInstrumentation {
         return;
       }
 
-      this.openLlmStep.modelOutputEndTime ??= now;
       const times = this.toolExecutionTimes.get(toolCallId) ?? {};
       times.startTime ??= now;
       this.toolExecutionTimes.set(toolCallId, times);
-      if (!this.openLlmStep.toolCallIds.includes(toolCallId)) {
-        this.openLlmStep.toolCallIds.push(toolCallId);
-      }
       return;
     }
 
@@ -358,16 +347,17 @@ export class InAppAgentInstrumentation {
     }
 
     if (
-      type === "text-delta" ||
-      type === "reasoning-delta" ||
-      type === "reasoning"
+      this.openLlmStep &&
+      (type === "text-delta" ||
+        type === "reasoning-delta" ||
+        type === "reasoning")
     ) {
       this.openLlmStep.completionStartTime ??= now;
     }
   }
 
   // Receives Mastra's per-LLM-call onStepFinish event and emits one generation
-  // observation for that call. The AG-UI event stream itself never carries usage.
+  // with that call's usage/model. The AG-UI event stream itself never carries usage.
   recordStepFinish(event: unknown) {
     if (this.ended) {
       return;
@@ -379,7 +369,6 @@ export class InAppAgentInstrumentation {
         stepNumber: ++this.nextStepNumber,
         startTime: new Date(),
         inputMessageCount: this.agentRunOutputMessages.length,
-        toolCallIds: [],
       } satisfies OpenLlmStep);
 
     this.emitLlmGeneration(step, event);
@@ -718,24 +707,22 @@ export class InAppAgentInstrumentation {
       (isRecord(eventRecord?.stepResult)
         ? getStringValue(eventRecord.stepResult.reason)
         : undefined);
-    const warnings = Array.isArray(eventRecord?.warnings)
-      ? eventRecord.warnings
-      : undefined;
     const model =
       getModelIdFromStepEvent(eventRecord) ?? this.model ?? undefined;
-    const endTime = step.modelOutputEndTime ?? new Date();
-    const baseMessageCount = getAgentRunInputMessageCount(this.agentRunInput);
+    const endTime = new Date();
 
     this.enqueueObservation("generation-create", {
       id: getInAppAgentLlmCallObservationId(this.runId, step.stepNumber),
       traceId: this.traceId,
       parentObservationId: this.rootObservationId,
-      name: getInAppAgentLlmCallName(step.stepNumber),
+      name: getInAppAgentLlmCallName(model),
       startTime: step.startTime,
       endTime,
       completionStartTime: step.completionStartTime ?? step.startTime,
       input: this.getLlmStepInput(step.inputMessageCount),
       output: this.getLlmStepOutput(step, eventRecord),
+      // Model only travels with usage so Langfuse does not invent tokenizer-
+      // estimated costs for generations that never reported tokens.
       ...(usageDetails
         ? {
             usageDetails,
@@ -747,16 +734,7 @@ export class InAppAgentInstrumentation {
         ? { statusMessage: options.statusMessage }
         : {}),
       metadata: {
-        step_number: step.stepNumber,
         ...(finishReason ? { finish_reason: finishReason } : {}),
-        // Total ChatML messages in this generation's input (turn input + prior
-        // assistant/tool messages recorded before the step opened).
-        input_message_count: baseMessageCount + step.inputMessageCount,
-        ...(step.requestBytes !== undefined
-          ? { request_bytes: step.requestBytes }
-          : {}),
-        tool_call_count: step.toolCallIds.length,
-        ...(warnings?.length ? { warnings } : {}),
         ...(options?.statusMessage ? { error: options.statusMessage } : {}),
       },
     });
@@ -1208,14 +1186,6 @@ function getModelIdFromStepEvent(
   }
 
   return undefined;
-}
-
-function getAgentRunInputMessageCount(input: unknown): number {
-  if (!isRecord(input) || !Array.isArray(input.messages)) {
-    return 0;
-  }
-
-  return input.messages.length;
 }
 
 function getSerializableToolParameters(tool: Record<string, unknown>): unknown {
