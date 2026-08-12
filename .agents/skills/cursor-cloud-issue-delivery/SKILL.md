@@ -2,10 +2,11 @@
 name: cursor-cloud-issue-delivery
 description: |
   End-to-end Cursor Cloud Agent workflow for Langfuse issues: investigate thoroughly,
-  write and follow an implementation plan, verify locally on the Cloud stack, open and
-  babysit a draft PR, manually test in the PR preview with seeded sample data, and add
-  preview review instructions for the human engineer. Use when a Cloud Agent owns an
-  issue, bug fix, or feature from triage through preview-ready handoff.
+  write and follow an implementation plan, verify locally on the Cloud stack, open a
+  draft PR, address all review-agent comments on the PR, manually test in the PR
+  preview with seeded sample data, and add preview review instructions for the human
+  engineer. Use when a Cloud Agent owns an issue, bug fix, or feature from triage
+  through preview-ready handoff.
 ---
 
 # Cursor Cloud Issue Delivery
@@ -22,7 +23,7 @@ before investigation and a written plan are complete.
 | 2. Plan | Lock scope, approach, tests, and data needs before coding | This skill |
 | 3. Implement | Smallest correct fix or feature | Package `AGENTS.md`, `backend-dev-guidelines`, `refactor-react-effects` |
 | 4. Test locally | Prove the fix on the Cloud stack | `frontend-browser-review`, `start-cursor-cloud.sh` |
-| 5. PR + babysit | Draft PR, push, watch CI, iterate | `git-workflow`, GitHub MCP |
+| 5. PR + babysit | Draft PR, fix CI, address review-agent comments | `git-workflow`, `code-review`, GitHub MCP |
 | 6. Preview QA | Verify on `pr-<N>.preview.langfuse.com` | `langfuse-previews`, `seed-test-data` |
 | 7. Handoff | Preview review steps for the human engineer | [`references/preview-review-template.md`](references/preview-review-template.md) |
 
@@ -115,18 +116,32 @@ Local verification must pass before Phase 5.
 
 ## Phase 5 — Create and babysit the PR
 
+**Babysitting** means staying on the PR until every comment from automated review
+agents is addressed — not just until CI is green.
+
 1. **Open a draft PR** to `main` via the GitHub MCP / `ManagePullRequest`.
    - Title: Conventional Commits (`fix(web): …`, `feat: …`).
    - No internal ticket ids in title, body, or commits.
    - List impacted packages and verification commands run locally.
 2. **Keep the PR draft** until Phase 6 preview QA passes.
-3. **Babysit CI:**
-   - Poll `get_ci_status` after pushes; fix failures on the same branch.
+3. **Watch CI** after each push:
+   - Poll `get_ci_status`; fix failures on the same branch.
    - Do not mark the PR ready for review while required checks are red.
-   - Re-push and re-check after each fix; summarize what failed and what changed.
-4. **Wait for the preview build** (~5 min). The bot comment and `Live preview:` line
+4. **Babysit review-agent comments** — loop until none remain open:
+   - After opening the PR and after every push, fetch all PR review comments
+     (inline and top-level) from automated review agents such as Bugbot, security
+     review, or other repo-configured review bots.
+   - For each comment: fix the underlying issue when valid, push, and re-run the
+     relevant checks; reply on the thread with what changed; resolve the thread
+     when done.
+   - When a finding is a false positive, reply with evidence and resolve or leave
+     unresolved only if the agent cannot be convinced — do not silently ignore
+     comments.
+   - Do not mark the PR ready for review while actionable review-agent threads
+     are still open.
+5. **Wait for the preview build** (~5 min). The bot comment and `Live preview:` line
    on the PR are the source of truth for the preview URL.
-5. **Off-hours:** previews sleep Mon–Fri nights and weekends (Europe/Berlin). Schedule
+6. **Off-hours:** previews sleep Mon–Fri nights and weekends (Europe/Berlin). Schedule
    Phase 6 during working hours or note in the PR that preview QA is blocked until
    the preview is awake.
 
@@ -171,7 +186,7 @@ Before ending the agent run, confirm:
 - [ ] Investigation and plan were written before implementation
 - [ ] Failing test added first (bug fixes)
 - [ ] Local Cloud stack verified (`start-cursor-cloud.sh` + seed + checks)
-- [ ] Draft PR opened, CI green or explicitly documented
+- [ ] Draft PR opened, CI green, all review-agent comments addressed
 - [ ] Preview manually tested with appropriate sample data
 - [ ] PR body includes filled preview review instructions
 - [ ] Final summary quotes verification evidence, not claims
@@ -186,6 +201,7 @@ Before ending the agent run, confirm:
 | Browser signoff | `frontend-browser-review` |
 | Preview deploy / kubectl | `langfuse-previews` |
 | Commits / PR hygiene | `git-workflow` |
+| Responding to review findings | `code-review` |
 | Backend patterns | `backend-dev-guidelines` |
 | React effects cleanup | `refactor-react-effects` |
 | Security-sensitive changes | `security-review` |

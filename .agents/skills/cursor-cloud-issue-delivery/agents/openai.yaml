@@ -1,4 +1,4 @@
 interface:
   display_name: "Cursor Cloud Issue Delivery"
   short_description: "End-to-end issue workflow for Cursor Cloud agents"
-  default_prompt: "Use $cursor-cloud-issue-delivery to investigate, plan, implement, test locally, open a draft PR, verify in preview, and write reviewer instructions."
+  default_prompt: "Use $cursor-cloud-issue-delivery to investigate, plan, implement, test locally, open a draft PR, address review-agent comments, verify in preview, and write reviewer instructions."
