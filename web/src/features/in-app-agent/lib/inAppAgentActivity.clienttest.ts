@@ -235,6 +235,50 @@ describe("in-app agent activity receipts", () => {
     expect(afterOpen.attentionCount).toBe(0);
   });
 
+  it("keeps a read receipt when a stale snapshot still reports the run in flight", () => {
+    const running = sync(null, [
+      conversation(
+        "c1",
+        latestRun({ id: "run-1", status: InAppAgentRunStatus.RUNNING }),
+      ),
+    ]);
+    const finished = sync(running.receipts, [
+      conversation(
+        "c1",
+        latestRun({ id: "run-1", status: InAppAgentRunStatus.SUCCEEDED }),
+      ),
+    ]);
+    expect(finished.attentionCount).toBe(1);
+
+    const read = markInAppAgentConversationHandled(
+      finished.receipts,
+      "c1",
+      getInAppAgentActivityKey({
+        id: "run-1",
+        status: InAppAgentRunStatus.SUCCEEDED,
+      }),
+    );
+
+    // A background tab stops polling, so it folds a pre-completion snapshot into
+    // the ledger it shares with the tab the user is looking at.
+    const stale = sync(read, [
+      conversation(
+        "c1",
+        latestRun({ id: "run-1", status: InAppAgentRunStatus.RUNNING }),
+      ),
+    ]);
+    expect(stale.receipts?.handled.c1).toBe("run-1:SUCCEEDED");
+
+    // Whatever the stale tab wrote decides what the up-to-date tab badges next.
+    const afterStale = sync(stale.receipts, [
+      conversation(
+        "c1",
+        latestRun({ id: "run-1", status: InAppAgentRunStatus.SUCCEEDED }),
+      ),
+    ]);
+    expect(afterStale.attentionCount).toBe(0);
+  });
+
   it("prunes receipt keys for conversations that left the activity window", () => {
     const seeded = sync(null, [
       conversation(

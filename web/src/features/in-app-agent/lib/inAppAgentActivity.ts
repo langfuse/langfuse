@@ -200,15 +200,10 @@ export function reconcileInAppAgentActivity(params: {
     const activityKey = getInAppAgentActivityKey(run);
     const previousKey = previousHandled[conversation.id];
     const isVisible = params.visibleConversationId === conversation.id;
-    const isApproval = run.status === InAppAgentRunStatus.AWAITING_APPROVAL;
 
-    // Acknowledge on first sync, while looking, or while the run is still
-    // working. Approvals are not auto-acked: they toast/badge until seen.
-    if (
-      isFirstSync ||
-      isVisible ||
-      (isUnsettledInAppAgentRunStatus(run.status) && !isApproval)
-    ) {
+    // Baseline on first sync, then ack only what the user is looking at. Acking an
+    // in-flight run lets a tab whose poll froze mid-run walk a newer receipt back.
+    if (isFirstSync || isVisible) {
       if (previousKey !== activityKey) {
         nextHandled[conversation.id] = activityKey;
         handledChanged = true;
