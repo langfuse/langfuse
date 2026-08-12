@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InAppAgentActivityNotifications } from "./InAppAgentActivityNotifications";
@@ -112,5 +112,83 @@ describe("InAppAgentActivityNotifications", () => {
       ]),
     );
     expect(deliveredKeys).toHaveLength(4);
+  });
+
+  it("delivers a previously shown card when a higher-priority arrival evicts it", () => {
+    const onDelivered = vi.fn();
+    const onOpenConversation = vi.fn();
+
+    const doneCards = [
+      card({
+        conversationId: "c1",
+        activityKey: "run-1:SUCCEEDED",
+        state: "done-unread",
+        title: "First",
+      }),
+      card({
+        conversationId: "c2",
+        activityKey: "run-2:SUCCEEDED",
+        state: "done-unread",
+        title: "Second",
+      }),
+      card({
+        conversationId: "c3",
+        activityKey: "run-3:SUCCEEDED",
+        state: "done-unread",
+        title: "Third",
+      }),
+    ];
+
+    const { rerender } = render(
+      <InAppAgentActivityNotifications
+        notifications={doneCards}
+        onDelivered={onDelivered}
+        onOpenConversation={onOpenConversation}
+      />,
+    );
+
+    expect(screen.getByText("Third")).toBeInTheDocument();
+
+    const withApproval = [
+      ...doneCards,
+      card({
+        conversationId: "c4",
+        activityKey: "run-4:AWAITING_APPROVAL",
+        state: "approval",
+        title: "Needs you",
+      }),
+    ];
+
+    rerender(
+      <InAppAgentActivityNotifications
+        notifications={withApproval}
+        onDelivered={onDelivered}
+        onOpenConversation={onOpenConversation}
+      />,
+    );
+
+    expect(screen.getByText("Needs you")).toBeInTheDocument();
+    expect(screen.queryByText("Third")).not.toBeInTheDocument();
+    expect(onDelivered).toHaveBeenCalledWith([
+      {
+        conversationId: "c3",
+        activityKey: "run-3:SUCCEEDED",
+      },
+    ]);
+
+    const approvalCard = screen
+      .getByText("Needs you")
+      .closest('[role="status"]');
+    expect(approvalCard).toBeInstanceOf(HTMLElement);
+    fireEvent.click(
+      within(approvalCard as HTMLElement).getByRole("button", {
+        name: "Dismiss",
+      }),
+    );
+
+    expect(screen.queryByText("Needs you")).not.toBeInTheDocument();
+    expect(screen.queryByText("Third")).not.toBeInTheDocument();
+    expect(screen.getByText("First")).toBeInTheDocument();
+    expect(screen.getByText("Second")).toBeInTheDocument();
   });
 });

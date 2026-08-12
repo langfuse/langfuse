@@ -33,6 +33,13 @@ export function InAppAgentActivityNotifications({
     () => new Set(),
   );
   const resultTimersRef = useRef(new Map<string, number>());
+  /** Activity keys that have entered the visible stack (got a timer). */
+  const shownActivityKeysRef = useRef(new Set<string>());
+  const pendingEvictionDeliveriesRef = useRef<
+    Array<{ conversationId: string; activityKey: string }>
+  >([]);
+  const onDeliveredRef = useRef(onDelivered);
+  onDeliveredRef.current = onDelivered;
 
   const selected = useMemo(
     () =>
@@ -43,6 +50,36 @@ export function InAppAgentActivityNotifications({
       ),
     [dismissedKeys, notifications],
   );
+
+  // Deliver previously-shown cards that leave the top-3 window (eviction).
+  // setState-during-render so we do not sync dismissedKeys from props in an
+  // effect (https://react.dev/learn/you-might-not-need-an-effect). Parent
+  // delivery is flushed after commit via the timer effect below.
+  {
+    const selectedKeys = new Set(selected.map((card) => card.activityKey));
+    const evicted = notifications.filter(
+      (card) =>
+        shownActivityKeysRef.current.has(card.activityKey) &&
+        !selectedKeys.has(card.activityKey) &&
+        !dismissedKeys.has(card.activityKey),
+    );
+
+    if (evicted.length > 0) {
+      setDismissedKeys(
+        (current) =>
+          new Set([...current, ...evicted.map((card) => card.activityKey)]),
+      );
+      pendingEvictionDeliveriesRef.current.push(
+        ...evicted.map((card) => ({
+          conversationId: card.conversationId,
+          activityKey: card.activityKey,
+        })),
+      );
+      for (const card of evicted) {
+        shownActivityKeysRef.current.delete(card.activityKey);
+      }
+    }
+  }
 
   const retire = (cards: readonly InAppAgentActivityCard[]) => {
     if (cards.length === 0) {
@@ -55,6 +92,7 @@ export function InAppAgentActivityNotifications({
         window.clearTimeout(timer);
         resultTimersRef.current.delete(card.activityKey);
       }
+      shownActivityKeysRef.current.delete(card.activityKey);
     }
 
     setDismissedKeys(
@@ -73,11 +111,19 @@ export function InAppAgentActivityNotifications({
   // a dependency-change cleanup that cleared every timer would reset TTLs
   // whenever the visible stack changes.
   useEffect(() => {
+    const pending = pendingEvictionDeliveriesRef.current;
+    if (pending.length > 0) {
+      pendingEvictionDeliveriesRef.current = [];
+      onDeliveredRef.current(pending);
+    }
+
     const selectedByKey = new Map(
       selected.map((card) => [card.activityKey, card]),
     );
 
     for (const card of selected) {
+      shownActivityKeysRef.current.add(card.activityKey);
+
       // Keep existing timers so a new sibling card does not reset older ones.
       if (resultTimersRef.current.has(card.activityKey)) {
         continue;
@@ -85,8 +131,9 @@ export function InAppAgentActivityNotifications({
 
       const timeout = window.setTimeout(() => {
         resultTimersRef.current.delete(card.activityKey);
+        shownActivityKeysRef.current.delete(card.activityKey);
         setDismissedKeys((current) => new Set([...current, card.activityKey]));
-        onDelivered([
+        onDeliveredRef.current([
           {
             conversationId: card.conversationId,
             activityKey: card.activityKey,
@@ -105,7 +152,7 @@ export function InAppAgentActivityNotifications({
       window.clearTimeout(timer);
       resultTimersRef.current.delete(activityKey);
     }
-  }, [onDelivered, selected]);
+  }, [selected]);
 
   useEffect(() => {
     const timers = resultTimersRef.current;
