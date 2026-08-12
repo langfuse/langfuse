@@ -60,6 +60,7 @@ import {
   type DashboardDateRangeOptions,
 } from "@/src/utils/date-range-utils";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
@@ -112,6 +113,7 @@ import {
   getWidgetFilterColumns,
 } from "./widgetFilterColumns";
 import { WIDGET_FILTER_PRESETS } from "@/src/features/widgets/constants/widgetFilterPresets";
+import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
 import {
   applyChartTypeChange,
   deriveEffectiveSort,
@@ -502,10 +504,11 @@ export function WidgetForm({
     viewVersion === "v2"
       ? normalizeSingleValueOptions(eventsFilterOptions.data?.name)
       : normalizeSingleValueOptions(generationsFilterOptions.data?.name);
-  const tagsOptions =
+  const tagsOptions = sortOptionValues(
     viewVersion === "v2"
       ? eventsFilterOptions.data?.traceTags || []
-      : traceFilterOptions.data?.tags || [];
+      : traceFilterOptions.data?.tags || [],
+  );
   const modelOptions =
     viewVersion === "v2"
       ? eventsFilterOptions.data?.providedModelName || []
@@ -730,6 +733,13 @@ export function WidgetForm({
     }
     return validateQuery(query, viewVersion);
   }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
+
+  useCaptureWidgetHighCardinalityError({
+    validation: queryValidation,
+    surface: widgetId ? "edit_editor" : "create_editor",
+    chartType,
+    isV4: viewVersion === "v2",
+  });
 
   const queryResult = api.dashboard.executeQuery.useQuery(
     {

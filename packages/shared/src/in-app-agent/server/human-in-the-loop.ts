@@ -1,14 +1,12 @@
 import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
-import { InvalidRequestError } from "../../index";
-import { prisma } from "../../db";
 import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "../constants";
 import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
   type InAppAgentLangfuseMcpToolName,
 } from "./tools";
-import { safeJsonParse, stableJsonStringify } from "../../utils/json";
+import { safeJsonParse } from "../../utils/json";
 import {
   type AgUiEvent,
   type AgUiMessage,
@@ -24,14 +22,7 @@ const MANUAL_TOOL_APPROVAL_REJECTION_ERROR = JSON.stringify({
   message: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
 });
 
-export const IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS = 60 * 60;
-
-const PendingToolApprovalSchema = z.object({
-  toolCallId: z.string().min(1),
-  toolName: z.string().min(1),
-  runId: z.string().min(1),
-  argsFingerprint: z.string(),
-});
+type DeveloperGuidanceMessage = Extract<AgUiMessage, { role: "developer" }>;
 
 const InAppAgentLangfuseMcpToolNameSchema =
   z.custom<InAppAgentLangfuseMcpToolName>(
@@ -43,9 +34,16 @@ const InAppAgentLangfuseMcpToolNameSchema =
     { message: "Invalid MCP tool name" },
   );
 
-export const InAppAgentMcpRunOverrideSchema = z.object({
-  toolName: InAppAgentLangfuseMcpToolNameSchema,
-});
+/** Accept the legacy single-tool shape while older continuations may still be queued. */
+export const InAppAgentMcpRunOverrideSchema = z
+  .union([
+    z.object({ toolNames: z.array(InAppAgentLangfuseMcpToolNameSchema) }),
+    z.object({ toolName: InAppAgentLangfuseMcpToolNameSchema }),
+  ])
+  .transform((override) => ({
+    toolNames:
+      "toolNames" in override ? override.toolNames : [override.toolName],
+  }));
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -55,94 +53,13 @@ const MastraSuspendEventSchema = z.object({
   runId: z.string().min(1),
 });
 
-export async function storePendingToolApproval(params: {
-  projectId: string;
-  conversationId: string;
-  approvalRequest: InAppAgentToolApprovalRequest;
-}) {
-  const approvalFingerprint = createPendingToolApprovalFingerprint(
-    params.approvalRequest,
-  );
-  const expiresAt = new Date(
-    Date.now() + IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS * 1000,
-  );
-
-  await prisma.inAppAgentPendingToolApproval.upsert({
-    where: {
-      projectId_conversationId_toolCallId: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        toolCallId: params.approvalRequest.toolCallId,
-      },
-    },
-    create: {
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      toolCallId: params.approvalRequest.toolCallId,
-      approvalFingerprint,
-      expiresAt,
-    },
-    update: {
-      approvalFingerprint,
-      expiresAt,
-    },
-  });
-}
-
-// Check early, before stream setup, so malformed or forged resume payloads fail
-// without starting another model/tool execution attempt.
-export async function validatePendingToolApproval(params: {
-  projectId: string;
-  conversationId: string;
-  forwardedProps: ResumeForwardedProps;
-}) {
-  const approvalRequest = params.forwardedProps.command.resume.approvalRequest;
-  const pendingApproval = await prisma.inAppAgentPendingToolApproval.findFirst({
-    where: {
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      toolCallId: approvalRequest.toolCallId,
-      approvalFingerprint:
-        createPendingToolApprovalFingerprint(approvalRequest),
-      expiresAt: { gt: new Date() },
-    },
-    select: { toolCallId: true },
-  });
-
-  if (!pendingApproval) {
-    throw new InvalidRequestError("Invalid forwarded props");
-  }
-}
-
-// Atomically consume before stream setup so a pending approval can start at most
-// one resumed tool call attempt.
-export async function consumeAndValidatePendingToolApproval(params: {
-  projectId: string;
-  conversationId: string;
-  forwardedProps: ResumeForwardedProps;
-}) {
-  const approvalRequest = params.forwardedProps.command.resume.approvalRequest;
-  const consumeResult = await prisma.inAppAgentPendingToolApproval.deleteMany({
-    where: {
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      toolCallId: approvalRequest.toolCallId,
-      approvalFingerprint:
-        createPendingToolApprovalFingerprint(approvalRequest),
-      expiresAt: { gt: new Date() },
-    },
-  });
-
-  if (consumeResult.count !== 1) {
-    throw new InvalidRequestError("Invalid forwarded props");
-  }
-}
-
 export async function createInAppAgentMcpRunOverride(params: {
-  toolName: InAppAgentLangfuseMcpToolName;
+  toolNames: InAppAgentLangfuseMcpToolName[];
 }) {
   return JSON.stringify({
-    toolName: params.toolName,
+    // Older web pods read the singular field during rolling deploys.
+    toolName: params.toolNames[0],
+    toolNames: params.toolNames,
   });
 }
 
@@ -166,6 +83,7 @@ export function parseInAppAgentInterruptEvent(
 export type ManualToolApprovalRunInput = {
   input: AgUiRunAgentInput;
   syntheticEvents: AgUiEvent[];
+  developerGuidance?: string;
   toolCallApproval?: {
     toolCallId: string;
     status: "approved" | "rejected";
@@ -176,7 +94,7 @@ export async function createManualToolApprovalRunInput(params: {
   input: AgUiRunAgentInput;
   executeToolCall: (
     approvalRequest: InAppAgentToolApprovalRequest,
-  ) => Promise<unknown>;
+  ) => Promise<{ result: unknown; modelResult: unknown }>;
   onApprovedToolCallExecuted?: () => void | Promise<void>;
 }): Promise<ManualToolApprovalRunInput> {
   const forwardedProps = getResumeForwardedProps(params.input);
@@ -189,6 +107,7 @@ export async function createManualToolApprovalRunInput(params: {
   if (!approved) {
     const assistantMessage =
       createManualToolCallAssistantMessage(approvalRequest);
+    const guidanceMessage = createToolRejectionGuidanceMessage(approvalRequest);
     const toolMessage: AgUiMessage = {
       id: createManualToolResultMessageId(approvalRequest),
       role: "tool",
@@ -204,7 +123,7 @@ export async function createManualToolApprovalRunInput(params: {
           ...params.input.messages,
           assistantMessage,
           toolMessage,
-          createToolRejectionGuidanceMessage(approvalRequest),
+          guidanceMessage,
         ],
         forwardedProps: {},
       },
@@ -213,6 +132,7 @@ export async function createManualToolApprovalRunInput(params: {
         toolResultContent: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
         toolError: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
       }),
+      developerGuidance: guidanceMessage.content,
       toolCallApproval: {
         toolCallId: approvalRequest.toolCallId,
         status: "rejected",
@@ -220,18 +140,26 @@ export async function createManualToolApprovalRunInput(params: {
     };
   }
 
-  const { toolResult, toolError } = await executeApprovedToolCall({
-    approvalRequest,
-    executeToolCall: params.executeToolCall,
-  });
+  const { toolResult, modelToolResult, toolError } =
+    await executeApprovedToolCall({
+      approvalRequest,
+      executeToolCall: params.executeToolCall,
+    });
   await params.onApprovedToolCallExecuted?.();
   const toolResultContent = serializeToolResultContent(toolResult);
   const assistantMessage =
     createManualToolCallAssistantMessage(approvalRequest);
+  const modelToolResultContent = serializeToolResultContent(modelToolResult);
+  // A successful tool call needs no guidance: the assistant tool call plus its
+  // tool result already carry the outcome. Only the error path needs to tell
+  // the model how to proceed.
+  const guidanceMessage = toolError
+    ? createToolExecutionErrorGuidanceMessage(approvalRequest, toolError)
+    : undefined;
   const toolMessage: AgUiMessage = {
     id: createManualToolResultMessageId(approvalRequest),
     role: "tool",
-    content: toolResultContent,
+    content: modelToolResultContent,
     toolCallId: approvalRequest.toolCallId,
     ...(toolError ? { error: toolError } : {}),
   };
@@ -248,18 +176,12 @@ export async function createManualToolApprovalRunInput(params: {
         ...params.input.messages,
         assistantMessage,
         toolMessage,
-        ...(toolError
-          ? [
-              createToolExecutionErrorGuidanceMessage(
-                approvalRequest,
-                toolError,
-              ),
-            ]
-          : []),
+        ...(guidanceMessage ? [guidanceMessage] : []),
       ],
       forwardedProps: {},
     },
     syntheticEvents,
+    developerGuidance: guidanceMessage?.content,
     toolCallApproval: {
       toolCallId: approvalRequest.toolCallId,
       status: "approved",
@@ -269,7 +191,7 @@ export async function createManualToolApprovalRunInput(params: {
 
 function createToolRejectionGuidanceMessage(
   approvalRequest: InAppAgentToolApprovalRequest,
-): AgUiMessage {
+): DeveloperGuidanceMessage {
   return {
     id: `${approvalRequest.toolCallId}-approval-rejection-guidance`,
     role: "developer",
@@ -286,14 +208,22 @@ async function executeApprovedToolCall(params: {
   approvalRequest: InAppAgentToolApprovalRequest;
   executeToolCall: (
     approvalRequest: InAppAgentToolApprovalRequest,
-  ) => Promise<unknown>;
-}): Promise<{ toolResult: unknown; toolError?: string }> {
+  ) => Promise<{ result: unknown; modelResult: unknown }>;
+}): Promise<{
+  toolResult: unknown;
+  modelToolResult: unknown;
+  toolError?: string;
+}> {
   try {
-    return { toolResult: await params.executeToolCall(params.approvalRequest) };
+    const { result, modelResult } = await params.executeToolCall(
+      params.approvalRequest,
+    );
+
+    return { toolResult: result, modelToolResult: modelResult };
   } catch (error) {
     const toolError = formatToolExecutionError(error);
 
-    return { toolResult: toolError, toolError };
+    return { toolResult: toolError, modelToolResult: toolError, toolError };
   }
 }
 
@@ -317,6 +247,7 @@ export function createManualToolCallAssistantMessage(
   return {
     id: createManualToolCallParentMessageId(approvalRequest),
     role: "assistant",
+    content: "",
     toolCalls: [
       {
         id: approvalRequest.toolCallId,
@@ -334,7 +265,7 @@ export function createManualToolCallAssistantMessage(
 function createToolExecutionErrorGuidanceMessage(
   approvalRequest: InAppAgentToolApprovalRequest,
   toolError: string,
-): AgUiMessage {
+): DeveloperGuidanceMessage {
   const args = serializeToolCallArgs(approvalRequest.args);
 
   return {
@@ -423,19 +354,4 @@ function serializeToolResultContent(value: unknown) {
   } catch {
     return String(value);
   }
-}
-
-function createPendingToolApprovalFingerprint(
-  approvalRequest: InAppAgentToolApprovalRequest,
-): string {
-  // Persist only the stable approval identity, including a sorted-JSON argument
-  // fingerprint, so approved calls cannot be replayed with changed arguments.
-  return JSON.stringify(
-    PendingToolApprovalSchema.parse({
-      toolCallId: approvalRequest.toolCallId,
-      toolName: approvalRequest.toolName,
-      runId: approvalRequest.runId,
-      argsFingerprint: stableJsonStringify(approvalRequest.args),
-    }),
-  );
 }

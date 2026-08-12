@@ -43,6 +43,10 @@ export type InAppAgentToolCallContent = {
   };
 };
 
+export function getInAppAgentToolDisplayName(toolName: string): string {
+  return toolName.replace(/^(?:docs_|langfuseDocs_|langfuse_)/, "");
+}
+
 const InAppAgentToolRejectionErrorSchema = z.object({
   code: z.literal(IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE),
   message: z.string(),
@@ -395,6 +399,11 @@ export function getDrawerMessages({
               } else {
                 resultState = "incomplete";
               }
+
+              if (resultState === "incomplete" && !pendingApproval) {
+                return [];
+              }
+
               const status = TOOL_CALL_STATUS_BY_RESULT_STATE[resultState];
 
               return [

@@ -9,14 +9,13 @@ import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
 import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
+import type { InAppAgentPrefixedLangfuseMcpToolName } from "./tools";
 import {
   InAppAgentRunRequestSchema,
   type InAppAgentRunRequest,
 } from "../../features/inAppAgent/types";
 import {
   ACTIVE_RUN_CONFLICT_MESSAGE,
-  FOREGROUND_RUN_STALE_AFTER_MS,
-  FOREGROUND_RUN_STALE_ERROR_MESSAGE,
   lockConversation,
   type InAppAgentTx,
 } from "./persistence";
@@ -204,6 +203,8 @@ export async function decideToolApproval(params: {
   toolCallId: string;
   approved: boolean;
   decidedByUserId: string;
+  /** Prefixed tool resolved from the persisted interrupt, never client input. */
+  alwaysAllowToolName?: InAppAgentPrefixedLangfuseMcpToolName;
   model?: string;
 }): Promise<InAppAgentRun> {
   const outcome = await params.prisma.$transaction(async (tx) => {
@@ -268,6 +269,33 @@ export async function decideToolApproval(params: {
       parentRun.request,
     );
 
+    // Persist the grant in the same transaction as the exactly-once decision CAS.
+    if (params.alwaysAllowToolName) {
+      const conversation = await tx.inAppAgentConversation.findUnique({
+        where: {
+          id_projectId: {
+            id: params.conversationId,
+            projectId: params.projectId,
+          },
+        },
+        select: { alwaysAllowedTools: true },
+      });
+
+      if (
+        !conversation?.alwaysAllowedTools.includes(params.alwaysAllowToolName)
+      ) {
+        await tx.inAppAgentConversation.update({
+          where: {
+            id_projectId: {
+              id: params.conversationId,
+              projectId: params.projectId,
+            },
+          },
+          data: { alwaysAllowedTools: { push: params.alwaysAllowToolName } },
+        });
+      }
+    }
+
     await appendConversationEventInTransaction({
       tx,
       projectId: params.projectId,
@@ -277,6 +305,9 @@ export async function decideToolApproval(params: {
         toolCallId: params.toolCallId,
         approved: params.approved,
         decidedByUserId: params.decidedByUserId,
+        ...(params.alwaysAllowToolName
+          ? { scope: "conversation" as const }
+          : {}),
       }),
     });
 
@@ -311,6 +342,52 @@ export type CancelRunResult = {
   status: InAppAgentRunStatus | null;
 };
 
+/** Cancel every run that is executing or waiting on user approval. */
+export async function cancelConversationRunsInTransaction(params: {
+  tx: InAppAgentTx;
+  projectId: string;
+  conversationId: string;
+}): Promise<string[]> {
+  await lockConversation(params.tx, params.projectId, params.conversationId);
+
+  const runs = await params.tx.inAppAgentRun.findMany({
+    where: {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      // Parked approvals have finishedAt set but remain unsettled.
+      status: {
+        in: [
+          InAppAgentRunStatus.QUEUED,
+          InAppAgentRunStatus.RUNNING,
+          InAppAgentRunStatus.AWAITING_APPROVAL,
+        ],
+      },
+    },
+    select: { id: true, status: true },
+  });
+
+  const cancelledImmediately: string[] = [];
+
+  for (const run of runs) {
+    const parsedStatus = InAppAgentRunStatusSchema.safeParse(run.status);
+    if (!parsedStatus.success) {
+      continue;
+    }
+
+    const result = await cancelRunInTransaction({
+      ...params,
+      runId: run.id,
+      runStatus: parsedStatus.data,
+    });
+
+    if (result.cancelledImmediately) {
+      cancelledImmediately.push(run.id);
+    }
+  }
+
+  return cancelledImmediately;
+}
+
 /** Cancel idle states immediately; signal RUNNING workers cooperatively. */
 export async function requestRunCancellation(params: {
   prisma: PrismaClient;
@@ -334,85 +411,99 @@ export async function requestRunCancellation(params: {
     if (!parsedStatus.success) {
       return { cancelledImmediately: false, status: null };
     }
-    const runStatus = parsedStatus.data;
 
-    const immediateCancel =
-      runStatus === InAppAgentRunStatus.QUEUED
+    return cancelRunInTransaction({
+      tx,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.runId,
+      runStatus: parsedStatus.data,
+    });
+  });
+}
+
+async function cancelRunInTransaction(params: {
+  tx: InAppAgentTx;
+  projectId: string;
+  conversationId: string;
+  runId: string;
+  runStatus: InAppAgentRunStatus;
+}): Promise<CancelRunResult> {
+  const immediateCancel =
+    params.runStatus === InAppAgentRunStatus.QUEUED
+      ? {
+          errorCode: InAppAgentRunErrorCode.CANCELLED,
+          errorMessage: "Cancelled before a worker picked the run up",
+        }
+      : params.runStatus === InAppAgentRunStatus.AWAITING_APPROVAL
         ? {
-            errorCode: InAppAgentRunErrorCode.CANCELLED,
-            errorMessage: "Cancelled before a worker picked the run up",
+            errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
+            errorMessage: "Approval cancelled",
           }
-        : runStatus === InAppAgentRunStatus.AWAITING_APPROVAL
-          ? {
-              errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
-              errorMessage: "Approval cancelled",
-            }
-          : null;
+        : null;
 
-    if (immediateCancel) {
-      const { count } = await tx.inAppAgentRun.updateMany({
-        where: {
-          id: params.runId,
-          projectId: params.projectId,
-          status: runStatus,
-        },
-        data: {
-          status: InAppAgentRunStatus.CANCELLED,
-          finishedAt: new Date(),
-          cancelRequestedAt: new Date(),
-          ...immediateCancel,
-        },
-      });
-
-      if (count > 0) {
-        return {
-          cancelledImmediately: true,
-          status: InAppAgentRunStatus.CANCELLED,
-        };
-      }
-    } else if (runStatus !== InAppAgentRunStatus.RUNNING) {
-      return {
-        cancelledImmediately: false,
-        status: runStatus,
-      };
-    }
-
-    // A worker can claim QUEUED between the read and immediate-cancel CAS.
-    // Signal the newly RUNNING worker instead of losing that cancel request.
-    const signalled = await tx.inAppAgentRun.updateMany({
+  if (immediateCancel) {
+    const { count } = await params.tx.inAppAgentRun.updateMany({
       where: {
         id: params.runId,
         projectId: params.projectId,
-        status: InAppAgentRunStatus.RUNNING,
+        status: params.runStatus,
       },
-      data: { cancelRequestedAt: new Date() },
+      data: {
+        status: InAppAgentRunStatus.CANCELLED,
+        finishedAt: new Date(),
+        cancelRequestedAt: new Date(),
+        ...immediateCancel,
+      },
     });
 
-    if (signalled.count > 0) {
+    if (count > 0) {
       return {
-        cancelledImmediately: false,
-        status: InAppAgentRunStatus.RUNNING,
+        cancelledImmediately: true,
+        status: InAppAgentRunStatus.CANCELLED,
       };
     }
-
-    const current = await tx.inAppAgentRun.findFirst({
-      where: {
-        id: params.runId,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-      },
-      select: { status: true },
-    });
-
-    const parsedCurrentStatus = InAppAgentRunStatusSchema.safeParse(
-      current?.status,
-    );
-
+  } else if (params.runStatus !== InAppAgentRunStatus.RUNNING) {
     return {
       cancelledImmediately: false,
-      status: parsedCurrentStatus.success ? parsedCurrentStatus.data : null,
+      status: params.runStatus,
     };
+  }
+
+  // Preserve cancellation when a worker claims QUEUED between the read and CAS.
+  const signalled = await params.tx.inAppAgentRun.updateMany({
+    where: {
+      id: params.runId,
+      projectId: params.projectId,
+      status: InAppAgentRunStatus.RUNNING,
+    },
+    data: { cancelRequestedAt: new Date() },
   });
+
+  if (signalled.count > 0) {
+    return {
+      cancelledImmediately: false,
+      status: InAppAgentRunStatus.RUNNING,
+    };
+  }
+
+  const current = await params.tx.inAppAgentRun.findFirst({
+    where: {
+      id: params.runId,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+    },
+    select: { status: true },
+  });
+
+  const parsedCurrentStatus = InAppAgentRunStatusSchema.safeParse(
+    current?.status,
+  );
+
+  return {
+    cancelledImmediately: false,
+    status: parsedCurrentStatus.success ? parsedCurrentStatus.data : null,
+  };
 }
 
 export type ReconciledRun = {
@@ -521,22 +612,10 @@ function classifyStaleRun(
   }
 
   if (run.status === InAppAgentRunStatus.RUNNING) {
-    if (
-      !run.claimedAt &&
-      !run.heartbeatAt &&
-      now - run.createdAt.getTime() > FOREGROUND_RUN_STALE_AFTER_MS
-    ) {
-      return {
-        errorCode: InAppAgentRunErrorCode.STALE,
-        errorMessage: FOREGROUND_RUN_STALE_ERROR_MESSAGE,
-      };
-    }
-
-    // Duration wins because a hung tool may keep renewing its heartbeat.
-    if (
-      run.claimedAt &&
-      now - run.claimedAt.getTime() > IN_APP_AGENT_RUN_MAX_DURATION_MS
-    ) {
+    // Duration wins because a hung tool may keep renewing its heartbeat. Use
+    // creation time as the defensive lower bound when claim metadata is absent.
+    const startedAt = run.claimedAt ?? run.createdAt;
+    if (now - startedAt.getTime() > IN_APP_AGENT_RUN_MAX_DURATION_MS) {
       return {
         errorCode: InAppAgentRunErrorCode.RUN_TIMEOUT,
         errorMessage: "The run exceeded the maximum duration",

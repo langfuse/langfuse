@@ -187,30 +187,28 @@ export type InAppAgentMessageSource = z.infer<
   typeof InAppAgentMessageSourceSchema
 >;
 
-const AgUiToolSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  parameters: z.unknown().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
+type AgUiTool = {
+  name: string;
+  description: string;
+  parameters?: unknown;
+  metadata?: Record<string, unknown>;
+};
 
 export const AgUiContextSchema = z.object({
   description: z.string(),
   value: z.string(),
 });
 
-export const AgUiRunAgentInputSchema = z.object({
-  threadId: z.string(),
-  runId: z.string(),
-  parentRunId: z.string().optional(),
-  state: z.unknown().optional(),
-  messages: z.array(AgUiMessageSchema),
-  tools: z.array(AgUiToolSchema),
-  context: z.array(AgUiContextSchema),
-  forwardedProps: z.unknown().optional(),
-});
-
-export type AgUiRunAgentInput = z.infer<typeof AgUiRunAgentInputSchema>;
+export type AgUiRunAgentInput = {
+  threadId: string;
+  runId: string;
+  parentRunId?: string;
+  state?: unknown;
+  messages: AgUiMessage[];
+  tools: AgUiTool[];
+  context: Array<z.infer<typeof AgUiContextSchema>>;
+  forwardedProps?: unknown;
+};
 
 export type AgUiEvent = {
   type: EventType;
@@ -247,19 +245,3 @@ export const ResumeForwardedPropsSchema = z.object({
 });
 
 export type ResumeForwardedProps = z.infer<typeof ResumeForwardedPropsSchema>;
-
-export const InAppAgentRuntimeStateSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("newConversation"),
-    projectId: z.string(),
-  }),
-  z.object({
-    type: z.literal("existingConversation"),
-    projectId: z.string(),
-    conversationId: z.string(),
-  }),
-]);
-
-export type InAppAgentRuntimeState = z.infer<
-  typeof InAppAgentRuntimeStateSchema
->;

@@ -68,7 +68,10 @@ export function coerceToError(area: string, value: unknown): Error {
  *   `captureException` with an `area` tag (so issues route/group by surface) and
  *   the caller's structured `extra`, then log a companion `console.warn`.
  *   Optional `tags` add further Sentry tags (e.g. `trpc.code`); on a key
- *   conflict the seam's `area` tag wins. Optional `warnMessage` overrides the
+ *   conflict the seam's `area` tag wins. Optional `fingerprint` overrides
+ *   Sentry's default grouping for callers whose errors would otherwise
+ *   collapse into one issue (all TRPCClientErrors share the same throw-site
+ *   stack) — values must be bounded and static, never user data. Optional `warnMessage` overrides the
  *   companion console line's body (always prefixed with `[area]`) for callers
  *   whose legible console text differs from the captured Error's message —
  *   e.g. a pass-through Error that lacks the caller's context. It never
@@ -89,6 +92,7 @@ export function reportError(
     area: string;
     expected?: boolean;
     extra?: Record<string, unknown>;
+    fingerprint?: string[];
     tags?: Record<string, string | undefined>;
     warnMessage?: string;
   },
@@ -108,6 +112,7 @@ export function reportError(
   captureException(err, {
     tags: { ...opts.tags, area: opts.area },
     extra: opts.extra,
+    ...(opts.fingerprint !== undefined && { fingerprint: opts.fingerprint }),
   });
   // warn, not error → captureConsoleIntegration only captures console.error, so
   // this line does not create a second, opaque event. Show the `area` exactly

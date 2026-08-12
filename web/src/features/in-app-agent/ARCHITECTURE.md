@@ -1,7 +1,7 @@
 # In-App Agent Architecture
 
-Why the drawer is built the way it is, what the target shape is once background
-execution replaces foreground, and which rules keep the two apart until then.
+Why the drawer is built the way it is and how durable worker execution keeps the
+browser, persisted transcript, and run lifecycle coherent.
 
 `README.md` is the operational guide: what each file owns, how a run flows, how
 the sandbox and MCP authorization work. This document covers the parts you
@@ -69,19 +69,17 @@ The two message-pruning helpers are the deliberate exception: they prune
 from the worker, so they sit in `packages/shared/src/in-app-agent/messages.ts`
 and are used by both replay sanitization and render-time settling.
 
-## Current state: two execution paths
+## Durable execution path
 
 ```mermaid
 flowchart LR
   subgraph Browser
-    P["InAppAiAgentProvider"]
-    F["HttpAgent (foreground)"]
     S["BackgroundExecutionSessionController"]
     R["project → smooth → drawer"]
   end
   subgraph WebServer["web server"]
-    H["handler.ts (streaming route)"]
     RT["router.ts / backgroundRunService.ts"]
+    WR["watch/route.ts"]
   end
   subgraph Shared["packages/shared"]
     L[("in_app_agent_events")]
@@ -89,73 +87,21 @@ flowchart LR
   end
   W["worker: executeInAppAgentRun"]
 
-  P --> F
-  F -->|"SSE, request-scoped"| H
-  H --> A
-  H --> L
-
-  P --> S
-  S -->|"tRPC startRun"| RT
+  S -->|"tRPC start + snapshot"| RT
   RT -->|"enqueue"| W
   W --> A
   W --> L
-  S -->|"snapshot + SSE tail above cursor"| RT
+  S -->|"SSE tail above cursor"| WR
   RT --> L
+  WR --> L
 
-  P --> R
   S -.->|"canonical + displayState"| R
-  F -.->|"canonical + displayState"| R
 ```
 
-Both paths share the agent runtime, persistence, tools, approvals and the entire
-render tree. What is genuinely forked is the run driver (an in-request stream
-versus a queued worker run), approval resume (request continuation versus a
-continuation run), and the client state machine.
-
-Foreground's run cannot outlive the browser session. Background's can: closing
-the drawer detaches observation without cancelling the run, and reopening
-hydrates one snapshot and resumes the tail above the persisted cursor.
-
-## Target state: background only
-
-```mermaid
-flowchart LR
-  subgraph Browser
-    S["BackgroundExecutionSessionController"]
-    R["project → smooth → drawer"]
-  end
-  RT["web server: snapshot + watch"]
-  L[("in_app_agent_events")]
-  W["worker: executeInAppAgentRun"]
-
-  S -->|"startRun"| RT
-  RT -->|"enqueue"| W
-  W --> L
-  S -->|"1. snapshot: canonical + displayState @ cursor"| RT
-  S -->|"2. SSE tail, cursor-exclusive"| RT
-  RT --> L
-  S --> R
-```
-
-Getting there is a deletion, not a redesign: remove `HttpAgent` wiring, the
-foreground state in the provider (`foregroundMessages`, its display state, its
-seeding), and the streaming route. The contract the remaining path uses is
-already the final one.
-
-### The quarantine rule
-
-Until foreground is deleted, do not introduce an abstraction whose purpose is
-to normalize the foreground and background run drivers or client state
-machines. Pure transcript contracts and presentation code may remain shared.
-
-The temptation is to write an adapter that makes them interchangeable. That
-adapter would be the most complex code in the feature and would have to be
-untangled later rather than deleted.
-
-Concretely: foreground-only members are marked delete-with-foreground, shared
-code between the paths must be independent of how the server executes a run
-(the projection, the drawer, the approval wire contract), and behavior tests
-cover each path at its own seam.
+Closing the drawer detaches observation without cancelling the run. Reopening
+hydrates one snapshot and resumes the tail above the persisted cursor. The
+session is the sole browser owner of the canonical transcript, approvals,
+attachment, cancellation, and current run state.
 
 ## Change rules
 

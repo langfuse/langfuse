@@ -124,6 +124,31 @@ describe("reportError", () => {
       });
     });
 
+    it("passes a caller fingerprint through to captureException", () => {
+      reportError(new Error("boom"), {
+        area: "trpc",
+        fingerprint: [
+          "trpc-client-error",
+          "INTERNAL_SERVER_ERROR",
+          "traces.all",
+        ],
+      });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.fingerprint).toEqual([
+        "trpc-client-error",
+        "INTERNAL_SERVER_ERROR",
+        "traces.all",
+      ]);
+    });
+
+    it("omits the fingerprint key entirely when not provided (Sentry default grouping)", () => {
+      reportError(new Error("boom"), { area: "io.parse" });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect("fingerprint" in options).toBe(false);
+    });
+
     it("the seam's area tag wins over a conflicting caller tag", () => {
       reportError(new Error("boom"), {
         area: "trpc",

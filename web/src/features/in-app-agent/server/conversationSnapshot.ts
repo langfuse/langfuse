@@ -1,6 +1,9 @@
 import { EventType } from "@ag-ui/core";
 
-import { createConversationMessageAccumulator } from "@langfuse/shared/in-app-agent/server/persistence";
+import {
+  createConversationMessageAccumulator,
+  redactSilentToolMessages,
+} from "@langfuse/shared/in-app-agent/server/persistence";
 import type { PersistedConversationEvent } from "@langfuse/shared/in-app-agent/server/persistence";
 
 import {
@@ -68,7 +71,10 @@ export function getConversationSnapshotFromEvents(
     }
   }
 
-  return { messages: accumulator.getMessages(), displayState };
+  return {
+    messages: redactSilentToolMessages(accumulator.getMessages()),
+    displayState,
+  };
 }
 
 function getEventString(event: unknown, key: string): string | undefined {

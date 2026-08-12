@@ -256,16 +256,13 @@ type InAppAgentWindowCloseButtonProps =
       onClose: () => void;
     };
 
-export type InAppAgentWindowExecutionUi =
-  | { type: "foreground" }
-  | {
-      type: "background";
-      notice: string | null;
-      stop: {
-        status: "available" | "stopping";
-        onStop: () => void;
-      } | null;
-    };
+export type InAppAgentWindowExecutionUi = {
+  notice: string | null;
+  stop: {
+    status: "available" | "stopping";
+    onStop: () => void;
+  } | null;
+};
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
@@ -277,6 +274,8 @@ export type InAppAgentWindowProps = {
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isConversationInteractionDisabled: boolean;
+  /** Distinguishes a loading transcript from an empty conversation. */
+  isSelectedConversationHydrating: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
   onExpandedChange: (isExpanded: boolean) => void;
@@ -284,6 +283,7 @@ export type InAppAgentWindowProps = {
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
+  onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
@@ -380,12 +380,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isExpanded,
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
+    isSelectedConversationHydrating,
     messages,
     onDeleteConversation,
     onExpandedChange,
     onLoadMoreConversations,
     onNewConversation,
     onApproveToolCall,
+    onAlwaysAllowToolCall,
     onRejectToolCall,
     onOpenConversationHistory,
     onSelectConversation,
@@ -407,10 +409,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isComposerDisabled = isConversationInteractionDisabled;
   const isSubmitDisabled =
     isComposerDisabled || isRateLimited || isAssistantTurnInProgress;
-  const backgroundNotice =
-    executionUi.type === "background" ? executionUi.notice : null;
-  const executionStop =
-    executionUi.type === "background" ? executionUi.stop : null;
+  const backgroundNotice = executionUi.notice;
+  const executionStop = executionUi.stop;
   const canStopRun = executionStop !== null && isAssistantTurnInProgress;
   const isCancellingRun = executionStop?.status === "stopping";
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -563,9 +563,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6 shrink-0"
                 onClick={onNewConversation}
-                disabled={
-                  isConversationInteractionDisabled || isAssistantTurnInProgress
-                }
                 aria-label="Start new conversation"
               >
                 <Plus className="size-3" />
@@ -591,10 +588,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     variant="ghost"
                     size="icon"
                     className="size-6 shrink-0"
-                    disabled={
-                      isConversationInteractionDisabled ||
-                      isAssistantTurnInProgress
-                    }
                     aria-label="Conversation history"
                   >
                     <History className="size-3" />
@@ -745,7 +738,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               isExpanded ? "px-0" : "px-3",
             )}
           >
-            {messages.length === 0 ? (
+            {/* An empty transcript that is still loading is not an empty
+                conversation. Offering the welcome screen and its quick actions
+                mid-switch flashes the wrong thing and invites a click that
+                would start a turn in the conversation being left behind. */}
+            {messages.length === 0 &&
+            isSelectedConversationHydrating ? null : messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
                   <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
@@ -858,6 +856,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     isRateLimited || disablePendingToolApprovalActions
                   }
                   onApproveToolCall={onApproveToolCall}
+                  onAlwaysAllowToolCall={onAlwaysAllowToolCall}
                   onRejectToolCall={onRejectToolCall}
                 />
               ))}

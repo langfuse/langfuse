@@ -3,6 +3,10 @@ export const IN_APP_AGENT_REDIRECT_TOOL_NAME = "langfuse_proposeRedirect";
 
 export const IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE = "tool_call_rejected";
 
+export const IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE = "silent-mcp-output";
+export const IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE =
+  "Output saved to /workspace/tool_calls";
+
 export const IN_APP_AGENT_MCP_USER_AGENT = "langfuse-in-app-agent";
 
 // Header used only by Langfuse's server-side in-app agent when it calls the

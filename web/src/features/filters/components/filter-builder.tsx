@@ -18,7 +18,7 @@ import {
   type SetStateAction,
 } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   Check,
   ChevronDown,
@@ -603,7 +603,7 @@ function FilterBuilderForm({
           setAiError("Invalid response format from API");
         }
       } catch (error) {
-        console.error("Error calling tRPC API:", error);
+        reportNonTrpcError(error, "ai-filters");
         setAiError(
           error instanceof Error ? error.message : "Failed to generate filters",
         );

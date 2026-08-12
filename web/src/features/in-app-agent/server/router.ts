@@ -32,9 +32,11 @@ import {
   assertInAppAgentRateLimit,
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
+import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
+  deleteBackgroundConversation,
   getBackgroundConversationSnapshot,
   startBackgroundRun,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
@@ -59,9 +61,8 @@ const RenameConversationInput = ConversationIdInput.extend({
 const StartRunInput = ConversationIdInput.extend({
   message: z.string().trim().min(1).max(MAX_IN_APP_AGENT_MESSAGE_LENGTH),
   /**
-   * The same AG-UI context array the foreground path sends (current page, the
-   * quick action and entry point that triggered the turn); resolved and
-   * sanitized server-side, then stored on the run for the worker to replay.
+   * The AG-UI context for the current page, quick action, and entry point;
+   * resolved and sanitized server-side, then stored for the worker to replay.
    */
   context: z.array(AgUiContextSchema).default([]),
 });
@@ -74,6 +75,11 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
   runId: z.string(),
   toolCallId: z.string(),
   approved: z.boolean(),
+  // "conversation" also approves this call; it never means approve-without-run.
+  approvalScope: z.enum(["once", "conversation"]).default("once"),
+}).refine((input) => input.approved || input.approvalScope === "once", {
+  message: "A rejection cannot grant a tool",
+  path: ["approvalScope"],
 });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
@@ -160,8 +166,8 @@ export const inAppAgentRouter = createTRPCRouter({
   /**
    * Submit a turn for background execution.
    *
-   * Runs the same validation chain as the foreground route, then commits the
-   * run as QUEUED with its user message already appended — the events table is
+   * Validates the request, then commits the run as QUEUED with its user message
+   * already appended — the events table is
    * the render source from the instant of submit, so there is no optimistic UI
    * state to survive a refresh. The BullMQ enqueue happens after commit; a
    * failure there marks the run FAILED immediately rather than leaving a
@@ -176,18 +182,21 @@ export const inAppAgentRouter = createTRPCRouter({
         user: ctx.session.user,
       });
 
-      await assertInAppAgentRateLimit(
-        getInAppAgentApiAccessScope(
-          ctx.session.user,
-          input.projectId,
-          projectAvailability,
-        ),
-        "in-app-agent-run",
+      const rateLimitScope = getInAppAgentApiAccessScope(
+        ctx.session.user,
+        input.projectId,
+        projectAvailability,
       );
 
+      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+
+      // The concurrency ceiling is enforced inside `startBackgroundRun`, which
+      // owns the conversation lookup it has to reconcile against first.
       return startBackgroundRun({
         prisma: ctx.prisma,
         projectId: input.projectId,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
         message: input.message,
@@ -232,14 +241,22 @@ export const inAppAgentRouter = createTRPCRouter({
         user: ctx.session.user,
       });
 
-      await assertInAppAgentRateLimit(
-        getInAppAgentApiAccessScope(
-          ctx.session.user,
-          input.projectId,
-          projectAvailability,
-        ),
-        "in-app-agent-run",
+      const rateLimitScope = getInAppAgentApiAccessScope(
+        ctx.session.user,
+        input.projectId,
+        projectAvailability,
       );
+
+      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+      // A continuation is a fresh run that occupies a worker slot, and parked
+      // approvals accumulate without holding one, so this path needs the
+      // ceiling for the same reason it already needs the daily bucket.
+      await assertInAppAgentRunCapacity({
+        prisma: ctx.prisma,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
+        userId: ctx.session.user.id,
+      });
 
       return decideBackgroundApproval({
         prisma: ctx.prisma,
@@ -248,6 +265,7 @@ export const inAppAgentRouter = createTRPCRouter({
         runId: input.runId,
         toolCallId: input.toolCallId,
         approved: input.approved,
+        approvalScope: input.approvalScope,
         userId: ctx.session.user.id,
         model: env.LANGFUSE_AWS_BEDROCK_MODEL,
       });
@@ -262,27 +280,12 @@ export const inAppAgentRouter = createTRPCRouter({
         user: ctx.session.user,
       });
 
-      await getOwnedConversationOrThrow({
+      return deleteBackgroundConversation({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
       });
-
-      await ctx.prisma.inAppAgentConversation.update({
-        where: {
-          id_projectId: {
-            id: input.conversationId,
-            projectId: input.projectId,
-          },
-        },
-        data: {
-          providerSessionId: null,
-          deletedAt: new Date(),
-        },
-      });
-
-      return { success: true };
     }),
 
   renameConversation: protectedProjectProcedureWithoutTracing

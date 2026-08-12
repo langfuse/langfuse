@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { InAppAgentRunStatus } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
+import { IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE } from "@langfuse/shared/in-app-agent";
 
 vi.mock("@langfuse/shared/src/server", () => ({
   ClickHouseClientManager: {
@@ -15,8 +16,37 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 
 import { getBackgroundConversationSnapshot } from "@/src/features/in-app-agent/server/backgroundRunService";
+import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
 
 describe("getBackgroundConversationSnapshot", () => {
+  it("redacts silent MCP output from hydrated messages", () => {
+    const snapshot = getConversationSnapshotFromEvents([
+      {
+        sequenceNumber: 0,
+        runId: "run-1",
+        createdAt: new Date("2026-08-05T00:00:00.000Z"),
+        event: {
+          type: EventType.TOOL_CALL_RESULT,
+          messageId: "tool-result-1",
+          toolCallId: "tool-call-1",
+          content: JSON.stringify({
+            type: "silent-mcp-output",
+            output: { secret: "full-tool-output" },
+          }),
+        },
+      },
+    ]);
+
+    expect(snapshot.messages).toEqual([
+      {
+        id: "tool-result-1",
+        role: "tool",
+        toolCallId: "tool-call-1",
+        content: IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
+      },
+    ]);
+  });
+
   it("does not combine a terminal run with an event cursor from before that commit", async () => {
     const projectId = "project-1";
     const conversationId = "conversation-1";

@@ -63,6 +63,81 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getObservationsWithModelDataFromEventsTable", () => {
+    // LFE-14924: the events table projects the resolved trace name (a nullable
+    // fallback expression) under the same name as the non-null events_core
+    // column it reads. With a trace-name filter AND an ORDER BY — the events
+    // table's default shape — ClickHouse 25.x compares the two `trace_name`
+    // block headers and fails with AMBIGUOUS_COLUMN_NAME (code 352). The sort
+    // is load-bearing: without it the same query succeeds.
+    it("filters observations by their resolved trace name while sorting", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const traceName = `trace-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          trace_name: traceName,
+          type: "GENERATION",
+          name: "trace-name-filter-event",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [
+          {
+            column: "traceName",
+            type: "stringOptions",
+            operator: "any of",
+            value: [traceName],
+          },
+        ],
+        orderBy: { column: "startTime", order: "DESC" },
+        limit: 1000,
+        offset: 0,
+      });
+
+      expect(result.map((observation) => observation.id)).toContain(
+        observationId,
+      );
+      expect(
+        result.find((observation) => observation.id === observationId),
+      ).toMatchObject({ traceName });
+    });
+
+    it("returns null when an observation has no resolved trace name", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          parent_span_id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          trace_name: "",
+          type: "SPAN",
+          name: "child-without-trace-name",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      expect(
+        result.find((observation) => observation.id === observationId),
+      ).toMatchObject({ traceName: null });
+    });
+
     it("should return trace tags for events table observations", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
@@ -3778,6 +3853,69 @@ describe("Clickhouse Events Repository Test", () => {
       expect(withToolCalls.length).toBe(1);
       expect(withToolCalls[0]?.toolCalls).toEqual([storedToolCall]);
       expect(withToolCalls[0]?.toolCallNames).toEqual(["get_weather"]);
+    });
+
+    it("should serve ioCharLimit chars of I/O and metadata on an untruncated read", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+      const charLimit = 1_000;
+      const longInput = "i".repeat(3 * charLimit);
+      const longOutput = "o".repeat(3 * charLimit);
+      const longMetadataValue = "m".repeat(3 * charLimit);
+      const longExpectedOutput = "e".repeat(3 * charLimit);
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-io-char-limit",
+          input: longInput,
+          output: longOutput,
+          metadata_names: ["long"],
+          metadata_values: [longMetadataValue],
+          experiment_item_expected_output: longExpectedOutput,
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const baseParams = {
+        projectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      // The default read serves events_core, whose I/O is stored pre-truncated
+      // well below what a taller table row can display (LFE-14586).
+      const truncated = await getObservationsBatchIOFromEventsTable(baseParams);
+      expect(truncated[0]?.input?.length).toBeLessThan(charLimit);
+
+      // The limit has to bound every large field the read returns, not just I/O.
+      const capped = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        truncated: false,
+        ioCharLimit: charLimit,
+        includeExperimentFields: true,
+      });
+      expect(capped[0]?.input).toBe("i".repeat(charLimit));
+      expect(capped[0]?.output).toBe("o".repeat(charLimit));
+      expect(capped[0]?.metadata?.long).toBe("m".repeat(charLimit));
+      expect(capped[0]?.experimentItemExpectedOutput).toBe(
+        "e".repeat(charLimit),
+      );
+
+      // Without a limit an untruncated read still returns everything.
+      const full = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        truncated: false,
+      });
+      expect(full[0]?.input).toBe(longInput);
+      expect(full[0]?.metadata?.long).toBe(longMetadataValue);
     });
   });
 

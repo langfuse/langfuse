@@ -28,16 +28,18 @@ import {
   createAgUiStream,
   createInAppAgentMcpRunOverride,
   createInAppAgentSandbox,
+  createSandboxToolCallFileAccumulator,
   finishClaimedRun,
   flushPendingRunEvents,
   getConversationEvents,
   getConversationMessagesForReplay,
   getInAppAgentPromptClient,
-  getSandboxToolCallFiles,
   heartbeatClaimedRun,
   IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
   isInAppAgentConversationWriteLocked,
-  isMcpToolName,
+  createInAppAgentToolPolicy,
+  getInAppAgentMcpAllowedToolNames,
+  getInAppAgentRegistryToolName,
   maybeInferAndPersistConversationTitle,
   parseInAppAgentInterruptEvent,
   shouldFlushPersistedEvent,
@@ -277,13 +279,28 @@ export async function executeInAppAgentRun(params: {
     isApprovedContinuation =
       request.kind === "approvalDecision" && request.approved;
     const approvedRegistryToolName = isApprovedContinuation
-      ? getRegistryToolName(approvalRequest?.toolName)
+      ? getInAppAgentRegistryToolName(approvalRequest?.toolName)
       : undefined;
-    const runOverride = approvedRegistryToolName
-      ? await createInAppAgentMcpRunOverride({
-          toolName: approvedRegistryToolName,
-        })
-      : undefined;
+
+    const userAccess: InAppAgentUserAccess = {
+      projectRole: access.projectRole,
+      isAdmin: access.isAdmin,
+    };
+
+    // Rebuild each run so grants invalidated by role changes drop out.
+    const toolPolicy = createInAppAgentToolPolicy({
+      userAccess,
+      alwaysAllowedTools: conversation.alwaysAllowedTools,
+    });
+
+    const allowedToolNames = getInAppAgentMcpAllowedToolNames(
+      toolPolicy,
+      approvedRegistryToolName,
+    );
+    const runOverride =
+      allowedToolNames.length > 0
+        ? await createInAppAgentMcpRunOverride({ toolNames: allowedToolNames })
+        : undefined;
 
     // ---- Sandbox (session created/resumed lazily per tool call). ----
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
@@ -298,14 +315,15 @@ export async function executeInAppAgentRun(params: {
       );
     }
 
+    const sandboxToolCallFiles =
+      createSandboxToolCallFileAccumulator(conversationEvents);
     const sandboxState = sandboxProvider
       ? await createInAppAgentSandbox({
           conversationId: conversation.id,
           projectId,
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
-          getToolCallFiles: async () =>
-            getSandboxToolCallFiles(conversationEvents),
+          getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),
           saveState: async (state) => {
             await prisma.inAppAgentConversation.update({
               where: { id_projectId: { id: conversation.id, projectId } },
@@ -376,11 +394,6 @@ export async function executeInAppAgentRun(params: {
 
     let interruptRequest: InAppAgentToolApprovalRequest | undefined;
 
-    const userAccess: InAppAgentUserAccess = {
-      projectRole: access.projectRole,
-      isAdmin: access.isAdmin,
-    };
-
     const stream = await createAgUiStream({
       input: agentInput,
       signal: abortController.signal,
@@ -417,6 +430,11 @@ export async function executeInAppAgentRun(params: {
           }
 
           pendingPersistedEvents.push(persistedEvent);
+          sandboxToolCallFiles.processEvent({
+            event: persistedEvent,
+            runId,
+            createdAt: new Date(),
+          });
 
           if (!shouldFlushPersistedEvent(persistedEvent)) {
             return;
@@ -424,6 +442,7 @@ export async function executeInAppAgentRun(params: {
 
           return flushPersistedRunEvents();
         },
+        onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
         onComplete: async () => {
           await flushPersistedRunEvents(
             interruptRequest
@@ -504,7 +523,7 @@ export async function executeInAppAgentRun(params: {
           url: getLangfuseMcpUrl(),
           publicKey: mcpApiKey.publicKey,
           secretKey: mcpApiKey.secretKey,
-          userAccess,
+          toolPolicy,
           runOverride,
         },
         redirectAction: {
@@ -633,16 +652,6 @@ function findPersistedApprovalRequest(
   }
 
   return undefined;
-}
-
-function getRegistryToolName(toolName: string | undefined) {
-  if (!toolName?.startsWith("langfuse_")) {
-    return undefined;
-  }
-
-  const registryToolName = toolName.slice("langfuse_".length);
-
-  return isMcpToolName(registryToolName) ? registryToolName : undefined;
 }
 
 function getLangfuseMcpUrl(): string {
