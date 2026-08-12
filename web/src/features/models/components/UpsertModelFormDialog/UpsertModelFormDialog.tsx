@@ -1,8 +1,10 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 /* eslint @repo/no-style-props: "off" */
+import cloneDeep from "lodash/cloneDeep";
+import isEqual from "lodash/isEqual";
 import Link from "next/link";
-import { useEffect, useState, useMemo } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Button } from "@/src/components/ui/button";
@@ -33,6 +35,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { buildFormValues } from "@/src/features/models/fns/buildFormValues";
+import { matchPatternFor } from "@/src/features/models/fns/matchPatternFor";
+import { toPricingTierInputs } from "@/src/features/models/fns/toPricingTierInputs";
 import {
   type FormUpsertModel,
   FormUpsertModelSchema,
@@ -44,7 +49,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/router";
 
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { PricingSection } from "./pricing-tiers/PricingSection";
+import { PricingSection } from "@/src/features/models/components/PricingSection/PricingSection";
 
 type UpsertModelDialogProps =
   | {
@@ -65,6 +70,9 @@ type UpsertModelDialogProps =
       className?: string;
     };
 
+const DISCARD_CHANGES_MESSAGE =
+  "Discard your unsaved changes to this model definition?";
+
 export const UpsertModelFormDialog = (({
   children,
   ...props
@@ -75,159 +83,25 @@ export const UpsertModelFormDialog = (({
   const utils = api.useUtils();
   const [open, setOpen] = useState(false);
 
-  // Initialize form default values
-  const defaultValues: FormUpsertModel = useMemo(() => {
-    if (props.action !== "create") {
-      // EDIT or CLONE: Load all tiers
-      const loadedTiers = props.modelData.pricingTiers.map((tier) => ({
-        id: tier.id,
-        name: tier.name,
-        isDefault: tier.isDefault,
-        priority: tier.priority,
-        conditions: tier.conditions,
-        prices: tier.prices,
-      }));
-
-      return {
-        modelName: props.modelData.modelName,
-        matchPattern: props.modelData.matchPattern,
-        tokenizerId: props.modelData.tokenizerId,
-        tokenizerConfig: JSON.stringify(props.modelData.tokenizerConfig ?? {}),
-        pricingTiers: loadedTiers,
-      };
-    }
-    // CREATE: Start with 1 default tier
-    return {
-      modelName: props.prefilledModelData?.modelName ?? "",
-      matchPattern: props.prefilledModelData?.modelName
-        ? `(?i)^(${props.prefilledModelData?.modelName})$`
-        : "",
-      tokenizerId: null,
-      tokenizerConfig: null,
-      pricingTiers: [
-        {
-          name: "Standard",
-          isDefault: true,
-          priority: 0,
-          conditions: [],
-          prices: props.prefilledModelData?.prices ?? {
-            input: 0.000001,
-            output: 0.000002,
-          },
-        },
-      ],
-    };
-  }, [props]);
-
   const form = useForm({
     resolver: zodResolver(FormUpsertModelSchema),
-    defaultValues,
+    defaultValues: buildFormValues(props),
   });
 
-  const modelName = form.watch("modelName");
-  const matchPattern = form.watch("matchPattern");
   const tokenizerId = form.watch("tokenizerId");
 
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "pricingTiers",
-  });
-
-  // Watch default tier prices for syncing
-  const defaultTierIndex = fields.findIndex((f) => f.isDefault);
-  const defaultTierPrices =
-    defaultTierIndex !== -1
-      ? form.watch(`pricingTiers.${defaultTierIndex}.prices`)
-      : undefined;
-
-  // Compute keys signature - memoized to prevent unnecessary updates
-  const defaultKeysSignature = useMemo(() => {
-    if (!defaultTierPrices) return "";
-    return Object.keys(defaultTierPrices).sort().join(",");
-  }, [defaultTierPrices]);
-
-  // Auto-assign priorities based on order
-  useEffect(() => {
-    fields.forEach((field, index) => {
-      const tier = form.getValues(`pricingTiers.${index}`);
-      const expectedPriority = tier.isDefault ? 0 : index;
-      if (tier.priority !== expectedPriority) {
-        form.setValue(`pricingTiers.${index}.priority`, expectedPriority);
-      }
-    });
-  }, [fields, form]);
-
-  // Sync usage keys from default tier to all non-default tiers
-  useEffect(() => {
-    if (!defaultTierPrices || defaultTierIndex === -1 || !defaultKeysSignature)
-      return;
-
-    const defaultKeys = defaultKeysSignature.split(",");
-
-    fields.forEach((field, index) => {
-      if (field.isDefault) return;
-
-      const currentPrices = form.getValues(`pricingTiers.${index}.prices`);
-      const currentKeys = Object.keys(currentPrices).sort();
-
-      // Only update if keys don't match
-      const keysMatch =
-        defaultKeys.length === currentKeys.length &&
-        defaultKeys.every((key, i) => key === currentKeys[i]);
-
-      if (!keysMatch) {
-        const newPrices: Record<string, number> = {};
-        defaultKeys.forEach((key) => {
-          newPrices[key] = currentPrices[key] ?? 0;
-        });
-        form.setValue(`pricingTiers.${index}.prices`, newPrices);
-      }
-    });
-  }, [defaultKeysSignature, defaultTierPrices, defaultTierIndex, fields, form]);
-
-  // prefill match pattern if model name changes
-  useEffect(() => {
-    const getRegexString = (modelName: string) => `(?i)^(${modelName})$`;
-
-    if (
-      modelName &&
-      (!matchPattern ||
-        matchPattern === `(?i)^(${modelName.slice(0, -1)})$` ||
-        matchPattern === `(?i)^(${modelName})$`)
-    ) {
-      form.setValue("matchPattern", getRegexString(modelName));
-    }
-  }, [modelName, matchPattern, form]);
-
-  const upsertModelMutation = api.models.upsert.useMutation({
-    onSuccess: (upsertedModel) => {
-      utils.models.invalidate();
-      form.reset();
-      setOpen(false);
-      showSuccessToast({
-        title: `Model ${props.action === "edit" ? "updated" : "created"}`,
-        description: `The model '${upsertedModel.modelName}' has been successfully ${props.action === "edit" ? "updated" : "created"}. New generations will use these model prices.`,
-      });
-      router.push(
-        `/project/${props.projectId}/settings/models/${upsertedModel.id}`,
-      );
-    },
-    onError: (error) => setFormError(error.message),
-  });
+  const upsertModelMutation = api.models.upsert.useMutation();
 
   const onSubmit = async (values: FormUpsertModel) => {
     capture("models:new_form_submit");
+    setFormError(null);
+    // Snapshot before the await: nothing typed while the save is in flight may
+    // become part of the saved baseline, or the dirty guard would let it go.
+    // getValues() copies only the top level, so the clone is load-bearing.
+    const submitted = cloneDeep(form.getValues());
 
-    // Transform FormPricingTier[] -> PricingTierInput[] (remove id field and filter prices)
-    const pricingTiers = values.pricingTiers.map(({ id: _id, ...tier }) => ({
-      ...tier,
-      prices: Object.fromEntries(
-        Object.entries(tier.prices).filter(([_, value]) => value != null),
-      ) as Record<string, number>,
-    }));
-
-    await upsertModelMutation
-      .mutateAsync({
+    try {
+      const upsertedModel = await upsertModelMutation.mutateAsync({
         modelId: props.action === "edit" ? props.modelData.id : null,
         projectId: props.projectId,
         modelName:
@@ -235,37 +109,46 @@ export const UpsertModelFormDialog = (({
             ? props.modelData.modelName
             : values.modelName,
         matchPattern: values.matchPattern,
-        pricingTiers,
+        pricingTiers: toPricingTierInputs(values),
         tokenizerId: values.tokenizerId,
         tokenizerConfig:
           values.tokenizerConfig &&
           typeof JSON.parse(values.tokenizerConfig) === "object"
             ? (JSON.parse(values.tokenizerConfig) as Record<string, number>)
             : undefined,
-      })
-      .catch((error) => {
-        setFormError(error.message);
       });
+
+      utils.models.invalidate();
+      showSuccessToast({
+        title: `Model ${props.action === "edit" ? "updated" : "created"}`,
+        description: `The model '${upsertedModel.modelName}' has been successfully ${props.action === "edit" ? "updated" : "created"}. New generations will use these model prices.`,
+      });
+
+      // Editing is a checkpoint, not an exit: keep the dialog and its context.
+      if (props.action === "edit") {
+        const live = form.getValues();
+        form.reset(submitted); // what we saved is the new clean baseline
+        if (!isEqual(live, submitted)) {
+          // Typed while the save was in flight: still the user's unsaved work.
+          form.reset(live, { keepDefaultValues: true });
+        }
+        return;
+      }
+
+      setOpen(false);
+      router.push(
+        `/project/${props.projectId}/settings/models/${upsertedModel.id}`,
+      );
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : String(error));
+    }
   };
 
-  const addTier = () => {
-    const defaultTier = fields.find((f) => f.isDefault);
-    if (!defaultTier) return;
-
-    append({
-      name: `Custom Tier ${fields.length}`,
-      isDefault: false,
-      priority: fields.length,
-      conditions: [
-        {
-          usageDetailPattern: "^input",
-          operator: "gt",
-          value: 0,
-          caseSensitive: false,
-        },
-      ],
-      prices: { ...defaultTier.prices }, // Copy default tier prices
-    });
+  const requestClose = () => {
+    if (form.formState.isDirty && !window.confirm(DISCARD_CHANGES_MESSAGE)) {
+      return;
+    }
+    setOpen(false);
   };
 
   return (
@@ -273,10 +156,13 @@ export const UpsertModelFormDialog = (({
       open={open}
       onOpenChange={(newOpen) => {
         if (!newOpen) {
-          form.reset();
-          setFormError(null);
+          requestClose();
+          return;
         }
-        setOpen(newOpen);
+        // Reopening starts from the model's current data, not the last edit.
+        form.reset(buildFormValues(props));
+        setFormError(null);
+        setOpen(true);
       }}
     >
       <DialogTrigger
@@ -328,7 +214,28 @@ export const UpsertModelFormDialog = (({
                       using the same name and match pattern.
                     </FormDescription>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        {...field}
+                        onChange={(e) => {
+                          const previousName = form.getValues("modelName");
+                          const nextName = e.target.value;
+                          field.onChange(e);
+
+                          // Follow the name only while the pattern is still the
+                          // one we generated — a hand-written or cloned pattern
+                          // is the user's, and typing a name must not touch it.
+                          const pattern = form.getValues("matchPattern");
+                          if (
+                            !pattern ||
+                            pattern === matchPatternFor(previousName)
+                          ) {
+                            form.setValue(
+                              "matchPattern",
+                              nextName ? matchPatternFor(nextName) : "",
+                            );
+                          }
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -354,13 +261,7 @@ export const UpsertModelFormDialog = (({
                 )}
               />
 
-              {/* PRICING SECTION */}
-              <PricingSection
-                fields={fields}
-                form={form}
-                remove={remove}
-                addTier={addTier}
-              />
+              <PricingSection form={form} />
 
               <FormField
                 control={form.control}
@@ -440,16 +341,12 @@ export const UpsertModelFormDialog = (({
             </DialogBody>
 
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={requestClose}>
                 Cancel
               </Button>
 
               <Button type="submit" loading={upsertModelMutation.isPending}>
-                Submit
+                {props.action === "edit" ? "Save" : "Submit"}
               </Button>
             </DialogFooter>
           </form>
