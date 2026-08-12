@@ -4,7 +4,6 @@ import {
   Database,
   LayoutDashboard,
   LifeBuoy,
-  ListTree,
   type LucideIcon,
   Settings,
   UsersIcon,
@@ -17,7 +16,6 @@ import {
   Home,
   SquarePercent,
   ClipboardPen,
-  Clock,
   MessagesSquare,
 } from "lucide-react";
 import { type ReactNode } from "react";
@@ -96,22 +94,23 @@ export const ROUTES: Route[] = [
     productModule: "dashboards",
     section: RouteSection.Main,
   },
-  {
-    title: "Tracing",
-    icon: ListTree,
-    productModule: "tracing",
-    group: RouteGroup.Observability,
-    section: RouteSection.Main,
-    pathname: `/project/[projectId]/traces`,
-  },
-  {
-    title: "Sessions",
-    icon: Clock,
-    productModule: "tracing",
-    group: RouteGroup.Observability,
-    section: RouteSection.Main,
-    pathname: `/project/[projectId]/sessions`,
-  },
+  // CIP fork (see FORK.md): Tracing and Sessions pages disabled.
+  // {
+  //   title: "Tracing",
+  //   icon: ListTree,
+  //   productModule: "tracing",
+  //   group: RouteGroup.Observability,
+  //   section: RouteSection.Main,
+  //   pathname: `/project/[projectId]/traces`,
+  // },
+  // {
+  //   title: "Sessions",
+  //   icon: Clock,
+  //   productModule: "tracing",
+  //   group: RouteGroup.Observability,
+  //   section: RouteSection.Main,
+  //   pathname: `/project/[projectId]/sessions`,
+  // },
   {
     title: "Users",
     pathname: `/project/[projectId]/users`,
