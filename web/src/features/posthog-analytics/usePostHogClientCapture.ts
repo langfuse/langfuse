@@ -319,8 +319,11 @@ export const events = {
     "v4_beta_toggled",
     "v4_migration_card_clicked",
   ],
+  // Migration-funnel events answer "are people finding the panel, which
+  // action items do they engage with, and which CTA do they use?"
+  // panel_opened carries the entry surface; panel_checks_loaded carries the
+  // amount of work shown (counts only — never keys or SDK payload values).
   v4_migration: [
-    "in_app_agent_opened",
     "coding_agent_prompt_viewed",
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
@@ -332,8 +335,15 @@ export const events = {
     "migrate_evals_with_agent_clicked",
     "overview_banner_status_clicked",
     "overview_banner_docs_clicked",
-    "panel_status_link_clicked",
     "panel_docs_link_clicked",
+    "create_project_keys_clicked",
+    "panel_opened",
+    "panel_checks_loaded",
+    "section_expanded",
+    "evidence_link_clicked",
+    "section_link_clicked",
+    "project_keys_copied",
+    "evals_manual_upgrade_clicked",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
