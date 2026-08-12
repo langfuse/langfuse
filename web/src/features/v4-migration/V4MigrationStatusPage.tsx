@@ -172,7 +172,7 @@ function OrgStatusSection({
 
   const openProjectMigration = (row: { id: string; name: string }) => {
     capture("v4_migration:status_row_clicked");
-    openMigrationPanel({ id: row.id, name: row.name });
+    openMigrationPanel({ id: row.id, name: row.name }, "status_page_row");
   };
 
   const handleRowClick = (row: { id: string; name: string }) => {

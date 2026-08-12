@@ -1,3 +1,4 @@
+import React from "react";
 import {
   fireEvent,
   render,
@@ -51,6 +52,7 @@ const cleanSdkState = (): V4MigrationSdkState => ({
 
 const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
+  capture: vi.fn(),
   openAssistant: vi.fn(),
   submitAgentMessage: vi.fn(),
   upgradePlan: {
@@ -103,7 +105,7 @@ vi.mock("@/src/features/support-chat/SupportDrawerProvider", () => ({
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => vi.fn(),
+  usePostHogClientCapture: () => mocks.capture,
 }));
 
 vi.mock("@/src/utils/api", () => ({
@@ -174,17 +176,42 @@ vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
   }),
 }));
 
-vi.mock("@/src/components/ui/collapsible", () => ({
-  Collapsible: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  CollapsibleTrigger: ({ children }: { children: React.ReactNode }) => (
-    <button>{children}</button>
-  ),
-  CollapsibleContent: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-}));
+// Content stays rendered so section-body assertions need no expanding; the
+// trigger toggles like Radix (open ↔ closed, seeded from defaultOpen) so the
+// expand-only guard in Section is genuinely exercised.
+vi.mock("@/src/components/ui/collapsible", () => {
+  const ToggleContext = React.createContext<() => void>(() => {});
+  return {
+    Collapsible: ({
+      children,
+      defaultOpen,
+      onOpenChange,
+    }: {
+      children: React.ReactNode;
+      defaultOpen?: boolean;
+      onOpenChange?: (open: boolean) => void;
+    }) => {
+      const [isOpen, setIsOpen] = React.useState(defaultOpen ?? false);
+      const toggle = () => {
+        const next = !isOpen;
+        setIsOpen(next);
+        onOpenChange?.(next);
+      };
+      return (
+        <ToggleContext.Provider value={toggle}>
+          <div>{children}</div>
+        </ToggleContext.Provider>
+      );
+    },
+    CollapsibleTrigger: ({ children }: { children: React.ReactNode }) => {
+      const toggle = React.useContext(ToggleContext);
+      return <button onClick={toggle}>{children}</button>;
+    },
+    CollapsibleContent: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+  };
+});
 
 describe("V4MigrationDetailsContent", () => {
   beforeEach(() => {
@@ -436,6 +463,112 @@ describe("V4MigrationDetailsContent", () => {
     expect(
       screen.queryByRole("link", { name: "pk-lf-123…abcdef" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("captures panel_checks_loaded once when all checks settle", () => {
+    const { rerender } = render(
+      <V4MigrationDetailsContent projectId="project-1" />,
+    );
+    rerender(<V4MigrationDetailsContent projectId="project-1" />);
+
+    const loadedCalls = mocks.capture.mock.calls.filter(
+      ([name]) => name === "v4_migration:panel_checks_loaded",
+    );
+    expect(loadedCalls).toHaveLength(1);
+    expect(loadedCalls[0]![1]).toEqual({
+      readiness: "action-needed",
+      sdkStatus: "latest",
+      sdkActionableCount: 0,
+      delayedOtelCount: 0,
+      customInstrumentationCount: 0,
+      evalsCount: 0,
+      apisCount: 1,
+      integrationsCount: 3,
+      experimentsResult: "not_required",
+    });
+  });
+
+  it("holds panel_checks_loaded while a check is still running", () => {
+    mocks.migrationData.evals = { status: "loading", count: 0 };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(mocks.capture).not.toHaveBeenCalledWith(
+      "v4_migration:panel_checks_loaded",
+      expect.anything(),
+    );
+  });
+
+  it("holds panel_checks_loaded when one check errors while another loads", () => {
+    // readiness collapses to "unavailable" on the first error, but the event
+    // must wait for the in-flight checks instead of locking in a mid-flight
+    // snapshot; errored counts then report null, not a clean-looking zero.
+    mocks.migrationData.evals = { status: "error", count: 0 };
+    mocks.migrationData.apis = { status: "loading", count: 0 };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(mocks.capture).not.toHaveBeenCalledWith(
+      "v4_migration:panel_checks_loaded",
+      expect.anything(),
+    );
+
+    mocks.migrationData.apis = { status: "loaded", count: 1 };
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:panel_checks_loaded",
+      expect.objectContaining({ readiness: "unavailable", evalsCount: null }),
+    );
+  });
+
+  it("captures section_expanded and evidence_link_clicked in the SDK section", () => {
+    mocks.migrationData.sdk = {
+      status: "legacy",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({
+          sdkVersion: "2.60.3",
+          v4MigrationStatus: "upgrade_required",
+        }),
+      ],
+      upgradeRequiredCount: 1,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    fireEvent.click(screen.getByText("Update SDK").closest("button")!);
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:section_expanded",
+      { section: "sdk" },
+    );
+
+    // Collapsing must not count as engagement.
+    fireEvent.click(screen.getByText("Update SDK").closest("button")!);
+    expect(
+      mocks.capture.mock.calls.filter(
+        ([name]) => name === "v4_migration:section_expanded",
+      ),
+    ).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("link", { name: "pk-lf-123…abcdef" }));
+    // Only bounded values: the canonical SDK enum and status enums — never
+    // the raw client-supplied sdkName/sdkVersion header strings.
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:evidence_link_clicked",
+      {
+        section: "sdk",
+        sdkName: "python",
+        v4MigrationStatus: "upgrade_required",
+        attributionStatus: "attributed",
+      },
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "upgrade path" }));
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:section_link_clicked",
+      { section: "sdk", link: "sdk_upgrade_docs" },
+    );
   });
 
   it("shows delayed OTel exporters and hides the clean SDK section", () => {

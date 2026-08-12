@@ -144,10 +144,10 @@ describe("V4MigrationStatusPage", () => {
     });
     fireEvent.click(projectLink);
 
-    expect(mocks.openForProject).toHaveBeenCalledWith({
-      id: "project-1",
-      name: "Test project",
-    });
+    expect(mocks.openForProject).toHaveBeenCalledWith(
+      { id: "project-1", name: "Test project" },
+      "status_page_row",
+    );
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:status_row_clicked",
     );
@@ -163,10 +163,10 @@ describe("V4MigrationStatusPage", () => {
 
     fireEvent.click(projectRow!);
 
-    expect(mocks.openForProject).toHaveBeenCalledWith({
-      id: "project-1",
-      name: "Test project",
-    });
+    expect(mocks.openForProject).toHaveBeenCalledWith(
+      { id: "project-1", name: "Test project" },
+      "status_page_row",
+    );
     expect(mocks.routerPush).toHaveBeenCalledWith("/project/project-1/traces");
   });
 
