@@ -6,6 +6,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { startOfMinute } from "date-fns";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
   type UseSidebarFilterStateOptions,
@@ -54,8 +55,9 @@ import {
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
+import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
 import {
-  toAbsoluteTimeRange,
   type TableDateRange,
   TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
@@ -116,9 +118,9 @@ import { getSafeRedirectPath } from "@/src/utils/redirect";
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import {
-  type RefreshInterval,
   REFRESH_INTERVALS,
-} from "@/src/components/table/data-table-refresh-button";
+  type RefreshInterval,
+} from "@/src/components/table/utils/refresh-intervals";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
@@ -405,70 +407,38 @@ export default function ObservationsEventsTable({
     [allowedValues, setRawRefreshInterval],
   );
 
-  const [refreshTick, setRefreshTick] = useState(0);
-  // Facet options are not "live": the auto-refresh tick must keep updating the
-  // table rows without re-fetching facets (their values don't change tick to
-  // tick). They re-anchor only on a real scope change — a new time range or an
-  // explicit refresh — tracked by this separate tick, which the auto interval
-  // never bumps.
-  const [filterOptionsRefreshTick, setFilterOptionsRefreshTick] = useState(0);
+  // When the chart/outlier-strip window (below) last advanced. Truncated to the
+  // minute: a to-the-millisecond bound re-keyed the chart query on every tick,
+  // and that cold load is what faded the strip out mid-refresh.
+  const [chartRefreshedAtMs, setChartRefreshedAt] = useState(() =>
+    startOfMinute(new Date()).getTime(),
+  );
 
-  // Tick-safe refresh: table rows + counts + the chart query, WITHOUT
-  // re-anchoring facet options (their values don't change tick-to-tick, so
-  // re-fetching open high-cardinality facets every tick is wasteful). The auto
-  // interval uses this. The chart runs dashboard.executeQuery; for absolute
-  // time ranges its query key is stable across refreshes, so invalidate it too.
-  const handleAutoRefresh = useCallback(() => {
-    setRefreshTick((t) => t + 1);
-    Promise.all([
-      utils.events.all.invalidate(),
-      utils.events.countAll.invalidate(),
-      // Invalidate filterOptions too so the "Total ≈ X" count refreshes on the auto tick (re-anchors facets as a side effect).
-      utils.events.filterOptions.invalidate(),
-      utils.dashboard.executeQuery.invalidate(),
-    ]);
-  }, [utils]);
-
-  // Explicit refresh (manual button): everything the auto tick does, PLUS
-  // re-anchoring the facet options — the one place their values are re-read.
+  // A refresh is invalidation only: rows, counts and facet options share one
+  // anchored window (see useLiveTableDateRange), so every refetch reuses its
+  // query key and updates in place instead of re-keying into a cold load. The
+  // chart runs dashboard.executeQuery, which is invalidated alongside.
   const handleRefresh = useCallback(() => {
-    setRefreshTick((t) => t + 1);
-    setFilterOptionsRefreshTick((t) => t + 1);
+    setChartRefreshedAt(startOfMinute(new Date()).getTime());
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
+      // Invalidate filterOptions too so the "Total ≈ X" count refreshes.
       utils.events.filterOptions.invalidate(),
       utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
 
-  // Auto-refresh runs handleAutoRefresh (rows + chart + the "Total ≈ X" filter-options scan).
   useEffect(() => {
     if (!refreshInterval) return;
-    const id = setInterval(() => {
-      handleAutoRefresh();
-    }, refreshInterval);
+    const id = setInterval(handleRefresh, refreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval, handleAutoRefresh]);
+  }, [refreshInterval, handleRefresh]);
 
-  // Convert timeRange to absolute date range for compatibility
-  // Include refreshTick to force recalculation on refresh
-  const tableDateRange = useMemo(() => {
-    // refreshTick forces recalculation but isn't used in computation
-    refreshTick;
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange, refreshTick]);
-
-  // Same absolute range, but anchored to scope changes only (NOT the auto tick),
-  // so opening/keeping a facet open never re-fetches on a refresh interval.
-  const filterOptionsTableDateRange = useMemo(() => {
-    filterOptionsRefreshTick;
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange, filterOptionsRefreshTick]);
+  const { range: tableDateRange, anchoredTo } =
+    useLiveTableDateRange(timeRange);
 
   const dateRange = externalDateRange ?? tableDateRange;
-  const filterOptionsDateRange =
-    externalDateRange ?? filterOptionsTableDateRange;
 
   // Chart view ("any view is a chart"): URL-driven table↔chart toggle + config.
   // Only offered on the full (non-embedded) events surface, which is already
@@ -484,13 +454,25 @@ export default function ObservationsEventsTable({
     config: chartConfig,
     setConfig: setChartConfig,
   } = useChartViewState();
-  const chartTimeWindow = useMemo(
-    () => ({
-      from: dateRange?.from ?? new Date(Date.now() - 24 * 60 * 60 * 1000),
-      to: dateRange?.to ?? new Date(),
-    }),
-    [dateRange],
-  );
+  // Unlike the table, the chart and the outlier strip need a CLOSED window. Both
+  // ends are derived from the same length: the end is the later of the window's
+  // anchor and the last refresh, and the start is measured back from that end —
+  // never taken from the table's anchored `from`, which would let the window grow
+  // between anchors, or invert once the user picks a range shorter than the time
+  // since the last refresh.
+  const chartTimeWindow = useMemo(() => {
+    const anchorMs = anchoredTo?.getTime();
+    const fromMs = dateRange?.from.getTime();
+    const lengthMs =
+      anchorMs !== undefined && fromMs !== undefined
+        ? anchorMs - fromMs
+        : 24 * 60 * 60 * 1000;
+    const endMs = dateRange?.to
+      ? dateRange.to.getTime()
+      : Math.max(anchorMs ?? 0, chartRefreshedAtMs);
+
+    return { from: new Date(endMs - lengthMs), to: new Date(endMs) };
+  }, [dateRange, anchoredTo, chartRefreshedAtMs]);
 
   // Drill-in writes the clicked bucket as an absolute range. URL-only
   // (pushIn → browser Back restores the outer window) and deliberately NOT
@@ -500,7 +482,12 @@ export default function ObservationsEventsTable({
     persistAsDefault: false,
   });
 
-  const dateRangeFilter: FilterState = toStartTimeFilterState(dateRange);
+  // Facets describe the whole window (see facetStartTimeFilter below); the paged
+  // row/count queries take the pinned upper bound instead, so offset paging does
+  // not repeat or skip rows while the window keeps taking in newly ingested ones.
+  const { range: rowsDateRange, pinOnLeavingFirstPage } =
+    usePaginationWindowPin(dateRange, limitRows ? 0 : paginationState.page - 1);
+  const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({
     enabled: enableAppRootDefault,
@@ -621,17 +608,18 @@ export default function ObservationsEventsTable({
     [userId, sessionId, promptName, promptVersion],
   );
 
-  // The time window travels separately, on the tick-decoupled range so the
-  // auto refresh leaves the facets alone.
   const facetRefiningFilter = useMemo(
     () =>
       externalFilterState ??
       filterCore.filterState.concat(embedScopeFilterState),
     [externalFilterState, filterCore.filterState, embedScopeFilterState],
   );
+  // Same anchored window as the rows: the facets no longer need a tick-decoupled
+  // range to survive an auto refresh, because the window itself no longer moves
+  // tick to tick.
   const facetStartTimeFilter = useMemo(
-    () => toStartTimeFilterState(filterOptionsDateRange),
-    [filterOptionsDateRange],
+    () => toStartTimeFilterState(dateRange),
+    [dateRange],
   );
 
   // Fetch filter options. Lazy: start with the eagerly-visible facets and load
@@ -835,8 +823,8 @@ export default function ObservationsEventsTable({
     isTotalCountError,
     hasMore,
     handleAddToAnnotationQueue,
-    dataUpdatedAt,
-    ioLoading,
+    isFetching,
+    isIoPending,
     isSilencedError,
     usedAppRootFallback,
   } = useEventsTableData({
@@ -1198,7 +1186,7 @@ export default function ObservationsEventsTable({
       ),
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("input");
-        if (ioLoading) {
+        if (isIoPending(row.original.id)) {
           return (
             <JsonSkeleton
               numRows={rowHeight === "s" ? 1 : undefined}
@@ -1231,7 +1219,7 @@ export default function ObservationsEventsTable({
       ),
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("output");
-        if (ioLoading) {
+        if (isIoPending(row.original.id)) {
           return (
             <JsonSkeleton
               numRows={rowHeight === "s" ? 1 : undefined}
@@ -1268,7 +1256,7 @@ export default function ObservationsEventsTable({
       },
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("metadata");
-        if (ioLoading) {
+        if (isIoPending(row.original.id)) {
           return (
             <JsonSkeleton
               numRows={rowHeight === "s" ? 1 : undefined}
@@ -1899,7 +1887,7 @@ export default function ObservationsEventsTable({
 
   const refreshConfig = {
     onRefresh: handleRefresh,
-    isRefreshing: observations.status === "loading",
+    isRefreshing: isFetching,
     interval: refreshInterval,
     setInterval: setRefreshInterval,
   };
@@ -2283,11 +2271,14 @@ export default function ObservationsEventsTable({
                 onConfigChange={setChartConfig}
               />
             ) : (
+              // No remount key: keying this on the fetch timestamp threw the
+              // table (and its scroll position) away on every refresh. The body
+              // re-renders on the new row array by itself.
               <DataTable
-                key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
                 tableName="observations"
                 columns={columns}
                 peekView={peekConfig}
+                isFetching={isFetching}
                 data={
                   observations.status === "loading" || isViewLoading
                     ? { isLoading: true, isError: false }
@@ -2337,6 +2328,13 @@ export default function ObservationsEventsTable({
                                   pageSize: paginationState.limit,
                                 })
                               : updater;
+                          // Leaving page 1 freezes the paged set at the newest
+                          // row still on screen, so page 2 continues where this
+                          // page ends even if rows keep arriving.
+                          pinOnLeavingFirstPage(
+                            newState.pageIndex,
+                            rows[0]?.startTime ?? undefined,
+                          );
                           setPaginationState({
                             page: newState.pageIndex + 1,
                             limit: newState.pageSize,
