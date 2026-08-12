@@ -16,6 +16,7 @@ import {
   type ChbBundle,
   ChbPaymentRequiredError,
 } from "./chbApiClient";
+import { backfillChbProjectEvents } from "./chbProjectEvents";
 import {
   isChbUpgrade,
   mapChbPlanCodeToStripeProductId,
@@ -293,6 +294,8 @@ export class ChbBillingService {
       userId: this.ctx.session.user.id,
     });
 
+    const isFirstCheckout = !parsedOrg.cloudConfig?.clickhouse?.organizationId;
+
     const session = await this.client.createCheckoutSession({
       // Reuse the CH organization from an earlier checkout attempt so a retry
       // recovers the same org instead of orphaning one
@@ -392,6 +395,27 @@ export class ChbBillingService {
         },
       },
     });
+
+    // Persisting the CH organization id above is the first moment CHB can
+    // attribute a project to this org, and project events are suppressed until
+    // then, so the projects the org already has have never been sent. Mirror
+    // them once, on the first checkout only -- a retry reuses the same CH org
+    // and would just resend the same list.
+    //
+    // Not awaited: best-effort by design (it swallows its own failures and
+    // reports them through langfuse.billing_events.emit_failed), and the user
+    // is waiting on a redirect to the payment page.
+    if (isFirstCheckout) {
+      backfillChbProjectEvents({ orgId }).catch((error) => {
+        // The backfill already reports its own per-project failures; reaching
+        // here means it rejected unexpectedly, which must still not surface as
+        // an unhandled rejection.
+        logger.error(
+          `chbBillingService.checkout.backfill.failed for org ${orgId}`,
+          error,
+        );
+      });
+    }
 
     return session.url;
   }
