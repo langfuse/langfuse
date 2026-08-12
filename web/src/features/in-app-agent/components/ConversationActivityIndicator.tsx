@@ -9,6 +9,11 @@ import type { InAppAgentActivityState } from "@/src/features/in-app-agent/lib/in
  * Exactly one indicator can show, so the caller's priority order is the whole
  * design: what the assistant needs from you beats what it is doing, which beats
  * what it already did.
+ *
+ * The indicator is the only element conveying run state in the conversation
+ * list, so each variant needs role="img": naming is prohibited on the generic
+ * role a bare span gets, and it keeps the icon variants consistent across
+ * screen readers that treat a bare <svg> as unnamed.
  */
 export function ConversationActivityIndicator({
   state,
@@ -19,6 +24,7 @@ export function ConversationActivityIndicator({
     return (
       <CircleAlert
         className="text-primary-accent size-3 shrink-0"
+        role="img"
         aria-label="Needs your approval"
       />
     );
@@ -28,6 +34,7 @@ export function ConversationActivityIndicator({
     return (
       <Loader2
         className="text-muted-foreground size-3 shrink-0 animate-spin"
+        role="img"
         aria-label="Working"
       />
     );
@@ -39,6 +46,7 @@ export function ConversationActivityIndicator({
         "size-1.5 shrink-0 rounded-full",
         state === "failed-unread" ? "bg-destructive" : "bg-primary-accent",
       )}
+      role="img"
       aria-label={state === "failed-unread" ? "Failed" : "Finished"}
     />
   );
