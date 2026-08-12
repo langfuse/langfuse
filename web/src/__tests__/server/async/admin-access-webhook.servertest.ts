@@ -78,6 +78,7 @@ describe("sendAdminAccessWebhook", () => {
       headers: {
         "Content-Type": "application/json",
       },
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -181,5 +182,135 @@ describe("sendAdminAccessWebhook", () => {
         orgId: "org-1",
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it("should retry on the next event after a non-ok response", async () => {
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      } as Response)
+      .mockResolvedValueOnce({ ok: true } as Response);
+
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+
+    // A failed delivery must not consume the 24h dedupe window.
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("should retry on the next event after fetch rejects", async () => {
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new Error("network error"))
+      .mockResolvedValueOnce({ ok: true } as Response);
+
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("should still dedupe a successful delivery within the window", async () => {
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue({ ok: true } as Response);
+
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("should abort a hung endpoint instead of awaiting it indefinitely", async () => {
+    vi.useFakeTimers();
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+
+    // Never settles on its own — only the abort signal can end it.
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = (init as RequestInit | undefined)?.signal;
+          signal?.addEventListener("abort", () =>
+            reject(signal.reason ?? new Error("aborted")),
+          );
+        }),
+    );
+
+    const pending = sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await expect(pending).resolves.toBeUndefined();
+  });
+
+  it("should retry after a hung endpoint times out", async () => {
+    vi.useFakeTimers();
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementationOnce(
+        (_url, init) =>
+          new Promise((_resolve, reject) => {
+            const signal = (init as RequestInit | undefined)?.signal;
+            signal?.addEventListener("abort", () =>
+              reject(signal.reason ?? new Error("aborted")),
+            );
+          }),
+      )
+      .mockResolvedValueOnce({ ok: true } as Response);
+
+    const pending = sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+    await vi.advanceTimersByTimeAsync(5_000);
+    await pending;
+
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });
