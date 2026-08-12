@@ -3,13 +3,12 @@ name: cursor-cloud-issue-delivery
 description: |
   End-to-end Cursor Cloud Agent workflow for Langfuse issues: investigate thoroughly
   across all available read-only MCP signal sources (Linear, Datadog, Slack, PostHog,
-  Sentry, etc.),
-  write and follow an implementation plan, verify locally on the Cloud stack, open a
-  draft PR, address all review-agent comments on the PR, manually test in the PR
-  preview with seeded sample data, post a structured handoff comment in Linear for
-  the assigned engineer, and add matching preview review instructions on the PR. Use
-  when a Cloud Agent owns an issue, bug fix, or feature from triage through
-  preview-ready handoff.
+  Sentry, etc.), research and plan with the research skill, implement, verify locally
+  on the Cloud stack, open a draft PR, address all review-agent comments on the PR,
+  manually test in the PR preview with seeded sample data, post a structured handoff
+  comment in Linear for the assigned engineer, and add matching preview review
+  instructions on the PR. Use when a Cloud Agent owns an issue, bug fix, or feature
+  from triage through preview-ready handoff.
 ---
 
 # Cursor Cloud Issue Delivery
@@ -23,7 +22,7 @@ before investigation and a written plan are complete.
 | Phase | Goal | Primary skills / tools |
 | --- | --- | --- |
 | 1. Investigate | Understand the bug, root cause, and repro shape | `debug-issue-with-datadog`, `langfuse-codebase-navigator`, `seed-test-data` |
-| 2. Plan | Lock scope, approach, tests, and data needs before coding | This skill |
+| 2. Plan | Research codebase and lock implementation plan | `research` |
 | 3. Implement | Smallest correct fix or feature | Package `AGENTS.md`, `backend-dev-guidelines`, `refactor-react-effects` |
 | 4. Test locally | Prove the fix on the Cloud stack | `frontend-browser-review`, `start-cursor-cloud.sh` |
 | 5. PR + babysit | Draft PR, fix CI, address review-agent comments | `git-workflow`, `code-review`, GitHub MCP |
@@ -61,34 +60,15 @@ If investigation is inconclusive, stop and report gaps instead of guessing.
 
 ## Phase 2 — Plan before implementation
 
-Write a short plan in the agent thread **before** editing production code:
+Read and follow the **`research` skill** before editing production code.
 
-```markdown
-## Plan
+1. Pass Phase 1 outputs (symptom, hypothesis, repro, scope) into research.
+2. Complete codebase research and produce the structured **Plan** from the research
+   skill (problem, root cause, approach, files/packages, tests, test data, risks).
+3. For ambiguous scope or risky migrations, ask the user to confirm the plan before
+   Phase 3.
 
-### Problem
-(one sentence)
-
-### Root cause
-(file paths + mechanism)
-
-### Approach
-(numbered steps; call out migrations, API contracts, UI flows)
-
-### Tests
-- failing test to add first (file + assertion)
-- other verification (lint, targeted vitest, browser flow)
-
-### Test data
-- seed scenario + flags, or "default demo project is enough"
-
-### Risks / out of scope
-(bullet list)
-```
-
-- Keep the plan proportional: a one-line fix still gets a three-bullet plan.
-- For ambiguous scope or risky migrations, ask the user to confirm the plan before Phase 3.
-- Do not treat "plan mode" as permission to skip local verification later.
+Do not start Phase 3 until the research skill plan is written.
 
 ## Phase 3 — Implement the plan
 
@@ -215,7 +195,7 @@ Mark the PR ready for review only after Phases 4–7 are complete.
 
 Before ending the agent run, confirm:
 
-- [ ] Investigation and plan were written before implementation
+- [ ] Investigation complete and `research` skill plan written before implementation
 - [ ] Failing test added first (bug fixes)
 - [ ] Local Cloud stack verified (`start-cursor-cloud.sh` + seed + checks)
 - [ ] Draft PR opened, CI green, all review-agent comments addressed
@@ -229,6 +209,7 @@ Before ending the agent run, confirm:
 | Need | Skill |
 | --- | --- |
 | Signal source sweep | [`references/signal-sources.md`](references/signal-sources.md) |
+| Plan-stage codebase research | `research` |
 | Production telemetry | `debug-issue-with-datadog`, `datadog-query-recipes` |
 | Code navigation | `langfuse-codebase-navigator` |
 | Local / preview data | `seed-test-data` |
