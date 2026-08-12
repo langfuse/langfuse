@@ -116,6 +116,7 @@ function Section({
   meta,
   children,
   defaultOpen,
+  analyticsSection,
 }: {
   title: string;
   /** Number of affected items, shown muted after the title. */
@@ -124,9 +125,21 @@ function Section({
   meta?: ReactNode;
   children: ReactNode;
   defaultOpen?: boolean;
+  /** Funnel dimension for the section_expanded event (snake_case). */
+  analyticsSection: string;
 }) {
+  const capture = usePostHogClientCapture();
   return (
-    <Collapsible defaultOpen={defaultOpen}>
+    <Collapsible
+      defaultOpen={defaultOpen}
+      onOpenChange={(isOpen) => {
+        // User expansions only — defaultOpen does not fire onOpenChange.
+        if (isOpen)
+          capture("v4_migration:section_expanded", {
+            section: analyticsSection,
+          });
+      }}
+    >
       <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-2.5 text-left">
         {/* A rendered section always needs the user to act (clean ones hide
             themselves); same dot as the action-required badge. */}
@@ -157,17 +170,26 @@ function ExternalLink({
   href,
   children,
   className,
+  analytics,
 }: {
   href: string;
   children: ReactNode;
   className?: string;
+  /** Which guidance link in which section — for section_link_clicked. */
+  analytics?: { section: string; link: string };
 }) {
+  const capture = usePostHogClientCapture();
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       className={cn("underline", className)}
+      onClick={
+        analytics
+          ? () => capture("v4_migration:section_link_clicked", analytics)
+          : undefined
+      }
     >
       {children}
     </a>
@@ -280,6 +302,7 @@ function SdkUsageSeriesRows({
   unknownSeriesLabel = "OTLP exporter",
   projectId,
   onNavigate,
+  analyticsSection,
 }: {
   series: V4MigrationSdkUsageSeries[];
   /** Drives the per-row status emoji; the suffix carries the text meaning. */
@@ -290,7 +313,10 @@ function SdkUsageSeriesRows({
   /** Enables the evidence deep link on the public key. */
   projectId?: string;
   onNavigate?: () => void;
+  /** Funnel dimension for the evidence_link_clicked event (snake_case). */
+  analyticsSection: string;
 }) {
+  const capture = usePostHogClientCapture();
   if (series.length === 0) return null;
 
   return (
@@ -337,7 +363,16 @@ function SdkUsageSeriesRows({
                   href={`/project/${projectId}/observations?filter=${encodeURIComponent(
                     buildSdkUsageEvidenceFilter(usage),
                   )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`}
-                  onClick={onNavigate}
+                  onClick={() => {
+                    // sdkName is an SDK product identifier, not user content.
+                    capture("v4_migration:evidence_link_clicked", {
+                      section: analyticsSection,
+                      sdkName: usage.sdkName,
+                      sdkVersion: usage.sdkVersion,
+                      attributionStatus: usage.attributionStatus,
+                    });
+                    onNavigate?.();
+                  }}
                   className="underline"
                   title={usage.publicKey}
                 >
@@ -383,6 +418,7 @@ export function V4MigrationSdkSection({
   return (
     <Section
       title="Update SDK"
+      analyticsSection="sdk"
       count={isTransient ? undefined : section.actionableCount}
       meta={
         section.status === "checking"
@@ -405,7 +441,13 @@ export function V4MigrationSdkSection({
               ? "configuration needs"
               : "configurations need"}{" "}
             an update. See{" "}
-            <ExternalLink href={SDK_UPGRADE_URL}>upgrade path</ExternalLink>.
+            <ExternalLink
+              href={SDK_UPGRADE_URL}
+              analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
+            >
+              upgrade path
+            </ExternalLink>
+            .
           </>
         )}
       </p>
@@ -413,6 +455,7 @@ export function V4MigrationSdkSection({
         series={section.series}
         projectId={projectId}
         onNavigate={onNavigate}
+        analyticsSection="sdk"
         needsAction={(usage) =>
           (usage.v4MigrationStatus === "upgrade_required" &&
             !usage.upgradeCompleted) ||
@@ -458,6 +501,7 @@ export function V4MigrationOtelSection({
   return (
     <Section
       title="Update OTel Instrumentation"
+      analyticsSection="otel"
       count={section.delayedCount}
       defaultOpen={defaultOpen}
     >
@@ -466,7 +510,10 @@ export function V4MigrationOtelSection({
         <MonoValue>x-langfuse-ingestion-version</MonoValue> header to{" "}
         <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
         ingestion.{" "}
-        <ExternalLink href={OTEL_V4_MIGRATION_URL}>
+        <ExternalLink
+          href={OTEL_V4_MIGRATION_URL}
+          analytics={{ section: "otel", link: "otel_migration_docs" }}
+        >
           OpenTelemetry migration guide
         </ExternalLink>
         .
@@ -475,6 +522,7 @@ export function V4MigrationOtelSection({
         series={section.series}
         projectId={projectId}
         onNavigate={onNavigate}
+        analyticsSection="otel"
         needsAction={(usage) => usage.hasDelayedOtelEvents === true}
         suffix={(usage) =>
           usage.hasDelayedOtelEvents === true ? (
@@ -513,6 +561,7 @@ export function V4MigrationCustomInstrumentationSection({
   return (
     <Section
       title="Upgrade Instrumentation"
+      analyticsSection="custom_instrumentation"
       count={section.series.length}
       defaultOpen={defaultOpen}
     >
@@ -520,9 +569,23 @@ export function V4MigrationCustomInstrumentationSection({
         Data is arriving through the ingestion API without a Langfuse SDK
         header, so this looks like custom instrumentation or a very old SDK
         version. Please upgrade to one of our latest{" "}
-        <ExternalLink href={SDK_OVERVIEW_URL}>Python or JS SDK</ExternalLink>{" "}
+        <ExternalLink
+          href={SDK_OVERVIEW_URL}
+          analytics={{
+            section: "custom_instrumentation",
+            link: "sdk_overview_docs",
+          }}
+        >
+          Python or JS SDK
+        </ExternalLink>{" "}
         versions, or use the{" "}
-        <ExternalLink href={OTEL_INTEGRATION_URL}>
+        <ExternalLink
+          href={OTEL_INTEGRATION_URL}
+          analytics={{
+            section: "custom_instrumentation",
+            link: "otel_integration_docs",
+          }}
+        >
           OpenTelemetry endpoint
         </ExternalLink>
         .
@@ -532,6 +595,7 @@ export function V4MigrationCustomInstrumentationSection({
         projectId={projectId}
         onNavigate={onNavigate}
         unknownSeriesLabel="Custom instrumentation"
+        analyticsSection="custom_instrumentation"
         needsAction={() => true}
         suffix={() => null}
       />
@@ -556,9 +620,11 @@ export function V4MigrationEvalsSection({
   onNavigate?: () => void;
   defaultOpen?: boolean;
 }) {
+  const capture = usePostHogClientCapture();
   return (
     <Section
       title="Repoint Evals"
+      analyticsSection="evals"
       count={state.status === "loaded" ? state.count : undefined}
       meta={
         state.status === "loading"
@@ -581,7 +647,17 @@ export function V4MigrationEvalsSection({
         <>
           <p className="text-muted-foreground mb-2 text-sm">
             {evalsUrl ? (
-              <Link href={evalsUrl} onClick={onNavigate} className="underline">
+              <Link
+                href={evalsUrl}
+                onClick={() => {
+                  capture("v4_migration:section_link_clicked", {
+                    section: "evals",
+                    link: "evals_table",
+                  });
+                  onNavigate?.();
+                }}
+                className="underline"
+              >
                 {state.count}{" "}
                 {state.count === 1 ? "eval targets" : "evals target"} trace
                 input/output
@@ -624,6 +700,7 @@ export function V4MigrationExperimentsSection({
   return (
     <Section
       title="Update Experiments"
+      analyticsSection="experiments"
       meta={
         state.status === "loading"
           ? "Checking…"
@@ -648,7 +725,13 @@ export function V4MigrationExperimentsSection({
               This project called the deprecated{" "}
               <MonoValue>POST /dataset-run-items</MonoValue>. Replace this
               direct API call with OTel experiment instrumentation. See the{" "}
-              <ExternalLink href={EXPERIMENT_OTEL_INGESTION_URL}>
+              <ExternalLink
+                href={EXPERIMENT_OTEL_INGESTION_URL}
+                analytics={{
+                  section: "experiments",
+                  link: "experiments_otel_docs",
+                }}
+              >
                 OTel experiment instrumentation guide
               </ExternalLink>{" "}
               for more details.
@@ -674,7 +757,10 @@ export function V4MigrationExperimentsSection({
             <>
               This project called <MonoValue>POST /dataset-run-items</MonoValue>{" "}
               with an outdated SDK.{" "}
-              <ExternalLink href={SDK_UPGRADE_URL}>
+              <ExternalLink
+                href={SDK_UPGRADE_URL}
+                analytics={{ section: "experiments", link: "sdk_upgrade_docs" }}
+              >
                 Upgrade the SDK
               </ExternalLink>{" "}
               and use the experiment runner method.
@@ -702,6 +788,7 @@ export function V4MigrationApisSection({
   return (
     <Section
       title="Migrate APIs"
+      analyticsSection="apis"
       count={state.status === "loaded" ? state.count : undefined}
       meta={
         state.status === "loading"
@@ -725,7 +812,10 @@ export function V4MigrationApisSection({
           <p className="text-muted-foreground mb-2 text-sm">
             You&apos;ve called these deprecated endpoints in the last{" "}
             {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working soon; the{" "}
-            <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
+            <ExternalLink
+              href={DEPRECATED_API_MIGRATION_URL}
+              analytics={{ section: "apis", link: "deprecated_api_docs" }}
+            >
               migration guide
             </ExternalLink>{" "}
             maps each endpoint to its replacement.
@@ -739,6 +829,7 @@ export function V4MigrationApisSection({
                 <ExternalLink
                   href={DEPRECATED_API_MIGRATION_URL}
                   className="text-sm"
+                  analytics={{ section: "apis", link: "deprecated_api_docs" }}
                 >
                   {row.endpoint}
                 </ExternalLink>
@@ -776,9 +867,11 @@ export function V4MigrationIntegrationsSection({
   onNavigate?: () => void;
   defaultOpen?: boolean;
 }) {
+  const capture = usePostHogClientCapture();
   return (
     <Section
       title="Migrate Integrations"
+      analyticsSection="integrations"
       count={state.status === "loaded" ? state.count : undefined}
       meta={
         state.status === "loading"
@@ -811,7 +904,13 @@ export function V4MigrationIntegrationsSection({
                 {integrationsUrl ? (
                   <Link
                     href={integrationsUrl}
-                    onClick={onNavigate}
+                    onClick={() => {
+                      capture("v4_migration:section_link_clicked", {
+                        section: "integrations",
+                        link: "integrations_settings",
+                      });
+                      onNavigate?.();
+                    }}
                     className="text-sm underline"
                   >
                     {name}
@@ -825,6 +924,10 @@ export function V4MigrationIntegrationsSection({
                     DEPRECATED_INTEGRATION_MIGRATION_URLS[name] ?? V4_DOCS_URL
                   }
                   className="text-sm"
+                  analytics={{
+                    section: "integrations",
+                    link: "integration_migration_docs",
+                  }}
                 >
                   Migration guide
                 </ExternalLink>
@@ -885,8 +988,13 @@ export function V4MigrationHeaderContent({
         {/* Only claim the setup is outdated once the checks confirm it. */}
         {needsMigration && "Your setup is outdated. "}
         Upgrade to Langfuse v4 for{" "}
-        <ExternalLink href={V4_DOCS_URL}>real-time ingestion</ExternalLink> and
-        up to 165× faster queries.
+        <ExternalLink
+          href={V4_DOCS_URL}
+          analytics={{ section: "header", link: "v4_docs" }}
+        >
+          real-time ingestion
+        </ExternalLink>{" "}
+        and up to 165× faster queries.
       </p>
     </>
   );
@@ -1042,7 +1150,11 @@ export function V4MigrationAgentUpgradeSection({
                 ))}
             </div>
             {envBlock && (
-              <CodeBlockWithCopy text={envBlock} copyLabel="Copy keys" />
+              <CodeBlockWithCopy
+                text={envBlock}
+                copyLabel="Copy keys"
+                onCopy={() => capture("v4_migration:project_keys_copied")}
+              />
             )}
           </div>
         )}
@@ -1082,6 +1194,41 @@ export function V4MigrationDetailsContent({
   // ingestionApiKey filter — the link would open an unfiltered table. Keep
   // the key as plain text there instead of a misleading link.
   const evidenceProjectId = isBetaEnabled ? projectId : undefined;
+
+  // PostHog is the external system here: the panel's checks resolve
+  // asynchronously after open, so the "how much work was shown" event can
+  // only fire once they settle; the ref guards refetch-driven re-settles.
+  const readiness = getProjectMigrationReadiness(migrationData);
+  const checksLoadedCaptured = useRef(false);
+  useEffect(() => {
+    if (checksLoadedCaptured.current || readiness === "checking") return;
+    checksLoadedCaptured.current = true;
+    const sdkSection = getSdkSectionState(migrationData.sdk);
+    const otelSection = getOtelSectionState(migrationData.sdk);
+    const customSection = getCustomInstrumentationSectionState(
+      migrationData.sdk,
+    );
+    // Counts only — never keys, versions, or other row contents.
+    capture("v4_migration:panel_checks_loaded", {
+      readiness,
+      sdkStatus: migrationData.sdk.status,
+      sdkActionableCount: sdkSection.actionableCount,
+      delayedOtelCount: otelSection.delayedCount,
+      customInstrumentationCount: customSection.series.length,
+      evalsCount:
+        migrationData.evals.status === "loaded" ? migrationData.evals.count : 0,
+      apisCount:
+        migrationData.apis.status === "loaded" ? migrationData.apis.count : 0,
+      integrationsCount:
+        migrationData.exports.status === "loaded"
+          ? migrationData.exports.count
+          : 0,
+      experimentsResult:
+        migrationData.experiments.status === "loaded"
+          ? migrationData.experiments.result
+          : migrationData.experiments.status,
+    });
+  }, [readiness, migrationData, capture]);
 
   // Sections in a good state collapse into one summary sentence instead of
   // rendering their own (green) rows. Loading and error states keep the row.
@@ -1234,7 +1381,13 @@ export function V4MigrationDetailsContent({
                 <HoverCardPortal>
                   <HoverCardContent className="w-80 text-sm">
                     The latest SDK no longer sets trace input and output;{" "}
-                    <ExternalLink href={OBSERVATIONS_DATA_MODEL_URL}>
+                    <ExternalLink
+                      href={OBSERVATIONS_DATA_MODEL_URL}
+                      analytics={{
+                        section: "compare_row",
+                        link: "observations_data_model_docs",
+                      }}
+                    >
                       v4 infers them from observations
                     </ExternalLink>
                     .

@@ -55,7 +55,7 @@ export function V4MigrationDelayBadge() {
 
   const handleClick = () => {
     capture("v4_migration:delay_badge_clicked");
-    openMigrationPanel({ id: project.id, name: project.name });
+    openMigrationPanel({ id: project.id, name: project.name }, "delay_badge");
   };
 
   // The hover's action clause echoes the panel section the click opens;
