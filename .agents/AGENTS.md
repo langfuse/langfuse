@@ -82,9 +82,23 @@ langfuse/
   - shared: `pnpm --filter @langfuse/shared run test <file>`
 - Build check: `pnpm run build:check`
 - Full build: `pnpm run build`
-- Worktree bootstrap: `bash scripts/codex/setup.sh`
+- Shared agent/worktree bootstrap: `bash scripts/agents/setup.sh`
 - Worktree maintenance: `bash scripts/codex/maintenance.sh`
 - Install Playwright Chromium: `pnpm run playwright:install`
+
+### Cursor Cloud specific instructions
+
+- Cursor Cloud starts the complete source-built stack through
+  `scripts/agents/start-cursor-cloud.sh`; do not start a second web or worker
+  process on ports 3000 or 3030.
+- Use that script for the Cloud stack rather than invoking Compose directly:
+  the workspace `.env` contains host-facing `localhost` service URLs and must
+  not be used to interpolate container service configuration.
+- After changing web or worker production code, rerun
+  `bash scripts/agents/start-cursor-cloud.sh` before browser signoff.
+- Open a same-repo draft PR after local verification and test the resulting
+  `pr-<N>.preview.langfuse.com` deployment with synthetic data before marking
+  the PR ready. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
 
 ## Local Data Inspection
 
