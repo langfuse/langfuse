@@ -112,7 +112,10 @@ export function ObservationDetailView({
 
   // for v4:
   // is this observation topmost in tree? we don't check for root observation here as this is not necessarily given.
-  // Uses the tree's roots array which handles orphans correctly
+  // Uses the tree's roots array which handles orphans correctly.
+  // Both stay absent/false for an observation outside the loaded (capped) list:
+  // subtree metrics and root-only chrome are tree facts we genuinely don't have,
+  // so they are omitted rather than guessed.
   const treeNode = nodeMap.get(observation.id);
   const isRoot = roots.some((root) => root.id === observation.id);
 
