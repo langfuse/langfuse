@@ -4,6 +4,7 @@ import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/
 import { VERSION } from "../../constants/VERSION";
 import { env } from "../../env";
 import { logger } from "../logger";
+import { compareParsedVersions } from "../utils/compareVersions";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 
 type ClickHouseVersionTuple = readonly [number, number, number, number];
@@ -116,25 +117,19 @@ export const parseClickHouseVersion = (
   };
 };
 
-const compareClickHouseVersions = (
-  left: ClickHouseVersion,
-  right: ClickHouseVersion,
-): number => {
-  for (let i = 0; i < left.tuple.length; i++) {
-    if (left.tuple[i] > right.tuple[i]) return 1;
-    if (left.tuple[i] < right.tuple[i]) return -1;
-  }
-
-  return 0;
-};
-
+const parsedVersionBoundCache = new Map<string, ClickHouseVersion>();
 const parseVersionBound = (version: string): ClickHouseVersion => {
+  const cached = parsedVersionBoundCache.get(version);
+  if (cached) return cached;
+
   const parsed = parseClickHouseVersion(version);
   if (!parsed) {
     throw new Error(
       `Invalid ClickHouse compatibility version bound: ${version}`,
     );
   }
+
+  parsedVersionBoundCache.set(version, parsed);
   return parsed;
 };
 
@@ -147,13 +142,13 @@ export const isClickHouseVersionInBand = (
   if (!parsedVersion) return false;
 
   const min = parseVersionBound(band.minInclusive);
-  if (compareClickHouseVersions(parsedVersion, min) < 0) {
+  if (compareParsedVersions(parsedVersion, min) < 0) {
     return false;
   }
 
   if (band.maxExclusive) {
     const max = parseVersionBound(band.maxExclusive);
-    return compareClickHouseVersions(parsedVersion, max) < 0;
+    return compareParsedVersions(parsedVersion, max) < 0;
   }
 
   return true;
