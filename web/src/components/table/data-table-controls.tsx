@@ -18,9 +18,11 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import {
+  facetNameRank,
   getFacetSummary,
   getFacetSummaryValue,
   rankFacetOptions,
+  rankFacetsByName,
 } from "@/src/features/filters/lib/facet-display";
 import {
   advanceFacetOrder,
@@ -55,6 +57,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import {
+  InputCommand,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+} from "@/src/components/ui/input-command";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Badge } from "@/src/components/ui/badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -263,6 +272,37 @@ export function DataTableControls({
     ? orderedFilters.filter(isPromoted)
     : orderedFilters;
 
+  // Facet-NAME search over a long catalog. Two surfaces search the same names:
+  // this list, and the active-only "Add filter" picker below.
+  const [facetSearch, setFacetSearch] = useState("");
+  // Only worth its chrome on a long list — a dozen is where the per-facet value
+  // search appears too, and a 3-facet sidebar (eval logs, monitors) needs none.
+  // Active-only mode has no catalog left in the list to search; its picker
+  // carries the search instead.
+  const showFacetSearch = !showOnlyActive && queryFilter.filters.length > 12;
+  // Read through the visibility gate: a query left behind by a hidden input
+  // must never narrow the list behind the user's back.
+  const facetSearchQuery = showFacetSearch ? facetSearch.trim() : "";
+
+  // Matching facet columns, or null when not searching. Selected/added facets
+  // stay visible whether or not they match — a query must never hide what is
+  // currently filtering — so the match set is also what tells "nothing matched"
+  // apart from "only the pinned ones are left".
+  const facetSearchMatches = facetSearchQuery
+    ? new Set(
+        displayedFilters
+          .filter((filter) => facetNameRank(filter, facetSearchQuery) !== null)
+          .map((filter) => filter.column),
+      )
+    : null;
+  // Search FILTERS, it does not reorder: the settled promoted block and config
+  // order still own every position.
+  const visibleFilters = facetSearchMatches
+    ? displayedFilters.filter(
+        (filter) => facetSearchMatches.has(filter.column) || isPromoted(filter),
+      )
+    : displayedFilters;
+
   // Facet-usage recency, feeding the "Add filter" dropdown's ordering so the
   // filters someone actually uses on this table surface first.
   const [recentColumns, setRecentColumns] = useLocalStorage<
@@ -279,6 +319,40 @@ export function DataTableControls({
             (recentColumns[b.column] ?? 0) - (recentColumns[a.column] ?? 0),
         )
     : [];
+  const [addFilterOpen, setAddFilterOpen] = useState(false);
+  const [addFilterSearch, setAddFilterSearch] = useState("");
+  // An empty query keeps the recency order (the point of the picker); a query
+  // ranks by match quality, matching the list's search semantics.
+  const rankedAddableFilters = addFilterSearch.trim()
+    ? rankFacetsByName(addableFilters, addFilterSearch.trim())
+    : addableFilters;
+
+  // Adoption of the name search, per surface: one event per search session
+  // (the first keystroke), never per keystroke, and never the query text.
+  const searchedSurfacesRef = useRef(new Set<string>());
+  const noteFacetSearch = (
+    surface: "facet_list" | "add_filter_picker",
+    query: string,
+  ) => {
+    if (query.trim() === "") {
+      searchedSurfacesRef.current.delete(surface);
+      return;
+    }
+    if (searchedSurfacesRef.current.has(surface)) return;
+    searchedSurfacesRef.current.add(surface);
+    capture("filters:facet_search", {
+      tableName,
+      surface,
+      isV4: queryFilter.isV4 ?? false,
+    });
+  };
+  // Closing ends the picker's search session — a controlled Popover closed
+  // programmatically never reaches onOpenChange, so both paths route here.
+  const closeAddFilterPicker = () => {
+    setAddFilterOpen(false);
+    setAddFilterSearch("");
+    noteFacetSearch("add_filter_picker", "");
+  };
 
   // Follow-scroll + recency: DOM scrolling is the external system here, so an
   // effect is the right integration boundary. A single facet's activity change
@@ -405,10 +479,9 @@ export function DataTableControls({
   // counting every displayed facet keeps the divider out of the render loop's
   // range, as the live count did before.
   const promotedFacetCount = showOnlyActive
-    ? displayedFilters.length
-    : displayedFilters.filter((filter) =>
-        facetOrder.promoted.has(filter.column),
-      ).length;
+    ? visibleFilters.length
+    : visibleFilters.filter((filter) => facetOrder.promoted.has(filter.column))
+        .length;
 
   const renderFacet = (filter: UIFilter) => {
     // A column the current surface can't honour blocks the facet whether or
@@ -635,7 +708,7 @@ export function DataTableControls({
             only match keys within the same array, so a facet crossing
             the promoted/rest boundary would REMOUNT (wiping input
             focus and draft state) instead of moving. */}
-        {displayedFilters.flatMap((filter, index) => {
+        {visibleFilters.flatMap((filter, index) => {
           const nodes = [];
           if (index === promotedFacetCount && promotedFacetCount > 0) {
             // Clear spatial break between the active/added block and
@@ -655,6 +728,17 @@ export function DataTableControls({
         })}
       </Accordion>
 
+      {/* Nothing in the catalog matched. Says "other" when pinned
+          selections are still listed above, so the message never
+          contradicts the facets on screen. */}
+      {facetSearchMatches?.size === 0 && (
+        <p className="text-muted-foreground px-3 pt-6 text-center text-xs break-words">
+          {visibleFilters.length > 0
+            ? `No other filters match "${facetSearchQuery}"`
+            : `No filters match "${facetSearchQuery}"`}
+        </p>
+      )}
+
       {/* Active-only mode: surface the rest of the catalog behind an
           explicit "Add filter" picker, most-recently-used first, so
           the filters someone actually works with are one click away. */}
@@ -662,17 +746,25 @@ export function DataTableControls({
         <div
           className={cn(
             "px-3 pt-4",
-            displayedFilters.length === 0 &&
+            visibleFilters.length === 0 &&
               "flex flex-col items-center gap-1 pt-8 text-center",
           )}
         >
-          {displayedFilters.length === 0 && (
+          {visibleFilters.length === 0 && (
             <p className="text-muted-foreground pb-2 text-xs">
               No active filters.
             </p>
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          {/* Popover + command list, not a DropdownMenu: the catalog runs to
+              ~30 facets and needs a search box, which a Radix menu cannot
+              host (it claims keystrokes for its own typeahead). */}
+          <Popover
+            open={addFilterOpen}
+            onOpenChange={(open) =>
+              open ? setAddFilterOpen(true) : closeAddFilterPicker()
+            }
+          >
+            <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 size="sm"
@@ -682,31 +774,54 @@ export function DataTableControls({
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
                 Add filter
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className="max-h-72 w-56 overflow-y-auto"
-            >
-              {addableFilters.map((filter) => {
-                // A column the surface can't honour stays visible but is
-                // not addable — adding it would only land a facet that
-                // immediately reads blocked (chart view — #15187 /
-                // #15049). Same reason on hover.
-                const reason = blockedColumnReason?.(filter.column) ?? null;
-                return (
-                  <DropdownMenuItem
-                    key={filter.column}
-                    disabled={!!reason}
-                    title={reason ?? undefined}
-                    onClick={() => handleAddFilter(filter.column)}
-                    className="cursor-pointer"
-                  >
-                    {filter.label}
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-56 p-0">
+              <InputCommand shouldFilter={false}>
+                <InputCommandInput
+                  placeholder="Search filters"
+                  variant="bottom"
+                  value={addFilterSearch}
+                  onValueChange={(query) => {
+                    setAddFilterSearch(query);
+                    noteFacetSearch("add_filter_picker", query);
+                  }}
+                />
+                <InputCommandList className="max-h-72">
+                  {rankedAddableFilters.length === 0 ? (
+                    <p className="text-muted-foreground px-2 py-6 text-center text-xs">
+                      No filters match &quot;{addFilterSearch.trim()}&quot;
+                    </p>
+                  ) : (
+                    <InputCommandGroup>
+                      {rankedAddableFilters.map((filter) => {
+                        // A column the surface can't honour stays visible but
+                        // is not addable — adding it would only land a facet
+                        // that immediately reads blocked (chart view —
+                        // #15187 / #15049). Same reason on hover.
+                        const reason =
+                          blockedColumnReason?.(filter.column) ?? null;
+                        return (
+                          <InputCommandItem
+                            key={filter.column}
+                            value={filter.column}
+                            disabled={!!reason}
+                            title={reason ?? undefined}
+                            onSelect={() => {
+                              handleAddFilter(filter.column);
+                              closeAddFilterPicker();
+                            }}
+                            className="cursor-pointer"
+                          >
+                            {filter.label}
+                          </InputCommandItem>
+                        );
+                      })}
+                    </InputCommandGroup>
+                  )}
+                </InputCommandList>
+              </InputCommand>
+            </PopoverContent>
+          </Popover>
         </div>
       )}
     </div>
@@ -878,7 +993,9 @@ export function DataTableControls({
                   onClick={() =>
                     queryFilter.onExpandedChange(
                       queryFilter.expanded.length === 0
-                        ? displayedFilters.map((filter) => filter.column)
+                        ? // Only what is on screen: expanding facets a search
+                          // has hidden is invisible work that surprises later.
+                          visibleFilters.map((filter) => filter.column)
                         : [],
                     )
                   }
@@ -949,6 +1066,10 @@ export function DataTableControls({
                   onClick={() => {
                     const enabled = !showOnlyActive;
                     setShowOnlyActive(enabled);
+                    // The mode swaps which surface owns the name search, so a
+                    // query left in the other one would read as a stale filter.
+                    setFacetSearch("");
+                    noteFacetSearch("facet_list", "");
                     capture("filters:active_only_toggled", {
                       tableName,
                       enabled,
@@ -981,6 +1102,51 @@ export function DataTableControls({
             </DropdownMenu>
           </div>
         </div>
+        {/* Facet-name search. Above the scroll area, so it stays put while the
+            list scrolls — and OUTSIDE the facet list, whose keydown capture
+            would otherwise read typing here as working the list and freeze the
+            facet order mid-search. */}
+        {showFacetSearch && (
+          <div className="bg-background shrink-0 border-b px-3 py-2">
+            <div className="relative">
+              <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+              <Input
+                placeholder="Search filters"
+                aria-label="Search filters"
+                value={facetSearch}
+                onChange={(event) => {
+                  setFacetSearch(event.target.value);
+                  noteFacetSearch("facet_list", event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  // Escape clears the query; only once it is empty does it
+                  // reach the sheet/dialog that closes on Escape.
+                  if (event.key === "Escape" && facetSearch !== "") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setFacetSearch("");
+                    noteFacetSearch("facet_list", "");
+                  }
+                }}
+                className="h-8 pr-7 pl-7 text-xs"
+              />
+              {facetSearch !== "" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setFacetSearch("");
+                    noteFacetSearch("facet_list", "");
+                  }}
+                  aria-label="Clear filter search"
+                  className="absolute top-1/2 right-1 h-6 w-6 -translate-y-1/2"
+                >
+                  <IconX className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
         {layout === "inline" ? (
           // inline: no internal scroll — the facet list flows at natural
           // height inside the host's outer scroll (the mobile Filters sheet).
