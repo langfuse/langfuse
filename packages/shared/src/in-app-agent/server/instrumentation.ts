@@ -7,7 +7,12 @@ import {
 } from "../constants";
 import type { AgUiEvent, AgUiMessage, AgUiRunAgentInput } from "../schema";
 import { compactTextMessageChunks } from "./eventCompaction";
-import { getToolFailureMessage, normalizeToolOutput } from "./toolErrors";
+import {
+  getToolFailureMessage,
+  isRecord,
+  normalizeToolOutput,
+  parseJsonOrString,
+} from "./toolErrors";
 import type { InAppAgentUserAccess } from "./tools";
 import { assertUnreachable } from "../../utils/typeChecks";
 
@@ -1039,22 +1044,6 @@ function parseJsonOrUndefined(value: string): unknown {
   }
 
   return parseJsonOrString(value);
-}
-
-function parseJsonOrString(value: string): unknown {
-  if (!value) {
-    return value;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function getStringValue(value: unknown): string | undefined {

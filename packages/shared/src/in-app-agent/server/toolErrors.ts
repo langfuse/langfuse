@@ -11,6 +11,17 @@ export function getToolFailureMessage(
 ): string | undefined {
   const explicitError = getStringValue(eventError);
   if (explicitError) {
+    // Manual approval rejections encode `{code,message}` as JSON in event.error.
+    // Prefer the human-readable message for statusMessage while leaving the
+    // raw event.error untouched for callers that need the structured code.
+    const parsed = parseJsonOrString(explicitError);
+    if (isRecord(parsed)) {
+      const message = getStringValue(parsed.message);
+      if (message) {
+        return message;
+      }
+    }
+
     return explicitError;
   }
 
@@ -48,7 +59,7 @@ export function normalizeToolOutput(output: unknown): unknown {
   return parseJsonOrString(firstContent.text);
 }
 
-function parseJsonOrString(value: string): unknown {
+export function parseJsonOrString(value: string): unknown {
   if (!value) {
     return value;
   }
@@ -60,7 +71,7 @@ function parseJsonOrString(value: string): unknown {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 

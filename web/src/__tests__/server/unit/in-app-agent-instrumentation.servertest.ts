@@ -478,6 +478,16 @@ describe("InAppAgentInstrumentation", () => {
       },
       expectedMessage: "Tool returned an error",
     },
+    {
+      name: "JSON-encoded approval rejection errors",
+      content: "Tool call was not approved by the user.",
+      error: JSON.stringify({
+        code: "tool_call_rejected",
+        message: "Tool call was not approved by the user.",
+      }),
+      expectedOutput: "Tool call was not approved by the user.",
+      expectedMessage: "Tool call was not approved by the user.",
+    },
   ])(
     "marks $name as failed with statusMessage",
     ({ content, error, expectedOutput, expectedMessage }) => {

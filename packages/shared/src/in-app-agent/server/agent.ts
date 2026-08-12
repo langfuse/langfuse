@@ -1165,9 +1165,14 @@ function normalizeAdapterEvent(
   }
 
   if (event.type === EventType.TOOL_CALL_RESULT) {
-    const failureMessage = getToolFailureMessage(event.error, event.content);
+    // Never overwrite an existing top-level error (e.g. JSON-encoded approval
+    // rejections). Only stamp when the bridge omitted the field entirely.
+    if (typeof event.error === "string" && event.error.trim()) {
+      return [event];
+    }
 
-    if (failureMessage && event.error !== failureMessage) {
+    const failureMessage = getToolFailureMessage(undefined, event.content);
+    if (failureMessage) {
       return [{ ...event, error: failureMessage }];
     }
   }
