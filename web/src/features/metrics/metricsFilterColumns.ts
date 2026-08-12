@@ -6,7 +6,8 @@ import { type ViewVersion, type views } from "@langfuse/shared/query";
 
 import { type z } from "zod";
 
-type GetWidgetFilterColumnsParams = {
+/** GetMetricsFilterColumnsParams is the option dictionary the metric filter column specs are built from. */
+export type GetMetricsFilterColumnsParams = {
   selectedView: z.infer<typeof views>;
   viewVersion: ViewVersion;
   environmentOptions: SingleValueOption[];
@@ -20,14 +21,21 @@ type GetWidgetFilterColumnsParams = {
   experimentNameOptions: SingleValueOption[];
   experimentDatasetOptions: SingleValueOption[];
   observationTypeOptions: SingleValueOption[];
+  userOptions: SingleValueOption[];
+  sessionOptions: SingleValueOption[];
+  versionOptions: SingleValueOption[];
+  releaseOptions: SingleValueOption[];
+  scoreNameOptions: SingleValueOption[];
+  experimentIdOptions: SingleValueOption[];
+  metadataKeyOptions: string[];
 };
 
-type WidgetFilterColumnSpec = {
+type MetricsFilterColumnSpec = {
   column: ColumnDefinition;
   customSelect?: boolean;
 };
 
-const getWidgetFilterColumnSpecs = ({
+const getMetricsFilterColumnSpecs = ({
   selectedView,
   viewVersion,
   environmentOptions,
@@ -41,8 +49,44 @@ const getWidgetFilterColumnSpecs = ({
   experimentNameOptions,
   experimentDatasetOptions,
   observationTypeOptions,
-}: GetWidgetFilterColumnsParams): WidgetFilterColumnSpec[] => {
-  const filterColumns: WidgetFilterColumnSpec[] = [
+  userOptions,
+  sessionOptions,
+  versionOptions,
+  releaseOptions,
+  scoreNameOptions,
+  experimentIdOptions,
+  metadataKeyOptions,
+}: GetMetricsFilterColumnsParams): MetricsFilterColumnSpec[] => {
+  // Value suggestions come from the v2 events filter-options; v1 keeps manual
+  // entry (plain string columns), per LFE-9570 decision to leave v1 plain.
+  const suggestString = (
+    name: string,
+    id: string,
+    options: SingleValueOption[],
+    aliases?: string[],
+  ): MetricsFilterColumnSpec =>
+    viewVersion === "v2"
+      ? {
+          column: {
+            name,
+            id,
+            type: "stringOptions",
+            options,
+            internal: "internalValue",
+            ...(aliases ? { aliases } : {}),
+          },
+          customSelect: true,
+        }
+      : {
+          column: { name, id, type: "string", internal: "internalValue" },
+        };
+  // v4 events hold one column per pair (e.version / e.release), so the v2
+  // observations view offers a single Version / Release and the "Trace"
+  // spellings of saved widgets alias onto it.
+  const aliasesTraceSpelling =
+    viewVersion === "v2" && selectedView === "observations";
+  const metadataSuggest = viewVersion === "v2";
+  const filterColumns: MetricsFilterColumnSpec[] = [
     {
       column: {
         name: "Environment",
@@ -78,49 +122,36 @@ const getWidgetFilterColumnSpecs = ({
       },
       customSelect: true,
     },
-    {
-      column: {
-        name: "User",
-        id: "user",
-        type: "string",
-        internal: "internalValue",
-      },
-    },
-    {
-      column: {
-        name: "Session",
-        id: "session",
-        type: "string",
-        internal: "internalValue",
-      },
-    },
+    suggestString("User", "user", userOptions),
+    suggestString("Session", "session", sessionOptions),
     {
       column: {
         name: "Metadata",
         id: "metadata",
         type: "stringObject",
         internal: "internalValue",
+        ...(metadataSuggest ? { keyOptions: metadataKeyOptions } : {}),
       },
+      customSelect: metadataSuggest,
     },
-    {
-      column: {
-        name: "Version",
-        id: "version",
-        type: "string",
-        internal: "internalValue",
-      },
-    },
+    suggestString(
+      "Version",
+      "version",
+      versionOptions,
+      aliasesTraceSpelling ? ["traceVersion", "Trace Version"] : undefined,
+    ),
   ];
 
-  if (selectedView !== "observations") {
-    filterColumns.push({
-      column: {
-        name: "Release",
-        id: "release",
-        type: "string",
-        internal: "internalValue",
-      },
-    });
+  // v1 observationsView has no release dimension; only traceRelease.
+  if (viewVersion === "v2" || selectedView !== "observations") {
+    filterColumns.push(
+      suggestString(
+        "Release",
+        "release",
+        releaseOptions,
+        aliasesTraceSpelling ? ["traceRelease", "Trace Release"] : undefined,
+      ),
+    );
   }
 
   if (selectedView === "observations") {
@@ -145,14 +176,7 @@ const getWidgetFilterColumnSpecs = ({
     selectedView === "scores-categorical"
   ) {
     filterColumns.push(
-      {
-        column: {
-          name: "Score Name",
-          id: "scoreName",
-          type: "string",
-          internal: "internalValue",
-        },
-      },
+      suggestString("Score Name", "scoreName", scoreNameOptions),
       {
         column: {
           name: "Observation Name",
@@ -173,14 +197,6 @@ const getWidgetFilterColumnSpecs = ({
         ? [
             {
               column: {
-                name: "Observation Release",
-                id: "release",
-                type: "string",
-                internal: "internalValue",
-              },
-            } satisfies WidgetFilterColumnSpec,
-            {
-              column: {
                 name: "Experiment Name",
                 id: "experimentName",
                 type: "stringOptions",
@@ -188,7 +204,7 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
-            } satisfies WidgetFilterColumnSpec,
+            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Experiment Dataset",
@@ -198,15 +214,17 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
-            } satisfies WidgetFilterColumnSpec,
+            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Experiment ID",
                 id: "experimentId",
-                type: "null",
+                type: "stringOptions",
+                options: experimentIdOptions,
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+              customSelect: true,
+            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Is Root Observation",
@@ -214,7 +232,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "boolean",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            } satisfies MetricsFilterColumnSpec,
           ]
         : []),
       {
@@ -237,22 +255,13 @@ const getWidgetFilterColumnSpecs = ({
         },
         customSelect: true,
       },
-      {
-        column: {
-          name: "Trace Release",
-          id: "traceRelease",
-          type: "string",
-          internal: "internalValue",
-        },
-      },
-      {
-        column: {
-          name: "Trace Version",
-          id: "traceVersion",
-          type: "string",
-          internal: "internalValue",
-        },
-      },
+      // v1 joins traces for these; v4 has no separate trace-level pair.
+      ...(viewVersion === "v1"
+        ? [
+            suggestString("Trace Release", "traceRelease", []),
+            suggestString("Trace Version", "traceVersion", []),
+          ]
+        : []),
       {
         column: {
           name: "Model",
@@ -320,14 +329,16 @@ const getWidgetFilterColumnSpecs = ({
   return filterColumns;
 };
 
-export const getWidgetFilterColumns = (
-  params: GetWidgetFilterColumnsParams,
+/** getMetricsFilterColumns builds the InlineFilterBuilder column definitions for a metric view. */
+export const getMetricsFilterColumns = (
+  params: GetMetricsFilterColumnsParams,
 ): ColumnDefinition[] =>
-  getWidgetFilterColumnSpecs(params).map((spec) => spec.column);
+  getMetricsFilterColumnSpecs(params).map((spec) => spec.column);
 
-export const getWidgetColumnsWithCustomSelect = (
-  params: GetWidgetFilterColumnsParams,
+/** getMetricsColumnsWithCustomSelect lists the column ids that render a custom (searchable) select control. */
+export const getMetricsColumnsWithCustomSelect = (
+  params: GetMetricsFilterColumnsParams,
 ): string[] =>
-  getWidgetFilterColumnSpecs(params)
+  getMetricsFilterColumnSpecs(params)
     .filter((spec) => spec.customSelect)
     .map((spec) => spec.column.id);

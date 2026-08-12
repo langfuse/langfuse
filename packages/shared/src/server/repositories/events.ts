@@ -113,6 +113,8 @@ import {
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsMetadataValuesQuery,
+  EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   EVENTS_FILTER_OPTION_TOP_N,
   type EventFilterOptionRow,
   type EventFilterOptionColumn,
@@ -2048,6 +2050,7 @@ const queryEventsFilterOptionsForColumns = async (params: {
     limit: params.limit,
     scope: params.scope,
     includeApproxCount: params.includeApproxCount,
+    sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   });
 
   if (!queryWithParams) {
@@ -2064,6 +2067,7 @@ const queryEventsFilterOptionColumn = async (params: {
   limit: number;
   offset?: number;
   scope?: EventFilterOptionScope;
+  sampleRows?: number;
 }) => {
   const queryWithParams = buildEventsFilterOptionColumnQuery({
     projectId: params.projectId,
@@ -2072,6 +2076,7 @@ const queryEventsFilterOptionColumn = async (params: {
     limit: params.limit,
     offset: params.offset,
     scope: params.scope,
+    sampleRows: params.sampleRows,
   });
 
   if (!queryWithParams) {
@@ -2094,6 +2099,7 @@ export const getEventsFilterOptionsForColumns = async (params: {
     limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
   });
 
+// Unsampled: the cursor contract lets MCP agents page the true distinct set.
 export const getEventsFilterOptionValuesPage = async (params: {
   projectId: string;
   filter: FilterState;
@@ -2109,6 +2115,36 @@ export const getEventsFilterOptionValuesPage = async (params: {
     offset: params.offset,
   });
 
+/** EventsMetadataOptionRow is one metadata key or value with its event count. */
+export type EventsMetadataOptionRow = { value: string; count: number };
+
+/** getEventsMetadataValues returns the top-N distinct values for one metadata key on the events table. */
+export const getEventsMetadataValues = async (params: {
+  projectId: string;
+  filter: FilterState;
+  key: string;
+  topN?: number;
+}): Promise<EventsMetadataOptionRow[]> => {
+  const queryWithParams = buildEventsMetadataValuesQuery({
+    projectId: params.projectId,
+    filter: params.filter,
+    key: params.key,
+    limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
+    sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
+  });
+
+  if (!queryWithParams) {
+    return [];
+  }
+
+  return queryClickhouse<EventsMetadataOptionRow>({
+    query: queryWithParams.query,
+    params: queryWithParams.params,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+};
+
 const getSingleEventsFilterOptionColumn = async (
   projectId: string,
   filter: FilterState,
@@ -2121,6 +2157,7 @@ const getSingleEventsFilterOptionColumn = async (
     column,
     limit: opts?.limit ?? EVENTS_FILTER_OPTION_TOP_N,
     scope: opts?.scope,
+    sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   });
 
 export const getEventsGroupedByTraceName = async (
@@ -2165,6 +2202,7 @@ export const getEventsGroupedByUserId = async (
   return rows.map((row) => ({ userId: row.value, count: row.count }));
 };
 
+// Unsampled: a sampled max() under-reports, hiding real outliers from MCP agents.
 export const getEventsNumericStatsByFilterColumn = async (
   projectId: string,
   filter: FilterState,
