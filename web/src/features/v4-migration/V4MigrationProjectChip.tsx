@@ -5,6 +5,7 @@ import {
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
+import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 
 export function V4MigrationProjectChip({
   project,
@@ -17,6 +18,28 @@ export function V4MigrationProjectChip({
   const capture = usePostHogClientCapture();
 
   const readiness = status ? getProjectMigrationReadiness(status) : "checking";
+
+  // Forced-v3 projects show no migration action — the upgrade is handled by
+  // their integration partner. Point them at the FAQ instead.
+  if (readiness === "partner-managed") {
+    return (
+      <a
+        href={PARTNER_INTEGRATION_FAQ_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(event) => {
+          // Card is wrapped in a full-bleed <Link>; keep the docs link isolated.
+          event.stopPropagation();
+          capture("v4_migration:project_chip_partner_docs_clicked");
+        }}
+        className="text-muted-foreground ring-border hover:bg-muted/50 relative inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs whitespace-nowrap ring"
+        title="Upgrade is handled by your integration partner"
+      >
+        Managed by integration partner
+      </a>
+    );
+  }
+
   if (readiness === "ready") {
     return null;
   }

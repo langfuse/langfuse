@@ -54,6 +54,7 @@ import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type { Session } from "next-auth";
 import { env } from "@/src/env.mjs";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 
 beforeEach(() => {
   runCodeEvalTestForJobConfigMock.mockReset();
@@ -992,25 +993,34 @@ describe("evals trpc", () => {
         },
       });
 
-      await expect(
-        caller.evals.createJob({
-          projectId: project.id,
-          evalTemplateId: evalTemplate.id,
-          scoreName: "bad-trace-score",
-          target: EvalTargetObject.TRACE,
-          filter: [],
-          mapping: [
-            {
-              templateVariable: "input",
-              selectedColumnId: "input",
-              jsonSelector: null,
-            },
-          ],
-          sampling: 1,
-          delay: 0,
-          timeScope: ["NEW"],
-        }),
-      ).rejects.toThrow("Variable mapping does not match evaluator target.");
+      // Open the legacy-target gate (the .env test config is Cloud + dual) so
+      // this test reaches the variable-mapping validation behind it.
+      const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "legacy");
+
+      try {
+        await expect(
+          caller.evals.createJob({
+            projectId: project.id,
+            evalTemplateId: evalTemplate.id,
+            scoreName: "bad-trace-score",
+            target: EvalTargetObject.TRACE,
+            filter: [],
+            mapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+                jsonSelector: null,
+              },
+            ],
+            sampling: 1,
+            delay: 0,
+            timeScope: ["NEW"],
+          }),
+        ).rejects.toThrow("Variable mapping does not match evaluator target.");
+      } finally {
+        Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalWriteMode);
+      }
 
       await expect(
         prisma.jobConfiguration.findFirst({
@@ -1038,29 +1048,127 @@ describe("evals trpc", () => {
         },
       });
 
-      await expect(
-        caller.evals.createJob({
+      // Open the legacy-target gate (the .env test config is Cloud + dual) so
+      // this test reaches the filter validation behind it.
+      const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "legacy");
+
+      try {
+        await expect(
+          caller.evals.createJob({
+            projectId: project.id,
+            evalTemplateId: evalTemplate.id,
+            scoreName: "bad-trace-filter",
+            target: EvalTargetObject.TRACE,
+            filter: [
+              {
+                type: "numberObject",
+                column: "Scores (numeric)",
+                key: "accuracy",
+                operator: ">",
+                value: 0.8,
+              },
+            ],
+            mapping: [],
+            sampling: 1,
+            delay: 0,
+            timeScope: ["NEW"],
+          }),
+        ).rejects.toThrow(
+          'Filter column "Scores (numeric)" is not supported for target "trace".',
+        );
+      } finally {
+        Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalWriteMode);
+      }
+    });
+  });
+
+  describe("evals.createJob legacy target gate", () => {
+    const createTraceTemplate = (projectId: string) =>
+      prisma.evalTemplate.create({
+        data: {
+          projectId,
+          name: `trace-gate-template-${projectId}`,
+          version: 1,
+          prompt: "Score {{input}}",
+          vars: ["input"],
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+    const traceMapping = [
+      {
+        templateVariable: "input",
+        langfuseObject: "trace",
+        objectName: null,
+        selectedColumnId: "input",
+        jsonSelector: null,
+      },
+    ];
+
+    it("rejects new trace-target evaluators when the legacy experience is disabled", async () => {
+      const { project, caller } = await prepare();
+      const originalMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "events_only");
+
+      try {
+        const template = await createTraceTemplate(project.id);
+        await expect(
+          caller.evals.createJob({
+            projectId: project.id,
+            evalTemplateId: template.id,
+            scoreName: "gate-closed-score",
+            target: EvalTargetObject.TRACE,
+            filter: [],
+            mapping: traceMapping,
+            sampling: 1,
+            delay: 0,
+            timeScope: ["NEW"],
+          }),
+        ).rejects.toThrow("Trace- and dataset-level evaluators are no longer");
+
+        await expect(
+          prisma.jobConfiguration.findFirst({
+            where: { projectId: project.id, scoreName: "gate-closed-score" },
+          }),
+        ).resolves.toBeNull();
+      } finally {
+        Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalMode);
+      }
+    });
+
+    it("allows new trace-target evaluators for force-v3 projects", async () => {
+      const { project, caller } = await prepare();
+      const originalMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      const originalForce = sharedEnv.LANGFUSE_FORCE_V3_EXPERIENCE;
+      Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "events_only");
+      Reflect.set(sharedEnv, "LANGFUSE_FORCE_V3_EXPERIENCE", [project.id]);
+
+      try {
+        const template = await createTraceTemplate(project.id);
+        const created = await caller.evals.createJob({
           projectId: project.id,
-          evalTemplateId: evalTemplate.id,
-          scoreName: "bad-trace-filter",
+          evalTemplateId: template.id,
+          scoreName: "gate-forced-score",
           target: EvalTargetObject.TRACE,
-          filter: [
-            {
-              type: "numberObject",
-              column: "Scores (numeric)",
-              key: "accuracy",
-              operator: ">",
-              value: 0.8,
-            },
-          ],
-          mapping: [],
+          filter: [],
+          mapping: traceMapping,
           sampling: 1,
           delay: 0,
           timeScope: ["NEW"],
-        }),
-      ).rejects.toThrow(
-        'Filter column "Scores (numeric)" is not supported for target "trace".',
-      );
+        });
+
+        const savedJob = await prisma.jobConfiguration.findUnique({
+          where: { id: created.id },
+        });
+        expect(savedJob?.targetObject).toBe(EvalTargetObject.TRACE);
+      } finally {
+        Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalMode);
+        Reflect.set(sharedEnv, "LANGFUSE_FORCE_V3_EXPERIENCE", originalForce);
+      }
     });
   });
 

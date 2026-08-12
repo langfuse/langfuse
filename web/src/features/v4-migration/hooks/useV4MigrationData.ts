@@ -85,7 +85,6 @@ export function useAccountV4MigrationData(params: {
       ),
     ),
   );
-
   const statusByProjectId = new Map<string, ProjectMigrationStatus>();
 
   organizations.forEach((organization, organizationIndex) => {
@@ -127,6 +126,13 @@ export function useAccountV4MigrationData(params: {
               ?.legacyIntegrationCount ?? 0
           );
         }),
+        // Forced-v3 projects still appear in the aggregation, marked as
+        // partner-managed so surfaces can show "upgrade handled by your
+        // integration partner" instead of a user-facing migration action.
+        forceV3Experience:
+          integrationQuery?.data?.projects.find(
+            (row) => row.projectId === project.id,
+          )?.forceV3Experience === true,
       });
     });
   });

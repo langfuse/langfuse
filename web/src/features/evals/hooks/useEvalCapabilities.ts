@@ -3,6 +3,7 @@ import { api } from "@/src/utils/api";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 
 export interface EvalCapabilities {
   isNewCompatible: boolean;
@@ -10,6 +11,8 @@ export interface EvalCapabilities {
   allowLegacy: boolean;
   isLoading: boolean;
   hasLegacyEvals: boolean;
+  // Project is forced onto the v3 experience: suppress v4 upgrade nags.
+  forceV3Experience: boolean;
 }
 
 /**
@@ -51,14 +54,19 @@ export function useEvalCapabilities(
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const v4WriteMode = session?.environment?.v4WriteMode;
 
+  // Projects forced onto the v3 experience keep the full legacy eval experience
+  // (create and update trace/dataset evaluators), regardless of write mode.
+  const forceV3 = useForceV3Experience(projectId);
+
   // Whether a *new* config may use the legacy experience:
   // - events_only: legacy tables are no longer written → no new legacy evals.
   // - dual: self-hosted deployments always allow legacy; on Cloud, no new
   //   legacy evals — existing legacy evaluators stay visible in read-only mode,
   //   but cannot be newly set up.
   // - legacy: legacy is the only experience.
-  const modeAllowsNewLegacy =
-    v4WriteMode === "events_only"
+  const modeAllowsNewLegacy = forceV3
+    ? true
+    : v4WriteMode === "events_only"
       ? false
       : v4WriteMode === "dual"
         ? !isLangfuseCloud
@@ -75,5 +83,6 @@ export function useEvalCapabilities(
     isLoading:
       evalCounts.isLoading || isSessionLoading || sdkVersionInfo.isLoading,
     hasLegacyEvals,
+    forceV3Experience: forceV3,
   };
 }

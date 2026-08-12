@@ -85,17 +85,28 @@ export type ProjectMigrationStatus = {
   experiments: MigrationActionState;
   apis: MigrationCountState;
   exports: MigrationCountState;
+  // Project is forced onto the v3 experience: the upgrade is handled by its
+  // integration partner, not the user. Optional so call sites that never deal
+  // with forced projects (e.g. the sidebar nav item) need not set it.
+  forceV3Experience?: boolean;
 };
 
 export type ProjectMigrationReadiness =
   | "checking"
   | "unavailable"
   | "ready"
-  | "action-needed";
+  | "action-needed"
+  | "partner-managed";
 
 export const getProjectMigrationReadiness = (
   status: ProjectMigrationStatus,
 ): ProjectMigrationReadiness => {
+  // Forced-v3 projects don't migrate themselves — their integration partner
+  // does. Surface that instead of any migration action state.
+  if (status.forceV3Experience) {
+    return "partner-managed";
+  }
+
   const counts = [status.evals, status.apis, status.exports];
 
   if (

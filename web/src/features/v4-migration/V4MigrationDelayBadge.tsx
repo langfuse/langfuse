@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
-import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import {
+  useV4UpgradeUiEnabled,
+  useV4UpgradeUiFlag,
+} from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
+import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
@@ -19,20 +24,33 @@ import {
 
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const rawFlag = useV4UpgradeUiFlag();
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { project, organization } = useQueryProject();
+  const forceV3 = useForceV3Experience(project?.id);
   const capture = usePostHogClientCapture();
+
+  // Forced-v3 projects still see the data-delay badge (the ~15 min delay is
+  // real for them too), but it points at the partner FAQ instead of the
+  // migration panel. It remains gated on the raw v4UpgradeUi flag, since
+  // `useV4UpgradeUiEnabled` is false for these projects.
+  const enabled = v4UpgradeUiEnabled || (rawFlag && forceV3);
   const sdk = useProjectV4SdkData({
     projectId: project?.id,
     orgId: organization?.id,
-    enabled: v4UpgradeUiEnabled && Boolean(project),
+    enabled: enabled && Boolean(project),
   });
 
-  if (!v4UpgradeUiEnabled || !project || sdk.status !== "legacy") {
+  if (!enabled || !project || sdk.status !== "legacy") {
     return null;
   }
 
   const handleClick = () => {
+    if (forceV3) {
+      capture("v4_migration:delay_badge_clicked", { action: "docs" });
+      window.open(PARTNER_INTEGRATION_FAQ_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
     capture("v4_migration:delay_badge_clicked");
     openMigrationPanel({ id: project.id, name: project.name });
   };
@@ -41,7 +59,11 @@ export function V4MigrationDelayBadge() {
     <V4MigrationBadgeContent
       onClick={handleClick}
       title="New data in ~15 min"
-      description="Update your SDK for real-time data"
+      description={
+        forceV3
+          ? "Learn more in the docs"
+          : "Update your SDK for real-time data"
+      }
     />
   );
 }

@@ -226,6 +226,14 @@ const EnvSchema = z.object({
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+  // Comma-separated project IDs forced onto the v3 experience: they keep the
+  // legacy eval experience and see none of the v4 migration/upgrade UI. Set
+  // only on Cloud for projects instrumented via integration partners that
+  // have not upgraded to OTEL yet.
+  LANGFUSE_FORCE_V3_EXPERIENCE: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])

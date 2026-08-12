@@ -97,6 +97,7 @@ import {
   prepareVariableMappingForEvaluatorUpgrade,
 } from "@/src/features/evals/server/evaluatorUpgrade";
 import { deleteJobConfigurationWithExecutions } from "@/src/features/evals/server/evaluatorRepository";
+import { assertCanCreateLegacyEvalJob } from "@/src/features/evals/server/legacyEvalGate";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
@@ -1002,6 +1003,14 @@ export const evalRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalJob:CUD",
+      });
+
+      // Mirror the UI capability gate server-side: no new legacy-target
+      // (trace/dataset) evaluators unless the deployment allows legacy or the
+      // project is forced onto the v3 experience. Updates are unaffected.
+      assertCanCreateLegacyEvalJob({
+        projectId: input.projectId,
+        target: input.target,
       });
 
       const evalTemplate = await ctx.prisma.evalTemplate.findFirst({
