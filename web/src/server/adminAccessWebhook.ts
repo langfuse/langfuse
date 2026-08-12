@@ -10,42 +10,46 @@ type AdminAccessWebhookPayload = {
 };
 
 const DEDUPE_WINDOW_MS = 24 * 60 * 60_000;
+// A failed delivery hands its slot back early so the notification is not lost
+// for a full day, but not immediately: an admin session emits one event per
+// tRPC procedure call, and every one of them awaits this helper. Retrying each
+// of them against a dead endpoint would charge DELIVERY_TIMEOUT_MS to every
+// admin request, so failures stay suppressed for a short cooldown instead.
+const FAILED_DELIVERY_COOLDOWN_MS = 60_000;
 // Callers await this helper on user-facing request paths (tRPC procedures,
 // dashboard query streaming, trace export). Without a deadline, an
 // unresponsive webhook endpoint stalls those requests for as long as it takes
-// the connection to die, so cap every delivery attempt.
+// the connection to die, so cap every delivery attempt. Matches the deadline
+// the web callout sender applies to its own outbound requests.
 const DELIVERY_TIMEOUT_MS = 5_000;
-const lastWebhookByKey = new Map<string, number>();
+const suppressedUntilByKey = new Map<string, number>();
 
 export const resetAdminAccessWebhookCacheForTests = () => {
-  lastWebhookByKey.clear();
+  suppressedUntilByKey.clear();
 };
 
 const getDedupeKey = (payload: AdminAccessWebhookPayload) =>
   [payload.email, payload.project, payload.org].join(":");
 
-// Claims the dedupe slot up front so concurrent callers collapse onto a single
-// delivery, and returns false when a recent delivery already covers this key.
-// The claim is provisional: `releaseDeliverySlot` hands it back when delivery
-// fails, so the reservation only becomes a real 24h suppression once the
-// webhook has actually been delivered.
+// Claims the delivery slot up front so concurrent callers collapse onto a
+// single delivery, and returns false while a recent delivery — or a recent
+// failed attempt — still suppresses this key. The claim is provisional:
+// `suppressAfterFailedDelivery` shortens it when delivery fails, so the full
+// 24h suppression only survives a webhook that was actually delivered.
 const claimDeliverySlot = (dedupeKey: string) => {
   const nowMs = Date.now();
-  const lastSentMs = lastWebhookByKey.get(dedupeKey);
+  const suppressedUntilMs = suppressedUntilByKey.get(dedupeKey);
 
-  if (lastSentMs && nowMs - lastSentMs < DEDUPE_WINDOW_MS) {
+  if (suppressedUntilMs !== undefined && nowMs < suppressedUntilMs) {
     return false;
   }
 
-  lastWebhookByKey.set(dedupeKey, nowMs);
+  suppressedUntilByKey.set(dedupeKey, nowMs + DEDUPE_WINDOW_MS);
   return true;
 };
 
-// Deleting is enough to restore the previous state: reaching a delivery
-// attempt means there was either no entry for this key, or one that had
-// already aged out of the dedupe window, and both are equivalent to absent.
-const releaseDeliverySlot = (dedupeKey: string) => {
-  lastWebhookByKey.delete(dedupeKey);
+const suppressAfterFailedDelivery = (dedupeKey: string) => {
+  suppressedUntilByKey.set(dedupeKey, Date.now() + FAILED_DELIVERY_COOLDOWN_MS);
 };
 
 export const sendAdminAccessWebhook = async (params: {
@@ -95,9 +99,9 @@ export const sendAdminAccessWebhook = async (params: {
     });
 
     if (!response.ok) {
-      // Hand the slot back: a rejected delivery must not suppress the next
-      // attempt for the full dedupe window.
-      releaseDeliverySlot(dedupeKey);
+      // A rejected delivery must not suppress the next attempt for the full
+      // dedupe window.
+      suppressAfterFailedDelivery(dedupeKey);
       logger.warn("Failed to send admin access webhook", {
         status: response.status,
         statusText: response.statusText,
@@ -107,7 +111,7 @@ export const sendAdminAccessWebhook = async (params: {
       });
     }
   } catch (error) {
-    releaseDeliverySlot(dedupeKey);
+    suppressAfterFailedDelivery(dedupeKey);
     logger.warn("Error while sending admin access webhook", {
       error,
       email: payload.email,

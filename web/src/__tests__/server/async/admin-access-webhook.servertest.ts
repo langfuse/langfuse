@@ -184,7 +184,9 @@ describe("sendAdminAccessWebhook", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("should retry on the next event after a non-ok response", async () => {
+  it("should retry on a later event after a non-ok response", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-19T19:39:37.000Z"));
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
 
     const fetchSpy = vi
@@ -201,6 +203,9 @@ describe("sendAdminAccessWebhook", () => {
       projectId: "project-1",
       orgId: "org-1",
     });
+
+    vi.setSystemTime(new Date("2026-02-19T19:40:38.000Z"));
+
     await sendAdminAccessWebhook({
       email: "admin@langfuse.com",
       projectId: "project-1",
@@ -211,7 +216,9 @@ describe("sendAdminAccessWebhook", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("should retry on the next event after fetch rejects", async () => {
+  it("should retry on a later event after fetch rejects", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-19T19:39:37.000Z"));
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
 
     const fetchSpy = vi
@@ -224,6 +231,9 @@ describe("sendAdminAccessWebhook", () => {
       projectId: "project-1",
       orgId: "org-1",
     });
+
+    vi.setSystemTime(new Date("2026-02-19T19:40:38.000Z"));
+
     await sendAdminAccessWebhook({
       email: "admin@langfuse.com",
       projectId: "project-1",
@@ -280,6 +290,70 @@ describe("sendAdminAccessWebhook", () => {
     await expect(pending).resolves.toBeUndefined();
   });
 
+  it("should not retry again until the failure cooldown has elapsed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-19T19:39:37.000Z"));
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("network error"));
+
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+
+    // An unreachable endpoint must not put a delivery attempt — and its
+    // timeout — on every admin request that follows.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(new Date("2026-02-19T19:40:38.000Z"));
+
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("should collapse concurrent callers onto a single delivery", async () => {
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+
+    let resolveDelivery: (response: Response) => void = () => {};
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveDelivery = resolve;
+        }),
+    );
+
+    const first = sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+    const second = sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+
+    await second;
+    resolveDelivery({ ok: true } as Response);
+    await first;
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("should retry after a hung endpoint times out", async () => {
     vi.useFakeTimers();
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
@@ -304,6 +378,8 @@ describe("sendAdminAccessWebhook", () => {
     });
     await vi.advanceTimersByTimeAsync(5_000);
     await pending;
+
+    await vi.advanceTimersByTimeAsync(60_001);
 
     await sendAdminAccessWebhook({
       email: "admin@langfuse.com",
