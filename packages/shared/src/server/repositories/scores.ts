@@ -964,7 +964,7 @@ export const getScoresGroupedByNameSourceType = async ({
     FROM scores s
     ${performDatasetRunItemsJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
     WHERE s.project_id = {projectId: String}
-    ${hasEventsFilters ? `AND (s.project_id, s.trace_id) IN (SELECT project_id, trace_id FROM experiment_events` : ""}
+    ${hasEventsFilters ? `AND (s.project_id, s.trace_id) IN (SELECT project_id, trace_id FROM experiment_events)` : ""}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
     ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
     ${toTimestamp ? `AND s.timestamp <= {toTimestamp: DateTime64(3)}` : ""}
