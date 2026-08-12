@@ -17,10 +17,6 @@ import {
   type AzureCredentialSettings,
 } from "./azureCredentials";
 
-/**
- * Pins the mode -> credential mapping and the validation errors, which is what a
- * misconfigured deployment actually hits.
- */
 describe("resolveAzureCredentialConfig", () => {
   const settings = (
     overrides: Partial<AzureCredentialSettings> = {},
@@ -50,8 +46,6 @@ describe("resolveAzureCredentialConfig", () => {
       );
     });
 
-    // No credentials is an error, not an implicit request for the ambient
-    // identity.
     it.each([
       ["neither credential", noBucketCredentials],
       ["only an account name", { ...noBucketCredentials, accessKeyId: "acct" }],
@@ -67,7 +61,6 @@ describe("resolveAzureCredentialConfig", () => {
   });
 
   describe("workload-identity", () => {
-    // The AKS webhook injects the AZURE_* variables the SDK reads itself.
     it("requires no explicit parameters", () => {
       expect(
         resolveAzureCredentialConfig(
@@ -239,8 +232,6 @@ describe("resolveAzureCredentialConfig", () => {
 });
 
 describe("requireAzureSharedKeyCredential", () => {
-  // User-configured integrations must never reach the ambient identity: their
-  // endpoint is user-supplied.
   it("returns a shared key config when both credentials are present", () => {
     expect(
       requireAzureSharedKeyCredential({

@@ -364,12 +364,10 @@ export class StorageServiceFactory {
 
 let azureContainersExists: Record<string, boolean> = {};
 
-// Fetching a user delegation key costs a call to the storage account, so keep
-// one for an hour and reuse it. Azure allows at most 7 days.
+// Fetching a delegation key costs a request, so keep one for an hour. Azure
+// caps the startsOn..expiresOn window at 7 days.
 const AZURE_USER_DELEGATION_KEY_TTL_MS = 60 * 60 * 1000;
 const AZURE_USER_DELEGATION_KEY_MAX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-// Refresh before expiry so a signing call never lands on a key that expires
-// between generation and use.
 const AZURE_USER_DELEGATION_KEY_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 const AZURE_USER_DELEGATION_KEY_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
@@ -377,11 +375,7 @@ class AzureBlobStorageService implements StorageService {
   private client: ContainerClient;
   private container: string;
   private externalEndpoint: string | undefined;
-  // Needed beyond the container client for user delegation key requests and the
-  // account name signing requires.
   private blobServiceClient: BlobServiceClient;
-  // Without an account key there is nothing to sign a SAS with locally, so one
-  // is fetched from the service instead.
   private usesSharedKeyCredential: boolean;
   private userDelegationKey:
     | { key: UserDelegationKey; expiresOn: Date }
@@ -408,8 +402,6 @@ class AzureBlobStorageService implements StorageService {
 
     this.externalEndpoint = externalEndpoint;
 
-    // User-supplied configuration passes an explicit shared key config;
-    // otherwise the deployment environment selects the mode.
     const credentialConfig =
       params.azureCredential ??
       resolveAzureCredentialConfig({ accessKeyId, secretAccessKey });
@@ -424,9 +416,9 @@ class AzureBlobStorageService implements StorageService {
     this.container = params.bucketName;
     this.client = this.blobServiceClient.getContainerClient(this.container);
 
-    // The SDK derives the account name signing needs from the endpoint host,
-    // yielding an empty string for custom domains. Without this guard the SAS is
-    // produced and then rejected by Azure with an opaque 403 at use time.
+    // The SDK derives the account name from the endpoint host and yields an
+    // empty string for custom domains, which would produce a SAS that Azure
+    // rejects with an opaque 403 at use time.
     if (!this.usesSharedKeyCredential && !this.blobServiceClient.accountName) {
       throw new Error(
         `Could not derive the storage account name from endpoint ${endpoint}. Azure AD authentication needs an endpoint of the form https://<account>.blob.<suffix> to sign pre-signed URLs`,
@@ -438,12 +430,9 @@ class AzureBlobStorageService implements StorageService {
     );
   }
 
-  /** A key valid until at least `neededUntil`. Token credentials only. */
   private async getUserDelegationKey(
     neededUntil: Date,
   ): Promise<UserDelegationKey> {
-    // A key is only usable for a SAS that expires before the key does, with the
-    // margin keeping an in-flight signing call clear of the boundary.
     const covers = (expiresOn: Date) =>
       expiresOn.getTime() - AZURE_USER_DELEGATION_KEY_REFRESH_MARGIN_MS >
       neededUntil.getTime();
@@ -452,9 +441,8 @@ class AzureBlobStorageService implements StorageService {
     if (cached && covers(cached.expiresOn)) {
       return cached.key;
     }
-    // Only join an in-flight fetch whose key will outlive what this caller
-    // needs. A caller asking for a longer-lived URL must not piggyback on a key
-    // sized for a shorter one, or its SAS would outlive the key that signed it.
+    // A caller needing a longer-lived URL must not piggyback on a key sized for
+    // a shorter one, or its SAS would outlive the key that signed it.
     const pending = this.pendingUserDelegationKey;
     if (pending && covers(pending.expiresOn)) {
       return pending.promise;
@@ -463,8 +451,7 @@ class AzureBlobStorageService implements StorageService {
     const now = Date.now();
     // Backdated for clock skew between Langfuse and Azure.
     const startsOn = new Date(now - AZURE_USER_DELEGATION_KEY_CLOCK_SKEW_MS);
-    // Azure caps the startsOn..expiresOn window, so the ceiling is measured from
-    // the backdated start, not from now.
+    // The cap applies to the whole window, so measure from the backdated start.
     const latestPossibleExpiry =
       startsOn.getTime() + AZURE_USER_DELEGATION_KEY_MAX_TTL_MS;
     // Refuse rather than clamp: a key expiring before the SAS it signs yields a
@@ -484,8 +471,8 @@ class AzureBlobStorageService implements StorageService {
       ),
     );
 
-    // Memoize the in-flight request, not just the settled key, so concurrent
-    // signing calls on a cold or just-expired cache share one fetch.
+    // Memoize the request, not just the settled key, so concurrent calls on a
+    // cold cache share one fetch.
     const promise = this.blobServiceClient
       .getUserDelegationKey(startsOn, expiresOn)
       .then((key) => {

@@ -369,11 +369,6 @@ describe("S3StorageService DeleteObjects checksum", () => {
   });
 });
 
-/**
- * A static account key signs SAS tokens locally; a token credential (AKS
- * workload identity, managed identity, ...) has no key to sign with, so tokens
- * are signed with a user delegation key fetched from the service.
- */
 describe("AzureBlobStorageService with a token credential", () => {
   const makeService = (
     overrides: {
@@ -389,8 +384,6 @@ describe("AzureBlobStorageService with a token credential", () => {
       region: undefined,
       forcePathStyle: false,
       useAzureBlob: true,
-      // Stands in for every token credential: the signing path branches on
-      // shared key vs token, not on which credential produced the token.
       azureCredential: overrides.azureCredential ?? {
         mode: "workload-identity",
         clientId: "client-1",
@@ -401,8 +394,7 @@ describe("AzureBlobStorageService with a token credential", () => {
       awsSseKmsKeyId: undefined,
     });
 
-  // Minimal user delegation key shaped like the service response. The value is
-  // base64 because it is used as the HMAC key when signing.
+  // `value` is base64 because it is the HMAC key used when signing.
   const userDelegationKey = {
     signedObjectId: "00000000-0000-0000-0000-000000000001",
     signedTenantId: "00000000-0000-0000-0000-000000000002",
@@ -415,8 +407,6 @@ describe("AzureBlobStorageService with a token credential", () => {
     value: Buffer.from("test-delegation-key").toString("base64"),
   };
 
-  // Stubs the two network calls the signing path would otherwise make: the
-  // container existence check and the user delegation key request.
   const stubAzureCalls = (service: unknown) => {
     const internals = service as {
       client: { createIfNotExists: () => Promise<unknown> };
@@ -458,8 +448,6 @@ describe("AzureBlobStorageService with a token credential", () => {
     ).toThrow(/Endpoint must be configured/);
   });
 
-  // The SDK derives the account name from the endpoint host and leaves it empty
-  // for custom domains, which would yield a SAS Azure rejects with a 403.
   it("rejects an endpoint it cannot derive the account name from", () => {
     expect(() =>
       makeService({ endpoint: "https://storage.example.com" }),
@@ -499,8 +487,6 @@ describe("AzureBlobStorageService with a token credential", () => {
     expect(query.get("rsct")).toBe("image/png");
   });
 
-  // On a cold cache the key request is in flight, not yet stored, so concurrent
-  // signing calls must share it instead of each issuing their own fetch.
   it("shares one delegation key fetch across concurrent signing calls", async () => {
     const service = makeService();
     const { getUserDelegationKey } = stubAzureCalls(service);
@@ -514,9 +500,6 @@ describe("AzureBlobStorageService with a token credential", () => {
     expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
   });
 
-  // Joining an in-flight fetch is only safe when that key outlives what this
-  // caller needs, otherwise the longer-lived SAS is signed with a key that
-  // expires first and 403s before its stated expiry.
   it("does not join an in-flight fetch whose key expires too early", async () => {
     const service = makeService();
     const { getUserDelegationKey } = stubAzureCalls(service);
@@ -528,7 +511,6 @@ describe("AzureBlobStorageService with a token credential", () => {
     ]);
 
     expect(getUserDelegationKey).toHaveBeenCalledTimes(2);
-    // Every key requested must outlive the URL it was fetched for.
     const longestExpiry = Math.max(
       ...getUserDelegationKey.mock.calls.map(([, expiresOn]) =>
         (expiresOn as Date).getTime(),
@@ -547,7 +529,6 @@ describe("AzureBlobStorageService with a token credential", () => {
     expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
   });
 
-  // Keys last at most 7 days; a longer-lived URL would fail partway through.
   it("refuses to sign a URL outliving the maximum delegation key lifetime", async () => {
     const service = makeService();
     stubAzureCalls(service);
@@ -557,9 +538,8 @@ describe("AzureBlobStorageService with a token credential", () => {
     ).rejects.toThrow();
   });
 
-  // Azure caps the startsOn..expiresOn window, and startsOn is backdated for
-  // clock skew, so the usable ceiling is below a full 7 days. Exactly 7 days
-  // must be refused locally rather than rejected by Azure at signing time.
+  // startsOn is backdated for clock skew, so the usable ceiling is below a full
+  // 7 days and exactly 7 days must be refused locally, not by Azure.
   it("refuses a TTL of exactly the maximum key lifetime", async () => {
     const service = makeService();
     stubAzureCalls(service);
@@ -591,7 +571,6 @@ describe("AzureBlobStorageService with a token credential", () => {
     expect(new URL(url).searchParams.get("skoid")).toBeNull();
   });
 
-  // A shared key signs locally, so the guard above must not apply to it.
   it("accepts a custom domain endpoint when using a shared key", () => {
     expect(() =>
       makeService({
