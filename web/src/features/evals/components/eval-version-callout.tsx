@@ -1,6 +1,7 @@
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import {
   isTraceTarget,
   isEventTarget,
@@ -11,6 +12,7 @@ import {
 interface EvalVersionCalloutProps {
   targetObject: string;
   evalCapabilities: EvalCapabilities;
+  projectId: string;
 }
 
 interface CalloutContent {
@@ -22,6 +24,7 @@ interface CalloutContent {
 const getCalloutContent = (
   targetObject: string,
   evalCapabilities: EvalCapabilities,
+  forceV3Experience: boolean,
 ): CalloutContent => {
   const hidden = { visible: false, title: "", description: "" };
 
@@ -85,7 +88,7 @@ const getCalloutContent = (
   if (isDatasetTarget(targetObject)) {
     // Forced-v3 projects keep trace evaluators as their intended experience —
     // no upgrade nag.
-    if (evalCapabilities.forceV3Experience) {
+    if (forceV3Experience) {
       return hidden;
     }
 
@@ -116,7 +119,7 @@ const getCalloutContent = (
   if (isTraceTarget(targetObject)) {
     // Forced-v3 projects keep trace evaluators as their intended experience —
     // no upgrade nag.
-    if (evalCapabilities.forceV3Experience) {
+    if (forceV3Experience) {
       return hidden;
     }
 
@@ -147,8 +150,14 @@ const getCalloutContent = (
 export function EvalVersionCallout({
   targetObject,
   evalCapabilities,
+  projectId,
 }: EvalVersionCalloutProps) {
-  const content = getCalloutContent(targetObject, evalCapabilities);
+  const forceV3Experience = useForceV3Experience(projectId);
+  const content = getCalloutContent(
+    targetObject,
+    evalCapabilities,
+    forceV3Experience,
+  );
 
   if (!content.visible) {
     return null;

@@ -10,6 +10,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { ZapIcon } from "lucide-react";
 import { useId } from "react";
 import { useRouter } from "next/router";
@@ -127,7 +128,8 @@ export function V4SidebarToggle() {
     confirmIntroDialog,
     dismissIntroDialog,
   } = useV4PreviewToggle("sidebar");
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const { project } = useQueryProject();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
 
   // v4-upgrade users get this toggle inside the migration panel instead.
   if (!canToggleV4 || v4UpgradeUiEnabled) {

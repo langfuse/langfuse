@@ -993,6 +993,7 @@ export const InnerEvaluatorForm = (props: {
                 <EvalVersionCallout
                   targetObject={watchedTarget}
                   evalCapabilities={props.evalCapabilities}
+                  projectId={props.projectId}
                 />
               )}
 

@@ -70,8 +70,8 @@ export function V4MigrationDelayBadge() {
 /** Shared gating for the eval "Action required" badges: v4 upgrade UI flag,
  * project context, and a loaded, non-zero deprecated-eval count. */
 function useEvalUpdateRequiredBadgeState() {
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const { project, organization } = useQueryProject();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const enabled = v4UpgradeUiEnabled && Boolean(project);
   const evalState = useProjectV4EvalData({
     projectId: project?.id,
@@ -153,7 +153,7 @@ export function V4MigrationEvaluatorUpdateRequiredBadge({
     orgId: organization?.id,
     enabled: true,
   });
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(projectId);
 
   if (!v4UpgradeUiEnabled) return null;
 

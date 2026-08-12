@@ -4,6 +4,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
+import { isNewLegacyEvalAllowed } from "@/src/features/evals/utils/legacyEvalGate";
 
 export interface EvalCapabilities {
   isNewCompatible: boolean;
@@ -11,7 +12,6 @@ export interface EvalCapabilities {
   allowLegacy: boolean;
   isLoading: boolean;
   hasLegacyEvals: boolean;
-  forceV3Experience: boolean;
 }
 
 /**
@@ -60,19 +60,13 @@ export function useEvalCapabilities(
   // (create and update trace/dataset evaluators), regardless of write mode.
   const forceV3 = useForceV3Experience(projectId);
 
-  // Whether a *new* config may use the legacy experience:
-  // - events_only: legacy tables are no longer written → no new legacy evals.
-  // - dual: self-hosted deployments always allow legacy; on Cloud, no new
-  //   legacy evals — existing legacy evaluators stay visible in read-only mode,
-  //   but cannot be newly set up.
-  // - legacy: legacy is the only experience.
-  const modeAllowsNewLegacy = forceV3
-    ? true
-    : v4WriteMode === "events_only"
-      ? false
-      : v4WriteMode === "dual"
-        ? !isLangfuseCloud
-        : v4WriteMode === "legacy"; // legacy → true; undefined (loading) → false
+  // Whether a *new* config may use the legacy experience. Shares the exact
+  // decision with the server create-gate so the UI and API cannot diverge.
+  const modeAllowsNewLegacy = isNewLegacyEvalAllowed({
+    v4WriteMode,
+    isLangfuseCloud,
+    isForceV3Project: forceV3,
+  });
 
   return {
     isNewCompatible: isOtel,
@@ -85,6 +79,5 @@ export function useEvalCapabilities(
     isLoading:
       evalCounts.isLoading || isSessionLoading || sdkVersionInfo.isLoading,
     hasLegacyEvals,
-    forceV3Experience: forceV3,
   };
 }
