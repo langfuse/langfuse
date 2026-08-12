@@ -22,6 +22,7 @@ import type {
   InAppAgentTracingConfig,
 } from "./instrumentation";
 import { createInAppAgentInstrumentation } from "./instrumentation";
+import { getToolFailureMessage } from "./toolErrors";
 import {
   createSandboxTools,
   createRedirectActionTool,
@@ -983,11 +984,10 @@ type MastraApprovalStreamChunk = {
 // those tools and the bridge has no case for it, so approvals would never
 // surface as on_interrupt events. Map approvals onto the suspend protocol.
 // Non-background tool-error chunks are likewise swallowed by the bridge, so
-// convert them to tool results carrying the error message as content. Note:
-// the bridge emits TOOL_CALL_RESULT without a top-level `error` field, so the
-// failure renders with the error message in the result body but a "succeeded"
-// status; the model is unaffected (Mastra's loop feeds it the real error).
-// Status fidelity is tracked as a follow-up.
+// convert them to tool results carrying a structured failure payload. The
+// bridge still emits TOOL_CALL_RESULT without a top-level `error` field;
+// normalizeAdapterEvent stamps that field from the structured payload so
+// instrumentation and persistence see an explicit failure.
 export function patchMastraApprovalChunks(adapter: MastraAgent) {
   const patchableAdapter = adapter as unknown as PatchableMastraAgent;
   const createChunkProcessor = patchableAdapter.createChunkProcessor;
@@ -1062,8 +1062,12 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
               isError: true,
               // Raw object, not pre-stringified: the bridge JSON-stringifies
               // payload.result into the event content, so a string here would
-              // double-encode.
-              result: { error: getToolErrorMessage(mastraChunk) },
+              // double-encode. Keep the same {error:true,message} shape used
+              // by schema-validation failures so detection stays structured.
+              result: {
+                error: true,
+                message: getToolErrorMessage(mastraChunk),
+              },
             },
           });
         }
@@ -1158,6 +1162,14 @@ function normalizeAdapterEvent(
         ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
       },
     ];
+  }
+
+  if (event.type === EventType.TOOL_CALL_RESULT) {
+    const failureMessage = getToolFailureMessage(event.error, event.content);
+
+    if (failureMessage && event.error !== failureMessage) {
+      return [{ ...event, error: failureMessage }];
+    }
   }
 
   return [event];
