@@ -48,6 +48,13 @@ export type InAppAgentActivityByConversationId = Map<
 
 export const IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION = 1;
 export const IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION = 1;
+
+/**
+ * Activity polls the newest N conversations only (same page as the drawer list
+ * head). Accepted scope: a quieter conversation that falls outside this window
+ * will not contribute badge/toast attention until it is bumped back into the
+ * page (e.g. by a new message). Revisit if parked approvals must never drop off.
+ */
 export const IN_APP_AGENT_ACTIVITY_LIST_LIMIT = 50;
 
 export function getInAppAgentActivityReceiptsStorageKey(projectId: string) {
@@ -112,6 +119,47 @@ function getActivityEntry(params: {
   };
 }
 
+/** Drop ledger keys for conversations no longer in the activity window. */
+export function pruneInAppAgentReceiptRecord(
+  record: Record<string, string>,
+  liveConversationIds: ReadonlySet<string>,
+): { record: Record<string, string>; changed: boolean } {
+  let changed = false;
+  const next: Record<string, string> = {};
+
+  for (const [conversationId, activityKey] of Object.entries(record)) {
+    if (!liveConversationIds.has(conversationId)) {
+      changed = true;
+      continue;
+    }
+    next[conversationId] = activityKey;
+  }
+
+  return { record: changed ? next : record, changed };
+}
+
+export function pruneInAppAgentDeliveredReceipts(
+  delivered: InAppAgentDeliveredReceipts,
+  liveConversationIds: ReadonlySet<string>,
+): InAppAgentDeliveredReceipts {
+  if (!delivered) {
+    return delivered;
+  }
+
+  const pruned = pruneInAppAgentReceiptRecord(
+    delivered.delivered,
+    liveConversationIds,
+  );
+  if (!pruned.changed) {
+    return delivered;
+  }
+
+  return {
+    v: IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION,
+    delivered: pruned.record,
+  };
+}
+
 /**
  * Fold list summaries into handled receipts and derived UI state.
  * Returns the same receipts reference when nothing changed.
@@ -129,6 +177,9 @@ export function reconcileInAppAgentActivity(params: {
   const previousHandled = params.receipts?.handled ?? {};
   const nextHandled: Record<string, string> = { ...previousHandled };
   let handledChanged = isFirstSync;
+  const liveConversationIds = new Set(
+    params.conversations.map((conversation) => conversation.id),
+  );
 
   for (const conversation of params.conversations) {
     const run = conversation.latestRun;
@@ -155,8 +206,17 @@ export function reconcileInAppAgentActivity(params: {
     }
   }
 
+  const prunedHandled = pruneInAppAgentReceiptRecord(
+    nextHandled,
+    liveConversationIds,
+  );
+  handledChanged = handledChanged || prunedHandled.changed;
+
   const receipts: InAppAgentActivityReceipts = handledChanged
-    ? { v: IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION, handled: nextHandled }
+    ? {
+        v: IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION,
+        handled: prunedHandled.record,
+      }
     : params.receipts;
 
   const activityByConversationId: InAppAgentActivityByConversationId =

@@ -95,6 +95,9 @@ const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
   // Each row carries its newest run summary for the activity poll and badges.
+  // Activity clients request the newest page only (see
+  // IN_APP_AGENT_ACTIVITY_LIST_LIMIT); quieter conversations outside that
+  // window are an accepted attention gap for now.
   listConversations: protectedProjectProcedure
     .input(
       z.object({

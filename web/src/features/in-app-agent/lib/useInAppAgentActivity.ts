@@ -8,6 +8,7 @@ import {
   hasUnsettledInAppAgentActivity,
   markInAppAgentActivityDelivered,
   markInAppAgentConversationHandled,
+  pruneInAppAgentDeliveredReceipts,
   reconcileInAppAgentActivity,
   type InAppAgentActivityByConversationId,
   type InAppAgentActivityConversation,
@@ -34,6 +35,7 @@ export function useInAppAgentActivity(params: {
       null,
     );
 
+  // Newest-N only; see IN_APP_AGENT_ACTIVITY_LIST_LIMIT.
   const activityQuery = api.inAppAgent.listConversations.useQuery(
     { projectId, limit: IN_APP_AGENT_ACTIVITY_LIST_LIMIT },
     {
@@ -85,6 +87,19 @@ export function useInAppAgentActivity(params: {
 
     setReceipts(reconciled.receipts);
   }, [activityQuery.data, receipts, reconciled.receipts, setReceipts]);
+
+  useEffect(() => {
+    if (activityQuery.data === undefined) {
+      return;
+    }
+
+    const liveConversationIds = new Set(
+      conversations.map((conversation) => conversation.id),
+    );
+    setDelivered((current) =>
+      pruneInAppAgentDeliveredReceipts(current, liveConversationIds),
+    );
+  }, [activityQuery.data, conversations, setDelivered]);
 
   const markConversationHandled = useCallback(
     (conversationId: string, activityKey: string) => {

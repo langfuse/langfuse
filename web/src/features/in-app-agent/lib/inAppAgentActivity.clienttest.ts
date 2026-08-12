@@ -7,6 +7,7 @@ import {
   getInAppAgentPendingNotificationCards,
   markInAppAgentActivityDelivered,
   markInAppAgentConversationHandled,
+  pruneInAppAgentDeliveredReceipts,
   reconcileInAppAgentActivity,
   type InAppAgentActivityConversation,
   type InAppAgentActivityReceipts,
@@ -218,5 +219,50 @@ describe("in-app agent activity receipts", () => {
     ]);
     expect(afterOpen.activityByConversationId.get("c1")).toBeUndefined();
     expect(afterOpen.attentionCount).toBe(0);
+  });
+
+  it("prunes receipt keys for conversations that left the activity window", () => {
+    const seeded = sync(null, [
+      conversation(
+        "keep",
+        latestRun({ id: "keep-run", status: InAppAgentRunStatus.RUNNING }),
+      ),
+      conversation(
+        "drop",
+        latestRun({ id: "drop-run", status: InAppAgentRunStatus.RUNNING }),
+      ),
+    ]);
+
+    expect(seeded.receipts?.handled).toMatchObject({
+      keep: "keep-run:RUNNING",
+      drop: "drop-run:RUNNING",
+    });
+
+    const afterDrop = sync(seeded.receipts, [
+      conversation(
+        "keep",
+        latestRun({ id: "keep-run", status: InAppAgentRunStatus.RUNNING }),
+      ),
+    ]);
+
+    expect(afterDrop.receipts?.handled).toEqual({
+      keep: "keep-run:RUNNING",
+    });
+
+    const delivered = markInAppAgentActivityDelivered(null, [
+      {
+        conversationId: "drop",
+        activityKey: "drop-run:SUCCEEDED",
+      },
+      {
+        conversationId: "keep",
+        activityKey: "keep-run:SUCCEEDED",
+      },
+    ]);
+    expect(
+      pruneInAppAgentDeliveredReceipts(delivered, new Set(["keep"]))?.delivered,
+    ).toEqual({
+      keep: "keep-run:SUCCEEDED",
+    });
   });
 });
