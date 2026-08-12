@@ -1,4 +1,5 @@
 import { InvalidRequestError } from "../../../errors";
+import { UNKNOWN_INGESTION_SDK_VALUE } from "../../ingestion/ingestionAttribution";
 import {
   eventsTableCols,
   eventsTableHasParentObservationSql,
@@ -115,6 +116,27 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     kind: "scalar",
     expression: "e.ingestion_api_key",
     includeWhen: "length(e.ingestion_api_key) > 0",
+    sort: "countDesc",
+  },
+  // The SDK attribution columns default to the 'unknown' placeholder (see
+  // clickhouse migration 0042 / UNKNOWN_INGESTION_SDK_VALUE), not '' like
+  // ingestion_api_key — exclude it so the facet only offers real SDK values.
+  ingestionSdkName: {
+    kind: "scalar",
+    expression: "e.ingestion_sdk_name",
+    includeWhen: `length(e.ingestion_sdk_name) > 0 AND e.ingestion_sdk_name != '${UNKNOWN_INGESTION_SDK_VALUE}'`,
+    sort: "countDesc",
+  },
+  ingestionSdkVersion: {
+    kind: "scalar",
+    expression: "e.ingestion_sdk_version",
+    includeWhen: `length(e.ingestion_sdk_version) > 0 AND e.ingestion_sdk_version != '${UNKNOWN_INGESTION_SDK_VALUE}'`,
+    sort: "countDesc",
+  },
+  ingestionSource: {
+    kind: "scalar",
+    expression: "e.source",
+    includeWhen: "length(e.source) > 0",
     sort: "countDesc",
   },
   promptName: {
