@@ -421,12 +421,13 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
     expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
     expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
-    // The public key deep-links to the exact evidence: the events table
-    // filtered by this key + SDK name/version over the detection lookback
-    // window, so two SDK versions on the same key link to distinct results.
-    expect(
-      screen.getByRole("link", { name: "pk-lf-123…abcdef" }),
-    ).toHaveAttribute(
+    // The explicit evidence link targets this key + SDK name/version over the
+    // detection lookback window, so versions on the same key stay distinct.
+    const outdatedRow = screen.getByText("Python 2.60.3").closest("li")!;
+    const evidenceLink = within(outdatedRow).getByRole("link", {
+      name: "View observations",
+    });
+    expect(evidenceLink).toHaveAttribute(
       "href",
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef," +
@@ -434,6 +435,13 @@ describe("V4MigrationDetailsContent", () => {
           "ingestionSdkVersion;stringOptions;;any of;2.60.3",
       )}&dateRange=14d`,
     );
+    expect(evidenceLink).toHaveAttribute("target", "_blank");
+    expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
+    expect(
+      within(outdatedRow).queryByRole("link", {
+        name: "pk-lf-123…abcdef",
+      }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText("Update OTel Instrumentation"),
     ).not.toBeInTheDocument();
@@ -442,7 +450,7 @@ describe("V4MigrationDetailsContent", () => {
   it("renders the key as plain text when an offender has no observation evidence", () => {
     // A scores-only offender: detection counts score ingestions, but the
     // events table has nothing for this key — a link would open an empty
-    // table, so the key must stay plain text (LFE-14859).
+    // table, so the evidence link must stay hidden.
     mocks.migrationData.sdk = {
       status: "legacy",
       sdkUsageSeries: [
@@ -461,7 +469,29 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
     expect(screen.getByText("pk-lf-123…abcdef")).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "pk-lf-123…abcdef" }),
+      screen.queryByRole("link", { name: "View observations" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not link observations when an offender has no public key", () => {
+    mocks.migrationData.sdk = {
+      status: "legacy",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({
+          sdkVersion: "2.60.3",
+          v4MigrationStatus: "upgrade_required",
+          publicKey: "",
+        }),
+      ],
+      upgradeRequiredCount: 1,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("No API key")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "View observations" }),
     ).not.toBeInTheDocument();
   });
 
@@ -523,6 +553,7 @@ describe("V4MigrationDetailsContent", () => {
   });
 
   it("captures section_expanded and evidence_link_clicked in the SDK section", () => {
+    const onNavigate = vi.fn();
     mocks.migrationData.sdk = {
       status: "legacy",
       sdkUsageSeries: [
@@ -535,7 +566,12 @@ describe("V4MigrationDetailsContent", () => {
       delayedOtelIngestionCount: 0,
     };
 
-    render(<V4MigrationDetailsContent projectId="project-1" />);
+    render(
+      <V4MigrationDetailsContent
+        projectId="project-1"
+        onNavigate={onNavigate}
+      />,
+    );
 
     fireEvent.click(screen.getByText("Update SDK").closest("button")!);
     expect(mocks.capture).toHaveBeenCalledWith(
@@ -551,7 +587,8 @@ describe("V4MigrationDetailsContent", () => {
       ),
     ).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("link", { name: "pk-lf-123…abcdef" }));
+    fireEvent.click(screen.getByRole("link", { name: "View observations" }));
+    expect(onNavigate).not.toHaveBeenCalled();
     // Only bounded values: the canonical SDK enum and status enums — never
     // the raw client-supplied sdkName/sdkVersion header strings.
     expect(mocks.capture).toHaveBeenCalledWith(
@@ -670,7 +707,7 @@ describe("V4MigrationDetailsContent", () => {
 
     expect(screen.getByText("pk-lf-123…abcdef")).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "pk-lf-123…abcdef" }),
+      screen.queryByRole("link", { name: "View observations" }),
     ).not.toBeInTheDocument();
   });
 
@@ -701,14 +738,20 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("Custom instrumentation")).toBeInTheDocument();
     // Unattributed series ("unknown" SDK name/version) keep a key-only
     // evidence link — "unknown" is the fallback bucket, not an exact value.
-    expect(
-      screen.getByRole("link", { name: "pk-lf-123…abcdef" }),
-    ).toHaveAttribute(
+    const customInstrumentationRow = screen
+      .getByText("Custom instrumentation")
+      .closest("li")!;
+    const evidenceLink = within(customInstrumentationRow).getByRole("link", {
+      name: "View observations",
+    });
+    expect(evidenceLink).toHaveAttribute(
       "href",
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef",
       )}&dateRange=14d`,
     );
+    expect(evidenceLink).toHaveAttribute("target", "_blank");
+    expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
     expect(
       screen.getByRole("link", { name: "Python or JS SDK" }),
     ).toHaveAttribute(

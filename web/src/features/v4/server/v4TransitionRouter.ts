@@ -852,6 +852,7 @@ ORDER BY bucket_time ASC, score_name ASC
     project_id = {projectId: String}
     AND timestamp >= {fromTimestamp: DateTime64(3)}
     AND timestamp <= {toTimestamp: DateTime64(3)}
+    AND NOT startsWith(environment, 'langfuse-')
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
@@ -870,6 +871,7 @@ WITH selected AS (
     project_id = {projectId: String}
     AND start_time >= {fromTimestamp: DateTime64(3)}
     AND start_time <= {toTimestamp: DateTime64(3)}
+    AND NOT startsWith(environment, 'langfuse-')
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0
   ${scoresUnionSql}
@@ -949,6 +951,7 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
     project_id IN {projectIds: Array(String)}
     AND timestamp >= {fromTimestamp: DateTime64(3)}
     AND timestamp <= {toTimestamp: DateTime64(3)}
+    AND NOT startsWith(environment, 'langfuse-')
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
@@ -970,6 +973,7 @@ WITH selected AS (
     project_id IN {projectIds: Array(String)}
     AND start_time >= {fromTimestamp: DateTime64(3)}
     AND start_time <= {toTimestamp: DateTime64(3)}
+    AND NOT startsWith(environment, 'langfuse-')
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0
   ${scoresUnionSql}
