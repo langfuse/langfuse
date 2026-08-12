@@ -3,7 +3,7 @@ name: frontend-browser-review
 description: |
   Shared workflow for browser-based review of user-visible frontend changes in Langfuse.
   Use when a change affects UI behavior, layout, styling, navigation, or browser-visible
-  regressions and should be checked with the Playwright MCP server before signoff.
+  regressions and should be checked with available browser automation before signoff.
 ---
 
 # Frontend Browser Review
@@ -14,8 +14,8 @@ Use this skill when a change affects what users see or do in the browser.
 
 - Read [`../../../web/AGENTS.md`](../../../web/AGENTS.md) for web-specific
   entry points and test commands.
-- Use the workspace `playwright` MCP server configured from the repo-owned
-  shared agent setup.
+- In Cursor Cloud, use built-in computer use. In local agent environments, use
+  the workspace `playwright` MCP server from the shared agent setup.
 
 ## When To Use It
 
@@ -42,12 +42,12 @@ Do not hand-write seed scripts or raw ClickHouse inserts.
 
 ## Review Loop
 
-1. Start the app with `pnpm run dev:web` unless an existing local server is
-   already running.
+1. Use the existing Cursor Cloud Compose app when available. Otherwise start
+   the app with `pnpm run dev:web` unless a local server is already running.
 2. Install Chromium with `pnpm run playwright:install` if Playwright has not
    been set up on the machine yet.
-3. Open the primary changed flow with the Playwright MCP server, using the
-   deep links printed by the seed CLI when the flow needs seeded data.
+3. Open the primary changed flow with Cursor computer use or the Playwright MCP
+   server, using seed-CLI deep links when the flow needs seeded data.
 4. Exercise the main happy path affected by the change.
 5. Check for obvious visual regressions:
    - broken layout or spacing
@@ -56,8 +56,8 @@ Do not hand-write seed scripts or raw ClickHouse inserts.
    - broken responsive behavior on narrow widths
 6. If the page changed materially, inspect the resulting UI state and compare
    it against the intended behavior from the task or existing patterns.
-7. If the browser session fails, inspect traces and artifacts under
-   `/tmp/playwright-mcp`.
+7. If a Playwright MCP session fails, inspect `/tmp/playwright-mcp`. In Cursor
+   Cloud, inspect the run's browser artifacts and Compose logs.
 
 ## Output Expectations
 
