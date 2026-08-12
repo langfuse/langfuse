@@ -2,8 +2,10 @@ import { z } from "zod";
 
 import { parsePriceInput } from "@/src/features/models/fns/parsePriceInput";
 import {
+  duplicateNameIndexes,
   PricingTierConditionSchema,
   PricingTierInputSchema,
+  tiersMissingConditions,
   validatePricingTiers,
 } from "@langfuse/shared";
 
@@ -40,7 +42,16 @@ export type PricingTier = z.infer<typeof PricingTierSchema>;
  */
 const FormUsageTypeSchema = z.object({
   key: z.string(),
-  name: z.string(),
+  // Trimmed here, so every later check and the submitted payload see one
+  // normalised name. The value in the input is untouched while typing.
+  name: z
+    .string()
+    .trim()
+    .min(1, "Usage type required")
+    .regex(
+      USAGE_TYPE_PATTERN,
+      "Only letters, numbers, hyphens and underscores",
+    ),
 });
 
 export type FormUsageType = z.infer<typeof FormUsageTypeSchema>;
@@ -48,7 +59,7 @@ export type FormUsageType = z.infer<typeof FormUsageTypeSchema>;
 // Form-level tier schema. Prices are keyed by usage type row key and held as
 // strings, so a half-typed "0." or "0.0000025" survives every keystroke.
 export const FormPricingTierSchema = z.object({
-  name: z.string().min(1, "Tier name is required"),
+  name: z.string().trim().min(1, "Tier name is required"),
   isDefault: z.boolean(),
   conditions: z.array(PricingTierConditionSchema),
   prices: z.record(z.string(), z.string()),
@@ -129,60 +140,35 @@ export const FormUpsertModelSchema = z
     usageTypes: z.array(FormUsageTypeSchema).min(1),
     pricingTiers: z.array(FormPricingTierSchema).min(1),
   })
+  // Only cross-field rules live here; anything about a single value is on the
+  // field itself, so there is one definition per rule.
   .superRefine(({ usageTypes, pricingTiers }, ctx) => {
-    const seenUsageTypes = new Set<string>();
-    usageTypes.forEach((row, index) => {
-      const path = ["usageTypes", index, "name"];
-      const name = row.name.trim();
+    duplicateNameIndexes(usageTypes).forEach(([index, name]) =>
+      ctx.addIssue({
+        code: "custom",
+        path: ["usageTypes", index, "name"],
+        message: `Duplicate usage type "${name}"`,
+      }),
+    );
 
-      if (!name) {
-        ctx.addIssue({ code: "custom", path, message: "Usage type required" });
-      } else if (!USAGE_TYPE_PATTERN.test(name)) {
-        ctx.addIssue({
-          code: "custom",
-          path,
-          message: "Only letters, numbers, hyphens and underscores",
-        });
-      } else if (seenUsageTypes.has(name)) {
-        ctx.addIssue({
-          code: "custom",
-          path,
-          message: `Duplicate usage type "${name}"`,
-        });
-      }
-      seenUsageTypes.add(name);
-    });
+    // The API's rule, reused rather than restated — the form's job is only to
+    // point at the offending field.
+    duplicateNameIndexes(pricingTiers).forEach(([index]) =>
+      ctx.addIssue({
+        code: "custom",
+        path: ["pricingTiers", index, "name"],
+        message: "Tier names must be unique",
+      }),
+    );
+    tiersMissingConditions(pricingTiers).forEach((index) =>
+      ctx.addIssue({
+        code: "custom",
+        path: ["pricingTiers", index, "conditions"],
+        message: "Non-default tiers need at least one condition",
+      }),
+    );
 
-    const seenTierNames = new Set<string>();
     pricingTiers.forEach((tier, tierIndex) => {
-      // Compared trimmed, like usage types: whitespace must not sneak a second
-      // tier past this check and render as an identical label.
-      const tierName = tier.name.trim();
-      const tierNamePath = ["pricingTiers", tierIndex, "name"];
-
-      if (!tierName) {
-        ctx.addIssue({
-          code: "custom",
-          path: tierNamePath,
-          message: "Tier name is required",
-        });
-      } else if (seenTierNames.has(tierName)) {
-        ctx.addIssue({
-          code: "custom",
-          path: tierNamePath,
-          message: "Tier names must be unique",
-        });
-      }
-      seenTierNames.add(tierName);
-
-      if (!tier.isDefault && tier.conditions.length === 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["pricingTiers", tierIndex, "conditions"],
-          message: "Non-default tiers need at least one condition",
-        });
-      }
-
       usageTypes.forEach((row) => {
         if (parsePriceInput(tier.prices[row.key]) === null) {
           ctx.addIssue({
