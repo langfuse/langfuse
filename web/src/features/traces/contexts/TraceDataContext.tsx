@@ -43,6 +43,15 @@ type TraceType = Omit<
   output: string | null;
 };
 
+/**
+ * Where a merged-in (detached) observation sits in the rendered tree:
+ * - `nested` — its parent is loaded, so it renders in its real position
+ * - `root` — it genuinely has no parent, so it really is one of the roots
+ * - `orphaned` — its parent fell past the cap too, so treeBuilding nulled the
+ *   reference and it renders at root level WITHOUT being a root
+ */
+export type DetachedPlacement = "nested" | "root" | "orphaned";
+
 interface TraceDataContextValue {
   trace: TraceType;
   observations: ObservationReturnTypeWithMetadata[];
@@ -64,12 +73,8 @@ interface TraceDataContextValue {
    * reads as top-level.
    */
   detachedObservationId: string | null;
-  /**
-   * False when the detached observation's parent ALSO fell past the cap: the node
-   * then renders at root level instead of its real position, which the marker has
-   * to say out loud. True when it nests correctly (parent loaded / no parent).
-   */
-  detachedObservationParentLoaded: boolean;
+  /** Where that observation landed; see DetachedPlacement. */
+  detachedObservationPlacement: DetachedPlacement | null;
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
   comments: Map<string, number>;
@@ -98,7 +103,7 @@ interface TraceDataProviderProps {
   corrections: ScoreDomain[];
   comments: Map<string, number>;
   detachedObservationId?: string | null;
-  detachedObservationParentLoaded?: boolean;
+  detachedObservationPlacement?: DetachedPlacement | null;
   truncatedAtObservations?: number;
   children: ReactNode;
 }
@@ -114,7 +119,7 @@ export function TraceDataProvider({
   corrections,
   comments,
   detachedObservationId = null,
-  detachedObservationParentLoaded = true,
+  detachedObservationPlacement = null,
   truncatedAtObservations,
   children,
 }: TraceDataProviderProps) {
@@ -177,8 +182,16 @@ export function TraceDataProvider({
   );
 
   const traceLevelScoreOwnerIdSet = useMemo(
-    () => traceLevelScoreOwnerIds(uiData.roots),
-    [uiData.roots],
+    () =>
+      traceLevelScoreOwnerIds(
+        uiData.roots,
+        // Only an orphaned row is an impostor among the roots; a genuine root
+        // that happened to fall past the cap is still a root.
+        detachedObservationPlacement === "orphaned"
+          ? detachedObservationId
+          : null,
+      ),
+    [uiData.roots, detachedObservationId, detachedObservationPlacement],
   );
 
   // Merge scores with optimistic cache
@@ -204,7 +217,7 @@ export function TraceDataProvider({
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
       detachedObservationId,
-      detachedObservationParentLoaded,
+      detachedObservationPlacement,
       truncatedAtObservations,
       comments,
       traceStartTime,
@@ -221,7 +234,7 @@ export function TraceDataProvider({
       filteredSearchItems,
       hiddenObservationsCount,
       detachedObservationId,
-      detachedObservationParentLoaded,
+      detachedObservationPlacement,
       truncatedAtObservations,
       uiData.nodeMap,
       comments,

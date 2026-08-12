@@ -295,7 +295,7 @@ describe("buildTraceUiData", () => {
     it("places an observation whose parent is not in the list at root level", () => {
       // The contract the detached-observation injection relies on: a row merged
       // in from outside the capped list has an unloaded parent, so it lands as a
-      // root — which is exactly why the views mark it (LFE-14993).
+      // root — which is why the truncation notice has to qualify its position.
       const trace = createMockTrace({
         id: "trace-1",
         rootObservationType: "SPAN",

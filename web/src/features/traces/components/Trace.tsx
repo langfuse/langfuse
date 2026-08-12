@@ -9,6 +9,7 @@ import {
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
+import { type DetachedPlacement } from "@/src/features/traces/contexts/TraceDataContext";
 import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { PlayheadProvider } from "@/src/features/traces/contexts/PlayheadContext";
@@ -45,7 +46,7 @@ export type TraceProps = {
 /**
  * SelectionProvider sits ABOVE the trace data so the selected observation can be
  * resolved before the tree is built: past the observation cap the selected row is
- * missing from the loaded list and has to be fetched and merged in (LFE-14993).
+ * missing from the loaded list and has to be fetched and merged in.
  */
 export function Trace({ context, ...props }: TraceProps) {
   return (
@@ -83,8 +84,7 @@ function TraceWithSelection({
   }, [observationCommentCounts, traceCommentCount, trace.id]);
 
   // A selected observation outside the loaded list joins the tree instead of
-  // being invisible in it — marked as detached, since its ancestors aren't
-  // loaded and treeBuilding therefore lands it at root level.
+  // being invisible in it.
   const selected = useSelectedObservation({
     selectedNodeId,
     traceId: trace.id,
@@ -96,13 +96,18 @@ function TraceWithSelection({
       ? selected.observation
       : null;
 
-  // Whether the injected row keeps its real position: treeBuilding nulls a
-  // parentObservationId it cannot resolve, so a row whose parent also fell past
-  // the cap lands at ROOT level — the case the marker has to warn about.
-  const detachedParentLoaded = useMemo(() => {
-    const parentId = detachedObservation?.parentObservationId;
-    if (!parentId) return true;
-    return loadedObservations.some((obs) => obs.id === parentId);
+  // Where the injected row ends up, which is NOT one question but three:
+  // treeBuilding nulls a parentObservationId it cannot resolve, so a row whose
+  // parent also fell past the cap renders at root level without being a root.
+  // That "orphaned" case is the only one the UI has to qualify — a genuine root
+  // keeps root semantics, and a row with a loaded parent nests correctly.
+  const detachedPlacement = useMemo<DetachedPlacement | null>(() => {
+    if (!detachedObservation) return null;
+    const parentId = detachedObservation.parentObservationId;
+    if (!parentId) return "root";
+    return loadedObservations.some((obs) => obs.id === parentId)
+      ? "nested"
+      : "orphaned";
   }, [detachedObservation, loadedObservations]);
 
   const observations = useMemo(
@@ -121,7 +126,7 @@ function TraceWithSelection({
       corrections={corrections}
       comments={commentsMap}
       detachedObservationId={detachedObservation?.id ?? null}
-      detachedObservationParentLoaded={detachedParentLoaded}
+      detachedObservationPlacement={detachedPlacement}
       truncatedAtObservations={truncatedAtObservations}
     >
       <TraceGraphDataProvider

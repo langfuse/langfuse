@@ -14,46 +14,39 @@ import { useState } from "react";
 import { TriangleAlert, X } from "lucide-react";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 
+type Variant = "plain" | "with-detached";
+
 export function TraceTruncationNotice() {
   const {
     truncatedAtObservations,
     detachedObservationId,
-    detachedObservationParentLoaded,
+    detachedObservationPlacement,
   } = useTraceData();
+
+  // Per trace view: dismissing frees the space for this visit, and the notice is
+  // back on the next trace/reload rather than silently gone for good.
+  const [dismissedVariant, setDismissedVariant] = useState<Variant | null>(
+    null,
+  );
 
   if (!truncatedAtObservations) return null;
 
   // The detached row carries no marker of its own (deliberately — a per-row label
   // is noise on every scroll), so this sentence is the ONLY place that can say
-  // the tree may be showing it out of position.
+  // the tree is showing it out of position.
   const detachedNote = !detachedObservationId
     ? null
-    : detachedObservationParentLoaded
-      ? " The one you opened is loaded separately."
-      : " The one you opened is loaded separately, and appears at the top level because its parent is missing too.";
+    : detachedObservationPlacement === "orphaned"
+      ? " The one you opened is loaded separately, and appears at the top level because its parent is missing too."
+      : " The one you opened is loaded separately.";
 
-  return (
-    <DismissableNotice
-      // Remount (and so un-dismiss) when the message changes: that is new
-      // information, not the notice nagging again.
-      key={detachedNote ?? "plain"}
-      loadedObservationCount={truncatedAtObservations}
-      detachedNote={detachedNote}
-    />
-  );
-}
-
-function DismissableNotice({
-  loadedObservationCount,
-  detachedNote,
-}: {
-  loadedObservationCount: number;
-  detachedNote: string | null;
-}) {
-  // Per trace view: dismissing frees the space for this visit, and the notice is
-  // back on the next trace/reload rather than silently gone for good.
-  const [dismissed, setDismissed] = useState(false);
-  if (dismissed) return null;
+  const variant: Variant = detachedNote ? "with-detached" : "plain";
+  // Selection moves in and out of the detached row, so the variant flips BOTH
+  // ways. Only gaining the sentence re-shows the notice: dismissing the longer
+  // message covers the shorter one, and coming back from it must not re-nag.
+  const isDismissed =
+    dismissedVariant === variant || dismissedVariant === "with-detached";
+  if (isDismissed) return null;
 
   return (
     <div className="text-muted-foreground border-border bg-muted/40 flex shrink-0 items-start gap-2 border-b py-1.5 pr-1 pl-2 text-xs">
@@ -62,7 +55,7 @@ function DismissableNotice({
         {/* No total: the server stops counting at the cap, so we know "more than
             this", never how many. */}
         <span className="font-bold">
-          Showing the first {loadedObservationCount.toLocaleString()}{" "}
+          Showing the first {truncatedAtObservations.toLocaleString()}{" "}
           observations
         </span>{" "}
         by start time. Later ones are missing here — find them in the
@@ -72,7 +65,7 @@ function DismissableNotice({
       <button
         type="button"
         aria-label="Dismiss"
-        onClick={() => setDismissed(true)}
+        onClick={() => setDismissedVariant(variant)}
         className="hover:bg-muted-foreground/10 hover:text-foreground shrink-0 rounded p-0.5"
       >
         <X className="h-3.5 w-3.5" />

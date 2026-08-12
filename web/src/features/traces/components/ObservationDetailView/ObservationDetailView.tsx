@@ -87,8 +87,14 @@ export function ObservationDetailView({
 
   // V4 beta mode and observations for log tab
   const { isBetaEnabled: isV4Enabled } = useV4Beta();
-  const { observations, roots, nodeMap, traceLevelScoreOwnerIds } =
-    useTraceData();
+  const {
+    observations,
+    roots,
+    nodeMap,
+    traceLevelScoreOwnerIds,
+    detachedObservationId,
+    detachedObservationPlacement,
+  } = useTraceData();
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
@@ -115,9 +121,16 @@ export function ObservationDetailView({
   // Uses the tree's roots array which handles orphans correctly.
   // Both stay absent/false for an observation outside the loaded (capped) list:
   // subtree metrics and root-only chrome are tree facts we genuinely don't have,
-  // so they are omitted rather than guessed.
+  // so they are omitted rather than guessed. A merged-in row whose parent is also
+  // past the cap sits AMONG the roots without being one — root chrome there would
+  // assert a position we don't know.
   const treeNode = nodeMap.get(observation.id);
-  const isRoot = roots.some((root) => root.id === observation.id);
+  const isRoot =
+    roots.some((root) => root.id === observation.id) &&
+    !(
+      detachedObservationPlacement === "orphaned" &&
+      observation.id === detachedObservationId
+    );
 
   // Without a TRACE row (v4) this span stands in for the trace, so its badge and
   // its Scores tab both cover the trace-level scores.
