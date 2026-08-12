@@ -75,6 +75,11 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
   runId: z.string(),
   toolCallId: z.string(),
   approved: z.boolean(),
+  // "conversation" also approves this call; it never means approve-without-run.
+  approvalScope: z.enum(["once", "conversation"]).default("once"),
+}).refine((input) => input.approved || input.approvalScope === "once", {
+  message: "A rejection cannot grant a tool",
+  path: ["approvalScope"],
 });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
@@ -260,6 +265,7 @@ export const inAppAgentRouter = createTRPCRouter({
         runId: input.runId,
         toolCallId: input.toolCallId,
         approved: input.approved,
+        approvalScope: input.approvalScope,
         userId: ctx.session.user.id,
         model: env.LANGFUSE_AWS_BEDROCK_MODEL,
       });

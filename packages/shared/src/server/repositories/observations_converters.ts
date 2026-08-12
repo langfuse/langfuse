@@ -1,4 +1,5 @@
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
+import { normalizeEventsTraceName } from "../../eventsTable";
 import {
   ObservationRecordReadType,
   EventsObservationRecordReadType,
@@ -418,7 +419,7 @@ export function convertEventsObservation(
       ...(record.is_root_observation !== undefined && {
         isRootObservation: record.is_root_observation,
       }),
-      traceName: record.trace_name ?? null,
+      traceName: normalizeEventsTraceName(record.trace_name),
       release: record.release ?? null,
       tags: record.tags ?? null,
       bookmarked: record.bookmarked!,
@@ -438,7 +439,9 @@ export function convertEventsObservation(
     ...(record.is_root_observation !== undefined && {
       isRootObservation: record.is_root_observation,
     }),
-    ...(record.trace_name !== undefined && { traceName: record.trace_name }),
+    ...(record.trace_name !== undefined && {
+      traceName: normalizeEventsTraceName(record.trace_name),
+    }),
     ...(record.release !== undefined && { release: record.release }),
     ...(record.tags !== undefined && { tags: record.tags }),
     ...(record.bookmarked !== undefined && { bookmarked: record.bookmarked }),

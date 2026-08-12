@@ -121,6 +121,7 @@ import {
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
+  normalizeEventsTraceName,
   type NumericEventsTableColumnId,
 } from "../../eventsTable";
 import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
@@ -3252,7 +3253,11 @@ export const getEventsForAnalyticsIntegrations = async function* (
     yield {
       timestamp: record.start_time,
       langfuse_observation_name: record.name,
-      langfuse_trace_name: record.trace_name,
+      // The row type here is Record<string, unknown>; the column is a String
+      // projection (eventsTableTraceNameSelectSql).
+      langfuse_trace_name: normalizeEventsTraceName(
+        record.trace_name as string | null | undefined,
+      ),
       langfuse_trace_id: record.trace_id,
       langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.trace_id as string)}?observation=${encodeURIComponent(record.id as string)}`,
       langfuse_user_url: record.user_id
