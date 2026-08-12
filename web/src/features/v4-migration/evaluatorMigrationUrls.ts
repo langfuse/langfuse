@@ -5,7 +5,7 @@ const DEPRECATED_EVALUATOR_FILTERS: FilterState = [
     column: "status",
     type: "stringOptions",
     operator: "any of",
-    value: ["ACTIVE"],
+    value: ["ACTIVE", "PAUSED"],
   },
   {
     column: "target",
