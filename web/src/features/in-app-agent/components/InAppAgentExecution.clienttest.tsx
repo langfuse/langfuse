@@ -22,6 +22,12 @@ const providerMocks = vi.hoisted(() => {
     data: undefined as undefined,
     refetch: vi.fn(() => Promise.resolve({ data: undefined })),
   };
+  const activityUseQuery = vi.fn(
+    (
+      _input?: { projectId: string; limit: number },
+      _options?: { enabled?: boolean },
+    ) => activityQuery,
+  );
 
   return {
     capture: vi.fn(),
@@ -35,7 +41,7 @@ const providerMocks = vi.hoisted(() => {
     },
     getConversation: vi.fn(),
     activityQuery,
-    activityUseQuery: vi.fn(() => activityQuery),
+    activityUseQuery,
     listQuery: {
       data: { pages: [{ conversations: [] }] },
       error: null,
@@ -142,8 +148,10 @@ vi.mock("@/src/utils/api", () => ({
       listConversations: {
         useInfiniteQuery: () => providerMocks.listQuery,
         // Bounded activity poll: same procedure, `limit: 50`.
-        useQuery: (...args: unknown[]) =>
-          providerMocks.activityUseQuery(...args),
+        useQuery: (
+          input: { projectId: string; limit: number },
+          options?: { enabled?: boolean },
+        ) => providerMocks.activityUseQuery(input, options),
       },
       getConversation: {
         useQuery: (...args: unknown[]) => {
@@ -300,10 +308,9 @@ describe("in-app agent execution", () => {
     );
 
     expect(providerMocks.activityUseQuery).toHaveBeenCalled();
-    const options = providerMocks.activityUseQuery.mock.calls[0]?.[1] as {
-      enabled?: boolean;
-    };
-    expect(options?.enabled).toBe(false);
+    expect(providerMocks.activityUseQuery.mock.calls[0]?.[1]?.enabled).toBe(
+      false,
+    );
   });
 
   it("enables activity polling when the assistant is server-available", () => {
@@ -313,10 +320,9 @@ describe("in-app agent execution", () => {
       </InAppAiAgentProvider>,
     );
 
-    const options = providerMocks.activityUseQuery.mock.calls[0]?.[1] as {
-      enabled?: boolean;
-    };
-    expect(options?.enabled).toBe(true);
+    expect(providerMocks.activityUseQuery.mock.calls[0]?.[1]?.enabled).toBe(
+      true,
+    );
   });
 
   it("always allows a persisted background tool for the conversation", async () => {
