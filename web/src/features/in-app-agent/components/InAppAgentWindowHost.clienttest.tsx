@@ -132,10 +132,14 @@ describe("InAppAgentWindowHost", () => {
   });
 
   it("renders a full-screen drawer instead of the movable panel on a handheld", () => {
+    // A landscape phone: too wide for the `md` width clause, so only the
+    // coarse-pointer clause can match. Pins that the shell asks the handheld
+    // predicate, not the width-only one that sent a rotated phone back to the
+    // floating window.
     vi.stubGlobal(
       "matchMedia",
-      vi.fn(() => ({
-        matches: true,
+      vi.fn((query: string) => ({
+        matches: query.includes("pointer: coarse"),
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
       })),

@@ -376,7 +376,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     hasMoreConversations,
     isAssistantTurnInProgress,
     isHeaderDragHandleEnabled = false,
-    isExpanded,
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
     messages,
@@ -405,6 +404,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   // it drops the window chrome and never auto-focuses — that springs the
   // keyboard over the conversation.
   const isHandheld = useIsHandheld();
+  // Full-screen has no expanded variant. Narrowing a desktop window into
+  // handheld while expanded would otherwise keep the desktop-expanded layout
+  // with no toggle left to undo it; the prop survives, so widening restores it.
+  const isExpanded = props.isExpanded && !isHandheld;
   const isRateLimited = isInAppAgentRateLimited(error);
   const isComposerDisabled = isConversationInteractionDisabled;
   const isSubmitDisabled =
