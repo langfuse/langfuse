@@ -54,6 +54,9 @@ export const IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION = 1;
  * head). Accepted scope: a quieter conversation that falls outside this window
  * will not contribute badge/toast attention until it is bumped back into the
  * page (e.g. by a new message). Revisit if parked approvals must never drop off.
+ *
+ * Handled/delivered receipts are localStorage per browser profile — not synced
+ * across devices. A new profile baselines the current newest-N as already seen.
  */
 export const IN_APP_AGENT_ACTIVITY_LIST_LIMIT = 50;
 
