@@ -1,5 +1,6 @@
 import { type GetServerSideProps } from "next";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -844,6 +845,9 @@ export default function SignIn({
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Sign in to your account
           </h2>
+          <div className="mt-3 flex justify-center">
+            <Badge variant="secondary">hello world</Badge>
+          </div>
         </div>
 
         {isLangfuseCloud && (
