@@ -1,6 +1,16 @@
 -- Prisma does not automatically wrap PostgreSQL migrations in a transaction.
 BEGIN;
 
+-- The backfill below reads job_configurations/eval_templates across several separate
+-- statements. Under the default READ COMMITTED isolation, each statement would take its
+-- own fresh snapshot, so a row written concurrently between statements could show up in
+-- one backfill query but not another, tripping a foreign key and aborting the migration.
+-- REPEATABLE READ pins one snapshot for the whole transaction, so every statement sees
+-- the same view of the old tables. This migration only reads job_configurations/
+-- eval_templates and only writes to the brand-new tables created below, so there is no
+-- write-skew risk that would require SERIALIZABLE.
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
 CREATE TYPE "EvaluatorSourceCodeLanguage" AS ENUM ('PYTHON', 'TYPESCRIPT');
 
 CREATE TABLE "evaluators" (
