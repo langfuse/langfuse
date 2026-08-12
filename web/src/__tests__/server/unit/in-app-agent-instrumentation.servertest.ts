@@ -772,9 +772,9 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
-    // Prior history is set at construction; end() does not re-copy this turn.
+    // Snapshot recording: ended at construction, not held open for the turn.
+    expect(mocks.conversationHistorySpan.end).toHaveBeenCalledTimes(1);
     expect(mocks.conversationHistorySpan.update).not.toHaveBeenCalled();
-    expect(mocks.conversationHistorySpan.end).toHaveBeenCalled();
   });
 
   it("compacts text message chunks before recording output", () => {

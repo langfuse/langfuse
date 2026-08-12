@@ -47,7 +47,6 @@ type InAppAgentTrace = ReturnType<
   InternalTracingHandler["handler"]["langfuse"]["trace"]
 >;
 type InAppAgentGeneration = ReturnType<InAppAgentTrace["generation"]>;
-type InAppAgentSpan = ReturnType<InAppAgentGeneration["span"]>;
 type InAppAgentLangfuse = InternalTracingHandler["handler"]["langfuse"];
 type AgentRunToolCall = {
   id: string;
@@ -132,9 +131,7 @@ export class InAppAgentInstrumentation {
   private readonly langfuse: InAppAgentLangfuse;
   private readonly trace: InAppAgentTrace;
   private readonly agentRun: InAppAgentGeneration;
-  private readonly conversationHistory: InAppAgentSpan;
   private agentRunInput: unknown;
-  private readonly conversationHistoryInput: unknown;
   private readonly prompt?: InAppAgentPromptMetadata;
   private readonly toolSpans = new Map<
     string,
@@ -190,7 +187,6 @@ export class InAppAgentInstrumentation {
         : {}),
     };
     this.agentRunInput = getAgentRunInput(params.input);
-    this.conversationHistoryInput = getConversationHistoryInput(params.input);
     this.prompt = params.prompt;
     this.model = params.model;
 
@@ -229,12 +225,16 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
-    this.conversationHistory = this.agentRun.span({
-      id: getInAppAgentConversationHistoryObservationId(params.input.runId),
-      name: IN_APP_AGENT_CONVERSATION_HISTORY_NAME,
-      input: this.conversationHistoryInput,
-      metadata: this.metadata,
-    });
+    // Snapshot of prior dialogue for session evals — end immediately so the
+    // span does not inherit the turn's wall-clock duration.
+    this.agentRun
+      .span({
+        id: getInAppAgentConversationHistoryObservationId(params.input.runId),
+        name: IN_APP_AGENT_CONVERSATION_HISTORY_NAME,
+        input: getConversationHistoryInput(params.input),
+        metadata: this.metadata,
+      })
+      .end();
   }
 
   recordEvents(events: AgUiEvent[]) {
@@ -396,22 +396,11 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
-    // History span keeps prior dialogue only; mark ERROR when the turn fails.
-    if (params.level === "ERROR") {
-      this.conversationHistory.update({
-        name: IN_APP_AGENT_CONVERSATION_HISTORY_NAME,
-        input: this.conversationHistoryInput,
-        level: "ERROR",
-        statusMessage: params.statusMessage,
-        metadata: params.metadata,
-      });
-    }
     this.trace.update({
       input: this.agentRunInput,
       output,
       metadata: params.metadata,
     });
-    this.conversationHistory.end();
     this.agentRun.end();
     this.ended = true;
   }
