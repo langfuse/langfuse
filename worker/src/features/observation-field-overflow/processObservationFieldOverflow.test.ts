@@ -44,7 +44,7 @@ vi.mock("../../env", () => ({
 import {
   applyLegacyObservationFieldOverflow,
   applyObservationFieldOverflow,
-  hasObservationFieldOverflowReference,
+  isObservationFieldOverflowReference,
 } from "./processObservationFieldOverflow";
 
 const createEventRecord = (
@@ -227,7 +227,7 @@ describe("applyObservationFieldOverflow", () => {
     const result = await applyLegacyObservationFieldOverflow(observationRecord);
 
     expect(result).toBe(observationRecord);
-    expect(hasObservationFieldOverflowReference(result)).toBe(true);
+    expect(isObservationFieldOverflowReference(result.input)).toBe(true);
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
   });
 
@@ -252,7 +252,8 @@ describe("applyObservationFieldOverflow", () => {
         metadata: { large: mediaReference("metadata-media") },
       }),
     );
-    expect(hasObservationFieldOverflowReference(result)).toBe(false);
+    expect(isObservationFieldOverflowReference(result.input)).toBe(false);
+    expect(isObservationFieldOverflowReference(result.output)).toBe(false);
   });
 
   it("persists the original input when its overflow upload fails open", async () => {

@@ -69,7 +69,7 @@ import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
 import {
   applyLegacyObservationFieldOverflow,
   applyObservationFieldOverflow,
-  hasObservationFieldOverflowReference,
+  isObservationFieldOverflowReference,
 } from "../../features/observation-field-overflow/processObservationFieldOverflow";
 
 /**
@@ -438,8 +438,8 @@ export class IngestionService {
   /**
    * Writes an event record directly to the events_full table.
    * A materialized view auto-populates events_core from events_full.
-   * Legacy observation writes and staging-based dual writes intentionally do
-   * not use field overflow.
+   * Legacy observation and staging writes apply overflow separately after
+   * their merged record has been enriched.
    * Use createEventRecord() first to get the record, then call this to write.
    *
    * Enqueues a new record whose `event_bytes` describes the final normalized
@@ -982,22 +982,10 @@ export class IngestionService {
       );
     }
 
-    const hasIncomingProvidedUsageOrCost = observationRecords.some(
-      (record) =>
-        Object.keys(record.provided_usage_details ?? {}).length > 0 ||
-        Object.values(record.provided_cost_details ?? {}).some(
-          (value) => value != null,
-        ),
-    );
-    const skipAutomaticUsageEnrichment =
-      hasObservationFieldOverflowReference(mergedObservationRecord) &&
-      !hasIncomingProvidedUsageOrCost;
-    const generationUsage = skipAutomaticUsageEnrichment
-      ? {}
-      : await this.getGenerationUsage({
-          projectId,
-          observationRecord: mergedObservationRecord,
-        });
+    const generationUsage = await this.getGenerationUsage({
+      projectId,
+      observationRecord: mergedObservationRecord,
+    });
     const enrichedObservationRecord = {
       ...mergedObservationRecord,
       ...generationUsage,
@@ -1354,14 +1342,18 @@ export class IngestionService {
           async (span) => {
             try {
               [newInputCount, newOutputCount] = await Promise.all([
-                tokenCountAsync({
-                  text: observationRecord.input,
-                  model,
-                }),
-                tokenCountAsync({
-                  text: observationRecord.output,
-                  model,
-                }),
+                isObservationFieldOverflowReference(observationRecord.input)
+                  ? undefined
+                  : tokenCountAsync({
+                      text: observationRecord.input,
+                      model,
+                    }),
+                isObservationFieldOverflowReference(observationRecord.output)
+                  ? undefined
+                  : tokenCountAsync({
+                      text: observationRecord.output,
+                      model,
+                    }),
               ]);
             } catch (error) {
               // No synchronous fallback: payloads that make the worker thread

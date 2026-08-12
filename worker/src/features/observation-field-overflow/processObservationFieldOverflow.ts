@@ -348,17 +348,11 @@ function getOverflowRecordContext(record: OverflowRecord): {
   };
 }
 
-export function hasObservationFieldOverflowReference(record: {
-  input?: string | null;
-  output?: string | null;
-}): boolean {
-  return [record.input, record.output].some(
-    (value) =>
-      typeof value === "string" && isObservationFieldOverflowReference(value),
-  );
-}
+export function isObservationFieldOverflowReference(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
 
-function isObservationFieldOverflowReference(value: string): boolean {
   if (
     !value.startsWith(MEDIA_REFERENCE_PREFIX) ||
     !value.endsWith(MEDIA_REFERENCE_SUFFIX)

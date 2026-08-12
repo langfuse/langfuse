@@ -3,7 +3,8 @@ import { beforeEach, expect, describe, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   applyLegacyObservationFieldOverflow: vi.fn(),
   applyObservationFieldOverflow: vi.fn(),
-  hasObservationFieldOverflowReference: vi.fn(),
+  isObservationFieldOverflowReference: vi.fn(),
+  tokenCountAsync: vi.fn(),
 }));
 
 vi.mock(
@@ -12,10 +13,14 @@ vi.mock(
     applyLegacyObservationFieldOverflow:
       mocks.applyLegacyObservationFieldOverflow,
     applyObservationFieldOverflow: mocks.applyObservationFieldOverflow,
-    hasObservationFieldOverflowReference:
-      mocks.hasObservationFieldOverflowReference,
+    isObservationFieldOverflowReference:
+      mocks.isObservationFieldOverflowReference,
   }),
 );
+
+vi.mock("../../../features/tokenisation/async-usage", () => ({
+  tokenCountAsync: mocks.tokenCountAsync,
+}));
 
 import { IngestionService } from "../../IngestionService";
 import {
@@ -36,8 +41,9 @@ describe("IngestionService unit tests", () => {
     mocks.applyObservationFieldOverflow.mockImplementation(
       async (eventRecord) => eventRecord,
     );
-    mocks.hasObservationFieldOverflowReference.mockReset();
-    mocks.hasObservationFieldOverflowReference.mockReturnValue(false);
+    mocks.isObservationFieldOverflowReference.mockReset();
+    mocks.isObservationFieldOverflowReference.mockReturnValue(false);
+    mocks.tokenCountAsync.mockReset();
   });
 
   it("writes the final serialized event size instead of the raw OTEL span size", async () => {
@@ -169,6 +175,43 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.cost_details).toEqual({ total: 0.03 });
   });
 
+  it("tokenizes only real fields when input is an overflow reference", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const input =
+      "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@";
+    mocks.isObservationFieldOverflowReference.mockImplementation(
+      (value) => value === input,
+    );
+    mocks.tokenCountAsync.mockResolvedValueOnce(4);
+
+    const result = await (ingestionService as any).getUsageUnits(
+      {
+        id: "observation-id",
+        project_id: "project-id",
+        provided_usage_details: {},
+        provided_cost_details: {},
+        level: "DEFAULT",
+        input,
+        output: "new output",
+      },
+      { id: "model-id", tokenizerId: "tokenizer-id" },
+    );
+
+    expect(mocks.tokenCountAsync).toHaveBeenCalledOnce();
+    expect(mocks.tokenCountAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "new output" }),
+    );
+    expect(result).toEqual({
+      usage_details: { output: 4, total: 4 },
+      provided_usage_details: {},
+    });
+  });
+
   it("overflows an enriched legacy observation and reuses it for staging", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
@@ -264,7 +307,7 @@ describe("IngestionService unit tests", () => {
     }
   });
 
-  it("skips automatic usage enrichment for a persisted overflow reference", async () => {
+  it("continues usage enrichment when a persisted overflow reference is merged", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -296,8 +339,6 @@ describe("IngestionService unit tests", () => {
       ingestionService as any,
       "getGenerationUsage",
     );
-    mocks.hasObservationFieldOverflowReference.mockReturnValueOnce(true);
-
     await (ingestionService as any).processObservationEventList({
       projectId: "project-id",
       entityId: "observation-id",
@@ -311,7 +352,11 @@ describe("IngestionService unit tests", () => {
       },
     });
 
-    expect(getGenerationUsage).not.toHaveBeenCalled();
+    expect(getGenerationUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        observationRecord: expect.objectContaining({ input }),
+      }),
+    );
     expect(mocks.applyLegacyObservationFieldOverflow).toHaveBeenCalledWith(
       expect.objectContaining({ input }),
     );
