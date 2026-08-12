@@ -13,7 +13,7 @@ import { type views, type ViewVersion } from "@langfuse/shared/query";
 import { type z } from "zod";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import {
   displayNameForFilterColumn,
   mapViewFilterToUiTableFilter,
@@ -50,6 +50,41 @@ const v2FilterOptionsQueryConfig = {
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
 } as const;
+
+/** eventsFilterOptionsColumns lists the v2 facets fast enough to load in one request. */
+const eventsFilterOptionsColumns = [
+  "providedModelName",
+  "modelId",
+  "name",
+  "promptName",
+  "traceTags",
+  "traceName",
+  "type",
+  "userId",
+  "version",
+  "release",
+  "sessionId",
+  "level",
+  "environment",
+  "ingestionApiKey",
+  "experimentDatasetId",
+  "experimentId",
+  "experimentName",
+  "isRootObservation",
+  "calledToolNames",
+  "metadataKeys",
+  "scores_avg",
+  "score_categories",
+  "score_booleans",
+  "trace_scores_avg",
+  "trace_score_categories",
+  "trace_score_booleans",
+] satisfies EventFilterOptionsColumn[];
+
+/** slowEventsFilterOptionsColumns lists the v2 facets that scan slowly enough to need their own request. */
+const slowEventsFilterOptionsColumns = [
+  "toolNames",
+] satisfies EventFilterOptionsColumn[];
 
 /** MetricsFilterBuilder filters metrics by the dimensions of the data model, dispatching to the version-specific fetcher. */
 export const MetricsFilterBuilder = ({
@@ -132,7 +167,12 @@ const MetricsFilterBuilderV2 = ({
   const startTimeFilter = metricsFilterTimeFilter("startTime", dateRange);
 
   const eventsFilterOptions = api.events.filterOptions.useQuery(
-    { projectId, startTimeFilter },
+    { projectId, startTimeFilter, columns: eventsFilterOptionsColumns },
+    v2FilterOptionsQueryConfig,
+  );
+
+  const slowEventsFilterOptions = api.events.filterOptions.useQuery(
+    { projectId, startTimeFilter, columns: slowEventsFilterOptionsColumns },
     v2FilterOptionsQueryConfig,
   );
 
@@ -145,6 +185,7 @@ const MetricsFilterBuilderV2 = ({
   const params = buildV2FilterColumnsParams({
     view,
     filterOptions: eventsFilterOptions.data,
+    slowFilterOptions: slowEventsFilterOptions.data,
     datasets: datasets.data,
     metadataKeys: eventsFilterOptions.data?.metadataKeys?.map(
       (row) => row.value,
@@ -292,11 +333,13 @@ const buildV1FilterColumnsParams = ({
 const buildV2FilterColumnsParams = ({
   view,
   filterOptions,
+  slowFilterOptions,
   datasets,
   metadataKeys,
 }: {
   view: z.infer<typeof views>;
   filterOptions: RouterOutputs["events"]["filterOptions"] | undefined;
+  slowFilterOptions?: RouterOutputs["events"]["filterOptions"];
   datasets: Array<{ id: string; name: string }> | undefined;
   metadataKeys?: string[];
 }): GetMetricsFilterColumnsParams => {
@@ -311,7 +354,7 @@ const buildV2FilterColumnsParams = ({
     observationNameOptions: normalizeSingleValueOptions(filterOptions?.name),
     tagsOptions: sortOptionValues(filterOptions?.traceTags ?? []),
     modelOptions: filterOptions?.providedModelName ?? [],
-    toolNamesOptions: filterOptions?.toolNames ?? [],
+    toolNamesOptions: slowFilterOptions?.toolNames ?? [],
     calledToolNamesOptions: filterOptions?.calledToolNames ?? [],
     observationLevelOptions,
     experimentNameOptions: filterOptions?.experimentName ?? [],
@@ -382,6 +425,11 @@ const resolvesToColumn = (
       column.name === filter.column ||
       column.aliases?.includes(filter.column) === true,
   );
+
+/** EventFilterOptionsColumn is one facet column the events filter-options endpoint understands. */
+type EventFilterOptionsColumn = NonNullable<
+  RouterInputs["events"]["filterOptions"]["columns"]
+>[number];
 
 export const __test = {
   buildV2FilterColumnsParams,
