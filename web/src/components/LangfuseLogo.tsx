@@ -1,9 +1,11 @@
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { VersionLabel } from "./VersionLabel";
-import { env } from "@/src/env.mjs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { PlusIcon } from "lucide-react";
+// CIP fork (see FORK.md): brand mark swapped to Weval Studio; the exported
+// LangfuseIcon/LangfuseLogo names stay so upstream call sites are untouched.
+import { WevalLogo } from "@/src/features/cip-branding/WevalLogo";
 
 export const LangfuseIcon = ({
   size = 32,
@@ -11,16 +13,7 @@ export const LangfuseIcon = ({
 }: {
   size?: number;
   className?: string;
-}) => (
-  // eslint-disable-next-line @next/next/no-img-element
-  <img
-    src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`}
-    width={size}
-    height={size}
-    alt="Langfuse Icon"
-    className={className}
-  />
-);
+}) => <WevalLogo size={size} className={className} />;
 
 const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
   const uiCustomization = useUiCustomization();
@@ -65,7 +58,7 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
           size === "sm" ? "text-sm" : "text-xl",
         )}
       >
-        Langfuse
+        Weval Studio
       </span>
     </div>
   );
