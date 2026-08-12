@@ -74,10 +74,10 @@ export function useSelectedObservation({
     },
   );
 
-  // Transport-level failures (proxy error page, dropped connection, unparseable
-  // body) carry no `data.code`, so the presence of an error — not its code — is
-  // what ends the wait. Keying on the code alone left the panel on a skeleton
-  // forever.
+  // Transport-level failures (proxy error page, dropped connection, a body that
+  // is not JSON) carry no `data.code`, so the presence of an error — not its
+  // code — is what ends the wait. Keying on the code alone left the panel on a
+  // skeleton forever.
   const hasError = !!byId.error;
   const isNotFound = byId.error?.data?.code === "NOT_FOUND";
 
