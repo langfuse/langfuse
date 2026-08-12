@@ -37,20 +37,24 @@ export function useSelectedObservation({
   projectId: string;
   observations: ObservationReturnTypeWithMetadata[];
 }): SelectedObservation {
-  // Derived from the id alone, never from a nodeMap hit: past the cap the lookup
-  // misses, and treating that as "the trace is selected" is the bug this fixes.
-  const observationId =
-    !selectedNodeId || selectedNodeId === traceNodeId(traceId)
-      ? null
-      : selectedNodeId;
-
+  // A loaded row wins over the synthetic trace-node id shape: observation ids
+  // are caller-supplied, so an observation really can be called
+  // `trace-<traceId>`, and a real row is the stronger evidence.
   const loadedRow = useMemo(
     () =>
-      observationId
-        ? observations.find((obs) => obs.id === observationId)
+      selectedNodeId
+        ? observations.find((obs) => obs.id === selectedNodeId)
         : undefined,
-    [observations, observationId],
+    [observations, selectedNodeId],
   );
+
+  // Otherwise derived from the id alone, never from a nodeMap hit: past the cap
+  // the lookup misses, and reading that as "the trace is selected" is the bug
+  // this hook fixes.
+  const observationId =
+    !selectedNodeId || (!loadedRow && selectedNodeId === traceNodeId(traceId))
+      ? null
+      : selectedNodeId;
 
   // `compact` keeps this row lean — the detail view fetches full I/O separately
   // (useParsedObservation) once it has the row.
@@ -70,7 +74,12 @@ export function useSelectedObservation({
     },
   );
 
-  const errorCode = byId.error?.data?.code;
+  // Transport-level failures (proxy error page, dropped connection, unparseable
+  // body) carry no `data.code`, so the presence of an error — not its code — is
+  // what ends the wait. Keying on the code alone left the panel on a skeleton
+  // forever.
+  const hasError = !!byId.error;
+  const isNotFound = byId.error?.data?.code === "NOT_FOUND";
 
   return useMemo(() => {
     if (!observationId) return { kind: "trace" };
@@ -90,12 +99,12 @@ export function useSelectedObservation({
       };
     // A transient failure is not a missing observation — mislabeling it would
     // repeat the class of bug this hook exists to fix.
-    if (errorCode) {
+    if (hasError) {
       return {
-        kind: errorCode === "NOT_FOUND" ? "not-found" : "error",
+        kind: isNotFound ? "not-found" : "error",
         observationId,
       };
     }
     return { kind: "loading", observationId };
-  }, [observationId, loadedRow, byId.data, errorCode, traceId]);
+  }, [observationId, loadedRow, byId.data, hasError, isNotFound, traceId]);
 }

@@ -44,7 +44,7 @@ export function TracePanelDetail() {
 
   // Resolved from the selected id, not from the tree: the observation list is
   // capped, so a selected observation may be missing from the tree while its
-  // data is perfectly fetchable (LFE-14992).
+  // data is perfectly fetchable.
   const selected = useSelectedObservation({
     selectedNodeId,
     traceId: trace.id,
