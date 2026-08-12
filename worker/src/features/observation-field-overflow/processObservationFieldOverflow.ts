@@ -149,6 +149,9 @@ function collectOverflowCandidates(
 ): OverflowCandidate[] {
   const candidates: OverflowCandidate[] = [];
   const addCandidate = (target: OverflowTarget, value: string) => {
+    if (isServerGeneratedObservationFieldOverflowReference(value)) {
+      return;
+    }
     const originalBytes = Buffer.byteLength(value, "utf8");
     if (originalBytes > env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES) {
       candidates.push({ ...target, value, originalBytes });
@@ -361,5 +364,20 @@ export function isObservationFieldOverflowReference(value: unknown): boolean {
   return (
     parsed.success &&
     parsed.data.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE
+  );
+}
+
+function isServerGeneratedObservationFieldOverflowReference(
+  value: string,
+): boolean {
+  const parsed = MediaReferenceStringSchema.safeParse(value);
+  return (
+    parsed.success &&
+    parsed.data.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE &&
+    parsed.data.type === MediaContentType.TXT &&
+    /^[A-Za-z0-9_-]{22}$/.test(parsed.data.id) &&
+    value ===
+      `@@@langfuseMedia:type=${MediaContentType.TXT}|id=${parsed.data.id}` +
+        `|source=${OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE}@@@`
   );
 }

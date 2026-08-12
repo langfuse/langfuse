@@ -291,6 +291,17 @@ describe("applyObservationFieldOverflow", () => {
     );
   });
 
+  it("does not re-overflow an exact generated reference below the configured cap", async () => {
+    mocks.env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES = 10;
+    const generatedReference = mediaReference("A_b-123456789012345678");
+    const eventRecord = createEventRecord({ input: generatedReference });
+
+    const result = await applyObservationFieldOverflow(eventRecord);
+
+    expect(result).toBe(eventRecord);
+    expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
+  });
+
   it("applies the limit to each metadata value rather than their aggregate size", async () => {
     const eventRecord = createEventRecord({
       metadata_values: ["123456", "123456"],
