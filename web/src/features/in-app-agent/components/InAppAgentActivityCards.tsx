@@ -15,13 +15,23 @@ const MAX_VISIBLE_CARDS = 3;
 
 export type InAppAgentActivityCard = {
   conversationId: string;
-  /** Card identity. A later run in the same conversation is a new card. */
+  activityKey: string;
   runId: string;
   title: string | null;
-  state: InAppAgentActivityState;
+  state: Exclude<InAppAgentActivityState, "running">;
 };
 
-function getCardCopy(state: InAppAgentActivityState) {
+export function selectInAppAgentActivityCards(
+  cards: readonly InAppAgentActivityCard[],
+): InAppAgentActivityCard[] {
+  return [...cards]
+    .sort(
+      (a, b) => (CARD_PRIORITY[a.state] ?? 9) - (CARD_PRIORITY[b.state] ?? 9),
+    )
+    .slice(0, MAX_VISIBLE_CARDS);
+}
+
+function getCardCopy(state: InAppAgentActivityCard["state"]) {
   if (state === "approval") {
     return {
       label: "Needs your approval",
@@ -37,13 +47,7 @@ function getCardCopy(state: InAppAgentActivityState) {
   return { label: "Finished", Icon: CircleCheck, tone: "accent" as const };
 }
 
-/**
- * The assistant's floating activity stack, as pure presentation.
- *
- * Owns which cards win and in what order; owns none of the lifecycle. The
- * caller decides when a card arrives, expires, or is retired, which keeps the
- * ordering rules visible in one place and testable without timers.
- */
+/** Pure floating stack: ordering/cap live here; callers own delivery lifecycle. */
 export function InAppAgentActivityCards({
   cards,
   onOpen,
@@ -53,11 +57,7 @@ export function InAppAgentActivityCards({
   onOpen: (card: InAppAgentActivityCard) => void;
   onDismiss: (card: InAppAgentActivityCard) => void;
 }) {
-  const visible = [...cards]
-    .sort(
-      (a, b) => (CARD_PRIORITY[a.state] ?? 9) - (CARD_PRIORITY[b.state] ?? 9),
-    )
-    .slice(0, MAX_VISIBLE_CARDS);
+  const visible = selectInAppAgentActivityCards(cards);
 
   if (visible.length === 0) {
     return null;
@@ -71,7 +71,7 @@ export function InAppAgentActivityCards({
 
         return (
           <div
-            key={card.runId}
+            key={card.activityKey}
             role="status"
             className="bg-background pointer-events-auto flex items-start gap-2 rounded-md border p-3 shadow-lg"
           >

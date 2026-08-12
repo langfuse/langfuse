@@ -119,7 +119,7 @@ vi.mock("@/src/utils/api", () => ({
     inAppAgent: {
       listConversations: {
         useInfiniteQuery: () => providerMocks.listQuery,
-        // The activity sidecar caller: same procedure, `limit: 1`.
+        // Bounded activity poll: same procedure, `limit: 50`.
         useQuery: () => providerMocks.activityQuery,
       },
       getConversation: {

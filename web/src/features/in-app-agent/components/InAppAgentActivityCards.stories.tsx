@@ -7,6 +7,7 @@ const meta = preview.meta({
   args: {
     onOpen: fn(),
     onDismiss: fn(),
+    cards: [],
   },
 });
 
@@ -15,6 +16,7 @@ export const ApprovalRequired = meta.story({
     cards: [
       {
         conversationId: "conversation-1",
+        activityKey: "run-1:AWAITING_APPROVAL",
         runId: "run-1",
         title: "Create the eval dataset",
         state: "approval",
@@ -28,6 +30,7 @@ export const Finished = meta.story({
     cards: [
       {
         conversationId: "conversation-1",
+        activityKey: "run-1:SUCCEEDED",
         runId: "run-1",
         title: "Latency outliers",
         state: "done-unread",
@@ -41,6 +44,7 @@ export const Failed = meta.story({
     cards: [
       {
         conversationId: "conversation-1",
+        activityKey: "run-1:FAILED",
         runId: "run-1",
         title: "Score correlation",
         state: "failed-unread",
@@ -54,6 +58,7 @@ export const UntitledConversation = meta.story({
     cards: [
       {
         conversationId: "conversation-1",
+        activityKey: "run-1:SUCCEEDED",
         runId: "run-1",
         title: null,
         state: "done-unread",
@@ -68,18 +73,21 @@ export const Stacked = meta.story({
     cards: [
       {
         conversationId: "conversation-1",
+        activityKey: "run-1:SUCCEEDED",
         runId: "run-1",
         title: "Finished while away",
         state: "done-unread",
       },
       {
         conversationId: "conversation-2",
+        activityKey: "run-2:AWAITING_APPROVAL",
         runId: "run-2",
         title: "Needs your approval",
         state: "approval",
       },
       {
         conversationId: "conversation-3",
+        activityKey: "run-3:FAILED",
         runId: "run-3",
         title: "Failed while away",
         state: "failed-unread",
@@ -98,24 +106,28 @@ export const CapsTheStack = meta.story({
     cards: [
       {
         conversationId: "conversation-1",
+        activityKey: "run-1:SUCCEEDED",
         runId: "run-1",
         title: "Oldest result",
         state: "done-unread",
       },
       {
         conversationId: "conversation-2",
+        activityKey: "run-2:SUCCEEDED",
         runId: "run-2",
         title: "Second result",
         state: "done-unread",
       },
       {
         conversationId: "conversation-3",
+        activityKey: "run-3:SUCCEEDED",
         runId: "run-3",
         title: "Third result",
         state: "done-unread",
       },
       {
         conversationId: "conversation-4",
+        activityKey: "run-4:AWAITING_APPROVAL",
         runId: "run-4",
         title: "Waiting on you",
         state: "approval",
@@ -138,6 +150,7 @@ export const OpensAndDismisses = meta.story({
     cards: [
       {
         conversationId: "conversation-1",
+        activityKey: "run-1:SUCCEEDED",
         runId: "run-1",
         title: "Latency outliers",
         state: "done-unread",
@@ -154,7 +167,7 @@ export const OpensAndDismisses = meta.story({
 
     await userEvent.click(canvas.getByRole("button", { name: "Dismiss" }));
     await expect(args.onDismiss).toHaveBeenCalledWith(
-      expect.objectContaining({ runId: "run-1" }),
+      expect.objectContaining({ activityKey: "run-1:SUCCEEDED" }),
     );
   },
 });

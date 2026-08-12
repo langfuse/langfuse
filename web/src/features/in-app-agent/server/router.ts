@@ -18,7 +18,6 @@ import {
 } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "@langfuse/shared/in-app-agent";
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
-import { IN_APP_AGENT_ACTIVITY_TRACKED_RUN_ID_LIMIT } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -39,7 +38,7 @@ import {
   decideBackgroundApproval,
   deleteBackgroundConversation,
   getBackgroundConversationSnapshot,
-  getInAppAgentActivity,
+  serializeConversationLatestRun,
   startBackgroundRun,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
 
@@ -95,32 +94,13 @@ const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
 const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
-  /**
-   * The conversation list, plus an `activity` sidecar describing every
-   * conversation that currently wants the user's attention.
-   *
-   * The sidecar is deliberately **not** per-row: it spans the whole project
-   * rather than the requested page, because the caller that needs it most is
-   * the closed-window poller, which asks for `limit: 1` and reads only
-   * `activity`. Keeping it off the rows is also what keeps this free of a
-   * latest-run-per-conversation join.
-   */
+  // Each row carries its newest run summary for the activity poll and badges.
   listConversations: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         cursor: ConversationListCursorSchema.optional(),
         limit: z.number().int().min(1).max(CONVERSATION_LIST_LIMIT).default(50),
-        /**
-         * Runs the client last saw as active and still needs a verdict on.
-         * Bounded well above the per-user concurrency ceiling; the client keeps
-         * its own unread state, so a truncated request only defers a verdict,
-         * it never loses one.
-         */
-        trackedRunIds: z
-          .array(z.string())
-          .max(IN_APP_AGENT_ACTIVITY_TRACKED_RUN_ID_LIMIT)
-          .default([]),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -128,13 +108,6 @@ export const inAppAgentRouter = createTRPCRouter({
         prisma: ctx.prisma,
         projectId: input.projectId,
         user: ctx.session.user,
-      });
-
-      const activity = await getInAppAgentActivity({
-        prisma: ctx.prisma,
-        projectId: input.projectId,
-        userId: ctx.session.user.id,
-        trackedRunIds: input.trackedRunIds,
       });
 
       const conversations = await ctx.prisma.inAppAgentConversation.findMany({
@@ -156,15 +129,37 @@ export const inAppAgentRouter = createTRPCRouter({
         },
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take: input.limit + 1,
+        relationLoadStrategy: "join",
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          updatedAt: true,
+          runs: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              errorCode: true,
+              cancelRequestedAt: true,
+              createdAt: true,
+              claimedAt: true,
+              heartbeatAt: true,
+              finishedAt: true,
+            },
+          },
+        },
       });
 
       const page = conversations.slice(0, input.limit);
       const lastConversation = page.at(-1);
 
       return {
-        conversations: page.map((conversation) =>
-          serializeConversation(conversation),
-        ),
+        conversations: page.map((conversation) => ({
+          ...serializeConversation(conversation),
+          latestRun: serializeConversationLatestRun(conversation.runs[0]),
+        })),
         nextCursor:
           conversations.length > input.limit && lastConversation
             ? {
@@ -172,7 +167,6 @@ export const inAppAgentRouter = createTRPCRouter({
                 id: lastConversation.id,
               }
             : undefined,
-        activity,
       };
     }),
 

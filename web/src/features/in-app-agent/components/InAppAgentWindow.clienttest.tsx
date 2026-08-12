@@ -14,7 +14,6 @@ const controlledAgent = vi.hoisted(() => ({
     conversations: [] as Array<{ id: string; title: string | null }>,
     activityByConversationId: new Map<string, { state: string }>(),
     attentionCount: 0,
-    markActivityDelivered: vi.fn(),
     error: null,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,

@@ -1,26 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Layer } from "@/src/components/ui/layer";
 import {
   InAppAgentActivityCards,
+  selectInAppAgentActivityCards,
   type InAppAgentActivityCard,
 } from "@/src/features/in-app-agent/components/InAppAgentActivityCards";
 
-/** Results are a glance; an approval is a question and waits to be answered. */
+/** Results expire; approvals wait until answered. */
 const RESULT_CARD_TTL_MS = 8_000;
 
 export type InAppAgentActivityNotification = InAppAgentActivityCard;
 
 /**
- * Lifecycle around the floating activity stack: what is still on screen, when a
- * result expires, and when a run counts as announced.
- *
- * Assistant-owned rather than routed through the app's Sonner toaster, which is
- * mounted with `visibleToasts={1}`: an approval card lives until it is answered,
- * and parking it in that single slot would mute every unrelated app alert for
- * as long as it sits there.
+ * Lifecycle for the floating stack. Cap before timers so hidden cards stay undelivered.
+ * Assistant-owned (not Sonner) so long-lived approvals do not mute other toasts.
  */
 export function InAppAgentActivityNotifications({
   notifications,
@@ -29,74 +25,102 @@ export function InAppAgentActivityNotifications({
 }: {
   notifications: readonly InAppAgentActivityNotification[];
   onOpenConversation: (conversationId: string) => void;
-  /** Marks these runs as announced; dismissal must not mark them read. */
-  onDelivered: (conversationIds: readonly string[]) => void;
+  onDelivered: (
+    entries: ReadonlyArray<{ conversationId: string; activityKey: string }>,
+  ) => void;
 }) {
-  /**
-   * Keyed by run, not by conversation. Dismissing a result must not silence the
-   * *next* run in the same conversation, which is a different thing to say.
-   */
-  const [dismissedRunIds, setDismissedRunIds] = useState<ReadonlySet<string>>(
+  const [dismissedKeys, setDismissedKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const resultTimersRef = useRef(new Map<string, number>());
 
-  const visible = useMemo(
+  const selected = useMemo(
     () =>
-      notifications.filter(
-        (notification) => !dismissedRunIds.has(notification.runId),
+      selectInAppAgentActivityCards(
+        notifications.filter(
+          (notification) => !dismissedKeys.has(notification.activityKey),
+        ),
       ),
-    [dismissedRunIds, notifications],
+    [dismissedKeys, notifications],
   );
 
-  /**
-   * Delivery is recorded when a card *leaves*, not when it appears.
-   *
-   * A card the user never actually got — the tab closed inside the result
-   * window, an approval still sitting unanswered — is therefore still
-   * undelivered on the next load and shows again, which is the whole point of
-   * persisting it. Marking on render would consume the announcement for a card
-   * nobody saw.
-   */
   const retire = (cards: readonly InAppAgentActivityCard[]) => {
     if (cards.length === 0) {
       return;
     }
 
-    setDismissedRunIds(
-      (current) => new Set([...current, ...cards.map((card) => card.runId)]),
-    );
-    onDelivered(cards.map((card) => card.conversationId));
-  };
-
-  // Both ids travel in the key so the timer closes over stable strings rather
-  // than an array that is rebuilt every render.
-  const expiringKey = visible
-    .filter((card) => card.state !== "approval")
-    .map((card) => `${card.runId} ${card.conversationId}`)
-    .join("|");
-
-  useEffect(() => {
-    if (expiringKey.length === 0) {
-      return;
+    for (const card of cards) {
+      const timer = resultTimersRef.current.get(card.activityKey);
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+        resultTimersRef.current.delete(card.activityKey);
+      }
     }
 
-    const expiring = expiringKey.split("|").map((pair) => pair.split(" "));
-    const timeout = window.setTimeout(() => {
-      setDismissedRunIds(
-        (current) => new Set([...current, ...expiring.map(([runId]) => runId)]),
-      );
-      onDelivered(expiring.map(([, conversationId]) => conversationId));
-    }, RESULT_CARD_TTL_MS);
+    setDismissedKeys(
+      (current) =>
+        new Set([...current, ...cards.map((card) => card.activityKey)]),
+    );
+    onDelivered(
+      cards.map((card) => ({
+        conversationId: card.conversationId,
+        activityKey: card.activityKey,
+      })),
+    );
+  };
 
+  useEffect(() => {
+    const selectedByKey = new Map(
+      selected.map((card) => [card.activityKey, card]),
+    );
+
+    for (const card of selected) {
+      if (card.state === "approval") {
+        continue;
+      }
+      // Keep existing timers so a new sibling card does not reset older ones.
+      if (resultTimersRef.current.has(card.activityKey)) {
+        continue;
+      }
+
+      const timeout = window.setTimeout(() => {
+        resultTimersRef.current.delete(card.activityKey);
+        setDismissedKeys((current) => new Set([...current, card.activityKey]));
+        onDelivered([
+          {
+            conversationId: card.conversationId,
+            activityKey: card.activityKey,
+          },
+        ]);
+      }, RESULT_CARD_TTL_MS);
+
+      resultTimersRef.current.set(card.activityKey, timeout);
+    }
+
+    for (const [activityKey, timer] of resultTimersRef.current) {
+      if (selectedByKey.has(activityKey)) {
+        continue;
+      }
+
+      window.clearTimeout(timer);
+      resultTimersRef.current.delete(activityKey);
+    }
+  }, [onDelivered, selected]);
+
+  useEffect(() => {
+    const timers = resultTimersRef.current;
     return () => {
-      window.clearTimeout(timeout);
+      for (const timer of timers.values()) {
+        window.clearTimeout(timer);
+      }
+      timers.clear();
     };
-  }, [expiringKey, onDelivered]);
+  }, []);
 
   return (
     <Layer name="toast">
       <InAppAgentActivityCards
-        cards={visible}
+        cards={selected}
         onOpen={(card) => {
           retire([card]);
           onOpenConversation(card.conversationId);

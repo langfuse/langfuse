@@ -38,9 +38,9 @@ import {
   type InAppAgentDisplayState,
 } from "@/src/features/in-app-agent/lib/display";
 import { useInAppAgentActivity } from "@/src/features/in-app-agent/lib/useInAppAgentActivity";
-import type {
-  InAppAgentActivityByConversationId,
-  InAppAgentActivityRunSummary,
+import {
+  getInAppAgentPendingNotificationCards,
+  type InAppAgentActivityByConversationId,
 } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import { InAppAgentActivityNotifications } from "@/src/features/in-app-agent/components/InAppAgentActivityNotifications";
 import { InAppAgentBackgroundClient } from "@/src/features/in-app-agent/lib/backgroundAgentClient";
@@ -143,7 +143,6 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isLoadingMoreConversations: false,
   activityByConversationId: new Map(),
   attentionCount: 0,
-  markActivityDelivered: () => undefined,
   selectedConversationId: undefined,
   selectedConversationIsWriteLocked: false,
   loadMoreConversations: () => undefined,
@@ -201,11 +200,10 @@ type InAppAiAgentContextType = {
   conversations: InAppAiAgentConversation[];
   hasMoreConversations: boolean;
   isLoadingMoreConversations: boolean;
-  /** Conversations wanting attention, by id. Empty unless background is on. */
+  /** Conversations wanting attention, by id. */
   activityByConversationId: InAppAgentActivityByConversationId;
   /** Conversations the user still owes a look, for the launcher badge. */
   attentionCount: number;
-  markActivityDelivered: (conversationIds: readonly string[]) => void;
   selectedConversationId: string | undefined;
   selectedConversationIsWriteLocked: boolean;
   loadMoreConversations: () => void;
@@ -428,53 +426,19 @@ function InAppAiAgentProviderInner({
       : error;
   const liveMessageVersion = backgroundExecutionView.liveMessageRevision;
 
-  /**
-   * The selected conversation's run is known first-hand from the attached
-   * session, so it is folded in directly rather than waited for from a poll
-   * this tab does not need to make.
-   */
-  const localActivityRuns = useMemo<InAppAgentActivityRunSummary[]>(() => {
-    if (!selectedConversationId || !currentBackgroundRun) {
-      return [];
-    }
-
-    return [
-      {
-        conversationId: selectedConversationId,
-        title:
-          conversations.find(
-            (conversation) => conversation.id === selectedConversationId,
-          )?.title ?? null,
-        runId: currentBackgroundRun.id,
-        status: currentBackgroundRun.status,
-        errorCode: currentBackgroundRun.errorCode,
-        cancelRequested: currentBackgroundRun.cancelRequested,
-      },
-    ];
-  }, [conversations, currentBackgroundRun, selectedConversationId]);
-
-  const backgroundAttachmentStatus = backgroundExecutionView.attachment.status;
-  const isCoveredByLiveSession = useCallback(
-    (conversationId: string) =>
-      open &&
-      conversationId === selectedConversationId &&
-      backgroundAttachmentStatus === "attached",
-    [backgroundAttachmentStatus, open, selectedConversationId],
-  );
-
   const {
     activityByConversationId,
     attentionCount,
-    markConversationSeen,
+    delivered,
+    refetchActivity,
+    markConversationHandled,
     markDelivered,
   } = useInAppAgentActivity({
     projectId,
     enabled: true,
-    localRuns: localActivityRuns,
     // Only what the user can actually see counts as looked at; a selected
     // conversation behind a closed window has not been read.
     visibleConversationId: open ? selectedConversationId : null,
-    isCoveredByLiveSession,
   });
 
   const effectivePendingToolApprovals = useMemo(() => {
@@ -615,10 +579,12 @@ function InAppAiAgentProviderInner({
     hasMoreConversations,
     isLoadingMoreConversations,
   ]);
-  const invalidateConversations = useCallback(
-    () => utils.inAppAgent.listConversations.invalidate({ projectId }),
-    [projectId, utils.inAppAgent.listConversations],
-  );
+  const invalidateConversations = useCallback(() => {
+    utils.inAppAgent.listConversations
+      .invalidate({ projectId })
+      .catch(() => undefined);
+    refetchActivity().catch(() => undefined);
+  }, [projectId, refetchActivity, utils.inAppAgent.listConversations]);
 
   useEffect(() => {
     if (!conversationListQuery.error) {
@@ -826,6 +792,7 @@ function InAppAiAgentProviderInner({
             next.delete(started.conversationId);
             return next;
           });
+          refetchActivity().catch(() => undefined);
           return started;
         },
       });
@@ -902,11 +869,16 @@ function InAppAiAgentProviderInner({
         },
         onSettled: () => {
           clearLoadingEvents();
-          utils.inAppAgent.listConversations.invalidate({ projectId });
-          utils.inAppAgent.getConversation.invalidate({
-            projectId,
-            conversationId,
-          });
+          utils.inAppAgent.listConversations
+            .invalidate({ projectId })
+            .catch(() => undefined);
+          utils.inAppAgent.getConversation
+            .invalidate({
+              projectId,
+              conversationId,
+            })
+            .catch(() => undefined);
+          refetchActivity().catch(() => undefined);
           releaseSubmitLock(conversationId);
         },
       });
@@ -921,6 +893,7 @@ function InAppAiAgentProviderInner({
       conversationQuery.data,
       decideToolApprovalMutation,
       projectId,
+      refetchActivity,
       releaseSubmitLock,
       resetAgent,
       sharedAgentSubscriber,
@@ -974,14 +947,18 @@ function InAppAiAgentProviderInner({
       setSelectedConversationId(conversationId);
 
       if (conversationId && open) {
-        markConversationSeen(conversationId);
+        const entry = activityByConversationId.get(conversationId);
+        if (entry && entry.state !== "approval") {
+          markConversationHandled(conversationId, entry.activityKey);
+        }
       }
     },
     [
       _selectedConversationId,
-      releaseSubmitLock,
-      markConversationSeen,
+      activityByConversationId,
+      markConversationHandled,
       open,
+      releaseSubmitLock,
       resetAgent,
       setSelectedConversationId,
     ],
@@ -1447,20 +1424,11 @@ function InAppAiAgentProviderInner({
   /** Only outcomes and questions surface as cards; a run in progress is not news. */
   const activityNotifications = useMemo(
     () =>
-      [...activityByConversationId.entries()].flatMap(
-        ([conversationId, { state, entry }]) =>
-          state === "running" || entry.toastDelivered
-            ? []
-            : [
-                {
-                  conversationId,
-                  runId: entry.runId,
-                  title: entry.title,
-                  state,
-                },
-              ],
-      ),
-    [activityByConversationId],
+      getInAppAgentPendingNotificationCards({
+        activityByConversationId,
+        delivered,
+      }),
+    [activityByConversationId, delivered],
   );
 
   const openConversationFromActivity = useCallback(
@@ -1516,7 +1484,6 @@ function InAppAiAgentProviderInner({
       isLoadingMoreConversations,
       activityByConversationId,
       attentionCount,
-      markActivityDelivered: markDelivered,
       selectedConversationId: selectedConversationId ?? undefined,
       selectedConversationIsWriteLocked,
       loadMoreConversations,
@@ -1536,7 +1503,6 @@ function InAppAiAgentProviderInner({
       alwaysAllowToolCall,
       isExpanded,
       conversations,
-      markDelivered,
       effectiveError,
       hasMoreConversations,
       isLoadingMoreConversations,
