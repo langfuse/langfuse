@@ -5,6 +5,7 @@ import { InAppAgentRunStatus } from "@langfuse/shared";
 
 import {
   getInAppAgentActivityReceiptsStorageKey,
+  getInAppAgentDeliveredReceiptsStorageKey,
   type InAppAgentActivityConversation,
 } from "./inAppAgentActivity";
 import { useInAppAgentActivity } from "./useInAppAgentActivity";
@@ -12,6 +13,10 @@ import { useInAppAgentActivity } from "./useInAppAgentActivity";
 const PROJECT_ID = "project-1";
 const USER_ID = "user-1";
 const RECEIPTS_KEY = getInAppAgentActivityReceiptsStorageKey(
+  PROJECT_ID,
+  USER_ID,
+);
+const DELIVERED_KEY = getInAppAgentDeliveredReceiptsStorageKey(
   PROJECT_ID,
   USER_ID,
 );
@@ -59,15 +64,22 @@ function ActivityProbe({
   return <span data-testid="attention">{activity.attentionCount}</span>;
 }
 
-/** Receipts another tab already recorded in the shared ledger. */
-function seedLedger(handled: Record<string, string>) {
-  localStorage.setItem(RECEIPTS_KEY, JSON.stringify({ v: 1, handled }));
+/** Receipts another tab already recorded in the ledgers every tab shares. */
+function seedLedgers(keys: Record<string, string>) {
+  localStorage.setItem(RECEIPTS_KEY, JSON.stringify({ v: 1, handled: keys }));
+  localStorage.setItem(
+    DELIVERED_KEY,
+    JSON.stringify({ v: 1, delivered: keys }),
+  );
 }
 
-function storedHandled(): Record<string, string> | undefined {
-  const raw = localStorage.getItem(RECEIPTS_KEY);
+function storedKeys(
+  storageKey: string,
+  field: "handled" | "delivered",
+): Record<string, string> | undefined {
+  const raw = localStorage.getItem(storageKey);
   return raw
-    ? (JSON.parse(raw) as { handled: Record<string, string> }).handled
+    ? (JSON.parse(raw) as Record<typeof field, Record<string, string>>)[field]
     : undefined;
 }
 
@@ -82,7 +94,7 @@ describe("useInAppAgentActivity across tabs", () => {
   });
 
   it("does not walk a read receipt back to the run it was looking at mid-flight", () => {
-    seedLedger({ c1: "c1-run:SUCCEEDED" });
+    seedLedgers({ c1: "c1-run:SUCCEEDED" });
     // This tab's poll froze while the run was still working.
     activityMocks.conversations = [
       conversation("c1", InAppAgentRunStatus.RUNNING),
@@ -90,7 +102,9 @@ describe("useInAppAgentActivity across tabs", () => {
 
     const { rerender } = render(<ActivityProbe visibleConversationId="c1" />);
 
-    expect(storedHandled()).toEqual({ c1: "c1-run:SUCCEEDED" });
+    expect(storedKeys(RECEIPTS_KEY, "handled")).toEqual({
+      c1: "c1-run:SUCCEEDED",
+    });
 
     // Refetch lands and the user starts a new conversation, so nothing masks
     // the ledger any more: a receipt walked back here shows up as a badge.
@@ -102,8 +116,12 @@ describe("useInAppAgentActivity across tabs", () => {
     expect(attention()).toBe("0");
   });
 
-  it("does not delete receipts once its own conversation list has gone stale", () => {
-    seedLedger({ c1: "c1-run:SUCCEEDED", c2: "c2-run:SUCCEEDED" });
+  it("compacts against the list it fetched, then never again", () => {
+    seedLedgers({
+      c1: "c1-run:SUCCEEDED",
+      c2: "c2-run:SUCCEEDED",
+      evicted: "evicted-run:SUCCEEDED",
+    });
     activityMocks.conversations = [
       conversation("c1", InAppAgentRunStatus.SUCCEEDED),
       conversation("c2", InAppAgentRunStatus.SUCCEEDED),
@@ -111,14 +129,25 @@ describe("useInAppAgentActivity across tabs", () => {
 
     const { rerender } = render(<ActivityProbe visibleConversationId={null} />);
 
+    // Conversations that left the activity window are storage the ledgers no
+    // longer need, so the first fetch drops them.
+    expect(storedKeys(RECEIPTS_KEY, "handled")).toEqual({
+      c1: "c1-run:SUCCEEDED",
+      c2: "c2-run:SUCCEEDED",
+    });
+    expect(storedKeys(DELIVERED_KEY, "delivered")).toEqual({
+      c1: "c1-run:SUCCEEDED",
+      c2: "c2-run:SUCCEEDED",
+    });
+
     // The tab is backgrounded and stops polling, so its list drifts behind the
-    // ledger it shares. Compaction is hygiene, so it must not run on it.
+    // ledgers it shares. Deleting is what compaction does, so it runs once.
     activityMocks.conversations = [
       conversation("c2", InAppAgentRunStatus.SUCCEEDED),
     ];
     rerender(<ActivityProbe visibleConversationId={null} />);
 
-    expect(storedHandled()).toEqual({
+    expect(storedKeys(RECEIPTS_KEY, "handled")).toEqual({
       c1: "c1-run:SUCCEEDED",
       c2: "c2-run:SUCCEEDED",
     });

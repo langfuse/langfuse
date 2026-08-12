@@ -25,7 +25,6 @@ import {
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { env } from "@/src/env.mjs";
-import { serializeConversationLatestRun } from "@/src/features/in-app-agent/server/backgroundRunService";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -1291,29 +1290,15 @@ describe("in-app agent background runs", () => {
     expect(enqueuedJobs).toHaveLength(0);
   });
 
-  it("lists the caller's newest run and classifies a dead worker without writing", async () => {
-    const { projectId, userId } = await createCaller();
-    const mine = await createConversation({ projectId, userId });
-    const otherUserId = `user-${randomUUID()}`;
-    const theirsId = createInAppAgentConversationId();
+  it("lists the newest run per conversation and classifies a dead worker without writing", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
 
-    await prisma.user.create({
-      data: { id: otherUserId, email: `${otherUserId}@example.com` },
-    });
-    await prisma.inAppAgentConversation.create({
-      data: {
-        id: theirsId,
-        projectId,
-        createdByUserId: otherUserId,
-        title: "Theirs",
-      },
-    });
-
-    const olderRun = await prisma.inAppAgentRun.create({
+    await prisma.inAppAgentRun.create({
       data: {
         id: createInAppAgentRunId(),
         projectId,
-        conversationId: mine.id,
+        conversationId: conversation.id,
         triggeredByUserId: userId,
         status: InAppAgentRunStatus.SUCCEEDED,
         finishedAt: new Date(Date.now() - 10 * 60_000),
@@ -1325,7 +1310,7 @@ describe("in-app agent background runs", () => {
       data: {
         id: createInAppAgentRunId(),
         projectId,
-        conversationId: mine.id,
+        conversationId: conversation.id,
         triggeredByUserId: userId,
         status: InAppAgentRunStatus.RUNNING,
         claimedAt: new Date(Date.now() - 5 * 60_000),
@@ -1334,49 +1319,14 @@ describe("in-app agent background runs", () => {
         request: { kind: "userMessage", context: [] },
       },
     });
-    await prisma.inAppAgentRun.create({
-      data: {
-        id: createInAppAgentRunId(),
-        projectId,
-        conversationId: theirsId,
-        triggeredByUserId: otherUserId,
-        status: InAppAgentRunStatus.RUNNING,
-        request: { kind: "userMessage", context: [] },
-      },
-    });
 
-    const conversations = await prisma.inAppAgentConversation.findMany({
-      where: {
-        projectId,
-        createdByUserId: userId,
-        deletedAt: null,
-      },
-      relationLoadStrategy: "join",
-      select: {
-        id: true,
-        runs: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: {
-            id: true,
-            status: true,
-            errorCode: true,
-            cancelRequestedAt: true,
-            createdAt: true,
-            claimedAt: true,
-            heartbeatAt: true,
-            finishedAt: true,
-          },
-        },
-      },
-    });
+    const listed = await caller.listConversations({ projectId, limit: 50 });
 
-    expect(conversations.map((conversation) => conversation.id)).toEqual([
-      mine.id,
-    ]);
-    expect(conversations[0]?.runs[0]?.id).toBe(deadRun.id);
-    expect(conversations[0]?.runs[0]?.id).not.toBe(olderRun.id);
-    expect(serializeConversationLatestRun(conversations[0]?.runs[0])).toEqual({
+    // The newest run wins, and a run whose worker stopped reporting is served
+    // as failed even though nothing has written that verdict yet.
+    expect(
+      listed.conversations.find((row) => row.id === conversation.id)?.latestRun,
+    ).toEqual({
       id: deadRun.id,
       status: InAppAgentRunStatus.FAILED,
       errorCode: InAppAgentRunErrorCode.WORKER_LOST,

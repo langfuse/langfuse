@@ -298,29 +298,31 @@ describe("in-app agent execution", () => {
     window.sessionStorage.clear();
   });
 
-  it("disables activity polling when AI features are off", () => {
+  // Gated more strictly than useCanUseInAppAgent, which ignores the org AI
+  // toggle so the entry points can offer to turn it on. Polling with it off
+  // turns every page load and window focus into a Forbidden toast.
+  it("polls for activity only once AI features are on", () => {
     sessionMocks.aiFeaturesEnabled = false;
 
-    render(
+    const offRender = render(
       <InAppAiAgentProvider defaultOpen={false}>
         <div />
       </InAppAiAgentProvider>,
     );
 
-    expect(providerMocks.activityUseQuery).toHaveBeenCalled();
-    expect(providerMocks.activityUseQuery.mock.calls[0]?.[1]?.enabled).toBe(
+    expect(providerMocks.activityUseQuery.mock.calls.at(-1)?.[1]?.enabled).toBe(
       false,
     );
-  });
+    offRender.unmount();
 
-  it("enables activity polling when the assistant is server-available", () => {
+    sessionMocks.aiFeaturesEnabled = true;
     render(
       <InAppAiAgentProvider defaultOpen={false}>
         <div />
       </InAppAiAgentProvider>,
     );
 
-    expect(providerMocks.activityUseQuery.mock.calls[0]?.[1]?.enabled).toBe(
+    expect(providerMocks.activityUseQuery.mock.calls.at(-1)?.[1]?.enabled).toBe(
       true,
     );
   });

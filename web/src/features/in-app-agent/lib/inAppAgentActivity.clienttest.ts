@@ -8,8 +8,6 @@ import {
   markInAppAgentActivityDelivered,
   markInAppAgentConversationHandled,
   mergeInAppAgentReceipts,
-  pruneInAppAgentDeliveredReceipts,
-  pruneInAppAgentReceipts,
   reconcileInAppAgentActivity,
   type InAppAgentActivityConversation,
   type InAppAgentActivityReceipts,
@@ -228,32 +226,5 @@ describe("in-app agent activity receipts", () => {
     ]);
     expect(afterOpen.activityByConversationId.get("c1")).toBeUndefined();
     expect(afterOpen.attentionCount).toBe(0);
-  });
-
-  it("compacts both ledgers down to the conversations still in the window", () => {
-    const handled = sync(null, [
-      conversation(
-        "keep",
-        latestRun({ id: "keep-run", status: InAppAgentRunStatus.SUCCEEDED }),
-      ),
-      conversation(
-        "drop",
-        latestRun({ id: "drop-run", status: InAppAgentRunStatus.SUCCEEDED }),
-      ),
-    ]).receipts;
-    const delivered = markInAppAgentActivityDelivered(null, [
-      { conversationId: "drop", activityKey: "drop-run:SUCCEEDED" },
-      { conversationId: "keep", activityKey: "keep-run:SUCCEEDED" },
-    ]);
-    const live = new Set(["keep"]);
-
-    expect(pruneInAppAgentReceipts(handled, live)?.handled).toEqual({
-      keep: "keep-run:SUCCEEDED",
-    });
-    expect(
-      pruneInAppAgentDeliveredReceipts(delivered, live)?.delivered,
-    ).toEqual({
-      keep: "keep-run:SUCCEEDED",
-    });
   });
 });
