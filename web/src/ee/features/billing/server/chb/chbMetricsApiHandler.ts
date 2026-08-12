@@ -18,24 +18,16 @@ import {
  *
  * CHB's metering pipeline polls this endpoint per project (`resourceId`) and
  * short trailing time window to derive billable usage. Response contract:
- * unknown resources return zeros, never 404 — a `resourceId` that never
- * existed, is already deleted, or is homed in another region yields
- * `traces/scores/observations = 0` with status 200. That is what the other
- * ClickHouse metering pipelines do, and it keeps a poller that outlives a
- * deleted project from stalling on 404s it cannot act on.
+ * unknown resources return zeros, never 404.
  *
  * Auth: dedicated bearer secret (`CLICKHOUSE_BILLING_METRICS_API_KEY`).
- * The ADMIN_API_KEY mechanism is deliberately not reused — it is hard-blocked
- * on Langfuse Cloud, which is exactly where this endpoint must run.
  *
  * Every exit path returns structured `{ message }` JSON, including unexpected
- * failures: the poller reads the body, so falling through to Next.js's default
- * 500 page would hand it HTML.
+ * failures.
  */
 
 // Reject windows above 35 days: keeps a misbehaving caller from issuing
-// full-history created_at scans (these have hit the ClickHouse request
-// ceiling in production before); CHB polls short trailing windows.
+// full-history created_at scans; CHB polls short trailing windows.
 const MAX_WINDOW_MS = 35 * 24 * 60 * 60 * 1000;
 
 const MetricsQuerySchema = z.object({
@@ -133,7 +125,7 @@ export async function chbMetricsApiHandler(req: NextRequest) {
       recordIncrement("langfuse.billing_metrics.unknown_resource", 1, {
         unit: "requests",
       });
-      logger.debug(
+      logger.info(
         `[CHB Metrics API] resourceId ${resourceId} is unknown to this region, returning zeros`,
       );
     }
