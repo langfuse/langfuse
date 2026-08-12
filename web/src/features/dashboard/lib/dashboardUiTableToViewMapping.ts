@@ -146,7 +146,10 @@ const viewFilterDefinitions: Record<
     ),
     defineField(
       "release",
-      sourceSpec("Observation Release", { uiTableId: "release" }),
+      sourceSpec("Release", {
+        uiTableId: "release",
+        aliases: ["Observation Release"],
+      }),
     ),
     defineField("version", sourceSpec("Version", { uiTableId: "version" })),
     // Experiment fields (v2 only - experiment data only exists in events table)
@@ -484,6 +487,13 @@ export const normalizeStoredWidgetFiltersForEditor = (
     unsupportedFilters: partitionedFilters.unsupportedFilters,
   };
 };
+
+/** displayNameForFilterColumn resolves any filter column spelling to the label the filter builder shows. */
+export const displayNameForFilterColumn = (column: string): string =>
+  allWidgetFilterMappings.find(
+    (mapping) =>
+      mapping.viewName === column || matchesFilterMapping(mapping, column),
+  )?.uiTableName ?? column;
 
 export const mapViewFilterToUiTableFilter = (
   view: z.infer<typeof views>,

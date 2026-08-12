@@ -72,7 +72,7 @@ describe("useTraceDetailData (beta / events path)", () => {
       data: undefined,
       isLoading: false,
       error: { data: { code: "UNAUTHORIZED" } },
-      cutoffObservationsAfterMaxCount: false,
+      truncatedAtObservations: undefined,
     });
     const r = render();
     expect(r.isUnauthorized).toBe(true);
@@ -86,7 +86,7 @@ describe("useTraceDetailData (beta / events path)", () => {
       data: undefined,
       isLoading: false,
       error: { data: { code: "INTERNAL_SERVER_ERROR" } },
-      cutoffObservationsAfterMaxCount: false,
+      truncatedAtObservations: undefined,
     });
     const r = render();
     // A transient server error is neither "not found" nor "unauthorized".
@@ -100,7 +100,7 @@ describe("useTraceDetailData (beta / events path)", () => {
       data: undefined,
       isLoading: false,
       error: null,
-      cutoffObservationsAfterMaxCount: false,
+      truncatedAtObservations: undefined,
     });
     const r = render();
     expect(r.isNotFound).toBe(true);
@@ -126,7 +126,7 @@ describe("useTraceDetailData endpoint routing", () => {
       data: undefined,
       isLoading: false,
       error: null,
-      cutoffObservationsAfterMaxCount: false,
+      truncatedAtObservations: undefined,
     });
   });
 

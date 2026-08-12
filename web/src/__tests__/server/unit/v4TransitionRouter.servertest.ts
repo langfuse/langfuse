@@ -1259,6 +1259,11 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.query).toContain("FROM events_core");
     expect(clickhouseQuery?.query).toContain("UNION ALL");
     expect(clickhouseQuery?.query).toContain("FROM scores FINAL");
+    const [eventsQuery, scoresQuery] = clickhouseQuery?.query.split(
+      "UNION ALL",
+    ) ?? ["", ""];
+    expect(eventsQuery).not.toContain("execution_trace_id IS NULL");
+    expect(scoresQuery).toContain("execution_trace_id IS NULL");
     expect(
       clickhouseQuery?.query.match(/project_id = \{projectId: String\}/g),
     ).toHaveLength(2);
@@ -1286,6 +1291,14 @@ describe("v4TransitionRouter", () => {
     );
     expect(clickhouseQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
+    );
+    const [eventsUsageQuery, scoresUsageQuery] =
+      clickhouseQuery?.query.split("UNION ALL") ?? [];
+    expect(eventsUsageQuery).toContain(
+      "AND NOT startsWith(environment, 'langfuse-')",
+    );
+    expect(scoresUsageQuery).toContain(
+      "AND NOT startsWith(environment, 'langfuse-')",
     );
     expect(clickhouseQuery?.query).not.toContain("toDate(start_time)");
     expect(clickhouseQuery?.query).not.toContain("toDate(timestamp)");
@@ -1517,6 +1530,7 @@ describe("v4TransitionRouter", () => {
           sdkVersion: "3.9.0",
           publicKey: "pk-lf-python",
           count: "8",
+          eventsCount: "8",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T02:00:00Z",
           hasDelayedOtelEvents: "1",
@@ -1527,6 +1541,7 @@ describe("v4TransitionRouter", () => {
           sdkVersion: "4.14.1",
           publicKey: "pk-lf-python",
           count: "13",
+          eventsCount: "13",
           firstSeen: "2026-06-24T03:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
           hasDelayedOtelEvents: "1",
@@ -1537,6 +1552,7 @@ describe("v4TransitionRouter", () => {
           sdkVersion: "4.6.9",
           publicKey: "pk-lf-pre-v4-python",
           count: "5",
+          eventsCount: "0",
           firstSeen: "2026-06-24T12:00:00Z",
           lastSeen: "2026-06-24T13:00:00Z",
           hasDelayedOtelEvents: "1",
@@ -1547,6 +1563,7 @@ describe("v4TransitionRouter", () => {
           sdkVersion: "4.7.0",
           publicKey: "pk-lf-current-python",
           count: "6",
+          eventsCount: "6",
           firstSeen: "2026-06-24T13:30:00Z",
           lastSeen: "2026-06-24T14:00:00Z",
           hasDelayedOtelEvents: "1",
@@ -1557,6 +1574,7 @@ describe("v4TransitionRouter", () => {
           sdkVersion: "5.3.9",
           publicKey: "pk-lf-old-js",
           count: "5",
+          eventsCount: "5",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
           hasDelayedOtelEvents: "1",
@@ -1567,6 +1585,7 @@ describe("v4TransitionRouter", () => {
           sdkVersion: "unknown",
           publicKey: "pk-lf-otel",
           count: "3",
+          eventsCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
           hasDelayedOtelEvents: "0",
@@ -1577,6 +1596,7 @@ describe("v4TransitionRouter", () => {
           sdkVersion: "1.2.3",
           publicKey: "pk-lf-custom-otel",
           count: "2",
+          eventsCount: "2",
           firstSeen: "2026-06-24T02:00:00Z",
           lastSeen: "2026-06-24T03:00:00Z",
           hasDelayedOtelEvents: "1",
@@ -1614,6 +1634,7 @@ describe("v4TransitionRouter", () => {
             canonicalSdkName: "python",
             publicKey: "pk-lf-python",
             count: 8,
+            eventsCount: 8,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T02:00:00Z",
             hasDelayedOtelEvents: true,
@@ -1627,6 +1648,7 @@ describe("v4TransitionRouter", () => {
             canonicalSdkName: "python",
             publicKey: "pk-lf-python",
             count: 13,
+            eventsCount: 13,
             firstSeen: "2026-06-24T03:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
             hasDelayedOtelEvents: true,
@@ -1640,6 +1662,7 @@ describe("v4TransitionRouter", () => {
             canonicalSdkName: "python",
             publicKey: "pk-lf-pre-v4-python",
             count: 5,
+            eventsCount: 0,
             firstSeen: "2026-06-24T12:00:00Z",
             lastSeen: "2026-06-24T13:00:00Z",
             hasDelayedOtelEvents: true,
@@ -1653,6 +1676,7 @@ describe("v4TransitionRouter", () => {
             canonicalSdkName: "python",
             publicKey: "pk-lf-current-python",
             count: 6,
+            eventsCount: 6,
             firstSeen: "2026-06-24T13:30:00Z",
             lastSeen: "2026-06-24T14:00:00Z",
             hasDelayedOtelEvents: true,
@@ -1677,6 +1701,7 @@ describe("v4TransitionRouter", () => {
             canonicalSdkName: "javascript",
             publicKey: "pk-lf-old-js",
             count: 5,
+            eventsCount: 5,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
             hasDelayedOtelEvents: true,
@@ -1690,6 +1715,7 @@ describe("v4TransitionRouter", () => {
             canonicalSdkName: null,
             publicKey: "pk-lf-otel",
             count: 3,
+            eventsCount: 3,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
             hasDelayedOtelEvents: false,
@@ -1703,6 +1729,7 @@ describe("v4TransitionRouter", () => {
             canonicalSdkName: null,
             publicKey: "pk-lf-custom-otel",
             count: 2,
+            eventsCount: 2,
             firstSeen: "2026-06-24T02:00:00Z",
             lastSeen: "2026-06-24T03:00:00Z",
             hasDelayedOtelEvents: true,
@@ -1729,6 +1756,12 @@ describe("v4TransitionRouter", () => {
     expect(usageQuery?.query).toContain("FROM events_core");
     expect(usageQuery?.query).toContain("UNION ALL");
     expect(usageQuery?.query).toContain("FROM scores FINAL");
+    const [eventsQuery, scoresQuery] = usageQuery?.query.split("UNION ALL") ?? [
+      "",
+      "",
+    ];
+    expect(eventsQuery).not.toContain("execution_trace_id IS NULL");
+    expect(scoresQuery).toContain("execution_trace_id IS NULL");
     expect(usageQuery?.query).not.toContain("system.columns");
     expect(
       usageQuery?.query.match(/project_id IN \{projectIds: Array\(String\)\}/g),
@@ -1748,6 +1781,14 @@ describe("v4TransitionRouter", () => {
     );
     expect(usageQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
+    );
+    const [eventsUsageQuery, scoresUsageQuery] =
+      usageQuery?.query.split("UNION ALL") ?? [];
+    expect(eventsUsageQuery).toContain(
+      "AND NOT startsWith(environment, 'langfuse-')",
+    );
+    expect(scoresUsageQuery).toContain(
+      "AND NOT startsWith(environment, 'langfuse-')",
     );
     expect(usageQuery?.query).not.toContain("toDate(start_time)");
     expect(usageQuery?.query).not.toContain("toDate(timestamp)");

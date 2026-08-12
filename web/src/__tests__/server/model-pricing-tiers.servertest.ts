@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
@@ -14,6 +15,7 @@ import {
   validateRegexPattern,
   validatePricingTiers,
   validatePricingMethod,
+  PricingTierInputSchema,
   type PricingTierInput,
 } from "@langfuse/shared";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
@@ -266,6 +268,40 @@ describe("validation methods", () => {
         },
       ];
 
+      const result = validatePricingTiers(tiers);
+      expect(result.valid).toBe(false);
+      expect(getValidationError(result)).toContain("names must be unique");
+    });
+
+    it("should reject names that differ only by whitespace, as the UI does", () => {
+      // The schema is what normalises: parsing trims, so the validator that
+      // runs after it cannot see "Standard " as a distinct name. Without that,
+      // a trailing space saved a second tier rendering an identical label.
+      const tiers = z.array(PricingTierInputSchema).parse([
+        {
+          name: "Standard",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: { input: 3.0 },
+        },
+        {
+          name: "Standard ",
+          isDefault: false,
+          priority: 1,
+          conditions: [
+            {
+              usageDetailPattern: "^input",
+              operator: "gt",
+              value: 100,
+              caseSensitive: false,
+            },
+          ],
+          prices: { input: 5.0 },
+        },
+      ]);
+
+      expect(tiers[1].name).toBe("Standard");
       const result = validatePricingTiers(tiers);
       expect(result.valid).toBe(false);
       expect(getValidationError(result)).toContain("names must be unique");

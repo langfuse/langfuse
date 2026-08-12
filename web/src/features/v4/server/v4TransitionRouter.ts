@@ -170,6 +170,8 @@ type SdkUsageSummaryByProjectRow = {
   sdkVersion: string;
   publicKey: string;
   count: string | number;
+  /** Hits from events_core only (count also includes score ingestions). */
+  eventsCount: string | number;
   firstSeen: string;
   lastSeen: string;
   hasDelayedOtelEvents: boolean | string | number | null;
@@ -181,6 +183,10 @@ type SdkUsageSummaryByProjectSeries = {
   canonicalSdkName: "python" | "javascript" | null;
   publicKey: string;
   count: number;
+  /** Hits with observation evidence: rows in events_core, excluding scores.
+      Zero means the offender is scores-only and an events-table evidence
+      link would open an empty result set. */
+  eventsCount: number;
   firstSeen: string;
   lastSeen: string;
   hasDelayedOtelEvents: boolean | null;
@@ -857,6 +863,9 @@ ORDER BY bucket_time ASC, score_name ASC
     project_id = {projectId: String}
     AND timestamp >= {fromTimestamp: DateTime64(3)}
     AND timestamp <= {toTimestamp: DateTime64(3)}
+    AND NOT startsWith(environment, 'langfuse-')
+    AND execution_trace_id IS NULL
+    AND source != 'ANNOTATION'
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
@@ -875,6 +884,7 @@ WITH selected AS (
     project_id = {projectId: String}
     AND start_time >= {fromTimestamp: DateTime64(3)}
     AND start_time <= {toTimestamp: DateTime64(3)}
+    AND NOT startsWith(environment, 'langfuse-')
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0
   ${scoresUnionSql}
@@ -947,12 +957,16 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key,
     false AS is_otel_ingestion,
-    false AS is_delayed_otel
+    false AS is_delayed_otel,
+    true AS is_score_ingestion
   FROM scores FINAL
   WHERE
     project_id IN {projectIds: Array(String)}
     AND timestamp >= {fromTimestamp: DateTime64(3)}
     AND timestamp <= {toTimestamp: DateTime64(3)}
+    AND NOT startsWith(environment, 'langfuse-')
+    AND execution_trace_id IS NULL
+    AND source != 'ANNOTATION'
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
@@ -967,12 +981,14 @@ WITH selected AS (
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key,
     (source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion,
-    startsWith(source, 'otel-dual-write') AS is_delayed_otel
+    startsWith(source, 'otel-dual-write') AS is_delayed_otel,
+    false AS is_score_ingestion
   FROM events_core
   WHERE
     project_id IN {projectIds: Array(String)}
     AND start_time >= {fromTimestamp: DateTime64(3)}
     AND start_time <= {toTimestamp: DateTime64(3)}
+    AND NOT startsWith(environment, 'langfuse-')
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0
   ${scoresUnionSql}
@@ -984,6 +1000,7 @@ SELECT
   sdk_version AS sdkVersion,
   public_key AS publicKey,
   count() AS count,
+  countIf(NOT is_score_ingestion) AS eventsCount,
   formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
   formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
   if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents
@@ -1061,7 +1078,7 @@ SETTINGS skip_unavailable_shards = 1
 
       return projectIds.map((projectId): SdkUsageSummaryByProjectResultRow => {
         const projectRows = (rowsByProjectId.get(projectId) ?? []).map(
-          (row): SdkUsageTimeSeriesResultRow => {
+          (row): SdkUsageTimeSeriesResultRow & { eventsCount: number } => {
             const classification = classifyIngestionSdkVersion({
               sdkName: row.sdkName,
               sdkVersion: row.sdkVersion,
@@ -1077,6 +1094,7 @@ SETTINGS skip_unavailable_shards = 1
               sdkVersion: row.sdkVersion,
               publicKey: row.publicKey,
               count: Number(row.count),
+              eventsCount: Number(row.eventsCount),
               firstSeen: row.firstSeen,
               lastSeen: row.lastSeen,
               hasDelayedOtelEvents: toNullableBoolean(row.hasDelayedOtelEvents),
@@ -1110,6 +1128,7 @@ SETTINGS skip_unavailable_shards = 1
               canonicalSdkName: row.canonicalSdkName,
               publicKey: row.publicKey,
               count: row.count,
+              eventsCount: row.eventsCount,
               firstSeen: row.firstSeen!,
               lastSeen: row.lastSeen!,
               hasDelayedOtelEvents: row.hasDelayedOtelEvents,
