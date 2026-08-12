@@ -297,6 +297,7 @@ export class IngestionService {
               trace_id: eventData.traceId,
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
+              usage_details: eventData.usageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
               input,
               output,
@@ -1210,6 +1211,7 @@ export class IngestionService {
       | "id"
       | "provided_model_name"
       | "provided_usage_details"
+      | "usage_details"
       | "provided_cost_details"
       | "level"
       | "input"
@@ -1300,6 +1302,7 @@ export class IngestionService {
       ObservationRecordInsertType,
       | "project_id"
       | "provided_usage_details"
+      | "usage_details"
       | "provided_cost_details"
       | "level"
       | "input"
@@ -1343,13 +1346,13 @@ export class IngestionService {
             try {
               [newInputCount, newOutputCount] = await Promise.all([
                 isObservationFieldOverflowReference(observationRecord.input)
-                  ? undefined
+                  ? observationRecord.usage_details?.input
                   : tokenCountAsync({
                       text: observationRecord.input,
                       model,
                     }),
                 isObservationFieldOverflowReference(observationRecord.output)
-                  ? undefined
+                  ? observationRecord.usage_details?.output
                   : tokenCountAsync({
                       text: observationRecord.output,
                       model,

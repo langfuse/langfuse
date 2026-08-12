@@ -194,6 +194,7 @@ describe("IngestionService unit tests", () => {
         id: "observation-id",
         project_id: "project-id",
         provided_usage_details: {},
+        usage_details: { input: 7, output: 2, total: 9 },
         provided_cost_details: {},
         level: "DEFAULT",
         input,
@@ -207,7 +208,39 @@ describe("IngestionService unit tests", () => {
       expect.objectContaining({ text: "new output" }),
     );
     expect(result).toEqual({
-      usage_details: { output: 4, total: 4 },
+      usage_details: { input: 7, output: 4, total: 11 },
+      provided_usage_details: {},
+    });
+  });
+
+  it("preserves usage when both fields are overflow references", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    mocks.isObservationFieldOverflowReference.mockReturnValue(true);
+
+    const result = await (ingestionService as any).getUsageUnits(
+      {
+        id: "observation-id",
+        project_id: "project-id",
+        provided_usage_details: {},
+        usage_details: { input: 7, output: 2, total: 9 },
+        provided_cost_details: {},
+        level: "DEFAULT",
+        input:
+          "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
+        output:
+          "@@@langfuseMedia:type=text/plain|id=output-media|source=field_size_limit@@@",
+      },
+      { id: "model-id", tokenizerId: "tokenizer-id" },
+    );
+
+    expect(mocks.tokenCountAsync).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      usage_details: { input: 7, output: 2, total: 9 },
       provided_usage_details: {},
     });
   });
