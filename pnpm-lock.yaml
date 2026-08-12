@@ -140,7 +140,7 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.8.0(jiti@2.7.0))
       '@next/eslint-plugin-next':
-        specifier: '16.3'
+        specifier: 16.3.0
         version: 16.3.0(eslint@10.8.0(jiti@2.7.0))
       '@repo/eslint-plugin':
         specifier: workspace:*
@@ -790,7 +790,7 @@ importers:
         specifier: 3.3.17
         version: 3.3.17
       next:
-        specifier: '16.3'
+        specifier: 16.3.0
         version: 16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-auth:
         specifier: ^4.24.14
