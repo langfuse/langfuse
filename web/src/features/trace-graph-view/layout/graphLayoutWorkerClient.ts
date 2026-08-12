@@ -1,13 +1,13 @@
+import ELKConstructor from "elkjs/lib/elk-api";
+import type { ELK } from "elkjs";
+
 import { reportError } from "@/src/utils/reportError";
-import type {
-  GraphLayoutWorkerRequest,
-  GraphLayoutWorkerResponse,
-} from "@/src/workers/graph-layout.worker";
 
 import { type GraphCanvasData } from "../types";
 import {
   layoutGraphOnThisThread,
   prepareGraphLayout,
+  runGraphLayout,
   type GraphLayout,
   type GraphLayoutDirection,
   type GraphLayoutRequest,
@@ -18,11 +18,11 @@ import {
  * more on graph SHAPE than on size (measured with the app's layout options, same
  * counts: a graph whose edges concentrate on a few nodes lays out 60 nodes / 300
  * edges in ~0.35s, while a uniformly dense one of the same counts takes ~16s), so
- * no node/edge count can predict it. ELK can't be interrupted even in a worker,
- * so the deadline is enforced by terminating the worker and showing the
- * "too large" notice. See MAX_GRAPH_LAYOUT_* for the count ceiling that stays.
+ * no node/edge count can predict it. ELK can't be interrupted even in a worker, so
+ * the deadline is enforced by terminating the worker and showing the "too large"
+ * notice. See MAX_GRAPH_LAYOUT_* for the count ceiling that stays.
  */
-export const GRAPH_LAYOUT_DEADLINE_MS = 20_000;
+export const GRAPH_LAYOUT_DEADLINE_MS = 60_000;
 
 /**
  * A superseded layout is killed only once it has been running this long: past it,
@@ -41,8 +41,11 @@ type PendingLayout = {
   reject: (error: Error) => void;
 };
 
+/** ELK plus the worker it runs in — we own the worker so we can terminate it. */
+type LayoutWorker = { elk: ELK; worker: Worker };
+
 const pending = new Map<string, PendingLayout>();
-let worker: Worker | null = null;
+let active: LayoutWorker | null = null;
 /** Set when the worker script itself won't load — degrade to the main thread. */
 let workerUnavailable = false;
 let requestCounter = 0;
@@ -67,28 +70,16 @@ function refusedLayout(request: GraphLayoutRequest): GraphLayout {
   };
 }
 
-function handleMessage(event: MessageEvent<GraphLayoutWorkerResponse>) {
-  const entry = pending.get(event.data.id);
-  // No entry = superseded or past its deadline. Dropping it IS the staleness
-  // guard: the worker is a module singleton, so a response can outlive the
-  // caller that asked for it and must never land on a newer graph.
-  if (!entry) return;
-  pending.delete(entry.id);
-  clearTimeout(entry.timer);
-  if (event.data.layout) entry.resolve(event.data.layout);
-  else entry.reject(new Error(event.data.error ?? "Graph layout failed"));
-}
-
 function handleWorkerError(event: ErrorEvent) {
   // `onerror` means the worker SCRIPT failed — a stale chunk after a deploy is
-  // the dominant cause. (An ELK throw comes back as a normal message.) Retire the
-  // worker and lay out on the main thread instead: slow beats no graph at all.
+  // the dominant cause. (A layout that throws rejects its own promise instead.)
+  // Retire the worker and lay out on the main thread: slow beats no graph at all.
   workerUnavailable = true;
   const details = `${event.message || "unknown"} @ ${event.filename || "?"}:${event.lineno ?? "?"}`;
   reportError(
     event.error instanceof Error
       ? event.error
-      : new Error(`graph layout worker failed to load: ${details}`),
+      : new Error(`ELK layout worker failed to load: ${details}`),
     {
       area: "graph-layout-worker",
       extra: {
@@ -96,57 +87,76 @@ function handleWorkerError(event: ErrorEvent) {
         filename: event.filename,
         lineno: event.lineno,
       },
-      warnMessage: `graph layout worker failed to load: ${details}`,
+      warnMessage: `ELK layout worker failed to load: ${details}`,
     },
   );
   restartWorker();
 }
 
-function getWorker(): Worker | null {
+function getLayoutWorker(): LayoutWorker | null {
   if (workerUnavailable) return null;
   if (typeof window === "undefined" || !window.Worker) return null;
-  if (worker) return worker;
+  if (active) return active;
   try {
-    worker = new Worker(
-      new URL("@/src/workers/graph-layout.worker.ts", import.meta.url),
+    const worker = new Worker(
+      new URL("@/src/workers/elk-layout.worker.ts", import.meta.url),
     );
-    worker.onmessage = handleMessage;
     worker.onerror = handleWorkerError;
+    // elk-api only sets `onmessage` on the worker we hand it, so the instance
+    // above stays ours to terminate.
+    const elk = new ELKConstructor({ workerFactory: () => worker });
+    active = { elk, worker };
   } catch (error) {
     workerUnavailable = true;
-    worker = null;
+    active = null;
     reportError(error, {
       area: "graph-layout-worker",
-      warnMessage: "could not start the graph layout worker",
+      warnMessage: "could not start the ELK layout worker",
     });
     return null;
   }
-  return worker;
+  return active;
 }
 
-function post(entry: PendingLayout, target: Worker) {
+/** Run one request on `target`, tracked so it can be cancelled or timed out. */
+function dispatch(entry: PendingLayout, target: LayoutWorker) {
   pending.set(entry.id, entry);
-  const message: GraphLayoutWorkerRequest = {
-    id: entry.id,
-    request: entry.request,
-  };
-  target.postMessage(message);
+  runGraphLayout(target.elk, entry.request).then(
+    (layout) => settle(entry.id, (found) => found.resolve(layout)),
+    (error: unknown) =>
+      settle(entry.id, (found) =>
+        found.reject(error instanceof Error ? error : new Error(String(error))),
+      ),
+  );
 }
 
 /**
- * Terminate the worker — the only way to stop an in-flight ELK run — and re-post
- * whatever else was queued behind it onto a fresh one (it was waiting on a thread
+ * Answer a request — unless it is no longer pending, which is the staleness
+ * guard: the worker outlives individual callers, so a result that arrives after
+ * its cancellation or deadline must never land on a newer graph.
+ */
+function settle(id: string, finish: (entry: PendingLayout) => void) {
+  const entry = pending.get(id);
+  if (!entry) return;
+  pending.delete(id);
+  clearTimeout(entry.timer);
+  finish(entry);
+}
+
+/**
+ * Terminate the worker — the only way to stop an in-flight ELK run — and re-issue
+ * whatever else was queued behind it on a fresh one (it was waiting on a thread
  * that no longer exists).
  */
 function restartWorker() {
   const carried = [...pending.values()];
   pending.clear();
-  worker?.terminate();
-  worker = null;
+  active?.worker.terminate();
+  active = null;
   if (carried.length === 0) return;
-  const target = getWorker();
+  const target = getLayoutWorker();
   for (const entry of carried) {
-    if (target) post(entry, target);
+    if (target) dispatch(entry, target);
     else
       layoutGraphOnThisThread(entry.request).then(entry.resolve, entry.reject);
   }
@@ -172,8 +182,8 @@ function onDeadline(id: string) {
 }
 
 /**
- * Lay the graph out in the layout worker, so the rest of the trace view (tree,
- * tabs, navigation) stays interactive while ELK grinds.
+ * Lay the graph out in the ELK worker, so the rest of the trace view (tree, tabs,
+ * navigation) stays interactive while ELK grinds.
  *
  * Abort via `signal` when the request goes stale (trace, view mode or direction
  * changed): the promise rejects with {@link GraphLayoutCancelledError} and a late
@@ -185,17 +195,18 @@ export function requestGraphLayout(
   direction: GraphLayoutDirection = "DOWN",
   signal?: AbortSignal,
 ): Promise<GraphLayout> {
-  // Dedupe, size and gate on the main thread: all O(nodes + edges), and it keeps
-  // the posted payload to primitives — structured clone is main-thread work too.
+  // Dedupe, size and gate before touching the worker: all O(nodes + edges), and
+  // it keeps the posted payload to the deduped graph — postMessage's structured
+  // clone is main-thread work too.
   const prepared = prepareGraphLayout(graph, nodeToObservationsMap, direction);
   if (prepared.kind === "layout") return Promise.resolve(prepared.layout);
 
-  const target = getWorker();
+  const target = getLayoutWorker();
   if (!target) return layoutGraphOnThisThread(prepared.request);
 
   return new Promise<GraphLayout>((resolve, reject) => {
     const id = String(++requestCounter);
-    post(
+    dispatch(
       {
         id,
         request: prepared.request,
