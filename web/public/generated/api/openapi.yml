@@ -8972,7 +8972,10 @@ components:
         authorUserId:
           type: string
           nullable: true
-          description: The id of the user who created the comment.
+          description: >-
+            The id of the user who created the comment. Must be a member of the
+            organization that owns the project, otherwise an error will be
+            thrown.
       required:
         - projectId
         - objectType

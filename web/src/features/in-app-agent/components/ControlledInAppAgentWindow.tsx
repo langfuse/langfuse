@@ -179,6 +179,7 @@ export function ControlledInAppAgentWindow(
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
+      isSelectedConversationHydrating={isSelectedConversationHydrating}
       disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       quickActionContext={quickActionContext}

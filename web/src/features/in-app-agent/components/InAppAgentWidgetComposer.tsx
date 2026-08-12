@@ -26,8 +26,7 @@ export function InAppAgentWidgetComposer({
 }: {
   onSubmitted: () => void;
 }) {
-  const { isAvailable, isRunning, isSubmitting, openAssistant, submit } =
-    useInAppAiAgent();
+  const { isAvailable, openAssistant, submit } = useInAppAiAgent();
   const [request, setRequest] = useState("");
 
   if (!isAvailable) {
@@ -38,7 +37,7 @@ export function InAppAgentWidgetComposer({
     event.preventDefault();
     const trimmedRequest = request.trim();
 
-    if (!trimmedRequest || isRunning || isSubmitting) {
+    if (!trimmedRequest) {
       return;
     }
 
@@ -102,7 +101,7 @@ export function InAppAgentWidgetComposer({
           className="h-8 w-8 shrink-0 rounded-md border"
           variant="outline"
           aria-label="Add with Langfuse Assistant"
-          disabled={!request.trim() || isRunning || isSubmitting}
+          disabled={!request.trim()}
         >
           <SendHorizontal className="h-4 w-4" />
         </Button>

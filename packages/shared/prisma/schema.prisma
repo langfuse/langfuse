@@ -953,7 +953,6 @@ model JobConfiguration {
   sampling        Decimal // ratio of jobs that are executed for sampling (0..1)
   delay           Int // delay in milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
-  JobExecution    JobExecution[]
 
   @@index([projectId, id])
   @@map("job_configurations")
@@ -975,8 +974,7 @@ model JobExecution {
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  jobConfigurationId String           @map("job_configuration_id")
-  jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
+  jobConfigurationId String @map("job_configuration_id") // no fk constraint - deletion handled in application code (deleteJobConfigurationWithExecutions) and via project cascade
 
   jobTemplateId String?       @map("job_template_id")
 

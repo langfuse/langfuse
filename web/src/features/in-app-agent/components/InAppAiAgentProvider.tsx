@@ -295,7 +295,13 @@ function InAppAiAgentProviderInner({
       {},
     );
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Key by conversation so another conversation cannot release its submit lock.
+  const [submittingConversationId, setSubmittingConversationId] = useState<
+    string | null
+  >(null);
+  const [unpersistedConversationIds, setUnpersistedConversationIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   const [loadingEventIds, setLoadingEventIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -306,7 +312,7 @@ function InAppAiAgentProviderInner({
     useState<BackgroundExecutionSession | null>(null);
   const toolCallNamesRef = useRef(new Map<string, string>());
   const handledToolCallIdsRef = useRef(new Set<string>());
-  const submitInFlightRef = useRef(false);
+  const submitInFlightRef = useRef<string | null>(null);
 
   const conversationListQuery =
     api.inAppAgent.listConversations.useInfiniteQuery(
@@ -322,7 +328,11 @@ function InAppAiAgentProviderInner({
       conversationId: _selectedConversationId ?? "",
     },
     {
-      enabled: open && Boolean(_selectedConversationId) && !isSubmitting,
+      // Provisional ids become fetchable after `startRun` acknowledges persistence.
+      enabled:
+        open &&
+        Boolean(_selectedConversationId) &&
+        !unpersistedConversationIds.has(_selectedConversationId ?? ""),
     },
   );
   const deleteConversationMutation =
@@ -337,6 +347,9 @@ function InAppAiAgentProviderInner({
   const selectedConversationId = isSelectedConversationNotFound
     ? null
     : _selectedConversationId;
+  const isSubmitting =
+    submittingConversationId !== null &&
+    submittingConversationId === selectedConversationId;
 
   const conversations = useMemo(
     () =>
@@ -692,9 +705,17 @@ function InAppAiAgentProviderInner({
     [clearLoadingEvents, updateLoadingEvent, utils],
   );
 
-  const releaseSubmitLock = useCallback(() => {
-    submitInFlightRef.current = false;
-    setIsSubmitting(false);
+  // Release only the caller's lock; a newer conversation may own it.
+  const releaseSubmitLock = useCallback((conversationId: string | null) => {
+    if (
+      conversationId !== null &&
+      submitInFlightRef.current !== conversationId
+    ) {
+      return;
+    }
+
+    submitInFlightRef.current = null;
+    setSubmittingConversationId(null);
   }, []);
 
   const getOrCreateAgent = useCallback(
@@ -726,13 +747,24 @@ function InAppAiAgentProviderInner({
         threadId: conversationId,
         initialMessages,
         cursor: initialCursor,
-        startRun: (params) =>
-          startRunMutation.mutateAsync({
+        startRun: async (params) => {
+          const started = await startRunMutation.mutateAsync({
             projectId,
             conversationId,
             message: params.message,
             context: [...params.context],
-          }),
+          });
+          setUnpersistedConversationIds((current) => {
+            if (!current.has(started.conversationId)) {
+              return current;
+            }
+
+            const next = new Set(current);
+            next.delete(started.conversationId);
+            return next;
+          });
+          return started;
+        },
       });
 
       agentRef.current = agent;
@@ -812,7 +844,7 @@ function InAppAiAgentProviderInner({
             projectId,
             conversationId,
           });
-          releaseSubmitLock();
+          releaseSubmitLock(conversationId);
         },
       });
       backgroundSessionRef.current = nextBackgroundSession;
@@ -867,17 +899,23 @@ function InAppAiAgentProviderInner({
 
   const selectConversation = useCallback(
     (conversationId: string | null) => {
-      if (isRunning || conversationId === _selectedConversationId) {
+      if (conversationId === _selectedConversationId) {
         return;
       }
 
       setError((currentError) =>
         isInAppAgentRateLimited(currentError) ? currentError : null,
       );
+      releaseSubmitLock(_selectedConversationId);
       resetAgent();
       setSelectedConversationId(conversationId);
     },
-    [_selectedConversationId, isRunning, resetAgent, setSelectedConversationId],
+    [
+      _selectedConversationId,
+      releaseSubmitLock,
+      resetAgent,
+      setSelectedConversationId,
+    ],
   );
 
   const deleteConversation = useCallback(
@@ -936,43 +974,50 @@ function InAppAiAgentProviderInner({
 
   const submit = useCallback(
     async (content: string, options?: InAppAgentSubmitOptions) => {
+      // A new conversation must not inherit the selected conversation's guards.
+      const startsNewConversation =
+        options?.newConversation === true || !selectedConversationId;
+      const conversationId = startsNewConversation
+        ? createInAppAgentConversationId()
+        : selectedConversationId;
+      const shouldRestorePersistedMessages =
+        !startsNewConversation &&
+        !unpersistedConversationIds.has(conversationId ?? "");
+
       if (
         !content ||
-        isRunning ||
+        !conversationId ||
         isInAppAgentRateLimited(error) ||
-        (options?.newConversation !== true &&
-          isSelectedConversationHydrating) ||
-        submitInFlightRef.current
+        submitInFlightRef.current === conversationId
       ) {
         return false;
       }
 
-      submitInFlightRef.current = true;
-      setIsSubmitting(true);
+      if (
+        !startsNewConversation &&
+        (isRunning || isSelectedConversationHydrating)
+      ) {
+        return false;
+      }
+
+      if (!startsNewConversation && selectedConversationIsWriteLocked) {
+        setError({
+          type: "generic",
+          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+        });
+        return false;
+      }
+
+      submitInFlightRef.current = conversationId;
+      setSubmittingConversationId(conversationId);
       setError(null);
 
       let startedRun = false;
       try {
-        const isNewConversation =
-          options?.newConversation === true || !selectedConversationId;
-
-        if (!isNewConversation && selectedConversationIsWriteLocked) {
-          setError({
-            type: "generic",
-            message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-          });
-          return false;
-        }
-
-        const conversationId = isNewConversation
-          ? createInAppAgentConversationId()
-          : selectedConversationId;
-
-        if (!conversationId) {
-          return false;
-        }
-
-        if (isNewConversation) {
+        if (startsNewConversation) {
+          setUnpersistedConversationIds((current) =>
+            new Set(current).add(conversationId),
+          );
           setSelectedConversationId(conversationId);
         }
 
@@ -980,9 +1025,9 @@ function InAppAiAgentProviderInner({
           conversationQuery.data?.conversation.id === conversationId
             ? conversationQuery.data.messages
             : undefined;
-        const initialMessages = isNewConversation
-          ? []
-          : (storedMessages?.filter(isAgentConversationMessage) ?? []);
+        const initialMessages = shouldRestorePersistedMessages
+          ? (storedMessages?.filter(isAgentConversationMessage) ?? [])
+          : [];
         // TODO: Avoid hydrating the full history once the agent client can send
         // only the latest user turn; the server rebuilds history from persistence.
         const agent = getOrCreateAgent(conversationId, initialMessages);
@@ -992,7 +1037,7 @@ function InAppAiAgentProviderInner({
         }
 
         // Start background turns from the persisted transcript and cursor.
-        if (!isNewConversation) {
+        if (shouldRestorePersistedMessages) {
           agent.setMessages(initialMessages);
         }
 
@@ -1004,7 +1049,7 @@ function InAppAiAgentProviderInner({
 
         agent.addMessage(userMessage);
         const entryPoint = options?.entryPoint ?? "chat";
-        if (isNewConversation) {
+        if (startsNewConversation) {
           capture("in_app_agent:new_chat_started", { entryPoint });
         }
         capture("in_app_agent:new_chat_turn", { entryPoint });
@@ -1029,7 +1074,7 @@ function InAppAiAgentProviderInner({
         return false;
       } finally {
         if (!startedRun) {
-          releaseSubmitLock();
+          releaseSubmitLock(conversationId);
         }
       }
     },
@@ -1046,6 +1091,7 @@ function InAppAiAgentProviderInner({
       selectedConversationId,
       selectedConversationIsWriteLocked,
       setSelectedConversationId,
+      unpersistedConversationIds,
     ],
   );
 
@@ -1152,7 +1198,7 @@ function InAppAiAgentProviderInner({
         setIsExpanded(false);
 
         backgroundSessionRef.current?.detach();
-        releaseSubmitLock();
+        releaseSubmitLock(selectedConversationId);
       }
 
       if (nextOpen && selectedConversationId) {

@@ -985,6 +985,59 @@ export const Comfortable = meta.story({
   ),
 });
 
+const LONG_IO_TRACE_ROW: TraceRow = {
+  ...makeTraceRow(0),
+  id: "trace-long-io-content",
+  input: {
+    request: "dataset-item-input",
+    messages: Array.from({ length: 24 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: `Message ${index + 1}: ${"This is deliberately long JSON content to verify that the fixed-height IO cell retains its vertical scrollbar. ".repeat(3)}`,
+    })),
+  },
+  output: {
+    result: "dataset-item-output",
+    details: Object.fromEntries(
+      Array.from({ length: 24 }, (_, index) => [
+        `field-${index + 1}`,
+        `Value ${index + 1}: ${"long output content ".repeat(8)}`,
+      ]),
+    ),
+  },
+  metadata: Object.fromEntries(
+    Array.from({ length: 24 }, (_, index) => [
+      `metadata-${index + 1}`,
+      `value-${index + 1}`,
+    ]),
+  ),
+};
+
+function LongIOContentStory() {
+  const columns = useMemo(() => buildTraceColumns("l"), []);
+  return (
+    <DataTable<TraceRow, unknown>
+      tableName="story-long-io-content"
+      columns={columns}
+      data={{
+        isLoading: false,
+        isError: false,
+        data: [LONG_IO_TRACE_ROW],
+      }}
+      pagination={{
+        totalCount: 1,
+        onChange: fn(),
+        state: { pageIndex: 0, pageSize: 1 },
+      }}
+      rowHeight="l"
+      cellPadding="comfortable"
+    />
+  );
+}
+
+export const LongIOContent = meta.story({
+  render: () => <LongIOContentStory />,
+});
+
 // -----------------------------------------------------------------------------
 // 6. Density matrix (design showcase)
 // -----------------------------------------------------------------------------

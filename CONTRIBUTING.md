@@ -163,6 +163,28 @@ Notes:
   PostgreSQL, Redis, ClickHouse, and object storage, plus matching environment
   variables in the Codex UI.
 
+### Cursor Cloud Setup
+
+Cursor Cloud Agents use the committed `.cursor/environment.json` and
+`.cursor/Dockerfile`. The environment build runs the shared setup script, and
+each agent run starts a branch-built six-service Docker Compose stack:
+
+```bash
+bash scripts/agents/setup.sh
+bash scripts/agents/start-cursor-cloud.sh
+```
+
+The start command waits for web, worker, PostgreSQL, ClickHouse, Redis, and
+MinIO, then seeds the synthetic demo project and checks both application health
+endpoints. Cursor team administrators separately configure the read-only MCP
+catalog described in `.agents/README.md`; credentials and OAuth grants belong
+in Cursor, never in repository files.
+
+After local verification, a Cursor agent should open a same-repo draft PR and
+test its `pr-<N>.preview.langfuse.com` deployment before marking it ready.
+Preview data and any attached artifacts must remain synthetic. Previews normally
+run Mon-Fri 08:00-24:00 Europe/Berlin and are not woken with Cursor credentials.
+
 ### Shared Agent Setup
 
 This repository keeps the shared agent setup in source control so developers
@@ -185,17 +207,20 @@ MCP server catalog.
 - Tool-specific runtime shims generated locally from the shared config and not committed:
   - `.claude/settings.json`
   - `.codex/environments/environment.toml`
+- Cursor runtime contract generated from shared config and committed because
+  Cursor needs it before install:
   - `.cursor/environment.json`
 - Tool-specific skill projections generated locally and not committed:
   - `.claude/skills/*`
-- Shared bootstrap for agent environments: `bash scripts/codex/setup.sh`
+- Shared bootstrap for agent environments: `bash scripts/agents/setup.sh`
 
 When you change the shared MCP setup:
 
 1. Edit `.agents/config.json`
 2. Run `pnpm run agents:sync`
 3. Run `pnpm run agents:check`
-4. Do not commit the generated MCP config files or runtime shims
+4. Commit `.cursor/environment.json` when it changes; do not commit the other
+   generated MCP config files or runtime shims
 
 **Steps**
 

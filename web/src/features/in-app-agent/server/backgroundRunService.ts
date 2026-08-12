@@ -259,7 +259,7 @@ export async function startBackgroundRun(params: {
     aiTelemetryEnabled: params.aiTelemetryEnabled,
   });
 
-  return { runId: run.id };
+  return { conversationId: conversation.id, runId: run.id };
 }
 
 /** Soft-delete a conversation and cancel its unsettled runs atomically. */

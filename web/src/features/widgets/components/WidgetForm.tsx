@@ -101,6 +101,7 @@ import {
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { WIDGET_FILTER_PRESETS } from "@/src/features/widgets/constants/widgetFilterPresets";
+import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
 import {
   applyChartTypeChange,
   deriveEffectiveSort,
@@ -563,6 +564,13 @@ export function WidgetForm({
     }
     return validateQuery(query, viewVersion);
   }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
+
+  useCaptureWidgetHighCardinalityError({
+    validation: queryValidation,
+    surface: widgetId ? "edit_editor" : "create_editor",
+    chartType,
+    isV4: viewVersion === "v2",
+  });
 
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
