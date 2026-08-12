@@ -362,7 +362,7 @@ export default function RemapEvaluatorPage() {
                   evalCapabilities={evalCapabilities}
                   showPreviewTargetBadge={false}
                   oldConfigId={evalConfigId}
-                  hideRootObservationFilter={sdk.status === "legacy"}
+                  hideRootObservationFilter={!isV4BetaEnabled}
                   renderFooter={({ isLoading, isSaveDisabled }) => (
                     <div className="flex w-full flex-col items-end gap-4">
                       <div className="flex items-center">
