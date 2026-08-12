@@ -467,7 +467,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     })
     .filter((message): message is InAppAgentWindowMessage => message !== null);
 
-  const backgroundHint = useInAppAgentBackgroundHint();
+  const backgroundHint = useInAppAgentBackgroundHint({
+    isRunActive: isAssistantTurnInProgress,
+  });
 
   const submitInput = (content: string, options?: InAppAgentSubmitOptions) => {
     const trimmedContent = content.trim();
@@ -958,6 +960,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
+        {backgroundHint.isVisible && props.onClose ? (
+          <InAppAgentBackgroundHint
+            isExpanded={isExpanded}
+            onMinimize={() => {
+              backgroundHint.hide();
+              props.onClose?.();
+            }}
+          />
+        ) : null}
         {error?.type === "rate_limit" && (
           <div
             className={cn(
@@ -1003,15 +1014,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             !isExpanded && hasUserMessage && "border-t",
           )}
         >
-          {backgroundHint.isVisible && props.onClose ? (
-            <InAppAgentBackgroundHint
-              isExpanded={isExpanded}
-              onMinimize={() => {
-                backgroundHint.hide();
-                props.onClose?.();
-              }}
-            />
-          ) : null}
           <form
             className={cn(
               "relative flex w-full items-end gap-2 rounded-md",

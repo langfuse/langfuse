@@ -4,17 +4,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const HINT_VISIBLE_MS = 5_000;
 
 /**
- * Teaching moment for background runs, shown when a conversation's first
- * message starts a run: the run survives minimizing, and the activity
- * notifications bring the user back when it finishes or needs them.
- *
- * Tied to the conversation rather than remembered per user — starting a new
- * conversation is exactly the moment the promise is worth repeating, and it
- * keeps the nudge out of the middle of an ongoing exchange.
+ * Visibility for the background-run hint. It lives as long as the wait it
+ * describes: the timeout above, or the run settling first.
  */
-export function useInAppAgentBackgroundHint() {
+export function useInAppAgentBackgroundHint({
+  isRunActive,
+}: {
+  isRunActive: boolean;
+}) {
   const [isVisible, setIsVisible] = useState(false);
+  const [wasRunActive, setWasRunActive] = useState(isRunActive);
   const hideTimeoutRef = useRef<number | null>(null);
+
+  // Settling ends the wait the hint describes. A leftover timeout is harmless:
+  // hiding twice is a no-op, and `show` re-arms it.
+  if (wasRunActive !== isRunActive) {
+    setWasRunActive(isRunActive);
+
+    if (wasRunActive) {
+      setIsVisible(false);
+    }
+  }
 
   const hide = useCallback(() => {
     if (hideTimeoutRef.current !== null) {

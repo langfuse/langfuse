@@ -1081,9 +1081,8 @@ export const Error = meta.story({
 });
 
 /**
- * Every activity state in the row it belongs to. The indicators share one
- * fixed-width slot, so the column stays straight even though the finished and
- * failed dots are half the width of the approval and running icons.
+ * Every activity state in the row it belongs to, sharing one fixed-width slot
+ * so the column stays straight despite the dots being narrower than the icons.
  */
 export const ConversationActivity = meta.story({
   args: {
@@ -1103,10 +1102,12 @@ export const ConversationActivity = meta.story({
   },
 });
 
+/** Long enough to watch the hint, short enough to settle before it expires. */
+const STORY_RUN_MS = 3_000;
+
 /**
- * The nudge that opens a conversation: the run survives minimizing, and the
- * activity notifications bring the user back. Send the first message to see it,
- * then send a second — it only belongs to the message that starts the thread.
+ * The nudge that opens a conversation. Send a second message to see that it
+ * belongs to the first one only, and wait for the run to settle to see it go.
  */
 export const BackgroundHint = meta.story({
   args: {
@@ -1114,11 +1115,13 @@ export const BackgroundHint = meta.story({
   },
   render: function Render(args) {
     const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([]);
+    const [isRunning, setIsRunning] = useState(false);
 
     return (
       <StatefulInAppAgentWindow
         {...args}
         messages={messages}
+        isAssistantTurnInProgress={isRunning}
         onSubmit={(input) => {
           setMessages((currentMessages) => [
             ...currentMessages,
@@ -1128,6 +1131,22 @@ export const BackgroundHint = meta.story({
               content: { type: "text", text: input },
             },
           ]);
+          setIsRunning(true);
+
+          window.setTimeout(() => {
+            setIsRunning(false);
+            setMessages((currentMessages) => [
+              ...currentMessages,
+              {
+                id: `assistant-${currentMessages.length}`,
+                role: "assistant",
+                content: {
+                  type: "text",
+                  text: "Cost is up 12% week over week, driven by gpt-4o traces.",
+                },
+              },
+            ]);
+          }, STORY_RUN_MS);
 
           args.onSubmit(input);
           return true;
@@ -1145,6 +1164,11 @@ export const BackgroundHint = meta.story({
     await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
     await expect(await canvas.findByRole("status")).toHaveTextContent(
       "I keep running in the background",
+    );
+
+    await waitFor(
+      () => expect(canvas.queryByRole("status")).not.toBeInTheDocument(),
+      { timeout: STORY_RUN_MS * 2 },
     );
   },
 });

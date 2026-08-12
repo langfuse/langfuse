@@ -5,11 +5,8 @@ import { cn } from "@/src/utils/tailwind";
 import type { InAppAgentActivityState } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 
 /**
- * Trailing state for one recent-conversation row.
- *
- * Exactly one indicator can show, so the caller's priority order is the whole
- * design: what the assistant needs from you beats what it is doing, which beats
- * what it already did.
+ * Trailing state for one recent-conversation row. Exactly one can show, so the
+ * caller's priority order is the design: needs you, then doing, then did.
  */
 export function ConversationActivityIndicator({
   state,
@@ -47,13 +44,8 @@ export function ConversationActivityIndicator({
 }
 
 /**
- * Fixed-size centered box so every variant occupies the same slot: the dot is
- * half the width of the icons, so without it the indicator column zig-zags from
- * row to row.
- *
- * Also the one named element: naming is prohibited on the generic role a bare
- * span gets, and the indicator is the only thing conveying run state in the
- * conversation list.
+ * Fixed-size box: the dot is half the width of the icons, so without it the
+ * column zig-zags. Named here because a bare span cannot carry a label.
  */
 function ConversationActivityIndicatorSlot({
   label,
