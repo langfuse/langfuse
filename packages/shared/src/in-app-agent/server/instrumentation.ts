@@ -2,7 +2,7 @@ import { EventType } from "@ag-ui/core";
 import { getInternalTracingHandler, logger } from "../../server";
 
 import {
-  getInAppAgentConversationObservationId,
+  getInAppAgentConversationHistoryObservationId,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
 } from "../constants";
@@ -38,9 +38,9 @@ export type InAppAgentPromptMetadata = {
 };
 
 const IN_APP_AGENT_TURN_NAME = "agent-turn";
-// Stable observation name for session-level LLM-as-a-judge targeting.
-const IN_APP_AGENT_CONVERSATION_NAME = "conversation";
-// Cap full-history payload growth across long threads.
+// Stable observation name for prior-turn dialogue used by session evals.
+const IN_APP_AGENT_CONVERSATION_HISTORY_NAME = "conversation-history";
+// Cap prior-history payload growth across long threads.
 const IN_APP_AGENT_CONVERSATION_HISTORY_MESSAGE_CAP = 100;
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
 type InAppAgentTrace = ReturnType<
@@ -132,9 +132,9 @@ export class InAppAgentInstrumentation {
   private readonly langfuse: InAppAgentLangfuse;
   private readonly trace: InAppAgentTrace;
   private readonly agentRun: InAppAgentGeneration;
-  private readonly conversation: InAppAgentSpan;
+  private readonly conversationHistory: InAppAgentSpan;
   private agentRunInput: unknown;
-  private readonly conversationInput: unknown;
+  private readonly conversationHistoryInput: unknown;
   private readonly prompt?: InAppAgentPromptMetadata;
   private readonly toolSpans = new Map<
     string,
@@ -190,7 +190,7 @@ export class InAppAgentInstrumentation {
         : {}),
     };
     this.agentRunInput = getAgentRunInput(params.input);
-    this.conversationInput = getConversationInput(params.input);
+    this.conversationHistoryInput = getConversationHistoryInput(params.input);
     this.prompt = params.prompt;
     this.model = params.model;
 
@@ -229,10 +229,10 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
-    this.conversation = this.agentRun.span({
-      id: getInAppAgentConversationObservationId(params.input.runId),
-      name: IN_APP_AGENT_CONVERSATION_NAME,
-      input: this.conversationInput,
+    this.conversationHistory = this.agentRun.span({
+      id: getInAppAgentConversationHistoryObservationId(params.input.runId),
+      name: IN_APP_AGENT_CONVERSATION_HISTORY_NAME,
+      input: this.conversationHistoryInput,
       metadata: this.metadata,
     });
   }
@@ -369,10 +369,10 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
-    this.conversation.update({
-      name: IN_APP_AGENT_CONVERSATION_NAME,
-      input: this.conversationInput,
-      output,
+    // Previous-history only — do not copy this turn's output (already on agent-turn).
+    this.conversationHistory.update({
+      name: IN_APP_AGENT_CONVERSATION_HISTORY_NAME,
+      input: this.conversationHistoryInput,
       level: "ERROR",
       statusMessage: message,
       metadata,
@@ -382,7 +382,7 @@ export class InAppAgentInstrumentation {
       output,
       metadata,
     });
-    this.conversation.end();
+    this.conversationHistory.end();
     this.agentRun.end();
     this.ended = true;
   }
@@ -416,18 +416,12 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
-    this.conversation.update({
-      name: IN_APP_AGENT_CONVERSATION_NAME,
-      input: this.conversationInput,
-      output,
-      metadata,
-    });
     this.trace.update({
       input: this.agentRunInput,
       output,
       metadata,
     });
-    this.conversation.end();
+    this.conversationHistory.end();
     this.agentRun.end();
     this.ended = true;
   }
@@ -819,10 +813,10 @@ function getAgentRunInput(input: AgUiRunAgentInput): unknown {
   };
 }
 
-function getConversationInput(input: AgUiRunAgentInput): unknown {
+function getConversationHistoryInput(input: AgUiRunAgentInput): unknown {
   return {
     messages: getAgentRunMessages(
-      capConversationHistory(getConversationMessages(input.messages)),
+      capConversationHistory(getPreviousConversationMessages(input.messages)),
     ),
   };
 }
@@ -844,13 +838,26 @@ function getCurrentTurnMessages(messages: AgUiMessage[]): AgUiMessage[] {
   );
 }
 
-// Session evals care about the dialogue, not the repeated system prompt.
-function getConversationMessages(messages: AgUiMessage[]): AgUiMessage[] {
-  return messages.filter(
-    (message) => message.role !== "developer" && message.role !== "system",
+// Prior turns only — current turn already lives on agent-turn. Keep user and
+// assistant dialogue only so a later message cap cannot orphan tool results.
+function getPreviousConversationMessages(
+  messages: AgUiMessage[],
+): AgUiMessage[] {
+  const lastUserMessageIndex = messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+
+  const priorMessages =
+    lastUserMessageIndex === -1
+      ? messages
+      : messages.slice(0, lastUserMessageIndex);
+
+  return priorMessages.filter(
+    (message) => message.role === "user" || message.role === "assistant",
   );
 }
 
+// Cap after role filtering so the retained suffix is always user/assistant.
 function capConversationHistory(messages: AgUiMessage[]): AgUiMessage[] {
   if (messages.length <= IN_APP_AGENT_CONVERSATION_HISTORY_MESSAGE_CAP) {
     return messages;

@@ -27,8 +27,8 @@ export const getInAppAgentInstrumentationObservationId = (runId: string) =>
 export const getInAppAgentInstrumentationTraceId = (runId: string) =>
   `${runId}-trace`;
 
-// Per-turn child span that carries the full conversation history for
-// observation-level session evals. Treat the observation name "conversation"
-// as a stable evaluator target.
-export const getInAppAgentConversationObservationId = (runId: string) =>
-  `${runId}-conversation`;
+// Per-turn child span with prior-turn dialogue only (excludes the current
+// turn, which lives on agent-turn). Treat the observation name
+// "conversation-history" as a stable evaluator target.
+export const getInAppAgentConversationHistoryObservationId = (runId: string) =>
+  `${runId}-conversation-history`;

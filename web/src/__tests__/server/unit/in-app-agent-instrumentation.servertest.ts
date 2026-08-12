@@ -1,7 +1,7 @@
 import { EventType } from "@ag-ui/core";
 
 import {
-  getInAppAgentConversationObservationId,
+  getInAppAgentConversationHistoryObservationId,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
 } from "@langfuse/shared/in-app-agent";
@@ -11,11 +11,12 @@ import { InAppAgentInstrumentation } from "@langfuse/shared/in-app-agent/server/
 const runId = "run-1";
 const traceId = getInAppAgentInstrumentationTraceId(runId);
 const agentRunObservationId = getInAppAgentInstrumentationObservationId(runId);
-const conversationObservationId = getInAppAgentConversationObservationId(runId);
+const conversationHistoryObservationId =
+  getInAppAgentConversationHistoryObservationId(runId);
 
 const mocks = vi.hoisted(() => {
-  const conversationSpan = {
-    observationId: "run-1-conversation",
+  const conversationHistorySpan = {
+    observationId: "run-1-conversation-history",
     update: vi.fn(),
     end: vi.fn(),
   };
@@ -24,7 +25,7 @@ const mocks = vi.hoisted(() => {
     traceId: "run-1-trace",
     update: vi.fn(),
     end: vi.fn(),
-    span: vi.fn(() => conversationSpan),
+    span: vi.fn(() => conversationHistorySpan),
   };
   const trace = {
     generation: vi.fn(() => agentGeneration),
@@ -39,7 +40,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     agentGeneration,
-    conversationSpan,
+    conversationHistorySpan,
     trace,
     handler,
     processTracedEvents: vi.fn(async () => undefined),
@@ -665,7 +666,7 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("records full conversation history on the conversation span while keeping agent-turn current-turn-only", () => {
+  it("records prior conversation history on the conversation-history span while keeping agent-turn current-turn-only", () => {
     const instrumentation = createInstrumentation({
       messages: [
         {
@@ -734,8 +735,8 @@ describe("InAppAgentInstrumentation", () => {
       }),
     );
     expect(mocks.agentGeneration.span).toHaveBeenCalledWith({
-      id: conversationObservationId,
-      name: "conversation",
+      id: conversationHistoryObservationId,
+      name: "conversation-history",
       input: {
         messages: [
           { role: "user", content: "previous question" },
@@ -751,12 +752,6 @@ describe("InAppAgentInstrumentation", () => {
               },
             ],
           },
-          {
-            role: "tool",
-            tool_call_id: "tool-previous",
-            content: { found: true },
-          },
-          { role: "user", content: "hello" },
         ],
       },
       metadata: {
@@ -777,39 +772,9 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
-    expect(mocks.conversationSpan.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "conversation",
-        input: {
-          messages: [
-            { role: "user", content: "previous question" },
-            {
-              role: "assistant",
-              content: "previous answer",
-              tool_calls: [
-                {
-                  id: "tool-previous",
-                  name: "getTrace",
-                  arguments: '{"traceId":"trace-1"}',
-                  type: "function",
-                },
-              ],
-            },
-            {
-              role: "tool",
-              tool_call_id: "tool-previous",
-              content: { found: true },
-            },
-            { role: "user", content: "hello" },
-          ],
-        },
-        output: {
-          messages: [{ role: "assistant", content: "second turn output" }],
-          text: "second turn output",
-        },
-      }),
-    );
-    expect(mocks.conversationSpan.end).toHaveBeenCalled();
+    // Prior history is set at construction; end() does not re-copy this turn.
+    expect(mocks.conversationHistorySpan.update).not.toHaveBeenCalled();
+    expect(mocks.conversationHistorySpan.end).toHaveBeenCalled();
   });
 
   it("compacts text message chunks before recording output", () => {
