@@ -948,7 +948,7 @@ function InAppAiAgentProviderInner({
 
       if (conversationId && open) {
         const entry = activityByConversationId.get(conversationId);
-        if (entry && entry.state !== "approval") {
+        if (entry?.needsAttention) {
           markConversationHandled(conversationId, entry.activityKey);
         }
       }

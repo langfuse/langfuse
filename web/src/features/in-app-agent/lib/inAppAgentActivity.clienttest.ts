@@ -44,7 +44,7 @@ const sync = (
   });
 
 describe("in-app agent activity receipts", () => {
-  it("baselines first-fetch history as handled while keeping later terminal unread", () => {
+  it("baselines history, then treats status changes as unread attention", () => {
     const first = sync(null, [
       conversation(
         "old",
@@ -54,11 +54,24 @@ describe("in-app agent activity receipts", () => {
         "live",
         latestRun({ id: "live-run", status: InAppAgentRunStatus.RUNNING }),
       ),
+      conversation(
+        "parked",
+        latestRun({
+          id: "parked-run",
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        }),
+      ),
     ]);
 
+    // Existing terminals and approvals are quiet after baseline…
     expect(first.activityByConversationId.get("old")).toBeUndefined();
-    expect(first.activityByConversationId.get("live")?.state).toBe("running");
+    expect(first.activityByConversationId.get("parked")).toMatchObject({
+      state: "approval",
+      needsAttention: false,
+    });
     expect(first.attentionCount).toBe(0);
+    // …while an in-flight run still shows in the list.
+    expect(first.activityByConversationId.get("live")?.state).toBe("running");
 
     const afterCompletion = sync(first.receipts, [
       conversation(
@@ -69,20 +82,31 @@ describe("in-app agent activity receipts", () => {
         "live",
         latestRun({ id: "live-run", status: InAppAgentRunStatus.SUCCEEDED }),
       ),
+      conversation(
+        "parked",
+        latestRun({
+          id: "parked-run",
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        }),
+      ),
     ]);
 
-    expect(afterCompletion.activityByConversationId.get("live")?.state).toBe(
-      "done-unread",
-    );
+    expect(afterCompletion.activityByConversationId.get("live")).toMatchObject({
+      state: "done-unread",
+      needsAttention: true,
+    });
     expect(afterCompletion.attentionCount).toBe(1);
   });
 
-  it("marks a visible terminal result handled without clearing approval attention", () => {
-    const seeded = sync(null, [
+  it("clears badge attention when seen but keeps list approval status", () => {
+    const running = sync(null, [
       conversation(
-        "done",
-        latestRun({ id: "done-run", status: InAppAgentRunStatus.RUNNING }),
+        "approve",
+        latestRun({ id: "approve-run", status: InAppAgentRunStatus.RUNNING }),
       ),
+    ]);
+
+    const needsApproval = sync(running.receipts, [
       conversation(
         "approve",
         latestRun({
@@ -92,13 +116,23 @@ describe("in-app agent activity receipts", () => {
       ),
     ]);
 
-    const terminal = sync(
-      seeded.receipts,
+    expect(needsApproval.activityByConversationId.get("approve")).toMatchObject(
+      {
+        state: "approval",
+        needsAttention: true,
+      },
+    );
+    expect(needsApproval.attentionCount).toBe(1);
+    expect(
+      getInAppAgentPendingNotificationCards({
+        activityByConversationId: needsApproval.activityByConversationId,
+        delivered: null,
+      }),
+    ).toHaveLength(1);
+
+    const seen = sync(
+      needsApproval.receipts,
       [
-        conversation(
-          "done",
-          latestRun({ id: "done-run", status: InAppAgentRunStatus.FAILED }),
-        ),
         conversation(
           "approve",
           latestRun({
@@ -107,65 +141,23 @@ describe("in-app agent activity receipts", () => {
           }),
         ),
       ],
-      "done",
-    );
-
-    expect(terminal.activityByConversationId.get("done")).toBeUndefined();
-    expect(terminal.activityByConversationId.get("approve")?.state).toBe(
-      "approval",
-    );
-
-    const openedApproval = markInAppAgentConversationHandled(
-      terminal.receipts,
       "approve",
-      getInAppAgentActivityKey({
-        id: "approve-run",
-        status: InAppAgentRunStatus.AWAITING_APPROVAL,
-      }),
     );
-    const stillNeedsApproval = sync(openedApproval, [
-      conversation(
-        "approve",
-        latestRun({
-          id: "approve-run",
-          status: InAppAgentRunStatus.AWAITING_APPROVAL,
-        }),
-      ),
-    ]);
 
+    expect(seen.activityByConversationId.get("approve")).toMatchObject({
+      state: "approval",
+      needsAttention: false,
+    });
+    expect(seen.attentionCount).toBe(0);
     expect(
-      stillNeedsApproval.activityByConversationId.get("approve")?.state,
-    ).toBe("approval");
+      getInAppAgentPendingNotificationCards({
+        activityByConversationId: seen.activityByConversationId,
+        delivered: null,
+      }),
+    ).toEqual([]);
   });
 
-  it("auto-advances cancelled activity and returns the same receipts on a no-op", () => {
-    const running = sync(null, [
-      conversation(
-        "busy",
-        latestRun({ id: "busy-run", status: InAppAgentRunStatus.RUNNING }),
-      ),
-    ]);
-
-    const cancelled = sync(running.receipts, [
-      conversation(
-        "busy",
-        latestRun({ id: "busy-run", status: InAppAgentRunStatus.CANCELLED }),
-      ),
-    ]);
-
-    expect(cancelled.activityByConversationId.get("busy")).toBeUndefined();
-    expect(cancelled.attentionCount).toBe(0);
-
-    const again = sync(cancelled.receipts, [
-      conversation(
-        "busy",
-        latestRun({ id: "busy-run", status: InAppAgentRunStatus.CANCELLED }),
-      ),
-    ]);
-    expect(again.receipts).toBe(cancelled.receipts);
-  });
-
-  it("keeps delivered cards independent from unread receipts", () => {
+  it("keeps delivered toasts independent from unread receipts", () => {
     const unread = sync(null, [
       conversation(
         "c1",
@@ -184,11 +176,12 @@ describe("in-app agent activity receipts", () => {
       id: "run-1",
       status: InAppAgentRunStatus.SUCCEEDED,
     });
-    const pendingBefore = getInAppAgentPendingNotificationCards({
-      activityByConversationId: finished.activityByConversationId,
-      delivered: null,
-    });
-    expect(pendingBefore).toEqual([
+    expect(
+      getInAppAgentPendingNotificationCards({
+        activityByConversationId: finished.activityByConversationId,
+        delivered: null,
+      }),
+    ).toEqual([
       expect.objectContaining({
         conversationId: "c1",
         activityKey,
@@ -205,31 +198,25 @@ describe("in-app agent activity receipts", () => {
         delivered,
       }),
     ).toEqual([]);
-    expect(finished.activityByConversationId.get("c1")?.state).toBe(
-      "done-unread",
-    );
-
-    const nextStatusKey = getInAppAgentActivityKey({
-      id: "run-1",
-      status: InAppAgentRunStatus.FAILED,
+    // Dismissing the toast does not clear badge attention.
+    expect(finished.activityByConversationId.get("c1")).toMatchObject({
+      state: "done-unread",
+      needsAttention: true,
     });
-    const laterFailure = sync(finished.receipts, [
+    expect(finished.attentionCount).toBe(1);
+
+    const handled = markInAppAgentConversationHandled(
+      finished.receipts,
+      "c1",
+      activityKey,
+    );
+    const afterOpen = sync(handled, [
       conversation(
         "c1",
-        latestRun({ id: "run-1", status: InAppAgentRunStatus.FAILED }),
+        latestRun({ id: "run-1", status: InAppAgentRunStatus.SUCCEEDED }),
       ),
     ]);
-    expect(
-      getInAppAgentPendingNotificationCards({
-        activityByConversationId: laterFailure.activityByConversationId,
-        delivered,
-      }),
-    ).toEqual([
-      expect.objectContaining({
-        conversationId: "c1",
-        activityKey: nextStatusKey,
-        state: "failed-unread",
-      }),
-    ]);
+    expect(afterOpen.activityByConversationId.get("c1")).toBeUndefined();
+    expect(afterOpen.attentionCount).toBe(0);
   });
 });

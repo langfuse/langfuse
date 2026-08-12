@@ -9,8 +9,8 @@ import {
   type InAppAgentActivityCard,
 } from "@/src/features/in-app-agent/components/InAppAgentActivityCards";
 
-/** Results expire; approvals wait until answered. */
-const RESULT_CARD_TTL_MS = 8_000;
+/** Same TTL for results and approvals: toast is heads-up, not a sticky prompt. */
+const CARD_TTL_MS = 8_000;
 
 export type InAppAgentActivityNotification = InAppAgentActivityCard;
 
@@ -75,9 +75,6 @@ export function InAppAgentActivityNotifications({
     );
 
     for (const card of selected) {
-      if (card.state === "approval") {
-        continue;
-      }
       // Keep existing timers so a new sibling card does not reset older ones.
       if (resultTimersRef.current.has(card.activityKey)) {
         continue;
@@ -92,7 +89,7 @@ export function InAppAgentActivityNotifications({
             activityKey: card.activityKey,
           },
         ]);
-      }, RESULT_CARD_TTL_MS);
+      }, CARD_TTL_MS);
 
       resultTimersRef.current.set(card.activityKey, timeout);
     }

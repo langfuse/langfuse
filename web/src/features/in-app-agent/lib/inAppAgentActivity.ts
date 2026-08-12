@@ -35,7 +35,10 @@ export type InAppAgentActivityEntry = {
   activityKey: string;
   runId: string;
   title: string | null;
+  /** Row / status indicator (approvals stay while the run still needs a decision). */
   state: InAppAgentActivityState;
+  /** Badge + toast attention; false after the user has looked at this activity key. */
+  needsAttention: boolean;
 };
 
 export type InAppAgentActivityByConversationId = Map<
@@ -62,32 +65,51 @@ export function getInAppAgentActivityKey(run: {
   return `${run.id}:${run.status}`;
 }
 
-function isTerminalResult(status: InAppAgentRunStatus): boolean {
-  return (
-    status === InAppAgentRunStatus.SUCCEEDED ||
-    status === InAppAgentRunStatus.FAILED
-  );
-}
-
-function getActivityState(params: {
-  status: InAppAgentRunStatus;
+/**
+ * Derive list state + whether it still owes a badge/toast.
+ * Approvals keep list status after being seen; terminals drop out once handled.
+ */
+function getActivityEntry(params: {
+  run: InAppAgentConversationLatestRun;
+  title: string | null;
   isHandled: boolean;
-}): InAppAgentActivityState | null {
-  if (params.status === InAppAgentRunStatus.AWAITING_APPROVAL) {
-    return "approval";
+}): InAppAgentActivityEntry | null {
+  const activityKey = getInAppAgentActivityKey(params.run);
+
+  if (params.run.status === InAppAgentRunStatus.AWAITING_APPROVAL) {
+    return {
+      activityKey,
+      runId: params.run.id,
+      title: params.title,
+      state: "approval",
+      needsAttention: !params.isHandled,
+    };
   }
 
-  if (isUnsettledInAppAgentRunStatus(params.status)) {
-    return "running";
+  if (isUnsettledInAppAgentRunStatus(params.run.status)) {
+    return {
+      activityKey,
+      runId: params.run.id,
+      title: params.title,
+      state: "running",
+      needsAttention: false,
+    };
   }
 
-  if (params.status === InAppAgentRunStatus.CANCELLED || params.isHandled) {
+  if (params.run.status === InAppAgentRunStatus.CANCELLED || params.isHandled) {
     return null;
   }
 
-  return params.status === InAppAgentRunStatus.FAILED
-    ? "failed-unread"
-    : "done-unread";
+  return {
+    activityKey,
+    runId: params.run.id,
+    title: params.title,
+    state:
+      params.run.status === InAppAgentRunStatus.FAILED
+        ? "failed-unread"
+        : "done-unread",
+    needsAttention: true,
+  };
 }
 
 /**
@@ -117,11 +139,14 @@ export function reconcileInAppAgentActivity(params: {
     const activityKey = getInAppAgentActivityKey(run);
     const previousKey = previousHandled[conversation.id];
     const isVisible = params.visibleConversationId === conversation.id;
+    const isApproval = run.status === InAppAgentRunStatus.AWAITING_APPROVAL;
 
+    // Acknowledge on first sync, while looking, or while the run is still
+    // working. Approvals are not auto-acked: they toast/badge until seen.
     if (
       isFirstSync ||
-      !isTerminalResult(run.status) ||
-      (isVisible && isTerminalResult(run.status))
+      isVisible ||
+      (isUnsettledInAppAgentRunStatus(run.status) && !isApproval)
     ) {
       if (previousKey !== activityKey) {
         nextHandled[conversation.id] = activityKey;
@@ -144,24 +169,19 @@ export function reconcileInAppAgentActivity(params: {
       continue;
     }
 
-    const activityKey = getInAppAgentActivityKey(run);
-    const state = getActivityState({
-      status: run.status,
-      isHandled: receipts?.handled[conversation.id] === activityKey,
+    const entry = getActivityEntry({
+      run,
+      title: conversation.title,
+      isHandled:
+        receipts?.handled[conversation.id] === getInAppAgentActivityKey(run),
     });
 
-    if (!state) {
+    if (!entry) {
       continue;
     }
 
-    activityByConversationId.set(conversation.id, {
-      activityKey,
-      runId: run.id,
-      title: conversation.title,
-      state,
-    });
-
-    if (state !== "running") {
+    activityByConversationId.set(conversation.id, entry);
+    if (entry.needsAttention) {
       attentionCount += 1;
     }
   }
@@ -216,6 +236,7 @@ export function getInAppAgentPendingNotificationCards(params: {
 }> {
   return [...params.activityByConversationId.entries()].flatMap(
     ([conversationId, entry]) =>
+      !entry.needsAttention ||
       entry.state === "running" ||
       params.delivered?.delivered[conversationId] === entry.activityKey
         ? []

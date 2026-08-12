@@ -26,7 +26,7 @@ describe("InAppAgentActivityNotifications", () => {
     vi.useRealTimers();
   });
 
-  it("expires each result on its own timer and does not deliver capped cards", () => {
+  it("expires results and approvals on the same timer and does not deliver capped cards", () => {
     const onDelivered = vi.fn();
     const onOpenConversation = vi.fn();
 
@@ -35,9 +35,9 @@ describe("InAppAgentActivityNotifications", () => {
         notifications={[
           card({
             conversationId: "c1",
-            activityKey: "run-1:SUCCEEDED",
-            state: "done-unread",
-            title: "First",
+            activityKey: "run-1:AWAITING_APPROVAL",
+            state: "approval",
+            title: "Needs you",
           }),
         ]}
         onDelivered={onDelivered}
@@ -45,16 +45,16 @@ describe("InAppAgentActivityNotifications", () => {
       />,
     );
 
-    expect(screen.getByText("First")).toBeInTheDocument();
+    expect(screen.getByText("Needs you")).toBeInTheDocument();
 
     rerender(
       <InAppAgentActivityNotifications
         notifications={[
           card({
             conversationId: "c1",
-            activityKey: "run-1:SUCCEEDED",
-            state: "done-unread",
-            title: "First",
+            activityKey: "run-1:AWAITING_APPROVAL",
+            state: "approval",
+            title: "Needs you",
           }),
           card({
             conversationId: "c2",
@@ -80,7 +80,7 @@ describe("InAppAgentActivityNotifications", () => {
       />,
     );
 
-    expect(screen.getByText("First")).toBeInTheDocument();
+    expect(screen.getByText("Needs you")).toBeInTheDocument();
     expect(screen.queryByText("Fourth")).not.toBeInTheDocument();
 
     act(() => {
@@ -90,10 +90,10 @@ describe("InAppAgentActivityNotifications", () => {
     expect(onDelivered).toHaveBeenCalledWith([
       {
         conversationId: "c1",
-        activityKey: "run-1:SUCCEEDED",
+        activityKey: "run-1:AWAITING_APPROVAL",
       },
     ]);
-    expect(screen.queryByText("First")).not.toBeInTheDocument();
+    expect(screen.queryByText("Needs you")).not.toBeInTheDocument();
     expect(screen.getByText("Fourth")).toBeInTheDocument();
 
     act(() => {
@@ -105,7 +105,7 @@ describe("InAppAgentActivityNotifications", () => {
     );
     expect(deliveredKeys).toEqual(
       expect.arrayContaining([
-        "run-1:SUCCEEDED",
+        "run-1:AWAITING_APPROVAL",
         "run-2:SUCCEEDED",
         "run-3:SUCCEEDED",
         "run-4:SUCCEEDED",

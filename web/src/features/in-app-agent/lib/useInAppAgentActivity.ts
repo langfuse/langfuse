@@ -119,7 +119,7 @@ export function useInAppAgentActivity(params: {
       const entry = reconciled.activityByConversationId.get(
         visibleConversationId,
       );
-      if (entry && entry.state !== "approval") {
+      if (entry?.needsAttention) {
         markConversationHandled(visibleConversationId, entry.activityKey);
       }
     };
