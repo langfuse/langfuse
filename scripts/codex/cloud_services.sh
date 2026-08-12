@@ -115,8 +115,8 @@ ensure_postgres_binaries() {
     return 0
   fi
 
-  ensure_apt_package postgresql-17
-  ensure_apt_package postgresql-client-17
+  ensure_apt_package postgresql
+  ensure_apt_package postgresql-client
   stop_system_postgres_clusters
 }
 
@@ -448,7 +448,9 @@ ensure_clickhouse_running() {
 
   mkdir -p "$clickhouse_data"
   if id -u clickhouse >/dev/null 2>&1; then
-    run_privileged chown -R clickhouse:clickhouse "$clickhouse_root"
+    if [ "${CODEX_SKIP_CLOUD_INSTALL:-}" != "1" ]; then
+      run_privileged chown -R clickhouse:clickhouse "$clickhouse_root"
+    fi
     if [ "${EUID:-$(id -u)}" -eq 0 ]; then
       clickhouse_runner=(runuser -u clickhouse --)
     else
