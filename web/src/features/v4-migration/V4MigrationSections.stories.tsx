@@ -25,6 +25,7 @@ const makeSeries = (
   canonicalSdkName: "python",
   publicKey: "pk-lf-1234567890abcdef",
   count: 10,
+  eventsCount: 10,
   firstSeen: new Date(Date.now() - 72 * HOUR_MS).toISOString(),
   lastSeen: new Date(Date.now() - 19 * HOUR_MS).toISOString(),
   hasDelayedOtelEvents: null,

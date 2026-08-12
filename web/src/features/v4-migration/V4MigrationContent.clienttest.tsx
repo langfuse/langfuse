@@ -32,6 +32,7 @@ const makeSdkUsageSeries = (
   canonicalSdkName: "python",
   publicKey: "pk-lf-1234567890abcdef",
   count: 10,
+  eventsCount: 10,
   firstSeen: "2026-07-20T10:00:00Z",
   lastSeen: "2026-07-23T10:00:00Z",
   hasDelayedOtelEvents: null,
@@ -408,6 +409,32 @@ describe("V4MigrationDetailsContent", () => {
     );
     expect(
       screen.queryByText("Update OTel Instrumentation"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the key as plain text when an offender has no observation evidence", () => {
+    // A scores-only offender: detection counts score ingestions, but the
+    // events table has nothing for this key — a link would open an empty
+    // table, so the key must stay plain text (LFE-14859).
+    mocks.migrationData.sdk = {
+      status: "legacy",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({
+          sdkVersion: "2.60.3",
+          v4MigrationStatus: "upgrade_required",
+          eventsCount: 0,
+        }),
+      ],
+      upgradeRequiredCount: 1,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
+    expect(screen.getByText("pk-lf-123…abcdef")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "pk-lf-123…abcdef" }),
     ).not.toBeInTheDocument();
   });
 

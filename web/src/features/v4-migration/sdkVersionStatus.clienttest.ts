@@ -13,6 +13,7 @@ const sdkSeries = (
   canonicalSdkName: "python" as const,
   publicKey: "pk-lf-python",
   count: 1,
+  eventsCount: 1,
   firstSeen: "2026-07-23T09:00:00Z",
   lastSeen: "2026-07-23T10:00:00Z",
   hasDelayedOtelEvents: false,

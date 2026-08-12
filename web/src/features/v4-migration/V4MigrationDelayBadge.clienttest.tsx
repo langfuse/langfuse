@@ -15,6 +15,7 @@ const makeSdkUsageSeries = (
   canonicalSdkName: "python",
   publicKey: "pk-lf-1234567890abcdef",
   count: 10,
+  eventsCount: 10,
   firstSeen: "2026-07-20T10:00:00Z",
   lastSeen: "2026-07-23T10:00:00Z",
   hasDelayedOtelEvents: null,

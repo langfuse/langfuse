@@ -326,8 +326,10 @@ function SdkUsageSeriesRows({
               {/* Deep link to the exact evidence: the events table filtered by
                   this public key (plus SDK name/version when attributed) over
                   the same lookback window the detection used; see
-                  buildSdkUsageEvidenceFilter. */}
-              {projectId && usage.publicKey ? (
+                  buildSdkUsageEvidenceFilter. Scores-only offenders
+                  (eventsCount 0) stay plain text — the events table has
+                  nothing for them and a link would open an empty result. */}
+              {projectId && usage.publicKey && usage.eventsCount > 0 ? (
                 <Link
                   // The events page's `filter` param carries the semicolon
                   // filter encoding (column;type;key;operator;value), not the
