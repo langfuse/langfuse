@@ -36,6 +36,8 @@ function InAppAgentWindowStoryShell({
     <InAppAgentWindowShell
       floatingPanelHandle={floatingPanelHandle}
       isExpanded={isExpanded}
+      onClose={() => undefined}
+      open
       panelRef={panelRef}
     >
       {children}
