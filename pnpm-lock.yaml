@@ -61,6 +61,8 @@ overrides:
   '@anthropic-ai/vertex-sdk>@anthropic-ai/sdk': 0.104.1
   next-auth>nodemailer: ^9.0.3
 
+packageExtensionsChecksum: sha256-TX3lncad7qrcByckp22QdODd24iQTrIF/YrQJqHk2W8=
+
 patchedDependencies:
   '@radix-ui/react-roving-focus@1.1.11': fb2bc2e96ad2c31dcb5860e509374a512fa08b1fade5805e3ae2dc72dcd68a0b
   next-auth@4.24.15: 298683aaa31566643f1899990a065b342ad777d8613f50a25ddc44dd46fb5b4d
@@ -504,7 +506,7 @@ importers:
         version: 3.1074.0
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
-        version: 0.1.2(@opentelemetry/api@1.9.1)(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))
+        version: 0.1.2(@opentelemetry/api@1.9.1)(@trpc/server@11.13.4(typescript@7.0.2))
       '@codemirror/autocomplete':
         specifier: ^6.17.0
         version: 6.17.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.42.0)(@lezer/common@1.5.1)
@@ -567,7 +569,7 @@ importers:
         version: 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
       '@next-auth/prisma-adapter':
         specifier: ^1.0.7
-        version: 1.0.7(@prisma/client@6.19.3(@typescript/typescript6@6.0.2)(prisma@6.19.3(@typescript/typescript6@6.0.2)(magicast@0.5.2)))(next-auth@4.24.15(patch_hash=298683aaa31566643f1899990a065b342ad777d8613f50a25ddc44dd46fb5b4d)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@9.0.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
+        version: 1.0.7(@prisma/client@6.19.3(prisma@6.19.3(magicast@0.5.2)(typescript@7.0.2))(typescript@7.0.2))(next-auth@4.24.15(patch_hash=298683aaa31566643f1899990a065b342ad777d8613f50a25ddc44dd46fb5b4d)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@9.0.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -675,7 +677,7 @@ importers:
         version: 10.64.0(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(webpack@5.97.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.25))
       '@t3-oss/env-nextjs':
         specifier: ^0.11.1
-        version: 0.11.1(@typescript/typescript6@6.0.2)(zod@4.3.6)
+        version: 0.11.1(typescript@7.0.2)(zod@4.3.6)
       '@tanstack/react-query':
         specifier: ^5.85.1
         version: 5.85.1(react@19.2.4)
@@ -687,16 +689,19 @@ importers:
         version: 3.13.12(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@trpc/client':
         specifier: ^11.13.4
-        version: 11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)
+        version: 11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2)
       '@trpc/next':
         specifier: ^11.13.4
-        version: 11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2))(@trpc/react-query@11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2))(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)(react@19.2.4))(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2))(@trpc/react-query@11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2))(@trpc/server@11.13.4(typescript@7.0.2))(react@19.2.4)(typescript@7.0.2))(@trpc/server@11.13.4(typescript@7.0.2))(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@7.0.2)
       '@trpc/react-query':
         specifier: ^11.13.4
-        version: 11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2))(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)(react@19.2.4)
+        version: 11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2))(@trpc/server@11.13.4(typescript@7.0.2))(react@19.2.4)(typescript@7.0.2)
       '@trpc/server':
         specifier: ^11.13.4
-        version: 11.13.4(@typescript/typescript6@6.0.2)
+        version: 11.13.4(typescript@7.0.2)
+      '@typescript/typescript6':
+        specifier: ^6.0.2
+        version: 6.0.2
       '@uiw/codemirror-themes':
         specifier: ^4.23.7
         version: 4.23.7(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.42.0)
@@ -919,7 +924,7 @@ importers:
         version: 10.3.6(@vitest/browser-playwright@4.1.10)(@vitest/browser@4.1.10)(@vitest/runner@4.1.10)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vitest@4.1.10)
       '@storybook/nextjs-vite':
         specifier: 10.3.6
-        version: 10.3.6(@babel/core@7.29.6)(@typescript/typescript6@6.0.2)(esbuild@0.28.1)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rollup@4.60.2)(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(webpack@5.97.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.25))
+        version: 10.3.6(@babel/core@7.29.6)(esbuild@0.28.1)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rollup@4.60.2)(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(webpack@5.97.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.25))
       '@tailwindcss/forms':
         specifier: ^0.5.11
         version: 0.5.11(tailwindcss@4.2.2)
@@ -973,7 +978,7 @@ importers:
         version: 4.7.0(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
       '@vitest/browser-playwright':
         specifier: 4.1.10
-        version: 4.1.10(msw@2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2))(playwright@1.57.0)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)
+        version: 4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(playwright@1.57.0)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)
       dependency-cruiser:
         specifier: ^18.1.0
         version: 18.1.0
@@ -997,10 +1002,10 @@ importers:
         version: 1.0.1(eslint@10.8.0(jiti@2.7.0))
       eslint-plugin-storybook:
         specifier: 10.3.6
-        version: 10.3.6(@typescript/typescript6@6.0.2)(eslint@10.8.0(jiti@2.7.0))(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
+        version: 10.3.6(eslint@10.8.0(jiti@2.7.0))(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
       eslint-plugin-tailwindcss:
         specifier: 4.0.2
-        version: 4.0.2(@typescript/typescript6@6.0.2)(eslint@10.8.0(jiti@2.7.0))(tailwindcss@4.2.2)
+        version: 4.0.2(eslint@10.8.0(jiti@2.7.0))(tailwindcss@4.2.2)
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0
@@ -1029,17 +1034,17 @@ importers:
         specifier: ^4.20.5
         version: 4.20.5
       typescript:
-        specifier: 'catalog:'
-        version: '@typescript/typescript6@6.0.2'
+        specifier: ^7.0.2
+        version: 7.0.2
       vite:
         specifier: ^7.3.5
         version: 7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)
       vite-tsconfig-paths:
         specifier: ^6.1.1
-        version: 6.1.1(@typescript/typescript6@6.0.2)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
+        version: 6.1.1(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
       vitest:
         specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@26.1.0)(msw@2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@26.1.0)(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
       wait-for-expect:
         specifier: ^3.0.2
         version: 3.0.2
@@ -5384,11 +5389,7 @@ packages:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       storybook: ^10.3.6
-      typescript: '*'
       vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
 
   '@storybook/react-dom-shim@10.3.6':
     resolution: {integrity: sha512-/Tu1gPu+Fw+zOnAGmxRmOD30FX3a04LxcTAKflEtdpmtIMVR5bA3qpjy+f5YhoyDCecbXyKmL1OeIU2FIIZHqQ==}
@@ -7794,10 +7795,6 @@ packages:
     engines: {node: '>=20.19.0'}
     peerDependencies:
       tailwindcss: ^4.0.0
-      typescript: '*'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
 
   eslint-plugin-turbo@2.10.5:
     resolution: {integrity: sha512-4a1hbA04A4D5ZdSpzTAVn2JL0RqEOava+u6MJzxMoY5ckWfqdgcmJnez7a83gj4bUTomBqDP6vlb4Q7LqrfYaw==}
@@ -13180,10 +13177,10 @@ snapshots:
 
   '@balena/dockerignore@1.0.2': {}
 
-  '@baselime/trpc-opentelemetry-middleware@0.1.2(@opentelemetry/api@1.9.1)(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))':
+  '@baselime/trpc-opentelemetry-middleware@0.1.2(@opentelemetry/api@1.9.1)(@trpc/server@11.13.4(typescript@7.0.2))':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@trpc/server': 11.13.4(@typescript/typescript6@6.0.2)
+      '@trpc/server': 11.13.4(typescript@7.0.2)
       flat: 6.0.1
 
   '@bcoe/v8-coverage@1.0.2': {}
@@ -14698,9 +14695,9 @@ snapshots:
       '@tybys/wasm-util': 0.10.3
     optional: true
 
-  '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.19.3(@typescript/typescript6@6.0.2)(prisma@6.19.3(@typescript/typescript6@6.0.2)(magicast@0.5.2)))(next-auth@4.24.15(patch_hash=298683aaa31566643f1899990a065b342ad777d8613f50a25ddc44dd46fb5b4d)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@9.0.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))':
+  '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.19.3(prisma@6.19.3(magicast@0.5.2)(typescript@7.0.2))(typescript@7.0.2))(next-auth@4.24.15(patch_hash=298683aaa31566643f1899990a065b342ad777d8613f50a25ddc44dd46fb5b4d)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@9.0.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))':
     dependencies:
-      '@prisma/client': 6.19.3(@typescript/typescript6@6.0.2)(prisma@6.19.3(@typescript/typescript6@6.0.2)(magicast@0.5.2))
+      '@prisma/client': 6.19.3(prisma@6.19.3(magicast@0.5.2)(typescript@7.0.2))(typescript@7.0.2)
       next-auth: 4.24.15(patch_hash=298683aaa31566643f1899990a065b342ad777d8613f50a25ddc44dd46fb5b4d)(next@16.3.0(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@9.0.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
 
   '@next/env@16.0.0': {}
@@ -15384,6 +15381,11 @@ snapshots:
     optionalDependencies:
       prisma: 6.19.3(@typescript/typescript6@6.0.2)(magicast@0.5.2)
       typescript: '@typescript/typescript6@6.0.2'
+
+  '@prisma/client@6.19.3(prisma@6.19.3(magicast@0.5.2)(typescript@7.0.2))(typescript@7.0.2)':
+    optionalDependencies:
+      prisma: 6.19.3(magicast@0.5.2)(typescript@7.0.2)
+      typescript: 7.0.2
 
   '@prisma/config@6.19.3(magicast@0.5.2)':
     dependencies:
@@ -16872,10 +16874,10 @@ snapshots:
       '@storybook/icons': 2.0.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       storybook: 10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
     optionalDependencies:
-      '@vitest/browser': 4.1.10(msw@2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)
-      '@vitest/browser-playwright': 4.1.10(msw@2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2))(playwright@1.57.0)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)
+      '@vitest/browser': 4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)
+      '@vitest/browser-playwright': 4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(playwright@1.57.0)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)
       '@vitest/runner': 4.1.10
-      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@26.1.0)(msw@2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@26.1.0)(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
     transitivePeerDependencies:
       - react
       - react-dom
@@ -16908,7 +16910,7 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  '@storybook/nextjs-vite@10.3.6(@babel/core@7.29.6)(@typescript/typescript6@6.0.2)(esbuild@0.28.1)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rollup@4.60.2)(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(webpack@5.97.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.25))':
+  '@storybook/nextjs-vite@10.3.6(@babel/core@7.29.6)(esbuild@0.28.1)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rollup@4.60.2)(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(webpack@5.97.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.25))':
     dependencies:
       '@storybook/builder-vite': 10.3.6(esbuild@0.28.1)(rollup@4.60.2)(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(webpack@5.97.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.25))
       '@storybook/react': 10.3.6(@typescript/typescript6@6.0.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
@@ -16918,10 +16920,9 @@ snapshots:
       react-dom: 19.2.4(react@19.2.4)
       storybook: 10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       styled-jsx: 5.1.6(@babel/core@7.29.6)(react@19.2.4)
+      typescript: '@typescript/typescript6@6.0.2'
       vite: 7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)
       vite-plugin-storybook-nextjs: 3.2.4(@typescript/typescript6@6.0.2)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
-    optionalDependencies:
-      typescript: '@typescript/typescript6@6.0.2'
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
@@ -16976,18 +16977,18 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@t3-oss/env-core@0.11.1(@typescript/typescript6@6.0.2)(zod@4.3.6)':
+  '@t3-oss/env-core@0.11.1(typescript@7.0.2)(zod@4.3.6)':
     dependencies:
       zod: 4.3.6
     optionalDependencies:
-      typescript: '@typescript/typescript6@6.0.2'
+      typescript: 7.0.2
 
-  '@t3-oss/env-nextjs@0.11.1(@typescript/typescript6@6.0.2)(zod@4.3.6)':
+  '@t3-oss/env-nextjs@0.11.1(typescript@7.0.2)(zod@4.3.6)':
     dependencies:
-      '@t3-oss/env-core': 0.11.1(@typescript/typescript6@6.0.2)(zod@4.3.6)
+      '@t3-oss/env-core': 0.11.1(typescript@7.0.2)(zod@4.3.6)
       zod: 4.3.6
     optionalDependencies:
-      typescript: '@typescript/typescript6@6.0.2'
+      typescript: 7.0.2
 
   '@tabby_ai/hijri-converter@1.0.5': {}
 
@@ -17138,34 +17139,34 @@ snapshots:
 
   '@tootallnate/once@2.0.1': {}
 
-  '@trpc/client@11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)':
+  '@trpc/client@11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2)':
     dependencies:
-      '@trpc/server': 11.13.4(@typescript/typescript6@6.0.2)
-      typescript: '@typescript/typescript6@6.0.2'
+      '@trpc/server': 11.13.4(typescript@7.0.2)
+      typescript: 7.0.2
 
-  '@trpc/next@11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2))(@trpc/react-query@11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2))(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)(react@19.2.4))(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@trpc/next@11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2))(@trpc/react-query@11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2))(@trpc/server@11.13.4(typescript@7.0.2))(react@19.2.4)(typescript@7.0.2))(@trpc/server@11.13.4(typescript@7.0.2))(next@16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@7.0.2)':
     dependencies:
-      '@trpc/client': 11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)
-      '@trpc/server': 11.13.4(@typescript/typescript6@6.0.2)
+      '@trpc/client': 11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2)
+      '@trpc/server': 11.13.4(typescript@7.0.2)
       next: 16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-      typescript: '@typescript/typescript6@6.0.2'
+      typescript: 7.0.2
     optionalDependencies:
       '@tanstack/react-query': 5.85.1(react@19.2.4)
-      '@trpc/react-query': 11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2))(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)(react@19.2.4)
+      '@trpc/react-query': 11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2))(@trpc/server@11.13.4(typescript@7.0.2))(react@19.2.4)(typescript@7.0.2)
 
-  '@trpc/react-query@11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2))(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)(react@19.2.4)':
+  '@trpc/react-query@11.13.4(@tanstack/react-query@5.85.1(react@19.2.4))(@trpc/client@11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2))(@trpc/server@11.13.4(typescript@7.0.2))(react@19.2.4)(typescript@7.0.2)':
     dependencies:
       '@tanstack/react-query': 5.85.1(react@19.2.4)
-      '@trpc/client': 11.13.4(@trpc/server@11.13.4(@typescript/typescript6@6.0.2))(@typescript/typescript6@6.0.2)
-      '@trpc/server': 11.13.4(@typescript/typescript6@6.0.2)
+      '@trpc/client': 11.13.4(@trpc/server@11.13.4(typescript@7.0.2))(typescript@7.0.2)
+      '@trpc/server': 11.13.4(typescript@7.0.2)
       react: 19.2.4
-      typescript: '@typescript/typescript6@6.0.2'
+      typescript: 7.0.2
 
-  '@trpc/server@11.13.4(@typescript/typescript6@6.0.2)':
+  '@trpc/server@11.13.4(typescript@7.0.2)':
     dependencies:
-      typescript: '@typescript/typescript6@6.0.2'
+      typescript: 7.0.2
 
   '@turbo/darwin-64@2.10.5':
     optional: true
@@ -17832,6 +17833,20 @@ snapshots:
       - msw
       - utf-8-validate
       - vite
+    optional: true
+
+  '@vitest/browser-playwright@4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(playwright@1.57.0)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)':
+    dependencies:
+      '@vitest/browser': 4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)
+      '@vitest/mocker': 4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
+      playwright: 1.57.0
+      tinyrainbow: 3.1.0
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@26.1.0)(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
 
   '@vitest/browser@4.1.10(msw@2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)':
     dependencies:
@@ -17843,6 +17858,24 @@ snapshots:
       sirv: 3.0.2
       tinyrainbow: 3.1.0
       vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@26.1.0)(msw@2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
+      ws: 8.21.1
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
+    optional: true
+
+  '@vitest/browser@4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)':
+    dependencies:
+      '@blazediff/core': 1.9.1
+      '@vitest/mocker': 4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
+      '@vitest/utils': 4.1.10
+      magic-string: 0.30.21
+      pngjs: 7.0.0
+      sirv: 3.0.2
+      tinyrainbow: 3.1.0
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@26.1.0)(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
       ws: 8.21.1
     transitivePeerDependencies:
       - bufferutil
@@ -17890,6 +17923,15 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       msw: 2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2)
+      vite: 7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)
+
+  '@vitest/mocker@4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))':
+    dependencies:
+      '@vitest/spy': 4.1.10
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      msw: 2.6.5(@types/node@24.3.0)(typescript@7.0.2)
       vite: 7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)
 
   '@vitest/pretty-format@3.2.4':
@@ -19575,16 +19617,16 @@ snapshots:
       string.prototype.matchall: 4.0.12
       string.prototype.repeat: 1.0.0
 
-  eslint-plugin-storybook@10.3.6(@typescript/typescript6@6.0.2)(eslint@10.8.0(jiti@2.7.0))(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)):
+  eslint-plugin-storybook@10.3.6(eslint@10.8.0(jiti@2.7.0))(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)):
     dependencies:
       '@typescript-eslint/utils': 8.65.0(@typescript/typescript6@6.0.2)(eslint@10.8.0(jiti@2.7.0))
       eslint: 10.8.0(jiti@2.7.0)
       storybook: 10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      typescript: '@typescript/typescript6@6.0.2'
     transitivePeerDependencies:
       - supports-color
-      - typescript
 
-  eslint-plugin-tailwindcss@4.0.2(@typescript/typescript6@6.0.2)(eslint@10.8.0(jiti@2.7.0))(tailwindcss@4.2.2):
+  eslint-plugin-tailwindcss@4.0.2(eslint@10.8.0(jiti@2.7.0))(tailwindcss@4.2.2):
     dependencies:
       '@typescript-eslint/utils': 8.65.0(@typescript/typescript6@6.0.2)(eslint@10.8.0(jiti@2.7.0))
       postcss: 8.5.25
@@ -19592,7 +19634,6 @@ snapshots:
       synckit: 0.11.13
       tailwind-api-utils: 1.0.3(tailwindcss@4.2.2)
       tailwindcss: 4.2.2
-    optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
     transitivePeerDependencies:
       - eslint
@@ -21682,6 +21723,32 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
+  msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2):
+    dependencies:
+      '@bundled-es-modules/cookie': 2.0.1
+      '@bundled-es-modules/statuses': 1.0.1
+      '@bundled-es-modules/tough-cookie': 0.1.6
+      '@inquirer/confirm': 5.1.21(@types/node@24.3.0)
+      '@mswjs/interceptors': 0.37.1
+      '@open-draft/deferred-promise': 2.2.0
+      '@open-draft/until': 2.1.0
+      '@types/cookie': 0.6.0
+      '@types/statuses': 2.0.5
+      chalk: 4.1.2
+      graphql: 16.13.2
+      headers-polyfill: 4.0.3
+      is-node-process: 1.2.0
+      outvariant: 1.4.3
+      path-to-regexp: 6.3.0
+      strict-event-emitter: 0.5.1
+      type-fest: 4.27.0
+      yargs: 17.7.2
+    optionalDependencies:
+      typescript: 7.0.2
+    transitivePeerDependencies:
+      - '@types/node'
+    optional: true
+
   mustache@4.2.0: {}
 
   mute-stream@2.0.0: {}
@@ -22399,6 +22466,16 @@ snapshots:
       typescript: '@typescript/typescript6@6.0.2'
     transitivePeerDependencies:
       - magicast
+
+  prisma@6.19.3(magicast@0.5.2)(typescript@7.0.2):
+    dependencies:
+      '@prisma/config': 6.19.3(magicast@0.5.2)
+      '@prisma/engines': 6.19.3
+    optionalDependencies:
+      typescript: 7.0.2
+    transitivePeerDependencies:
+      - magicast
+    optional: true
 
   prismjs@1.30.0: {}
 
@@ -24050,15 +24127,15 @@ snapshots:
       - supports-color
       - typescript
 
-  vite-tsconfig-paths@6.1.1(@typescript/typescript6@6.0.2)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)):
+  vite-tsconfig-paths@6.1.1(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)):
     dependencies:
       debug: 4.4.3
       globrex: 0.1.2
       tsconfck: 3.1.6(@typescript/typescript6@6.0.2)
+      typescript: '@typescript/typescript6@6.0.2'
       vite: 7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)
     transitivePeerDependencies:
       - supports-color
-      - typescript
 
   vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0):
     dependencies:
@@ -24103,6 +24180,37 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@types/node': 24.3.0
       '@vitest/browser-playwright': 4.1.10(msw@2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2))(playwright@1.57.0)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)
+      '@vitest/coverage-v8': 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
+      jsdom: 26.1.0
+    transitivePeerDependencies:
+      - msw
+
+  vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@26.1.0)(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)):
+    dependencies:
+      '@vitest/expect': 4.1.10
+      '@vitest/mocker': 4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
+      '@vitest/pretty-format': 4.1.10
+      '@vitest/runner': 4.1.10
+      '@vitest/snapshot': 4.1.10
+      '@vitest/spy': 4.1.10
+      '@vitest/utils': 4.1.10
+      es-module-lexer: 2.3.0
+      expect-type: 1.3.0
+      magic-string: 0.30.21
+      obug: 2.1.1
+      pathe: 2.0.3
+      picomatch: 4.0.5
+      std-env: 4.0.0
+      tinybench: 2.9.0
+      tinyexec: 1.1.2
+      tinyglobby: 0.2.17
+      tinyrainbow: 3.1.0
+      vite: 7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      '@types/node': 24.3.0
+      '@vitest/browser-playwright': 4.1.10(msw@2.6.5(@types/node@24.3.0)(typescript@7.0.2))(playwright@1.57.0)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))(vitest@4.1.10)
       '@vitest/coverage-v8': 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
       jsdom: 26.1.0
     transitivePeerDependencies:
