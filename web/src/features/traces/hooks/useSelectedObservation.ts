@@ -51,6 +51,14 @@ export function useSelectedObservation({
   // Otherwise derived from the id alone, never from a nodeMap hit: past the cap
   // the lookup misses, and reading that as "the trace is selected" is the bug
   // this hook fixes.
+  //
+  // The id shape stays the tiebreaker for an id NOT in the list, which trades
+  // two edge cases against each other: a v3-dialect URL (`observation=trace-<id>`)
+  // opened against a v4 trace, which has no TRACE node to match, still resolves
+  // to the trace — at the price of an observation deliberately NAMED
+  // `trace-<its own trace id>` and sitting past the cap showing the trace
+  // instead. Cross-dialect links are a real, documented case
+  // (resolvePeekTraceParams); that naming collision is not.
   const observationId =
     !selectedNodeId || (!loadedRow && selectedNodeId === traceNodeId(traceId))
       ? null
