@@ -137,8 +137,16 @@ const UNPRICED_USAGE: Record<string, number> = {
   total: 1113,
 };
 
-const modelId = (ctx: ScenarioContext, key: string) =>
-  `model-${ctx.idPrefix}-${key}`;
+/**
+ * A model's identity in Postgres is `(projectId, modelName, startDate, unit)`,
+ * not an id we derive — so the derived id carries the project rather than
+ * `--id-prefix`. With the prefix in it, seeding a second project would have
+ * reassigned the first project's model row (orphaning its generations), and a
+ * second prefix in one project would have hit the unique constraint instead of
+ * resetting. Traces and observations still key off the prefix.
+ */
+const derivedModelId = (ctx: ScenarioContext, key: string) =>
+  `model-${ctx.projectId}-${key}`;
 
 const costFor = (
   usage: Record<string, number>,
@@ -155,9 +163,15 @@ const costFor = (
   };
 };
 
-/** Re-seeding resets a model: tiers (and their prices) are replaced wholesale. */
-const writeModel = async (ctx: ScenarioContext, model: ModelDef) => {
-  const id = modelId(ctx, model.key);
+/**
+ * Re-seeding resets a model: tiers (and the prices that cascade from them) are
+ * replaced wholesale, in one transaction so an interrupted run cannot leave a
+ * model priced by nothing. Returns the id the row actually has.
+ */
+const writeModel = async (
+  ctx: ScenarioContext,
+  model: ModelDef,
+): Promise<string> => {
   const modelRow = {
     projectId: ctx.projectId,
     modelName: model.modelName,
@@ -168,37 +182,48 @@ const writeModel = async (ctx: ScenarioContext, model: ModelDef) => {
     startDate: new Date("2010-01-01"),
     unit: "TOKENS",
   };
-  await prisma.model.upsert({
-    where: { id },
-    create: { id, ...modelRow },
-    update: modelRow,
+  // Whatever row already owns this name in this project wins, so a re-run
+  // resets it instead of colliding with the constraint.
+  const existing = await prisma.model.findFirst({
+    where: { projectId: ctx.projectId, modelName: model.modelName },
+    select: { id: true },
   });
-  await prisma.pricingTier.deleteMany({ where: { modelId: id } });
-  await prisma.price.deleteMany({ where: { modelId: id } });
+  const id = existing?.id ?? derivedModelId(ctx, model.key);
 
-  for (const tier of model.tiers) {
-    const tierId = `tier-${ctx.idPrefix}-${model.key}-${tier.priority}`;
-    await prisma.pricingTier.create({
-      data: {
-        id: tierId,
-        modelId: id,
-        name: tier.name,
-        isDefault: tier.isDefault,
-        priority: tier.priority,
-        conditions: tier.conditions,
-      },
+  return prisma.$transaction(async (tx) => {
+    await tx.model.upsert({
+      where: { id },
+      create: { id, ...modelRow },
+      update: modelRow,
     });
-    await prisma.price.createMany({
-      data: Object.entries(tier.prices).map(([usageType, price]) => ({
-        id: `price-${tierId}-${usageType}`,
-        modelId: id,
-        projectId: ctx.projectId,
-        pricingTierId: tierId,
-        usageType,
-        price,
-      })),
-    });
-  }
+    // Prices cascade from their tier, so deleting tiers clears both.
+    await tx.pricingTier.deleteMany({ where: { modelId: id } });
+
+    for (const tier of model.tiers) {
+      const tierId = `tier-${id}-${tier.priority}`;
+      await tx.pricingTier.create({
+        data: {
+          id: tierId,
+          modelId: id,
+          name: tier.name,
+          isDefault: tier.isDefault,
+          priority: tier.priority,
+          conditions: tier.conditions,
+        },
+      });
+      await tx.price.createMany({
+        data: Object.entries(tier.prices).map(([usageType, price]) => ({
+          id: `price-${tierId}-${usageType}`,
+          modelId: id,
+          projectId: ctx.projectId,
+          pricingTierId: tierId,
+          usageType,
+          price,
+        })),
+      });
+    }
+    return id;
+  });
 };
 
 const run = async (
@@ -221,11 +246,10 @@ const run = async (
   ];
 
   const modelsSettingsLink = `${ctx.baseUrl}/project/${ctx.projectId}/settings/models`;
-  const links = [
+  const linksFor = (ids: string[]) => [
     traceLink(ctx, traceId, traceTimestamp),
-    ...MODELS.map(
-      (model) =>
-        `${ctx.baseUrl}/project/${ctx.projectId}/settings/models/${modelId(ctx, model.key)}`,
+    ...ids.map(
+      (id) => `${ctx.baseUrl}/project/${ctx.projectId}/settings/models/${id}`,
     ),
     modelsSettingsLink,
   ];
@@ -252,15 +276,16 @@ const run = async (
         events: withV4 ? generationPlan.length + 1 : 0,
       },
       verified: {},
-      links,
+      links: linksFor(MODELS.map((model) => derivedModelId(ctx, model.key))),
       dryRun: true,
       durationMs: Date.now() - startedAt,
     };
   }
 
   ctx.log(`writing ${MODELS.length} model definitions to postgres`);
+  const writtenModelIds = new Map<string, string>();
   for (const model of MODELS) {
-    await writeModel(ctx, model);
+    writtenModelIds.set(model.key, await writeModel(ctx, model));
   }
 
   const trace: TraceRecordInsertType = createTrace({
@@ -288,6 +313,7 @@ const run = async (
         traceTimestamp + index * 1200 + jitter(ctx.seed, index, 200);
       const usage = model ? model.usage : UNPRICED_USAGE;
       const defaultPrices = model?.tiers.find((tier) => tier.isDefault)?.prices;
+      const costs = defaultPrices ? costFor(usage, defaultPrices) : null;
 
       return createObservation({
         id: `${traceId}-o${suffix}`,
@@ -305,12 +331,14 @@ const run = async (
         input: JSON.stringify({ prompt: "Summarise the call." }),
         output: "The caller asked about pricing.",
         provided_model_name: model ? model.modelName : UNPRICED_MODEL_NAME,
-        internal_model_id: model ? modelId(ctx, model.key) : null,
+        internal_model_id: model
+          ? (writtenModelIds.get(model.key) ?? null)
+          : null,
         provided_usage_details: usage,
         usage_details: usage,
         provided_cost_details: {},
-        cost_details: defaultPrices ? costFor(usage, defaultPrices) : {},
-        total_cost: defaultPrices ? costFor(usage, defaultPrices).total : null,
+        cost_details: costs ?? {},
+        total_cost: costs?.total ?? null,
         model_parameters: JSON.stringify({ temperature: 0.2 }),
         prompt_id: null,
         prompt_name: null,
@@ -340,7 +368,7 @@ const run = async (
     await createEventsCh(batch);
   }
 
-  const modelIds = MODELS.map((model) => modelId(ctx, model.key));
+  const modelIds = [...writtenModelIds.values()];
   const verified: Record<string, number> = {
     models: await prisma.model.count({ where: { id: { in: modelIds } } }),
     pricingTiers: await prisma.pricingTier.count({
@@ -375,10 +403,19 @@ const run = async (
       model.tiers.reduce((n, tier) => n + Object.keys(tier.prices).length, 0),
     0,
   );
+  const expectedTiers = MODELS.reduce((sum, m) => sum + m.tiers.length, 0);
   if (verified.models < MODELS.length || verified.prices < expectedPrices) {
     throw new SeedError(
       `Readback mismatch: expected ${MODELS.length} models and ${expectedPrices} prices, found ${verified.models} and ${verified.prices}`,
     );
+  }
+  if (verified.pricingTiers < expectedTiers) {
+    throw new SeedError(
+      `Readback mismatch: expected ${expectedTiers} pricing tiers, found ${verified.pricingTiers}`,
+    );
+  }
+  if (verified.traces < 1) {
+    throw new SeedError("Readback mismatch: the trace row did not land");
   }
   if (verified.observations < observations.length) {
     throw new SeedError(
@@ -408,7 +445,7 @@ const run = async (
       events: events.length,
     },
     verified,
-    links,
+    links: linksFor(modelIds),
     dryRun: false,
     durationMs: Date.now() - startedAt,
   };
