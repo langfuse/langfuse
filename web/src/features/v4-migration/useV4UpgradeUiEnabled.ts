@@ -20,10 +20,6 @@ export function useV4UpgradeUiFlag(): boolean {
  */
 export function useV4UpgradeUiEnabled(projectId?: string): boolean {
   const flag = useV4UpgradeUiFlag();
-  // Suppress the migration UI for forced-v3 projects. Pass the project id from
-  // project-scoped surfaces; org-level surfaces omit it (no project to
-  // suppress) and get the raw flag. The query only fires when the flag is on,
-  // so non-flagged users trigger no request.
   const forceV3 = useForceV3Experience(projectId, { enabled: flag });
 
   return flag && !forceV3;

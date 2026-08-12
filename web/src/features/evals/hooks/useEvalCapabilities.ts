@@ -60,8 +60,7 @@ export function useEvalCapabilities(
   // (create and update trace/dataset evaluators), regardless of write mode.
   const forceV3 = useForceV3Experience(projectId);
 
-  // Whether a *new* config may use the legacy experience. Shares the exact
-  // decision with the server create-gate so the UI and API cannot diverge.
+  // Whether a *new* config may use the legacy experience.
   const modeAllowsNewLegacy = isNewLegacyEvalAllowed({
     v4WriteMode,
     isLangfuseCloud,
