@@ -56,6 +56,7 @@ import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
+import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
@@ -241,26 +242,44 @@ export default function TracesTable({
     order: "DESC",
   });
 
-  const dateRangeFilter: FilterState = dateRange
-    ? [
-        {
-          column: "timestamp",
-          type: "datetime",
-          operator: ">=",
-          value: dateRange.from,
-        },
-        ...(dateRange.to
-          ? [
-              {
-                column: "timestamp",
-                type: "datetime",
-                operator: "<=",
-                value: dateRange.to,
-              } as const,
-            ]
-          : []),
-      ]
-    : [];
+  const toTimestampFilter = (range: TableDateRange | undefined): FilterState =>
+    range
+      ? [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: range.from,
+          },
+          ...(range.to
+            ? [
+                {
+                  column: "timestamp",
+                  type: "datetime",
+                  operator: "<=",
+                  value: range.to,
+                } as const,
+              ]
+            : []),
+        ]
+      : [];
+
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
+  });
+  const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
+
+  // Facets describe the whole window; only the paged row/count queries need the
+  // upper bound pinned, so that offset paging does not repeat or skip rows while
+  // the window keeps taking in newly ingested ones.
+  const dateRangeFilter: FilterState = toTimestampFilter(dateRange);
+  const { range: rowsDateRange, pinOnLeavingFirstPage } =
+    usePaginationWindowPin(
+      dateRange,
+      limitRows ? 0 : paginationState.pageIndex,
+    );
+  const rowsDateRangeFilter: FilterState = toTimestampFilter(rowsDateRange);
   const userIdFilter: FilterState = userId
     ? [
         {
@@ -399,7 +418,7 @@ export default function TracesTable({
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
-    dateRangeFilter,
+    rowsDateRangeFilter,
   );
 
   // Use external filter state if provided, otherwise use combined filter
@@ -407,14 +426,8 @@ export default function TracesTable({
   // callers that pass an externalDateRange (e.g. the eval preview's "last 24
   // hours" window) have it honored for the row query, not just score columns.
   const filterState = externalFilterState
-    ? externalFilterState.concat(dateRangeFilter)
+    ? externalFilterState.concat(rowsDateRangeFilter)
     : combinedFilterState;
-
-  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
-    page: "pageIndex",
-    limit: "pageSize",
-  });
-  const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
@@ -1583,7 +1596,20 @@ export default function TracesTable({
                   : {
                       totalCount,
                       isTotalCountLoading: totalCountQuery.isPending,
-                      onChange: setPaginationState,
+                      onChange: (updater) => {
+                        const next =
+                          typeof updater === "function"
+                            ? updater(paginationState)
+                            : updater;
+                        // Leaving page 1 freezes the paged set at the newest row
+                        // still on screen, so page 2 continues where this page
+                        // ends even if rows keep arriving.
+                        pinOnLeavingFirstPage(
+                          next.pageIndex,
+                          rows[0]?.timestamp,
+                        );
+                        setPaginationState(next);
+                      },
                       state: paginationState,
                     }
               }

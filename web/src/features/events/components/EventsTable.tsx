@@ -56,6 +56,7 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
+import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
 import {
   type TableDateRange,
   TABLE_AGGREGATION_OPTIONS,
@@ -481,7 +482,12 @@ export default function ObservationsEventsTable({
     persistAsDefault: false,
   });
 
-  const dateRangeFilter: FilterState = toStartTimeFilterState(dateRange);
+  // Facets describe the whole window (see facetStartTimeFilter below); the paged
+  // row/count queries take the pinned upper bound instead, so offset paging does
+  // not repeat or skip rows while the window keeps taking in newly ingested ones.
+  const { range: rowsDateRange, pinOnLeavingFirstPage } =
+    usePaginationWindowPin(dateRange, limitRows ? 0 : paginationState.page - 1);
+  const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({
     enabled: enableAppRootDefault,
@@ -2322,6 +2328,13 @@ export default function ObservationsEventsTable({
                                   pageSize: paginationState.limit,
                                 })
                               : updater;
+                          // Leaving page 1 freezes the paged set at the newest
+                          // row still on screen, so page 2 continues where this
+                          // page ends even if rows keep arriving.
+                          pinOnLeavingFirstPage(
+                            newState.pageIndex,
+                            rows[0]?.startTime ?? undefined,
+                          );
                           setPaginationState({
                             page: newState.pageIndex + 1,
                             limit: newState.pageSize,
