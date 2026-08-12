@@ -42,7 +42,12 @@ export function useEvalCapabilities(
   const isOtel = sdkVersionInfo.data?.isOtel ?? false;
 
   // Get eval counts including legacy eval count
-  const evalCounts = api.evals.counts.useQuery({ projectId });
+  const evalCounts = api.evals.counts.useQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+    },
+  );
   const hasLegacyEvals = (evalCounts.data?.legacyConfigCount ?? 0) > 0;
 
   // The legacy eval experience depends on whether the deployment still writes

@@ -963,8 +963,8 @@ export const getScoresGroupedByNameSourceType = async ({
       s.data_type as data_type
     FROM scores s
     ${performDatasetRunItemsJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
-    ${hasEventsFilters ? `ANY JOIN experiment_events e ON s.trace_id = e.trace_id AND s.project_id = e.project_id` : ""}
     WHERE s.project_id = {projectId: String}
+    ${hasEventsFilters ? `AND (s.project_id, s.trace_id) IN (SELECT project_id, trace_id FROM experiment_events)` : ""}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
     ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
     ${toTimestamp ? `AND s.timestamp <= {toTimestamp: DateTime64(3)}` : ""}
@@ -2143,9 +2143,11 @@ export const getAggregatedScoresForPromptsFromEvents = async (
 export const getScoreCountsByProjectInCreationInterval = async ({
   start,
   end,
+  projectId,
 }: {
   start: Date;
   end: Date;
+  projectId?: string;
 }) => {
   const query = `
     SELECT
@@ -2154,6 +2156,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     FROM scores
     WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
+    ${projectId ? "AND project_id = {projectId: String}" : ""}
     AND data_type IN ({dataTypes: Array(String)})
     GROUP BY project_id
   `;
@@ -2164,6 +2167,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
       dataTypes: LISTABLE_SCORE_TYPES,
+      ...(projectId ? { projectId } : {}),
     },
     clickhouseConfigs: {
       request_timeout: 300000, // 5 minutes timeout

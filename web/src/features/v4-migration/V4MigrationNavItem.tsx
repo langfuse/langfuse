@@ -47,7 +47,10 @@ export function V4MigrationNavItem() {
     }
     setTimeout(() => {
       // push to next tick to avoid flickering when hiding sidebar on mobile
-      openMigrationPanel({ id: project.id, name: project.name });
+      openMigrationPanel(
+        { id: project.id, name: project.name },
+        "sidebar_card",
+      );
     }, 1);
   };
 

@@ -30,7 +30,7 @@ export function V4MigrationProjectChip({
 
   const handleClick = () => {
     capture("v4_migration:project_chip_clicked");
-    openMigrationPanel(project);
+    openMigrationPanel(project, "project_chip");
   };
 
   return (

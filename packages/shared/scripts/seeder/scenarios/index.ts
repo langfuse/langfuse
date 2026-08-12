@@ -1,5 +1,6 @@
 import { agentTimelineScenario } from "./agent-timeline";
 import { annotationQueueScenario } from "./annotation-queue";
+import { customModelsScenario } from "./custom-models";
 import { deepChainScenario } from "./deep-chain";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
@@ -23,6 +24,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "scored-traces": scoredTracesScenario,
   "session-shapes": sessionShapesScenario,
   "annotation-queue": annotationQueueScenario,
+  "custom-models": customModelsScenario,
   "support-agent": supportAgentScenario,
 };
 
