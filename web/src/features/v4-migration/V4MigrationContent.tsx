@@ -364,11 +364,13 @@ function SdkUsageSeriesRows({
                     buildSdkUsageEvidenceFilter(usage),
                   )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`}
                   onClick={() => {
-                    // sdkName is an SDK product identifier, not user content.
+                    // Bounded values only: raw sdkName/sdkVersion are
+                    // client-supplied ingestion headers (user-controlled,
+                    // unbounded cardinality) and must not reach PostHog.
                     capture("v4_migration:evidence_link_clicked", {
                       section: analyticsSection,
-                      sdkName: usage.sdkName,
-                      sdkVersion: usage.sdkVersion,
+                      sdkName: usage.canonicalSdkName ?? "other",
+                      v4MigrationStatus: usage.v4MigrationStatus,
                       attributionStatus: usage.attributionStatus,
                     });
                     onNavigate?.();

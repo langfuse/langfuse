@@ -512,12 +512,14 @@ describe("V4MigrationDetailsContent", () => {
     );
 
     fireEvent.click(screen.getByRole("link", { name: "pk-lf-123…abcdef" }));
+    // Only bounded values: the canonical SDK enum and status enums — never
+    // the raw client-supplied sdkName/sdkVersion header strings.
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:evidence_link_clicked",
       {
         section: "sdk",
         sdkName: "python",
-        sdkVersion: "2.60.3",
+        v4MigrationStatus: "upgrade_required",
         attributionStatus: "attributed",
       },
     );
