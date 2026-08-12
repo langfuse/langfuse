@@ -70,6 +70,7 @@ describe("extractObservationVariables", () => {
     trace_name: "my-trace",
     user_id: "user-abc",
     session_id: "session-xyz",
+    is_app_root: false,
     tags: ["tag1", "tag2"],
     release: "v2.0.0",
 

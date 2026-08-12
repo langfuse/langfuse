@@ -882,7 +882,7 @@ const buildQualificationPlan = (
 
   const allExperimentIds = [
     ...(baseExperimentId ? [baseExperimentId] : []),
-    ...(isBaselineEnforced ? filteredCompExperimentIds : compExperimentIds),
+    ...compExperimentIds,
   ];
 
   const compiledFiltersByExperiment = allExperimentIds.map((experimentId) =>

@@ -8,8 +8,14 @@ import { StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import {
+  getFeaturePreviewOptOutFlag,
+  receivesFeaturePreviewsByDefault,
+} from "@/src/features/feature-flags/utils";
+import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -101,9 +107,7 @@ export const userAccountRouter = createTRPCRouter({
       z.object({
         // Allowlist of user-toggleable Feature Preview flags (the Feature
         // Preview modal). Keep in sync with the modal's preview registry.
-        // `modernSession` is the active preview. `searchBar` is retired — the
-        // bar is now GA on v4 events tables — but remains as rollback plumbing.
-        flag: z.enum(["modernSession", "searchBar"]),
+        flag: z.enum(featurePreviewFlags),
         enabled: z.boolean(),
       }),
     )
@@ -117,8 +121,7 @@ export const userAccountRouter = createTRPCRouter({
       if (input.enabled && !canEnableFeaturePreviews) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message:
-            "Feature previews require Fast (Preview) on self-hosted deployments.",
+          message: `Feature previews require ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
         });
       }
 
@@ -130,7 +133,7 @@ export const userAccountRouter = createTRPCRouter({
         async (tx) => {
           const currentUser = await tx.user.findUnique({
             where: { id: userId },
-            select: { featureFlags: true },
+            select: { featureFlags: true, email: true },
           });
           if (!currentUser) {
             throw new TRPCError({
@@ -138,9 +141,15 @@ export const userAccountRouter = createTRPCRouter({
               message: "User not found",
             });
           }
+          const optOutFlag = getFeaturePreviewOptOutFlag(input.flag);
+          const featureFlagsWithoutOverride = currentUser.featureFlags.filter(
+            (flag) => flag !== input.flag && flag !== optOutFlag,
+          );
           const nextFeatureFlags = input.enabled
-            ? Array.from(new Set([...currentUser.featureFlags, input.flag]))
-            : currentUser.featureFlags.filter((flag) => flag !== input.flag);
+            ? [...featureFlagsWithoutOverride, input.flag]
+            : receivesFeaturePreviewsByDefault(currentUser.email)
+              ? [...featureFlagsWithoutOverride, optOutFlag]
+              : featureFlagsWithoutOverride;
           await tx.user.update({
             where: { id: userId },
             data: { featureFlags: { set: nextFeatureFlags } },

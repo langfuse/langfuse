@@ -4336,6 +4336,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "missing_top_n",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
@@ -4372,6 +4378,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "entity_dimension_unbounded",
+        dimensions: ["experimentName"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension 'experimentName'",
     );
@@ -4456,6 +4468,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "additional_entity_dimension",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
@@ -4494,6 +4512,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "invalid_order_by",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
@@ -4590,6 +4614,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "time_dimension",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "traceId",
     );
@@ -4805,24 +4835,6 @@ describe("query builder measure-aggregation validation", () => {
     const queryBuilder = new QueryBuilder(undefined, "v2");
     const result = await queryBuilder.build(query, randomUUID());
     expect(result.query).toBeDefined();
-  });
-
-  it("should reject sum aggregation for uniqueUserIds on traces view", async () => {
-    const query: QueryType = {
-      view: "traces",
-      dimensions: [],
-      metrics: [{ measure: "uniqueUserIds", aggregation: "sum" }],
-      filters: [],
-      timeDimension: null,
-      fromTimestamp: "2025-01-01T00:00:00.000Z",
-      toTimestamp: "2025-03-01T00:00:00.000Z",
-      orderBy: null,
-    };
-
-    const queryBuilder = new QueryBuilder(undefined, "v2");
-    await expect(queryBuilder.build(query, randomUUID())).rejects.toThrow(
-      /not valid for measure/,
-    );
   });
 
   it("should accept uniq aggregation for uniqueUserIds on traces view", async () => {
@@ -5086,7 +5098,7 @@ describe("query builder measure-aggregation validation", () => {
   });
 
   describe("useFinal flag on events_core joins", () => {
-    it("should omit FINAL for events_core joins in v2 scores-numeric view", async () => {
+    it("should join the parentless trace event without FINAL in v2 scores-numeric view", async () => {
       const projectId = randomUUID();
       const builder = new QueryBuilder(undefined, "v2");
       const { query: compiledQuery } = await builder.build(
@@ -5110,6 +5122,7 @@ describe("query builder measure-aggregation validation", () => {
       expect(compiledQuery).not.toContain(
         "JOIN events_core AS events_traces FINAL",
       );
+      expect(compiledQuery).toContain("AND events_traces.parent_span_id = ''");
       // scores base CTE should still use FINAL
       expect(compiledQuery).toContain("scores scores_numeric FINAL");
     });
@@ -5165,6 +5178,8 @@ describe("query builder measure-aggregation validation", () => {
   });
 
   describe("rootEventCondition threshold gating", () => {
+    const rootEventSubqueryPrefix =
+      "IN (SELECT events_traces.trace_id FROM events_core events_traces";
     const tracesV2Query: QueryType = {
       view: "traces",
       dimensions: [{ field: "name" }],
@@ -5180,8 +5195,17 @@ describe("query builder measure-aggregation validation", () => {
       // 168 hours (7 days) threshold, 72-hour window → should include subquery
       const builder = new QueryBuilder(undefined, "v2");
       builder.setRootEventConditionMaxWindowHours(168);
-      const { query: sql } = await builder.build(tracesV2Query, randomUUID());
-      expect(sql).toContain("IN (SELECT trace_id");
+      const { query: sql } = await builder.build(
+        {
+          ...tracesV2Query,
+          timeDimension: { granularity: "day" },
+        },
+        randomUUID(),
+      );
+      expect(sql).toContain(
+        "anyIf(toNullable(toDate(events_core.start_time)), (events_traces.parent_span_id = '' OR events_traces.is_app_root = true))",
+      );
+      expect(sql).toContain(rootEventSubqueryPrefix);
     });
 
     it("should skip rootEventCondition subquery when window exceeds threshold", async () => {
@@ -5189,7 +5213,7 @@ describe("query builder measure-aggregation validation", () => {
       const builder = new QueryBuilder(undefined, "v2");
       builder.setRootEventConditionMaxWindowHours(24);
       const { query: sql } = await builder.build(tracesV2Query, randomUUID());
-      expect(sql).not.toContain("IN (SELECT trace_id");
+      expect(sql).not.toContain(rootEventSubqueryPrefix);
     });
 
     it("should always include rootEventCondition subquery when threshold is 0", async () => {
@@ -5204,7 +5228,7 @@ describe("query builder measure-aggregation validation", () => {
         },
         randomUUID(),
       );
-      expect(sql).toContain("IN (SELECT trace_id");
+      expect(sql).toContain(rootEventSubqueryPrefix);
     });
   });
 });

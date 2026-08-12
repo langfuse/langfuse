@@ -1,16 +1,8 @@
 ---
 name: sentry-instrumentation
 description: |
-  Capture errors in Langfuse with Sentry deliberately, and decide whether a new
-  error path should report at all. Use when (1) adding or touching any
-  `captureException`, `console.error`, error boundary, `catch` block, Worker
-  `onerror`, or tRPC/REST error handler in `web/**` — pause and decide capture
-  before finishing; (2) adding or reviewing a Sentry `beforeSend` filter,
-  denylist rule, `ignoreErrors`, `denyUrls`, or any noise-suppression change
-  (MANDATORY here — the review question is "does this rule hide a real
-  error?"); (3) asked to reduce Sentry noise, triage a Sentry issue, or answer
-  "why is X / isn't X in Sentry"; (4) rendering user-supplied content (URLs,
-  hrefs) through a framework primitive that may reject it and log an error.
+  Decide whether and how errors report to Sentry. Use when touching capture or
+  error-handling paths in `web/**`, triaging Sentry noise, or changing Sentry settings.
 ---
 
 # Sentry Instrumentation
@@ -122,11 +114,25 @@ properly (below).
    that only reads the exception value silently never fires on them (the reason
    the original invalid-href filter never worked).
 
-7. **PII — never put user content in a message, `extra`, or tag.** No prompt
-   text, trace content, tokens, share-link secrets, user/session ids. Respect
-   the replay masking already configured for HIPAA/regions in
-   `instrumentation-client.ts`. A message that interpolates user data both leaks
-   and shatters grouping (Rule 5).
+7. **PII / HIPAA — never put user content in a message, `extra`, breadcrumb,
+   or tag.** No prompt text, trace content, tokens, share-link secrets,
+   user/session ids. This is not hygiene — it is the compliance boundary: ALL
+   cloud regions, **including HIPAA**, report to the **same US Sentry org**,
+   and error events are **never masked**, so this discipline is the only thing
+   keeping user content out of them. Session Replay is the one masked channel:
+   [`instrumentation-client.ts`](../../../web/instrumentation-client.ts) gates
+   `maskAllText`/`blockAllMedia` so replays are fully masked everywhere except
+   the EU/US non-HIPAA cloud regions. **Never remove or weaken that gate** —
+   the gate (`isEuOrUsRegionNonHipaa` → the `replayIntegration` options) must
+   be covered by a CI regression test asserting the masked/unmasked regions on
+   the real module (the mask-guard
+   `instrumentation-client-replay-mask.clienttest.ts`; landing with #15802).
+   Reject any diff that touches the gate without that guard passing, and run
+   every diff touching `instrumentation-client.ts` or replay config through
+   the reviewer checklist in the
+   [reference](references/sentry-capture-contract.md#pii-and-the-hipaa-compliance-boundary).
+   A message that interpolates user data both leaks and shatters grouping
+   (Rule 5).
 
 8. **VERIFY in the environment that actually fires the error.** Router/console
    validations run only in the **real client runtime, not jsdom** — a green unit
@@ -162,6 +168,8 @@ properly (below).
   that reads the wrong event field (Rule 6).
 - Interpolating ids/user data into the message → PII + grouping explosion
   (Rules 5, 7).
+- Removing/weakening the region-gated replay mask, or "fixing" the mask-guard
+  test instead of the diff that tripped it (Rule 7).
 - Trusting a green jsdom test as proof the noise is gone (Rule 8).
 - An ad-hoc inline `beforeSend` check instead of a named, tested predicate in
   `sentryFilters.ts`.
@@ -169,8 +177,10 @@ properly (below).
 ## References
 
 - [references/sentry-capture-contract.md](references/sentry-capture-contract.md)
-  — the capture contract in depth: the shared-helper APIs, the beforeSend /
+  — the capture contract in depth: the shared-helper APIs, the PII/HIPAA
+  compliance boundary (replay mask + reviewer checklist), the beforeSend /
   denylist authoring protocol (field-reading, negative fixtures), fingerprinting
   and `area` tagging, the known noise families, and the shipped-PR case studies
   (#15145 / #15173 / #15174 / #15175 / #15238 / #15243 / #15245). Read when
-  authoring a suppression rule, hardening a capture path, or triaging a family.
+  authoring a suppression rule, hardening a capture path, touching replay/region
+  config, or triaging a family.

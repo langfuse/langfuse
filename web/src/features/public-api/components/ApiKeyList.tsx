@@ -17,7 +17,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -228,9 +228,7 @@ function DeleteApiKeyButton(props: {
           capture(`${scope}_settings:api_key_delete`);
           setOpen(false);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     } else {
       mutDeleteOrgApiKey
         .mutateAsync({
@@ -241,9 +239,7 @@ function DeleteApiKeyButton(props: {
           capture(`${scope}_settings:api_key_delete`);
           setOpen(false);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
   };
 

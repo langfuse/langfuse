@@ -38,12 +38,13 @@ describe("SDK version storage", () => {
 
     persistProjectSdkVersionInfo(
       projectId,
-      { language: null, version: null },
+      { language: null, version: null, isOtel: true },
       "2026-07-23T10:00:00.000Z",
     );
 
     expect(window.localStorage.getItem(keys.language)).toBeNull();
     expect(window.localStorage.getItem(keys.version)).toBeNull();
+    expect(window.localStorage.getItem(keys.isOtel)).toBe("true");
     expect(window.localStorage.getItem(keys.checkedAt)).toBe(
       "2026-07-23T10:00:00.000Z",
     );
@@ -61,6 +62,7 @@ describe("SDK version storage", () => {
 
     expect(window.localStorage.getItem(keys.language)).toBeNull();
     expect(window.localStorage.getItem(keys.version)).toBeNull();
+    expect(window.localStorage.getItem(keys.isOtel)).toBeNull();
     expect(window.localStorage.getItem(keys.checkedAt)).toBeNull();
   });
 

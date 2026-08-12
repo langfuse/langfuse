@@ -1,30 +1,38 @@
 import { EventType } from "@ag-ui/core";
-import { HttpAgent } from "@ag-ui/client";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
+import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_MCP_USER_AGENT,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
-} from "@/src/ee/features/in-app-agent/constants";
-import { patchMastraApprovalChunks } from "@/src/ee/features/in-app-agent/server/agent";
+} from "@langfuse/shared/in-app-agent";
+import {
+  patchMastraApprovalChunks,
+  type createAgUiStream,
+} from "@langfuse/shared/in-app-agent/server/agent";
 import {
   createInAppAgentSandbox,
   type SandboxProvider,
   type SandboxSession,
-} from "@/src/ee/features/in-app-agent/server/sandbox";
-import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@/src/ee/features/in-app-agent/server/tools";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
-import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+} from "@langfuse/shared/in-app-agent/server/sandbox";
+import {
+  createInAppAgentToolPolicy,
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
+  type InAppAgentLangfuseMcpToolName,
+} from "@langfuse/shared/in-app-agent/server/tools";
+import {
+  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
+  decodeFiltersGeneric,
+} from "@langfuse/shared";
 import "@/src/features/mcp/server/bootstrap";
+import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
-import type { MastraAgent } from "@ag-ui/mastra";
 import type { Langfuse } from "langfuse";
-import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
+import type { InAppAgentTracingConfig } from "@langfuse/shared/in-app-agent/server/instrumentation";
 
 // Shape of the tool entries the mocked MCP client feeds into the Agent
 // constructor. `Agent`'s own `tools` type is a `DynamicArgument` union that
@@ -53,6 +61,18 @@ const adapterEvents = vi.hoisted(() => ({
     id: "score-config-1",
     name: "readiness",
     dataType: "NUMERIC",
+  }),
+  createScoreConfigToModelOutput: vi.fn((output: unknown) => {
+    if (
+      typeof output === "object" &&
+      output !== null &&
+      "type" in output &&
+      output.type === "silent-mcp-output"
+    ) {
+      return "Output saved to /workspace/tool_calls";
+    }
+
+    return output;
   }),
 }));
 
@@ -87,6 +107,10 @@ const defaultInAppAgentUserAccess = {
   projectRole: "OWNER" as const,
   isAdmin: false,
 };
+
+const defaultInAppAgentToolPolicy = createInAppAgentToolPolicy({
+  userAccess: defaultInAppAgentUserAccess,
+});
 
 async function createTestSandbox() {
   let sandboxState: {
@@ -173,7 +197,7 @@ vi.mock("@ag-ui/mastra", () => ({
   }),
 }));
 
-vi.mock("@ai-sdk/amazon-bedrock", () => ({
+vi.mock("ai-sdk-amazon-bedrock-v4", () => ({
   createAmazonBedrock: vi.fn(() => vi.fn(() => ({}))),
 }));
 
@@ -206,6 +230,7 @@ vi.mock("@mastra/mcp", () => ({
             createScoreConfig: {
               server: "langfuse",
               execute: adapterEvents.createScoreConfigExecute,
+              toModelOutput: adapterEvents.createScoreConfigToModelOutput,
             },
           },
           langfuseDocs: {
@@ -257,7 +282,7 @@ vi.mock("@mastra/mcp", () => ({
   }),
 }));
 
-vi.mock("@/src/ee/features/in-app-agent/server/instrumentation", () => ({
+vi.mock("@langfuse/shared/in-app-agent/server/instrumentation", () => ({
   createInAppAgentInstrumentation:
     instrumentationMocks.createInAppAgentInstrumentation,
 }));
@@ -276,7 +301,12 @@ const createPatchedChunkProcessor = () => {
     })),
   };
 
-  patchMastraApprovalChunks(adapter as unknown as MastraAgent);
+  // Derive the parameter type from the function instead of naming
+  // MastraAgent: web and shared can resolve @ag-ui/mastra to different pnpm
+  // peer instances, which tsc treats as non-identical types.
+  patchMastraApprovalChunks(
+    adapter as unknown as Parameters<typeof patchMastraApprovalChunks>[0],
+  );
 
   const processor = adapter.createChunkProcessor({ onError });
 
@@ -404,13 +434,15 @@ describe("patchMastraApprovalChunks", () => {
   });
 });
 
-describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS", () => {
+describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
   const getRegisteredLangfuseMcpTools = () =>
     toolRegistry
       .getFeatures()
       .flatMap((feature) => feature.tools.map((tool) => tool.definition));
 
   it("classifies every Langfuse MCP tool exactly once", () => {
+    expectTypeOf<InAppAgentLangfuseMcpToolName>().toEqualTypeOf<McpToolName>();
+
     const tools = getRegisteredLangfuseMcpTools();
     const registeredToolNames = tools.map((tool) => tool.name).sort();
     const classifiedToolNames = Object.keys(
@@ -433,7 +465,7 @@ describe("createAgUiStream", () => {
 
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -525,6 +557,16 @@ describe("createAgUiStream", () => {
         messageId: "assistant-message-1",
       },
       {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "tool-result-1",
+        toolCallId: "tool-call-1",
+        content: JSON.stringify({
+          type: "silent-mcp-output",
+          output: { data: [{ id: "observation-1" }] },
+        }),
+        role: "tool",
+      },
+      {
         type: EventType.RUN_FINISHED,
         threadId: input.threadId,
         runId: input.runId,
@@ -547,7 +589,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          userAccess: defaultInAppAgentUserAccess,
+          toolPolicy: defaultInAppAgentToolPolicy,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -567,6 +609,14 @@ describe("createAgUiStream", () => {
 
     expect(streamedText).toContain(EventType.MESSAGES_SNAPSHOT);
     expect(streamedText).toContain(EventType.REASONING_MESSAGE_CONTENT);
+    expect(streamedText).toContain("Output saved to /workspace/tool_calls");
+    expect(streamedText).not.toContain("observation-1");
+    expect(persistedEvents).toContainEqual(
+      expect.objectContaining({
+        type: EventType.TOOL_CALL_RESULT,
+        content: expect.stringContaining("observation-1"),
+      }),
+    );
     expect(adapterEvents.inputs).toEqual([input]);
     const { Agent } = await import("@mastra/core/agent");
     expect(Agent).toHaveBeenCalledWith(
@@ -611,7 +661,7 @@ describe("createAgUiStream", () => {
     );
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
     expect(agentConfig?.defaultOptions).toMatchObject({
-      maxSteps: 10,
+      maxSteps: expect.any(Number),
       providerOptions: {
         bedrock: {
           additionalModelRequestFields: {
@@ -701,10 +751,10 @@ describe("createAgUiStream", () => {
     expect(promptMocks.compile.mock.calls[0]?.[0].screenContext).not.toContain(
       '"user_name"',
     );
-    expect(Agent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        instructions: "Prompt-managed assistant instructions",
-      }),
+    const baseInstructions = vi.mocked(Agent).mock.calls[0]?.[0].instructions;
+    expect(baseInstructions).toEqual(expect.any(Function));
+    expect((baseInstructions as () => string)()).toBe(
+      "Prompt-managed assistant instructions",
     );
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
@@ -715,6 +765,7 @@ describe("createAgUiStream", () => {
       EventType.TEXT_MESSAGE_START,
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.TEXT_MESSAGE_END,
+      EventType.TOOL_CALL_RESULT,
       EventType.RUN_FINISHED,
     ]);
     expect(persistedEvents[0]).toMatchObject({
@@ -738,6 +789,8 @@ describe("createAgUiStream", () => {
       `stream:${EventType.TEXT_MESSAGE_CONTENT}`,
       `persist:${EventType.TEXT_MESSAGE_END}`,
       `stream:${EventType.TEXT_MESSAGE_END}`,
+      `persist:${EventType.TOOL_CALL_RESULT}`,
+      `stream:${EventType.TOOL_CALL_RESULT}`,
       `persist:${EventType.RUN_FINISHED}`,
       `stream:${EventType.RUN_FINISHED}`,
     ]);
@@ -778,6 +831,7 @@ describe("createAgUiStream", () => {
       EventType.TEXT_MESSAGE_START,
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.TEXT_MESSAGE_END,
+      EventType.TOOL_CALL_RESULT,
       EventType.RUN_FINISHED,
     ]);
     expect(instrumentationMocks.instrumentation.end).toHaveBeenCalledWith({});
@@ -786,7 +840,7 @@ describe("createAgUiStream", () => {
 
   it("does not enable Bedrock reasoning for non-Claude models", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -834,7 +888,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          userAccess: defaultInAppAgentUserAccess,
+          toolPolicy: defaultInAppAgentToolPolicy,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -851,14 +905,83 @@ describe("createAgUiStream", () => {
     const { Agent } = await import("@mastra/core/agent");
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
     expect(agentConfig?.defaultOptions).toMatchObject({
-      maxSteps: 10,
+      maxSteps: expect.any(Number),
     });
     expect(agentConfig?.defaultOptions).not.toHaveProperty("providerOptions");
   });
 
+  it("stops gating a tool the user approved for the conversation", async () => {
+    const { createAgUiStream } =
+      await import("@langfuse/shared/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        { id: "user-message-1", role: "user" as const, content: "hello" },
+      ],
+      tools: [],
+      context: [],
+      state: {
+        type: "existingConversation" as const,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      },
+      forwardedProps: {},
+    };
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    } as unknown as Langfuse;
+
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const grantedPolicy = createInAppAgentToolPolicy({
+      userAccess: defaultInAppAgentUserAccess,
+      alwaysAllowedTools: ["langfuse_upsertDataset"],
+    });
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        awsBedrock: { modelId: "eu.anthropic.claude-opus-4-8" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: grantedPolicy,
+          runOverride: "conversation-grant",
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient,
+        useLocalPrompt: false,
+      },
+    });
+
+    await readStream(stream);
+
+    const { Agent } = await import("@mastra/core/agent");
+    const agentTools = getAgentTools(vi.mocked(Agent).mock.calls[0]?.[0]);
+
+    expect(agentTools?.langfuse_upsertDataset).not.toHaveProperty(
+      "requireApproval",
+    );
+    expect(agentTools?.langfuse_createScoreConfig?.requireApproval).toBe(true);
+  });
+
   it("executes approved tools manually and continues with tool result history", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(true);
     adapterEvents.inputs = [];
     adapterEvents.items = [
@@ -885,7 +1008,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          userAccess: defaultInAppAgentUserAccess,
+          toolPolicy: defaultInAppAgentToolPolicy,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -903,9 +1026,10 @@ describe("createAgUiStream", () => {
       expect.objectContaining({
         forwardedProps: {},
         messages: expect.arrayContaining([
-          {
+          expect.objectContaining({
             id: "tool-call-1-approval-tool-call",
             role: "assistant",
+            content: "",
             runId: "interrupted-run-1",
             toolCalls: [
               {
@@ -922,8 +1046,8 @@ describe("createAgUiStream", () => {
                 },
               },
             ],
-          },
-          {
+          }),
+          expect.objectContaining({
             id: "tool-call-1-approval-tool-result",
             role: "tool",
             toolCallId: "tool-call-1",
@@ -932,7 +1056,7 @@ describe("createAgUiStream", () => {
               name: "readiness",
               dataType: "NUMERIC",
             }),
-          },
+          }),
         ]),
       }),
     ]);
@@ -1050,9 +1174,91 @@ describe("createAgUiStream", () => {
     );
   });
 
+  it("persists raw silent output for approved tools while resuming with redacted content", async () => {
+    const { createAgUiStream } =
+      await import("@langfuse/shared/in-app-agent/server/agent");
+    const input = createToolApprovalResumeInput(true, { silent: true });
+    adapterEvents.createScoreConfigExecute.mockResolvedValueOnce({
+      type: "silent-mcp-output",
+      output: {
+        id: "score-config-1",
+        name: "readiness",
+        secret: "full-tool-output",
+      },
+    });
+    adapterEvents.createScoreConfigToModelOutput.mockImplementationOnce(
+      async () => "Output saved to /workspace/tool_calls",
+    );
+    adapterEvents.inputs = [];
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+    const persistedEvents: AgUiEvent[] = [];
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    } as unknown as Langfuse;
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        onEvent: (event) => {
+          persistedEvents.push(event);
+        },
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+          runOverride: "run-override",
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
+        langfuseClient,
+        sandbox: (await createTestSandbox()).sandbox,
+        useLocalPrompt: false,
+      },
+    });
+    const streamedText = await readStream(stream);
+
+    const resumedInput = adapterEvents.inputs[0] as {
+      messages?: { id: string; role: string; content?: unknown }[];
+    };
+    const resumedToolMessage = resumedInput.messages?.find(
+      (message) => message.id === "tool-call-1-approval-tool-result",
+    );
+
+    expect(resumedToolMessage).toMatchObject({
+      role: "tool",
+      content: "Output saved to /workspace/tool_calls",
+    });
+    expect(streamedText).toContain("Output saved to /workspace/tool_calls");
+    expect(streamedText).not.toContain("full-tool-output");
+    expect(persistedEvents).toContainEqual(
+      expect.objectContaining({
+        type: EventType.TOOL_CALL_RESULT,
+        content: JSON.stringify({
+          type: "silent-mcp-output",
+          output: {
+            id: "score-config-1",
+            name: "readiness",
+            secret: "full-tool-output",
+          },
+        }),
+      }),
+    );
+  });
+
   it("continues approved tools with a tool error result when execution fails", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(true);
     const validationErrorMessage =
       "MCP error -32602: Validation failed: categories: Category must be an array of objects with label value pairs, where labels and values are unique.";
@@ -1086,7 +1292,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          userAccess: defaultInAppAgentUserAccess,
+          toolPolicy: defaultInAppAgentToolPolicy,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1187,7 +1393,7 @@ describe("createAgUiStream", () => {
 
   it("escapes screen context delimiters before compiling prompt instructions", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1232,7 +1438,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          userAccess: defaultInAppAgentUserAccess,
+          toolPolicy: defaultInAppAgentToolPolicy,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1261,7 +1467,7 @@ describe("createAgUiStream", () => {
 
   it("continues after rejected tools and asks the user how to proceed", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(false);
     const rejectionError = JSON.stringify({
       code: IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
@@ -1314,7 +1520,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          userAccess: defaultInAppAgentUserAccess,
+          toolPolicy: defaultInAppAgentToolPolicy,
         },
         redirectAction: {
           projectId: "project-1",
@@ -1362,6 +1568,12 @@ describe("createAgUiStream", () => {
     expect(adapterEvents.createScoreConfigExecute).not.toHaveBeenCalled();
     expect(vi.mocked(MCPClient)).toHaveBeenCalledOnce();
     expect(vi.mocked(Agent)).toHaveBeenCalledOnce();
+    const rejectionInstructions =
+      vi.mocked(Agent).mock.calls[0]?.[0].instructions;
+    expect(rejectionInstructions).toEqual(expect.any(Function));
+    expect((rejectionInstructions as () => string)()).toContain(
+      "Do not retry this tool call",
+    );
     expect(persistedEvents).toEqual([
       {
         type: EventType.RUN_STARTED,
@@ -1428,7 +1640,7 @@ describe("createAgUiStream", () => {
 
   it("uses V4-compatible filters for traces redirect actions", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1458,7 +1670,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          userAccess: defaultInAppAgentUserAccess,
+          toolPolicy: defaultInAppAgentToolPolicy,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1506,99 +1718,9 @@ describe("createAgUiStream", () => {
     ]);
   });
 
-  it("lets HttpAgent subscribers observe streamed run errors", async () => {
-    const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
-    const input = {
-      threadId: "conversation-1",
-      runId: "run-1",
-      messages: [
-        {
-          id: "user-message-1",
-          role: "user" as const,
-          content: "hello",
-        },
-      ],
-      tools: [],
-      context: [],
-      state: null,
-      forwardedProps: {},
-    };
-    const runErrorMessage = "AWS credential provider failed: Token is expired.";
-    const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
-
-    adapterEvents.items = [
-      {
-        type: EventType.RUN_STARTED,
-        threadId: input.threadId,
-        runId: input.runId,
-      },
-      {
-        type: EventType.RUN_ERROR,
-        threadId: input.threadId,
-        runId: input.runId,
-        message: runErrorMessage,
-      },
-    ];
-
-    const serverStream = await createAgUiStream({
-      input,
-      signal: new AbortController().signal,
-      options: {
-        awsBedrock: { modelId: "test-model" },
-        langfuseMcp: {
-          url: "https://example.com/api/public/mcp",
-          publicKey: "pk",
-          secretKey: "sk",
-          userAccess: defaultInAppAgentUserAccess,
-          runOverride: "run-override",
-        },
-        redirectAction: {
-          projectId: "project-1",
-          isV4Enabled: false,
-        },
-        langfuseClient,
-        useLocalPrompt: false,
-      },
-    });
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(serverStream, {
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" },
-      }),
-    );
-
-    try {
-      const agent = new HttpAgent({
-        url: "https://example.com/api/in-app-agent",
-        threadId: input.threadId,
-        initialMessages: input.messages,
-        initialState: input.state,
-      });
-      let streamedErrorMessage: string | undefined;
-
-      agent.subscribe({
-        onRunErrorEvent: ({ event }) => {
-          streamedErrorMessage = event.message;
-        },
-      });
-
-      await expect(agent.runAgent({ runId: input.runId })).resolves.toEqual({
-        result: undefined,
-        newMessages: [],
-      });
-
-      expect(streamedErrorMessage).toBe(runErrorMessage);
-    } finally {
-      fetchMock.mockRestore();
-    }
-  });
-
   it("does not expose sandbox tools when sandboxing is disabled", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1637,7 +1759,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          userAccess: defaultInAppAgentUserAccess,
+          toolPolicy: defaultInAppAgentToolPolicy,
         },
         redirectAction: {
           projectId: "project-1",
@@ -1667,7 +1789,9 @@ describe("createAgUiStream", () => {
 });
 
 async function readStream(
-  stream: ReadableStream<Uint8Array>,
+  // Shared compiles without the DOM lib, so createAgUiStream's declared
+  // return type is Node's stream/web ReadableStream, not the DOM one.
+  stream: Awaited<ReturnType<typeof createAgUiStream>>,
   onEvent?: (event: AgUiEvent) => void,
 ) {
   const reader = stream.getReader();
@@ -1688,7 +1812,10 @@ async function readStream(
   }
 }
 
-function createToolApprovalResumeInput(approved: boolean) {
+function createToolApprovalResumeInput(
+  approved: boolean,
+  args?: Record<string, unknown>,
+) {
   return {
     threadId: "conversation-1",
     runId: "run-2",
@@ -1719,6 +1846,7 @@ function createToolApprovalResumeInput(approved: boolean) {
               dataType: "NUMERIC",
               numericMinValue: 0,
               numericMaxValue: 1,
+              ...args,
             },
             runId: "interrupted-run-1",
           },

@@ -35,7 +35,9 @@ import {
 import {
   getQueue,
   getAvgCostByEvaluatorIds,
+  getAvgCostByEvaluatorIdsFromObservations,
   getCostByEvaluatorIds,
+  getTotalCostByEvaluatorIds,
   getEvaluatorExecutionStatusCountsByEvaluatorId,
   getScoresByIds,
   logger,
@@ -94,6 +96,7 @@ import {
   prepareConfigsForTemplateUpgrade,
   prepareVariableMappingForEvaluatorUpgrade,
 } from "@/src/features/evals/server/evaluatorUpgrade";
+import { deleteJobConfigurationWithExecutions } from "@/src/features/evals/server/evaluatorRepository";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
@@ -1749,11 +1752,10 @@ export const evalRouter = createTRPCRouter({
         action: "delete",
       });
 
-      await ctx.prisma.jobConfiguration.delete({
-        where: {
-          id: evalConfigId,
-          projectId: projectId,
-        },
+      await deleteJobConfigurationWithExecutions({
+        prisma: ctx.prisma,
+        projectId,
+        jobConfigurationId: evalConfigId,
       });
 
       // Clear the "no job configs" caches to ensure they are re-evaluated
@@ -1986,10 +1988,13 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const costs = await getCostByEvaluatorIds(
-        input.projectId,
-        input.evaluatorIds,
-      );
+      const costs =
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+          ? await getCostByEvaluatorIds(input.projectId, input.evaluatorIds)
+          : await getTotalCostByEvaluatorIds(
+              input.projectId,
+              input.evaluatorIds,
+            );
 
       // Convert array to map for easier lookup
       return costs.reduce(
@@ -2015,10 +2020,13 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const costs = await getAvgCostByEvaluatorIds(
-        input.projectId,
-        input.evaluatorIds,
-      );
+      const costs =
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+          ? await getAvgCostByEvaluatorIdsFromObservations(
+              input.projectId,
+              input.evaluatorIds,
+            )
+          : await getAvgCostByEvaluatorIds(input.projectId, input.evaluatorIds);
 
       return costs.reduce(
         (acc, { evaluatorId, avgCost, executionCount }) => {

@@ -19,6 +19,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   type EvalFormType,
   fieldHasJsonSelectorOption,
+  getJsonPathCompatibilityWarning,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { EvalTargetObject } from "@langfuse/shared";
 import { VariableMappingDescription } from "@/src/features/evals/components/eval-form-descriptions";
@@ -343,7 +344,7 @@ export const VariableMappingCard = ({
                             key={`${mappingField.id}-langfuseObject`}
                             name={`mapping.${index}.langfuseObject`}
                             render={({ field }) => (
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-start gap-2">
                                 <VariableMappingDescription
                                   title="Object"
                                   description="Langfuse object to retrieve the data from."
@@ -404,7 +405,7 @@ export const VariableMappingCard = ({
                                   (field.value &&
                                     !nameOptions.includes(field.value));
                                 return (
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-start gap-2">
                                     <VariableMappingDescription
                                       title="Object Name"
                                       description="Name of the Langfuse object to retrieve the data from."
@@ -500,7 +501,7 @@ export const VariableMappingCard = ({
                             key={`${mappingField.id}-selectedColumnId`}
                             name={`mapping.${index}.selectedColumnId`}
                             render={({ field }) => (
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-start gap-2">
                                 <VariableMappingDescription
                                   title="Object Field"
                                   description="Field on the Langfuse object to insert into the template."
@@ -563,26 +564,33 @@ export const VariableMappingCard = ({
                               control={form.control}
                               key={`${mappingField.id}-jsonSelector`}
                               name={`mapping.${index}.jsonSelector`}
-                              render={({ field }) => (
-                                <div className="flex items-center gap-2">
-                                  <VariableMappingDescription
-                                    title="JsonPath"
-                                    description="Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
-                                    href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                  />
-                                  <FormItem className="w-2/3">
-                                    <FormControl>
-                                      <Input
-                                        {...field}
-                                        value={field.value ?? ""}
-                                        disabled={disabled}
-                                        placeholder="Optional"
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                </div>
-                              )}
+                              render={({ field }) => {
+                                const compatibilityWarning =
+                                  getJsonPathCompatibilityWarning(field.value);
+
+                                return (
+                                  <div className="flex items-start gap-2">
+                                    <VariableMappingDescription
+                                      title="JsonPath"
+                                      description="Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
+                                      href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
+                                    />
+                                    <FormItem className="w-2/3">
+                                      <FormControl>
+                                        <Input
+                                          {...field}
+                                          value={field.value ?? ""}
+                                          disabled={disabled}
+                                          placeholder="Optional"
+                                        />
+                                      </FormControl>
+                                      <FormMessage>
+                                        {compatibilityWarning}
+                                      </FormMessage>
+                                    </FormItem>
+                                  </div>
+                                );
+                              }}
                             />
                           ) : undefined}
                         </Card>
@@ -605,7 +613,7 @@ export const VariableMappingCard = ({
                             />
                           </div>
                           {hideAdvancedSettings && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-start gap-2">
                               <VariableMappingDescription
                                 title="Object"
                                 description="Type of object to retrieve the data from."
@@ -636,7 +644,7 @@ export const VariableMappingCard = ({
                                   : experimentTargetEvalVariableColumns;
 
                               return (
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-start gap-2">
                                   <VariableMappingDescription
                                     title="Object Field"
                                     description="Observation field to insert into the template."
@@ -677,26 +685,33 @@ export const VariableMappingCard = ({
                               control={form.control}
                               key={`${mappingField.id}-jsonSelector`}
                               name={`mapping.${index}.jsonSelector`}
-                              render={({ field }) => (
-                                <div className="flex items-center gap-2">
-                                  <VariableMappingDescription
-                                    title="JsonPath"
-                                    description="Optional selection: Use JsonPath syntax to select from a JSON object. If not selected, we will pass the entire object into the prompt."
-                                    href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                  />
-                                  <FormItem className="w-2/3">
-                                    <FormControl>
-                                      <Input
-                                        {...field}
-                                        value={field.value ?? ""}
-                                        disabled={disabled}
-                                        placeholder="Optional"
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                </div>
-                              )}
+                              render={({ field }) => {
+                                const compatibilityWarning =
+                                  getJsonPathCompatibilityWarning(field.value);
+
+                                return (
+                                  <div className="flex items-start gap-2">
+                                    <VariableMappingDescription
+                                      title="JsonPath"
+                                      description="Optional selection: Use JsonPath syntax to select from a JSON object. If not selected, we will pass the entire object into the prompt."
+                                      href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
+                                    />
+                                    <FormItem className="w-2/3">
+                                      <FormControl>
+                                        <Input
+                                          {...field}
+                                          value={field.value ?? ""}
+                                          disabled={disabled}
+                                          placeholder="Optional"
+                                        />
+                                      </FormControl>
+                                      <FormMessage>
+                                        {compatibilityWarning}
+                                      </FormMessage>
+                                    </FormItem>
+                                  </div>
+                                );
+                              }}
                             />
                           )}
                         </Card>

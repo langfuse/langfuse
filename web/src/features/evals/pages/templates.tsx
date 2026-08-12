@@ -11,6 +11,7 @@ import {
   EVALS_TABS,
 } from "@/src/features/navigation/utils/evals-tabs";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -34,6 +35,7 @@ export default function TemplatesPage() {
     <Page
       headerProps={{
         title: "Evaluators",
+        titleBadges: <V4MigrationUpdateRequiredBadge />,
         help: {
           description: "View all langfuse managed and custom evaluators.",
           href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
@@ -68,6 +70,7 @@ export default function TemplatesPage() {
             </Button>
           </>
         ),
+        actionButtonsRightClassName: "justify-end",
       }}
     >
       <EvalsTemplateTable projectId={projectId} />

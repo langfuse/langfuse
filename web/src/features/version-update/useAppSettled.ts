@@ -2,14 +2,23 @@ import { useSyncExternalStore } from "react";
 
 /**
  * How long after the app first mounts before the version-update banner is
- * allowed to appear. During the initial mount/hydration window the layout
- * flickers and React StrictMode double-invokes mounts; because the banner
- * renders through an overlay portal, a mount landing in that churn is torn down
- * and recreated, replaying its entrance animation (a visible "jump"). Holding it
- * back until the app is quiet means it mounts exactly once, cleanly — and reads
- * better (no banner flashing in during startup).
+ * allowed to appear. This is a post-load grace serving two purposes:
+ *
+ *  1. **No mid-deploy prompt (LFE-14537).** A page can be loaded while the web
+ *     container is switching versions; offering a reload in that window pushes
+ *     the user to reload straight into a still-switching pod (a broken loading
+ *     state). Withholding the prompt for the first minute of a session lets a
+ *     deploy that was in flight at load time settle before we ever offer a
+ *     reload. Combined at the banner with the store's new-version debounce
+ *     ({@link VERSION_UPDATE_DEBOUNCE_MS}); both gates must pass.
+ *  2. **No startup flicker.** During the initial mount/hydration window the
+ *     layout flickers and React StrictMode double-invokes mounts; because the
+ *     banner renders through an overlay portal, a mount landing in that churn is
+ *     torn down and recreated, replaying its entrance animation (a visible
+ *     "jump"). A minute comfortably clears that window, so it mounts once,
+ *     cleanly.
  */
-export const APP_SETTLE_DELAY_MS = 5000;
+export const APP_SETTLE_DELAY_MS = 60 * 1000;
 
 /**
  * A one-shot "the app has settled after first render" gate as an external store.

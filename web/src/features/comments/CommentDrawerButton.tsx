@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import Header from "@/src/components/layouts/header";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {

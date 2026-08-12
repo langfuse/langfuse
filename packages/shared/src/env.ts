@@ -27,6 +27,8 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
+const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
+
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   // Dev-only override: set to an ISO datetime string to shift the legacy blob
@@ -39,6 +41,9 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
+  // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
+  // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
+  VERCEL_URL: z.string().optional(),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   // Standard SMTP URL (`smtp://`, `smtps://`) or `ses://<region>` to send via
   // AWS SES using the default AWS credential chain (IAM role, SSO, env vars).
@@ -140,6 +145,9 @@ const EnvSchema = z.object({
   // Langfuse detects the ClickHouse version on startup and applies known
   // compatibility settings for affected version bands.
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
+    .enum(["auto", "true", "false"])
+    .default("auto"),
+  CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: z
     .enum(["auto", "true", "false"])
     .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
@@ -441,6 +449,24 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -453,6 +479,12 @@ const EnvSchema = z.object({
     .default(1000) // Use high default to minimize number of API calls and hence avoid rate limits
     .describe("Number of channels to fetch per Slack API page"),
   HTTPS_PROXY: z.string().optional(),
+  // Hosts that must be reached directly instead of through HTTPS_PROXY,
+  // using the standard NO_PROXY grammar (undici EnvHttpProxyAgent
+  // semantics). The lowercase variant wins when both are set, mirroring
+  // undici and curl.
+  NO_PROXY: z.string().optional(),
+  no_proxy: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
     .number()
@@ -475,11 +507,81 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(120_000), // 2 minutes
+    .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  // Ambient AWS profile of the host process; the in-app agent prefers it over
+  // the configured Bedrock profile so local dev credentials win.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
+    .enum(["dangerous-docker", "lambda-microvm"])
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
+    z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5_000),
+  LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60_000),
+  LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5 * 60_000),
+  LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15 * 60_000),
+  LANGFUSE_IN_APP_AGENT_APPROVAL_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(24 * 60 * 60_000),
+  // Flat safety ceilings on concurrent non-terminal runs. Per region, so a
+  // small region (JP, staging) can be tightened below its execution capacity.
+  LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5),
+  LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20),
+  LANGFUSE_IN_APP_AGENT_WATCH_TAIL_POLL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(1_000),
+  LANGFUSE_IN_APP_AGENT_WATCH_KEEPALIVE_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15_000),
+  LANGFUSE_IN_APP_AGENT_WATCH_MAX_CONNECTION_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(90_000),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

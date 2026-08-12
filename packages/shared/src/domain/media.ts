@@ -109,6 +109,8 @@ export enum MediaFileExtension {
 
 export type MediaField = "input" | "output" | "metadata";
 
+export const OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE = "field_size_limit";
+
 const mediaContentTypes = new Set<string>(Object.values(MediaContentType));
 
 export function isMediaContentType(value: unknown): value is MediaContentType {

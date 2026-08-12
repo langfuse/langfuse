@@ -1,7 +1,7 @@
-import { validateHeaderValue } from "node:http";
-
 import { getAuthOptions } from "@/src/server/auth";
+import { getGclidFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { getCookieName } from "@/src/server/utils/cookies";
+import { isValidCallbackUrl } from "@/src/server/utils/nextAuthCallbackUrl";
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -52,23 +52,6 @@ const encodeAuthError = (error: unknown, source: AuthErrorSource) => {
   }
 };
 
-// Mirrors next-auth's assertConfig check (core/lib/assert.ts). Must never be
-// stricter than next-auth: relative URLs always pass (next-auth resolves them
-// against the deployment origin), absolute URLs must parse with an http(s)
-// scheme.
-const isValidCallbackUrl = (url: unknown): boolean => {
-  if (typeof url !== "string") return false;
-  try {
-    validateHeaderValue("Location", url);
-    return /^https?:/.test(
-      new URL(url, url.startsWith("/") ? "http://localhost" : undefined)
-        .protocol,
-    );
-  } catch {
-    return false;
-  }
-};
-
 export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // Workaround for corporate email link checkers (e.g., Outlook SafeLink)
   // https://next-auth.js.org/tutorials/avoid-corporate-link-checking-email-provider
@@ -100,9 +83,11 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
       (Boolean(callbackUrlCookie) && !isValidCallbackUrl(callbackUrlCookie)));
   if (invalidCallbackUrl) {
     logger.warn("[NEXT_AUTH] Rejected invalid callback URL", {
-      callbackUrlParam: String(callbackUrlParam).slice(0, 200),
-      callbackUrlCookie: String(callbackUrlCookie).slice(0, 200),
-      path: req.url?.slice(0, 200),
+      callbackUrlParamType: Array.isArray(callbackUrlParam)
+        ? "array"
+        : typeof callbackUrlParam,
+      callbackUrlCookiePresent: Boolean(callbackUrlCookie),
+      path: req.url?.split("?")[0]?.slice(0, 200),
     });
     return res.status(400).json({ message: "Invalid callback URL" });
   }
@@ -135,7 +120,11 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   }
 
   // Do whatever you want here, before the request is passed down to `NextAuth`
-  const authOptions = await getAuthOptions();
+  // Pass Google Ads click attribution from first-party cookies so that new
+  // SSO signups can be attributed to ad clicks (cloud_signup_complete event).
+  const authOptions = await getAuthOptions({
+    gclid: getGclidFromRequest(req),
+  });
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself
   // disable caching for anything auth related

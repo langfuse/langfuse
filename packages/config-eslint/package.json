@@ -21,17 +21,27 @@
     "next.d.ts"
   ],
   "dependencies": {
-    "@eslint/js": "^9.39.2",
+    "@eslint/compat": "^2.1.0",
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "16.2.11",
     "@repo/eslint-plugin": "workspace:*",
-    "eslint-config-next": "16.2.11",
     "eslint-config-prettier": "^10.1.8",
     "eslint-config-turbo": "2.10.5",
+    "eslint-import-resolver-node": "^0.3.6",
+    "eslint-import-resolver-typescript": "^3.5.2",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-jsx-a11y": "^6.10.0",
     "eslint-plugin-only-warn": "^1.1.0",
+    "eslint-plugin-react": "^7.37.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
     "globals": "^16.0.0",
-    "typescript-eslint": "^8.57.1"
+    "typescript-eslint": "^8.65.0"
   },
   "peerDependencies": {
-    "eslint": "^9.39.0",
+    "eslint": "^10.0.0",
     "typescript": ">=5.0.0"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
   }
 }

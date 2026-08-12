@@ -10,13 +10,11 @@ import {
   singleFilter,
   type SingleValueOption,
   type ColumnDefinition,
-} from "@langfuse/shared";
-import {
   computeSelectedValues,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
   MAX_URL_FILTER_QUERY_LENGTH,
-} from "../lib/filter-query-encoding";
+} from "@langfuse/shared";
 import {
   buildSidebarFilterQueryStorageKey,
   createPersistedSidebarFilterQueryState,
@@ -282,6 +280,10 @@ export interface StringKeyValueUIFilter extends BaseUIFilter {
   type: "stringKeyValue";
   value: StringKeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
+  /** Offered key → display-only type hint ("number", "object", …). */
+  keyDetails?: Record<string, string>;
+  /** Offered key → its observed values, for the value input's suggestions. */
+  valueOptions?: Record<string, string[]>;
   onChange: (filters: StringKeyValueFilterEntry[]) => void;
 }
 
@@ -295,6 +297,24 @@ export type UIFilter =
   | StringKeyValueUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
+
+/**
+ * One offered facet option. `type` is the display-only hint client-side
+ * suggestion sources carry (observed metadata keys: "number", "object", …);
+ * server-enumerated options never set it.
+ */
+export type FacetOptionValue = SingleValueOption & { type?: string };
+
+/**
+ * The facet option payload a view hands the sidebar: `filterOptions` per
+ * column, plus whatever client-side suggestion source it opted into. Keyed
+ * lookups (`<column>.<key>`) carry a key's own values — that is how the
+ * metadata facet gets value suggestions (LFE-11030).
+ */
+export type FacetOptions = Record<
+  string,
+  (string | FacetOptionValue)[] | Record<string, string[]> | undefined
+>;
 
 const mergeUniqueStrings = (...lists: (string[] | undefined)[]): string[] =>
   Array.from(
@@ -315,10 +335,7 @@ const SCORE_LEVEL_TAGGED_COLUMNS: Readonly<Record<string, string>> = {
 
 const resolveKeyScoreLevels = (
   column: string,
-  options: Record<
-    string,
-    (string | SingleValueOption)[] | Record<string, string[]> | undefined
-  >,
+  options: FacetOptions,
 ): KeyScoreLevels | undefined => {
   const levelsKey = SCORE_LEVEL_TAGGED_COLUMNS[column];
   const scoreNameLevels = levelsKey ? options[levelsKey] : undefined;
@@ -339,7 +356,7 @@ const resolveKeyScoreLevels = (
 const resolveKnownKeyOptions = (
   facetKeyOptions: string[] | undefined,
   availableKeys:
-    | (string | SingleValueOption)[]
+    | (string | FacetOptionValue)[]
     | Record<string, string[]>
     | undefined,
   activeKeys: string[],
@@ -358,6 +375,43 @@ const resolveKnownKeyOptions = (
     ),
     activeKeys,
   );
+};
+
+/** The display-only type hints an offered key list carries, if any. */
+const resolveKeyDetails = (
+  availableKeys:
+    | (string | FacetOptionValue)[]
+    | Record<string, string[]>
+    | undefined,
+): Record<string, string> | undefined => {
+  if (!Array.isArray(availableKeys)) return undefined;
+  const out: Record<string, string> = {};
+  for (const option of availableKeys) {
+    if (typeof option !== "string" && option.type !== undefined) {
+      out[option.value] = option.type;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+};
+
+/**
+ * Per-key value suggestions for a keyed facet, read from the `<column>.<key>`
+ * entries of the option map (the shape the observed-metadata projection and the
+ * search bar's completion planner both use).
+ */
+const resolveKeyedValueOptions = (
+  column: string,
+  keyOptions: string[] | undefined,
+  options: FacetOptions,
+): Record<string, string[]> | undefined => {
+  if (keyOptions === undefined) return undefined;
+  const out: Record<string, string[]> = {};
+  for (const key of keyOptions) {
+    const values = options[`${column}.${key}`];
+    if (!Array.isArray(values) || values.length === 0) continue;
+    out[key] = values.map((v) => (typeof v === "string" ? v : v.value));
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 };
 
 const mergeAvailableValuesWithActiveFilters = (
@@ -472,22 +526,17 @@ const DEFAULT_HOOK_OPTIONS: UseSidebarFilterStateOptions = {
 const toUrlFilterQuery = (encoded: string): string =>
   encoded.length > MAX_URL_FILTER_QUERY_LENGTH ? "" : encoded;
 
-export function useSidebarFilterState(
+/**
+ * State half of the sidebar filters: owns the applied FilterState
+ * (URL/session/memory/peek decode + defaults + managed-env policy) and its
+ * writer. Independent of the filter-OPTIONS payload, so a view can read its
+ * applied filters BEFORE fetching options (events facet counts, LFE-14489).
+ */
+export function useSidebarFilterStateCore(
   config: FilterConfig,
-  options: Record<
-    string,
-    (string | SingleValueOption)[] | Record<string, string[]> | undefined
-  >,
   hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
-  const {
-    loading,
-    loadingColumns,
-    implicitDefaultConfig,
-    onExplicitFilterStateChange,
-  } = hookOptions;
-  const isV4Surface = hookOptions.isV4 ?? false;
-  const capture = usePostHogClientCapture();
+  const { implicitDefaultConfig, onExplicitFilterStateChange } = hookOptions;
   const stateLocationType = hookOptions.stateLocation;
   const peekContext =
     stateLocationType === "peekContext" ? hookOptions.context : undefined;
@@ -565,6 +614,19 @@ export function useSidebarFilterState(
   );
   const [memoryFilterState, setMemoryFilterState] = useState<FilterState>([]);
 
+  // A column without a facet on this surface is bounded by the page itself
+  // (user-detail traces table). Persisted, deep-linked or saved-view filters on
+  // it are dropped on both boundaries — read and write — so the applied filters
+  // never exceed what the sidebar can show (LFE-14824).
+  const omittedColumns = config.omittedFilterColumns;
+  const stripOmittedColumns = useCallback(
+    (filters: FilterState): FilterState =>
+      !omittedColumns?.length
+        ? filters
+        : filters.filter((filter) => !omittedColumns.includes(filter.column)),
+    [omittedColumns],
+  );
+
   const urlFilterState: FilterState = useMemo(() => {
     if (
       stateLocationType !== "url" &&
@@ -589,10 +651,12 @@ export function useSidebarFilterState(
       return "";
     })();
 
-    return decodeAndNormalizeFilters(
-      rawQuery,
-      config.columnDefinitions,
-      config.migrateFilterState,
+    return stripOmittedColumns(
+      decodeAndNormalizeFilters(
+        rawQuery,
+        config.columnDefinitions,
+        config.migrateFilterState,
+      ),
     );
   }, [
     config.columnDefinitions,
@@ -601,6 +665,7 @@ export function useSidebarFilterState(
     pendingFiltersQuery,
     urlFiltersQuery,
     storedFiltersQuery,
+    stripOmittedColumns,
   ]);
 
   const canonicalFiltersQuery = useMemo(
@@ -705,29 +770,6 @@ export function useSidebarFilterState(
   const managedEnvironmentColumn =
     managedEnvironmentPolicyConfig.managedEnvironmentColumn;
 
-  // Context the pure facet-action functions (lib/sidebar-filter-actions)
-  // read: facet/column metadata, the option lists, and — only while the
-  // managed-environment policy is active — the managed column, which gates
-  // its explicit enable-all-environments override.
-  const actionContext: SidebarFilterActionContext = useMemo(
-    () => ({
-      facets: config.facets,
-      columnDefinitions: config.columnDefinitions,
-      options,
-      managedEnvironmentColumn:
-        managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0
-          ? managedEnvironmentColumn
-          : undefined,
-    }),
-    [
-      config.facets,
-      config.columnDefinitions,
-      options,
-      managedEnvironmentColumn,
-      managedEnvironmentPolicyConfig.hiddenEnvironments,
-    ],
-  );
-
   const effectiveEnvironmentFilterState: FilterState = useMemo(
     () =>
       buildEffectiveEnvironmentFilter({
@@ -762,10 +804,12 @@ export function useSidebarFilterState(
         origin?: "user" | "saved_view" | "system";
       },
     ) => {
-      const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
-        explicitFilters: newFilters,
-        config: managedEnvironmentPolicyConfig,
-      });
+      const explicitFilters = stripOmittedColumns(
+        stripImplicitEnvironmentFilterFromExplicitState({
+          explicitFilters: newFilters,
+          config: managedEnvironmentPolicyConfig,
+        }),
+      );
 
       onExplicitFilterStateChange?.({
         previousFilters: explicitFilterState,
@@ -817,6 +861,7 @@ export function useSidebarFilterState(
       managedEnvironmentPolicyConfig,
       explicitFilterState,
       onExplicitFilterStateChange,
+      stripOmittedColumns,
     ],
   );
 
@@ -920,6 +965,73 @@ export function useSidebarFilterState(
     storedFiltersQuery,
     setStoredFiltersQuery,
   ]);
+
+  return {
+    /** Effective applied filters: explicit + defaults + managed-env policy. */
+    filterState,
+    explicitFilterState,
+    setFilterState,
+    expandedState,
+    onExpandedChange,
+    managedEnvironmentColumn,
+    managedEnvironmentPolicyConfig,
+  };
+}
+
+export type SidebarFilterStateCore = ReturnType<
+  typeof useSidebarFilterStateCore
+>;
+
+export type SidebarFilterPresentationOptions = Pick<
+  BaseUseSidebarFilterStateOptions,
+  "loading" | "loadingColumns" | "isV4"
+>;
+
+/**
+ * Presentation half over a core instance: option-aware facet actions,
+ * analytics, and the UIFilter list.
+ */
+export function useSidebarFilterPresentation(
+  core: SidebarFilterStateCore,
+  config: FilterConfig,
+  options: FacetOptions,
+  presentationOptions: SidebarFilterPresentationOptions = {},
+) {
+  const { loading, loadingColumns } = presentationOptions;
+  const isV4Surface = presentationOptions.isV4 ?? false;
+  const capture = usePostHogClientCapture();
+  const {
+    filterState,
+    explicitFilterState,
+    setFilterState,
+    expandedState,
+    onExpandedChange,
+    managedEnvironmentColumn,
+    managedEnvironmentPolicyConfig,
+  } = core;
+
+  // Context the pure facet-action functions (lib/sidebar-filter-actions)
+  // read: facet/column metadata, the option lists, and — only while the
+  // managed-environment policy is active — the managed column, which gates
+  // its explicit enable-all-environments override.
+  const actionContext: SidebarFilterActionContext = useMemo(
+    () => ({
+      facets: config.facets,
+      columnDefinitions: config.columnDefinitions,
+      options,
+      managedEnvironmentColumn:
+        managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0
+          ? managedEnvironmentColumn
+          : undefined,
+    }),
+    [
+      config.facets,
+      config.columnDefinitions,
+      options,
+      managedEnvironmentColumn,
+      managedEnvironmentPolicyConfig.hiddenEnvironments,
+    ],
+  );
 
   // When true, the applied-filter capture inside `updateFilter` is suppressed —
   // set by `updateOperator`, which funnels through `updateFilter` but must emit
@@ -1533,6 +1645,12 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
+            keyDetails: resolveKeyDetails(availableKeys),
+            valueOptions: resolveKeyedValueOptions(
+              facet.column,
+              keyOptions,
+              options,
+            ),
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
@@ -1864,4 +1982,17 @@ export function useSidebarFilterState(
     // v3-vs-v4 dimension as the hook's own events.
     isV4: isV4Surface,
   };
+}
+
+/**
+ * Core + presentation in one call. Views that need the applied filter state
+ * before fetching options compose the two hooks directly (see EventsTable).
+ */
+export function useSidebarFilterState(
+  config: FilterConfig,
+  options: FacetOptions,
+  hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
+) {
+  const core = useSidebarFilterStateCore(config, hookOptions);
+  return useSidebarFilterPresentation(core, config, options, hookOptions);
 }

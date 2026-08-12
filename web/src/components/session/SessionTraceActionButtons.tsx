@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { type RouterOutputs } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";

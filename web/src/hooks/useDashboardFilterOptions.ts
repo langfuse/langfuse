@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
@@ -105,9 +106,11 @@ export function useDashboardFilterOptions({
     ],
   );
 
-  const tagsOptions = isBetaEnabled
-    ? (eventsFilterOptions.data?.traceTags ?? [])
-    : (traceFilterOptions.data?.tags ?? []);
+  const tagsOptions = sortOptionValues(
+    isBetaEnabled
+      ? (eventsFilterOptions.data?.traceTags ?? [])
+      : (traceFilterOptions.data?.tags ?? []),
+  );
 
   return { nameOptions, tagsOptions };
 }

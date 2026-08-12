@@ -8,7 +8,7 @@ import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
-import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import { projectRoleAccessRights } from "@langfuse/shared";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -16,7 +16,11 @@ export async function createProjectMembershipsOnSignup(
     email: string | null;
     name: string | null;
   },
-  options?: { userWasJustCreated?: boolean },
+  options?: {
+    userWasJustCreated?: boolean;
+    /** Google Ads click id, see getGclidFromRequest */
+    gclid?: string;
+  },
 ) {
   try {
     const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
@@ -292,6 +296,8 @@ export async function createProjectMembershipsOnSignup(
             hasDemoAccess: demoProject !== undefined,
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
+            // Google Ads click id for ad conversion attribution
+            ...(options?.gclid ? { gclid: options.gclid } : {}),
           },
         });
         await posthog.shutdown();

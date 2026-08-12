@@ -165,6 +165,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("version"),
     },
     {
+      type: "categorical" as const,
+      column: "release",
+      label: getEventsColumnName("release"),
+    },
+    {
       type: "string" as const,
       column: "statusMessage",
       label: getEventsColumnName("statusMessage"),
@@ -183,6 +188,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "userId",
       label: getEventsColumnName("userId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionApiKey",
+      label: getEventsColumnName("ingestionApiKey"),
     },
     {
       type: "categorical" as const,

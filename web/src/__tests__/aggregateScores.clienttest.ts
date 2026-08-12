@@ -17,6 +17,7 @@ describe("aggregateScores", () => {
         dataType: "NUMERIC",
         value: 5,
         comment: "test comment",
+        executionTraceId: "execution-trace-id",
       },
     ] as ScoreToAggregate[];
     expect(aggregateScores(scores)).toEqual({
@@ -25,6 +26,7 @@ describe("aggregateScores", () => {
         values: [5],
         average: 5,
         comment: "test comment",
+        executionTraceId: "execution-trace-id",
       },
     });
   });

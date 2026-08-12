@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Filter } from "lucide-react";
 
 import { useDataTableControls } from "@/src/components/table/data-table-controls";

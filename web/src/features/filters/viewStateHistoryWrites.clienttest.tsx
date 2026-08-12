@@ -291,8 +291,7 @@ describe("view-state URL writes and browser history (LFE-10715)", () => {
     // sanitize effect rewrites the URL on mount — a programmatic correction
     // that must not mint a history entry, or Back bounces off it re-firing
     // the sanitize (same LFE-10715 class as the viewId writes).
-    const { encodeFiltersGeneric } =
-      await import("./lib/filter-query-encoding");
+    const { encodeFiltersGeneric } = await import("@langfuse/shared");
     const canonical = encodeFiltersGeneric(TEST_FILTERS);
     expect(canonical.startsWith("name;")).toBe(true);
     const nonCanonical = canonical.replace(/^name;/, "Name;");

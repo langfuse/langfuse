@@ -126,6 +126,7 @@ export interface ExperimentDetailsStepProps {
 export interface ReviewStepProps {
   formState: FormState;
   navigationState: NavigationState;
+  errorMessage?: string;
   summary: {
     selectedPromptName: string;
     selectedPromptVersion: number | null;

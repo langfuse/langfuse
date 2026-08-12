@@ -9,6 +9,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const fullIOQuery = vi.fn();
 const downloadJsonFile = vi.fn();
 const capture = vi.fn();
+const useMediaMock = vi.fn(
+  (_args: Record<string, unknown>): { data: unknown } => ({ data: undefined }),
+);
 
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -26,8 +29,16 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
 }));
 
-vi.mock("@/src/components/trace/components/IOPreview/IOPreview", () => ({
-  IOPreview: () => <div data-testid="io-preview" />,
+// The component imports IOPreview through the traces feature surface, so the
+// mock has to intercept the surface — mocking the module behind it does nothing.
+vi.mock("@/src/features/traces", () => ({
+  IOPreview: ({ media }: { media?: { mediaId: string }[] }) => (
+    <div
+      data-testid="io-preview"
+      data-media-ids={(media ?? []).map((m) => m.mediaId).join(",")}
+    />
+  ),
+  useMedia: (args: Record<string, unknown>) => useMediaMock(args),
 }));
 
 vi.mock("@/src/components/session/actions/downloadSessionAsJson", () => ({
@@ -45,7 +56,7 @@ const baseObservation = {
   startTime: new Date("2026-07-15T10:00:00Z"),
   input: '{"messages":[{"role":"user","content":"hi"}]}',
   output: "hello",
-  metadata: {},
+  metadata: "{}",
   inputLength: 45,
   outputLength: 5,
   inputTruncated: false,
@@ -119,7 +130,7 @@ describe("SessionObservationIO", () => {
       id: "obs-1",
       input: "full-input",
       output: "full-output",
-      metadata: {},
+      metadata: JSON.stringify({ constructor: "test" }),
     });
     renderComponent({
       ...baseObservation,
@@ -139,7 +150,10 @@ describe("SessionObservationIO", () => {
     expect(downloadJsonFile).toHaveBeenCalledWith(
       expect.objectContaining({
         fileName: "observation-obs-1.json",
-        data: expect.objectContaining({ input: "full-input" }),
+        data: expect.objectContaining({
+          input: "full-input",
+          metadata: { constructor: "test" },
+        }),
       }),
     );
   });
@@ -148,13 +162,38 @@ describe("SessionObservationIO", () => {
     renderComponent({
       ...baseObservation,
       inputTruncated: true,
-      metadata: { key: "value" },
+      metadata: JSON.stringify({ key: "value" }),
       metadataLength: 15,
       metadataTruncated: false,
     } as SessionTraceObservation);
 
     expect(screen.getByText("Metadata")).toBeInTheDocument();
     expect(screen.getByText(/"key":"value"/)).toBeInTheDocument();
+  });
+
+  // LFE-14815: trace detail resolved observation media, the session view did
+  // not, so a media-bearing message had no thumbnail here.
+  it("forwards observation media to IOPreview, and only looks it up when referenced", () => {
+    useMediaMock.mockReturnValue({ data: [{ mediaId: "media-1" }] });
+    renderComponent({
+      ...baseObservation,
+      input: `{"content":"@@@langfuseMedia:type=image/png|id=media-1|source=base64_data_uri@@@"}`,
+    } as SessionTraceObservation);
+
+    expect(screen.getByTestId("io-preview")).toHaveAttribute(
+      "data-media-ids",
+      "media-1",
+    );
+    expect(useMediaMock).toHaveBeenCalledWith(
+      expect.objectContaining({ observationId: "obs-1", enabled: true }),
+    );
+
+    useMediaMock.mockClear();
+    renderComponent(baseObservation);
+
+    expect(useMediaMock).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
   });
 
   it("keeps IOPreview but points to the trace view when only metadata was truncated", () => {

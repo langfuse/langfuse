@@ -132,7 +132,7 @@ describe("project SDK version hook", () => {
     );
 
     expect(result.current).toMatchObject({
-      sdkVersion: { language: "python", version: "4.7.1" },
+      sdkVersion: { language: "python", version: "4.7.1", isOtel: true },
       checkedAt: new Date(checkedAt).toISOString(),
     });
 
@@ -140,6 +140,7 @@ describe("project SDK version hook", () => {
     await waitFor(() => {
       expect(window.localStorage.getItem(keys.language)).toBe("python");
       expect(window.localStorage.getItem(keys.version)).toBe("4.7.1");
+      expect(window.localStorage.getItem(keys.isOtel)).toBe("true");
       expect(window.localStorage.getItem(keys.checkedAt)).toBe(
         new Date(checkedAt).toISOString(),
       );
