@@ -18,10 +18,6 @@ import { AZURE_CREDENTIAL_MODES, env } from "../../env";
  */
 export type AzureCredentialMode = (typeof AZURE_CREDENTIAL_MODES)[number];
 
-/**
- * Each variant carries exactly what its credential class needs, so invalid
- * combinations cannot be represented and only the resolver rejects them.
- */
 export type AzureCredentialConfig =
   | { mode: "shared-key"; accountName: string; accountKey: string }
   | {
@@ -45,7 +41,6 @@ export type AzureCredentialConfig =
     }
   | { mode: "default-chain" };
 
-/** Separated from the `env` singleton so the resolver is unit testable. */
 export interface AzureCredentialSettings {
   credentialMode: AzureCredentialMode;
   clientId?: string;
@@ -93,11 +88,6 @@ export function requireAzureSharedKeyCredential(params: {
   };
 }
 
-/**
- * Resolves the configured mode into a credential config, failing with a message
- * naming the environment variable at fault. `bucketCredentials` holds the
- * per-bucket account name / key, which only shared key mode consumes.
- */
 export function resolveAzureCredentialConfig(
   bucketCredentials: {
     accessKeyId: string | undefined;
@@ -123,8 +113,8 @@ export function resolveAzureCredentialConfig(
     }
 
     case "workload-identity":
-      // Normally injected by the AKS webhook; WorkloadIdentityCredential reads
-      // the same variables itself and names whichever one is missing.
+      // Nothing is required: WorkloadIdentityCredential reads the AZURE_*
+      // variables the AKS webhook injects and names whichever one is missing.
       return {
         mode: "workload-identity",
         clientId: settings.clientId,
@@ -133,8 +123,6 @@ export function resolveAzureCredentialConfig(
       };
 
     case "managed-identity": {
-      // Following SecretProviderClass's `userAssignedIdentityID`: an identifier
-      // selects a user-assigned identity, omitting it selects system-assigned.
       if (settings.clientId && settings.managedIdentityResourceId) {
         throw new Error(
           `Set only one of AZURE_CLIENT_ID or LANGFUSE_AZURE_MANAGED_IDENTITY_RESOURCE_ID to select a user-assigned managed identity`,
@@ -176,9 +164,6 @@ export function resolveAzureCredentialConfig(
     }
 
     case "default-chain":
-      // Escape hatch. Slower than the explicit modes (it probes IMDS and
-      // developer tooling) and picks its identity by chain order; the SDK's
-      // AZURE_TOKEN_CREDENTIALS can narrow it.
       return { mode: "default-chain" };
   }
 }
@@ -230,7 +215,6 @@ export function createAzureCredential(
   }
 }
 
-/** For startup logs. Client IDs are not sensitive; secrets must not appear. */
 export function describeAzureCredential(config: AzureCredentialConfig): string {
   switch (config.mode) {
     case "shared-key":
