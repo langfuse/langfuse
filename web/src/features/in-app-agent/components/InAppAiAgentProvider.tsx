@@ -580,10 +580,10 @@ function InAppAiAgentProviderInner({
     isLoadingMoreConversations,
   ]);
   const invalidateConversations = useCallback(() => {
-    utils.inAppAgent.listConversations
-      .invalidate({ projectId })
-      .catch(() => undefined);
-    refetchActivity().catch(() => undefined);
+    Promise.resolve(
+      utils.inAppAgent.listConversations.invalidate({ projectId }),
+    ).catch(() => undefined);
+    Promise.resolve(refetchActivity()).catch(() => undefined);
   }, [projectId, refetchActivity, utils.inAppAgent.listConversations]);
 
   useEffect(() => {
@@ -792,7 +792,7 @@ function InAppAiAgentProviderInner({
             next.delete(started.conversationId);
             return next;
           });
-          refetchActivity().catch(() => undefined);
+          Promise.resolve(refetchActivity()).catch(() => undefined);
           return started;
         },
       });
@@ -869,16 +869,16 @@ function InAppAiAgentProviderInner({
         },
         onSettled: () => {
           clearLoadingEvents();
-          utils.inAppAgent.listConversations
-            .invalidate({ projectId })
-            .catch(() => undefined);
-          utils.inAppAgent.getConversation
-            .invalidate({
+          Promise.resolve(
+            utils.inAppAgent.listConversations.invalidate({ projectId }),
+          ).catch(() => undefined);
+          Promise.resolve(
+            utils.inAppAgent.getConversation.invalidate({
               projectId,
               conversationId,
-            })
-            .catch(() => undefined);
-          refetchActivity().catch(() => undefined);
+            }),
+          ).catch(() => undefined);
+          Promise.resolve(refetchActivity()).catch(() => undefined);
           releaseSubmitLock(conversationId);
         },
       });

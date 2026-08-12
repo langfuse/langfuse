@@ -30,7 +30,10 @@ const providerMocks = vi.hoisted(() => {
       decideToolApproval: { mutateAsync: decideToolApproval },
     },
     getConversation: vi.fn(),
-    activityQuery: { data: undefined, refetch: vi.fn() },
+    activityQuery: {
+      data: undefined,
+      refetch: vi.fn(() => Promise.resolve({ data: undefined })),
+    },
     listQuery: {
       data: { pages: [{ conversations: [] }] },
       error: null,
@@ -67,22 +70,22 @@ const providerMocks = vi.hoisted(() => {
     },
     utils: {
       dashboard: {
-        invalidate: vi.fn(),
+        invalidate: vi.fn(() => Promise.resolve()),
       },
       dashboardWidgets: {
-        invalidate: vi.fn(),
+        invalidate: vi.fn(() => Promise.resolve()),
       },
       inAppAgent: {
         getConversation: {
           fetch: vi.fn(),
-          invalidate: vi.fn(),
+          invalidate: vi.fn(() => Promise.resolve()),
         },
         listConversations: {
-          invalidate: vi.fn(),
+          invalidate: vi.fn(() => Promise.resolve()),
         },
       },
       prompts: {
-        invalidate: vi.fn(),
+        invalidate: vi.fn(() => Promise.resolve()),
       },
     },
   };
