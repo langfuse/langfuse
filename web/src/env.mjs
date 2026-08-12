@@ -412,6 +412,9 @@ export const env = createEnv({
       .date()
       .optional()
       .transform((date) => (date ? new Date(date) : null)),
+    // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
+    // Unset disables the endpoint (it 500s) rather than leaving it open.
+    CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -946,6 +949,8 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+    CLICKHOUSE_BILLING_METRICS_API_KEY:
+      process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
