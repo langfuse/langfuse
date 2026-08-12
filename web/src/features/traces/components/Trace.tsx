@@ -4,7 +4,11 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { TraceDataProvider } from "@/src/features/traces/contexts/TraceDataContext";
 import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { SelectionProvider } from "@/src/features/traces/contexts/SelectionContext";
+import {
+  SelectionProvider,
+  useSelection,
+} from "@/src/features/traces/contexts/SelectionContext";
+import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { PlayheadProvider } from "@/src/features/traces/contexts/PlayheadContext";
@@ -34,16 +38,35 @@ export type TraceProps = {
   corrections: ScoreDomain[];
   projectId: string;
   context?: "fullscreen" | "peek" | "annotation";
+  /** Observation cap this trace was loaded under, when it hit it. */
+  truncatedAtObservations?: number;
 };
 
-export function Trace({
+/**
+ * SelectionProvider sits ABOVE the trace data so the selected observation can be
+ * resolved before the tree is built: past the observation cap the selected row is
+ * missing from the loaded list and has to be fetched and merged in.
+ */
+export function Trace({ context, ...props }: TraceProps) {
+  return (
+    <ViewPreferencesProvider traceContext={context}>
+      <SelectionProvider>
+        <TraceWithSelection {...props} />
+      </SelectionProvider>
+    </ViewPreferencesProvider>
+  );
+}
+
+function TraceWithSelection({
   trace,
-  observations,
+  observations: loadedObservations,
   scores,
   corrections,
   projectId,
-  context,
-}: TraceProps) {
+  truncatedAtObservations,
+}: Omit<TraceProps, "context">) {
+  const { selectedNodeId } = useSelection();
+
   // Fetch comment counts using existing hook
   const { observationCommentCounts, traceCommentCount } = useTraceComments({
     projectId,
@@ -59,32 +82,63 @@ export function Trace({
     return map;
   }, [observationCommentCounts, traceCommentCount, trace.id]);
 
+  // A selected observation outside the loaded list joins the tree instead of
+  // being invisible in it.
+  const selected = useSelectedObservation({
+    selectedNodeId,
+    traceId: trace.id,
+    projectId,
+    observations: loadedObservations,
+  });
+  const detachedObservation =
+    selected.kind === "observation" && selected.isOutsideLoadedList
+      ? selected.observation
+      : null;
+
+  // treeBuilding nulls a parentObservationId it cannot resolve, so a row whose
+  // parent ALSO fell past the cap renders at root level without being a root —
+  // the one case the UI has to qualify. A row with a loaded parent nests
+  // correctly, and a row with no parent at all genuinely is a root; neither is
+  // misplaced.
+  const detachedIsMisplaced = useMemo(() => {
+    const parentId = detachedObservation?.parentObservationId;
+    if (!parentId) return false;
+    return !loadedObservations.some((obs) => obs.id === parentId);
+  }, [detachedObservation, loadedObservations]);
+
+  const observations = useMemo(
+    () =>
+      detachedObservation
+        ? [...loadedObservations, detachedObservation]
+        : loadedObservations,
+    [loadedObservations, detachedObservation],
+  );
+
   return (
-    <ViewPreferencesProvider traceContext={context}>
-      <TraceDataProvider
-        trace={trace}
+    <TraceDataProvider
+      trace={trace}
+      observations={observations}
+      serverScores={scores}
+      corrections={corrections}
+      comments={commentsMap}
+      detachedObservationId={detachedObservation?.id ?? null}
+      detachedObservationIsMisplaced={detachedIsMisplaced}
+      truncatedAtObservations={truncatedAtObservations}
+    >
+      <TraceGraphDataProvider
+        projectId={trace.projectId}
+        traceId={trace.id}
         observations={observations}
-        serverScores={scores}
-        corrections={corrections}
-        comments={commentsMap}
       >
-        <TraceGraphDataProvider
-          projectId={trace.projectId}
-          traceId={trace.id}
-          observations={observations}
-        >
-          <SelectionProvider>
-            <SearchProvider>
-              <JsonExpansionProvider>
-                <PlayheadProvider>
-                  <TraceContent />
-                </PlayheadProvider>
-              </JsonExpansionProvider>
-            </SearchProvider>
-          </SelectionProvider>
-        </TraceGraphDataProvider>
-      </TraceDataProvider>
-    </ViewPreferencesProvider>
+        <SearchProvider>
+          <JsonExpansionProvider>
+            <PlayheadProvider>
+              <TraceContent />
+            </PlayheadProvider>
+          </JsonExpansionProvider>
+        </SearchProvider>
+      </TraceGraphDataProvider>
+    </TraceDataProvider>
   );
 }
 

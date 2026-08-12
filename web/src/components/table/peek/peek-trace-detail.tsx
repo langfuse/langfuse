@@ -77,7 +77,11 @@ export const TablePeekViewTraceDetail = (
         ) : undefined
       }
     >
-      <TraceDetailBody trace={trace.data} context="peek" />
+      <TraceDetailBody
+        trace={trace.data}
+        context="peek"
+        truncatedAtObservations={trace.truncatedAtObservations}
+      />
     </TablePeekView>
   );
 };

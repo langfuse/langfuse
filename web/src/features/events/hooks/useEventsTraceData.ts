@@ -34,7 +34,12 @@ interface UseEventsTraceDataResult {
     | undefined;
   isLoading: boolean;
   error: unknown;
-  cutoffObservationsAfterMaxCount: boolean;
+  /**
+   * The observation cap this trace was loaded under, set ONLY when the trace hit
+   * it (so the list is missing its chronological tail). The number comes from the
+   * server response — never a client-side copy of the constant.
+   */
+  truncatedAtObservations: number | undefined;
 }
 
 /**
@@ -173,13 +178,12 @@ export function useEventsTraceData(
     };
   }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
 
-  const cutoffObservationsAfterMaxCount =
-    eventsQuery.data?.cutoffObservationsAfterMaxCount ?? false;
-
   return {
     data: transformed ?? undefined,
     isLoading: eventsQuery.isLoading || scoresQuery.isLoading,
     error: eventsQuery.error || scoresQuery.error,
-    cutoffObservationsAfterMaxCount,
+    truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
+      ? eventsQuery.data.maxObservationsPerTrace
+      : undefined,
   };
 }
