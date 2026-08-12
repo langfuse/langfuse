@@ -69,6 +69,9 @@ export function InAppAgentActivityNotifications({
     );
   };
 
+  // Timers are an external system. Keep this separate from unmount cleanup:
+  // a dependency-change cleanup that cleared every timer would reset TTLs
+  // whenever the visible stack changes.
   useEffect(() => {
     const selectedByKey = new Map(
       selected.map((card) => [card.activityKey, card]),

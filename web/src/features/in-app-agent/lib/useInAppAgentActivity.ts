@@ -80,26 +80,25 @@ export function useInAppAgentActivity(params: {
     });
   }, [activityQuery.data, conversations, receipts, visibleConversationId]);
 
-  useEffect(() => {
-    if (activityQuery.data === undefined || reconciled.receipts === receipts) {
-      return;
-    }
-
-    setReceipts(reconciled.receipts);
-  }, [activityQuery.data, receipts, reconciled.receipts, setReceipts]);
-
-  useEffect(() => {
-    if (activityQuery.data === undefined) {
-      return;
+  // Adjust the localStorage ledger while rendering when the activity snapshot
+  // changes (https://react.dev/learn/you-might-not-need-an-effect). Idempotent:
+  // unchanged references skip setState, so React does not loop.
+  if (activityQuery.data !== undefined) {
+    if (reconciled.receipts !== receipts) {
+      setReceipts(reconciled.receipts);
     }
 
     const liveConversationIds = new Set(
       conversations.map((conversation) => conversation.id),
     );
-    setDelivered((current) =>
-      pruneInAppAgentDeliveredReceipts(current, liveConversationIds),
+    const nextDelivered = pruneInAppAgentDeliveredReceipts(
+      delivered,
+      liveConversationIds,
     );
-  }, [activityQuery.data, conversations, setDelivered]);
+    if (nextDelivered !== delivered) {
+      setDelivered(nextDelivered);
+    }
+  }
 
   const markConversationHandled = useCallback(
     (conversationId: string, activityKey: string) => {
