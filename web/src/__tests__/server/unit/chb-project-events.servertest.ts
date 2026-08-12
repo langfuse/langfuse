@@ -16,8 +16,8 @@ const mocks = vi.hoisted(() => ({
   findProjects: vi.fn(),
   send: vi.fn(),
   recordIncrement: vi.fn(),
-  // Plain array, deliberately not reset between tests: the helper memoizes its
-  // EventBridge client, so only whichever test runs first constructs one.
+  // Plain array, deliberately not reset between tests: the client is a lazy
+  // singleton, so only whichever test publishes first constructs one.
   clientRegions: [] as (string | undefined)[],
 }));
 
@@ -76,9 +76,9 @@ const orgRow = (cloudConfig: unknown) => ({
   cloudConfig,
 });
 
-// The entry each PutEvents call carried, in call order.
+// Every entry published, flattened across calls and across each call's batch.
 const publishedEntries = () =>
-  mocks.send.mock.calls.map(([command]) => command.input.Entries[0]);
+  mocks.send.mock.calls.flatMap(([command]) => command.input.Entries);
 
 const publishedDetails = () =>
   publishedEntries().map((entry) => JSON.parse(entry.Detail));
@@ -176,7 +176,12 @@ describe("chbProjectEvents", () => {
       expect(mocks.recordIncrement).toHaveBeenCalledWith(
         "langfuse.billing_events.emit_failed",
         1,
-        { unit: "events", source: "request" },
+        {
+          unit: "events",
+          source: "request",
+          // A lost delete has to be separable from a lost create on the alert.
+          event_type: "LANGFUSE_PROJECT_DELETED",
+        },
       ),
     );
     expect(loggerError).toHaveBeenCalled();
@@ -241,6 +246,8 @@ describe("chbProjectEvents", () => {
         "project-a",
         "project-b",
       ]);
+      // Batched: both projects ride one PutEvents call, not one call each.
+      expect(mocks.send).toHaveBeenCalledTimes(1);
       expect(publishedEntries()[0].DetailType).toBe("LANGFUSE_PROJECT_CREATED");
       expect(publishedDetails()[0]).toMatchObject({
         organizationId: CHB_ORG_ID,
@@ -263,7 +270,10 @@ describe("chbProjectEvents", () => {
       expect(mocks.send).not.toHaveBeenCalled();
     });
 
-    it("isolates one project's failure and still sends the rest", async () => {
+    // PutEvents fails per entry, so a batch can come back half-rejected. The
+    // rejected entry must be the only one counted lost, and the only one
+    // retried -- resending the whole batch would duplicate what already landed.
+    it("counts only the rejected entry of a partially failed batch", async () => {
       mocks.findOrg.mockResolvedValue(
         orgRow({ clickhouse: { organizationId: CHB_ORG_ID } }),
       );
@@ -271,20 +281,43 @@ describe("chbProjectEvents", () => {
         { id: "project-a" },
         { id: "project-b" },
       ]);
-      mocks.send.mockImplementation((command) =>
-        JSON.parse(command.input.Entries[0].Detail).projectId === "project-a"
-          ? Promise.reject(new Error("ECONNRESET"))
-          : Promise.resolve({ FailedEntryCount: 0 }),
-      );
+      mocks.send.mockImplementation((command) => {
+        const results = command.input.Entries.map(
+          (entry: { Detail: string }) =>
+            JSON.parse(entry.Detail).projectId === "project-a"
+              ? { ErrorCode: "InternalException" }
+              : { EventId: "ok" },
+        );
+        return Promise.resolve({
+          FailedEntryCount: results.filter(
+            (result: { ErrorCode?: string }) => result.ErrorCode,
+          ).length,
+          Entries: results,
+        });
+      });
 
       await expect(
         backfillChbProjectEvents({ orgId: ORG_ID }),
       ).resolves.toEqual({ sent: 1, failed: 1 });
 
+      // Retry #2 and #3 carry only project-a; project-b is not resent.
+      expect(
+        mocks.send.mock.calls
+          .slice(1)
+          .flatMap(([command]) => command.input.Entries)
+          .map(
+            (entry: { Detail: string }) => JSON.parse(entry.Detail).projectId,
+          ),
+      ).toEqual(["project-a", "project-a"]);
+
       expect(mocks.recordIncrement).toHaveBeenCalledWith(
         "langfuse.billing_events.emit_failed",
         1,
-        { unit: "events", source: "backfill" },
+        {
+          unit: "events",
+          source: "backfill",
+          event_type: "LANGFUSE_PROJECT_CREATED",
+        },
       );
       expect(loggerError).toHaveBeenCalled();
     });
