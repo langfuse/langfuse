@@ -84,6 +84,12 @@ export function InAppAgentWindowShell({
   // drawers — so the page behind is scroll-locked and there is exactly one
   // scroller, and never the movable panel (drag/resize is meaningless on
   // touch). Stays mounted while closed so Vaul can animate itself out.
+  //
+  // `dismissible={false}`: this is a page, not a sheet, so it never follows a
+  // drag and you cannot pull it down to close — the header's close button is
+  // the way out. That also makes Vaul swallow every close routed through
+  // `onOpenChange`, so Escape is re-armed explicitly below (it still matters in
+  // a narrow desktop window, which is handheld too).
   if (isHandheld) {
     return (
       <Drawer
@@ -93,6 +99,7 @@ export function InAppAgentWindowShell({
             onClose();
           }
         }}
+        dismissible={false}
         forceDirection="bottom"
       >
         <DrawerContent
@@ -106,6 +113,10 @@ export function InAppAgentWindowShell({
           // off-screen by the banner offset. Vaul still overrides the height to
           // dodge the on-screen keyboard.
           className="top-banner-offset inset-x-0 bottom-0 h-auto rounded-none border-0 md:h-auto"
+          onEscapeKeyDown={(event) => {
+            event.preventDefault();
+            onClose();
+          }}
         >
           <DrawerTitle className="sr-only">Assistant</DrawerTitle>
           {children({ isHeaderDragHandleEnabled: false })}

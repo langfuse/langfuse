@@ -19,6 +19,7 @@ import {
   SendHorizontal,
   Square,
   Trash2,
+  X,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -709,13 +710,23 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   variant="ghost"
                   size="icon"
                   className="size-6"
-                  aria-label="Minimize assistant"
+                  // Full-screen has nothing to minimize into, and with no
+                  // drag-to-dismiss this is the only way out.
+                  aria-label={
+                    isHandheld ? "Close assistant" : "Minimize assistant"
+                  }
                   onClick={props.onClose}
                 >
-                  <Minus className="size-3" />
+                  {isHandheld ? (
+                    <X className="size-3" />
+                  ) : (
+                    <Minus className="size-3" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Minimize assistant</TooltipContent>
+              <TooltipContent>
+                {isHandheld ? "Close assistant" : "Minimize assistant"}
+              </TooltipContent>
             </Tooltip>
           ) : null}
         </div>
