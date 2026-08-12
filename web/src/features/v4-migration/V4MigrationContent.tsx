@@ -197,8 +197,9 @@ function ExternalLink({
 }
 
 // Evidence deep-link filter for one SDK usage series: always the exact public
-// key, plus the ingestion SDK name/version when the series carries exact
-// values — so two SDK versions on the same key link to distinct result sets.
+// key (including the empty value used by raw OTel ingestion), plus the
+// ingestion SDK name/version when the series carries exact values — so two SDK
+// versions on the same key link to distinct result sets.
 // "unknown" is the attribution fallback bucket, not an exact value, so those
 // dimensions fall back to key-only. The delayed-OTel `source` dimension is
 // deliberately not linked either: it is a prefix match, not an exact one.
@@ -332,7 +333,7 @@ function SdkUsageSeriesRows({
             ? `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`
             : usage.publicKey || "No API key";
         const evidenceHref =
-          projectId && usage.publicKey && usage.eventsCount > 0
+          projectId && usage.eventsCount > 0
             ? `/project/${projectId}/observations?filter=${encodeURIComponent(
                 buildSdkUsageEvidenceFilter(usage),
               )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`
@@ -360,9 +361,9 @@ function SdkUsageSeriesRows({
               </span>
               {/* Deep link to the exact evidence: the events table filtered by
                   this public key, plus SDK name and version when attributed,
-                  over the detection lookback. Rows without a public key and
-                  scores-only offenders stay unlinked because their target
-                  would be overly broad or empty. */}
+                  over the detection lookback. An empty public key is an exact
+                  filter value for raw OTel ingestion; scores-only offenders
+                  stay unlinked because their target would be empty. */}
               {evidenceHref ? (
                 <>
                   <span aria-hidden="true">·</span>

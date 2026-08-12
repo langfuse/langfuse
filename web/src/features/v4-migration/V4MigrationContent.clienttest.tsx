@@ -473,26 +473,39 @@ describe("V4MigrationDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not link observations when an offender has no public key", () => {
+  it("links keyless raw OTel observations with an exact empty-key filter", () => {
     mocks.migrationData.sdk = {
-      status: "legacy",
+      status: "otel_header_required",
       sdkUsageSeries: [
         makeSdkUsageSeries({
-          sdkVersion: "2.60.3",
-          v4MigrationStatus: "upgrade_required",
+          sdkName: "openlit",
+          sdkVersion: "1.35.4",
+          canonicalSdkName: null,
+          v4MigrationStatus: "unknown",
+          hasDelayedOtelEvents: true,
           publicKey: "",
         }),
       ],
-      upgradeRequiredCount: 1,
-      delayedOtelIngestionCount: 0,
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 1,
     };
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     expect(screen.getByText("No API key")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "View observations" }),
-    ).not.toBeInTheDocument();
+    const evidenceLink = screen.getByRole("link", {
+      name: "View observations",
+    });
+    expect(evidenceLink).toHaveAttribute(
+      "href",
+      `/project/project-1/observations?filter=${encodeURIComponent(
+        "ingestionApiKey;stringOptions;;any of;," +
+          "ingestionSdkName;stringOptions;;any of;openlit," +
+          "ingestionSdkVersion;stringOptions;;any of;1.35.4",
+      )}&dateRange=14d`,
+    );
+    expect(evidenceLink).toHaveAttribute("target", "_blank");
+    expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
   });
 
   it("captures panel_checks_loaded once when all checks settle", () => {
