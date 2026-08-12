@@ -302,8 +302,7 @@ function InAppAiAgentProviderInner({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  const isInAppAgentEnabled = useIsInAppAgentEnabled();
   const { organization } = useQueryProjectOrOrganization();
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
   const [_selectedConversationId, setSelectedConversationId] =
@@ -436,14 +435,6 @@ function InAppAiAgentProviderInner({
       : error;
   const liveMessageVersion = backgroundExecutionView.liveMessageRevision;
 
-  // Mirror assertInAppAgentAvailable: entitlement alone is not enough — cloud
-  // + org AI toggle must be on, or listConversations 403/412s and the global
-  // tRPC handler surfaces Forbidden toasts on every page load/focus.
-  const activityPollingEnabled =
-    isLangfuseCloud &&
-    hasInAppAgentEntitlement &&
-    Boolean(organization?.aiFeaturesEnabled);
-
   const {
     activityByConversationId,
     attentionCount,
@@ -454,7 +445,9 @@ function InAppAiAgentProviderInner({
   } = useInAppAgentActivity({
     projectId,
     userId,
-    enabled: activityPollingEnabled,
+    // Polling a project the server will reject turns every page load and
+    // window focus into a Forbidden toast.
+    enabled: isInAppAgentEnabled,
     // Only what the user can actually see counts as looked at; a selected
     // conversation behind a closed window has not been read.
     visibleConversationId: open ? selectedConversationId : null,
@@ -1641,8 +1634,24 @@ export function useInAppAiAgent() {
   return ctx;
 }
 
-/** Whether the current user/context may use the in-app assistant at all.
- * Shared gate for the launcher button and the window host. */
+/** Client mirror of the server's assertInAppAgentAvailable: whether a request
+ * for this project would be served, so callers can skip ones it would reject. */
+export function useIsInAppAgentEnabled() {
+  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useQueryProjectOrOrganization();
+
+  return (
+    isLangfuseCloud &&
+    hasInAppAgentEntitlement &&
+    Boolean(organization?.aiFeaturesEnabled)
+  );
+}
+
+/** Whether the current user/context may use the in-app assistant at all. Shared
+ * gate for the launcher button and the window host. Deliberately looser than
+ * useIsInAppAgentEnabled: with the org AI toggle off the entry points still
+ * show, and clicking one opens the dialog that turns it on. */
 export function useCanUseInAppAgent() {
   const { isAvailable } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
