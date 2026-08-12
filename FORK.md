@@ -39,3 +39,7 @@ Deployed at `studio.staging.weval.org` from `cip-data-staging`
 | File | Edit | Since |
 | --- | --- | --- |
 | `web/src/components/layouts/routes.tsx` | `Elicitations` nav entry in the Evaluation group + `MessagesSquare` icon import | 2026-08-12 |
+| `web/src/components/LangfuseLogo.tsx` | `LangfuseIcon` renders the Weval mark (`cip-branding/WevalLogo`); wordmark text → "Weval Studio". Export names unchanged so call sites stay stock | 2026-08-12 |
+| `web/src/components/layouts/app-layout/hooks/useLayoutMetadata.ts` | Browser-tab title → "Weval Studio" | 2026-08-12 |
+| `web/src/pages/auth/{sign-in,sign-up,sso-initiate,enterprise-sso-required}.tsx`, `web/src/pages/onboarding.tsx`, `web/src/features/auth-credentials/components/ResetPasswordPage.tsx` | `<title>` strings → "… \| Weval Studio" | 2026-08-12 |
+| `web/public/` (`icon.svg`, `favicon*.{png,ico}`, `icon{256,1024}.png`, `apple-touch-icon.png`, `android-chrome-192x192.png`) | Replaced with the Weval mark from weval-org/app (`public/cip.{svg,png}`); `icon.svg` flips to white in dark mode | 2026-08-12 |

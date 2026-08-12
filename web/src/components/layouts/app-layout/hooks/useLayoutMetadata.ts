@@ -28,7 +28,10 @@ export function useLayoutMetadata(
     const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
 
     // Determine page title from active route
-    const title = activePathName ? `${activePathName} | Langfuse` : "Langfuse";
+    // CIP fork (see FORK.md): browser-tab branding.
+    const title = activePathName
+      ? `${activePathName} | Weval Studio`
+      : "Weval Studio";
 
     // Use dev favicon in DEV region for visual distinction
     // Using SVG for modern browsers with PNG fallback specified in sizes
