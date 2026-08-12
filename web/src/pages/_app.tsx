@@ -76,6 +76,7 @@ if (typeof window !== "undefined") {
   };
 }
 
+import { ResilientSessionProvider } from "@/src/features/auth/components/ResilientSessionProvider";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
@@ -171,31 +172,33 @@ const MyApp: AppType<{ session: Session | null }> = ({
                 refetchInterval={5 * 60} // 5 minutes
                 basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
               >
-                <DetailPageListsProvider>
-                  <MarkdownContextProvider>
-                    <ThemeProvider
-                      attribute="class"
-                      enableSystem
-                      disableTransitionOnChange
-                    >
-                      <ScoreCacheProvider>
-                        <CorrectionCacheProvider>
-                          <SupportDrawerProvider defaultOpen={false}>
-                            <V4MigrationPanelProvider defaultOpen={false}>
-                              <InAppAiAgentProvider defaultOpen={false}>
-                                {skipAppLayout ? (
-                                  page
-                                ) : (
-                                  <AppLayout>{page}</AppLayout>
-                                )}
-                              </InAppAiAgentProvider>
-                            </V4MigrationPanelProvider>
-                          </SupportDrawerProvider>
-                        </CorrectionCacheProvider>
-                      </ScoreCacheProvider>
-                    </ThemeProvider>
-                  </MarkdownContextProvider>
-                </DetailPageListsProvider>
+                <ResilientSessionProvider>
+                  <DetailPageListsProvider>
+                    <MarkdownContextProvider>
+                      <ThemeProvider
+                        attribute="class"
+                        enableSystem
+                        disableTransitionOnChange
+                      >
+                        <ScoreCacheProvider>
+                          <CorrectionCacheProvider>
+                            <SupportDrawerProvider defaultOpen={false}>
+                              <V4MigrationPanelProvider defaultOpen={false}>
+                                <InAppAiAgentProvider defaultOpen={false}>
+                                  {skipAppLayout ? (
+                                    page
+                                  ) : (
+                                    <AppLayout>{page}</AppLayout>
+                                  )}
+                                </InAppAiAgentProvider>
+                              </V4MigrationPanelProvider>
+                            </SupportDrawerProvider>
+                          </CorrectionCacheProvider>
+                        </ScoreCacheProvider>
+                      </ThemeProvider>
+                    </MarkdownContextProvider>
+                  </DetailPageListsProvider>
+                </ResilientSessionProvider>
               </SessionProvider>
             </PostHogProvider>
           </CommandMenuProvider>
