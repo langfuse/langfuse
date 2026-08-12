@@ -576,6 +576,7 @@ function FilterBuilderForm({
   const [showAiFilter, setShowAiFilter] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
+  const [openColumnRow, setOpenColumnRow] = useState<number | null>(null);
   const handleFilterChange = (filter: WipFilterCondition, i: number) => {
     onChange((prev) => {
       const newState = [...prev];
@@ -655,7 +656,10 @@ function FilterBuilderForm({
     const columnLabel = column ? column.name : "Column";
 
     const columnCombobox = (
-      <Popover>
+      <Popover
+        open={openColumnRow === i}
+        onOpenChange={(open) => setOpenColumnRow(open ? i : null)}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -725,6 +729,7 @@ function FilterBuilderForm({
                           } as WipFilterCondition,
                           i,
                         );
+                        setOpenColumnRow(null);
                       }}
                     >
                       <Check
