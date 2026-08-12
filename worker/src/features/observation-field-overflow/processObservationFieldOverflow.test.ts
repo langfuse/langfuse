@@ -272,6 +272,25 @@ describe("applyObservationFieldOverflow", () => {
     expect(result).toEqual(expect.objectContaining({ input: "x".repeat(11) }));
   });
 
+  it("applies the size limit to oversized marker-shaped values", async () => {
+    mocks.env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES = 100;
+    mocks.uploadMediaForTrace.mockResolvedValueOnce({
+      mediaId: "bounded-media",
+      outcome: "uploaded",
+    });
+    const oversizedMarker = mediaReference("x".repeat(200));
+    const eventRecord = createEventRecord({ input: oversizedMarker });
+
+    const result = await applyObservationFieldOverflow(eventRecord);
+
+    expect(result.input).toBe(mediaReference("bounded-media"));
+    expect(mocks.uploadMediaForTrace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentBytes: Buffer.from(oversizedMarker),
+      }),
+    );
+  });
+
   it("applies the limit to each metadata value rather than their aggregate size", async () => {
     const eventRecord = createEventRecord({
       metadata_values: ["123456", "123456"],

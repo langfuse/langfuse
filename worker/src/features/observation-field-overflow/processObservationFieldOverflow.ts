@@ -149,9 +149,6 @@ function collectOverflowCandidates(
 ): OverflowCandidate[] {
   const candidates: OverflowCandidate[] = [];
   const addCandidate = (target: OverflowTarget, value: string) => {
-    if (isObservationFieldOverflowReference(value)) {
-      return;
-    }
     const originalBytes = Buffer.byteLength(value, "utf8");
     if (originalBytes > env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES) {
       candidates.push({ ...target, value, originalBytes });
