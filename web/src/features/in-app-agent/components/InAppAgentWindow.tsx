@@ -46,6 +46,8 @@ import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-age
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import { ConversationActivityIndicator } from "@/src/features/in-app-agent/components/ConversationActivityIndicator";
+import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components/InAppAgentBackgroundHint";
+import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
   type InAppAgentError,
@@ -459,6 +461,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     })
     .filter((message): message is InAppAgentWindowMessage => message !== null);
 
+  const backgroundHint = useInAppAgentBackgroundHint();
+
   const submitInput = (content: string, options?: InAppAgentSubmitOptions) => {
     const trimmedContent = content.trim();
 
@@ -466,9 +470,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       return;
     }
 
+    // Read before the parent appends the message: the hint belongs to the
+    // message that opens a conversation, not to every turn inside it.
+    const startsConversation = !hasUserMessage;
+
     Promise.resolve(onSubmit(trimmedContent, options))
       .then((submitted) => {
         if (submitted) {
+          if (startsConversation) {
+            backgroundHint.show();
+          }
+
           isAutoScrollAttachedRef.current = true;
 
           setInput((currentInput) =>
@@ -966,6 +978,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             !isExpanded && hasUserMessage && "border-t",
           )}
         >
+          {backgroundHint.isVisible && props.onClose ? (
+            <InAppAgentBackgroundHint
+              isExpanded={isExpanded}
+              onMinimize={() => {
+                backgroundHint.hide();
+                props.onClose?.();
+              }}
+            />
+          ) : null}
           <form
             className={cn(
               "relative flex w-full items-end gap-2 rounded-md",

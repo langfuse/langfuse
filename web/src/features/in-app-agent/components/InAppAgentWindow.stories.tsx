@@ -1101,6 +1101,52 @@ export const ConversationActivity = meta.story({
   },
 });
 
+/**
+ * The nudge that opens a conversation: the run survives minimizing, and the
+ * activity notifications bring the user back. Send the first message to see it,
+ * then send a second — it only belongs to the message that starts the thread.
+ */
+export const BackgroundHint = meta.story({
+  args: {
+    messages: [],
+  },
+  render: function Render(args) {
+    const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([]);
+
+    return (
+      <StatefulInAppAgentWindow
+        {...args}
+        messages={messages}
+        onSubmit={(input) => {
+          setMessages((currentMessages) => [
+            ...currentMessages,
+            {
+              id: `user-${currentMessages.length}`,
+              role: "user",
+              content: { type: "text", text: input },
+            },
+          ]);
+
+          args.onSubmit(input);
+          return true;
+        }}
+      />
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.type(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      "Compare cost against last week",
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+    await expect(await canvas.findByRole("status")).toHaveTextContent(
+      "I keep running in the background",
+    );
+  },
+});
+
 export const BackgroundRun = meta.story({
   args: {
     isAssistantTurnInProgress: true,
