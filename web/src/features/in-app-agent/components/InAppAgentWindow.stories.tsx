@@ -1,6 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
   InAppAgentWindow,
@@ -8,6 +8,7 @@ import {
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
 import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/quickActions";
+import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import {
   createInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
@@ -569,6 +570,81 @@ const conversations = [
   },
 ];
 
+/**
+ * One conversation per activity state, in the priority order a row applies:
+ * only the first matching state is ever rendered.
+ */
+const activityConversations = [
+  {
+    id: "activity-approval",
+    title: "Create the eval dataset",
+    updatedAt: new Date("2026-05-19T10:00:00.000Z"),
+  },
+  {
+    id: "activity-running",
+    title: "Activity digest comparing last two weeks",
+    updatedAt: new Date("2026-05-19T09:30:00.000Z"),
+  },
+  {
+    id: "activity-failed",
+    title: "Score correlation",
+    updatedAt: new Date("2026-05-19T09:00:00.000Z"),
+  },
+  {
+    id: "activity-done",
+    title: "Latency outliers",
+    updatedAt: new Date("2026-05-19T08:30:00.000Z"),
+  },
+  {
+    id: "activity-none",
+    title: "Seed conversation",
+    updatedAt: new Date("2026-05-19T08:00:00.000Z"),
+  },
+];
+
+const activityByConversationId: InAppAgentActivityByConversationId = new Map([
+  [
+    "activity-approval",
+    {
+      state: "approval",
+      title: "Create the eval dataset",
+      runId: "run-1",
+      activityKey: "run-1:AWAITING_APPROVAL",
+      needsAttention: true,
+    },
+  ],
+  [
+    "activity-running",
+    {
+      state: "running",
+      title: "Activity digest comparing last two weeks",
+      runId: "run-2",
+      activityKey: "run-2:RUNNING",
+      needsAttention: false,
+    },
+  ],
+  [
+    "activity-failed",
+    {
+      state: "failed-unread",
+      title: "Score correlation",
+      runId: "run-3",
+      activityKey: "run-3:FAILED",
+      needsAttention: true,
+    },
+  ],
+  [
+    "activity-done",
+    {
+      state: "done-unread",
+      title: "Latency outliers",
+      runId: "run-4",
+      activityKey: "run-4:SUCCEEDED",
+      needsAttention: true,
+    },
+  ],
+]);
+
 const longUnbrokenWord = `trace-${"0123456789abcdef".repeat(18)}`;
 const longUnbrokenTableValue = `observation-${"abcdefghijklmnopqrstuvwxyz".repeat(10)}`;
 const longReasoningText = [
@@ -999,6 +1075,29 @@ export const Error = meta.story({
         },
       },
     ],
+  },
+});
+
+/**
+ * Every activity state in the row it belongs to. The indicators share one
+ * fixed-width slot, so the column stays straight even though the finished and
+ * failed dots are half the width of the approval and running icons.
+ */
+export const ConversationActivity = meta.story({
+  args: {
+    conversations: activityConversations,
+    activityByConversationId,
+    selectedConversationId: "activity-running",
+    messages: [],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Conversation history" }),
+    );
+    // The dropdown portals out of the canvas.
+    await screen.findByText("Recent conversations");
   },
 });
 
