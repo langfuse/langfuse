@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+export CODEX_SERVICES_ROOT="${CODEX_SERVICES_ROOT:-/tmp/langfuse-services}"
+
+# shellcheck source=/dev/null
+source scripts/codex/cloud_services.sh
+resume_cloud_dependencies
