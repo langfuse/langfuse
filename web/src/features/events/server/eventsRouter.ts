@@ -312,6 +312,9 @@ export const eventsRouter = createTRPCRouter({
             observations: toDomainArrayWithStringifiedMetadata(observations),
             cutoffObservationsAfterMaxCount:
               totalCount > MAX_OBSERVATIONS_PER_TRACE,
+            // The cap the client was served under, so UI copy states the number
+            // actually applied instead of keeping its own copy of it.
+            maxObservationsPerTrace: MAX_OBSERVATIONS_PER_TRACE,
           };
         },
       );

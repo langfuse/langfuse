@@ -292,6 +292,34 @@ describe("buildTraceUiData", () => {
       expect(result.roots[0].name).toBe("Generation");
     });
 
+    it("places an observation whose parent is not in the list at root level", () => {
+      // The contract the detached-observation injection relies on: a row merged
+      // in from outside the capped list has an unloaded parent, so it lands as a
+      // root — which is exactly why the views mark it (LFE-14993).
+      const trace = createMockTrace({
+        id: "trace-1",
+        rootObservationType: "SPAN",
+      });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({ id: "loaded-root", startTime: new Date(1000) }),
+        createMockObservation({
+          id: "detached",
+          parentObservationId: "never-loaded",
+          startTime: new Date(2000),
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      expect(result.roots.map((r) => r.id)).toEqual([
+        "loaded-root",
+        "detached",
+      ]);
+      expect(result.nodeMap.get("detached")?.parentObservationId).toBeNull();
+      // It must still participate in search / the temporal frame.
+      expect(result.searchItems.map((i) => i.node.id)).toContain("detached");
+    });
+
     it("propagates trace.latency to primary root observation node", () => {
       const trace = createMockTrace({
         id: "trace-1",

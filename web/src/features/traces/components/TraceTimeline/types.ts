@@ -70,6 +70,15 @@ export interface FlatTimelineItem {
 export interface TimelineGutterRowProps {
   item: FlatTimelineItem;
   isSelected: boolean;
+  /**
+   * Row is the observation merged in from outside the loaded (capped) list. Its
+   * parents are unknown, so it sits at root level and must say so.
+   */
+  isDetached?: boolean;
+  /** Cap the rest of the tree was loaded under, for the marker's explanation. */
+  loadedObservationCount?: number;
+  /** False when the detached row's parent is missing too (root placement). */
+  detachedParentLoaded?: boolean;
   /** Row is hovered (shared state so the gutter + chart highlight together). */
   isHovered?: boolean;
   onSelect: () => void;

@@ -37,6 +37,10 @@ interface RowShellSharedProps {
 type GutterRowShellProps = RowShellSharedProps & {
   hasChildren: boolean;
   isCollapsed: boolean;
+  /** Row is the observation merged in from outside the loaded (capped) list. */
+  isDetached: boolean;
+  loadedObservationCount?: number;
+  detachedParentLoaded: boolean;
   /** Indentation cap from the gutter width (see visual-depth.ts). */
   maxVisualDepth: number;
   onToggleCollapse: (nodeId: string) => void;
@@ -50,6 +54,9 @@ function TimelineGutterRowShellComponent({
   isHovered,
   hasChildren,
   isCollapsed,
+  isDetached,
+  loadedObservationCount,
+  detachedParentLoaded,
   maxVisualDepth,
   onSelect,
   onHover,
@@ -77,6 +84,9 @@ function TimelineGutterRowShellComponent({
       <TimelineGutterRow
         item={item}
         isSelected={isSelected}
+        isDetached={isDetached}
+        loadedObservationCount={loadedObservationCount}
+        detachedParentLoaded={detachedParentLoaded}
         isHovered={isHovered}
         onSelect={() => onSelect(nodeId)}
         onHover={() => onHover(item.node)}

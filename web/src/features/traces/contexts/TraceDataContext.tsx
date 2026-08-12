@@ -57,6 +57,21 @@ interface TraceDataContextValue {
   nodeMap: Map<string, TreeNode>;
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
+  /**
+   * Observation that was merged in from a by-id fetch because it sits outside the
+   * loaded (capped) list. Its ancestors are unknown, so treeBuilding places it at
+   * root level — the views MUST mark it, or a deeply nested observation silently
+   * reads as top-level.
+   */
+  detachedObservationId: string | null;
+  /**
+   * False when the detached observation's parent ALSO fell past the cap: the node
+   * then renders at root level instead of its real position, which the marker has
+   * to say out loud. True when it nests correctly (parent loaded / no parent).
+   */
+  detachedObservationParentLoaded: boolean;
+  /** Observation cap this trace was loaded under, when it hit it. */
+  truncatedAtObservations?: number;
   comments: Map<string, number>;
   /** Timeline origin (the 0s mark): earliest start across the whole tree. The
    * single owner of the temporal frame — timeline, playhead, and graph all
@@ -82,6 +97,9 @@ interface TraceDataProviderProps {
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   comments: Map<string, number>;
+  detachedObservationId?: string | null;
+  detachedObservationParentLoaded?: boolean;
+  truncatedAtObservations?: number;
   children: ReactNode;
 }
 
@@ -95,6 +113,9 @@ export function TraceDataProvider({
   serverScores,
   corrections,
   comments,
+  detachedObservationId = null,
+  detachedObservationParentLoaded = true,
+  truncatedAtObservations,
   children,
 }: TraceDataProviderProps) {
   const { minObservationLevel } = useViewPreferences();
@@ -182,6 +203,9 @@ export function TraceDataProvider({
       nodeMap: uiData.nodeMap,
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
+      detachedObservationId,
+      detachedObservationParentLoaded,
+      truncatedAtObservations,
       comments,
       traceStartTime,
       traceDuration,
@@ -196,6 +220,9 @@ export function TraceDataProvider({
       traceLevelScoreOwnerIdSet,
       filteredSearchItems,
       hiddenObservationsCount,
+      detachedObservationId,
+      detachedObservationParentLoaded,
+      truncatedAtObservations,
       uiData.nodeMap,
       comments,
       traceStartTime,
