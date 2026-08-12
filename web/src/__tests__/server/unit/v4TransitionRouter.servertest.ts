@@ -1259,6 +1259,11 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.query).toContain("FROM events_core");
     expect(clickhouseQuery?.query).toContain("UNION ALL");
     expect(clickhouseQuery?.query).toContain("FROM scores FINAL");
+    const [eventsQuery, scoresQuery] = clickhouseQuery?.query.split(
+      "UNION ALL",
+    ) ?? ["", ""];
+    expect(eventsQuery).not.toContain("execution_trace_id IS NULL");
+    expect(scoresQuery).toContain("execution_trace_id IS NULL");
     expect(
       clickhouseQuery?.query.match(/project_id = \{projectId: String\}/g),
     ).toHaveLength(2);
@@ -1751,6 +1756,12 @@ describe("v4TransitionRouter", () => {
     expect(usageQuery?.query).toContain("FROM events_core");
     expect(usageQuery?.query).toContain("UNION ALL");
     expect(usageQuery?.query).toContain("FROM scores FINAL");
+    const [eventsQuery, scoresQuery] = usageQuery?.query.split("UNION ALL") ?? [
+      "",
+      "",
+    ];
+    expect(eventsQuery).not.toContain("execution_trace_id IS NULL");
+    expect(scoresQuery).toContain("execution_trace_id IS NULL");
     expect(usageQuery?.query).not.toContain("system.columns");
     expect(
       usageQuery?.query.match(/project_id IN \{projectIds: Array\(String\)\}/g),
