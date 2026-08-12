@@ -1,3 +1,33 @@
+# CIP fork (see FORK.md): builds the web image via Cloud Build for the
+# self-hosted Weval Studio deployment.
+#
+# This replaces upstream's deploy.yml, which targeted Langfuse's own AWS ECS
+# clusters and could never run on this fork.
+#
+# Branch flow:
+#   feature branch -> PR -> main            -> image built into cip-data-staging
+#   main fast-forward-merged -> production  -> image built into cip-data-production
+#
+# Only the web image is built from source (cloudbuild.cip.yaml): the fork only
+# changes the web app, the worker stays on the stock upstream image pinned in
+# Terraform.
+#
+# Deployment is owned by Terraform (product-platform/terraform/langfuse):
+# after a build, bump `web_image_tag` to the tag printed in the run summary
+# and `terraform apply`. Terraform state is local, so applies are deliberately
+# not automated here.
+#
+# One-time setup (per GCP project, managed in product-platform Terraform):
+#   - Workload Identity Federation pool + provider trusted for this repository
+#   - Deployer service account with roles/cloudbuild.builds.editor plus
+#     permission to read build logs and act as the Cloud Build service agent
+#   GitHub Actions secrets:
+#     GCP_WORKLOAD_IDENTITY_PROVIDER  projects/<num>/locations/global/workloadIdentityPools/<pool>/providers/<provider>
+#     GCP_DEPLOY_SERVICE_ACCOUNT      e.g. github-deployer@cip-data-production.iam.gserviceaccount.com
+# Until those secrets exist, runs skip gracefully instead of failing.
+
+name: Build fork web image
+
 on:
   push:
     branches:
@@ -5,103 +35,105 @@ on:
       - production
   workflow_dispatch:
     inputs:
-      service:
-        description: "Service to be deployed"
-        type: choice
-        options:
-          - all
-          - web
-          - web-ingestion
-          - web-iso
-          - worker
-        required: true
       environment:
-        description: "Environment to deploy to"
+        description: "Target environment"
         type: choice
         options:
           - staging
-          - prod-eu
-          - prod-us
-          - prod-hipaa
+          - production
         required: true
+      tag:
+        description: "Explicit image tag (e.g. v3.137.0-cip.5). Defaults to v<version>-cip.<short-sha>."
+        type: string
+        required: false
 
 concurrency:
-  # Support concurrent `push` and `workflow_dispatch`` actions
-  group: deploy-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
 
-name: Deploy to ECS
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
-  affected-services:
+  build:
     runs-on: ubuntu-latest
-    outputs:
-      services: ${{ steps.affected-services.outputs.result }}
     steps:
-      - name: Get affected services
-        id: affected-services
-        uses: actions/github-script@v7
-        with:
-          script: |
-            if (context.eventName === "workflow_dispatch") {
-              if (context.payload.inputs.service === "all") {
-                return `["web", "web-ingestion", "web-iso", "worker"]`
-              }
-              return `["${context.payload.inputs.service}"]`
-            }
-            if (context.eventName === "push") {
-              return `["web", "web-ingestion", "web-iso", "worker"]`
-            }
-            return "[]"
-          result-encoding: string
-      - name: Print services to build
-        uses: actions/github-script@v7
-        env:
-          services: ${{ steps.affected-services.outputs.result }}
-        with:
-          result-encoding: string
-          script: |
-            console.log('Services', `${process.env.services}` ?? 'n/a');
+      - uses: actions/checkout@v4
 
-  affected-environments:
-    runs-on: ubuntu-latest
-    outputs:
-      environments: ${{ steps.affected-environments.outputs.result }}
-    steps:
-      - name: Get affected environments
-        id: affected-environments
-        uses: actions/github-script@v7
-        with:
-          script: |
-            if (context.eventName === "workflow_dispatch") {
-              return `["${context.payload.inputs.environment}"]`
-            }
-            if (context.eventName === "push") {
-              if (context.ref === "refs/heads/main") {
-                return `["staging"]`
-              }
-              if (context.ref === "refs/heads/production") {
-                return `["prod-eu", "prod-us", "prod-hipaa"]`
-              }
-            }
-            return "[]"
-          result-encoding: string
-      - name: Print environments to build
-        uses: actions/github-script@v7
+      - name: Resolve target project and image tag
+        id: target
         env:
-          environments: ${{ steps.affected-environments.outputs.result }}
-        with:
-          result-encoding: string
-          script: |
-            console.log('Environments', `${process.env.environments}` ?? 'n/a');
+          ENV_INPUT: ${{ inputs.environment }}
+          TAG_INPUT: ${{ inputs.tag }}
+        run: |
+          environment="$ENV_INPUT"
+          if [[ -z "$environment" ]]; then
+            if [[ "$GITHUB_REF" == "refs/heads/production" ]]; then
+              environment="production"
+            else
+              environment="staging"
+            fi
+          fi
 
-  ecs-deploy:
-    uses: ./.github/workflows/_deploy_ecs_service.yml
-    needs: [affected-services, affected-environments]
-    secrets: inherit
-    strategy:
-      matrix:
-        service: ${{ fromJson(needs.affected-services.outputs.services) }}
-        environment: ${{ fromJson(needs.affected-environments.outputs.environments) }}
-    with:
-      service: ${{ matrix.service }}
-      environment: ${{ matrix.environment }}
+          if [[ "$environment" == "production" ]]; then
+            project="cip-data-production"
+          else
+            project="cip-data-staging"
+          fi
+
+          tag="$TAG_INPUT"
+          if [[ -z "$tag" ]]; then
+            version=$(jq -r .version web/package.json)
+            tag="v${version}-cip.$(git rev-parse --short HEAD)"
+          fi
+
+          {
+            echo "environment=$environment"
+            echo "project=$project"
+            echo "tag=$tag"
+            echo "repo=us-central1-docker.pkg.dev/${project}/langfuse"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check GCP credentials are configured
+        id: creds
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOY_SA: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          if [[ -n "$WIF_PROVIDER" && -n "$DEPLOY_SA" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_DEPLOY_SERVICE_ACCOUNT secrets not set; skipping build."
+          fi
+
+      - name: Authenticate to GCP
+        if: steps.creds.outputs.configured == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Submit Cloud Build
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          gcloud builds submit \
+            --config cloudbuild.cip.yaml \
+            --substitutions _REPO=${{ steps.target.outputs.repo }},_TAG=${{ steps.target.outputs.tag }} \
+            --project ${{ steps.target.outputs.project }}
+
+      - name: Write run summary
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          {
+            echo "## Image built"
+            echo
+            echo '`${{ steps.target.outputs.repo }}/langfuse-web:${{ steps.target.outputs.tag }}`'
+            echo
+            echo "To deploy (${{ steps.target.outputs.environment }}): in product-platform/terraform/langfuse set"
+            echo
+            echo '`web_image_tag = "${{ steps.target.outputs.tag }}"`'
+            echo
+            echo "and run \`terraform apply\`."
+          } >> "$GITHUB_STEP_SUMMARY"
