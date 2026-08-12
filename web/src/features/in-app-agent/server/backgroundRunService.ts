@@ -23,6 +23,11 @@ import {
   type AgUiRunAgentInput,
 } from "@langfuse/shared/in-app-agent";
 import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import {
+  createInAppAgentSandboxProvider,
+  getDefaultInAppAgentSandboxProviderType,
+} from "@langfuse/shared/in-app-agent/server/sandbox/config";
+import { terminateInAppAgentSandboxSession } from "@langfuse/shared/in-app-agent/server/sandbox";
 import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/tools";
 import {
   ensureOwnedConversation,
@@ -269,12 +274,20 @@ export async function deleteBackgroundConversation(params: {
   conversationId: string;
   userId: string;
 }) {
-  await getOwnedConversationOrThrow({
+  const conversation = await getOwnedConversationOrThrow({
     prisma: params.prisma,
     projectId: params.projectId,
     conversationId: params.conversationId,
     userId: params.userId,
   });
+
+  const providerSessionId = conversation.providerSessionId;
+  const providerType = providerSessionId
+    ? getDefaultInAppAgentSandboxProviderType()
+    : null;
+  const provider = providerType
+    ? await createInAppAgentSandboxProvider(providerType)
+    : undefined;
 
   const cancelledRunIds = await params.prisma.$transaction(async (tx) => {
     const cancelledImmediately = await cancelConversationRunsInTransaction({
@@ -291,7 +304,6 @@ export async function deleteBackgroundConversation(params: {
         },
       },
       data: {
-        providerSessionId: null,
         deletedAt: new Date(),
       },
     });
@@ -301,6 +313,27 @@ export async function deleteBackgroundConversation(params: {
 
   // Avoid spending a worker slot on jobs whose runs are already cancelled.
   await Promise.all(cancelledRunIds.map(removeInAppAgentRunJob));
+
+  // Keep provider cleanup outside the transaction. Provider calls can be
+  // remote and should never hold the conversation row lock while they run.
+  if (providerSessionId && provider) {
+    await terminateInAppAgentSandboxSession({
+      provider,
+      providerSessionId,
+    });
+  }
+
+  await params.prisma.inAppAgentConversation.update({
+    where: {
+      id_projectId: {
+        id: params.conversationId,
+        projectId: params.projectId,
+      },
+    },
+    data: {
+      providerSessionId: null,
+    },
+  });
 
   return { success: true };
 }

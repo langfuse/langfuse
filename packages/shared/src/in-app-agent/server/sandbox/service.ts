@@ -1,5 +1,18 @@
 import type { InAppAgentSandbox, SandboxFile, SandboxProvider } from "./types";
 
+export async function terminateInAppAgentSandboxSession(params: {
+  provider: Pick<SandboxProvider, "terminateSession">;
+  providerSessionId?: string | null;
+}): Promise<void> {
+  if (!params.providerSessionId) {
+    return;
+  }
+
+  await params.provider.terminateSession?.({
+    sessionId: params.providerSessionId,
+  });
+}
+
 export async function createInAppAgentSandbox(params: {
   conversationId: string;
   projectId: string;
@@ -13,6 +26,8 @@ export async function createInAppAgentSandbox(params: {
 }> {
   let sessionId = params.providerSessionId ?? null;
   let sessionIsKnownActive = sessionId !== null;
+  let sessionIsSuspended = false;
+  let sessionSuspendPromise: Promise<void> | undefined;
 
   const persistState = async () => {
     await params.saveState({
@@ -23,12 +38,14 @@ export async function createInAppAgentSandbox(params: {
   const updateSessionState = async (nextSessionId: string) => {
     if (nextSessionId === sessionId) {
       sessionIsKnownActive = true;
+      sessionIsSuspended = false;
       return;
     }
 
     sessionId = nextSessionId;
     await persistState();
     sessionIsKnownActive = true;
+    sessionIsSuspended = false;
   };
 
   const ensureSession = async () => {
@@ -69,11 +86,26 @@ export async function createInAppAgentSandbox(params: {
   return {
     sandbox: createExecutionSandbox(),
     onTurnEnded: async () => {
-      if (!sessionId) {
+      if (!sessionId || sessionIsSuspended) {
         return;
       }
 
-      await persistState();
+      if (!sessionSuspendPromise) {
+        const sessionIdToSuspend = sessionId;
+        sessionSuspendPromise = (async () => {
+          await params.provider.suspendSession?.({
+            sessionId: sessionIdToSuspend,
+          });
+          await persistState();
+          sessionIsSuspended = true;
+        })();
+      }
+
+      try {
+        await sessionSuspendPromise;
+      } finally {
+        sessionSuspendPromise = undefined;
+      }
     },
   };
 }

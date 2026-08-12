@@ -1,13 +1,47 @@
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
+import type {
+  createInAppAgentSandboxProvider,
+  getDefaultInAppAgentSandboxProviderType,
+} from "@langfuse/shared/in-app-agent/server/sandbox/config";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
+const sandboxLifecycleMocks = vi.hoisted(() => ({
+  providerType: null as "dangerous-docker" | "lambda-microvm" | null,
+  terminateSession: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/in-app-agent/server/sandbox/config", async () => {
+  const actual = await vi.importActual<{
+    createInAppAgentSandboxProvider: typeof createInAppAgentSandboxProvider;
+    getDefaultInAppAgentSandboxProviderType: typeof getDefaultInAppAgentSandboxProviderType;
+  }>("@langfuse/shared/in-app-agent/server/sandbox/config");
+
+  return {
+    ...actual,
+    getDefaultInAppAgentSandboxProviderType: () =>
+      sandboxLifecycleMocks.providerType,
+    createInAppAgentSandboxProvider: async () => ({
+      ensureSession: async () => {
+        throw new Error("ensureSession should not be called by deletion");
+      },
+      terminateSession: sandboxLifecycleMocks.terminateSession,
+    }),
+  };
+});
+
+afterEach(() => {
+  sandboxLifecycleMocks.providerType = null;
+  sandboxLifecycleMocks.terminateSession.mockReset();
+});
+
 describe("in-app agent router", () => {
   it("soft-deletes an owned conversation", async () => {
+    sandboxLifecycleMocks.providerType = "lambda-microvm";
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({
       projectId,
@@ -32,6 +66,42 @@ describe("in-app agent router", () => {
 
     expect(deletedConversation.deletedAt).toBeInstanceOf(Date);
     expect(deletedConversation.providerSessionId).toBeNull();
+    expect(sandboxLifecycleMocks.terminateSession).toHaveBeenCalledWith({
+      sessionId: "session-1",
+    });
+  });
+
+  it("keeps the provider session id when termination fails", async () => {
+    sandboxLifecycleMocks.providerType = "lambda-microvm";
+    sandboxLifecycleMocks.terminateSession.mockRejectedValueOnce(
+      new Error("provider unavailable"),
+    );
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({
+      projectId,
+      userId,
+      providerSessionId: "session-1",
+    });
+
+    await expect(
+      caller.inAppAgent.deleteConversation({
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).rejects.toThrow("provider unavailable");
+
+    const persistedConversation =
+      await prisma.inAppAgentConversation.findUniqueOrThrow({
+        where: {
+          id_projectId: {
+            id: conversation.id,
+            projectId,
+          },
+        },
+      });
+
+    expect(persistedConversation.deletedAt).toBeInstanceOf(Date);
+    expect(persistedConversation.providerSessionId).toBe("session-1");
   });
 
   it("excludes deleted conversations from list and get", async () => {

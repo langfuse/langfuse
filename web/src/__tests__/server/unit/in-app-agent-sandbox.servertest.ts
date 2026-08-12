@@ -9,7 +9,10 @@ import {
   getConversationMessagesForDisplay,
   getSandboxToolCallFiles,
 } from "@langfuse/shared/in-app-agent/server/persistence";
-import { createInAppAgentSandbox } from "@langfuse/shared/in-app-agent/server/sandbox";
+import {
+  createInAppAgentSandbox,
+  terminateInAppAgentSandboxSession,
+} from "@langfuse/shared/in-app-agent/server/sandbox";
 import { withOptionalSilentMcpOutput } from "@langfuse/shared/in-app-agent/server/tools";
 import { listObservationsTool } from "@/src/features/mcp/features/observations/tools/listObservations";
 
@@ -83,9 +86,13 @@ describe("in-app agent sandbox", () => {
         return { stdout: "", stderr: "", exitCode: 0 };
       },
     };
+    const suspendedSessionIds: string[] = [];
     const provider = {
       async ensureSession() {
         return { sessionId: "session-1", sandbox: sandboxSession };
+      },
+      async suspendSession({ sessionId }: { sessionId: string }) {
+        suspendedSessionIds.push(sessionId);
       },
     };
     const savedStates: Array<Record<string, unknown>> = [];
@@ -100,7 +107,7 @@ describe("in-app agent sandbox", () => {
     });
 
     await sandbox.sandbox.write({ path: "notes.txt", content: "hello" });
-    await sandbox.onTurnEnded();
+    await Promise.all([sandbox.onTurnEnded(), sandbox.onTurnEnded()]);
 
     expect(savedStates[0]).toEqual({
       providerSessionId: "session-1",
@@ -108,6 +115,63 @@ describe("in-app agent sandbox", () => {
     expect(savedStates[1]).toEqual({
       providerSessionId: "session-1",
     });
+    expect(suspendedSessionIds).toEqual(["session-1"]);
+  });
+
+  it("terminates a persisted provider session when requested", async () => {
+    const terminatedSessionIds: string[] = [];
+
+    await terminateInAppAgentSandboxSession({
+      provider: {
+        async terminateSession({ sessionId }) {
+          terminatedSessionIds.push(sessionId);
+        },
+      },
+      providerSessionId: "session-1",
+    });
+    await terminateInAppAgentSandboxSession({
+      provider: {},
+      providerSessionId: null,
+    });
+
+    expect(terminatedSessionIds).toEqual(["session-1"]);
+  });
+
+  it("suspends a persisted session when the turn ends", async () => {
+    const suspendedSessionIds: string[] = [];
+    const sandboxSession = {
+      async syncReadonlyFiles() {},
+      async read() {
+        return { path: "notes.txt", content: null };
+      },
+      async write() {
+        return { path: "notes.txt", bytesWritten: 0 };
+      },
+      async edit() {
+        return { path: "notes.txt", replaced: false };
+      },
+      async bash() {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    };
+    const sandbox = await createInAppAgentSandbox({
+      conversationId: "conversation-1",
+      projectId: "project-1",
+      providerSessionId: "session-1",
+      provider: {
+        async ensureSession() {
+          return { sessionId: "session-1", sandbox: sandboxSession };
+        },
+        async suspendSession({ sessionId }) {
+          suspendedSessionIds.push(sessionId);
+        },
+      },
+      getToolCallFiles: async () => [],
+      saveState: async () => undefined,
+    });
+
+    await sandbox.onTurnEnded();
+    expect(suspendedSessionIds).toEqual(["session-1"]);
   });
 
   it("syncs same-turn silent tool output into sandbox tool-call files", async () => {

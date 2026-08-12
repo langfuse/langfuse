@@ -325,8 +325,12 @@ export async function executeInAppAgentRun(params: {
           provider: sandboxProvider,
           getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),
           saveState: async (state) => {
-            await prisma.inAppAgentConversation.update({
-              where: { id_projectId: { id: conversation.id, projectId } },
+            await prisma.inAppAgentConversation.updateMany({
+              where: {
+                id: conversation.id,
+                projectId,
+                deletedAt: null,
+              },
               data: state,
             });
           },
