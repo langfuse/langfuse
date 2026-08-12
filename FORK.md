@@ -9,10 +9,19 @@ Deployed at `studio.staging.weval.org` from `cip-data-staging`
 (Terraform: product-platform archive, `terraform/langfuse/`; state in
 `gs://cip-data-staging-terraform-state/langfuse/`).
 
+## Branch model
+
+- **`main`** (default branch) — the deployable line, cut from the upstream tag
+  `v3.137.0`. Feature branches (`cip/*`) merge here via PR.
+- **`upstream-main`** — pristine mirror of upstream `main`. Never deployed,
+  never carries CIP commits, never a PR base (it is thousands of commits ahead
+  of our tag base and would always conflict).
+
 ## Upstream tracking
 
-- `upstream` remote = `langfuse/langfuse`. Merge **tagged semver releases only**
-  (never `main`), and read the release notes for background migrations first.
+- `upstream` remote = `langfuse/langfuse`. Upgrade by merging the **next tagged
+  semver release only** (never upstream `main`) into our `main`, and read the
+  release notes for background migrations first.
 - Current base: `v3.137.0` (matches the deployed Helm chart app version).
 
 ## Conventions (the fork's survival rules)
