@@ -909,6 +909,25 @@ describe("DataTableControls facet-name search", () => {
     expect(labelOrder("Environment", "Total Tokens")).toBe(true);
   });
 
+  it("points the expand-all toggle at the facets the search leaves on screen", () => {
+    const expandedChanges: string[][] = [];
+    const qf = queryFilter(catalog());
+    qf.expanded = ["environment"];
+    qf.onExpandedChange = (value) => expandedChanges.push(value);
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    // Environment is expanded but a "token" query hides it, so the toggle must
+    // offer to expand what IS on screen rather than to collapse the invisible.
+    searchFor("token");
+    fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
+    // The hidden facet keeps its expansion; the visible match joins it.
+    expect(expandedChanges.at(-1)).toEqual(["environment", "totalTokens"]);
+  });
+
   it("leaves a short sidebar without search chrome", () => {
     render(controls(catalog().slice(0, 3)));
 

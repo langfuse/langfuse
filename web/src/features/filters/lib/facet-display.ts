@@ -167,6 +167,10 @@ export function getFacetSummaryValue(filter: UIFilter): string | null {
   return null;
 }
 
+/** Better of two ranks when either string may not match at all. */
+const bestRank = (a: number | null, b: number | null): number | null =>
+  a === null ? b : b === null ? a : Math.min(a, b);
+
 /**
  * Rank a facet's option values for its search box the way the search bar
  * ranks completions (prefix matches before substring matches, stable within
@@ -180,16 +184,11 @@ export function rankFacetOptions(
 ): string[] {
   return options
     .map((option) => {
-      const valueRank = filterRank(option, query);
       const display = displayByValue?.get(option);
-      const displayRank =
-        display !== undefined ? filterRank(display, query) : null;
-      const rank =
-        valueRank === null
-          ? displayRank
-          : displayRank === null
-            ? valueRank
-            : Math.min(valueRank, displayRank);
+      const rank = bestRank(
+        filterRank(option, query),
+        display !== undefined ? filterRank(display, query) : null,
+      );
       return { option, rank };
     })
     .filter((x): x is { option: string; rank: number } => x.rank !== null)
@@ -209,11 +208,10 @@ type NamedFacet = { label: string; column: string };
  * the key is not: "userid" has to find "User ID".
  */
 export function facetNameRank(facet: NamedFacet, query: string): number | null {
-  const labelRank = filterRank(facet.label, query);
-  const columnRank = filterRank(facet.column, query);
-  if (labelRank === null) return columnRank;
-  if (columnRank === null) return labelRank;
-  return Math.min(labelRank, columnRank);
+  return bestRank(
+    filterRank(facet.label, query),
+    filterRank(facet.column, query),
+  );
 }
 
 /**

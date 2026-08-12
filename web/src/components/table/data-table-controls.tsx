@@ -302,6 +302,10 @@ export function DataTableControls({
         (filter) => facetSearchMatches.has(filter.column) || isPromoted(filter),
       )
     : displayedFilters;
+  const visibleColumns = new Set(visibleFilters.map((filter) => filter.column));
+  const expandedVisibleCount = queryFilter.expanded.filter((column) =>
+    visibleColumns.has(column),
+  ).length;
 
   // Facet-usage recency, feeding the "Add filter" dropdown's ordering so the
   // filters someone actually uses on this table surface first.
@@ -983,7 +987,10 @@ export function DataTableControls({
               </Popover>
             )}
             {/* Expand/collapse all facets — same affordance and icons as
-                the trace tree/timeline header. */}
+                the trace tree/timeline header. Label and action both read the
+                facets ON SCREEN, so a search narrowing the list cannot leave
+                the button offering to collapse something nobody can see.
+                Facets hidden by a query keep whatever expansion they had. */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -992,20 +999,25 @@ export function DataTableControls({
                   className="h-6 w-6"
                   onClick={() =>
                     queryFilter.onExpandedChange(
-                      queryFilter.expanded.length === 0
-                        ? // Only what is on screen: expanding facets a search
-                          // has hidden is invisible work that surprises later.
-                          visibleFilters.map((filter) => filter.column)
-                        : [],
+                      expandedVisibleCount === 0
+                        ? [
+                            ...new Set([
+                              ...queryFilter.expanded,
+                              ...visibleFilters.map((filter) => filter.column),
+                            ]),
+                          ]
+                        : queryFilter.expanded.filter(
+                            (column) => !visibleColumns.has(column),
+                          ),
                     )
                   }
                   aria-label={
-                    queryFilter.expanded.length === 0
+                    expandedVisibleCount === 0
                       ? "Expand all filters"
                       : "Collapse all filters"
                   }
                 >
-                  {queryFilter.expanded.length === 0 ? (
+                  {expandedVisibleCount === 0 ? (
                     <UnfoldVertical className="h-3.5 w-3.5" />
                   ) : (
                     <FoldVertical className="h-3.5 w-3.5" />
@@ -1013,7 +1025,7 @@ export function DataTableControls({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {queryFilter.expanded.length === 0
+                {expandedVisibleCount === 0
                   ? "Expand all filters"
                   : "Collapse all filters"}
               </TooltipContent>
@@ -1120,7 +1132,11 @@ export function DataTableControls({
                 }}
                 onKeyDown={(event) => {
                   // Escape clears the query; only once it is empty does it
-                  // reach the sheet/dialog that closes on Escape.
+                  // reach the collapse-on-Escape chrome around it. Inside the
+                  // mobile Filters sheet the sheet still closes on the same
+                  // keystroke — Radix dismisses from a document capture-phase
+                  // listener, which no handler in the tree can pre-empt — so
+                  // the clear button is the affordance that always works.
                   if (event.key === "Escape" && facetSearch !== "") {
                     event.preventDefault();
                     event.stopPropagation();
