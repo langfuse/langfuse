@@ -18,7 +18,9 @@ agentGraphData (tRPC getAgentGraphData)
                              minus EVENTs — framework metadata is ignored);
                              edges from the instrumented hierarchy +
                              happened-before sibling ordering (fork/join)
-  → layout/elkLayout.computeGraphLayout   async ELK (lazy import);
+  → layout/graphLayoutWorkerClient.requestGraphLayout
+      layout/elkLayout       prepare (dedupe, size, count ceiling) on the main
+                             thread → run ELK in workers/graph-layout.worker.ts
       layout/measureNode     estimates node boxes (labels, counter reserve)
   → components/ElkGraphRenderer           draws + gestures
       components/GraphNode                view-only node (memo)
@@ -48,10 +50,14 @@ downstream is mode-agnostic. The selected mode is a trace view preference
   folder owns only the projection observation-ids → node names
   (`components/TraceGraphView.tsx`) and the glow rendering (`GraphNode`).
 - **Pure layout math**: `layout/*` has no React imports and is unit-tested
-  (`layout/*.clienttest.ts`).
+  (`layout/*.clienttest.ts`). `elkLayout.ts` stays free of worker plumbing so it
+  runs unchanged on either thread; `graphLayoutWorkerClient.ts` owns the worker
+  singleton, request ids, cancellation and the wall-clock deadline.
+- **Layout thread**: ELK runs in `web/src/workers/graph-layout.worker.ts`, so a
+  slow layout never blocks the trace view. ELK is uninterruptible even there —
+  cancelling a stale layout means terminating the worker.
 
 ## Next migration slices
 
-- Move ELK layout into a Web Worker (seam: `layout/elkLayout.ts#getElk`).
 - Node virtualization for very large graphs (only render nodes intersecting
   the viewport — the renderer's world/viewport split is already shaped for it).

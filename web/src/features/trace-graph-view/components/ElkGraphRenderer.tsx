@@ -16,12 +16,13 @@ import {
 import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import { reportError } from "@/src/utils/reportError";
 import { type GraphCanvasData, type GraphNodeData } from "../types";
 import {
-  computeGraphLayout,
   type GraphLayout,
   type GraphLayoutDirection,
 } from "../layout/elkLayout";
+import { requestGraphLayout } from "../layout/graphLayoutWorkerClient";
 import { GraphNode } from "./GraphNode";
 
 type ElkGraphRendererProps = {
@@ -149,26 +150,39 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     return map;
   }, [nodeToObservationsMap, currentObservationIndices]);
 
-  // Compute layout via ELK whenever the graph changes (or a retry is asked).
+  // Lay the graph out in the layout worker whenever the graph changes (or a retry
+  // is asked). The two guards do different jobs: `abort` stops the worker's
+  // now-pointless run, `cancelled` keeps a late result from landing on a newer
+  // graph.
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     setLayout(null);
     setLayoutError(false);
     setFitted(false);
     // A new graph gets a fresh fit; stale hover highlighting drops too.
     overrideRef.current = null;
     setHoveredId(null);
-    computeGraphLayout(graph, nodeToObservationsMap, layoutDirection)
+    requestGraphLayout(
+      graph,
+      nodeToObservationsMap,
+      layoutDirection,
+      controller.signal,
+    )
       .then((result) => {
         if (!cancelled) setLayout(result);
       })
       .catch((error) => {
-        console.error("Graph layout failed:", error);
-        // Guarded so a superseded effect's rejection can't stomp newer state.
-        if (!cancelled) setLayoutError(true);
+        if (cancelled) return; // superseded — the rejection IS the cancellation
+        reportError(error, {
+          area: "trace-graph-layout",
+          warnMessage: "graph layout failed",
+        });
+        setLayoutError(true);
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [graph, nodeToObservationsMap, layoutDirection, layoutAttempt]);
 
@@ -360,8 +374,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
         </div>
       )}
       {layout?.tooLarge && (
-        // Budget exceeded: ELK was skipped rather than freeze the tab. No retry
-        // — it would just wedge again. Point the user at the tree/timeline.
+        // No layout: over the count ceiling, or the worker ran past its deadline
+        // and was killed. No retry — it would end the same way. Point the user at
+        // the tree/timeline instead.
         <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
           <span>
             This graph is too large to lay out
@@ -372,21 +387,23 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           </span>
           <span>
             Try the{" "}
-            {onShowExpanded ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation(); // don't treat as a canvas deselect
-                  onShowExpanded();
-                }}
-                className="text-primary underline underline-offset-2 hover:opacity-80"
-              >
-                expanded graph
-              </button>
-            ) : (
-              "expanded graph"
+            {/* The expanded graph is an alternative only from another view. */}
+            {onShowExpanded && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation(); // don't treat as a canvas deselect
+                    onShowExpanded();
+                  }}
+                  className="text-primary underline underline-offset-2 hover:opacity-80"
+                >
+                  expanded graph
+                </button>
+                ,{" "}
+              </>
             )}
-            , tree, or timeline view to explore this trace.
+            tree or timeline view to explore this trace.
           </span>
         </div>
       )}
