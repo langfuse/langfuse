@@ -23,7 +23,7 @@ interface FeedbackDialogProps {
 export function FeedbackButtonWrapper({
   className,
   children,
-  description = "What do you think about Langfuse? What can be improved? Please share it with the community on GitHub to shape the future of Langfuse.",
+  description = "What do you think about Weval Studio? What can be improved? Please share it with the community on GitHub to shape the future of Weval Studio.",
   title = "Provide Feedback",
 }: FeedbackDialogProps) {
   const [open, setOpen] = useState(false);

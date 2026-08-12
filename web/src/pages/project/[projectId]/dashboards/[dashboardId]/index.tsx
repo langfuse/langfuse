@@ -402,7 +402,7 @@ export default function DashboardDetail() {
         title:
           (dashboard.data?.name || "Dashboard") +
           (dashboard.data?.owner === "LANGFUSE"
-            ? " (Langfuse Maintained)"
+            ? " (Weval Studio Maintained)"
             : ""),
         help: {
           description:

@@ -25,22 +25,9 @@ type SidebarNotification = {
   linkContent?: React.ReactNode;
 };
 
-const notifications: SidebarNotification[] = [
-  {
-    id: "github-star",
-    title: "Star Langfuse",
-    description:
-      "See the latest releases and help grow the community on GitHub",
-    link: "https://github.com/langfuse/langfuse",
-    linkContent: (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        alt="Langfuse GitHub stars"
-        src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
-      />
-    ),
-  },
-];
+// CIP fork: upstream ships a "Star Langfuse on GitHub" promo here; not
+// relevant for the fork, so no notifications are configured.
+const notifications: SidebarNotification[] = [];
 
 const STORAGE_KEY = "dismissed-sidebar-notifications";
 

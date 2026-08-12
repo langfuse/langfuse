@@ -284,7 +284,7 @@ export const PromptDetail = ({
         itemType: "PROMPT",
         help: {
           description:
-            "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
+            "You can use this prompt within your application through the Weval Studio SDKs and integrations. Refer to the documentation for more information.",
           href: "https://langfuse.com/docs/prompts",
         },
         breadcrumb: [

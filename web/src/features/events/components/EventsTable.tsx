@@ -669,7 +669,8 @@ export default function ObservationsEventsTable({
       id: "promptName",
       header: getEventsColumnName("promptName"),
       headerTooltip: {
-        description: "Link to prompt version in Langfuse prompt management.",
+        description:
+          "Link to prompt version in Weval Studio prompt management.",
         href: "https://langfuse.com/docs/prompt-management/get-started",
       },
       size: 200,

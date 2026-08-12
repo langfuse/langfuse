@@ -226,7 +226,7 @@ export function IntroSection({
             <Github className="h-4 w-4" /> Community & Resources
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Join the conversation and connect with the Langfuse community.
+            Join the conversation and connect with the Weval Studio community.
           </p>
           <div className="mt-3 grid grid-cols-1 gap-2">
             <Button asChild variant="ghost" className="justify-start px-1.5">

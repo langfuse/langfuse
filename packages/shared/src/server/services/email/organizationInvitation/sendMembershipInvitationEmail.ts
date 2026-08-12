@@ -85,8 +85,8 @@ export const sendMembershipInvitationEmail = async ({
 
     await mailer.sendMail({
       to,
-      from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
-      subject: `${inviterName} invited you to join the "${orgName}" organization on Langfuse`,
+      from: `Weval Studio <${env.EMAIL_FROM_ADDRESS}>`,
+      subject: `${inviterName} invited you to join the "${orgName}" organization on Weval Studio`,
       html: htmlTemplate,
     });
   } catch (error) {

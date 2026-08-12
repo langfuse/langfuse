@@ -66,7 +66,7 @@ export default function UsersPage() {
         title: "Users",
         help: {
           description:
-            "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
+            "Attribute data in Weval Studio to a user by adding a userId to your traces. See docs to learn more.",
           href: "https://langfuse.com/docs/user-explorer",
         },
       }}
@@ -219,7 +219,7 @@ const UsersTable = () => {
       header: "User ID",
       headerTooltip: {
         description:
-          "The unique identifier for the user that was logged in Langfuse. See docs for more details on how to set this up.",
+          "The unique identifier for the user that was logged in Weval Studio. See docs for more details on how to set this up.",
         href: "https://langfuse.com/docs/observability/features/users",
       },
       size: 150,

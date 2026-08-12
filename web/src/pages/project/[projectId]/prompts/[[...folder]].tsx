@@ -85,7 +85,7 @@ export default function PromptsWithFolder() {
         title: "Prompts",
         help: {
           description:
-            "Manage and version your prompts in Langfuse. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
+            "Manage and version your prompts in Weval Studio. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
           href: "https://langfuse.com/docs/prompt-management/get-started",
         },
         actionButtonsRight: (

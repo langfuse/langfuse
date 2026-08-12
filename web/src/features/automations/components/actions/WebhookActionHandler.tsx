@@ -135,7 +135,7 @@ export class WebhookActionHandler
             defaultHeaderKeys.includes(header.name.trim().toLowerCase())
           ) {
             errors.push(
-              `Header ${index + 1}: "${header.name}" is automatically added by Langfuse and cannot be customized`,
+              `Header ${index + 1}: "${header.name}" is automatically added by Weval Studio and cannot be customized`,
             );
           }
         }

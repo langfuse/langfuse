@@ -108,10 +108,13 @@ const DemoBadge = () => {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Your Langfuse Organizations">
+            <SidebarMenuButton
+              asChild
+              tooltip="Your Weval Studio Organizations"
+            >
               <Link href="/">
                 <Grid2X2 className="h-4 w-4" />
-                <span>Your Langfuse Orgs</span>
+                <span>Your Weval Studio Orgs</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

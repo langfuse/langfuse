@@ -64,7 +64,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
               setOpen(true);
             }}
           >
-            Report issue to Langfuse team
+            Report issue to Weval Studio team
           </Button>
         )}
       </div>

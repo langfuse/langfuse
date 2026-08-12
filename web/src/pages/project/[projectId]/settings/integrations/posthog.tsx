@@ -72,7 +72,7 @@ export default function PosthogIntegrationSettings() {
         <Link href="https://posthog.com" className="underline">
           PostHog
         </Link>{" "}
-        (OSS product analytics) to make Langfuse events/metrics available in
+        (OSS product analytics) to make Weval Studio events/metrics available in
         your PostHog dashboards. Upon activation, all historical data from your
         project will be synced. After the initial sync, new data is
         automatically synced every hour to keep your PostHog dashboards up to

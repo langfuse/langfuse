@@ -57,7 +57,7 @@ export const webhookSchema = z.object({
         },
         {
           message:
-            "This header is automatically added by Langfuse and cannot be customized",
+            "This header is automatically added by Weval Studio and cannot be customized",
         },
       ),
       value: z.string(),
@@ -181,7 +181,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
         {/* Default Headers Section */}
         <div className="mb-4">
           <FormDescription className="mb-2">
-            Default headers (automatically added by Langfuse):
+            Default headers (automatically added by Weval Studio):
           </FormDescription>
           {Object.entries({
             ...WebhookDefaultHeaders,

@@ -226,7 +226,7 @@ export default function Dashboard() {
             {uiCustomization?.feedbackHref === undefined && (
               <FeedbackButtonWrapper
                 title="Request Chart"
-                description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
+                description="Your feedback matters! Let the Weval Studio team know what additional data or metrics you'd like to see in your dashboard."
                 className="hidden lg:flex"
               >
                 <Button

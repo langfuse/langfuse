@@ -49,10 +49,10 @@ export const CommentMentionEmailTemplate = ({
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
             <Section className="mt-8">
               <Img
-                src="https://static.langfuse.com/langfuse_logo_transactional_email.png"
+                src="https://weval.org/cip.png"
                 width="40"
                 height="40"
-                alt="Langfuse"
+                alt="Weval Studio"
                 className="mx-auto my-0"
               />
             </Section>

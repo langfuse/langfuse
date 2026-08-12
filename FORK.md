@@ -48,3 +48,14 @@ Deployed at `studio.staging.weval.org` from `cip-data-staging`
 | `web/src/components/layouts/app-layout/hooks/useLayoutMetadata.ts` | Browser-tab title → "Weval Studio" | 2026-08-12 |
 | `web/src/pages/auth/{sign-in,sign-up,sso-initiate,enterprise-sso-required}.tsx`, `web/src/pages/onboarding.tsx`, `web/src/features/auth-credentials/components/ResetPasswordPage.tsx` | `<title>` strings → "… \| Weval Studio" | 2026-08-12 |
 | `web/public/` (`icon.svg`, `favicon*.{png,ico}`, `icon{256,1024}.png`, `apple-touch-icon.png`, `android-chrome-192x192.png`) | Replaced with the Weval mark from weval-org/app (`public/cip.{svg,png}`); `icon.svg` flips to white in dark mode | 2026-08-12 |
+| ~55 files in `web/src/` + 7 email files in `packages/shared/src/server/services/email/` | Tier-1 rebrand sweep: user-visible standalone "Langfuse" strings → "Weval Studio" (word-boundary replace; `langfuse`/`LANGFUSE_*`/`LangfuseX` identifiers, SDK code snippets, DB values like `owner === "LANGFUSE"`, and `maintainer`-string comparisons kept consistent). Email logo → `https://weval.org/cip.png`, sender name/subjects rebranded. After an upstream merge, re-check with: `rg -n '\bLangfuse\b' web/src packages/shared/src/server/services/email \| rg -v 'Langfuse[A-Za-z]\|[A-Za-z]Langfuse\|langfuse\.com'` | 2026-08-12 |
+| `web/src/components/nav/sidebar-notifications.tsx` | Emptied `notifications` array (upstream ships a "Star Langfuse on GitHub" promo) | 2026-08-12 |
+| `README.md` | Replaced upstream marketing README with a concise Weval Studio fork README; deleted `README.{cn,ja,kr}.md` (resolve future modify/delete merge conflicts with `git rm`) | 2026-08-12 |
+
+Deliberately NOT rebranded (see exploration notes): `langfuse.com` docs hrefs
+(they are the accurate product docs and there is no Weval docs equivalent),
+`LANGFUSE_*` env vars, `X-Langfuse-*` SDK wire headers, npm package names,
+OTel metric/attribute names, `LICENSE` (MIT requires the Langfuse GmbH
+copyright notice), everything under `ee/` / `web/src/ee/` / `worker/src/ee/`
+(separate commercial license), cloud-only surfaces (billing, payment banner,
+cloud status, support-chat Plain router), code comments, and test fixtures.

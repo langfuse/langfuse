@@ -24,7 +24,7 @@ interface ResetPasswordTemplateProps {
 }
 
 const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
-  const previewText = "Your Langfuse reset code";
+  const previewText = "Your Weval Studio reset code";
   return (
     <Html>
       <Head />
@@ -34,15 +34,15 @@ const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
             <Section className="mt-8">
               <Img
-                src="https://static.langfuse.com/langfuse_logo_transactional_email.png"
+                src="https://weval.org/cip.png"
                 width="40"
                 height="40"
-                alt="Langfuse"
+                alt="Weval Studio"
                 className="mx-auto my-0"
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-xl font-normal text-black">
-              Forgot your Langfuse password?
+              Forgot your Weval Studio password?
               <br />
               It happens to the best of us.
             </Heading>
@@ -74,8 +74,8 @@ export async function sendResetPasswordVerificationRequest(
   const result = await transport.sendMail({
     to: identifier,
     from: provider.from,
-    subject: `Your Langfuse password reset code`,
-    text: `Use the following code to reset your Langfuse password: ${token}\n\nThis code will expire in 3 minutes. If you did not request a reset, you can ignore this email.`,
+    subject: `Your Weval Studio password reset code`,
+    text: `Use the following code to reset your Weval Studio password: ${token}\n\nThis code will expire in 3 minutes. If you did not request a reset, you can ignore this email.`,
     html: htmlTemplate,
   });
   const failed = result.rejected.concat(result.pending).filter(Boolean);

@@ -391,8 +391,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         ? jobConfig.evalTemplate.projectId
           ? "User maintained"
           : jobConfig.evalTemplate.name.startsWith(RAGAS_TEMPLATE_PREFIX)
-            ? "Langfuse and Ragas maintained"
-            : "Langfuse maintained"
+            ? "Weval Studio and Ragas maintained"
+            : "Weval Studio maintained"
         : "Not available",
       totalCost: costData,
     };

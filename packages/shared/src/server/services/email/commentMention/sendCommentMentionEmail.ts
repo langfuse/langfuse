@@ -64,7 +64,7 @@ export const sendCommentMentionEmail = async ({
       to: mentionedUserEmail,
       from: {
         address: env.EMAIL_FROM_ADDRESS,
-        name: "Langfuse",
+        name: "Weval Studio",
       },
       subject,
       html: htmlTemplate,

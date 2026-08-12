@@ -36,7 +36,7 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
   return (
     <SplashScreen
       title="Get Started with Datasets & Experiments"
-      description="Datasets in Langfuse are collections of inputs (and expected outputs) for your LLM application. You can run Experiments against these datasets to test new releases before deployment to production."
+      description="Datasets in Weval Studio are collections of inputs (and expected outputs) for your LLM application. You can run Experiments against these datasets to test new releases before deployment to production."
       valuePropositions={valuePropositions}
       primaryAction={{
         label: "Create Dataset",

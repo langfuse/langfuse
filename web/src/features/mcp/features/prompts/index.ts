@@ -1,7 +1,7 @@
 /**
  * Prompts MCP Feature Module
  *
- * Provides tools for managing Langfuse prompts via the MCP protocol.
+ * Provides tools for managing Weval Studio prompts via the MCP protocol.
  * This module exports all prompt-related tools for registration with the MCP server.
  *
  * Tools provided:
@@ -37,7 +37,7 @@ import {
 export const promptsFeature: McpFeatureModule = {
   name: "prompts",
   description:
-    "Manage Langfuse prompts - create, retrieve, and update prompt versions",
+    "Manage Weval Studio prompts - create, retrieve, and update prompt versions",
 
   tools: [
     {

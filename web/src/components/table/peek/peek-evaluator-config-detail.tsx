@@ -94,7 +94,7 @@ export const PeekViewEvaluatorConfigDetail = ({
               )}
             </TooltipTrigger>
             <TooltipContent>
-              {evalConfig.evalTemplate.partner ?? "Langfuse"}
+              {evalConfig.evalTemplate.partner ?? "Weval Studio"}
             </TooltipContent>
           </Tooltip>
         )}

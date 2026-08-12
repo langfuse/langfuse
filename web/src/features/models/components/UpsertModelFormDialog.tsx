@@ -391,8 +391,8 @@ export const UpsertModelFormDialog = (({
                       </SelectContent>
                     </Select>
                     <FormDescription>
-                      Optionally, Langfuse can tokenize the input and output of
-                      a generation if no unit counts are ingested. This is
+                      Optionally, Weval Studio can tokenize the input and output
+                      of a generation if no unit counts are ingested. This is
                       useful for e.g. streamed OpenAI completions. For details
                       on the supported tokenizers, see the{" "}
                       <Link

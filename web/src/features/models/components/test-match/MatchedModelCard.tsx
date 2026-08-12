@@ -36,7 +36,7 @@ export function MatchedModelCard({ model }: MatchedModelCardProps) {
           </span>
           {isLangfuseModel && (
             <Badge variant="secondary" className="text-xs">
-              Langfuse
+              Weval Studio
             </Badge>
           )}
         </div>

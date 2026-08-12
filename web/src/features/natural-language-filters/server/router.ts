@@ -56,7 +56,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message:
-              "Langfuse AI filters environment variables not configured. Please set LANGFUSE_AI_FEATURES_PUBLIC_KEY and LANGFUSE_AI_FEATURES_SECRET_KEY variables.",
+              "Weval Studio AI filters environment variables not configured. Please set LANGFUSE_AI_FEATURES_PUBLIC_KEY and LANGFUSE_AI_FEATURES_SECRET_KEY variables.",
           });
         }
 
@@ -88,7 +88,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
         if (!env.LANGFUSE_AI_FEATURES_PROJECT_ID) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: "Langfuse AI Features not configured.",
+            message: "Weval Studio AI Features not configured.",
           });
         }
 

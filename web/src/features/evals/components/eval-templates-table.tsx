@@ -432,7 +432,7 @@ export default function EvalsTemplateTable({
             }
             cloneSourceId={cloneTemplateId}
             onBeforeSubmit={(template) => {
-              // Only show reference dialog for Langfuse maintained templates
+              // Only show reference dialog for Weval Studio maintained templates
               if (
                 cloneTemplateId &&
                 cloneTemplate.data &&
@@ -477,8 +477,8 @@ export default function EvalsTemplateTable({
           <DialogHeader>
             <DialogTitle>Update running evaluators?</DialogTitle>
             <DialogDescription>
-              Do you want all running evaluators attached to the original
-              Langfuse evaluator to reference your new project-level version?
+              Do you want all running evaluators attached to the original Weval
+              Studio evaluator to reference your new project-level version?
               <br />
               <br />
               <strong>Warning:</strong> This might break workflows if you have

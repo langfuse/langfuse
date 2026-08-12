@@ -349,7 +349,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         // Create a test file
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         const testFileName = `${prefix || ""}langfuse-validation-test-${timestamp}.txt`;
-        const testContent = `Langfuse blob storage validation test
+        const testContent = `Weval Studio blob storage validation test
 Project ID: ${input.projectId}
 Timestamp: ${new Date().toISOString()}
 Configuration: ${type} storage
