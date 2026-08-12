@@ -42,6 +42,7 @@ import {
 } from "@/src/features/widgets/utils/import-export-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
 import { isPasteablePlacementPayload } from "@/src/features/dashboard/utils/dashboard-import-export";
 import {
   DropdownMenu,
@@ -269,6 +270,12 @@ export function DashboardWidget({
         : ({ valid: true } as const),
     [widgetQuery, metricsVersion, widget.data],
   );
+  useCaptureWidgetHighCardinalityError({
+    validation: queryValidation,
+    surface: "dashboard_tile",
+    chartType: widget.data?.chartType,
+    isV4: metricsVersion === "v2",
+  });
   const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,

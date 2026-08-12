@@ -81,6 +81,7 @@ export function ControlledInAppAgentWindow(
     messages,
     pendingToolApprovals,
     approveToolCall,
+    alwaysAllowToolCall,
     rejectToolCall,
     selectConversation,
     selectedConversationId,
@@ -178,6 +179,7 @@ export function ControlledInAppAgentWindow(
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
+      isSelectedConversationHydrating={isSelectedConversationHydrating}
       disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       quickActionContext={quickActionContext}
@@ -199,6 +201,7 @@ export function ControlledInAppAgentWindow(
       onSubmit={submit}
       executionUi={windowExecutionUi}
       onApproveToolCall={approveToolCall}
+      onAlwaysAllowToolCall={alwaysAllowToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}

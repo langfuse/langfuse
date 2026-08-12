@@ -362,7 +362,7 @@ const QUICK_ACTION_CONTEXT_BY_PROJECT_SECTION: Record<
   observations: "observability",
   sessions: "observability",
   users: "observability",
-  monitors: "observability",
+  alerts: "observability",
   dashboards: "dashboards",
   widgets: "dashboards",
   prompts: "prompts",

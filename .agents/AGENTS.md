@@ -32,6 +32,11 @@ evaluating, and debugging AI applications.
 - Always quote file paths in shell commands, or use `noglob` for path-heavy
   commands, to avoid zsh glob expansion issues with dynamic Next.js routes.
 - Never invoke Node-installed binaries through `./node_modules/.bin/*`. Always run them through `pnpm`.
+- Never put internal ticket ids (`LFE-1234`, `LFINT-1234`, `CLI-Q226-12`) or
+  Linear URLs into anything this repo publishes: code comments, docs prose,
+  commit messages, PR titles and descriptions, or changelog entries. They mean
+  nothing to OSS readers. Describe the problem on its own terms; a
+  ticket-prefixed branch name is the one place the identifier belongs.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
 
@@ -77,9 +82,23 @@ langfuse/
   - shared: `pnpm --filter @langfuse/shared run test <file>`
 - Build check: `pnpm run build:check`
 - Full build: `pnpm run build`
-- Worktree bootstrap: `bash scripts/codex/setup.sh`
+- Shared agent/worktree bootstrap: `bash scripts/agents/setup.sh`
 - Worktree maintenance: `bash scripts/codex/maintenance.sh`
 - Install Playwright Chromium: `pnpm run playwright:install`
+
+### Cursor Cloud specific instructions
+
+- Cursor Cloud starts the complete source-built stack through
+  `scripts/agents/start-cursor-cloud.sh`; do not start a second web or worker
+  process on ports 3000 or 3030.
+- Use that script for the Cloud stack rather than invoking Compose directly:
+  the workspace `.env` contains host-facing `localhost` service URLs and must
+  not be used to interpolate container service configuration.
+- After changing web or worker production code, rerun
+  `bash scripts/agents/start-cursor-cloud.sh` before browser signoff.
+- Open a same-repo draft PR after local verification and test the resulting
+  `pr-<N>.preview.langfuse.com` deployment with synthetic data before marking
+  the PR ready. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
 
 ## Local Data Inspection
 
