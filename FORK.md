@@ -38,7 +38,12 @@ Deployed at `studio.staging.weval.org` from `cip-data-staging`
 
 | File | Edit | Since |
 | --- | --- | --- |
-| `web/src/components/layouts/routes.tsx` | `Elicitations` nav entry in the Evaluation group + `MessagesSquare` icon import | 2026-08-12 |
+| `web/src/components/layouts/routes.tsx` | `Elicitations` nav entry in the Evaluation group + `MessagesSquare` icon import; `projectRbacScopes: ["elicitations:read"]` on the entry | 2026-08-12 |
+| `packages/shared/prisma/schema.prisma` | `Elicitation` + `ElicitationSubmission` models appended; back-relations `elicitations` on `Project` and `elicitationsCreated` on `User` | 2026-08-12 |
+| `web/src/features/rbac/constants/projectAccessRights.ts` | `elicitations:read` / `elicitations:CUD` scopes; granted to OWNER/ADMIN/MEMBER (both) and VIEWER (read) | 2026-08-12 |
+| `web/src/server/api/root.ts` | `elicitations: elicitationsRouter` mount | 2026-08-12 |
+| `web/src/features/audit-logs/auditLog.ts` | `"elicitation"` added to `AuditableResource` | 2026-08-12 |
+| `package.json` | `format`/`format:check` scripts: dropped `--experimental-cli` — prettier's experimental CLI silently no-ops or deadlocks under Bun's node shim (CIP dev machines are Node-free), which broke the husky pre-commit hook; the stable CLI behaves identically | 2026-08-12 |
 | `web/src/components/LangfuseLogo.tsx` | `LangfuseIcon` renders the Weval mark (`cip-branding/WevalLogo`); wordmark text → "Weval Studio". Export names unchanged so call sites stay stock | 2026-08-12 |
 | `web/src/components/layouts/app-layout/hooks/useLayoutMetadata.ts` | Browser-tab title → "Weval Studio" | 2026-08-12 |
 | `web/src/pages/auth/{sign-in,sign-up,sso-initiate,enterprise-sso-required}.tsx`, `web/src/pages/onboarding.tsx`, `web/src/features/auth-credentials/components/ResetPasswordPage.tsx` | `<title>` strings → "… \| Weval Studio" | 2026-08-12 |

@@ -475,6 +475,30 @@ export type DefaultLlmModel = {
   model: string;
   model_params: unknown | null;
 };
+export type Elicitation = {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  draft_fields: Generated<unknown>;
+  fields: Generated<unknown>;
+  settings: Generated<unknown>;
+  version: Generated<number>;
+  published_at: Timestamp | null;
+  closed_at: Timestamp | null;
+  created_by_user_id: string | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
+export type ElicitationSubmission = {
+  id: string;
+  elicitation_id: string;
+  project_id: string;
+  answers: Generated<unknown>;
+  started_at: Timestamp | null;
+  completed_at: Generated<Timestamp>;
+  created_at: Generated<Timestamp>;
+};
 export type EvalTemplate = {
   id: string;
   created_at: Generated<Timestamp>;
@@ -937,6 +961,8 @@ export type DB = {
   dataset_runs: DatasetRuns;
   datasets: Dataset;
   default_llm_models: DefaultLlmModel;
+  elicitation_submissions: ElicitationSubmission;
+  elicitations: Elicitation;
   eval_templates: EvalTemplate;
   job_configurations: JobConfiguration;
   job_executions: JobExecution;

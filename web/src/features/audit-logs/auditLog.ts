@@ -42,6 +42,8 @@ export type AuditableResource =
   | "action"
   | "slackIntegration"
   | "cloudSpendAlert"
+  // CIP fork resource (see FORK.md)
+  | "elicitation"
   // legacy resources
   | "membership";
 

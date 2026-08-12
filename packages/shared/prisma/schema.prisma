@@ -92,6 +92,8 @@ model User {
   surveys                   Survey[]
   commentReactions          CommentReaction[]
   notificationPreferences   NotificationPreference[]
+  // CIP fork relation (see FORK.md)
+  elicitationsCreated       Elicitation[]               @relation("ElicitationCreatedByUser")
 
   @@map("users")
 }
@@ -180,6 +182,8 @@ model Project {
   PendingDeletion           PendingDeletion[]
   AnnotationQueueAssignment AnnotationQueueAssignment[]
   NotificationPreference    NotificationPreference[]
+  // CIP fork relation (see FORK.md)
+  elicitations              Elicitation[]
 
   @@index([orgId])
   @@map("projects")
@@ -1560,4 +1564,47 @@ model CloudSpendAlert {
 
   @@index([orgId])
   @@map("cloud_spend_alerts")
+}
+
+// CIP fork models (see FORK.md): Elicitations — participatory survey sessions.
+// `draftFields`/`fields` hold the builder's field arrays (zod contract in
+// web/src/features/cip-elicitations). Status is derived: draft (!publishedAt),
+// open (publishedAt && !closedAt), closed (closedAt).
+model Elicitation {
+  id              String    @id @default(cuid())
+  projectId       String    @map("project_id")
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  draftFields     Json      @default("[]") @map("draft_fields")
+  fields          Json      @default("[]")
+  settings        Json      @default("{}")
+  version         Int       @default(0)
+  publishedAt     DateTime? @map("published_at")
+  closedAt        DateTime? @map("closed_at")
+  createdByUserId String?   @map("created_by_user_id")
+  createdByUser   User?     @relation("ElicitationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  submissions ElicitationSubmission[]
+
+  @@index([projectId, createdAt])
+  @@map("elicitations")
+}
+
+// CIP fork model (see FORK.md): answers captured from a public form fill.
+model ElicitationSubmission {
+  id            String      @id @default(cuid())
+  elicitationId String      @map("elicitation_id")
+  elicitation   Elicitation @relation(fields: [elicitationId], references: [id], onDelete: Cascade)
+  projectId     String      @map("project_id")
+  answers       Json        @default("[]")
+  startedAt     DateTime?   @map("started_at")
+  completedAt   DateTime    @default(now()) @map("completed_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@index([elicitationId, createdAt])
+  @@index([projectId])
+  @@map("elicitation_submissions")
 }

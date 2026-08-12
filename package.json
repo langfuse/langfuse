@@ -27,8 +27,8 @@
     "dev:web": "turbo run dev --filter=web -- --turbo",
     "dev:web-no-turbo": "turbo run dev --filter=web",
     "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
-    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\"",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",
     "prepare": "husky"

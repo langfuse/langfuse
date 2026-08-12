@@ -52,6 +52,8 @@ import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/a
 import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
+// CIP fork router (see FORK.md)
+import { elicitationsRouter } from "@/src/features/cip-elicitations/server/elicitationsRouter";
 
 /**
  * This is the primary router for your server.
@@ -112,6 +114,8 @@ export const appRouter = createTRPCRouter({
   surveys: surveysRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
   notificationPreferences: notificationPreferencesRouter,
+  // CIP fork router (see FORK.md)
+  elicitations: elicitationsRouter,
 });
 
 // export type definition of API

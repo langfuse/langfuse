@@ -165,6 +165,7 @@ export const ROUTES: Route[] = [
   {
     title: "Elicitations",
     pathname: `/project/[projectId]/elicitations`,
+    projectRbacScopes: ["elicitations:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     icon: MessagesSquare,

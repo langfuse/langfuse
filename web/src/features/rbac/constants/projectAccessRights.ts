@@ -77,6 +77,10 @@ export const projectScopes = [
 
   "automations:CUD",
   "automations:read",
+
+  // CIP fork scopes (see FORK.md)
+  "elicitations:read",
+  "elicitations:CUD",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -136,6 +140,9 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "TableViewPresets:read",
     "automations:CUD",
     "automations:read",
+    // CIP fork scopes (see FORK.md)
+    "elicitations:read",
+    "elicitations:CUD",
   ],
   ADMIN: [
     "project:read",
@@ -189,6 +196,9 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "TableViewPresets:read",
     "automations:CUD",
     "automations:read",
+    // CIP fork scopes (see FORK.md)
+    "elicitations:read",
+    "elicitations:CUD",
   ],
   MEMBER: [
     "project:read",
@@ -227,6 +237,9 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "TableViewPresets:CUD",
     "TableViewPresets:read",
     "automations:read",
+    // CIP fork scopes (see FORK.md)
+    "elicitations:read",
+    "elicitations:CUD",
   ],
   VIEWER: [
     "project:read",
@@ -245,6 +258,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "dashboards:read",
     "TableViewPresets:read",
     "automations:read",
+    // CIP fork scope (see FORK.md)
+    "elicitations:read",
   ],
   NONE: [],
 };
