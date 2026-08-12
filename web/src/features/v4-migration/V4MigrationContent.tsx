@@ -302,7 +302,6 @@ function SdkUsageSeriesRows({
   suffix,
   unknownSeriesLabel = "OTLP exporter",
   projectId,
-  onNavigate,
   analyticsSection,
 }: {
   series: V4MigrationSdkUsageSeries[];
@@ -311,9 +310,8 @@ function SdkUsageSeriesRows({
   suffix: (series: V4MigrationSdkUsageSeries) => ReactNode;
   /** Row label when the series carries no usable SDK name. */
   unknownSeriesLabel?: string;
-  /** Enables the evidence deep link on the public key. */
+  /** Enables the evidence deep link. */
   projectId?: string;
-  onNavigate?: () => void;
   /** Funnel dimension for the evidence_link_clicked event (snake_case). */
   analyticsSection: string;
 }) {
@@ -334,6 +332,12 @@ function SdkUsageSeriesRows({
           usage.publicKey.length > 18
             ? `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`
             : usage.publicKey || "No API key";
+        const evidenceHref =
+          projectId && usage.publicKey && usage.eventsCount > 0
+            ? `/project/${projectId}/observations?filter=${encodeURIComponent(
+                buildSdkUsageEvidenceFilter(usage),
+              )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`
+            : null;
 
         return (
           <li
@@ -350,44 +354,43 @@ function SdkUsageSeriesRows({
             </div>
             {/* Metadata line, indented under the label (emoji + gap). */}
             <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
-              {/* Deep link to the exact evidence: the events table filtered by
-                  this public key (plus SDK name/version when attributed) over
-                  the same lookback window the detection used; see
-                  buildSdkUsageEvidenceFilter. Scores-only offenders
-                  (eventsCount 0) stay plain text — the events table has
-                  nothing for them and a link would open an empty result. */}
-              {projectId && usage.publicKey && usage.eventsCount > 0 ? (
-                <Link
-                  // The events page's `filter` param carries the semicolon
-                  // filter encoding (column;type;key;operator;value), not the
-                  // search-bar grammar; the bar re-derives its text from it.
-                  href={`/project/${projectId}/observations?filter=${encodeURIComponent(
-                    buildSdkUsageEvidenceFilter(usage),
-                  )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`}
-                  onClick={() => {
-                    // Bounded values only: raw sdkName/sdkVersion are
-                    // client-supplied ingestion headers (user-controlled,
-                    // unbounded cardinality) and must not reach PostHog.
-                    capture("v4_migration:evidence_link_clicked", {
-                      section: analyticsSection,
-                      sdkName: usage.canonicalSdkName ?? "other",
-                      v4MigrationStatus: usage.v4MigrationStatus,
-                      attributionStatus: usage.attributionStatus,
-                    });
-                    onNavigate?.();
-                  }}
-                  className="underline"
-                  title={usage.publicKey}
-                >
-                  {publicKey}
-                </Link>
-              ) : (
-                <span title={usage.publicKey || undefined}>{publicKey}</span>
-              )}
+              <span title={usage.publicKey || undefined}>{publicKey}</span>
               <span>
                 · last seen{" "}
                 {formatCompactRelativeTime(new Date(usage.lastSeen))}
               </span>
+              {/* Deep link to the exact evidence: the events table filtered by
+                  this public key, plus SDK name and version when attributed,
+                  over the detection lookback. Rows without a public key and
+                  scores-only offenders stay unlinked because their target
+                  would be overly broad or empty. */}
+              {evidenceHref ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <Link
+                    // The events page's `filter` param carries the semicolon
+                    // filter encoding (column;type;key;operator;value), not the
+                    // search-bar grammar; the bar re-derives its text from it.
+                    href={evidenceHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      // Bounded values only: raw sdkName/sdkVersion are
+                      // client-supplied ingestion headers (user-controlled,
+                      // unbounded cardinality) and must not reach PostHog.
+                      capture("v4_migration:evidence_link_clicked", {
+                        section: analyticsSection,
+                        sdkName: usage.canonicalSdkName ?? "other",
+                        v4MigrationStatus: usage.v4MigrationStatus,
+                        attributionStatus: usage.attributionStatus,
+                      });
+                    }}
+                    className="underline"
+                  >
+                    View observations
+                  </Link>
+                </>
+              ) : null}
             </div>
           </li>
         );
@@ -405,12 +408,10 @@ export function V4MigrationSdkSection({
   sdk,
   defaultOpen,
   projectId,
-  onNavigate,
 }: {
   sdk: V4MigrationSdkState;
   defaultOpen?: boolean;
   projectId?: string;
-  onNavigate?: () => void;
 }) {
   const section = getSdkSectionState(sdk);
   if (section.status === "latest" || section.status === "no_data") return null;
@@ -458,7 +459,6 @@ export function V4MigrationSdkSection({
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
-        onNavigate={onNavigate}
         analyticsSection="sdk"
         needsAction={isActionableSdkSeries}
         suffix={(usage) =>
@@ -480,12 +480,10 @@ export function V4MigrationOtelSection({
   sdk,
   defaultOpen,
   projectId,
-  onNavigate,
 }: {
   sdk: V4MigrationSdkState;
   defaultOpen?: boolean;
   projectId?: string;
-  onNavigate?: () => void;
 }) {
   const section = getOtelSectionState(sdk);
   if (
@@ -518,7 +516,6 @@ export function V4MigrationOtelSection({
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
-        onNavigate={onNavigate}
         analyticsSection="otel"
         needsAction={(usage) => usage.hasDelayedOtelEvents === true}
         suffix={(usage) =>
@@ -540,12 +537,10 @@ export function V4MigrationCustomInstrumentationSection({
   sdk,
   defaultOpen,
   projectId,
-  onNavigate,
 }: {
   sdk: V4MigrationSdkState;
   defaultOpen?: boolean;
   projectId?: string;
-  onNavigate?: () => void;
 }) {
   const section = getCustomInstrumentationSectionState(sdk);
   if (
@@ -590,7 +585,6 @@ export function V4MigrationCustomInstrumentationSection({
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
-        onNavigate={onNavigate}
         unknownSeriesLabel="Custom instrumentation"
         analyticsSection="custom_instrumentation"
         needsAction={() => true}
@@ -1309,17 +1303,14 @@ export function V4MigrationDetailsContent({
           <V4MigrationSdkSection
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
-            onNavigate={onNavigate}
           />
           <V4MigrationOtelSection
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
-            onNavigate={onNavigate}
           />
           <V4MigrationCustomInstrumentationSection
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
-            onNavigate={onNavigate}
           />
 
           {!evalsClean && (

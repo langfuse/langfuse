@@ -87,6 +87,7 @@ export const TablePeekViewObservationDetail = (
         trace={trace.data}
         context="peek"
         keySuffix={peekObservationId}
+        truncatedAtObservations={trace.truncatedAtObservations}
       />
     </TablePeekView>
   );
