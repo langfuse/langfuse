@@ -42,9 +42,14 @@ export function useEvalConfigMappingData(
   const previewPointer =
     selectedPreviewPointer ?? urlPreviewPointer ?? firstPreviewPointer;
 
+  // The trace preview reads the legacy traces table, which is not the v4
+  // user's experience — never fetch or expect preview data there.
+  const traceTargetOnV4 =
+    targetValue === EvalTargetObject.TRACE && isBetaEnabled;
+
   const { previewData, isLoading } = usePreviewData({
     projectId,
-    enabled: !disabled && Boolean(previewPointer),
+    enabled: !disabled && !traceTargetOnV4 && Boolean(previewPointer),
     target: targetValue,
     traceId: previewPointer?.traceId,
     observationId: previewPointer?.observationId,

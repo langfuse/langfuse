@@ -6,20 +6,16 @@ import { api } from "@/src/utils/api";
  * cached for the session. Returns false while loading or when no project id is
  * available (safe default: not forced).
  */
-export function useForceV3Experience(
-  projectId?: string,
-  options?: { enabled?: boolean },
-): boolean {
+export function useForceV3Experience(projectId?: string): boolean {
   const forceV3 = api.v4Transition.forceV3Experience.useQuery(
     { projectId: projectId ?? "" },
     {
       // Callers that only need the value behind another gate (e.g. the v4
       // upgrade flag) can pass enabled:false to avoid firing the query for
       // users the answer can't affect.
-      enabled: (options?.enabled ?? true) && Boolean(projectId),
+      enabled: Boolean(projectId),
       staleTime: Infinity,
     },
   );
-
-  return forceV3.data?.forceV3 ?? false;
+  return forceV3.data ?? false;
 }

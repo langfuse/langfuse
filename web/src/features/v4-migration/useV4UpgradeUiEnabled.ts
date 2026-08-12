@@ -20,7 +20,6 @@ export function useV4UpgradeUiFlag(): boolean {
  */
 export function useV4UpgradeUiEnabled(projectId?: string): boolean {
   const flag = useV4UpgradeUiFlag();
-  const forceV3 = useForceV3Experience(projectId, { enabled: flag });
-
+  const forceV3 = useForceV3Experience(projectId);
   return flag && !forceV3;
 }

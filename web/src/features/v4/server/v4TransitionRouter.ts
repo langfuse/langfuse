@@ -577,11 +577,7 @@ export const v4TransitionRouter = createTRPCRouter({
   // Whether this project is forced onto the v3 experience
   forceV3Experience: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(({ input }) => {
-      return {
-        forceV3: isForceV3ExperienceProject(input.projectId),
-      };
-    }),
+    .query(({ input }) => isForceV3ExperienceProject(input.projectId)),
 
   summary: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))

@@ -30,12 +30,11 @@ export function V4MigrationProjectChip({
         onClick={(event) => {
           // Card is wrapped in a full-bleed <Link>; keep the docs link isolated.
           event.stopPropagation();
-          capture("v4_migration:project_chip_partner_docs_clicked");
         }}
         className="text-muted-foreground ring-border hover:bg-muted/50 relative inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs whitespace-nowrap ring"
-        title="Upgrade is handled by your integration partner"
+        title="Upgrade is handled by your integration partner. Click on badge to learn more."
       >
-        Managed by integration partner
+        Update to v4 managed by integration partner
       </a>
     );
   }

@@ -71,7 +71,7 @@ function DeprecatedChipCell() {
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(projectId);
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
