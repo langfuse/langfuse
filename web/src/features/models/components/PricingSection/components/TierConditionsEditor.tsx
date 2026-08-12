@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import type { UseFormReturn } from "react-hook-form";
-import type { FormUpsertModel } from "../../validation";
+import type { FormUpsertModel } from "@/src/features/models/validation";
 
 type TierConditionsEditorProps = {
   tierIndex: number;
