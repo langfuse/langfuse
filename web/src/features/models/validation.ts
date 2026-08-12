@@ -36,7 +36,7 @@ export type PricingTier = z.infer<typeof PricingTierSchema>;
 /**
  * A usage type row is identified by its opaque `key`, never by its name: the
  * name is the value being edited, and deriving row identity from it is what
- * broke renames twice (LFE-8160, LFE-8629).
+ * broke renames in two earlier attempts at this editor.
  */
 const FormUsageTypeSchema = z.object({
   key: z.string(),
