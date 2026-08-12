@@ -6499,11 +6499,6 @@ packages:
     resolution: {integrity: sha512-HEHNfbars9v4pgpW6SO1KSPkfoS0xVOM/9UzkJltjlsHZmJasxg8aXkuZa7SMf8vKGIBhpUsPluQSqhJFCqebw==}
     engines: {node: '>=0.4.0'}
 
-  acorn@8.16.0:
-    resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
-    engines: {node: '>=0.4.0'}
-    hasBin: true
-
   acorn@8.17.0:
     resolution: {integrity: sha512-xRQbDb9BnwDafYNn6Vwl839DYVjqXYb1XVGtWAZ1kcDc6iwAL4hg3B1dZlRiuENFeO2H53gFG3in621AdERVAg==}
     engines: {node: '>=0.4.0'}
@@ -7617,10 +7612,6 @@ packages:
   end-of-stream@1.4.5:
     resolution: {integrity: sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==}
 
-  enhanced-resolve@5.21.3:
-    resolution: {integrity: sha512-QyL119InA+XXEkNLNTPCXPugSvOfhwv0JOlGNzvxs0hZaiHLNvXSpudUWsOlsXGWJh8G6ckCScEkVHfX3kw/2Q==}
-    engines: {node: '>=10.13.0'}
-
   enhanced-resolve@5.24.2:
     resolution: {integrity: sha512-rpsZEGT1jFuve6QlpyRp9ckQ+kN61hvF9BzCPyMdaKTm8UJce96KBn3sorXOFXlzjPrs3Vc4T1NsSroZ3PxlFw==}
     engines: {node: '>=10.13.0'}
@@ -8491,10 +8482,6 @@ packages:
 
   ignore@5.3.2:
     resolution: {integrity: sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==}
-    engines: {node: '>= 4'}
-
-  ignore@7.0.5:
-    resolution: {integrity: sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg==}
     engines: {node: '>= 4'}
 
   ignore@7.0.6:
@@ -10018,10 +10005,6 @@ packages:
     resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
 
-  picomatch@4.0.4:
-    resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
-    engines: {node: '>=12'}
-
   picomatch@4.0.5:
     resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
     engines: {node: '>=12'}
@@ -10715,11 +10698,6 @@ packages:
 
   semver@7.7.4:
     resolution: {integrity: sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==}
-    engines: {node: '>=10'}
-    hasBin: true
-
-  semver@7.8.4:
-    resolution: {integrity: sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -14512,13 +14490,13 @@ snapshots:
       execa: 9.6.1
       fastq: 1.20.1
       gray-matter: 4.0.3
-      ignore: 7.0.5
+      ignore: 7.0.6
       jpeg-js: 0.4.4
       json-schema: 0.4.0
       lru-cache: 11.2.7
       p-map: 7.0.4
       p-retry: 7.1.1
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       posthog-node: 5.45.2(rxjs@7.8.1)
       tokenx: 1.3.0
       ws: 8.21.1
@@ -14555,13 +14533,13 @@ snapshots:
       execa: 9.6.1
       fastq: 1.20.1
       gray-matter: 4.0.3
-      ignore: 7.0.5
+      ignore: 7.0.6
       jpeg-js: 0.4.4
       json-schema: 0.4.0
       lru-cache: 11.2.7
       p-map: 7.0.4
       p-retry: 7.1.1
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       posthog-node: 5.45.2(rxjs@7.8.1)
       tokenx: 1.3.0
       ws: 8.21.1
@@ -16213,7 +16191,7 @@ snapshots:
       js-yaml: 4.3.0
       lodash-es: 4.18.1
       release-it: 20.2.0(@types/node@24.3.0)(magicast@0.5.2)
-      semver: 7.8.4
+      semver: 7.8.5
 
   '@remix-run/node-fetch-server@0.13.3': {}
 
@@ -16226,10 +16204,10 @@ snapshots:
       '@rollup/pluginutils': 5.3.0(rollup@4.60.2)
       commondir: 1.0.1
       estree-walker: 2.0.2
-      fdir: 6.5.0(picomatch@4.0.4)
+      fdir: 6.5.0(picomatch@4.0.5)
       is-reference: 1.2.1
       magic-string: 0.30.21
-      picomatch: 4.0.4
+      picomatch: 4.0.5
     optionalDependencies:
       rollup: 4.60.2
 
@@ -16237,7 +16215,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.9
       estree-walker: 2.0.2
-      picomatch: 4.0.4
+      picomatch: 4.0.5
     optionalDependencies:
       rollup: 4.60.2
 
@@ -17021,7 +16999,7 @@ snapshots:
   '@tailwindcss/node@4.2.2':
     dependencies:
       '@jridgewell/remapping': 2.3.5
-      enhanced-resolve: 5.21.3
+      enhanced-resolve: 5.24.2
       jiti: 2.7.0
       lightningcss: 1.32.0
       magic-string: 0.30.21
@@ -17561,7 +17539,7 @@ snapshots:
       '@typescript-eslint/utils': 8.65.0(@typescript/typescript6@6.0.2)(eslint@10.8.0(jiti@2.7.0))
       '@typescript-eslint/visitor-keys': 8.65.0
       eslint: 10.8.0(jiti@2.7.0)
-      ignore: 7.0.5
+      ignore: 7.0.6
       natural-compare: 1.4.0
       ts-api-utils: 2.5.0(@typescript/typescript6@6.0.2)
       typescript: '@typescript/typescript6@6.0.2'
@@ -17598,7 +17576,7 @@ snapshots:
       eslint: 10.8.0(jiti@2.7.0)
       json-stable-stringify-without-jsonify: 1.0.1
       lodash.merge: 4.6.2
-      semver: 7.8.4
+      semver: 7.8.5
       typescript: '@typescript/typescript6@6.0.2'
     transitivePeerDependencies:
       - supports-color
@@ -17634,7 +17612,7 @@ snapshots:
       '@typescript-eslint/visitor-keys': 8.65.0
       debug: 4.4.3
       minimatch: 10.2.5
-      semver: 7.8.4
+      semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(@typescript/typescript6@6.0.2)
       typescript: '@typescript/typescript6@6.0.2'
@@ -18085,15 +18063,11 @@ snapshots:
       mime-types: 3.0.2
       negotiator: 1.0.0
 
-  acorn-import-attributes@1.9.5(acorn@8.16.0):
+  acorn-import-attributes@1.9.5(acorn@8.17.0):
     dependencies:
-      acorn: 8.16.0
+      acorn: 8.17.0
 
   acorn-jsx-walk@2.0.0: {}
-
-  acorn-jsx@5.3.2(acorn@8.16.0):
-    dependencies:
-      acorn: 8.16.0
 
   acorn-jsx@5.3.2(acorn@8.17.0):
     dependencies:
@@ -18101,13 +18075,11 @@ snapshots:
 
   acorn-loose@8.5.2:
     dependencies:
-      acorn: 8.16.0
+      acorn: 8.17.0
 
   acorn-walk@8.3.5:
     dependencies:
-      acorn: 8.16.0
-
-  acorn@8.16.0: {}
+      acorn: 8.17.0
 
   acorn@8.17.0: {}
 
@@ -19305,11 +19277,6 @@ snapshots:
     dependencies:
       once: 1.4.0
 
-  enhanced-resolve@5.21.3:
-    dependencies:
-      graceful-fs: 4.2.11
-      tapable: 2.3.3
-
   enhanced-resolve@5.24.2:
     dependencies:
       graceful-fs: 4.2.11
@@ -19692,8 +19659,8 @@ snapshots:
 
   espree@11.2.0:
     dependencies:
-      acorn: 8.16.0
-      acorn-jsx: 5.3.2(acorn@8.16.0)
+      acorn: 8.17.0
+      acorn-jsx: 5.3.2(acorn@8.17.0)
       eslint-visitor-keys: 5.0.1
 
   esprima@4.0.1: {}
@@ -19916,10 +19883,6 @@ snapshots:
   fd-package-json@2.0.0:
     dependencies:
       walk-up-path: 4.0.0
-
-  fdir@6.5.0(picomatch@4.0.4):
-    optionalDependencies:
-      picomatch: 4.0.4
 
   fdir@6.5.0(picomatch@4.0.5):
     optionalDependencies:
@@ -20512,8 +20475,6 @@ snapshots:
 
   ignore@5.3.2: {}
 
-  ignore@7.0.5: {}
-
   ignore@7.0.6: {}
 
   image-size@2.0.2: {}
@@ -20524,8 +20485,8 @@ snapshots:
 
   import-in-the-middle@3.0.1:
     dependencies:
-      acorn: 8.16.0
-      acorn-import-attributes: 1.9.5(acorn@8.16.0)
+      acorn: 8.17.0
+      acorn-import-attributes: 1.9.5(acorn@8.17.0)
       cjs-module-lexer: 2.2.0
       module-details-from-path: 1.0.4
 
@@ -20609,7 +20570,7 @@ snapshots:
 
   is-bun-module@2.0.0:
     dependencies:
-      semver: 7.8.4
+      semver: 7.8.5
 
   is-callable@1.2.7: {}
 
@@ -20922,7 +20883,7 @@ snapshots:
       lodash.isstring: 4.0.1
       lodash.once: 4.1.1
       ms: 2.1.3
-      semver: 7.8.4
+      semver: 7.8.5
 
   jsprim@1.4.2:
     dependencies:
@@ -20967,13 +20928,13 @@ snapshots:
 
   knip@6.22.0:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.4)
+      fdir: 6.5.0(picomatch@4.0.5)
       formatly: 0.3.0
       get-tsconfig: 4.14.0
       jiti: 2.7.0
       oxc-parser: 0.137.0
       oxc-resolver: 11.21.3
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       smol-toml: 1.7.0
       strip-json-comments: 5.0.3
       tinyglobby: 0.2.17
@@ -21665,7 +21626,7 @@ snapshots:
 
   mlly@1.8.2:
     dependencies:
-      acorn: 8.16.0
+      acorn: 8.17.0
       pathe: 2.0.3
       pkg-types: 1.3.1
       ufo: 1.6.4
@@ -22273,8 +22234,6 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@2.3.2: {}
-
-  picomatch@4.0.4: {}
 
   picomatch@4.0.5: {}
 
@@ -23075,8 +23034,6 @@ snapshots:
 
   semver@7.7.4: {}
 
-  semver@7.8.4: {}
-
   semver@7.8.5: {}
 
   send@0.19.2:
@@ -23363,7 +23320,7 @@ snapshots:
       esbuild: 0.28.1
       open: 10.2.0
       recast: 0.23.11
-      semver: 7.8.4
+      semver: 7.8.5
       use-sync-external-store: 1.6.0(react@19.2.4)
       ws: 8.21.1
     optionalDependencies:
@@ -23567,7 +23524,7 @@ snapshots:
 
   tailwind-api-utils@1.0.3(tailwindcss@4.2.2):
     dependencies:
-      enhanced-resolve: 5.21.3
+      enhanced-resolve: 5.24.2
       jiti: 2.7.0
       local-pkg: 1.2.1
       tailwindcss: 4.2.2
@@ -23645,13 +23602,13 @@ snapshots:
 
   tinyglobby@0.2.15:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
+      fdir: 6.5.0(picomatch@4.0.5)
+      picomatch: 4.0.5
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
+      fdir: 6.5.0(picomatch@4.0.5)
+      picomatch: 4.0.5
 
   tinyrainbow@2.0.0: {}
 
@@ -23711,7 +23668,7 @@ snapshots:
   tsconfig-paths-webpack-plugin@4.2.0:
     dependencies:
       chalk: 4.1.2
-      enhanced-resolve: 5.21.3
+      enhanced-resolve: 5.24.2
       tapable: 2.3.3
       tsconfig-paths: 4.2.0
 
@@ -23924,8 +23881,8 @@ snapshots:
   unplugin@2.3.11:
     dependencies:
       '@jridgewell/remapping': 2.3.5
-      acorn: 8.16.0
-      picomatch: 4.0.4
+      acorn: 8.17.0
+      picomatch: 4.0.5
       webpack-virtual-modules: 0.6.2
 
   unrs-resolver@1.11.1:
@@ -24134,7 +24091,7 @@ snapshots:
       magic-string: 0.30.21
       obug: 2.1.1
       pathe: 2.0.3
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       std-env: 4.0.0
       tinybench: 2.9.0
       tinyexec: 1.1.2
