@@ -10,9 +10,9 @@ import {
   getEventsForAnalyticsIntegrations,
   getCurrentSpan,
   validateWebhookURL,
-  whitelistFromEnv,
   fetchWithSecureRedirects,
 } from "@langfuse/shared/src/server";
+import { analyticsIntegrationWhitelistFromEnv } from "../analyticsIntegrationEgress";
 import {
   transformTraceForPostHog,
   transformGenerationForPostHog,
@@ -110,7 +110,7 @@ export const countingFetch =
         maxRedirects: 3,
         redirectValidation: {
           validateUrl: validateWebhookURL,
-          whitelist: whitelistFromEnv(),
+          whitelist: analyticsIntegrationWhitelistFromEnv(),
           logContext: "PostHog integration",
         },
       },

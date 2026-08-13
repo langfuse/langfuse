@@ -2,8 +2,8 @@ import {
   logger,
   fetchWithSecureRedirects,
   validateWebhookURL,
-  whitelistFromEnv,
 } from "@langfuse/shared/src/server";
+import { analyticsIntegrationWhitelistFromEnv } from "../analyticsIntegrationEgress";
 import { gzipSync } from "zlib";
 import { env } from "../../env";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
@@ -118,7 +118,7 @@ export class MixpanelClient {
           maxRedirects: 3,
           redirectValidation: {
             validateUrl: validateWebhookURL,
-            whitelist: whitelistFromEnv(),
+            whitelist: analyticsIntegrationWhitelistFromEnv(),
             logContext: "Mixpanel integration",
           },
         },
