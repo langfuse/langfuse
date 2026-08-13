@@ -325,7 +325,6 @@ export const events = {
   // panel_opened carries the entry surface; panel_checks_loaded carries the
   // amount of work shown (counts only — never keys or SDK payload values).
   v4_migration: [
-    "coding_agent_prompt_viewed",
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
     "project_chip_clicked",

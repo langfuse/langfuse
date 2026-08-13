@@ -1132,24 +1132,25 @@ describe("V4MigrationHeaderContent", () => {
     ).toHaveLength(3);
   });
 
-  it("does not create credentials when revealing or copying the prompt", () => {
+  it("shows the prompt without any click and copies it in a single click", () => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn() } });
     render(<V4MigrationAgentUpgradeSection projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
-
+    // The prompt is always visible; no reveal step required.
     expect(screen.getByText("coding-agent-prompt")).toBeInTheDocument();
     expect(mocks.createProjectApiKey).not.toHaveBeenCalled();
 
-    // Second click copies; still no credentials. (jsdom has no clipboard.)
-    Object.assign(navigator, { clipboard: { writeText: vi.fn() } });
+    // A single CTA click copies; still no credentials. (jsdom has no clipboard.)
     fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "coding-agent-prompt",
+    );
     expect(mocks.createProjectApiKey).not.toHaveBeenCalled();
   });
 
   it("creates keys only on the explicit create action and shows an env block", async () => {
     render(<V4MigrationAgentUpgradeSection projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
     const createButton = screen.getByRole("button", {
       name: "Create API keys",
     });
@@ -1186,7 +1187,6 @@ describe("V4MigrationHeaderContent", () => {
 
     const promptButton = screen.getByRole("button", { name: "Copy prompt" });
     expect(promptButton).toBeEnabled();
-    fireEvent.click(promptButton);
     expect(screen.getByText("coding-agent-prompt")).toBeInTheDocument();
 
     const createButton = screen.getByRole("button", {
@@ -1201,7 +1201,6 @@ describe("V4MigrationHeaderContent", () => {
     const { rerender } = render(
       <V4MigrationAgentUpgradeSection key="project-1" projectId="project-1" />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
     fireEvent.click(screen.getByRole("button", { name: "Create API keys" }));
 
     await waitFor(() =>
@@ -1217,7 +1216,6 @@ describe("V4MigrationHeaderContent", () => {
     expect(
       screen.queryByText(/LANGFUSE_PUBLIC_KEY=pk-lf-project-1/),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
     fireEvent.click(screen.getByRole("button", { name: "Create API keys" }));
     await waitFor(() =>
       expect(

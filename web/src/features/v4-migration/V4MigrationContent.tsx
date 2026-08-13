@@ -3,7 +3,6 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import {
-  Bot,
   BotMessageSquare,
   Check,
   ChevronRight,
@@ -1044,12 +1043,11 @@ export function V4MigrationHeaderContent({
   );
 }
 
-// The primary agent CTA as its own group. The CTA is two-step: the first
-// click reveals the prompt so users can see what they hand to their agent,
-// the second click copies it. Project API keys are NOT created as a side
-// effect: credentials only exist after an explicit click on the separate
-// "Create keys for project access" action, and secrets never enter the
-// agent prompt.
+// The primary agent CTA as its own group. The prompt is always visible so a
+// single click on the CTA (or the code block's corner button) copies it.
+// Project API keys are NOT created as a side effect: credentials only exist
+// after an explicit click on the separate "Create keys for project access"
+// action, and secrets never enter the agent prompt.
 export function V4MigrationAgentUpgradeSection({
   projectId,
 }: {
@@ -1057,7 +1055,6 @@ export function V4MigrationAgentUpgradeSection({
 }) {
   const capture = usePostHogClientCapture();
   const handleCopyPrompt = useCopyMigrationPrompt();
-  const [promptVisible, setPromptVisible] = useState(false);
 
   const [generatedKeys, setGeneratedKeys] = useState<{
     projectId: string;
@@ -1075,11 +1072,6 @@ export function V4MigrationAgentUpgradeSection({
     projectId,
     scope: "apiKeys:CUD",
   });
-
-  const handleShowPrompt = () => {
-    capture("v4_migration:coding_agent_prompt_viewed");
-    setPromptVisible(true);
-  };
 
   const handleCreateKeys = () => {
     // Guards double-clicks and re-creation once keys exist for this project.
@@ -1146,29 +1138,20 @@ export function V4MigrationAgentUpgradeSection({
         </p>
       </div>
       <div className="flex flex-col gap-2">
-        <RainbowButton
-          className="w-full"
-          onClick={promptVisible ? handleCopyPrompt : handleShowPrompt}
-        >
-          {promptVisible ? (
-            <Copy className="mr-1.5 h-4 w-4 shrink-0" />
-          ) : (
-            <Bot className="mr-1.5 h-4 w-4 shrink-0" />
-          )}
+        <RainbowButton className="w-full" onClick={handleCopyPrompt}>
+          <Copy className="mr-1.5 h-4 w-4 shrink-0" />
           <span className="min-w-0 truncate" title="Copy prompt">
             Copy prompt
           </span>
         </RainbowButton>
-        {promptVisible && (
-          <CodeBlockWithCopy
-            text={V4_CODING_AGENT_PROMPT}
-            copyLabel="Copy prompt to clipboard"
-            onCopy={() => capture("v4_migration:coding_agent_prompt_copied")}
-            scrollable
-            className="my-3"
-          />
-        )}
-        {promptVisible && projectId && (
+        <CodeBlockWithCopy
+          text={V4_CODING_AGENT_PROMPT}
+          copyLabel="Copy prompt to clipboard"
+          onCopy={() => capture("v4_migration:coding_agent_prompt_copied")}
+          scrollable
+          className="my-3"
+        />
+        {projectId && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-muted-foreground min-w-0 text-sm leading-relaxed">
