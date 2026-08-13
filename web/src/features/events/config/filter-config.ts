@@ -93,9 +93,9 @@ export const observationEventsFilterConfig: FilterConfig = {
   // average, ~95% at the 10th percentile. The rest folds behind
   // "Show N more".
   commonFacets: [
+    "isRootObservation",
     "environment",
     "type",
-    "isRootObservation",
     "traceName",
     "name",
     "traceTags",
@@ -114,6 +114,13 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   facets: [
     {
+      type: "boolean" as const,
+      column: "isRootObservation",
+      label: "Is Root Observation",
+      tooltip:
+        "A root observation is top-level in a trace or marked as an app root by the SDK. Filter to 'True' to see root-level observations.",
+    },
+    {
       type: "categorical" as const,
       column: "environment",
       label: getEventsColumnName("environment"),
@@ -128,13 +135,6 @@ export const observationEventsFilterConfig: FilterConfig = {
         href: "https://langfuse.com/docs/observability/features/observation-types",
       },
       renderIcon: renderFilterIcon,
-    },
-    {
-      type: "boolean" as const,
-      column: "isRootObservation",
-      label: "Is Root Observation",
-      tooltip:
-        "A root observation is top-level in a trace or marked as an app root by the SDK. Filter to 'True' to see root-level observations.",
     },
     {
       type: "categorical" as const,
