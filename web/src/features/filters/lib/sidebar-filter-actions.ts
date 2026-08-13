@@ -257,14 +257,11 @@ export function applySelection(
     finalOperator = operator;
     finalValues = values;
 
-    // An empty "none of" and "all of" excludes nothing: since deselecting from the
+    // An empty "none of" excludes nothing: since deselecting from the
     // all-checked default now enters NONE mode by itself, toggling NONE
     // without a selection is a no-op rather than a persisted vacuous
     // filter (which would light the badge while matching everything).
-    if (
-      (finalOperator === "none of" || finalOperator === "all of") &&
-      finalValues.length === 0
-    ) {
+    if (finalOperator === "none of" && finalValues.length === 0) {
       return other;
     }
   } else {
