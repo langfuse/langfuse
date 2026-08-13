@@ -3,13 +3,36 @@ import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { LEGACY_BLOB_EXPORT_CUTOFF } from "@langfuse/shared";
+import {
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+  LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
+} from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
 const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+// Integration row ages derive from the cutoff constants, never from literals, so
+// the NEXT_PUBLIC_LANGFUSE_*_CUTOFF dev overrides this branch documents cannot
+// turn a supported override into a suite failure.
+const ROW_PRE_ANALYTICS_CUTOFF = new Date(
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
+);
+const ROW_POST_ANALYTICS_CUTOFF = new Date(
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+);
+// The raced-CREATE pre-flight row must be grandfathered under BOTH exporter
+// cutoffs, so the pre-flight assert provably cannot be the thing that rejects
+// and only the in-transaction backstop can.
+const RACED_PREFLIGHT_CREATED_AT = new Date(
+  Math.min(
+    LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime(),
+    LEGACY_BLOB_EXPORTER_CUTOFF.getTime(),
+  ) -
+    30 * MS_PER_DAY,
+);
 
 const buildSession = (orgId: string, projectId: string): Session => ({
   expires: "1",
@@ -581,7 +604,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         .spyOn(prisma.posthogIntegration, "findUnique")
         .mockResolvedValueOnce({
           exportSource: "TRACES_OBSERVATIONS",
-          createdAt: new Date("2026-01-01T00:00:00Z"),
+          createdAt: RACED_PREFLIGHT_CREATED_AT,
         } as never);
       try {
         await expect(
@@ -637,11 +660,6 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
   describe("Cloud new-integration enriched pin", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-
-    // Written literally rather than imported so the expectation is the spec
-    // date, not whatever the implementation happens to export.
-    const ROW_PRE_ANALYTICS_CUTOFF = new Date("2026-07-01T00:00:00.000Z");
-    const ROW_POST_ANALYTICS_CUTOFF = new Date("2026-09-01T00:00:00.000Z");
 
     beforeEach(() => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";

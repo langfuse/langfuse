@@ -7,6 +7,7 @@ import {
   getAvailableExportSources,
   isEnrichedBlobExportSource,
   isLegacyBlobExportSource,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   LEGACY_BLOB_EXPORT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
   validateExportSource,
@@ -174,13 +175,26 @@ describe("validateExportSource matrix", () => {
 // PostHog) get a later one. The policy takes it from the context so both
 // families share one implementation.
 describe("exporterCutoff parameterization", () => {
-  // Spec dates, written literally so these behaviour tests do not depend on
-  // the constant existing yet; the constants test below pins the exports.
-  const ANALYTICS_CUTOFF = new Date("2026-08-15T00:00:00.000Z");
-  // Deliberately between the two cutoffs: past blob's 2026-06-22, before
-  // analytics' 2026-08-15. Any assertion using it distinguishes "the context's
-  // cutoff was honoured" from "the blob default was hard-coded".
-  const ROW_BETWEEN_CUTOFFS = new Date("2026-07-01T00:00:00.000Z");
+  // Every date is derived from a cutoff constant, never written literally: both
+  // constants are overridable via NEXT_PUBLIC_LANGFUSE_*_CUTOFF for local
+  // testing, and this branch documents those overrides in .env.dev.example. A
+  // literal would turn a supported override into a suite failure.
+  const ANALYTICS_ROW_PRE = new Date(
+    LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
+  );
+  const ANALYTICS_ROW_AT = LEGACY_ANALYTICS_EXPORTER_CUTOFF;
+  const ANALYTICS_ROW_POST = new Date(
+    LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+  );
+  // For the absent-vs-supplied contrast, both dates hang off the blob cutoff so
+  // the comparison holds whatever the two constants are set to: the row is one
+  // day past the blob boundary, and the supplied cutoff is far beyond it.
+  const ROW_JUST_PAST_BLOB_CUTOFF = new Date(
+    LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+  );
+  const CUTOFF_WELL_PAST_BLOB = new Date(
+    LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + 60 * MS_PER_DAY,
+  );
 
   type Ctx = ExportSourceContext & { exporterCutoff?: Date };
 
@@ -199,33 +213,33 @@ describe("exporterCutoff parameterization", () => {
     expect(
       reasonOf(
         "TRACES_OBSERVATIONS",
-        cloud({ integrationCreatedAt: ROW_BETWEEN_CUTOFFS }),
+        cloud({ integrationCreatedAt: ROW_JUST_PAST_BLOB_CUTOFF }),
       ),
     ).toBe("cloud-cutoff");
-    // Analytics call sites pass the later cutoff, so the same row is still
-    // grandfathered.
+    // A later supplied cutoff grandfathers the very same row.
     expect(
       reasonOf(
         "TRACES_OBSERVATIONS",
         cloud({
-          integrationCreatedAt: ROW_BETWEEN_CUTOFFS,
-          exporterCutoff: ANALYTICS_CUTOFF,
+          integrationCreatedAt: ROW_JUST_PAST_BLOB_CUTOFF,
+          exporterCutoff: CUTOFF_WELL_PAST_BLOB,
         }),
       ),
     ).toBeUndefined();
   });
 
-  it("the supplied cutoff keeps >= semantics on the row's creation date", () => {
+  it("the analytics cutoff keeps >= semantics on the row's creation date", () => {
     const at = (integrationCreatedAt: Date) =>
       reasonOf(
         "TRACES_OBSERVATIONS",
-        cloud({ integrationCreatedAt, exporterCutoff: ANALYTICS_CUTOFF }),
+        cloud({
+          integrationCreatedAt,
+          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+        }),
       );
-    expect(at(new Date(ANALYTICS_CUTOFF.getTime() - 1))).toBeUndefined();
-    expect(at(ANALYTICS_CUTOFF)).toBe("cloud-cutoff");
-    expect(at(new Date(ANALYTICS_CUTOFF.getTime() + MS_PER_DAY))).toBe(
-      "cloud-cutoff",
-    );
+    expect(at(ANALYTICS_ROW_PRE)).toBeUndefined();
+    expect(at(ANALYTICS_ROW_AT)).toBe("cloud-cutoff");
+    expect(at(ANALYTICS_ROW_POST)).toBe("cloud-cutoff");
   });
 
   it("a brand-new Cloud row (null createdAt) is pinned to enriched even before the cutoff date passes", () => {
@@ -233,7 +247,7 @@ describe("exporterCutoff parameterization", () => {
     // new-customer rules, it is not a date comparison.
     const brandNew = cloud({
       integrationCreatedAt: null,
-      exporterCutoff: ANALYTICS_CUTOFF,
+      exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
     });
     expect(reasonOf("TRACES_OBSERVATIONS", brandNew)).toBe("cloud-cutoff");
     expect(reasonOf("TRACES_OBSERVATIONS_EVENTS", brandNew)).toBe(
@@ -249,7 +263,7 @@ describe("exporterCutoff parameterization", () => {
         enrichedAvailable: true,
         legacyWritesActive: true,
         integrationCreatedAt: null,
-        exporterCutoff: ANALYTICS_CUTOFF,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
       } as Ctx),
     ).toBeUndefined();
   });
@@ -259,7 +273,7 @@ describe("exporterCutoff parameterization", () => {
       getAvailableExportSources(
         cloud({
           integrationCreatedAt: null,
-          exporterCutoff: ANALYTICS_CUTOFF,
+          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
         }),
       ),
     ).toEqual([
@@ -269,19 +283,18 @@ describe("exporterCutoff parameterization", () => {
     ]);
   });
 
-  it("exports both cutoff constants; the blob one is unchanged", () => {
-    // Moving LEGACY_BLOB_EXPORTER_CUTOFF instead of adding a second constant
-    // would silently re-open legacy sources for blob rows created between the
-    // two dates, so both values are pinned.
-    expect(LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()).toBe(
-      "2026-06-22T00:00:00.000Z",
+  it("exports the analytics cutoff as its own valid constant, separate from the blob one", () => {
+    // The value is deliberately NOT pinned: both constants are overridable for
+    // local testing, so asserting an ISO string here would fail on a supported
+    // override rather than on a regression. What must hold is that the analytics
+    // cutoff is a real, separately-held Date — repurposing the blob constant
+    // instead of adding one would silently move the blob boundary.
+    expect(LEGACY_ANALYTICS_EXPORTER_CUTOFF).toBeInstanceOf(Date);
+    expect(Number.isNaN(LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime())).toBe(
+      false,
     );
-    const analyticsCutoff = (exportSourcePolicy as unknown as Record<string, unknown>)
-      .LEGACY_ANALYTICS_EXPORTER_CUTOFF;
-    expect(analyticsCutoff).toBeInstanceOf(Date);
-    expect((analyticsCutoff as Date | undefined)?.toISOString()).toBe(
-      ANALYTICS_CUTOFF.toISOString(),
-    );
+    expect(LEGACY_BLOB_EXPORTER_CUTOFF).toBeInstanceOf(Date);
+    expect(Number.isNaN(LEGACY_BLOB_EXPORTER_CUTOFF.getTime())).toBe(false);
   });
 });
 

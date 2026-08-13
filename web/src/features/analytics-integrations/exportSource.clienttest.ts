@@ -1,5 +1,6 @@
 import {
   AnalyticsIntegrationExportSource,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   LEGACY_BLOB_EXPORT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
   type BlobExportWriteMode,
@@ -8,11 +9,13 @@ import {
 
 import {
   buildExportSourceContext,
+  getDefaultExportSource,
   getExportSourceFormValue,
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
   shouldHideExportSourceSelector,
+  shouldShowExportSourceField,
 } from "./exportSource";
 
 // UI-adapter tests. The policy matrix itself lives with the policy
@@ -56,7 +59,9 @@ const selfHostedEventsOnly: ExportSourceContext = {
   legacyWritesActive: false,
 };
 
-describe("getExportSourceFormValue", () => {
+// Only the blob-storage form calls getExportSourceFormValue; the analytics
+// pages use getDefaultExportSource (covered further down).
+describe("getExportSourceFormValue (blob storage form)", () => {
   it("keeps any persisted value regardless of deployment state (LFE-10296)", () => {
     for (const persisted of Object.values(AnalyticsIntegrationExportSource)) {
       for (const ctx of [
@@ -402,57 +407,111 @@ describe("write mode drives the settings-page selector", () => {
   );
 });
 
-// Product-analytics integrations (Mixpanel/PostHog) carry a later
-// integration-level cutoff than blob storage, supplied through the context.
-describe("analytics integrations: exporterCutoff-driven selector state", () => {
+// The two derivations the Mixpanel and PostHog settings pages actually call:
+// shouldShowExportSourceField and getDefaultExportSource. Contexts below mirror
+// what those pages build (enrichedAvailable from the write mode, the analytics
+// exporter cutoff supplied), so these assertions cover shipped behaviour.
+describe("analytics integrations: settings-page field visibility and default", () => {
   type Ctx = ExportSourceContext & { exporterCutoff?: Date };
 
-  // Spec dates written literally: the analytics cutoff, and a row age that sits
-  // between the blob cutoff (2026-06-22) and it.
-  const ANALYTICS_CUTOFF = new Date("2026-08-15T00:00:00.000Z");
-  const ROW_BETWEEN_CUTOFFS = new Date("2026-07-01T00:00:00.000Z");
+  // Derived from the constant, never a literal: the cutoff is overridable via
+  // NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF for local testing.
+  const ROW_PRE_ANALYTICS_CUTOFF = new Date(
+    LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
+  );
+  const ROW_POST_ANALYTICS_CUTOFF = new Date(
+    LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+  );
 
-  const newCloudIntegration: Ctx = {
+  const cloudCtx = (integrationCreatedAt: Date | null): Ctx => ({
     isCloud: true,
     enrichedAvailable: true,
     legacyWritesActive: true,
+    // Pre-cutoff project, so only the integration-level gate is in play.
     projectCreatedAt: PROJECT_PRE,
-    integrationCreatedAt: null,
-    exporterCutoff: ANALYTICS_CUTOFF,
-  };
-  const grandfatheredCloudIntegration: Ctx = {
-    ...newCloudIntegration,
-    integrationCreatedAt: ROW_BETWEEN_CUTOFFS,
-  };
-
-  it("hides the selector for a brand-new Cloud integration, pinned to EVENTS", () => {
-    const options = getExportSourceOptions(undefined, newCloudIntegration);
-    expect(options.map((o) => o.value)).toEqual([
-      AnalyticsIntegrationExportSource.EVENTS,
-    ]);
-    expect(shouldHideExportSourceSelector(options)).toBe(true);
-    expect(getExportSourceFormValue(undefined, newCloudIntegration)).toBe(
-      AnalyticsIntegrationExportSource.EVENTS,
-    );
+    integrationCreatedAt,
+    exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   });
 
-  it("keeps the selector visible and legacy selectable for a grandfathered Cloud integration", () => {
-    const options = getExportSourceOptions(
-      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-      grandfatheredCloudIntegration,
-    );
-    expect(shouldHideExportSourceSelector(options)).toBe(false);
+  const derive = (
+    persisted: AnalyticsIntegrationExportSource | null | undefined,
+    ctx: Ctx,
+    isBetaEnabled: boolean,
+  ) => ({
+    show: shouldShowExportSourceField({
+      persisted,
+      ctx,
+      isBetaEnabled,
+      options: getExportSourceOptions(persisted ?? null, ctx),
+    }),
+    defaulted: getDefaultExportSource({ persisted, ctx, isBetaEnabled }),
+  });
+
+  it("brand-new Cloud integration: field hidden and default pinned to EVENTS, regardless of the beta opt-in", () => {
+    for (const isBetaEnabled of [false, true]) {
+      expect(derive(undefined, cloudCtx(null), isBetaEnabled)).toEqual({
+        show: false,
+        defaulted: AnalyticsIntegrationExportSource.EVENTS,
+      });
+    }
+  });
+
+  it("grandfathered pre-cutoff Cloud integration: field shown without the beta opt-in, default keeps the persisted legacy source", () => {
+    const ctx = cloudCtx(ROW_PRE_ANALYTICS_CUTOFF);
+    expect(
+      derive(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS, ctx, false),
+    ).toEqual({
+      show: true,
+      defaulted: AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    });
+    // The legacy source stays a real choice, so the user can opt into enriched
+    // without being forced and without being rewritten.
     expect(
       isExportSourceSelectable(
         AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-        grandfatheredCloudIntegration,
+        ctx,
       ),
     ).toBe(true);
     expect(
-      isExportSourceSelectable(
-        AnalyticsIntegrationExportSource.EVENTS,
-        grandfatheredCloudIntegration,
-      ),
+      isExportSourceSelectable(AnalyticsIntegrationExportSource.EVENTS, ctx),
+    ).toBe(true);
+  });
+
+  it("post-cutoff Cloud integration: field hidden and pinned even with a persisted legacy source", () => {
+    const ctx = cloudCtx(ROW_POST_ANALYTICS_CUTOFF);
+    expect(
+      derive(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS, ctx, false),
+    ).toEqual({
+      show: false,
+      defaulted: AnalyticsIntegrationExportSource.EVENTS,
+    });
+  });
+
+  it("self-hosted without the beta opt-in: field hidden, default legacy (unchanged)", () => {
+    expect(derive(undefined, selfHostedWithPreview, false)).toEqual({
+      show: false,
+      defaulted: AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    });
+  });
+
+  it("self-hosted with the beta opt-in: field shown, default EVENTS", () => {
+    // Guards the self-hosted arm of `isCloud || isBetaEnabled`: making the
+    // selector Cloud-unconditional must not have dropped the opt-in path.
+    expect(derive(undefined, selfHostedWithPreview, true)).toEqual({
+      show: true,
+      defaulted: AnalyticsIntegrationExportSource.EVENTS,
+    });
+  });
+
+  it("self-hosted events_only with a persisted legacy source: field forced visible so the blocked-save alert has a target", () => {
+    // Not a cutoff case — capability. Without this arm the user would be left
+    // with a blocked save and no control to change.
+    expect(
+      derive(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        selfHostedEventsOnly,
+        false,
+      ).show,
     ).toBe(true);
   });
 });
