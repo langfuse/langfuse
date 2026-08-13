@@ -1119,7 +1119,10 @@ export function DataTableControls({
             would otherwise read typing here as working the list and freeze the
             facet order mid-search. */}
         {showFacetSearch && (
-          <div className="bg-background shrink-0 border-b px-3 py-2">
+          // px-2 and h-6 are the facet row's own inset and height — the search
+          // field lines up with the labels it filters. No bottom border: the
+          // list below is already a stack of bordered rows.
+          <div className="bg-background shrink-0 px-2 py-2">
             <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
               <Input
@@ -1144,7 +1147,7 @@ export function DataTableControls({
                     noteFacetSearch("facet_list", "");
                   }
                 }}
-                className="h-8 pr-7 pl-7 text-xs"
+                className="h-6 pr-6 pl-7 text-xs"
               />
               {facetSearch !== "" && (
                 <Button
@@ -1155,7 +1158,7 @@ export function DataTableControls({
                     noteFacetSearch("facet_list", "");
                   }}
                   aria-label="Clear filter search"
-                  className="absolute top-1/2 right-1 h-6 w-6 -translate-y-1/2"
+                  className="absolute top-1/2 right-0.5 h-5 w-5 -translate-y-1/2"
                 >
                   <IconX className="h-3 w-3" />
                 </Button>
