@@ -280,6 +280,7 @@ export const getObservationStream = async (
     },
     clickhouseConfigs,
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   // Helper function to process a single observation row

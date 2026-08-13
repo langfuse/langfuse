@@ -224,6 +224,7 @@ export const getTraceStream = async (props: {
     },
     clickhouseConfigs,
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   // Helper function to process a single trace row
