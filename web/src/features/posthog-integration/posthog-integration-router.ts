@@ -192,6 +192,11 @@ export const posthogIntegrationRouter = createTRPCRouter({
             // undefined → Prisma omits the column → preserves the persisted
             // value on partial updates (LFE-10296).
             exportSource: config.exportSource,
+            // Saving enabled resets the failure-notification cooldown: the
+            // customer just acted, so a fresh failure should notify promptly
+            // (mirrors blob storage's service.ts). lastError is left intact so
+            // the last fault stays visible until a successful run clears it.
+            ...(config.enabled ? { lastFailureNotificationSentAt: null } : {}),
           },
         });
 
