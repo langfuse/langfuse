@@ -94,18 +94,18 @@ export const observationEventsFilterConfig: FilterConfig = {
   // "Show N more".
   commonFacets: [
     "isRootObservation",
-    "environment",
-    "type",
-    "traceName",
     "name",
+    "type",
+    "environment",
+    "traceName",
+    "metadata",
     "traceTags",
+    "sessionId",
+    "userId",
+    "traceId",
     "level",
     "providedModelName",
     "promptName",
-    "metadata",
-    "traceId",
-    "sessionId",
-    "userId",
     "latency",
     "scores_avg",
   ],
@@ -122,8 +122,8 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "environment",
-      label: getEventsColumnName("environment"),
+      column: "name",
+      label: getEventsColumnName("name"),
     },
     {
       type: "categorical" as const,
@@ -138,13 +138,18 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
+      column: "environment",
+      label: getEventsColumnName("environment"),
+    },
+    {
+      type: "categorical" as const,
       column: "traceName",
       label: getEventsColumnName("traceName"),
     },
     {
-      type: "categorical" as const,
-      column: "name",
-      label: getEventsColumnName("name"),
+      type: "stringKeyValue" as const,
+      column: "metadata",
+      label: getEventsColumnName("metadata"),
     },
     {
       // Tags are a primary, user-defined filter — keep them near the identity
@@ -152,6 +157,21 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "traceTags",
       label: getEventsColumnName("traceTags"),
+    },
+    {
+      type: "categorical" as const,
+      column: "sessionId",
+      label: getEventsColumnName("sessionId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "userId",
+      label: getEventsColumnName("userId"),
+    },
+    {
+      type: "string" as const,
+      column: "traceId",
+      label: getEventsColumnName("traceId"),
     },
     {
       // Display relabel to "Status" (see traces-config); column id stays
@@ -168,18 +188,26 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "modelId",
-      label: getEventsColumnName("modelId"),
-    },
-    {
-      type: "categorical" as const,
       column: "promptName",
       label: getEventsColumnName("promptName"),
     },
     {
-      type: "stringKeyValue" as const,
-      column: "metadata",
-      label: getEventsColumnName("metadata"),
+      type: "numeric" as const,
+      column: "latency",
+      label: getEventsColumnName("latency"),
+      min: 0,
+      max: 60,
+      unit: "s",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "scores_avg",
+      label: "Numeric Scores",
+    },
+    {
+      type: "categorical" as const,
+      column: "modelId",
+      label: getEventsColumnName("modelId"),
     },
     {
       type: "categorical" as const,
@@ -195,21 +223,6 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "string" as const,
       column: "statusMessage",
       label: getEventsColumnName("statusMessage"),
-    },
-    {
-      type: "string" as const,
-      column: "traceId",
-      label: getEventsColumnName("traceId"),
-    },
-    {
-      type: "categorical" as const,
-      column: "sessionId",
-      label: getEventsColumnName("sessionId"),
-    },
-    {
-      type: "categorical" as const,
-      column: "userId",
-      label: getEventsColumnName("userId"),
     },
     {
       type: "categorical" as const,
@@ -245,14 +258,6 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "experimentName",
       label: getEventsColumnName("experimentName"),
-    },
-    {
-      type: "numeric" as const,
-      column: "latency",
-      label: getEventsColumnName("latency"),
-      min: 0,
-      max: 60,
-      unit: "s",
     },
     {
       type: "numeric" as const,
@@ -331,21 +336,10 @@ export const observationEventsFilterConfig: FilterConfig = {
       min: 0,
       max: 25,
     },
-    // The "Scores" facets are level-agnostic: their filter matches a score at
-    // observation OR trace level (LFE-10596), and their options list all score
-    // names. The trace-only `trace_scores_avg` / `trace_score_categories` /
-    // `trace_score_booleans` columns stay valid (search bar `traceScores.` +
-    // existing saved views) but are no longer offered as separate sidebar
-    // facets — one "Scores" group.
     {
       type: "keyValue" as const,
       column: "score_categories",
       label: "Categorical Scores",
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "scores_avg",
-      label: "Numeric Scores",
     },
     {
       type: "booleanKeyValue" as const,
