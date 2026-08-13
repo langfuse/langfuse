@@ -959,6 +959,34 @@ export function V4MigrationIntegrationsSection({
   );
 }
 
+// Docs link and deadline note are shared by the panel/modal header and the
+// account-level status page so both surfaces read the same.
+export function V4MigrationDocsLink() {
+  return (
+    <ExternalLink
+      href={V4_DOCS_URL}
+      analytics={{ section: "header", link: "v4_docs" }}
+    >
+      See docs.
+    </ExternalLink>
+  );
+}
+
+export function V4MigrationDeadlineNote() {
+  return (
+    <p>
+      After{" "}
+      <ExternalLink
+        href={V4_TIMELINE_URL}
+        analytics={{ section: "header", link: "v4_timeline" }}
+      >
+        {V4_MIGRATION_DEADLINE}
+      </ExternalLink>{" "}
+      some features may stop working without a v4 upgrade.
+    </p>
+  );
+}
+
 // Title, status link, and the v4 pitch. The agent CTA lives in
 // V4MigrationAgentUpgradeSection, rendered by the details content.
 export function V4MigrationHeaderContent({
@@ -990,25 +1018,9 @@ export function V4MigrationHeaderContent({
           {actionNeeded
             ? "Your project setup is outdated. Upgrade to v4 now for real-time ingestion and up to 165x faster queries. "
             : "Langfuse v4 offers real-time ingestion and up to 165x faster queries. "}
-          <ExternalLink
-            href={V4_DOCS_URL}
-            analytics={{ section: "header", link: "v4_docs" }}
-          >
-            See docs.
-          </ExternalLink>
+          <V4MigrationDocsLink />
         </p>
-        {actionNeeded && (
-          <p>
-            After{" "}
-            <ExternalLink
-              href={V4_TIMELINE_URL}
-              analytics={{ section: "header", link: "v4_timeline" }}
-            >
-              {V4_MIGRATION_DEADLINE}
-            </ExternalLink>{" "}
-            some features may stop working without a v4 upgrade.
-          </p>
-        )}
+        {actionNeeded && <V4MigrationDeadlineNote />}
       </div>
     </>
   );
