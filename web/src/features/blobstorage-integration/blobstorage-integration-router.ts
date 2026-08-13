@@ -83,8 +83,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           },
         });
 
-        // The client derives export-source availability from this via the
-        // shared policy helpers (see export-source-policy.ts).
         return {
           config: config ?? null,
           writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,

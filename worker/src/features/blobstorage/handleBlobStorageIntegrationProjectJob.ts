@@ -1270,8 +1270,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   try {
-    // Write-mode guard, both directions; the catch persists lastError and
-    // notifies admins.
+    // The catch persists lastError and notifies admins.
     assertExportSourceWritable(
       blobStorageIntegration.exportSource,
       "Select the enriched export source (OBSERVATIONS_V2) in the blob storage integration settings.",

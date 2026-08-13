@@ -26,8 +26,8 @@
 //   written, so a legacy source would silently export stale/empty data.
 //
 //   Both are data capability, deployment-agnostic, on Cloud and self-hosted
-//   alike (LFE-10148), and derived from the one write mode via
-//   areEnrichedWritesActive / areLegacyWritesActive. Unlike the date cutoffs
+//   alike, and derived from the one write mode via areEnrichedWritesActive /
+//   areLegacyWritesActive. Unlike the date cutoffs
 //   they also apply to persisted values: keeping one would not grandfather
 //   anything, it would export nothing. TRACES_OBSERVATIONS_EVENTS is both
 //   families at once, so it needs dual — that falls out of the two rules

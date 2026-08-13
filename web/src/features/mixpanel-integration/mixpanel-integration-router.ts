@@ -31,8 +31,6 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
-      // The client derives export-source availability from this via the
-      // shared policy helpers (see export-source-policy.ts).
       const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
       try {
         const dbConfig = await ctx.prisma.mixpanelIntegration.findFirst({
@@ -97,9 +95,6 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         }
       }
 
-      // An omitted source preserves the persisted row; on CREATE it falls back
-      // to a default that is validated like an explicit choice. See
-      // export-source-policy.ts.
       const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
       const legacyWritesActive = areLegacyWritesActive(writeMode);
       const enrichedAvailable = areEnrichedWritesActive(writeMode);
