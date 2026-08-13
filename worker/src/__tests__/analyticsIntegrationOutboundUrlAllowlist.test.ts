@@ -16,6 +16,15 @@
  * guard below asserts through the same accessor the production code uses, so
  * this suite fails loudly if that plumbing changes underneath it.
  *
+ * Sharing another surface's allowlist is a KNOWINGLY ACCEPTED deviation from
+ * step 3 of the reference above ("Do not share another surface's allowlist"),
+ * not an oversight: a dedicated trio was tried and reverted as scope creep. The
+ * practical consequence is that allowing a host for webhook delivery also allows
+ * analytics exports to it. Nothing here asserts WHICH trio is used — that is
+ * deliberate, so properly splitting the allowlists later does not have to fight
+ * this suite. Setting a webhook env var to unblock an analytics export is
+ * itself the visible evidence of the sharing.
+ *
  * This is also the Mixpanel positive control for criterion #4 ("legitimate
  * hosts still send successfully"). It replaces an earlier IP-literal control
  * that had to be retired: an IP literal only delivered because the connect-time
@@ -83,7 +92,7 @@ describe("allowlisted outbound destination", () => {
   // Guard on the harness itself: if the env plumbing silently stopped working,
   // the delivery test below would fail for an unrelated reason and send someone
   // hunting a phantom regression in the client.
-  it("reads the operator allowlist from this surface's own environment trio", () => {
+  it("reads the operator allowlist through the accessor production uses", () => {
     expect(whitelistFromEnv().hosts).toContain("localhost");
   });
 

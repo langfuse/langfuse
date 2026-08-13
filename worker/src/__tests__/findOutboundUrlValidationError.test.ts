@@ -21,7 +21,10 @@ import {
   OutboundUrlValidationError,
   RedirectValidationError,
 } from "@langfuse/shared/src/server";
-import { findOutboundUrlValidationError } from "../errors/findOutboundUrlValidationError";
+import {
+  findOutboundUrlValidationError,
+  isRedirectChainFailure,
+} from "../errors/findOutboundUrlValidationError";
 
 /** The job fails terminally: the classifier recognises a permanent fault. */
 const classifiesTerminal = (error: unknown) =>
@@ -114,6 +117,60 @@ describe("outbound-URL failure classification — transient faults stay retryabl
       0,
     );
     expect(staysRetryable(redirectDns)).toBe(true);
+  });
+});
+
+// A redirect budget/loop fault and an IP-policy block are both permanent, so
+// the terminal/retryable split above cannot tell them apart. They must still be
+// REPORTED differently: operators alert on SSRF signals, and a merely
+// misconfigured (over-long or looping) redirect chain must not fire that alert.
+//
+// These assert the predicate rather than the wording, so they keep protecting
+// the property if the operator-facing text is reworded.
+describe("outbound-URL failure classification — chain faults vs SSRF blocks", () => {
+  it("labels redirect budget and loop faults as chain faults", () => {
+    expect(
+      isRedirectChainFailure(
+        new MaxRedirectsExceededError(10, ["http://a/", "http://b/"]),
+      ),
+    ).toBe(true);
+    expect(
+      isRedirectChainFailure(
+        new CircularRedirectError(["http://a/", "http://b/", "http://a/"]),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not label a redirect into a blocked target as a chain fault", () => {
+    // The chain itself was fine — it pointed somewhere forbidden. This one must
+    // keep the SSRF wording.
+    const redirectIntoBlocked = new RedirectValidationError(
+      "Blocked IP address detected",
+      "http://169.254.169.254/",
+      0,
+    );
+    expect(isRedirectChainFailure(redirectIntoBlocked)).toBe(false);
+  });
+
+  it("does not label a direct IP-policy block as a chain fault", () => {
+    expect(isRedirectChainFailure(ipBlock())).toBe(false);
+  });
+
+  // Both kinds are permanent; the labelling split must not have made either
+  // retryable.
+  it("keeps chain faults and SSRF blocks alike terminal", () => {
+    for (const error of [
+      new MaxRedirectsExceededError(10, ["http://a/"]),
+      new CircularRedirectError(["http://a/", "http://a/"]),
+      new RedirectValidationError(
+        "Blocked IP address detected",
+        "http://x/",
+        0,
+      ),
+      ipBlock(),
+    ]) {
+      expect(classifiesTerminal(error)).toBe(true);
+    }
   });
 });
 

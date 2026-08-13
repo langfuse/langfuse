@@ -5,11 +5,12 @@
  * metadata literal, RFC1918 literal, a hostname that resolves to a private IP,
  * and a URL with embedded credentials.
  *
- * EMPTY ALLOWLIST is the premise of this whole file: no
- * LANGFUSE_ANALYTICS_INTEGRATION_WHITELISTED_* env var is set, so nothing may
- * reach an internal target. (The allowlisted counterpart — a legitimate host
- * that DOES deliver — lives in analyticsIntegrationOutboundUrlAllowlist.test.ts,
- * which needs a conflicting process env and therefore its own file.)
+ * EMPTY ALLOWLIST is the premise of this whole file: it sets no allowlist env
+ * var at all, so nothing may reach an internal target. (The allowlisted
+ * counterpart — a legitimate host that DOES deliver — lives in
+ * analyticsIntegrationOutboundUrlAllowlist.test.ts, which needs a conflicting
+ * process env and therefore its own file.) The premise holds whichever env trio
+ * the surface reads, so this file is deliberately free of trio names.
  *
  * The real validators run here. Unlike analyticsIntegrationSsrfPinning.test.ts,
  * `validateWebhookURL` is deliberately NOT mocked: these cases exist to prove
