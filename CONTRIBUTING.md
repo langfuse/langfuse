@@ -538,9 +538,7 @@ We maintain the API specifications manually to guarantee a high degree of unders
 To export the respective `openapi.yml` files which power the online API reference, run:
 
 ```sh
-npx fern-api export --api server web/public/generated/api/openapi.yml
-npx fern-api export --api client web/public/generated/api-client/openapi.yml
-npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml
+pnpm run openapi:export
 ```
 
 To generate the server SDKs, run:
