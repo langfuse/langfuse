@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
 
@@ -34,5 +35,37 @@ describe("OpenAPI deprecations", () => {
         .map(({ method, endpointPath }) => `${method} ${endpointPath}`)
         .sort(),
     );
+  });
+
+  it("supports deprecated endpoints at a service base path", () => {
+    const fixtureDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "fern-deprecations-"),
+    );
+
+    try {
+      fs.writeFileSync(
+        path.join(fixtureDirectory, "api.yml"),
+        "base-path: /api\n",
+      );
+      fs.writeFileSync(
+        path.join(fixtureDirectory, "service.yml"),
+        [
+          "service:",
+          "  base-path: /public",
+          "  endpoints:",
+          "    get:",
+          "      availability: deprecated",
+          "      method: GET",
+          '      path: ""',
+          "",
+        ].join("\n"),
+      );
+
+      expect(getFernDeprecatedOperations(fixtureDirectory)).toEqual([
+        { method: "get", endpointPath: "/api/public" },
+      ]);
+    } finally {
+      fs.rmSync(fixtureDirectory, { recursive: true });
+    }
   });
 });

@@ -71,7 +71,7 @@ export function getFernDeprecatedOperations(
 
     return Object.values(service.endpoints).flatMap((endpoint) => {
       if (!isDeprecated(endpoint.availability)) return [];
-      if (!endpoint.method || !endpoint.path) {
+      if (!endpoint.method || endpoint.path === undefined) {
         throw new Error(
           `Deprecated endpoint in ${definitionPath} must define method and path`,
         );
