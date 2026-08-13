@@ -7,7 +7,10 @@ import {
 import { Prisma } from "../../db";
 import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
-import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
+import {
+  buildInAppAgentApprovalDecisionEvent,
+  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
+} from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
 import type { InAppAgentPrefixedLangfuseMcpToolName } from "./tools";
 import {
@@ -355,13 +358,7 @@ export async function cancelConversationRunsInTransaction(params: {
       projectId: params.projectId,
       conversationId: params.conversationId,
       // Parked approvals have finishedAt set but remain unsettled.
-      status: {
-        in: [
-          InAppAgentRunStatus.QUEUED,
-          InAppAgentRunStatus.RUNNING,
-          InAppAgentRunStatus.AWAITING_APPROVAL,
-        ],
-      },
+      status: { in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES] },
     },
     select: { id: true, status: true },
   });
@@ -541,11 +538,7 @@ async function reconcileConversationRunsInTransaction(params: {
       projectId,
       conversationId,
       status: {
-        in: [
-          InAppAgentRunStatus.QUEUED,
-          InAppAgentRunStatus.RUNNING,
-          InAppAgentRunStatus.AWAITING_APPROVAL,
-        ],
+        in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES],
       },
     },
     select: {
@@ -592,7 +585,16 @@ async function reconcileConversationRunsInTransaction(params: {
   return reconciled;
 }
 
-function classifyStaleRun(
+/**
+ * Decide whether a non-terminal run has already missed every deadline that
+ * should have failed it. Pure: callers choose whether to act on the verdict.
+ *
+ * Reconciliation writes the verdict; read paths that only need to render a run
+ * may apply it without writing, so a dead worker does not leave a conversation
+ * spinning until someone opens it (`reconcileConversationRuns` is the only
+ * authority that persists the transition).
+ */
+export function classifyStaleRun(
   run: {
     status: string | null;
     createdAt: Date;

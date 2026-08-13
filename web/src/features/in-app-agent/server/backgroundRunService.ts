@@ -5,6 +5,7 @@ import {
   BaseError,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  InAppAgentRunStatusSchema,
   LangfuseNotFoundError,
   type Plan,
 } from "@langfuse/shared";
@@ -36,6 +37,7 @@ import {
 import {
   cancelConversationRunsInTransaction,
   cleanupTerminalRunMcpApiKeys,
+  classifyStaleRun,
   createQueuedRun,
   decideToolApproval,
   reconcileConversationRuns,
@@ -146,6 +148,48 @@ export async function getBackgroundConversationSnapshot(params: {
       projectId: params.projectId,
       conversationId: params.conversationId,
     },
+  };
+}
+
+export type ConversationLatestRunSummary = {
+  id: string;
+  status: InAppAgentRunStatus;
+  errorCode: string | null;
+  cancelRequested: boolean;
+};
+
+/** Compact newest-run summary for list rows. Stale overlay is read-only. */
+export function serializeConversationLatestRun(
+  run:
+    | {
+        id: string;
+        status: string | null;
+        errorCode: string | null;
+        cancelRequestedAt: Date | null;
+        createdAt: Date;
+        claimedAt: Date | null;
+        heartbeatAt: Date | null;
+        finishedAt: Date | null;
+      }
+    | null
+    | undefined,
+): ConversationLatestRunSummary | null {
+  if (!run) {
+    return null;
+  }
+
+  const parsedStatus = InAppAgentRunStatusSchema.safeParse(run.status);
+  if (!parsedStatus.success) {
+    return null;
+  }
+
+  const stale = classifyStaleRun(run, Date.now());
+
+  return {
+    id: run.id,
+    status: stale ? InAppAgentRunStatus.FAILED : parsedStatus.data,
+    errorCode: stale ? stale.errorCode : run.errorCode,
+    cancelRequested: Boolean(run.cancelRequestedAt),
   };
 }
 

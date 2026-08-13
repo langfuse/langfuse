@@ -11,7 +11,9 @@ import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
   value: {
-    conversations: [],
+    conversations: [] as Array<{ id: string; title: string | null }>,
+    activityByConversationId: new Map<string, { state: string }>(),
+    attentionCount: 0,
     error: null,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
@@ -76,6 +78,7 @@ function windowElement(
 ) {
   const props: InAppAgentWindowProps = {
     conversations: [],
+    activityByConversationId: new Map(),
     error: null,
     executionUi: { notice: null, stop: null },
     hasMoreConversations: false,
@@ -204,6 +207,43 @@ describe("InAppAgentWindow quick actions", () => {
   });
 });
 
+describe("InAppAgentWindow conversation history", () => {
+  it("counts conversations that still owe the user a look on the history trigger", () => {
+    render(
+      windowElement({
+        activityByConversationId: new Map([
+          [
+            "conversation-1",
+            {
+              activityKey: "run-1:SUCCEEDED",
+              runId: "run-1",
+              title: "Latency outliers",
+              state: "done-unread",
+              needsAttention: true,
+            },
+          ],
+          [
+            "conversation-2",
+            {
+              activityKey: "run-2:RUNNING",
+              runId: "run-2",
+              title: "Score correlation",
+              state: "running",
+              needsAttention: false,
+            },
+          ],
+        ]),
+      }),
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "Conversation history (1 needs attention)",
+      }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("ControlledInAppAgentWindow composer", () => {
   beforeEach(() => {
     controlledAgent.value.error = null;
@@ -272,7 +312,7 @@ describe("ControlledInAppAgentWindow composer", () => {
       screen.getByRole("button", { name: "Start new conversation" }),
     ).toBeEnabled();
     expect(
-      screen.getByRole("button", { name: "Conversation history" }),
+      screen.getByRole("button", { name: /^Conversation history/ }),
     ).toBeEnabled();
   });
 
@@ -298,7 +338,7 @@ describe("ControlledInAppAgentWindow composer", () => {
       screen.getByRole("button", { name: "Start new conversation" }),
     ).toBeEnabled();
     expect(
-      screen.getByRole("button", { name: "Conversation history" }),
+      screen.getByRole("button", { name: /^Conversation history/ }),
     ).toBeEnabled();
   });
 });
