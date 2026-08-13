@@ -14,12 +14,6 @@ import {
   Text,
 } from "@react-email/components";
 
-/**
- * IntegrationExportFailedEmailCopy is the per-integration wording for the
- * shared export-failure email. The three label casings are carried explicitly
- * rather than derived from one another: no case transform maps "Blob storage"
- * and "PostHog" to their correct heading and mid-sentence forms.
- */
 export type IntegrationExportFailedEmailCopy = {
   /** Sentence-initial, for the subject and preview: "Blob storage export failed for …". */
   subjectLabel: string;
@@ -35,8 +29,6 @@ type IntegrationExportFailedEmailTemplateProps = {
   copy: IntegrationExportFailedEmailCopy;
   projectName: string;
   settingsUrl: string;
-  // When true, the export was turned off and the customer must fix their
-  // config and re-enable it — not a transient failure.
   disabled?: boolean;
 };
 

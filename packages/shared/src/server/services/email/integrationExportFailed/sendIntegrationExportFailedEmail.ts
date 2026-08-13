@@ -8,11 +8,6 @@ import {
   type IntegrationExportFailedEmailCopy,
 } from "./IntegrationExportFailedEmailTemplate";
 
-/**
- * SendIntegrationExportFailedEmailParams is the per-send input, identical
- * across integrations; everything that differs by integration lives in the
- * IntegrationExportFailedEmailCopy passed alongside it.
- */
 export type SendIntegrationExportFailedEmailParams = {
   env: Partial<
     Record<
@@ -31,12 +26,6 @@ export type SendIntegrationExportFailedEmailParams = {
   disabled?: boolean;
 };
 
-/**
- * sendIntegrationExportFailedEmail owns the delivery mechanics — env guard,
- * recipient guard, subject sanitization, rendering, CRM bcc and error
- * swallowing — for every integration's export-failure email. Integrations
- * supply only their wording.
- */
 export const sendIntegrationExportFailedEmail = async (
   copy: IntegrationExportFailedEmailCopy,
   {
