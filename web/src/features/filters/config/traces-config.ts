@@ -14,20 +14,6 @@ export const traceFilterConfig: FilterConfig = {
 
   defaultExpanded: ["environment", "traceName"],
 
-  // Top facets by real usage — 60 days of PostHog `filters:applied` on this
-  // table: these eight cover ~98% of sidebar filter applies (LFE-15041).
-  // The rest folds behind "Show N more".
-  commonFacets: [
-    "environment",
-    "traceName",
-    "id",
-    "userId",
-    "sessionId",
-    "traceTags",
-    "metadata",
-    "level",
-  ],
-
   facets: [
     {
       type: "categorical" as const,

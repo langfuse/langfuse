@@ -960,7 +960,10 @@ export function DataTableControls({
                   onClick={() =>
                     queryFilter.onExpandedChange(
                       queryFilter.expanded.length === 0
-                        ? displayedFilters.map((filter) => filter.column)
+                        ? // Only what is on screen: expanding facets hidden
+                          // behind the fold would fire their option loads
+                          // without any visible effect (LFE-15041).
+                          renderedFilters.map((filter) => filter.column)
                         : [],
                     )
                   }
