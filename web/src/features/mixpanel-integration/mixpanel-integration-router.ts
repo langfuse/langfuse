@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
+import {
+  assertRacedCreateAllowed,
+  resolveAnalyticsExportSource,
+} from "@/src/features/analytics-integrations/server/analyticsExportSource";
 import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -15,12 +18,7 @@ import { env } from "@/src/env.mjs";
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
-  areEnrichedWritesActive,
-  areLegacyWritesActive,
-  InvalidRequestError,
   LangfuseNotFoundError,
-  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
-  validateExportSource,
 } from "@langfuse/shared";
 
 export const mixpanelIntegrationRouter = createTRPCRouter({
@@ -96,9 +94,6 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         }
       }
 
-      const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-      const legacyWritesActive = areLegacyWritesActive(writeMode);
-      const enrichedAvailable = areEnrichedWritesActive(writeMode);
       const existingIntegration =
         await ctx.prisma.mixpanelIntegration.findUnique({
           where: { projectId: input.projectId },
@@ -120,35 +115,11 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           message: "Mixpanel Project Token is required",
         });
       }
-      const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-      const createDefaultExportSource =
-        isCloud || !legacyWritesActive
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
-      const nextExportSource =
-        input.exportSource ??
-        (existingIntegration ? undefined : createDefaultExportSource);
-      // The Cloud cutoffs need the project only for explicitly chosen (or
-      // create-defaulted) sources.
-      const projectCreatedAt = nextExportSource
-        ? (
-            await ctx.prisma.project.findUniqueOrThrow({
-              where: { id: input.projectId },
-              select: { createdAt: true },
-            })
-          ).createdAt
-        : undefined;
-      assertExportSourceAllowed({
-        nextExportSource,
-        persistedExportSource: existingIntegration?.exportSource,
-        ctx: {
-          isCloud,
-          enrichedAvailable,
-          legacyWritesActive,
-          projectCreatedAt,
-          integrationCreatedAt: existingIntegration?.createdAt ?? null,
-          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
-        },
+      const createExportSource = await resolveAnalyticsExportSource({
+        tx: ctx.prisma,
+        projectId: input.projectId,
+        requestedExportSource: input.exportSource,
+        existingIntegration,
       });
 
       await auditLog({
@@ -169,12 +140,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
             mixpanelRegion: config.mixpanelRegion,
             encryptedMixpanelProjectToken,
             enabled: config.enabled,
-            // Persisted value before the new-row default: a concurrent delete
-            // can turn this upsert into a CREATE that was meant as an UPDATE.
-            exportSource:
-              config.exportSource ??
-              existingIntegration?.exportSource ??
-              createDefaultExportSource,
+            exportSource: createExportSource,
           },
           update: {
             encryptedMixpanelProjectToken,
@@ -186,29 +152,12 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           },
         });
 
-        // Race backstop (mirrors blob storage's service.ts): a concurrent
-        // delete between the pre-flight read and this upsert can flip the
-        // expected UPDATE into a CREATE. Detectable as a createdAt change;
-        // re-validate the row that landed as a brand-new one and roll back on
-        // failure.
-        if (
-          existingIntegration &&
-          result.createdAt.getTime() !== existingIntegration.createdAt.getTime()
-        ) {
-          const project = await tx.project.findUniqueOrThrow({
-            where: { id: input.projectId },
-            select: { createdAt: true },
-          });
-          const validation = validateExportSource(result.exportSource, {
-            isCloud,
-            enrichedAvailable,
-            legacyWritesActive,
-            projectCreatedAt: project.createdAt,
-            integrationCreatedAt: null,
-            exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
-          });
-          if (!validation.ok) throw new InvalidRequestError(validation.message);
-        }
+        await assertRacedCreateAllowed({
+          tx,
+          projectId: input.projectId,
+          existingIntegration,
+          result,
+        });
       });
     }),
   delete: protectedProjectProcedure
