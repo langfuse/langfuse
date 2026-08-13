@@ -2,11 +2,13 @@
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useProject, useQueryProject } from "@/src/features/projects/hooks";
 import {
   V4MigrationHeaderContent,
   V4MigrationDetailsContent,
 } from "@/src/features/v4-migration/V4MigrationContent";
+import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
+import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { cn } from "@/src/utils/tailwind";
 
 export const V4MigrationPanel = ({
@@ -18,8 +20,6 @@ export const V4MigrationPanel = ({
 }) => {
   const { open, setOpen, targetProject } = useV4MigrationPanel();
   const { project: routeProject } = useQueryProject();
-
-  if (!open) return null;
 
   // Prefer the route's project so the panel follows navigation while open;
   // targetProject only decides on project-less routes (home, status page),
@@ -34,6 +34,22 @@ export const V4MigrationPanel = ({
             : undefined,
       }
     : targetProject;
+  const { organization } = useProject(project?.id ?? null);
+  const migrationData = useProjectV4MigrationData({
+    projectId: project?.id,
+    orgId: organization?.id,
+    enabled: open && Boolean(project?.id),
+  });
+  const liveReadiness = getProjectMigrationReadiness(migrationData);
+  // Keep a known entry-point state while the panel queries are unresolved,
+  // then derive readiness from the live results so the header cannot retain a
+  // stale status-page snapshot after checks finish.
+  const readiness =
+    liveReadiness === "checking" || liveReadiness === "unavailable"
+      ? project?.readiness
+      : liveReadiness;
+
+  if (!open) return null;
 
   return (
     <div
@@ -58,7 +74,7 @@ export const V4MigrationPanel = ({
           <V4MigrationHeaderContent
             key={project?.id}
             titleRowClassName={showCloseButton ? "pr-10" : undefined}
-            readiness={project?.readiness}
+            readiness={readiness}
           />
         </div>
 
