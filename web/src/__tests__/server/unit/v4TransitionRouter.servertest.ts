@@ -137,6 +137,118 @@ const orgId = "org-v4-transition";
 const secondProjectId = "project-v4-transition-second";
 const outsideProjectId = "project-v4-transition-outside";
 
+/** ClickHouse mock row shaped like the SQL-classified sdkUsageSummary output. */
+const mockSdkUsageRow = (overrides: {
+  projectId: string;
+  source?: "ingestion-api-dual-write" | "otel-dual-write" | "otel";
+  ingestionPath?: "ingestion_api" | "otel";
+  deliveryMode?: "delayed" | "realtime";
+  sdkName?: string;
+  sdkVersion?: string;
+  canonicalSdkName?: "python" | "javascript" | null;
+  sdkVersionMajor?: number | string | null;
+  latestSdkMajor?: number | string | null;
+  isValidSdkVersion?: boolean | string | number;
+  attributionStatus?: string;
+  publicKey?: string;
+  v4MigrationStatus?: "compatible" | "upgrade_required" | "unknown";
+  remediationType?:
+    | "update_sdk"
+    | "update_otel_instrumentation"
+    | "upgrade_instrumentation";
+  actionLevel?: "required" | "none";
+  eventCount?: string | number;
+  firstSeen?: string;
+  lastSeen?: string;
+}) => {
+  const source = overrides.source ?? "ingestion-api-dual-write";
+  const ingestionPath =
+    overrides.ingestionPath ??
+    (source === "ingestion-api-dual-write" ? "ingestion_api" : "otel");
+  const deliveryMode =
+    overrides.deliveryMode ?? (source === "otel" ? "realtime" : "delayed");
+  const sdkName = overrides.sdkName ?? "python";
+  const sdkVersion = overrides.sdkVersion ?? "4.7.0";
+  const canonicalSdkName =
+    overrides.canonicalSdkName !== undefined
+      ? overrides.canonicalSdkName
+      : sdkName === "python" || sdkName === "langfuse-python"
+        ? ("python" as const)
+        : sdkName === "javascript" || sdkName.startsWith("@langfuse/")
+          ? ("javascript" as const)
+          : null;
+  const sdkVersionMajor =
+    overrides.sdkVersionMajor !== undefined
+      ? overrides.sdkVersionMajor
+      : Number(sdkVersion.match(/^v?(\d+)/)?.[1] ?? NaN);
+  const resolvedMajor = Number.isFinite(Number(sdkVersionMajor))
+    ? Number(sdkVersionMajor)
+    : null;
+  const latestMajor =
+    canonicalSdkName === "python"
+      ? 4
+      : canonicalSdkName === "javascript"
+        ? 5
+        : null;
+  const v4MigrationStatus =
+    overrides.v4MigrationStatus ??
+    (canonicalSdkName === null || resolvedMajor === null
+      ? "unknown"
+      : resolvedMajor >= (latestMajor ?? 0)
+        ? "compatible"
+        : "upgrade_required");
+  const remediationType =
+    overrides.remediationType ??
+    (canonicalSdkName !== null
+      ? "update_sdk"
+      : ingestionPath === "otel"
+        ? "update_otel_instrumentation"
+        : "upgrade_instrumentation");
+  const actionLevel =
+    overrides.actionLevel ??
+    (remediationType === "update_sdk"
+      ? v4MigrationStatus === "compatible"
+        ? "none"
+        : "required"
+      : remediationType === "update_otel_instrumentation"
+        ? deliveryMode === "realtime"
+          ? "none"
+          : "required"
+        : "required");
+
+  return {
+    projectId: overrides.projectId,
+    source,
+    ingestionPath,
+    deliveryMode,
+    sdkName,
+    sdkVersion,
+    canonicalSdkName,
+    sdkVersionMajor: resolvedMajor,
+    latestSdkMajor:
+      overrides.latestSdkMajor !== undefined
+        ? overrides.latestSdkMajor
+        : latestMajor,
+    isValidSdkVersion: overrides.isValidSdkVersion ?? resolvedMajor !== null,
+    attributionStatus:
+      overrides.attributionStatus ??
+      (sdkName === "unknown" && sdkVersion === "unknown"
+        ? "missing_name_and_version"
+        : sdkName === "unknown"
+          ? "missing_name"
+          : sdkVersion === "unknown"
+            ? "missing_version"
+            : "attributed"),
+    publicKey: overrides.publicKey ?? "pk-lf-python",
+    v4MigrationStatus,
+    remediationType,
+    actionLevel,
+    eventCount: overrides.eventCount ?? "1",
+    firstSeen: overrides.firstSeen ?? "2026-06-24T01:00:00Z",
+    lastSeen: overrides.lastSeen ?? "2026-06-24T02:00:00Z",
+  };
+};
+
 // Mocked Prisma delegates only implement the methods a test exercises, so
 // accept any subset of PrismaClient keys with loosely typed values.
 type MockPrismaClient = Partial<Record<keyof PrismaClient, unknown>>;
@@ -385,17 +497,15 @@ describe("v4TransitionRouter", () => {
   it("queries SDK usage for only the authorized project", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "4.7.0",
           publicKey: "pk-lf-python",
-          count: "2",
-          eventsCount: "2",
+          eventCount: "2",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T02:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
+        }),
       ])
       .mockResolvedValueOnce([]);
     const caller = createCaller();
@@ -410,11 +520,15 @@ describe("v4TransitionRouter", () => {
       projectId,
       sdkUsageSeries: [
         {
+          source: "ingestion-api-dual-write",
+          ingestionPath: "ingestion_api",
+          deliveryMode: "delayed",
           sdkName: "python",
           sdkVersion: "4.7.0",
-          count: 2,
-          eventsCount: 2,
+          eventCount: 2,
           v4MigrationStatus: "compatible",
+          remediationType: "update_sdk",
+          actionLevel: "none",
         },
       ],
     });
@@ -861,83 +975,71 @@ describe("v4TransitionRouter", () => {
   it("summarizes outdated SDK usage series by organization project", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "3.9.0",
           publicKey: "pk-lf-python",
-          count: "8",
-          eventsCount: "8",
+          eventCount: "8",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T02:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "4.14.1",
           publicKey: "pk-lf-python",
-          count: "13",
-          eventsCount: "13",
+          eventCount: "13",
           firstSeen: "2026-06-24T03:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "4.6.9",
           publicKey: "pk-lf-pre-v4-python",
-          count: "5",
-          eventsCount: "0",
+          eventCount: "5",
           firstSeen: "2026-06-24T12:00:00Z",
           lastSeen: "2026-06-24T13:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "4.7.0",
           publicKey: "pk-lf-current-python",
-          count: "6",
-          eventsCount: "6",
+          eventCount: "6",
           firstSeen: "2026-06-24T13:30:00Z",
           lastSeen: "2026-06-24T14:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId: secondProjectId,
           sdkName: "@langfuse/tracing",
           sdkVersion: "5.3.9",
           publicKey: "pk-lf-old-js",
-          count: "5",
-          eventsCount: "5",
+          eventCount: "5",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId: secondProjectId,
+          source: "otel",
           sdkName: "unknown",
           sdkVersion: "unknown",
           publicKey: "pk-lf-otel",
-          count: "3",
-          eventsCount: "3",
+          eventCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "0",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId: secondProjectId,
+          source: "otel-dual-write",
           sdkName: "custom-otel-writer",
           sdkVersion: "1.2.3",
           publicKey: "pk-lf-custom-otel",
-          count: "2",
-          eventsCount: "2",
+          eventCount: "2",
           firstSeen: "2026-06-24T02:00:00Z",
           lastSeen: "2026-06-24T03:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
+        }),
       ])
       .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const mockPrisma = {
@@ -965,56 +1067,81 @@ describe("v4TransitionRouter", () => {
         },
         sdkUsageSeries: [
           {
+            source: "ingestion-api-dual-write",
+            ingestionPath: "ingestion_api",
+            deliveryMode: "delayed",
             sdkName: "python",
             sdkVersion: "3.9.0",
             canonicalSdkName: "python",
+            sdkVersionMajor: 3,
+            latestSdkMajor: 4,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-python",
-            count: 8,
-            eventsCount: 8,
+            eventCount: 8,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T02:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
+            remediationType: "update_sdk",
+            actionLevel: "required",
           },
           {
+            source: "ingestion-api-dual-write",
+            ingestionPath: "ingestion_api",
+            deliveryMode: "delayed",
             sdkName: "python",
             sdkVersion: "4.14.1",
             canonicalSdkName: "python",
+            sdkVersionMajor: 4,
+            latestSdkMajor: 4,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-python",
-            count: 13,
-            eventsCount: 13,
+            eventCount: 13,
             firstSeen: "2026-06-24T03:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "compatible",
+            remediationType: "update_sdk",
+            actionLevel: "none",
           },
           {
+            source: "ingestion-api-dual-write",
+            ingestionPath: "ingestion_api",
+            deliveryMode: "delayed",
             sdkName: "python",
             sdkVersion: "4.6.9",
             canonicalSdkName: "python",
+            sdkVersionMajor: 4,
+            latestSdkMajor: 4,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-pre-v4-python",
-            count: 5,
-            eventsCount: 0,
+            eventCount: 5,
             firstSeen: "2026-06-24T12:00:00Z",
             lastSeen: "2026-06-24T13:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
-            v4MigrationStatus: "upgrade_recommended",
+            // Latest-major semantics: current major is compatible (no minor advice).
+            v4MigrationStatus: "compatible",
+            remediationType: "update_sdk",
+            actionLevel: "none",
           },
           {
+            source: "ingestion-api-dual-write",
+            ingestionPath: "ingestion_api",
+            deliveryMode: "delayed",
             sdkName: "python",
             sdkVersion: "4.7.0",
             canonicalSdkName: "python",
+            sdkVersionMajor: 4,
+            latestSdkMajor: 4,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-current-python",
-            count: 6,
-            eventsCount: 6,
+            eventCount: 6,
             firstSeen: "2026-06-24T13:30:00Z",
             lastSeen: "2026-06-24T14:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "compatible",
+            remediationType: "update_sdk",
+            actionLevel: "none",
           },
         ],
       },
@@ -1026,43 +1153,61 @@ describe("v4TransitionRouter", () => {
         },
         sdkUsageSeries: [
           {
+            source: "ingestion-api-dual-write",
+            ingestionPath: "ingestion_api",
+            deliveryMode: "delayed",
             sdkName: "@langfuse/tracing",
             sdkVersion: "5.3.9",
             canonicalSdkName: "javascript",
+            sdkVersionMajor: 5,
+            latestSdkMajor: 5,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-old-js",
-            count: 5,
-            eventsCount: 5,
+            eventCount: 5,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
-            v4MigrationStatus: "upgrade_recommended",
+            v4MigrationStatus: "compatible",
+            remediationType: "update_sdk",
+            actionLevel: "none",
           },
           {
+            source: "otel",
+            ingestionPath: "otel",
+            deliveryMode: "realtime",
             sdkName: "unknown",
             sdkVersion: "unknown",
             canonicalSdkName: null,
+            sdkVersionMajor: null,
+            latestSdkMajor: null,
+            isValidSdkVersion: false,
             publicKey: "pk-lf-otel",
-            count: 3,
-            eventsCount: 3,
+            eventCount: 3,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
-            hasDelayedOtelEvents: false,
             attributionStatus: "missing_name_and_version",
             v4MigrationStatus: "unknown",
+            remediationType: "update_otel_instrumentation",
+            actionLevel: "none",
           },
           {
+            source: "otel-dual-write",
+            ingestionPath: "otel",
+            deliveryMode: "delayed",
             sdkName: "custom-otel-writer",
             sdkVersion: "1.2.3",
             canonicalSdkName: null,
+            sdkVersionMajor: 1,
+            latestSdkMajor: null,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-custom-otel",
-            count: 2,
-            eventsCount: 2,
+            eventCount: 2,
             firstSeen: "2026-06-24T02:00:00Z",
             lastSeen: "2026-06-24T03:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "unknown",
+            remediationType: "update_otel_instrumentation",
+            actionLevel: "required",
           },
         ],
       },
@@ -1079,24 +1224,24 @@ describe("v4TransitionRouter", () => {
     expect(usageQuery?.query).not.toContain("UNION ALL");
     expect(usageQuery?.query).not.toContain("FROM scores");
     expect(usageQuery?.query).toContain(
-      "source IN {legacyDualWriteSources: Array(String)}",
+      "source IN {ingressSources: Array(String)}",
     );
     expect(usageQuery?.query).not.toContain("system.columns");
     expect(
       usageQuery?.query.match(/project_id IN \{projectIds: Array\(String\)\}/g),
     ).toHaveLength(1);
     expect(usageQuery?.query).toContain(
-      "GROUP BY\n  project_id,\n  if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name),",
+      "GROUP BY projectId, source, sdkName, sdkVersion, publicKey",
     );
     expect(usageQuery?.query).toContain(
-      "if(countIf(source = 'otel-dual-write') > 0, true, NULL) AS hasDelayedOtelEvents",
+      "if(source = 'otel', 'realtime', 'delayed') AS deliveryMode",
     );
-    expect(usageQuery?.query).not.toContain("source = 'otel' OR");
+    expect(usageQuery?.query).not.toContain("hasDelayedOtelEvents");
     expect(usageQuery?.query).toContain(
-      "formatDateTime(min(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen",
+      "formatDateTime(firstSeenAt, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen",
     );
     expect(usageQuery?.query).toContain(
-      "formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen",
+      "formatDateTime(lastSeenAt, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen",
     );
     expect(usageQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
@@ -1110,7 +1255,7 @@ describe("v4TransitionRouter", () => {
       projectIds: [projectId, secondProjectId],
       fromTimestamp: "2026-06-24 00:00:00.000",
       toTimestamp: "2026-06-25 00:00:00.000",
-      legacyDualWriteSources: ["ingestion-api-dual-write", "otel-dual-write"],
+      ingressSources: ["ingestion-api-dual-write", "otel-dual-write", "otel"],
     });
     expect(usageQuery?.tags).toEqual({
       route: "v4-sdk-usage-summary",
@@ -1139,17 +1284,15 @@ describe("v4TransitionRouter", () => {
   it("summarizes SDK usage for a single project with exactly that projectId", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "4.7.0",
           publicKey: "pk-lf-python",
-          count: "6",
-          eventsCount: "6",
+          eventCount: "6",
           firstSeen: "2026-06-24T13:30:00Z",
           lastSeen: "2026-06-24T14:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
+        }),
       ])
       .mockResolvedValueOnce([]);
 
@@ -1172,6 +1315,9 @@ describe("v4TransitionRouter", () => {
           sdkName: "python",
           sdkVersion: "4.7.0",
           v4MigrationStatus: "compatible",
+          remediationType: "update_sdk",
+          actionLevel: "none",
+          eventCount: 6,
         },
       ],
     });
@@ -1191,19 +1337,99 @@ describe("v4TransitionRouter", () => {
     });
   });
 
-  it("requires removing dataset-run-items POST usage for native OTel instrumentation", async () => {
+  it("keeps source-specific series and consumes SQL-owned classification", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
         {
           projectId,
+          source: "otel-dual-write",
+          ingestionPath: "otel",
+          deliveryMode: "delayed",
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          canonicalSdkName: null,
+          sdkVersionMajor: null,
+          isValidSdkVersion: false,
+          attributionStatus: "missing_name_and_version",
+          publicKey: "pk-lf-shared",
+          v4MigrationStatus: "unknown",
+          remediationType: "update_otel_instrumentation",
+          actionLevel: "required",
+          eventCount: "3",
+          firstSeen: "2026-06-24T01:00:00Z",
+          lastSeen: "2026-06-24T02:00:00Z",
+        },
+        {
+          projectId,
+          source: "ingestion-api-dual-write",
+          ingestionPath: "ingestion_api",
+          deliveryMode: "delayed",
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          canonicalSdkName: null,
+          sdkVersionMajor: null,
+          isValidSdkVersion: false,
+          attributionStatus: "missing_name_and_version",
+          publicKey: "pk-lf-shared",
+          v4MigrationStatus: "unknown",
+          remediationType: "upgrade_instrumentation",
+          actionLevel: "required",
+          eventCount: "2",
+          firstSeen: "2026-06-24T03:00:00Z",
+          lastSeen: "2026-06-24T04:00:00Z",
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const caller = createCaller();
+
+    const summary = await caller.sdkUsageSummary({
+      projectId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(summary.sdkUsageSeries).toEqual([
+      expect.objectContaining({
+        source: "otel-dual-write",
+        remediationType: "update_otel_instrumentation",
+        eventCount: 3,
+      }),
+      expect.objectContaining({
+        source: "ingestion-api-dual-write",
+        remediationType: "upgrade_instrumentation",
+        eventCount: 2,
+      }),
+    ]);
+
+    const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
+    expect(usageQuery?.query).toContain(
+      "GROUP BY projectId, source, sdkName, sdkVersion, publicKey",
+    );
+    expect(usageQuery?.query).toContain(
+      "source IN {ingressSources: Array(String)}",
+    );
+    expect(usageQuery?.query).toContain(
+      "if(source = 'otel', 'realtime', 'delayed') AS deliveryMode",
+    );
+    expect(usageQuery?.query).not.toContain("hasDelayedOtelEvents");
+    expect(usageQuery?.params).toMatchObject({
+      ingressSources: ["ingestion-api-dual-write", "otel-dual-write", "otel"],
+    });
+  });
+
+  it("requires removing dataset-run-items POST usage for native OTel instrumentation", async () => {
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        mockSdkUsageRow({
+          projectId,
+          source: "otel",
           sdkName: "unknown",
           sdkVersion: "unknown",
           publicKey: "pk-lf-otel",
-          count: "3",
+          eventCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "0",
-        },
+        }),
       ])
       .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const caller = createCaller({
@@ -1230,16 +1456,15 @@ describe("v4TransitionRouter", () => {
   it("preserves SDK usage when the experiment instrumentation check fails", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "3.9.0",
           publicKey: "pk-lf-python",
-          count: "3",
+          eventCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
+        }),
       ])
       .mockRejectedValueOnce(new Error("query_log unavailable"));
     const caller = createCaller({
@@ -1265,6 +1490,8 @@ describe("v4TransitionRouter", () => {
           sdkName: "python",
           sdkVersion: "3.9.0",
           v4MigrationStatus: "upgrade_required",
+          remediationType: "update_sdk",
+          actionLevel: "required",
         },
       ],
     });
@@ -1273,16 +1500,15 @@ describe("v4TransitionRouter", () => {
   it("requires an API upgrade when POST usage predates the experiment runner", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "3.3.5",
           publicKey: "pk-lf-python",
-          count: "3",
+          eventCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
+        }),
       ])
       .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const caller = createCaller({
@@ -1306,16 +1532,15 @@ describe("v4TransitionRouter", () => {
   it("does not require an upgrade for current experiment instrumentation", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "4.0.0",
           publicKey: "pk-lf-python",
-          count: "3",
+          eventCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
+        }),
       ])
       .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const caller = createCaller({

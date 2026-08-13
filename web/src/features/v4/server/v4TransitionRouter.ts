@@ -11,8 +11,6 @@ import {
 } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import {
-  classifyIngestionSdkAttribution,
-  classifyIngestionSdkVersion,
   convertDateToClickhouseDateTime,
   INTERNAL_INGESTION_SDK_NAMES,
   isForceV3ExperienceProject,
@@ -20,7 +18,6 @@ import {
   queryClickhouse,
   systemTableRef,
   type IngestionSdkAttributionStatus,
-  type IngestionSdkUpgradeStatus,
 } from "@langfuse/shared/src/server";
 import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 const MAX_DETECTION_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -34,11 +31,22 @@ const legacyIntegrationExportSources =
 const TRACE_EVAL_TARGET = "trace";
 const DATASET_EVAL_TARGET = "dataset";
 
-/** Event-propagation stamps these sources onto delayed writes into events_core. */
-const LEGACY_DUAL_WRITE_EVENT_SOURCES = [
+/** Customer-ingress sources. Historical and experiment materializations are excluded. */
+const MIGRATION_INGRESS_EVENT_SOURCES = [
   "ingestion-api-dual-write",
   "otel-dual-write",
+  "otel",
 ] as const;
+
+type MigrationIngressSource = (typeof MIGRATION_INGRESS_EVENT_SOURCES)[number];
+type MigrationIngestionPath = "otel" | "ingestion_api";
+type MigrationDeliveryMode = "realtime" | "delayed";
+type MigrationRemediationType =
+  | "update_sdk"
+  | "update_otel_instrumentation"
+  | "upgrade_instrumentation";
+type MigrationActionLevel = "required" | "none";
+type V4MigrationStatus = "compatible" | "upgrade_required" | "unknown";
 
 const isLegacyIntegrationExportSource = (
   exportSource: AnalyticsIntegrationExportSource | null | undefined,
@@ -105,36 +113,43 @@ type LegacyApiUsageSummaryByProjectResultRow = {
 
 type SdkUsageSummaryByProjectRow = {
   projectId: string;
-  sdkName: string;
-  sdkVersion: string;
-  publicKey: string;
-  count: string | number;
-  /** Observation hits in events_core. Same as count; scores are not queried. */
-  eventsCount: string | number;
-  firstSeen: string;
-  lastSeen: string;
-  hasDelayedOtelEvents: boolean | string | number | null;
-};
-
-type SdkUsageSummaryByProjectSeries = {
+  source: MigrationIngressSource;
+  ingestionPath: MigrationIngestionPath;
+  deliveryMode: MigrationDeliveryMode;
   sdkName: string;
   sdkVersion: string;
   canonicalSdkName: "python" | "javascript" | null;
+  sdkVersionMajor: string | number | null;
+  latestSdkMajor: string | number | null;
+  isValidSdkVersion: boolean | string | number;
+  attributionStatus: IngestionSdkAttributionStatus;
   publicKey: string;
-  count: number;
-  /** Observation hits in events_core. Same as count after scores were
-      dropped from detection; kept so the evidence link can hide if a
-      series somehow has no observation rows. */
-  eventsCount: number;
+  v4MigrationStatus: V4MigrationStatus;
+  remediationType: MigrationRemediationType;
+  actionLevel: MigrationActionLevel;
+  eventCount: string | number;
   firstSeen: string;
   lastSeen: string;
-  hasDelayedOtelEvents: boolean | null;
+};
+
+type SdkUsageSummaryByProjectSeries = {
+  source: MigrationIngressSource;
+  ingestionPath: MigrationIngestionPath;
+  deliveryMode: MigrationDeliveryMode;
+  sdkName: string;
+  sdkVersion: string;
+  canonicalSdkName: "python" | "javascript" | null;
+  sdkVersionMajor: number | null;
+  latestSdkMajor: number | null;
+  isValidSdkVersion: boolean;
   attributionStatus: IngestionSdkAttributionStatus;
-  v4MigrationStatus:
-    | "compatible"
-    | "upgrade_recommended"
-    | "upgrade_required"
-    | "unknown";
+  publicKey: string;
+  v4MigrationStatus: V4MigrationStatus;
+  remediationType: MigrationRemediationType;
+  actionLevel: MigrationActionLevel;
+  eventCount: number;
+  firstSeen: string;
+  lastSeen: string;
 };
 
 // Counts stay out of this row on purpose: the client derives every displayed
@@ -154,20 +169,6 @@ type SdkUsageSummaryByProjectResultRow = {
   sdkUsageSeries: SdkUsageSummaryByProjectSeries[];
 };
 
-type ClassifiedSdkUsageRow = {
-  sdkName: string;
-  sdkVersion: string;
-  canonicalSdkName: "python" | "javascript" | null;
-  publicKey: string;
-  count: number;
-  eventsCount: number;
-  firstSeen: string;
-  lastSeen: string;
-  hasDelayedOtelEvents: boolean | null;
-  attributionStatus: IngestionSdkAttributionStatus;
-  upgradeStatus: IngestionSdkUpgradeStatus | "outdated_minor";
-};
-
 type DatasetRunItemsPostUsageByProjectRow = {
   projectId: string;
   count: string | number;
@@ -175,10 +176,6 @@ type DatasetRunItemsPostUsageByProjectRow = {
 
 const toBoolean = (value: boolean | string | number): boolean =>
   value === true || value === 1 || value === "1";
-
-const toNullableBoolean = (
-  value: boolean | string | number | null,
-): boolean | null => (value === null ? null : toBoolean(value));
 
 type TraceLevelEvalSummaryResultRow = {
   projectId: string;
@@ -360,42 +357,127 @@ const getSdkUsageSummaries = async ({
   const [rows, datasetRunItemsPostUsageResult] = await Promise.all([
     queryClickhouse<SdkUsageSummaryByProjectRow>({
       query: `
+WITH filtered AS (
+  SELECT
+    project_id AS projectId,
+    source,
+    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdkName,
+    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdkVersion,
+    ingestion_api_key AS publicKey,
+    start_time
+  FROM events_core
+  WHERE
+    project_id IN {projectIds: Array(String)}
+    AND start_time >= {fromTimestamp: DateTime64(3)}
+    AND start_time <= {toTimestamp: DateTime64(3)}
+    AND source IN {ingressSources: Array(String)}
+    AND NOT startsWith(environment, 'langfuse-')
+    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
+    AND is_deleted = 0
+),
+series AS (
+  SELECT
+    projectId,
+    source,
+    sdkName,
+    sdkVersion,
+    publicKey,
+    count() AS eventCount,
+    min(start_time) AS firstSeenAt,
+    max(start_time) AS lastSeenAt
+  FROM filtered
+  GROUP BY projectId, source, sdkName, sdkVersion, publicKey
+),
+classified AS (
+  SELECT
+    *,
+    multiIf(
+      lowerUTF8(trimBoth(sdkName)) IN ('python', 'langfuse-python'), 'python',
+      lowerUTF8(trimBoth(sdkName)) IN (
+        'javascript', 'js', 'typescript', 'ts', 'langfuse-js', 'langfuse-ts',
+        '@langfuse/client', '@langfuse/browser', '@langfuse/core',
+        '@langfuse/langchain', '@langfuse/otel', '@langfuse/openai',
+        '@langfuse/tracing', '@langfuse/vercel-ai-sdk'
+      ), 'javascript',
+      NULL
+    ) AS canonicalSdkName,
+    match(
+      lowerUTF8(sdkVersion),
+      '^v?[0-9]+\\.[0-9]+\\.[0-9]+([-+].+|(a|b|rc)[0-9]+)?$'
+    ) AS isValidSdkVersion,
+    toUInt32OrNull(extract(lowerUTF8(sdkVersion), '^v?([0-9]+)\\.'))
+      AS sdkVersionMajor,
+    if(startsWith(source, 'otel'), 'otel', 'ingestion_api') AS ingestionPath,
+    if(source = 'otel', 'realtime', 'delayed') AS deliveryMode,
+    multiIf(
+      sdkName = 'unknown' AND sdkVersion = 'unknown', 'missing_name_and_version',
+      sdkName = 'unknown', 'missing_name',
+      sdkVersion = 'unknown', 'missing_version',
+      'attributed'
+    ) AS attributionStatus
+  FROM series
+),
+scored AS (
+  SELECT
+    *,
+    multiIf(
+      canonicalSdkName = 'python', 4,
+      canonicalSdkName = 'javascript', 5,
+      NULL
+    ) AS latestSdkMajor,
+    multiIf(
+      canonicalSdkName IS NULL, 'unknown',
+      NOT isValidSdkVersion OR sdkVersionMajor IS NULL, 'unknown',
+      sdkVersionMajor >= latestSdkMajor, 'compatible',
+      'upgrade_required'
+    ) AS v4MigrationStatus,
+    multiIf(
+      canonicalSdkName IS NOT NULL, 'update_sdk',
+      ingestionPath = 'otel', 'update_otel_instrumentation',
+      'upgrade_instrumentation'
+    ) AS remediationType
+  FROM classified
+)
 SELECT
-  project_id AS projectId,
-  if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdkName,
-  if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdkVersion,
-  ingestion_api_key AS publicKey,
-  count() AS count,
-  count() AS eventsCount,
-  formatDateTime(min(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
-  formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
-  if(countIf(source = 'otel-dual-write') > 0, true, NULL) AS hasDelayedOtelEvents
-FROM events_core
-WHERE
-  project_id IN {projectIds: Array(String)}
-  AND start_time >= {fromTimestamp: DateTime64(3)}
-  AND start_time <= {toTimestamp: DateTime64(3)}
-  AND source IN {legacyDualWriteSources: Array(String)}
-  AND NOT startsWith(environment, 'langfuse-')
-  AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
-  AND is_deleted = 0
-GROUP BY
-  project_id,
-  if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name),
-  if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version),
-  ingestion_api_key
+  projectId,
+  source,
+  ingestionPath,
+  deliveryMode,
+  sdkName,
+  sdkVersion,
+  canonicalSdkName,
+  sdkVersionMajor,
+  latestSdkMajor,
+  isValidSdkVersion,
+  attributionStatus,
+  publicKey,
+  v4MigrationStatus,
+  remediationType,
+  multiIf(
+    remediationType = 'update_sdk',
+      if(v4MigrationStatus = 'compatible', 'none', 'required'),
+    remediationType = 'update_otel_instrumentation',
+      if(deliveryMode = 'realtime', 'none', 'required'),
+    'required'
+  ) AS actionLevel,
+  eventCount,
+  formatDateTime(firstSeenAt, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
+  formatDateTime(lastSeenAt, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen
+FROM scored
 ORDER BY
-  project_id ASC,
-  if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) ASC,
-  if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) ASC,
-  ingestion_api_key ASC
+  projectId ASC,
+  lastSeenAt DESC,
+  source ASC,
+  sdkName ASC,
+  sdkVersion ASC,
+  publicKey ASC
       `,
       params: {
         projectIds,
         fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
         toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
         internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
-        legacyDualWriteSources: [...LEGACY_DUAL_WRITE_EVENT_SOURCES],
+        ingressSources: [...MIGRATION_INGRESS_EVENT_SOURCES],
       },
       tags: { route: "v4-sdk-usage-summary" },
       preferredClickhouseService: "EventsReadOnly",
@@ -455,62 +537,29 @@ SETTINGS skip_unavailable_shards = 1
 
   return projectIds.map((projectId) => {
     const projectRows = (rowsByProjectId.get(projectId) ?? []).map(
-      (row): ClassifiedSdkUsageRow => {
-        const classification = classifyIngestionSdkVersion({
-          sdkName: row.sdkName,
-          sdkVersion: row.sdkVersion,
-        });
-        const capabilityStatus = getSdkVersionCapabilityStatus(
-          { language: row.sdkName, version: row.sdkVersion },
-          "appRootObservations",
-        );
-
-        return {
-          sdkName: row.sdkName,
-          sdkVersion: row.sdkVersion,
-          publicKey: row.publicKey,
-          count: Number(row.count),
-          eventsCount: Number(row.eventsCount),
-          firstSeen: row.firstSeen,
-          lastSeen: row.lastSeen,
-          hasDelayedOtelEvents: toNullableBoolean(row.hasDelayedOtelEvents),
-          attributionStatus: classifyIngestionSdkAttribution({
-            sdkName: row.sdkName,
-            sdkVersion: row.sdkVersion,
-          }),
-          canonicalSdkName: classification.canonicalSdkName,
-          upgradeStatus:
-            capabilityStatus === "supported"
-              ? "current"
-              : capabilityStatus === "unsupported" &&
-                  classification.status === "current"
-                ? "outdated_minor"
-                : classification.status,
-        };
-      },
-    );
-    const sdkUsageSeries = projectRows.map(
       (row): SdkUsageSummaryByProjectSeries => ({
+        source: row.source,
+        ingestionPath: row.ingestionPath,
+        deliveryMode: row.deliveryMode,
         sdkName: row.sdkName,
         sdkVersion: row.sdkVersion,
         canonicalSdkName: row.canonicalSdkName,
+        sdkVersionMajor:
+          row.sdkVersionMajor === null ? null : Number(row.sdkVersionMajor),
+        latestSdkMajor:
+          row.latestSdkMajor === null ? null : Number(row.latestSdkMajor),
+        isValidSdkVersion: toBoolean(row.isValidSdkVersion),
+        attributionStatus: row.attributionStatus,
         publicKey: row.publicKey,
-        count: row.count,
-        eventsCount: row.eventsCount,
+        v4MigrationStatus: row.v4MigrationStatus,
+        remediationType: row.remediationType,
+        actionLevel: row.actionLevel,
+        eventCount: Number(row.eventCount),
         firstSeen: row.firstSeen,
         lastSeen: row.lastSeen,
-        hasDelayedOtelEvents: row.hasDelayedOtelEvents,
-        attributionStatus: row.attributionStatus,
-        v4MigrationStatus:
-          row.upgradeStatus === "current"
-            ? "compatible"
-            : row.upgradeStatus === "outdated_minor"
-              ? "upgrade_recommended"
-              : row.upgradeStatus === "outdated_major"
-                ? "upgrade_required"
-                : "unknown",
       }),
     );
+    const sdkUsageSeries = projectRows;
     const langfuseSdkUsage = projectRows.filter(
       (series) => series.canonicalSdkName !== null,
     );

@@ -4,6 +4,7 @@ import preview from "../../../.storybook/preview";
 import {
   V4MigrationApisSection,
   V4MigrationCustomInstrumentationSection,
+  V4MigrationDetectedInstrumentationSection,
   V4MigrationEvalsSection,
   V4MigrationExperimentsSection,
   V4MigrationIntegrationsSection,
@@ -18,21 +19,88 @@ import {
 const HOUR_MS = 60 * 60 * 1000;
 
 const makeSeries = (
-  overrides: Partial<V4MigrationSdkUsageSeries>,
-): V4MigrationSdkUsageSeries => ({
-  sdkName: "python",
-  sdkVersion: "4.7.1",
-  canonicalSdkName: "python",
-  publicKey: "pk-lf-1234567890abcdef",
-  count: 10,
-  eventsCount: 10,
-  firstSeen: new Date(Date.now() - 72 * HOUR_MS).toISOString(),
-  lastSeen: new Date(Date.now() - 19 * HOUR_MS).toISOString(),
-  hasDelayedOtelEvents: null,
-  attributionStatus: "attributed",
-  v4MigrationStatus: "compatible",
-  ...overrides,
-});
+  overrides: Partial<V4MigrationSdkUsageSeries> = {},
+): V4MigrationSdkUsageSeries => {
+  const source = overrides.source ?? "ingestion-api-dual-write";
+  const ingestionPath =
+    overrides.ingestionPath ??
+    (source === "ingestion-api-dual-write" ? "ingestion_api" : "otel");
+  const deliveryMode =
+    overrides.deliveryMode ?? (source === "otel" ? "realtime" : "delayed");
+  const sdkName = overrides.sdkName ?? "python";
+  const sdkVersion = overrides.sdkVersion ?? "4.7.1";
+  const canonicalSdkName =
+    overrides.canonicalSdkName !== undefined
+      ? overrides.canonicalSdkName
+      : sdkName === "python"
+        ? "python"
+        : sdkName === "javascript" || sdkName.startsWith("@langfuse/")
+          ? "javascript"
+          : null;
+  const sdkVersionMajor =
+    overrides.sdkVersionMajor !== undefined
+      ? overrides.sdkVersionMajor
+      : Number(sdkVersion.match(/^v?(\d+)/)?.[1] ?? NaN);
+  const resolvedMajor = Number.isFinite(sdkVersionMajor)
+    ? Number(sdkVersionMajor)
+    : null;
+  const latestMajor =
+    canonicalSdkName === "python"
+      ? 4
+      : canonicalSdkName === "javascript"
+        ? 5
+        : null;
+  const v4MigrationStatus =
+    overrides.v4MigrationStatus ??
+    (canonicalSdkName === null || resolvedMajor === null
+      ? "unknown"
+      : resolvedMajor >= (latestMajor ?? 0)
+        ? "compatible"
+        : "upgrade_required");
+  const remediationType =
+    overrides.remediationType ??
+    (canonicalSdkName !== null
+      ? "update_sdk"
+      : ingestionPath === "otel"
+        ? "update_otel_instrumentation"
+        : "upgrade_instrumentation");
+  const actionLevel =
+    overrides.actionLevel ??
+    (remediationType === "update_sdk"
+      ? v4MigrationStatus === "compatible"
+        ? "none"
+        : "required"
+      : remediationType === "update_otel_instrumentation"
+        ? deliveryMode === "realtime"
+          ? "none"
+          : "required"
+        : "required");
+
+  return {
+    source,
+    ingestionPath,
+    deliveryMode,
+    sdkName,
+    sdkVersion,
+    canonicalSdkName,
+    sdkVersionMajor: resolvedMajor,
+    latestSdkMajor:
+      overrides.latestSdkMajor !== undefined
+        ? overrides.latestSdkMajor
+        : latestMajor,
+    isValidSdkVersion: overrides.isValidSdkVersion ?? resolvedMajor !== null,
+    publicKey: overrides.publicKey ?? "pk-lf-1234567890abcdef",
+    eventCount: overrides.eventCount ?? 10,
+    firstSeen:
+      overrides.firstSeen ?? new Date(Date.now() - 72 * HOUR_MS).toISOString(),
+    lastSeen:
+      overrides.lastSeen ?? new Date(Date.now() - 19 * HOUR_MS).toISOString(),
+    attributionStatus: overrides.attributionStatus ?? "attributed",
+    v4MigrationStatus,
+    remediationType,
+    actionLevel,
+  };
+};
 
 const makeSdkState = (
   overrides: Partial<V4MigrationSdkState>,
@@ -46,77 +114,68 @@ const makeSdkState = (
 
 const outdatedPython = makeSeries({
   sdkVersion: "2.60.3",
-  v4MigrationStatus: "upgrade_required",
 });
 // Series with no observation evidence: the key renders as plain text, not a link.
 const scoresOnlyPython = makeSeries({
   sdkVersion: "2.44.0",
-  v4MigrationStatus: "upgrade_required",
   publicKey: "pk-lf-scores-only-0001",
-  eventsCount: 0,
+  eventCount: 0,
 });
 const outdatedJavascript = makeSeries({
   sdkName: "javascript",
   sdkVersion: "3.38.5",
   canonicalSdkName: "javascript",
-  v4MigrationStatus: "upgrade_required",
   publicKey: "pk-lf-fedcba0987654321",
 });
-const recommendedPython = makeSeries({
+const compatiblePython = makeSeries({
   sdkVersion: "4.6.9",
-  v4MigrationStatus: "upgrade_recommended",
-  publicKey: "pk-lf-recommended-0001",
+  publicKey: "pk-lf-compatible-0001",
   lastSeen: new Date(Date.now() - 2 * HOUR_MS).toISOString(),
 });
 const unrecognizedSdk = makeSeries({
   sdkName: "my-custom-wrapper",
   sdkVersion: "0.4.0",
   canonicalSdkName: null,
-  v4MigrationStatus: "unknown",
   publicKey: "pk-lf-4444555566667777",
 });
 const delayedOtelExporter = makeSeries({
+  source: "otel-dual-write",
   sdkName: "openlit",
   sdkVersion: "1.35.4",
   canonicalSdkName: null,
-  v4MigrationStatus: "unknown",
-  hasDelayedOtelEvents: true,
   publicKey: "pk-lf-aaaa000011112222",
   lastSeen: new Date(Date.now() - 0.25 * HOUR_MS).toISOString(),
 });
 const unnamedDelayedOtelExporter = makeSeries({
+  source: "otel-dual-write",
   sdkName: "unknown",
   sdkVersion: "unknown",
   canonicalSdkName: null,
-  v4MigrationStatus: "unknown",
-  hasDelayedOtelEvents: true,
   publicKey: "pk-lf-8888999900001111",
 });
 const realtimeOtelExporter = makeSeries({
+  source: "otel",
   sdkName: "otelcol",
   sdkVersion: "0.98.0",
   canonicalSdkName: null,
-  v4MigrationStatus: "unknown",
-  hasDelayedOtelEvents: false,
   publicKey: "pk-lf-bbbb333344445555",
   lastSeen: new Date(Date.now() - 70 * HOUR_MS).toISOString(),
 });
 // Ingestion-API traffic without a Langfuse SDK header: custom instrumentation
 // or an SDK too old to send attribution headers.
 const customInstrumentation = makeSeries({
+  source: "ingestion-api-dual-write",
   sdkName: "unknown",
   sdkVersion: "unknown",
   canonicalSdkName: null,
   attributionStatus: "missing_name_and_version",
-  v4MigrationStatus: "unknown",
-  hasDelayedOtelEvents: null,
   publicKey: "pk-lf-cccc666677778888",
 });
 
 const sdkOutdatedState = makeSdkState({
   status: "legacy",
   sdkUsageSeries: [
-    recommendedPython,
+    compatiblePython,
     outdatedPython,
     scoresOnlyPython,
     outdatedJavascript,
@@ -145,6 +204,11 @@ const customInstrumentationState = makeSdkState({
   sdkUsageSeries: [customInstrumentation],
 });
 
+const detectedInstrumentationState = makeSdkState({
+  status: "latest",
+  sdkUsageSeries: [makeSeries({}), realtimeOtelExporter],
+});
+
 const combinedState = makeSdkState({
   status: "legacy",
   sdkUsageSeries: [
@@ -152,6 +216,7 @@ const combinedState = makeSdkState({
     delayedOtelExporter,
     realtimeOtelExporter,
     customInstrumentation,
+    makeSeries({}),
   ],
   upgradeRequiredCount: 1,
   delayedOtelIngestionCount: 1,
@@ -212,6 +277,14 @@ export const UpgradeInstrumentation = meta.story({
   ),
 });
 
+export const DetectedInstrumentation = meta.story({
+  render: () => (
+    <V4MigrationDetectedInstrumentationSection
+      sdk={detectedInstrumentationState}
+    />
+  ),
+});
+
 export const EvalsDeprecated = meta.story({
   render: () => (
     <V4MigrationEvalsSection
@@ -254,18 +327,17 @@ export const IntegrationsDeprecated = meta.story({
   ),
 });
 
-// All sections hide themselves when nothing needs action; the empty output
-// here is the intended state, not a broken story.
+// Action sections hide when nothing needs action; Detected still surfaces
+// compatible SDK / realtime OTel rows with path labels.
 export const HiddenWhenClean = meta.story({
   render: () => {
-    const sdk = makeSdkState({
-      sdkUsageSeries: [makeSeries({}), realtimeOtelExporter],
-    });
+    const sdk = detectedInstrumentationState;
     return (
       <div>
         <V4MigrationSdkSection sdk={sdk} />
         <V4MigrationOtelSection sdk={sdk} />
         <V4MigrationCustomInstrumentationSection sdk={sdk} />
+        <V4MigrationDetectedInstrumentationSection sdk={sdk} />
       </div>
     );
   },
@@ -309,7 +381,7 @@ export const VariantMatrix = meta.story({
             />,
           ],
           [
-            "5. OTel header required (delayed, unnamed, real-time exporters)",
+            "5. OTel header required (delayed exporters only)",
             <V4MigrationOtelSection
               key="5"
               sdk={otelHeaderRequiredState}
@@ -325,9 +397,16 @@ export const VariantMatrix = meta.story({
             />,
           ],
           [
-            "7. Evals deprecated (assistant can migrate)",
-            <V4MigrationEvalsSection
+            "7. Detected instrumentation (compatible SDK + realtime OTel)",
+            <V4MigrationDetectedInstrumentationSection
               key="7"
+              sdk={detectedInstrumentationState}
+            />,
+          ],
+          [
+            "8. Evals deprecated (assistant can migrate)",
+            <V4MigrationEvalsSection
+              key="8"
               state={{ status: "loaded", count: 3 }}
               assistant={{ onMigrate: fn() }}
               evalsUrl="/project/demo/evals"
@@ -335,9 +414,9 @@ export const VariantMatrix = meta.story({
             />,
           ],
           [
-            "8. Evals deprecated, single (assistant plans the order, no auto-migrate)",
+            "9. Evals deprecated, single (assistant plans the order, no auto-migrate)",
             <V4MigrationEvalsSection
-              key="8"
+              key="9"
               state={{ status: "loaded", count: 1 }}
               assistant={{ onMigrate: fn() }}
               evalsUrl="/project/demo/evals"
@@ -345,45 +424,45 @@ export const VariantMatrix = meta.story({
             />,
           ],
           [
-            "9. Experiments update required (deprecated API call)",
+            "10. Experiments update required (deprecated API call)",
             <V4MigrationExperimentsSection
-              key="9"
+              key="10"
               state={{ status: "loaded", result: "required" }}
               upgradePath="api"
               defaultOpen
             />,
           ],
           [
-            "10. Experiments update required (outdated SDK)",
+            "11. Experiments update required (outdated SDK)",
             <V4MigrationExperimentsSection
-              key="10"
+              key="11"
               state={{ status: "loaded", result: "required" }}
               upgradePath="sdk"
               defaultOpen
             />,
           ],
           [
-            "11. Experiments needs review (inconclusive SDK usage)",
+            "12. Experiments needs review (inconclusive SDK usage)",
             <V4MigrationExperimentsSection
-              key="11"
+              key="12"
               state={{ status: "loaded", result: "sdk_usage_inconclusive" }}
               upgradePath="sdk"
               defaultOpen
             />,
           ],
           [
-            "12. Deprecated APIs called",
+            "13. Deprecated APIs called",
             <V4MigrationApisSection
-              key="12"
+              key="13"
               state={{ status: "loaded", count: apiUsage.length }}
               usage={apiUsage}
               defaultOpen
             />,
           ],
           [
-            "13. Deprecated integrations exporting",
+            "14. Deprecated integrations exporting",
             <V4MigrationIntegrationsSection
-              key="13"
+              key="14"
               state={{ status: "loaded", count: integrations.length }}
               integrations={integrations}
               integrationsUrl="/project/demo/settings/integrations"
@@ -391,38 +470,39 @@ export const VariantMatrix = meta.story({
             />,
           ],
           [
-            "14. Checker still loading (evals shown; same chip on all checkers)",
+            "15. Checker still loading (evals shown; same chip on all checkers)",
             <V4MigrationEvalsSection
-              key="14"
+              key="15"
               state={{ status: "loading", count: 0 }}
               assistant={null}
               defaultOpen
             />,
           ],
           [
-            "15. Checker failed (evals shown; same chip on all checkers)",
+            "16. Checker failed (evals shown; same chip on all checkers)",
             <V4MigrationEvalsSection
-              key="15"
+              key="16"
               state={{ status: "error", count: 0 }}
               assistant={null}
               defaultOpen
             />,
           ],
           [
-            "16. Clean sections collapse into one summary line",
-            <p key="16" className="text-muted-foreground py-1.5 text-sm">
+            "17. Clean sections collapse into one summary line",
+            <p key="17" className="text-muted-foreground py-1.5 text-sm">
               Evals, experiments, APIs and integrations are up to date.
             </p>,
           ],
           [
-            "17. Everything at once",
-            <div key="17">
+            "18. Everything at once",
+            <div key="18">
               <V4MigrationSdkSection sdk={combinedState} defaultOpen />
               <V4MigrationOtelSection sdk={combinedState} defaultOpen />
               <V4MigrationCustomInstrumentationSection
                 sdk={combinedState}
                 defaultOpen
               />
+              <V4MigrationDetectedInstrumentationSection sdk={combinedState} />
               <V4MigrationEvalsSection
                 state={{ status: "loaded", count: 2 }}
                 assistant={{ onMigrate: fn() }}
