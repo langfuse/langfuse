@@ -22,8 +22,10 @@ import {
   RedirectValidationError,
 } from "@langfuse/shared/src/server";
 import {
+  describeOutboundFailure,
   findOutboundUrlValidationError,
   isRedirectChainFailure,
+  unvalidatedRedirectTarget,
 } from "../errors/findOutboundUrlValidationError";
 
 /** The job fails terminally: the classifier recognises a permanent fault. */
@@ -171,6 +173,75 @@ describe("outbound-URL failure classification — chain faults vs SSRF blocks", 
     ]) {
       expect(classifiesTerminal(error)).toBe(true);
     }
+  });
+});
+
+// The DETECTION half of the same fix. Suppressing the SSRF wording for a chain
+// fault is only safe if the operator is still told WHERE the chain stopped —
+// otherwise "too many hops" and "something aimed my exporter at the metadata
+// service" become indistinguishable, which is the outcome the wording change
+// exists to prevent. Nothing else asserts the target is named, so a refactor
+// could drop the suffix and every other test here would still pass.
+describe("outbound-URL failure description", () => {
+  const METADATA = "http://169.254.169.254/latest/meta-data/iam/";
+
+  it.each([
+    [
+      "budget exhaustion",
+      () =>
+        new MaxRedirectsExceededError(10, ["https://ph.example/a", METADATA]),
+    ],
+    [
+      "a redirect loop",
+      () => new CircularRedirectError(["https://a.example/", METADATA]),
+    ],
+  ])("names the unvalidated final target for %s", (_label, makeError) => {
+    const description = describeOutboundFailure(makeError());
+
+    expect(description).toContain(METADATA);
+    // Still must not claim a verdict it cannot support.
+    expect(description).not.toContain("SSRF");
+  });
+
+  it("reports the stop without a target when the chain is unavailable", () => {
+    // An empty chain must degrade to the plain sentence — never print the string
+    // "undefined" at an operator, which is the classic template-interpolation
+    // tell and reads as a bug in the exporter rather than in the configuration.
+    for (const error of [
+      new MaxRedirectsExceededError(10, []),
+      new CircularRedirectError([]),
+    ]) {
+      const description = describeOutboundFailure(error);
+
+      expect(description).toContain("redirect chain stopped");
+      expect(description).not.toContain("undefined");
+      expect(description).not.toContain("SSRF");
+    }
+  });
+
+  it("does not name a target for a policy block", () => {
+    // A policy block already identifies its own target through the validation
+    // error; the chain-stop wording would misdescribe it.
+    for (const error of [
+      ipBlock(),
+      new RedirectValidationError("Blocked IP address detected", METADATA, 2),
+    ]) {
+      expect(describeOutboundFailure(error)).toBe(
+        "blocked by outbound SSRF protection",
+      );
+    }
+  });
+
+  it("extracts the final target only from redirect-chain errors", () => {
+    expect(
+      unvalidatedRedirectTarget(
+        new MaxRedirectsExceededError(10, ["https://a/", METADATA]),
+      ),
+    ).toBe(METADATA);
+    expect(unvalidatedRedirectTarget(ipBlock())).toBeUndefined();
+    expect(
+      unvalidatedRedirectTarget(new MaxRedirectsExceededError(10, [])),
+    ).toBeUndefined();
   });
 });
 

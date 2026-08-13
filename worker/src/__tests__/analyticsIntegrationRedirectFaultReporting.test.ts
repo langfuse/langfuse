@@ -54,6 +54,9 @@ afterEach(() => {
   transport.fetchWithSecureRedirects.mockReset();
 });
 
+/** A destination an operator must be able to spot in the failure text. */
+const METADATA = "http://169.254.169.254/latest/meta-data/iam/";
+
 /** Runs one export batch and returns the failure it surfaced. */
 const failureFromOneBatch = async (): Promise<unknown> => {
   const client = new MixpanelClient({
@@ -81,14 +84,16 @@ describe("analytics export redirect-chain fault reporting", () => {
   it.each([
     [
       "budget exhaustion",
-      () => new MaxRedirectsExceededError(10, ["http://a/", "http://b/"]),
+      () => new MaxRedirectsExceededError(10, ["http://a/", METADATA]),
     ],
     [
+      // Loops back to a target it already visited, so the chain both repeats and
+      // ends on the target the operator needs to see.
       "a redirect loop",
-      () => new CircularRedirectError(["http://a/", "http://b/", "http://a/"]),
+      () => new CircularRedirectError([METADATA, "http://a/", METADATA]),
     ],
   ])(
-    "reports %s without raising an SSRF signal",
+    "reports %s without raising an SSRF signal, naming where the chain stopped",
     async (_label, makeError) => {
       transport.fetchWithSecureRedirects.mockRejectedValue(makeError());
 
@@ -98,6 +103,11 @@ describe("analytics export redirect-chain fault reporting", () => {
       // Still permanent — the labelling split must not have made it retryable.
       expect(isUnrecoverableError(failure)).toBe(true);
       expect(String((failure as Error).message)).not.toContain("SSRF");
+      // Suppressing the SSRF signal is only safe if the operator can still see
+      // WHERE the chain stopped. Asserted on the sender's own message, not just
+      // on describeOutboundFailure, so a refactor that stops routing through it
+      // is caught here rather than passing on unit coverage alone.
+      expect(String((failure as Error).message)).toContain(METADATA);
     },
     30_000,
   );
