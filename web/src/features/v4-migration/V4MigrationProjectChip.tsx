@@ -18,7 +18,6 @@ export function V4MigrationProjectChip({
   const capture = usePostHogClientCapture();
 
   const readiness = status ? getProjectMigrationReadiness(status) : "checking";
-
   // Forced-v3 projects show no migration action — the upgrade is handled by
   // their integration partner. Point them at the FAQ instead.
   if (readiness === "partner-managed") {
@@ -39,16 +38,9 @@ export function V4MigrationProjectChip({
     );
   }
 
-  if (readiness === "ready") {
+  if (readiness !== "action-needed") {
     return null;
   }
-
-  const label =
-    readiness === "checking"
-      ? "Checking"
-      : readiness === "unavailable"
-        ? "Check status"
-        : "Update";
 
   const handleClick = () => {
     capture("v4_migration:project_chip_clicked");
@@ -65,7 +57,7 @@ export function V4MigrationProjectChip({
         aria-hidden
         className="size-1.75 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
       ></span>
-      {label}
+      Update
     </button>
   );
 }

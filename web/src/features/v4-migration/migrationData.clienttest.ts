@@ -128,7 +128,7 @@ describe("v4 migration data", () => {
     ).toBe("unavailable");
   });
 
-  it("aggregates real API usage by normalized endpoint", () => {
+  it("aggregates real API usage by normalized endpoint and sorts most recent first", () => {
     expect(
       aggregateLegacyApiUsage([
         {
@@ -149,12 +149,23 @@ describe("v4 migration data", () => {
           count: 0,
           lastSeen: null,
         },
+        {
+          time: "2026-07-23T08:00:00Z",
+          entrypoint: "publicapi: GET /api/public/sessions",
+          count: 20,
+          lastSeen: "2026-07-23T08:37:00Z",
+        },
       ]),
     ).toEqual([
       {
         endpoint: "GET /api/public/traces",
         count: 5,
         lastSeen: "2026-07-23T10:37:00Z",
+      },
+      {
+        endpoint: "GET /api/public/sessions",
+        count: 20,
+        lastSeen: "2026-07-23T08:37:00Z",
       },
     ]);
   });

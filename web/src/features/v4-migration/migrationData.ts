@@ -169,7 +169,8 @@ export const aggregateLegacyApiUsage = (
     ...usage,
   })).sort(
     (left, right) =>
-      right.count - left.count || left.endpoint.localeCompare(right.endpoint),
+      right.lastSeen.localeCompare(left.lastSeen) ||
+      left.endpoint.localeCompare(right.endpoint),
   );
 };
 

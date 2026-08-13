@@ -20,7 +20,6 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { cn } from "@/src/utils/tailwind";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {
@@ -104,27 +103,11 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
     );
   }
 
-  const label =
-    readiness === "ready"
-      ? "Migrated"
-      : readiness === "checking"
-        ? "Checking"
-        : readiness === "unavailable"
-          ? "Unavailable"
-          : "Action needed";
+  if (readiness !== "action-needed") return null;
 
   return (
-    <span
-      className={cn(
-        "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
-        readiness === "ready"
-          ? "bg-light-green text-dark-green"
-          : readiness === "checking" || readiness === "unavailable"
-            ? "bg-muted text-muted-foreground"
-            : "bg-light-yellow text-dark-yellow",
-      )}
-    >
-      {label}
+    <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+      Action needed
     </span>
   );
 }
@@ -188,19 +171,24 @@ function OrgStatusSection({
       { enabled: org.projects.length > 0 },
     );
 
-  const openProjectMigration = (row: { id: string; name: string }) => {
+  const openProjectMigration = (
+    row: { id: string; name: string },
+    readiness: ProjectMigrationReadiness,
+  ) => {
     capture("v4_migration:status_row_clicked");
-    openMigrationPanel({ id: row.id, name: row.name }, "status_page_row");
+    openMigrationPanel(
+      { id: row.id, name: row.name, readiness },
+      "status_page_row",
+    );
   };
 
-  const handleRowClick = (row: {
-    id: string;
-    name: string;
-    status?: ProjectMigrationStatus;
-  }) => {
+  const handleRowClick = (
+    row: { id: string; name: string; status?: ProjectMigrationStatus },
+    readiness: ProjectMigrationReadiness,
+  ) => {
     // Forced-v3 projects have no migration panel — just navigate to the project.
     if (!row.status?.forceV3Experience) {
-      openProjectMigration(row);
+      openProjectMigration(row, readiness);
     }
     router.push(`/project/${row.id}/traces`);
   };
@@ -369,7 +357,7 @@ function OrgStatusSection({
                   <TableRow
                     key={row.id}
                     className="group/row cursor-pointer"
-                    onClick={() => handleRowClick(row)}
+                    onClick={() => handleRowClick(row, readiness)}
                   >
                     <TableCell density="comfortable" className="max-w-48">
                       <Link
@@ -380,7 +368,7 @@ function OrgStatusSection({
                           event.stopPropagation();
                           // Forced-v3 projects have no migration panel.
                           if (!row.status?.forceV3Experience) {
-                            openProjectMigration(row);
+                            openProjectMigration(row, readiness);
                           }
                         }}
                       >
