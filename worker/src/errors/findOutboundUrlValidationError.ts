@@ -25,13 +25,43 @@
  * silently stops recognising it and the exporters' terminal branches stop
  * firing for that mode.
  */
-const TERMINAL_OUTBOUND_ERROR_NAMES = new Set([
+const OUTBOUND_VALIDATION_ERROR_NAMES = new Set([
   "OutboundUrlValidationError",
   "RedirectValidationError",
   "MaxRedirectsExceededError",
   "CircularRedirectError",
 ]);
 
+// A resolver hiccup is not a policy block: the host may be perfectly legitimate
+// and the very next attempt may succeed, so it must stay retryable. The shared
+// LLM classifier draws the same line by mapping this code to
+// "endpoint-unreachable" rather than "invalid-connection".
+const DNS_LOOKUP_FAILED_CODE = "dns-lookup-failed";
+
+// RedirectValidationError (outbound-url/fetch.ts) re-wraps a failed
+// redirect-target validation using only the inner error's MESSAGE — it keeps
+// neither the code nor the cause — so a DNS failure surfaced through the
+// redirect path can only be recognised by its message text, declared at
+// outbound-url/validation.ts (`DNS lookup failed for ${hostname}`). If that
+// wording drifts, this stops matching and a resolver blip is again treated as
+// terminal; that is the safe drift direction (a genuine block never becomes
+// retryable), but it is why the marker is pinned here with a name.
+const DNS_LOOKUP_FAILED_MESSAGE_MARKER = "DNS lookup failed for";
+
+function isTransientDnsFailure(error: Error): boolean {
+  const code: unknown = (error as { code?: unknown }).code;
+  return (
+    code === DNS_LOOKUP_FAILED_CODE ||
+    error.message.includes(DNS_LOOKUP_FAILED_MESSAGE_MARKER)
+  );
+}
+
+/**
+ * Returns the validation error only when the block is PERMANENT (an IP/hostname
+ * policy block, an unusable redirect chain). Returns undefined when nothing in
+ * the chain is a validation error, or when the failure is a transient
+ * DNS-resolution error that deserves a retry.
+ */
 export function findOutboundUrlValidationError(
   error: unknown,
 ): Error | undefined {
@@ -43,9 +73,9 @@ export function findOutboundUrlValidationError(
 
     if (
       current instanceof Error &&
-      TERMINAL_OUTBOUND_ERROR_NAMES.has(current.name)
+      OUTBOUND_VALIDATION_ERROR_NAMES.has(current.name)
     ) {
-      return current;
+      return isTransientDnsFailure(current) ? undefined : current;
     }
 
     current =
