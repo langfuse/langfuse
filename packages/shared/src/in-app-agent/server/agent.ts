@@ -13,18 +13,24 @@ import {
   type InAppAgentToolApprovalRequest,
   type ResumeForwardedProps,
 } from "../schema";
-import { createManualToolApprovalRunInput } from "./human-in-the-loop";
+import {
+  createInAppAgentMcpRunOverride,
+  createManualToolApprovalRunInput,
+} from "./human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
 } from "./instrumentation";
 import { createInAppAgentInstrumentation } from "./instrumentation";
+import { getToolFailureMessage } from "./toolErrors";
 import {
   createSandboxTools,
   createRedirectActionTool,
   filterInAppAgentAvailableLangfuseMcpTools,
+  getInAppAgentMcpAllowedToolNames,
+  getInAppAgentRegistryToolName,
   type CompletedInAppAgentMcpToolCall,
-  type InAppAgentUserAccess,
+  type InAppAgentToolPolicy,
   withOptionalSilentMcpOutput,
   withInAppAgentToolApproval,
 } from "./tools";
@@ -171,7 +177,7 @@ type CreateAgUiStreamOptions = {
     url: string;
     publicKey: string;
     secretKey: string;
-    userAccess: InAppAgentUserAccess;
+    toolPolicy: InAppAgentToolPolicy;
     runOverride?: string;
   };
   redirectAction: {
@@ -498,14 +504,24 @@ export async function createAgUiStream(params: {
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
           currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
 
+          // Drop a one-off override after its call; standing grants remain in the policy.
+          const oneOffApprovedToolName =
+            forwardedProps?.command?.resume?.approved === true
+              ? getInAppAgentRegistryToolName(
+                  forwardedProps.command.resume.approvalRequest?.toolName,
+                )
+              : undefined;
+
           if (
-            forwardedProps?.command?.resume?.approved === true &&
-            params.options.langfuseMcp.runOverride
+            oneOffApprovedToolName &&
+            params.options.langfuseMcp.runOverride &&
+            !params.options.langfuseMcp.toolPolicy.autoApproved.has(
+              oneOffApprovedToolName,
+            )
           ) {
-            // The override is intentionally single-use: execute the approved
-            // mutating MCP tool with the first client, then rebuild the MCP
-            // client without the override so the continuation returns to the
-            // normal read-only in-app-agent policy.
+            const standingAllowedToolNames = getInAppAgentMcpAllowedToolNames(
+              params.options.langfuseMcp.toolPolicy,
+            );
 
             await currentAdapter.cleanup();
 
@@ -517,7 +533,12 @@ export async function createAgUiStream(params: {
                 ...params.options,
                 langfuseMcp: {
                   ...params.options.langfuseMcp,
-                  runOverride: undefined,
+                  runOverride:
+                    standingAllowedToolNames.length > 0
+                      ? await createInAppAgentMcpRunOverride({
+                          toolNames: standingAllowedToolNames,
+                        })
+                      : undefined,
                 },
               },
               awsProfile,
@@ -782,31 +803,34 @@ async function createMastraAdapter(params: {
     // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
     // discovery, then prefix tool names for constructor-based tools so the
     // model sees the same names that later appear in AG-UI tool-call events.
-    const tools = withInAppAgentToolApproval({
-      ...withOptionalSilentMcpOutput({
-        tools: prefixToolsetTools(
-          "langfuse",
-          filterInAppAgentAvailableLangfuseMcpTools({
-            tools: toolsets.langfuse,
-            userAccess: params.options.langfuseMcp.userAccess,
-          }),
-        ),
-        sandbox: params.options.sandbox,
-        onToolCallCompleted: params.options.onMcpToolCallCompleted,
-      }),
-      ...withOptionalSilentMcpOutput({
-        tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
-        sandbox: params.options.sandbox,
-        onToolCallCompleted: params.options.onMcpToolCallCompleted,
-      }),
-      [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
-        projectId: params.options.redirectAction.projectId,
-        isV4Enabled: params.options.redirectAction.isV4Enabled,
-      }),
-      ...(params.options.sandbox
-        ? createSandboxTools(params.options.sandbox)
-        : {}),
-    });
+    const tools = withInAppAgentToolApproval(
+      {
+        ...withOptionalSilentMcpOutput({
+          tools: prefixToolsetTools(
+            "langfuse",
+            filterInAppAgentAvailableLangfuseMcpTools({
+              tools: toolsets.langfuse,
+              policy: params.options.langfuseMcp.toolPolicy,
+            }),
+          ),
+          sandbox: params.options.sandbox,
+          onToolCallCompleted: params.options.onMcpToolCallCompleted,
+        }),
+        ...withOptionalSilentMcpOutput({
+          tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+          sandbox: params.options.sandbox,
+          onToolCallCompleted: params.options.onMcpToolCallCompleted,
+        }),
+        [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
+          projectId: params.options.redirectAction.projectId,
+          isV4Enabled: params.options.redirectAction.isV4Enabled,
+        }),
+        ...(params.options.sandbox
+          ? createSandboxTools(params.options.sandbox)
+          : {}),
+      },
+      params.options.langfuseMcp.toolPolicy,
+    );
     params.onToolsAvailable?.(tools);
 
     const reasoningProviderOptions = getBedrockReasoningProviderOptions(
@@ -960,11 +984,10 @@ type MastraApprovalStreamChunk = {
 // those tools and the bridge has no case for it, so approvals would never
 // surface as on_interrupt events. Map approvals onto the suspend protocol.
 // Non-background tool-error chunks are likewise swallowed by the bridge, so
-// convert them to tool results carrying the error message as content. Note:
-// the bridge emits TOOL_CALL_RESULT without a top-level `error` field, so the
-// failure renders with the error message in the result body but a "succeeded"
-// status; the model is unaffected (Mastra's loop feeds it the real error).
-// Status fidelity is tracked as a follow-up.
+// convert them to tool results carrying a structured failure payload. The
+// bridge still emits TOOL_CALL_RESULT without a top-level `error` field;
+// normalizeAdapterEvent stamps that field from the structured payload so
+// instrumentation and persistence see an explicit failure.
 export function patchMastraApprovalChunks(adapter: MastraAgent) {
   const patchableAdapter = adapter as unknown as PatchableMastraAgent;
   const createChunkProcessor = patchableAdapter.createChunkProcessor;
@@ -1039,8 +1062,12 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
               isError: true,
               // Raw object, not pre-stringified: the bridge JSON-stringifies
               // payload.result into the event content, so a string here would
-              // double-encode.
-              result: { error: getToolErrorMessage(mastraChunk) },
+              // double-encode. Keep the same {error:true,message} shape used
+              // by schema-validation failures so detection stays structured.
+              result: {
+                error: true,
+                message: getToolErrorMessage(mastraChunk),
+              },
             },
           });
         }
@@ -1135,6 +1162,19 @@ function normalizeAdapterEvent(
         ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
       },
     ];
+  }
+
+  if (event.type === EventType.TOOL_CALL_RESULT) {
+    // Never overwrite an existing top-level error (e.g. JSON-encoded approval
+    // rejections). Only stamp when the bridge omitted the field entirely.
+    if (typeof event.error === "string" && event.error.trim()) {
+      return [event];
+    }
+
+    const failureMessage = getToolFailureMessage(undefined, event.content);
+    if (failureMessage) {
+      return [{ ...event, error: failureMessage }];
+    }
   }
 
   return [event];

@@ -7,8 +7,12 @@ import {
 import { Prisma } from "../../db";
 import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
-import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
+import {
+  buildInAppAgentApprovalDecisionEvent,
+  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
+} from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
+import type { InAppAgentPrefixedLangfuseMcpToolName } from "./tools";
 import {
   InAppAgentRunRequestSchema,
   type InAppAgentRunRequest,
@@ -202,6 +206,8 @@ export async function decideToolApproval(params: {
   toolCallId: string;
   approved: boolean;
   decidedByUserId: string;
+  /** Prefixed tool resolved from the persisted interrupt, never client input. */
+  alwaysAllowToolName?: InAppAgentPrefixedLangfuseMcpToolName;
   model?: string;
 }): Promise<InAppAgentRun> {
   const outcome = await params.prisma.$transaction(async (tx) => {
@@ -266,6 +272,33 @@ export async function decideToolApproval(params: {
       parentRun.request,
     );
 
+    // Persist the grant in the same transaction as the exactly-once decision CAS.
+    if (params.alwaysAllowToolName) {
+      const conversation = await tx.inAppAgentConversation.findUnique({
+        where: {
+          id_projectId: {
+            id: params.conversationId,
+            projectId: params.projectId,
+          },
+        },
+        select: { alwaysAllowedTools: true },
+      });
+
+      if (
+        !conversation?.alwaysAllowedTools.includes(params.alwaysAllowToolName)
+      ) {
+        await tx.inAppAgentConversation.update({
+          where: {
+            id_projectId: {
+              id: params.conversationId,
+              projectId: params.projectId,
+            },
+          },
+          data: { alwaysAllowedTools: { push: params.alwaysAllowToolName } },
+        });
+      }
+    }
+
     await appendConversationEventInTransaction({
       tx,
       projectId: params.projectId,
@@ -275,6 +308,9 @@ export async function decideToolApproval(params: {
         toolCallId: params.toolCallId,
         approved: params.approved,
         decidedByUserId: params.decidedByUserId,
+        ...(params.alwaysAllowToolName
+          ? { scope: "conversation" as const }
+          : {}),
       }),
     });
 
@@ -322,13 +358,7 @@ export async function cancelConversationRunsInTransaction(params: {
       projectId: params.projectId,
       conversationId: params.conversationId,
       // Parked approvals have finishedAt set but remain unsettled.
-      status: {
-        in: [
-          InAppAgentRunStatus.QUEUED,
-          InAppAgentRunStatus.RUNNING,
-          InAppAgentRunStatus.AWAITING_APPROVAL,
-        ],
-      },
+      status: { in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES] },
     },
     select: { id: true, status: true },
   });
@@ -508,11 +538,7 @@ async function reconcileConversationRunsInTransaction(params: {
       projectId,
       conversationId,
       status: {
-        in: [
-          InAppAgentRunStatus.QUEUED,
-          InAppAgentRunStatus.RUNNING,
-          InAppAgentRunStatus.AWAITING_APPROVAL,
-        ],
+        in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES],
       },
     },
     select: {
@@ -559,7 +585,16 @@ async function reconcileConversationRunsInTransaction(params: {
   return reconciled;
 }
 
-function classifyStaleRun(
+/**
+ * Decide whether a non-terminal run has already missed every deadline that
+ * should have failed it. Pure: callers choose whether to act on the verdict.
+ *
+ * Reconciliation writes the verdict; read paths that only need to render a run
+ * may apply it without writing, so a dead worker does not leave a conversation
+ * spinning until someone opens it (`reconcileConversationRuns` is the only
+ * authority that persists the transition).
+ */
+export function classifyStaleRun(
   run: {
     status: string | null;
     createdAt: Date;

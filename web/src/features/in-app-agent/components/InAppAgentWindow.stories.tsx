@@ -1,16 +1,23 @@
 import preview from "../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
 import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/quickActions";
+import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import {
+  createInAppAgentDisplayState,
+  projectInAppAgentMessagesForDisplay,
+} from "@/src/features/in-app-agent/lib/display";
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
 } from "./InAppAgentWindowShell";
+import { getDrawerMessages } from "./utils/utils";
 
 function InAppAgentWindowStoryShell({
   children,
@@ -30,6 +37,8 @@ function InAppAgentWindowStoryShell({
     <InAppAgentWindowShell
       floatingPanelHandle={floatingPanelHandle}
       isExpanded={isExpanded}
+      onClose={() => undefined}
+      open
       panelRef={panelRef}
     >
       {children}
@@ -563,6 +572,81 @@ const conversations = [
   },
 ];
 
+/**
+ * One conversation per activity state, in the priority order a row applies:
+ * only the first matching state is ever rendered.
+ */
+const activityConversations = [
+  {
+    id: "activity-approval",
+    title: "Create the eval dataset",
+    updatedAt: new Date("2026-05-19T10:00:00.000Z"),
+  },
+  {
+    id: "activity-running",
+    title: "Activity digest comparing last two weeks",
+    updatedAt: new Date("2026-05-19T09:30:00.000Z"),
+  },
+  {
+    id: "activity-failed",
+    title: "Score correlation",
+    updatedAt: new Date("2026-05-19T09:00:00.000Z"),
+  },
+  {
+    id: "activity-done",
+    title: "Latency outliers",
+    updatedAt: new Date("2026-05-19T08:30:00.000Z"),
+  },
+  {
+    id: "activity-none",
+    title: "Seed conversation",
+    updatedAt: new Date("2026-05-19T08:00:00.000Z"),
+  },
+];
+
+const activityByConversationId: InAppAgentActivityByConversationId = new Map([
+  [
+    "activity-approval",
+    {
+      state: "approval",
+      title: "Create the eval dataset",
+      runId: "run-1",
+      activityKey: "run-1:AWAITING_APPROVAL",
+      needsAttention: true,
+    },
+  ],
+  [
+    "activity-running",
+    {
+      state: "running",
+      title: "Activity digest comparing last two weeks",
+      runId: "run-2",
+      activityKey: "run-2:RUNNING",
+      needsAttention: false,
+    },
+  ],
+  [
+    "activity-failed",
+    {
+      state: "failed-unread",
+      title: "Score correlation",
+      runId: "run-3",
+      activityKey: "run-3:FAILED",
+      needsAttention: true,
+    },
+  ],
+  [
+    "activity-done",
+    {
+      state: "done-unread",
+      title: "Latency outliers",
+      runId: "run-4",
+      activityKey: "run-4:SUCCEEDED",
+      needsAttention: true,
+    },
+  ],
+]);
+
 const longUnbrokenWord = `trace-${"0123456789abcdef".repeat(18)}`;
 const longUnbrokenTableValue = `observation-${"abcdefghijklmnopqrstuvwxyz".repeat(10)}`;
 const longReasoningText = [
@@ -591,7 +675,9 @@ const meta = preview.meta({
     executionUi: { notice: null, stop: null },
     isExpanded: false,
     isConversationInteractionDisabled: false,
+    isSelectedConversationHydrating: false,
     conversations,
+    activityByConversationId: new Map(),
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
     isAssistantTurnInProgress: false,
@@ -601,6 +687,7 @@ const meta = preview.meta({
     onOpenConversationHistory: fn(),
     onNewConversation: fn(),
     onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
     onRejectToolCall: fn(),
     onSelectConversation: fn(),
     onClose: fn(),
@@ -618,7 +705,6 @@ const meta = preview.meta({
 export const ToolApprovalRequired = meta.story({
   args: {
     isAssistantTurnInProgress: true,
-    isConversationInteractionDisabled: true,
     selectedConversationId: "conversation-1",
     messages: [
       {
@@ -994,6 +1080,106 @@ export const Error = meta.story({
   },
 });
 
+/**
+ * Every activity state in the row it belongs to, sharing one fixed-width slot
+ * so the column stays straight despite the dots being narrower than the icons.
+ *
+ * The trigger badge counts the same rows, so it reads 3 here, not 4: the
+ * running conversation has nothing for the user to act on yet.
+ */
+export const ConversationActivity = meta.story({
+  args: {
+    conversations: activityConversations,
+    activityByConversationId,
+    selectedConversationId: "activity-running",
+    messages: [],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    // Exact name (not the prefix match the activity-free stories use) so the
+    // badge count is asserted on the way in.
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Conversation history (3 need attention)",
+      }),
+    );
+    // The dropdown portals out of the canvas.
+    await screen.findByText("Recent conversations");
+  },
+});
+
+/** Long enough to watch the hint, short enough to settle before it expires. */
+const STORY_RUN_MS = 3_000;
+
+/**
+ * The nudge that opens a conversation. Send a second message to see that it
+ * belongs to the first one only, and wait for the run to settle to see it go.
+ */
+export const BackgroundHint = meta.story({
+  args: {
+    messages: [],
+  },
+  render: function Render(args) {
+    const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([]);
+    const [isRunning, setIsRunning] = useState(false);
+
+    return (
+      <StatefulInAppAgentWindow
+        {...args}
+        messages={messages}
+        isAssistantTurnInProgress={isRunning}
+        onSubmit={(input) => {
+          setMessages((currentMessages) => [
+            ...currentMessages,
+            {
+              id: `user-${currentMessages.length}`,
+              role: "user",
+              content: { type: "text", text: input },
+            },
+          ]);
+          setIsRunning(true);
+
+          window.setTimeout(() => {
+            setIsRunning(false);
+            setMessages((currentMessages) => [
+              ...currentMessages,
+              {
+                id: `assistant-${currentMessages.length}`,
+                role: "assistant",
+                content: {
+                  type: "text",
+                  text: "Cost is up 12% week over week, driven by gpt-4o traces.",
+                },
+              },
+            ]);
+          }, STORY_RUN_MS);
+
+          args.onSubmit(input);
+          return true;
+        }}
+      />
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.type(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      "Compare cost against last week",
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+    await expect(await canvas.findByRole("status")).toHaveTextContent(
+      "I keep running in the background",
+    );
+
+    await waitFor(
+      () => expect(canvas.queryByRole("status")).not.toBeInTheDocument(),
+      { timeout: STORY_RUN_MS * 2 },
+    );
+  },
+});
+
 export const BackgroundRun = meta.story({
   args: {
     isAssistantTurnInProgress: true,
@@ -1103,6 +1289,35 @@ export const BackgroundRunStops = meta.story({
   },
 });
 
+export const LoadingConversation = meta.story({
+  name: "(Test) Loading Conversation",
+  args: {
+    isConversationInteractionDisabled: true,
+    messages: [],
+    selectedConversationId: "conversation-1",
+    isSelectedConversationHydrating: true,
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.queryByText("Welcome to the Langfuse Assistant"),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: /^Create a prompt/ }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: /^Conversation history/ }),
+    ).toBeEnabled();
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeDisabled();
+  },
+});
+
 export const RateLimited = meta.story({
   name: "(Test) Rate Limited",
   args: {
@@ -1141,27 +1356,42 @@ export const RateLimited = meta.story({
       />
     );
   },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const alert = canvas.getByRole("alert");
+    const textarea = canvas.getByRole("textbox", {
+      name: "Message the assistant",
+    });
 
     await expect(alert).toHaveTextContent(
       "You've reached the assistant request limit",
     );
     await expect(alert).toHaveTextContent("Try again in about");
+    await expect(textarea).toBeEnabled();
+    await userEvent.type(textarea, "Follow up");
+    await expect(textarea).toHaveValue("Follow up");
     await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeEnabled();
-    await expect(
-      canvas.getByRole("button", { name: "Confirm" }),
+      canvas.getByRole("button", { name: "Send message" }),
     ).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+    await expect(
+      canvas.getByRole("button", { name: "Approve" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", {
+        name: "Always approve for this conversation",
+      }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Decline" }),
+    ).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Start new conversation" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await expect(
-      canvas.getByRole("button", { name: "Conversation history" }),
-    ).toBeDisabled();
+      canvas.getByRole("button", { name: /^Conversation history/ }),
+    ).toBeEnabled();
   },
 });
 
@@ -1373,5 +1603,144 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
       value: "thumbs_up",
       comment: null,
     });
+  },
+});
+
+export const AlwaysApprovesWithHiddenParallelCall = meta.story({
+  name: "(Test) Always Approves With Hidden Parallel Call",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAssistantTurnInProgress: true,
+    onAlwaysAllowToolCall: fn(() => new Promise<void>(() => undefined)),
+    messages: getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: [
+        {
+          id: "assistant-approval",
+          role: "assistant",
+          content: "I need approval before creating these resources.",
+          toolCalls: [
+            {
+              id: "approval-1",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: '{"name":"approved-prompt"}',
+              },
+            },
+            {
+              id: "deferred-sibling",
+              type: "function",
+              function: {
+                name: "langfuse_createDashboardWidget",
+                arguments: '{"name":"deferred-widget"}',
+              },
+            },
+          ],
+        },
+      ],
+      pendingToolApprovals: [
+        {
+          id: "approval-1",
+          status: "pending",
+          runId: "run-1",
+          approvalRequest: {
+            type: "tool_approval_request",
+            toolCallId: "approval-1",
+            toolName: "langfuse_createTextPrompt",
+            runId: "run-1",
+          },
+        },
+      ],
+    }),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const approve = canvas.getByRole("button", { name: "Approve" });
+    const alwaysApprove = canvas.getByRole("button", {
+      name: "Always approve for this conversation",
+    });
+    const decline = canvas.getByRole("button", { name: "Decline" });
+
+    await expect(
+      canvas.queryByLabelText(/^createDashboardWidget:/),
+    ).not.toBeInTheDocument();
+    await userEvent.click(alwaysApprove);
+
+    await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledOnce();
+    await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledWith("approval-1");
+    await expect(alwaysApprove).toHaveAttribute("aria-busy", "true");
+    await expect(approve).toBeDisabled();
+    await expect(alwaysApprove).toBeDisabled();
+    await expect(decline).toBeDisabled();
+  },
+});
+
+export const ContinuedToolResultRendersOnce = meta.story({
+  name: "(Test) Continued Tool Result Renders Once",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAssistantTurnInProgress: false,
+    messages: getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: projectInAppAgentMessagesForDisplay(
+        [
+          {
+            id: "assistant-proposal",
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "tool-call-1",
+                type: "function",
+                function: {
+                  name: "langfuse_createDashboardWidget",
+                  arguments: '{"name":"Cost over time"}',
+                },
+              },
+            ],
+          },
+          {
+            id: "tool-call-1-approval-tool-call",
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "tool-call-1",
+                type: "function",
+                function: {
+                  name: "langfuse_createDashboardWidget",
+                  arguments: '{"name":"Changed by continuation"}',
+                },
+              },
+            ],
+          },
+          {
+            id: "tool-call-1-approval-tool-result",
+            role: "tool",
+            toolCallId: "tool-call-1",
+            content: '{"id":"widget-1"}',
+          },
+        ] satisfies AgUiMessage[],
+        createInAppAgentDisplayState(),
+      ),
+    }),
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.queryByText("Called 2 tools")).not.toBeInTheDocument();
+    await expect(
+      canvas.getAllByLabelText("createDashboardWidget: succeeded"),
+    ).toHaveLength(1);
+    await userEvent.click(
+      canvas.getByLabelText("createDashboardWidget: succeeded"),
+    );
+    await expect(canvas.getByText(/Cost over time/)).toBeInTheDocument();
+    await expect(
+      canvas.queryByText(/Changed by continuation/),
+    ).not.toBeInTheDocument();
   },
 });

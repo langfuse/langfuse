@@ -32,6 +32,15 @@ const requiresOtelIngestionHeader = (
 ): boolean =>
   series.hasDelayedOtelEvents === true && series.canonicalSdkName === null;
 
+// Ingestion-API series without a recognized Langfuse SDK: custom
+// instrumentation against POST /api/public/ingestion, an unrecognized SDK
+// name, or an SDK too old to send attribution headers. (hasDelayedOtelEvents
+// is null for non-OTel ingestion.)
+export const isCustomInstrumentationSeries = (
+  series: V4MigrationSdkUsageSeries,
+): boolean =>
+  series.hasDelayedOtelEvents === null && series.canonicalSdkName === null;
+
 const sortSdkUsageSeries = (
   rows: V4MigrationSdkUsageSeries[],
 ): V4MigrationSdkUsageSeries[] =>
@@ -66,9 +75,7 @@ export const getV4MigrationSdkState = (params: {
 
   const sdkUsageSeries = sortSdkUsageSeries(params.summary.sdkUsageSeries);
   const upgradeRequiredCount = sdkUsageSeries.filter(
-    (series) =>
-      series.v4MigrationStatus === "upgrade_required" &&
-      !series.upgradeCompleted,
+    (series) => series.v4MigrationStatus === "upgrade_required",
   ).length;
   const delayedOtelIngestionCount = sdkUsageSeries.filter(
     requiresOtelIngestionHeader,
@@ -85,6 +92,12 @@ export const getV4MigrationSdkState = (params: {
     (series) =>
       series.canonicalSdkName === null && series.hasDelayedOtelEvents === false,
   );
+  // Custom-instrumentation traffic is always an action item in the panel, so
+  // the combined status must not report the project as fully migrated while
+  // the Upgrade Instrumentation section is telling the user to act.
+  const hasCustomInstrumentation = sdkUsageSeries.some(
+    isCustomInstrumentationSeries,
+  );
 
   return {
     status:
@@ -94,7 +107,7 @@ export const getV4MigrationSdkState = (params: {
           ? "legacy"
           : delayedOtelIngestionCount > 0
             ? "otel_header_required"
-            : hasUnknownRecognizedSdk
+            : hasUnknownRecognizedSdk || hasCustomInstrumentation
               ? "unknown"
               : hasCompatibleSdk
                 ? "latest"
@@ -104,6 +117,90 @@ export const getV4MigrationSdkState = (params: {
     sdkUsageSeries,
     upgradeRequiredCount,
     delayedOtelIngestionCount,
+  };
+};
+
+// A series is an OTel exporter when it has no recognized Langfuse SDK name but
+// arrived through OTel ingestion (hasDelayedOtelEvents is null for non-OTel
+// series). Recognized SDKs that ship via OTLP manage their own headers, so
+// they stay in the SDK bucket.
+export const isOtelExporterSeries = (
+  series: V4MigrationSdkUsageSeries,
+): boolean =>
+  series.canonicalSdkName === null && series.hasDelayedOtelEvents !== null;
+
+// Both section states below implement the offender rule: a section renders
+// only while it contains at least one series needing action, but a rendered
+// section lists every series detected on its ingestion path.
+
+export const isActionableSdkSeries = (
+  series: V4MigrationSdkUsageSeries,
+): boolean =>
+  series.v4MigrationStatus === "upgrade_required" ||
+  // A recognized SDK with an unparsable version still needs the user's
+  // attention; without it the section would hide while the project-level
+  // status keeps reporting action needed.
+  series.v4MigrationStatus === "unknown";
+
+export type V4MigrationSdkSectionState = {
+  /** "latest" and "no_data" mean no offenders; the section hides itself.
+   * Unrecognized SDKs are not mixed in here: they belong to the custom
+   * instrumentation section. */
+  status: "checking" | "error" | "legacy" | "latest" | "no_data";
+  /** All detected recognized-SDK series, offenders sorted first. */
+  series: V4MigrationSdkUsageSeries[];
+  /** Series needing action: pending upgrades plus unrecognized versions.
+   * Drives both the section badge and the body copy so they always agree. */
+  actionableCount: number;
+};
+
+export const getSdkSectionState = (
+  sdk: V4MigrationSdkState,
+): V4MigrationSdkSectionState => {
+  const series = sdk.sdkUsageSeries.filter(
+    (usage) => usage.canonicalSdkName !== null,
+  );
+  const actionableCount = series.filter(isActionableSdkSeries).length;
+
+  return {
+    status:
+      sdk.status === "checking" || sdk.status === "error"
+        ? sdk.status
+        : series.length === 0
+          ? "no_data"
+          : actionableCount > 0
+            ? "legacy"
+            : "latest",
+    series,
+    actionableCount,
+  };
+};
+
+export type V4MigrationCustomInstrumentationSectionState = {
+  /** Every series here is an offender; the section hides when empty. */
+  series: V4MigrationSdkUsageSeries[];
+};
+
+export const getCustomInstrumentationSectionState = (
+  sdk: V4MigrationSdkState,
+): V4MigrationCustomInstrumentationSectionState => ({
+  series: sdk.sdkUsageSeries.filter(isCustomInstrumentationSeries),
+});
+
+export type V4MigrationOtelSectionState = {
+  /** All detected OTel exporter series, delayed ones sorted first. */
+  series: V4MigrationSdkUsageSeries[];
+  delayedCount: number;
+};
+
+export const getOtelSectionState = (
+  sdk: V4MigrationSdkState,
+): V4MigrationOtelSectionState => {
+  const series = sdk.sdkUsageSeries.filter(isOtelExporterSeries);
+  return {
+    series,
+    delayedCount: series.filter((usage) => usage.hasDelayedOtelEvents === true)
+      .length,
   };
 };
 

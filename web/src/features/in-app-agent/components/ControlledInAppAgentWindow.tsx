@@ -67,6 +67,7 @@ export function ControlledInAppAgentWindow(
 ) {
   const router = useRouter();
   const {
+    activityByConversationId,
     conversations,
     error,
     hasMoreConversations,
@@ -81,6 +82,7 @@ export function ControlledInAppAgentWindow(
     messages,
     pendingToolApprovals,
     approveToolCall,
+    alwaysAllowToolCall,
     rejectToolCall,
     selectConversation,
     selectedConversationId,
@@ -178,6 +180,7 @@ export function ControlledInAppAgentWindow(
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
+      isSelectedConversationHydrating={isSelectedConversationHydrating}
       disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       quickActionContext={quickActionContext}
@@ -185,6 +188,7 @@ export function ControlledInAppAgentWindow(
       quickActionResetKey={quickActionResetKey}
       screenContextDescription={screenContextDescription}
       conversations={conversations}
+      activityByConversationId={activityByConversationId}
       hasMoreConversations={hasMoreConversations}
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
@@ -199,6 +203,7 @@ export function ControlledInAppAgentWindow(
       onSubmit={submit}
       executionUi={windowExecutionUi}
       onApproveToolCall={approveToolCall}
+      onAlwaysAllowToolCall={alwaysAllowToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}

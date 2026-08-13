@@ -13,12 +13,12 @@ const sdkSeries = (
   canonicalSdkName: "python" as const,
   publicKey: "pk-lf-python",
   count: 1,
+  eventsCount: 1,
   firstSeen: "2026-07-23T09:00:00Z",
   lastSeen: "2026-07-23T10:00:00Z",
   hasDelayedOtelEvents: false,
   attributionStatus: "attributed" as const,
   v4MigrationStatus: "compatible" as const,
-  upgradeCompleted: false,
   ...overrides,
 });
 
@@ -26,8 +26,6 @@ const getLoadedSdkState = (...sdkUsageSeries: ReturnType<typeof sdkSeries>[]) =>
   getV4MigrationSdkState({
     summary: {
       projectId: "project-1",
-      outdatedSdkUsageSeriesCount: 0,
-      delayedOtelIngestionSeriesCount: 0,
       experimentInstrumentationMigration: {
         status: "not_required",
         upgradePath: null,
@@ -96,20 +94,36 @@ describe("v4 migration SDK status", () => {
     });
   });
 
-  it("does not require action for an SDK series superseded by a clean upgrade", () => {
+  it("requires action when an outdated SDK was used within the lookback window", () => {
     expect(
       getLoadedSdkState(
         sdkSeries({
           sdkVersion: "4.6.9",
           v4MigrationStatus: "upgrade_required",
-          upgradeCompleted: true,
         }),
         sdkSeries(),
       ),
     ).toMatchObject({
-      status: "latest",
-      upgradeRequiredCount: 0,
+      status: "legacy",
+      upgradeRequiredCount: 1,
     });
+  });
+
+  it("keeps custom-instrumentation traffic action-needed despite a compatible SDK", () => {
+    expect(
+      getLoadedSdkState(
+        sdkSeries(),
+        sdkSeries({
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          canonicalSdkName: null,
+          publicKey: "pk-lf-custom",
+          attributionStatus: "missing_name_and_version",
+          v4MigrationStatus: "unknown",
+          hasDelayedOtelEvents: null,
+        }),
+      ),
+    ).toMatchObject({ status: "unknown" });
   });
 
   it("keeps a recognized SDK with an invalid version unknown", () => {

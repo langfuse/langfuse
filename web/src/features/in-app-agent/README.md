@@ -26,10 +26,10 @@ Closing the drawer detaches observation without cancelling the worker run.
 - `schema.ts`: runtime-neutral AG-UI schemas and types shared by browser, server, persistence, replay, and rendering, including Langfuse-owned human-in-the-loop wire contracts.
 - `server/agent.ts`: Mastra/Bedrock/MCP runtime setup, custom tool wiring, human-in-the-loop approval gates, AG-UI event normalization, and cleanup.
 - `server/human-in-the-loop.ts`: interrupt parsing and worker continuation
-  compatibility, plus unused request-scoped pending-approval helpers retained
-  until the shared-runtime cleanup.
+  compatibility.
 - `server/tools.ts`: custom agent tools with strict schemas and scoped, user-visible behavior.
-- `server/persistence.ts`: conversations, runs, events, canonical accumulation, replay, active-run locking, and stale-run recovery. Knows nothing about rendering.
+- `server/persistence.ts`: conversations, events, canonical accumulation, and replay. Knows nothing about rendering.
+- `server/runLifecycle.ts`: durable run creation, claiming, cancellation, terminal transitions, active-run locking, and reconciliation.
 - `lib/display.ts`: display-state recording, the render-time projection, and its
   wire serialization. Web-only; used by the browser and by the web server when
   it builds a conversation snapshot.
@@ -198,23 +198,24 @@ The in-app agent worker uses two run-scoped inputs when calling Langfuse MCP:
 - A temporary project-scoped API key marked as an in-app-agent key.
 - An optional server-generated tool override sent with `x-langfuse-in-app-agent-tool-override`.
 
-The API key authenticates the request and scopes it to the project. Without an override, in-app-agent keys are restricted to MCP tools annotated with `readOnlyHint: true`. When the user approves a single Langfuse MCP tool call, the worker creates a JSON override naming that one unprefixed MCP registry tool and passes it to the MCP route through the request header above.
+The API key authenticates the request and scopes it to the project. Without an override, in-app-agent keys are restricted to MCP tools annotated with `readOnlyHint: true`. With an override, the key may additionally call the named mutating tools. The worker builds the override from the current one-off approval and the conversation's stored grants. The parser also accepts the earlier singular `{"toolName":…}` shape so already-enqueued continuations remain executable during rollout.
 
 MCP registry behavior:
 
 - Normal project API keys can call all enabled MCP tools.
 - In-app-agent keys can call read-only tools directly when the tool has `readOnlyHint: true`.
-- In-app-agent keys need a valid tool override to call one non-read-only Langfuse MCP tool.
+- In-app-agent keys need a valid tool override to call named non-read-only Langfuse MCP tools.
 
 RBAC is the first gate for Langfuse MCP tools. Before a tool is exposed to the model, `server/tools.ts` checks the signed-in user's `projectRole` and `isAdmin` against the tool's required `ProjectScope` with `hasProjectAccess()`. That means the assistant never sees tools the user could not use manually in the product UI or APIs. Human approval is a second gate on top of RBAC for tools classified as `"approval"`: approval can allow one execution of a tool the user already has access to, but it does not widen the user's project permissions.
 
 Human approval is separate from the MCP tool override. Shared `server/tools.ts` classifies every Langfuse MCP tool in `IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES`, using unprefixed MCP registry names and either `"auto"` or `"approval"`. The web in-app-agent server test imports the MCP registry's `McpToolName` contract and verifies both type equality and runtime registry equality, so adding a Langfuse MCP tool requires an explicit in-app agent approval classification without making MCP bootstrap depend on the in-app agent.
 
-`IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES` is generated from that map by prefixing Langfuse MCP tools with `langfuse_` and adding local tools such as `IN_APP_AGENT_REDIRECT_TOOL_NAME`; docs MCP tools are auto-approved by the `langfuseDocs_` prefix. `server/agent.ts` marks every other tool with Mastra `requireApproval: true`. Mastra emits an interrupt, the browser asks the user, and the router records the decision for a durable worker continuation. `server/human-in-the-loop.ts` adapts Mastra's runtime interrupt payload into the Langfuse-owned `tool_approval_request` contract from `schema.ts`; the browser stores and forwards only that runtime-neutral shape.
+`server/tools.ts` turns that map into an `InAppAgentToolPolicy` with an `available` set for tools the model may see and an `autoApproved` set for tools that run without a prompt. `createInAppAgentToolPolicy()` intersects stored grants with current availability, so an unknown, deleted, reclassified, or now-out-of-role tool silently drops out. Local tools such as `IN_APP_AGENT_REDIRECT_TOOL_NAME` and the sandbox tools are always auto-approved; docs MCP tools are auto-approved by the `langfuseDocs_` prefix. `server/agent.ts` marks every other tool with Mastra `requireApproval: true`.
 
-The request-scoped pending-approval persistence helpers and their table are not
-used by background execution. The helpers remain temporarily for the following
-shared-runtime cleanup; the table remains for historical data compatibility.
+Conversation-scoped grants live in `InAppAgentConversation.alwaysAllowedTools`, holding server-prefixed names such as `langfuse_createDashboardWidget`. The prefix is part of the identity, so a stored grant cannot be mistaken for a same-named tool on another MCP surface; unprefixed entries are rejected when the policy is rebuilt. Grants are written inside the same locked transaction as the approval decision in `server/runLifecycle.ts`. A one-off `Approve` writes nothing there; only `Always approve` does. The worker rebuilds the policy from the column on every run rather than trusting enqueue-time authorization. Mastra emits an interrupt, the browser asks the user, and the router records the decision for a durable worker continuation. `server/human-in-the-loop.ts` adapts Mastra's runtime interrupt payload into the Langfuse-owned `tool_approval_request` contract from `schema.ts`; the browser stores and forwards only that runtime-neutral shape.
+
+The `InAppAgentPendingToolApproval` table is not used by background execution.
+It remains temporarily so existing rows and Prisma relations stay valid.
 
 Sandbox tools are separate from MCP authorization. When a sandbox provider is enabled, `server/tools.ts` adds local `read`, `write`, `edit`, and `bash` tools backed by the sandbox provider contract rather than the MCP registry.
 

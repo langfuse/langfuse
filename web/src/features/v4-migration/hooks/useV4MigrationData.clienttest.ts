@@ -52,7 +52,6 @@ const currentSdkSeries = {
   hasDelayedOtelEvents: true,
   attributionStatus: "attributed" as const,
   v4MigrationStatus: "compatible" as const,
-  upgradeCompleted: false,
 };
 
 describe("account v4 migration data", () => {
@@ -90,8 +89,6 @@ describe("account v4 migration data", () => {
         loadedQuery([
           {
             projectId: "project-1",
-            outdatedSdkUsageSeriesCount: 0,
-            delayedOtelIngestionSeriesCount: 0,
             experimentInstrumentationMigration: {
               status: "sdk_usage_inconclusive" as const,
               upgradePath: "sdk" as const,

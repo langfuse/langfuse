@@ -1,7 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { Separator } from "@/src/components/ui/separator";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import {
@@ -36,34 +35,34 @@ export const V4MigrationPanel = ({
         className,
       ])}
     >
-      <div className="bg-background">
-        <div className="flex min-h-11 w-full items-center justify-between gap-1 px-4 py-1">
-          <span className="text-sm font-bold">Update</span>
-          {showCloseButton && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setOpen(false)}
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+      <div className="flex min-h-11 w-full items-center justify-between gap-1 px-4 py-1">
+        <span className="text-sm font-bold">Update</span>
+        {showCloseButton && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setOpen(false)}
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto border-t">
-        <div className="bg-background sticky top-0 z-[1] px-4 pt-4">
+        <div className="px-4 pt-4">
           <V4MigrationHeaderContent
             key={project?.id}
             projectName={project?.name}
             projectId={project?.id}
-            onNavigate={() => setOpen(false)}
           />
-          <Separator className="mt-6" />
         </div>
 
         <div className="flex flex-col gap-6 px-4 pt-6 pb-16">
           <V4MigrationDetailsContent
+            // Keyed like the header: a project switch while the panel stays
+            // open remounts the content, so per-open analytics (the
+            // panel_checks_loaded fire-once ref) reset for the new project.
+            key={project?.id}
             onNavigate={() => setOpen(false)}
             projectId={project?.id}
           />

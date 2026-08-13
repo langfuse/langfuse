@@ -149,6 +149,7 @@ const run = async (
   // validator below enforces the >= 2 lower bound on the requested value)
   const depth = Math.min(requestedDepth, observationCount);
   const payloadBytes = params["payload-bytes"] as number;
+  const strideMs = params["stride-ms"] as number;
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
   const asyncParents = params["async-parents"] as boolean;
@@ -195,6 +196,12 @@ const run = async (
     throw new SeedError(
       `--payload-bytes must be between 0 and 50000000 (50 MB), got ${payloadBytes}`,
       "larger payloads exceed V8 string limits during generation",
+    );
+  }
+  if (strideMs < 0 || strideMs > 60_000) {
+    throw new SeedError(
+      `--stride-ms must be between 0 and 60000, got ${strideMs}`,
+      "pass e.g. --stride-ms 10 to spread starts one per 10ms",
     );
   }
   if (scoresPerNode < 0 || scoresPerNode > 100) {
@@ -294,6 +301,18 @@ const run = async (
           10 +
           jitter(ctx.seed, node.index, 80);
   }
+  // --stride-ms: flat strictly-increasing starts (start = index × stride) instead
+  // of the nested timing. Default nesting puts thousands of rows on the same
+  // millisecond, so which of them fall past a startTime-ordered row cap
+  // (MAX_OBSERVATIONS_PER_TRACE) is arbitrary; a stride makes chronological order
+  // equal index order, so the boundary is exact and reproducible.
+  // parentIndex < index keeps "child starts after its parent" intact.
+  if (strideMs > 0) {
+    for (const node of shape) {
+      startOffsets[node.index] = node.index * strideMs;
+    }
+  }
+
   const endOffsets = new Array<number>(shape.length).fill(0);
   for (let i = shape.length - 1; i >= 0; i--) {
     const node = shape[i];
@@ -703,6 +722,13 @@ export const traceTreeScenario: ScenarioDefinition = {
       type: "number",
       default: 25_000,
       description: "approx bytes for the root input payload (max 50 MB)",
+    },
+    {
+      flag: "stride-ms",
+      type: "number",
+      default: 0,
+      description:
+        "start each observation index × N ms after the trace start (unique, strictly increasing start times — makes a startTime-ordered observation cap boundary exact); 0 keeps the nested timing",
     },
     {
       flag: "payload-style",

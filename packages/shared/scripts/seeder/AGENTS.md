@@ -11,6 +11,7 @@ pnpm run seed -- list          # scenarios and flags (--json for machines)
 pnpm run seed -- trace-tree --observations 5000 --breadth 500 --v4
 pnpm run seed -- trace-tree --observations 12 --plain --v4  # SPAN/GENERATION/EVENT only (collapsed-by-default graph panel)
 pnpm run seed -- trace-tree --observations 12 --v4 --tags "Zebra,apple,Ärger"  # extra trace tags (alphabetical tag filter ordering)
+pnpm run seed -- trace-tree --observations 12000 --stride-ms 10 --v4  # more observations than the detail view loads; --stride-ms makes the startTime-ordered cap boundary exact (index < 10000 loads)
 pnpm run seed -- deep-chain --v4  # 1401 sequential generations in ONE parent chain (depth = count; LFE-10959 layout stress)
 pnpm run seed -- agent-timeline --turns 6 --v4  # realistic agent flow-with-loop over a timeline (graph view)
 pnpm run seed -- support-agent --v4 --id-prefix <hex>  # demo-grade handcrafted support-copilot run (videos/screenshots)
@@ -20,6 +21,7 @@ pnpm run seed -- session-shapes --shape media      # messages carrying @@@langfu
 pnpm run seed -- many-traces --count 100000 --days 14
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
+pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
 ```
 
 The last stdout line of a run is a JSON summary with `traceIds`,
