@@ -71,6 +71,12 @@ export const BlobStorageIntegrationContainer = ({
   const mut = api.blobStorageIntegration.update.useMutation({
     onSuccess: () => {
       utils.blobStorageIntegration.invalidate();
+      // A save otherwise completes silently: the form keeps the values the
+      // user just typed, so nothing on screen confirms the write landed.
+      showSuccessToast({
+        title: "Integration saved",
+        description: "Scheduled exports now use the updated configuration.",
+      });
     },
     onError: (error) => {
       showErrorToast("Failed to save integration", error.message);
@@ -84,6 +90,14 @@ export const BlobStorageIntegrationContainer = ({
   const mutRunNow = api.blobStorageIntegration.runNow.useMutation({
     onSuccess: () => {
       utils.blobStorageIntegration.invalidate();
+      showSuccessToast({
+        title: "Export queued",
+        description:
+          "The export runs in the background; the status above updates when it completes.",
+      });
+    },
+    onError: (error) => {
+      showErrorToast("Failed to start export", error.message);
     },
   });
   const mutValidate = api.blobStorageIntegration.validate.useMutation({
