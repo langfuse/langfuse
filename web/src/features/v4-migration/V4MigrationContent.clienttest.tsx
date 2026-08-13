@@ -360,6 +360,32 @@ describe("V4MigrationDetailsContent", () => {
     }
   });
 
+  it("rounds estimated API call counts and keeps positive usage visible", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/traces",
+        count: 56.5,
+        lastSeen: "2026-07-23T10:37:00Z",
+      },
+      {
+        endpoint: "GET /api/public/observations",
+        count: 4.5,
+        lastSeen: "2026-07-22T10:37:00Z",
+      },
+      {
+        endpoint: "GET /api/public/traces/{id}",
+        count: 1 / 3,
+        lastSeen: "2026-07-21T10:37:00Z",
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText(/57 calls · last seen/)).toBeInTheDocument();
+    expect(screen.getByText(/5 calls · last seen/)).toBeInTheDocument();
+    expect(screen.getByText(/1 call · last seen/)).toBeInTheDocument();
+  });
+
   it("collapses clean sections into one up-to-date summary", () => {
     mocks.migrationData.apis = { status: "loaded", count: 0 };
     mocks.migrationData.exports = { status: "loaded", count: 0 };
