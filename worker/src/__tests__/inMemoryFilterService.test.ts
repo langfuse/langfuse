@@ -936,6 +936,50 @@ describe("InMemoryFilterService", () => {
           fieldMapper,
         ),
       ).toBe(false);
+
+      // Array/object metadata values are stored in ClickHouse via
+      // JSON.stringify, not the array/object's own `.toString()` (which
+      // drops brackets for arrays and is useless for plain objects). The
+      // in-memory representation must match that stored string exactly, the
+      // same way it now does for null.
+      const dataWithStructuredMetadataValues = {
+        ...mockData,
+        metadata: {
+          ...mockData.metadata,
+          arrayField: [1, 2],
+          objectField: { a: 1 },
+        },
+      };
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithStructuredMetadataValues,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "arrayField",
+              operator: "starts with",
+              value: "[",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithStructuredMetadataValues,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "objectField",
+              operator: "contains",
+              value: '{"a":1}',
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
     });
 
     test("evaluates numberObject filters correctly", () => {

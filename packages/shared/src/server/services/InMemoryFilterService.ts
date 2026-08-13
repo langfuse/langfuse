@@ -341,12 +341,18 @@ export class InMemoryFilterService {
       return false;
     }
     const objectValue = record[key];
-    // A metadata value of JSON `null` is a present key, not an absent one —
-    // ClickHouse stores it as the literal string "null" (ingestion runs
-    // JSON.stringify on non-string metadata values), so render it the same
-    // way here instead of falling back to "" via `null?.toString()`.
+    // Mirror the ClickHouse-side representation exactly: ingestion stores a
+    // metadata value as `typeof value === "string" ? value : JSON.stringify(value)`
+    // (see convertRecordValuesToString). `.toString()` diverges from that for
+    // null ("" via `null?.toString()` vs. the stored "null"), arrays ("1,2"
+    // vs. the stored "[1,2]"), and plain objects ("[object Object]" vs. the
+    // stored '{"a":1}').
     const stringValue =
-      objectValue === null ? "null" : (objectValue?.toString() ?? "");
+      typeof objectValue === "string"
+        ? objectValue
+        : objectValue === undefined
+          ? ""
+          : JSON.stringify(objectValue);
     return this.evaluateStringFilter(stringValue, filterValue, operator);
   }
 
