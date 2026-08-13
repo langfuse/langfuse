@@ -16,6 +16,21 @@ export interface RunStats {
   distinctOutputCount: number;
 }
 
+/** JSON.stringify with recursively sorted object keys so semantically equal
+ * values normalize identically regardless of key insertion order. */
+const stableStringify = (value: unknown): string => {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([key, val]) => `${JSON.stringify(key)}:${stableStringify(val)}`);
+  return `{${entries.join(",")}}`;
+};
+
 const toolCallSignature = (name: string, args: unknown): string => {
   if (args && typeof args === "object" && !Array.isArray(args)) {
     const keys = Object.keys(args as Record<string, unknown>).sort();
@@ -28,7 +43,7 @@ const normalizeOutput = (run: PlaygroundRunResult): string => {
   const content = run.content.trim().replace(/\s+/g, " ");
   const toolCalls = run.toolCalls
     .map((toolCall) =>
-      JSON.stringify({ name: toolCall.name, args: toolCall.args }),
+      stableStringify({ name: toolCall.name, args: toolCall.args }),
     )
     .sort()
     .join("|");

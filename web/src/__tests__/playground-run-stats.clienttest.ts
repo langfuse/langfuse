@@ -72,6 +72,23 @@ describe("computeRunStats", () => {
     expect(stats.distinctOutputCount).toBe(2);
   });
 
+  it("treats argument key order as irrelevant when counting distinct outputs", () => {
+    const stats = computeRunStats([
+      completedRun(0, {
+        toolCalls: [
+          { id: "a", name: "generate_deal", args: { amount: 1, installments: 3 } },
+        ],
+      }),
+      completedRun(1, {
+        toolCalls: [
+          { id: "b", name: "generate_deal", args: { installments: 3, amount: 1 } },
+        ],
+      }),
+    ]);
+
+    expect(stats.distinctOutputCount).toBe(1);
+  });
+
   it("treats identical text with different tool calls as distinct outputs", () => {
     const stats = computeRunStats([
       completedRun(0, {

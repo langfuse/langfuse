@@ -522,12 +522,27 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           }
 
           // Keep the single-output state in sync with the first completed run
-          // so existing consumers (copy, add-to-messages, cache) keep working.
+          // so existing consumers (cache restore, output JSON) keep working.
+          // With tool calls, serialize the same shape as the single-run tools
+          // path so cache restoration preserves the tool-call cards.
           setOutput(firstCompleted.content);
           setOutputToolCalls(firstCompleted.toolCalls);
           if (firstCompleted.reasoning)
             setOutputReasoning(firstCompleted.reasoning);
-          response = firstCompleted.content;
+          response =
+            firstCompleted.toolCalls.length > 0
+              ? JSON.stringify(
+                  {
+                    content: firstCompleted.content,
+                    tool_calls: firstCompleted.toolCalls,
+                    ...(firstCompleted.reasoning
+                      ? { reasoning: firstCompleted.reasoning }
+                      : {}),
+                  },
+                  null,
+                  2,
+                )
+              : firstCompleted.content;
         } else if (tools.length > 0) {
           const completion = await getChatCompletionWithTools(
             projectId,

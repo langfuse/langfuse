@@ -32,9 +32,54 @@ export const GenerationOutput = () => {
     runs,
   } = usePlaygroundContext();
 
+  const isMultiRun = runs.length > 1;
+  const [activeRunIndex, setActiveRunIndex] = useState(0);
+  const isRunning = runs.some((run) => run.status === "running");
+
+  // While executing, follow the most recently settled run so the carousel
+  // shows progress without requiring interaction; once the batch finishes,
+  // reset to the first run so review always starts from the beginning.
+  const wasRunningRef = useRef(false);
+  useEffect(() => {
+    if (isRunning) {
+      const lastSettled = runs.reduce(
+        (latest, run, index) => (run.status !== "running" ? index : latest),
+        0,
+      );
+      setActiveRunIndex(lastSettled);
+    } else if (wasRunningRef.current) {
+      setActiveRunIndex(0);
+    }
+    wasRunningRef.current = isRunning;
+  }, [runs, isRunning]);
+
+  // Copy and add-to-messages always act on what is visible: the active
+  // carousel run during repeated submissions, the legacy single output
+  // otherwise.
+  const activeRun = isMultiRun
+    ? runs[Math.min(activeRunIndex, runs.length - 1)]
+    : undefined;
+  const visibleContent = activeRun ? activeRun.content : output;
+  const visibleToolCalls = activeRun ? activeRun.toolCalls : outputToolCalls;
+
   const handleCopy = () => {
     setIsCopied(true);
-    const textToCopy = isJson ? outputJson : output;
+    const textToCopy = activeRun
+      ? isJson
+        ? JSON.stringify(
+            {
+              content: activeRun.content,
+              ...(activeRun.toolCalls.length > 0
+                ? { tool_calls: activeRun.toolCalls }
+                : {}),
+            },
+            null,
+            2,
+          )
+        : activeRun.content
+      : isJson
+        ? outputJson
+        : output;
     copyTextToClipboard(textToCopy);
     setTimeout(() => setIsCopied(false), 1000);
   };
@@ -42,17 +87,17 @@ export const GenerationOutput = () => {
   const handleAddAssistantMessage = () => {
     setIsAdded(true);
     const newMessage =
-      outputToolCalls.length > 0
+      visibleToolCalls.length > 0
         ? addMessage({
             type: ChatMessageType.AssistantToolCall,
             role: ChatMessageRole.Assistant,
-            content: output,
-            toolCalls: outputToolCalls,
+            content: visibleContent,
+            toolCalls: visibleToolCalls,
           })
         : addMessage({
             type: ChatMessageType.AssistantText,
             role: ChatMessageRole.Assistant,
-            content: output,
+            content: visibleContent,
           });
     // Scroll the appended row into view without stealing focus: this is a
     // programmatic add from the Output panel, so unlike the Add-message button
@@ -75,7 +120,7 @@ export const GenerationOutput = () => {
   const plusIcon = <Plus className="h-2 w-2" />;
 
   const copyButton =
-    output || outputToolCalls.length ? (
+    output || outputToolCalls.length || isMultiRun ? (
       <div className="absolute top-2 right-3 flex space-x-1 opacity-50">
         <Button
           size="icon"
@@ -92,7 +137,7 @@ export const GenerationOutput = () => {
           size="icon"
           variant="secondary"
           onClick={!isCopied ? handleCopy : undefined}
-          title="Copy output"
+          title={isMultiRun ? "Copy active run" : "Copy output"}
         >
           {isCopied ? checkIcon : copyIcon}
         </Button>
@@ -101,7 +146,11 @@ export const GenerationOutput = () => {
           className="flex items-center gap-1 p-0 px-1 whitespace-nowrap"
           variant="secondary"
           onClick={!isAdded ? handleAddAssistantMessage : undefined}
-          title="Add as assistant message"
+          title={
+            isMultiRun
+              ? "Add active run as assistant message"
+              : "Add as assistant message"
+          }
           disabled={isAdded}
         >
           {isAdded ? checkIcon : plusIcon}
@@ -123,8 +172,12 @@ export const GenerationOutput = () => {
           </div>
         </div>
         <div className="px-4">
-          {runs.length > 1 ? (
-            <MultiRunOutput runs={runs} />
+          {isMultiRun ? (
+            <MultiRunOutput
+              runs={runs}
+              activeIndex={activeRunIndex}
+              onNavigate={setActiveRunIndex}
+            />
           ) : (
             <>
               {outputReasoning && !isJson && (
@@ -154,29 +207,21 @@ export const GenerationOutput = () => {
  * Output panel for repeated ("Run xN") submissions: a carousel over the runs
  * (one run visible at a time, prev/next navigation) preceded by deterministic
  * consistency stats (counts, frequencies, and latency distribution only).
+ * Navigation state lives in the parent so copy/add actions target the run
+ * that is currently visible.
  */
-const MultiRunOutput = ({ runs }: { runs: PlaygroundRunResult[] }) => {
+const MultiRunOutput = ({
+  runs,
+  activeIndex,
+  onNavigate,
+}: {
+  runs: PlaygroundRunResult[];
+  activeIndex: number;
+  onNavigate: (index: number) => void;
+}) => {
   const stats = useMemo(() => computeRunStats(runs), [runs]);
-  const [activeIndex, setActiveIndex] = useState(0);
   const isRunning = runs.some((run) => run.status === "running");
   const activeRun = runs[Math.min(activeIndex, runs.length - 1)];
-
-  // While executing, follow the most recently settled run so the carousel
-  // shows progress without requiring interaction; once the batch finishes,
-  // reset to the first run so review always starts from the beginning.
-  const wasRunningRef = useRef(false);
-  useEffect(() => {
-    if (isRunning) {
-      const lastSettled = runs.reduce(
-        (latest, run, index) => (run.status !== "running" ? index : latest),
-        0,
-      );
-      setActiveIndex(lastSettled);
-    } else if (wasRunningRef.current) {
-      setActiveIndex(0);
-    }
-    wasRunningRef.current = isRunning;
-  }, [runs, isRunning]);
 
   if (!activeRun) return null;
 
@@ -186,7 +231,7 @@ const MultiRunOutput = ({ runs }: { runs: PlaygroundRunResult[] }) => {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <span className="font-bold">
             {stats.completedCount}/{stats.totalCount} runs completed
-            {stats.errorCount > 0 ? ` \u00b7 ${stats.errorCount} failed` : ""}
+            {stats.errorCount > 0 ? ` · ${stats.errorCount} failed` : ""}
           </span>
           {stats.latency && (
             <span className="text-muted-foreground">
@@ -220,7 +265,7 @@ const MultiRunOutput = ({ runs }: { runs: PlaygroundRunResult[] }) => {
               variant="ghost"
               className="h-5 w-5"
               disabled={activeIndex === 0}
-              onClick={() => setActiveIndex((prev) => Math.max(prev - 1, 0))}
+              onClick={() => onNavigate(Math.max(activeIndex - 1, 0))}
               title="Previous run"
             >
               <ChevronLeft className="h-3 w-3" />
@@ -234,7 +279,7 @@ const MultiRunOutput = ({ runs }: { runs: PlaygroundRunResult[] }) => {
               className="h-5 w-5"
               disabled={activeIndex >= runs.length - 1}
               onClick={() =>
-                setActiveIndex((prev) => Math.min(prev + 1, runs.length - 1))
+                onNavigate(Math.min(activeIndex + 1, runs.length - 1))
               }
               title="Next run"
             >
