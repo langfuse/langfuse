@@ -13,7 +13,6 @@ import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
 import {
   getVisibleSessionObservations,
-  normalizeSessionObservationsResponse,
   SESSION_CARD_OBSERVATIONS_NOTICE_COUNT,
 } from "@/src/components/session/sessionVisibleObservations";
 import {
@@ -292,8 +291,6 @@ export const TraceEventsRow = React.memo(
       | ObservationsResponse
       | { observations?: ObservationsResponse }
       | undefined;
-    const observations = normalizeSessionObservationsResponse(observationsData);
-
     // Opens the trace peek AT the observation (the session page's peek config
     // mirrors row.observationId into the ?observation= param; the annotation
     // queue's openPeek opens the trace page in a new tab instead).
@@ -304,14 +301,8 @@ export const TraceEventsRow = React.memo(
       [openPeek, trace],
     );
     const visibleObservationState = React.useMemo(
-      () =>
-        observations
-          ? getVisibleSessionObservations(observations, trace.id)
-          : {
-              visibleObservations: undefined,
-              hasMoreObservations: false,
-            },
-      [observations, trace.id],
+      () => getVisibleSessionObservations(observationsData, trace.id),
+      [observationsData, trace.id],
     );
     const { visibleObservations, hasMoreObservations } =
       visibleObservationState;
@@ -432,8 +423,7 @@ export const TraceEventsRow = React.memo(
                   </p>
                 )}
               </div>
-            ) : observations &&
-              observations.length === 0 &&
+            ) : visibleObservations?.length === 0 &&
               filterState.length === 0 ? (
               // No filter and the trace genuinely has no observations.
               <div className="text-muted-foreground p-2 text-xs">

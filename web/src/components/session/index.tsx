@@ -1367,6 +1367,9 @@ const LoadedSessionEventsPage: React.FC<{
     getItemKey: (index) => traces?.[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
+  const modernSessionTraces = isTracesSuccess
+    ? ({ state: "loaded", data: traces ?? [] } as const)
+    : ({ state: "loading" } as const);
 
   return (
     <SessionDetailStoreProvider store={sessionDetailStore}>
@@ -1559,36 +1562,29 @@ const LoadedSessionEventsPage: React.FC<{
           }
         >
           {isModernSessionEnabled ? (
-            <ModernSessionHeader
+            <SessionMetadataJsonPathControl
+              key={`${projectId}:${sessionId}`}
               projectId={projectId}
-              countTraces={session.countTraces}
-              traces={
-                isTracesSuccess
-                  ? { state: "loaded", data: traces ?? [] }
-                  : { state: "loading" }
-              }
-              tokensIn={session.inputUsage}
-              tokensOut={session.outputUsage}
-              totalTokens={session.totalTokens}
-              totalCost={session.totalCost ?? 0}
-              environment={session.environment ?? null}
-              users={session.users ?? []}
-              trailingContent={
-                <SessionMetadataJsonPathControl
-                  key={`${projectId}:${sessionId}`}
+              sessionId={sessionId}
+              traces={modernSessionTraces}
+              filterState={visibleFilterState}
+            >
+              {(metadataJsonPaths) => (
+                <ModernSessionHeader
                   projectId={projectId}
-                  sessionId={sessionId}
-                  traces={
-                    isTracesSuccess
-                      ? { state: "loaded", data: traces ?? [] }
-                      : { state: "loading" }
-                  }
-                  filterState={visibleFilterState}
-                  filterKey={visibleFilterMeasurementKey}
+                  countTraces={session.countTraces}
+                  traces={modernSessionTraces}
+                  tokensIn={session.inputUsage}
+                  tokensOut={session.outputUsage}
+                  totalTokens={session.totalTokens}
+                  totalCost={session.totalCost ?? 0}
+                  environment={session.environment ?? null}
+                  users={session.users ?? []}
+                  metadataJsonPaths={metadataJsonPaths}
+                  scores={session.scores}
                 />
-              }
-              scores={session.scores}
-            />
+              )}
+            </SessionMetadataJsonPathControl>
           ) : null}
           {!isModernSessionEnabled && hasSessionControls ? (
             <SessionControlsBar

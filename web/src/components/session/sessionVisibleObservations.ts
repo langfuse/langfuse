@@ -21,26 +21,26 @@ const observationHasIO = (
   observation: Pick<SessionObservationVisibilityFields, "input" | "output">,
 ): boolean => hasContent(observation.input) || hasContent(observation.output);
 
-export const normalizeSessionObservationsResponse = <TObservation>(
+export const getVisibleSessionObservations = <
+  TObservation extends SessionObservationVisibilityFields,
+>(
   response:
     | readonly TObservation[]
     | { observations?: readonly TObservation[] }
     | undefined,
-): readonly TObservation[] | undefined =>
-  Array.isArray(response)
+  traceId: string,
+): {
+  visibleObservations: readonly TObservation[] | undefined;
+  hasMoreObservations: boolean;
+} => {
+  const observations = Array.isArray(response)
     ? response
     : (response as { observations?: readonly TObservation[] } | undefined)
         ?.observations;
+  if (!observations) {
+    return { visibleObservations: undefined, hasMoreObservations: false };
+  }
 
-export const getVisibleSessionObservations = <
-  TObservation extends SessionObservationVisibilityFields,
->(
-  observations: readonly TObservation[],
-  traceId: string,
-): {
-  visibleObservations: readonly TObservation[];
-  hasMoreObservations: boolean;
-} => {
   const syntheticTraceRowId = `t-${traceId}`;
   let realCount = 0;
   let realShown = 0;
