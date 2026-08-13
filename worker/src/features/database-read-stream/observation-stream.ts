@@ -29,6 +29,7 @@ import {
   eventsTracesScoresAggregation,
   toLevelAgnosticScoreFilter,
   scoreBooleansAggregation,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -53,6 +54,9 @@ type ObservationStreamProps = {
   // BatchExportQuerySchema). When true, read from the ClickHouse events table
   // instead of the legacy observations/traces tables.
   useEventsTable?: boolean;
+  // Absent means "ReadWrite": batch actions must keep reading the primary so
+  // their enumeration matches the snapshot the UI selection was built from.
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 export const getObservationStream = async (
@@ -280,7 +284,7 @@ export const getObservationStream = async (
     },
     clickhouseConfigs,
     tags: { projectId },
-    preferredClickhouseService: "ReadOnly",
+    preferredClickhouseService: props.preferredClickhouseService,
   });
 
   // Helper function to process a single observation row
