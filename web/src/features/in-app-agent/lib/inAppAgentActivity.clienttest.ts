@@ -5,6 +5,7 @@ import { InAppAgentRunStatus } from "@langfuse/shared";
 import {
   getInAppAgentActivityKey,
   getInAppAgentPendingNotificationCards,
+  hasInFlightInAppAgentActivity,
   markInAppAgentActivityDelivered,
   markInAppAgentConversationHandled,
   mergeInAppAgentReceipts,
@@ -226,5 +227,42 @@ describe("in-app agent activity receipts", () => {
     ]);
     expect(afterOpen.activityByConversationId.get("c1")).toBeUndefined();
     expect(afterOpen.attentionCount).toBe(0);
+  });
+
+  it("keeps the activity poll alive only while a run is still executing", () => {
+    expect(
+      hasInFlightInAppAgentActivity([
+        conversation(
+          "parked",
+          latestRun({
+            id: "parked-run",
+            status: InAppAgentRunStatus.AWAITING_APPROVAL,
+          }),
+        ),
+      ]),
+    ).toBe(false);
+    expect(
+      hasInFlightInAppAgentActivity([
+        conversation(
+          "queued",
+          latestRun({ id: "queued-run", status: InAppAgentRunStatus.QUEUED }),
+        ),
+      ]),
+    ).toBe(true);
+    expect(
+      hasInFlightInAppAgentActivity([
+        conversation(
+          "live",
+          latestRun({ id: "live-run", status: InAppAgentRunStatus.RUNNING }),
+        ),
+        conversation(
+          "parked",
+          latestRun({
+            id: "parked-run",
+            status: InAppAgentRunStatus.AWAITING_APPROVAL,
+          }),
+        ),
+      ]),
+    ).toBe(true);
   });
 });

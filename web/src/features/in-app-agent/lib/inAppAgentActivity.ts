@@ -370,12 +370,19 @@ export function getInAppAgentPendingNotificationCards(params: {
   );
 }
 
-export function hasUnsettledInAppAgentActivity(
+/**
+ * The activity poll only needs to tick while the server can still change a
+ * run on its own. Parked approvals wait on the user; `refetchOnWindowFocus`
+ * is enough if another tab decides them.
+ */
+export function hasInFlightInAppAgentActivity(
   conversations: readonly InAppAgentActivityConversation[],
 ): boolean {
-  return conversations.some(
-    (conversation) =>
-      conversation.latestRun != null &&
-      isUnsettledInAppAgentRunStatus(conversation.latestRun.status),
-  );
+  return conversations.some((conversation) => {
+    const status = conversation.latestRun?.status;
+    return (
+      status === InAppAgentRunStatus.QUEUED ||
+      status === InAppAgentRunStatus.RUNNING
+    );
+  });
 }

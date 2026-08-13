@@ -5,7 +5,7 @@ import {
   IN_APP_AGENT_ACTIVITY_LIST_LIMIT,
   getInAppAgentActivityReceiptsStorageKey,
   getInAppAgentDeliveredReceiptsStorageKey,
-  hasUnsettledInAppAgentActivity,
+  hasInFlightInAppAgentActivity,
   markInAppAgentActivityDelivered,
   markInAppAgentConversationHandled,
   mergeInAppAgentReceipts,
@@ -64,7 +64,7 @@ export function useInAppAgentActivity(params: {
     {
       enabled: pollEnabled,
       refetchInterval: (query) =>
-        hasUnsettledInAppAgentActivity(query.state.data?.conversations ?? [])
+        hasInFlightInAppAgentActivity(query.state.data?.conversations ?? [])
           ? ACTIVITY_POLL_INTERVAL_MS
           : false,
       refetchIntervalInBackground: false,
