@@ -40,16 +40,20 @@ export const BlobStorageIntegrationForm = ({
   isSaving,
   onSubmit,
   children,
+  destructiveAction,
 }: {
   initialValues: BlobStorageFormValues;
   exportSourceCtx: ExportSourceContext;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
   isSaving: boolean;
   onSubmit: (values: BlobStorageIntegrationFormSchema) => void;
-  // Entity-scoped action buttons (Validate / Run Now / Reset) rendered by
-  // the container next to Save — they act on the persisted entity, not on
-  // this draft.
+  // Entity-scoped action buttons (Validate / Run Now) rendered by the
+  // container next to Save — they act on the persisted entity, not on this
+  // draft.
   children?: ReactNode;
+  // Entity-scoped destructive action (Reset). Separated from the other
+  // actions in the bar below so it cannot be hit while reaching for Save.
+  destructiveAction?: ReactNode;
 }) => {
   // Block the save when the persisted source is no longer selectable rather
   // than silently rewriting it (LFE-10296). The policy context is fixed for
@@ -79,47 +83,48 @@ export const BlobStorageIntegrationForm = ({
 
   return (
     <Form {...blobStorageForm}>
-      <form
-        className="space-y-3"
-        onSubmit={blobStorageForm.handleSubmit(onSubmit)}
-      >
-        <StorageProviderFields control={control} />
-        <ExportScheduleFields control={control} />
-        <ExportSourceField
-          control={control}
-          persistedExportSource={persistedExportSource}
-          exportSourceCtx={exportSourceCtx}
-        />
-        <ExportFieldGroupsField control={control} />
-        <GzipCompressionField control={control} />
-        <FormField
-          control={control}
-          name="enabled"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Enabled</FormLabel>
-              <FormControl>
-                <div className="mt-1 ml-4">
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      <form onSubmit={blobStorageForm.handleSubmit(onSubmit)}>
+        <div className="space-y-3">
+          <StorageProviderFields control={control} />
+          <ExportScheduleFields control={control} />
+          <ExportSourceField
+            control={control}
+            persistedExportSource={persistedExportSource}
+            exportSourceCtx={exportSourceCtx}
+          />
+          <ExportFieldGroupsField control={control} />
+          <GzipCompressionField control={control} />
+          <FormField
+            control={control}
+            name="enabled"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Enabled</FormLabel>
+                <FormControl>
+                  <div className="mt-1 ml-4">
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        {/* Action bar. Inside the form so Save is a real submit button:
+            keyboard submit works and the draft has a single submit path. */}
+        <div className="mt-8 flex items-center gap-2 border-t pt-4">
+          <Button type="submit" loading={isSaving}>
+            Save
+          </Button>
+          {children}
+          {destructiveAction ? (
+            <div className="ml-auto">{destructiveAction}</div>
+          ) : null}
+        </div>
       </form>
-      <div className="mt-8 flex gap-2">
-        <Button
-          loading={isSaving}
-          onClick={blobStorageForm.handleSubmit(onSubmit)}
-        >
-          Save
-        </Button>
-        {children}
-      </div>
     </Form>
   );
 };

@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
+import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -38,6 +39,8 @@ export const BlobStorageIntegrationContainer = ({
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { project } = useQueryProject();
+  const [runNowConfirmOpen, setRunNowConfirmOpen] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   // Policy context for the export-source selector; the policy itself lives in
   // export-source-policy.ts. null integrationCreatedAt = new row.
@@ -131,6 +134,28 @@ export const BlobStorageIntegrationContainer = ({
       persistedExportSource={config?.exportSource}
       isSaving={mut.isPending}
       onSubmit={handleSubmit}
+      destructiveAction={
+        <ConfirmDialog
+          open={resetConfirmOpen}
+          onOpenChange={setResetConfirmOpen}
+          trigger={
+            <Button
+              variant="destructive-secondary"
+              loading={mutDelete.isPending}
+              disabled={!config}
+            >
+              Reset
+            </Button>
+          }
+          title="Reset blob storage integration?"
+          description="This deletes the blob storage configuration for this project and stops all scheduled exports. Files already written to your bucket are not removed."
+          confirmLabel="Reset integration"
+          onConfirm={() => {
+            mutDelete.mutate({ projectId });
+            setResetConfirmOpen(false);
+          }}
+        />
+      }
     >
       <Button
         variant="secondary"
@@ -143,37 +168,28 @@ export const BlobStorageIntegrationContainer = ({
       >
         Validate
       </Button>
-      <Button
-        variant="secondary"
-        loading={mutRunNow.isPending}
-        disabled={!config?.enabled}
-        title="Trigger an immediate export of all data since the last sync"
-        onClick={() => {
-          if (
-            confirm(
-              "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
-            )
-          )
-            mutRunNow.mutate({ projectId });
+      <ConfirmDialog
+        open={runNowConfirmOpen}
+        onOpenChange={setRunNowConfirmOpen}
+        trigger={
+          <Button
+            variant="secondary"
+            loading={mutRunNow.isPending}
+            disabled={!config?.enabled}
+            title="Trigger an immediate export of all data since the last sync"
+          >
+            Run Now
+          </Button>
+        }
+        title="Run export now?"
+        description="This exports all data since the last sync to your blob storage."
+        confirmLabel="Run now"
+        confirmVariant="default"
+        onConfirm={() => {
+          mutRunNow.mutate({ projectId });
+          setRunNowConfirmOpen(false);
         }}
-      >
-        Run Now
-      </Button>
-      <Button
-        variant="ghost"
-        loading={mutDelete.isPending}
-        disabled={!config}
-        onClick={() => {
-          if (
-            confirm(
-              "Are you sure you want to reset the Blob Storage integration for this project?",
-            )
-          )
-            mutDelete.mutate({ projectId });
-        }}
-      >
-        Reset
-      </Button>
+      />
     </BlobStorageIntegrationForm>
   );
 };

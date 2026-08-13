@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   BlobStorageIntegrationFileType,
@@ -37,6 +38,7 @@ const ui = (
   key: string,
   initialValues: BlobStorageFormValues,
   onSubmit: (values: unknown) => void = () => {},
+  slots?: { children?: ReactNode; destructiveAction?: ReactNode },
 ) => (
   <TooltipProvider>
     <BlobStorageIntegrationForm
@@ -46,7 +48,10 @@ const ui = (
       persistedExportSource={null}
       isSaving={false}
       onSubmit={onSubmit}
-    />
+      destructiveAction={slots?.destructiveAction}
+    >
+      {slots?.children}
+    </BlobStorageIntegrationForm>
   </TooltipProvider>
 );
 
@@ -171,5 +176,53 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
       }),
       expect.anything(),
     );
+  });
+});
+
+describe("BlobStorageIntegrationForm action bar", () => {
+  it("Save is the form's submit button, so a native form submit saves the draft", async () => {
+    const onSubmit = vi.fn();
+    render(
+      ui(
+        "p1:new",
+        buildBlobStorageFormValues(undefined, exportSourceCtx),
+        onSubmit,
+      ),
+    );
+
+    fireEvent.change(bucketInput(), { target: { value: "my-new-bucket" } });
+
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toHaveAttribute("type", "submit");
+
+    // Submitting the form itself (e.g. Enter in a text field) must save,
+    // which only works while Save lives inside the <form>.
+    fireEvent.submit(save.closest("form")!);
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps the destructive action out of the Save/secondary action group", () => {
+    render(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+        () => {},
+        {
+          children: <button type="button">Validate</button>,
+          destructiveAction: <button type="button">Reset</button>,
+        },
+      ),
+    );
+
+    const save = screen.getByRole("button", { name: "Save" });
+    const validate = screen.getByRole("button", { name: "Validate" });
+    const reset = screen.getByRole("button", { name: "Reset" });
+
+    // Save and the secondary actions share the action bar directly; the
+    // destructive action is wrapped in its own separated slot.
+    expect(validate.parentElement).toBe(save.parentElement);
+    expect(reset.parentElement).not.toBe(save.parentElement);
+    expect(reset.parentElement).toHaveClass("ml-auto");
   });
 });
