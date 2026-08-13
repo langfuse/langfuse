@@ -833,9 +833,12 @@ describe("DataTableControls facet fold", () => {
   });
 
   // The fold preference is session-scoped and (without a provider) shares one
-  // key across tests.
+  // key across tests; the used-facet recency map is localStorage-backed the
+  // same way. (Guarded: this vitest environment lacks localStorage on some
+  // Node versions, where the hook falls back to plain state.)
   beforeEach(() => {
     sessionStorage.clear();
+    globalThis.localStorage?.clear?.();
     captureSpy.mockClear();
   });
 
@@ -945,6 +948,47 @@ describe("DataTableControls facet fold", () => {
     expect(
       screen.queryByRole("button", { name: /Show \d+ more/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps a facet the user has filtered on visible after the filter clears", () => {
+    const withReleaseActive = [
+      categoricalFilter("environment", "Environment", false),
+      categoricalFilter("release", "Release", true),
+      categoricalFilter("name", "Name", false),
+      categoricalFilter("version", "Version", false),
+    ];
+    const { rerender } = render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter(CATALOG, ["environment", "name"])}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.queryByText("Release")).not.toBeInTheDocument();
+
+    // A filter lands on Release: it surfaces and is recorded as used.
+    rerender(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter(withReleaseActive, ["environment", "name"])}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("Release")).toBeInTheDocument();
+
+    // Clearing the filter no longer folds it away: a used facet stays
+    // visible, and the fold count only covers the never-used tail.
+    rerender(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter(CATALOG, ["environment", "name"])}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("Release")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Show 1 more" }),
+    ).toBeInTheDocument();
   });
 
   it("expand-all expands only the facets on screen while folded", () => {

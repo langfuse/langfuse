@@ -290,17 +290,26 @@ export function DataTableControls({
   );
   const commonFacetSet = new Set(queryFilter.commonFacets ?? []);
   const facetFoldEnabled = commonFacetSet.size > 0 && !showOnlyActive;
+  // Facet-usage recency: every facet the user has filtered on, on this table,
+  // in this browser (localStorage; written by the activity effect below).
+  // Feeds the "Add filter" dropdown's ordering, and keeps used facets out of
+  // the fold — once someone filters on a facet, it stays visible for them.
+  const [recentColumns, setRecentColumns] = useLocalStorage<
+    Record<string, number>
+  >(`${storagePrefix}-recent-facets`, EMPTY_RECENCY);
   // Two groups, both in settled order: the top group is the curated common
-  // set plus the SETTLED promoted block; everything else is the tail.
-  // Expanding APPENDS the tail below the top group (never interleaves it
-  // back into catalog order), so the facets already on screen keep their
-  // exact positions when the button is clicked. Group membership uses the
-  // settled promotion — not the live one — so a facet activated in place
-  // stays in place until the next settle. A live-active tail
-  // facet still never hides: when folded it renders at the end of the top
-  // group, right above the button.
+  // set, every facet this user has ever filtered on, and the SETTLED promoted
+  // block; everything else is the tail. Expanding APPENDS the tail below the
+  // top group (never interleaves it back into catalog order), so the facets
+  // already on screen keep their exact positions when the button is clicked.
+  // Group membership uses the settled promotion — not the live one — so a
+  // facet activated in place stays in place until the next settle. A
+  // live-active tail facet still never hides: when folded it renders at the
+  // end of the top group, right above the button.
   const inTopFoldGroup = (filter: UIFilter) =>
-    commonFacetSet.has(filter.column) || facetOrder.promoted.has(filter.column);
+    commonFacetSet.has(filter.column) ||
+    recentColumns[filter.column] !== undefined ||
+    facetOrder.promoted.has(filter.column);
   const topFoldGroup = facetFoldEnabled
     ? displayedFilters.filter(inTopFoldGroup)
     : displayedFilters;
@@ -323,11 +332,6 @@ export function DataTableControls({
     queryFilter.expanded.includes(filter.column),
   );
 
-  // Facet-usage recency, feeding the "Add filter" dropdown's ordering so the
-  // filters someone actually uses on this table surface first.
-  const [recentColumns, setRecentColumns] = useLocalStorage<
-    Record<string, number>
-  >(`${storagePrefix}-recent-facets`, EMPTY_RECENCY);
   const addableFilters = showOnlyActive
     ? orderedFilters
         .filter(
