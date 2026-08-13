@@ -455,12 +455,25 @@ describe("Mixpanel sender — SSRF connect-time pinning", () => {
     );
   }, 40_000);
 
-  // No-regression control for Mixpanel. An IP-literal host is used because the
-  // connect-time DNS hook does not fire for literals, so the very same client
-  // and payload DO reach the server. This proves the block above is the IP
-  // policy acting on the resolved name, not a broken client or a dead harness.
-  // It does NOT model a whitelisted public host — MixpanelClient exposes no
-  // whitelist seam; the shared whitelist semantics are covered by O4 above.
+  // No-regression control for Mixpanel — read the scope carefully before
+  // treating this as criterion-#4 coverage.
+  //
+  // WHAT IT PROVES: the client's whole send path still works through
+  // fetchWithSecureRedirects — gzip request body, the secure-outbound
+  // dispatcher, and response handling — and that the block asserted above is
+  // the IP policy acting on the resolved name, not a broken client or a dead
+  // harness. An IP literal is used because the connect-time DNS `lookup` hook
+  // never fires for literals (the same fact O5 relies on), so the send lands.
+  //
+  // WHAT IT DOES NOT PROVE: that a legitimate DNS-NAMED host still delivers.
+  // That is NOT covered for Mixpanel. The whitelist here is necessarily empty:
+  // MixpanelClient passes `whitelistFromEnv()`, which reads SHARED's env
+  // (LANGFUSE_WEBHOOK_WHITELISTED_*), while this file's `vi.mock("../env")`
+  // only replaces the WORKER env — so there is no seam to whitelist a test
+  // host, and none was added on purpose. Proof that the whitelist is empty is
+  // behavioural: the `localhost` send in the test above was blocked, which a
+  // whitelisted host would not be. The whitelist semantics themselves are
+  // covered against the shared infra by O4.
   it("sends successfully when the connect-time DNS hook does not fire (IP literal)", async () => {
     let requestCount = 0;
     const { nameUrl } = await startLoopbackServer(
