@@ -17,20 +17,27 @@
  * the shared secure-outbound egress under a strict whitelist stands in for a
  * public host that resolves to a blocked/loopback IP.
  *
- * WHY the PostHog test models the TOCTOU the way it does:
- *   The current handler validates the configured host as a *string* (via
- *   validateWebhookURL) and then sends over an UNPINNED fetch. So a loopback
- *   host is already rejected at validate time — that is NOT the gap. The gap
- *   is the connect-time re-resolution. This suite neutralises the string
- *   validator (models "the host validated as public") and points the send at a
- *   loopback address (models "it resolves to a blocked IP at connect"). Only a
- *   connect-time-pinned fetch blocks it; a validate-only fix leaves it RED,
- *   which is correct per criterion #1.
+ * WHY THESE TESTS ARE SHAPED THIS WAY (do not "simplify" this):
+ *   Both senders validate the configured host as a *string* first, so a
+ *   statically-blocked host is rejected at validate time — that is NOT the gap
+ *   this fix closes, and a test pointed at such a host would pass even without
+ *   connect-time pinning. The gap is the connect-time re-resolution. So each
+ *   fix-detector neutralises the pre-fetch defense (models "the host validated
+ *   as public") and points the send at a `localhost` NAME, whose connect-time
+ *   lookup re-resolves to 127.0.0.1 (models "it rebinds to a blocked IP at
+ *   connect"). Only connect-time pinning blocks that; a validate-only fix
+ *   leaves these RED, which is correct per criterion #1.
  *
- * See the SPEC-AMBIGUITY notes in the test-author report for why the Mixpanel
- * *client* cannot be driven to a loopback host infra-free (hardcoded
- * `*.mixpanel.com`, no injection seam) — its egress path is pinned here only
- * as a shared-infra oracle (O2), not against the real client.
+ *   PostHog: the string validator (validateWebhookURL) is mocked to a no-op.
+ *   Mixpanel: driven through the test-only `baseUrl` seam on
+ *   MixpanelClientConfig (production still defaults to
+ *   https://<region>.mixpanel.com).
+ *
+ * NON-VACUITY: "no egress" assertions are only meaningful if the harness would
+ * otherwise have been reached. The Mixpanel test therefore fires a bare global
+ * fetch — the pre-fix send path — at the exact URL the client targets and
+ * asserts it lands; and it asserts the terminal error is caused BY the SSRF
+ * block, so an unrelated early throw cannot fake a pass.
  */
 import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
@@ -76,7 +83,8 @@ afterEach(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// PostHog handler suite — RED until the fix lands.
+// PostHog handler suite — the fix-detector (was RED pre-fix: the export
+// reached the loopback server, the job resolved, and the cursor advanced).
 // posthog-node is intentionally NOT mocked: the real SDK issues the real send
 // through the handler's own outbound fetch, so connect-time pinning (or its
 // absence) is exercised end to end, including the handler's error mapping.
@@ -155,6 +163,11 @@ vi.mock("../env", () => ({
   env: {
     LANGFUSE_MIGRATION_V4_WRITE_MODE: "legacy",
     LANGFUSE_POSTHOG_FLUSH_DELAY_MS: 0,
+    // Real defaults (worker/src/env.ts). The timeout must be present, else the
+    // Mixpanel abort timer fires at ~0ms and masks the SSRF block with a
+    // spurious timeout error.
+    LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: 0,
+    LANGFUSE_MIXPANEL_TIMEOUT_MS: 30_000,
   },
   v4WritesToLegacyTables: (e: { LANGFUSE_MIGRATION_V4_WRITE_MODE: string }) =>
     e.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only",
@@ -169,6 +182,8 @@ import {
   createSecureOutboundLookup,
   fetchWithSecureRedirects,
 } from "@langfuse/shared/src/server";
+import { MixpanelClient } from "../features/mixpanel/mixpanelClient";
+import type { MixpanelEvent } from "../features/mixpanel/transformers";
 
 function makeJob() {
   return {
@@ -188,7 +203,7 @@ function causeChainIncludes(error: unknown, needle: string): boolean {
   return false;
 }
 
-describe("PostHog integration project job — SSRF connect-time pinning (RED until fixed)", () => {
+describe("PostHog integration project job — SSRF connect-time pinning", () => {
   beforeEach(() => {
     h.posthogIntegrationUpdate.mockClear();
     h.db.integration = h.integration();
@@ -369,4 +384,101 @@ describe("shared secure-outbound egress contract (oracle for the fix)", () => {
       ),
     ).rejects.toMatchObject({ name: "RedirectValidationError" });
   });
+});
+
+// ---------------------------------------------------------------------------
+// Mixpanel sender — mirror of the PostHog fix-detector.
+//
+// Driven through the `baseUrl` seam (test-only override of the Mixpanel API
+// origin; production still defaults to https://<region>.mixpanel.com). The
+// send goes through the shared connect-time-pinned egress, so pointing it at a
+// `localhost` NAME makes the connect-time lookup re-resolve to 127.0.0.1 and
+// block — the same validate-public / connect-private rebind the PostHog
+// detector models.
+//
+// NON-VACUITY: `requestCount === 0` only means something if the server would
+// otherwise have been reached. Each test therefore first fires a bare global
+// fetch at the exact URL the client targets — that IS the pre-fix Mixpanel
+// path — and asserts it lands. So these tests would be RED against the
+// pre-fix bare-`fetch` sender.
+// ---------------------------------------------------------------------------
+describe("Mixpanel sender — SSRF connect-time pinning", () => {
+  const addOneEvent = (client: MixpanelClient) =>
+    client.addEvent({
+      event: "trace",
+      properties: { token: "t", distinct_id: "1", $insert_id: 1 },
+    } as unknown as MixpanelEvent);
+
+  it("rejects a validated host that connects to a blocked IP, before egress and terminally", async () => {
+    let requestCount = 0;
+    const { nameUrl, port } = await startLoopbackServer(
+      () => {
+        requestCount++;
+      },
+      (res) => res.end("{}"),
+    );
+
+    // Negative control: the pre-fix path (bare global fetch) reaches the
+    // server, so a later count of 0 proves the pinning blocked it rather than
+    // the harness being unreachable.
+    await fetch(`http://localhost:${port}/import?strict=1`, {
+      method: "POST",
+      body: "[]",
+    });
+    expect(requestCount).toBe(1);
+
+    const client = new MixpanelClient({
+      projectToken: "t",
+      region: "api",
+      baseUrl: nameUrl,
+    });
+    addOneEvent(client);
+
+    let thrown: unknown;
+    try {
+      await client.flush();
+    } catch (error) {
+      thrown = error;
+    }
+
+    // Criterion #1: the pinned send never reached the socket — no new hits
+    // beyond the control request above.
+    expect(requestCount).toBe(1);
+    // Criterion #3: terminal failure (BullMQ suppresses retries).
+    expect(thrown).toBeDefined();
+    expect(isUnrecoverableError(thrown)).toBe(true);
+    // The terminal error must be caused BY the SSRF block. Without this, an
+    // unrelated UnrecoverableError thrown before any send attempt would
+    // satisfy both assertions above while pinning did nothing.
+    expect(causeChainIncludes(thrown, "Blocked IP address detected")).toBe(
+      true,
+    );
+  }, 40_000);
+
+  // No-regression control for Mixpanel. An IP-literal host is used because the
+  // connect-time DNS hook does not fire for literals, so the very same client
+  // and payload DO reach the server. This proves the block above is the IP
+  // policy acting on the resolved name, not a broken client or a dead harness.
+  // It does NOT model a whitelisted public host — MixpanelClient exposes no
+  // whitelist seam; the shared whitelist semantics are covered by O4 above.
+  it("sends successfully when the connect-time DNS hook does not fire (IP literal)", async () => {
+    let requestCount = 0;
+    const { nameUrl } = await startLoopbackServer(
+      () => {
+        requestCount++;
+      },
+      (res) => res.end("{}"),
+    );
+
+    const client = new MixpanelClient({
+      projectToken: "t",
+      region: "api",
+      baseUrl: nameUrl.replace("localhost", "127.0.0.1"),
+    });
+    addOneEvent(client);
+
+    await client.flush();
+
+    expect(requestCount).toBeGreaterThan(0);
+  }, 40_000);
 });
