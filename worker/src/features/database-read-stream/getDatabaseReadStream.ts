@@ -369,11 +369,12 @@ export const getDatabaseReadStreamPaginated = async ({
             clickhouseConfigs,
             // Inert today: batch export routes observations to
             // getObservationStream, and batch actions pass no service. Before
-            // routing an observations export through here, parameterize
-            // getObservationsTableWithModelData and getScoresForObservations
-            // below — they still read the primary, so a replica name list could
-            // lag behind their rows and getChunkWithFlattenedScores would
-            // silently drop score columns.
+            // routing an observations export through here, parameterize both
+            // other ClickHouse reads in this case
+            // (getObservationsTableWithModelData and getScoresForObservations).
+            // They still read the primary, and score values read there while
+            // this name list comes from a replica would make
+            // getChunkWithFlattenedScores drop columns silently.
             preferredClickhouseService,
           });
 
@@ -452,10 +453,11 @@ export const getDatabaseReadStreamPaginated = async ({
             clickhouseConfigs,
             // Inert today: batch export routes traces to getTraceStream, and
             // batch actions pass no service. Before routing a traces export
-            // through here, parameterize getTracesTable and getScoresForTraces
-            // below — they still read the primary, so a replica name list could
-            // lag behind their rows and getChunkWithFlattenedScores would
-            // silently drop score columns.
+            // through here, parameterize every other ClickHouse read in this
+            // case — there are four, two of them hidden inside the Promise.all
+            // below. They all still read the primary, and score values read
+            // there while this name list comes from a replica would make
+            // getChunkWithFlattenedScores drop columns silently.
             preferredClickhouseService,
           });
           emptyScoreColumns = distinctScoreNames.reduce(

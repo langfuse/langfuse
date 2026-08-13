@@ -544,8 +544,7 @@ type GetDatasetRunItemsTableOpts<IncludeIO extends boolean> =
   DatasetRunItemsTableQuery & {
     select: "count" | "rows";
     includeIO?: IncludeIO;
-    // No default: absent means "ReadWrite". Kept off DatasetRunItemsTableQuery
-    // so only the wrapper that batch export calls can pass it.
+    // Absent means "ReadWrite": only batch export opts into the read replica.
     preferredClickhouseService?: PreferredClickhouseService;
   };
 
@@ -916,8 +915,11 @@ const getDatasetRunItemsTableInternal = async <
 
 export const getDatasetRunItemsCh = async (
   opts: DatasetRunItemsTableQuery & {
-    // Batch export opts into the read replica here; the dataset run items UI
-    // and public API wrappers pass nothing and keep reading the primary.
+    // Export-only wrapper: batch export is its one production caller. The four
+    // sibling wrappers share the same internal query but cannot opt in, because
+    // this field is deliberately absent from DatasetRunItemsTableQuery. Moving
+    // it onto that shared type would put the UI and public API on the replica
+    // too.
     preferredClickhouseService?: PreferredClickhouseService;
   },
 ): Promise<DatasetRunItemDomain[]> => {

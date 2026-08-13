@@ -94,8 +94,7 @@ export const getSessionsWithMetrics = async (props: {
   limit?: number;
   page?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
-  // Batch export opts into the read replica here; the sessions UI table passes
-  // nothing and keeps reading the primary.
+  // Absent means "ReadWrite": only batch export opts into the read replica.
   preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const rows = await getSessionsTableGeneric<SessionWithMetricsReturnType>({
@@ -126,7 +125,7 @@ export type FetchSessionsTableProps = {
   page?: number;
   tags?: Record<string, string>;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
-  // No default: absent means "ReadWrite", which is what the UI needs.
+  // Absent means "ReadWrite": only batch export opts into the read replica.
   preferredClickhouseService?: PreferredClickhouseService;
 };
 

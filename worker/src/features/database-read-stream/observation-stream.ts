@@ -56,6 +56,9 @@ type ObservationStreamProps = {
   useEventsTable?: boolean;
   // Absent means "ReadWrite": batch actions must keep reading the primary so
   // their enumeration matches the snapshot the UI selection was built from.
+  // Ignored entirely when useEventsTable is set — that branch pins
+  // EventsReadOnly for both its row and its score-name read, because those two
+  // must resolve against the same service.
   preferredClickhouseService?: PreferredClickhouseService;
 };
 

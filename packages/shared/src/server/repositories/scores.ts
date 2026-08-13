@@ -1225,8 +1225,7 @@ export async function getScoresUiTable<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadataFlag?: IncludeHasMetadata;
-  // Batch export opts into the read replica here; the scores UI table passes
-  // nothing and keeps reading the primary.
+  // Absent means "ReadWrite": only batch export opts into the read replica.
   preferredClickhouseService?: PreferredClickhouseService;
 }) {
   const {
@@ -1315,7 +1314,7 @@ const getScoresUiGeneric = async <T>(props: {
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: boolean;
   includeHasMetadataFlag?: boolean;
-  // No default: absent means "ReadWrite", which is what the UI needs.
+  // Absent means "ReadWrite": only batch export opts into the read replica.
   preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<T[]> => {
   const {
