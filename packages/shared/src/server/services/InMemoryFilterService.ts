@@ -329,6 +329,13 @@ export class InMemoryFilterService {
 
     // Type assertion is safe here since we've checked typeof fieldValue === "object" above
     const objectValue = (fieldValue as Record<string, unknown>)[key];
+    if (objectValue === undefined) {
+      // The key does not exist on the object. Coalescing this to an empty
+      // string below would make e.g. `contains ""` incorrectly match rows
+      // that never had the key. Mirror the ClickHouse `mapContains` guard
+      // (PR #13369) and require the key to exist for every operator.
+      return false;
+    }
     const stringValue = objectValue?.toString() || "";
     return this.evaluateStringFilter(stringValue, filterValue, operator);
   }

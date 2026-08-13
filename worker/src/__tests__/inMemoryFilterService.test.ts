@@ -842,6 +842,41 @@ describe("InMemoryFilterService", () => {
           fieldMapper,
         ),
       ).toBe(true);
+
+      // A key that doesn't exist on the object must not match, even for an
+      // empty-string comparison value. Otherwise `contains ""` would match
+      // every row regardless of whether the key was ever set (LFE-15074).
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "missingKey",
+              operator: "contains",
+              value: "",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "missingKey",
+              operator: "=",
+              value: "",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
     });
 
     test("evaluates numberObject filters correctly", () => {

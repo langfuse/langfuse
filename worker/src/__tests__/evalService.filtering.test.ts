@@ -453,6 +453,47 @@ describe("test eval filtering", () => {
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
+  test("does not create eval job for a trace missing the metadata key when filtering on contains empty string", async ({
+    expect,
+    upsertTwoTraces,
+    configureDefaultJobWithSingleFilter,
+    createTwoEvalJobs,
+    getJobs,
+    traceId1,
+  }) => {
+    // trace1 has the "turn" metadata key, trace2 never had it set at all.
+    await upsertTwoTraces([
+      {
+        metadata: { turn: "1" },
+      },
+      {
+        metadata: {},
+      },
+    ]);
+
+    // "contains ''" on a metadata key should behave as a key-existence
+    // check, not match every trace regardless of whether the key was ever
+    // set (LFE-15074).
+    await configureDefaultJobWithSingleFilter({
+      type: "stringObject",
+      key: "turn",
+      value: "",
+      column: "metadata",
+      operator: "contains",
+    });
+
+    // No cachedTrace is passed here, so this exercises the database
+    // fallback query (legacy traces table Map-column filter), not the
+    // in-memory evaluator.
+    await createTwoEvalJobs();
+
+    const jobs = await getJobs();
+
+    expect(jobs.length).toBe(1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
+    expect(jobs[0].status.toString()).toBe("PENDING");
+  }, 10_000);
+
   test("creates eval job only for matching version", async ({
     expect,
     upsertTwoTraces,
