@@ -547,15 +547,15 @@ export function V4MigrationOtelSection({
       defaultOpen={defaultOpen}
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
-        OTel data is arriving through the delayed ingestion path. Set the{" "}
-        <MonoValue>x-langfuse-ingestion-version</MonoValue> header to{" "}
-        <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
-        ingestion.{" "}
+        Your OpenTelemetry data is using delayed ingestion. For real-time
+        ingestion, upgrade your integration or, if you use OpenTelemetry
+        directly, set <MonoValue>x-langfuse-ingestion-version: 4</MonoValue> on
+        your OTLP exporter.{" "}
         <ExternalLink
           href={OTEL_V4_MIGRATION_URL}
           analytics={{ section: "otel", link: "otel_migration_docs" }}
         >
-          OpenTelemetry migration guide
+          Migration guide
         </ExternalLink>
         .
       </p>

@@ -837,7 +837,11 @@ describe("V4MigrationDetailsContent", () => {
         screen.getByText("Update OTel Instrumentation").closest("button")!,
       ).getByText("1"),
     ).toBeInTheDocument();
-    expect(screen.getByText(/delayed ingestion path/)).toBeInTheDocument();
+    expect(
+      screen.getByText("x-langfuse-ingestion-version: 4").closest("p"),
+    ).toHaveTextContent(
+      "Your OpenTelemetry data is using delayed ingestion. For real-time ingestion, upgrade your integration or, if you use OpenTelemetry directly, set x-langfuse-ingestion-version: 4 on your OTLP exporter. Migration guide.",
+    );
     expect(screen.getByText("openlit 1.35.4")).toBeInTheDocument();
     expect(screen.getByText("· delayed")).toBeInTheDocument();
     expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
