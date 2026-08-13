@@ -1,6 +1,12 @@
 /**
- * SSRF connect-time pinning for the PostHog and Mixpanel analytics exporters
- * (LFE-14989).
+ * SSRF connect-time pinning for the PostHog and Mixpanel analytics exporters.
+ *
+ * Both senders used to validate the configured host once and then send over an
+ * unpinned fetch. That is a check-then-use (TOCTOU) gap: a host answering a
+ * public IP during validation can rebind to a private/loopback address by the
+ * time the socket connects, bypassing the SSRF check. Egress now runs through
+ * the shared connect-time-pinned secure-outbound infra, so every resolved IP is
+ * re-validated at connect.
  *
  * Contract under test (verbatim acceptance criteria):
  *   1. A host that validates as public but rebinds to a blocked IP at connect
@@ -230,6 +236,14 @@ describe("PostHog integration project job — SSRF connect-time pinning", () => 
     // Criterion #3: the job failed terminally (BullMQ suppresses retries).
     expect(thrown).toBeDefined();
     expect(isUnrecoverableError(thrown)).toBe(true);
+    // The terminal error must be caused BY the SSRF block. Without this, ANY
+    // UnrecoverableError raised anywhere before the first socket write would
+    // satisfy the three assertions above and the test would go vacuous. Asserts
+    // the cause-chain MESSAGE rather than an error class, so it survives
+    // changes to how the block is classified or wrapped.
+    expect(causeChainIncludes(thrown, "Blocked IP address detected")).toBe(
+      true,
+    );
     // The sync cursor must not advance on a blocked run.
     expect(h.posthogIntegrationUpdate).not.toHaveBeenCalled();
   }, 40_000);
