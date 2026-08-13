@@ -535,6 +535,7 @@ export default function ScoresTable({
       id: "source",
       enableHiding: true,
       enableSorting: true,
+      defaultHidden: true,
       size: 100,
     },
     {
@@ -542,6 +543,7 @@ export default function ScoresTable({
       header: "Level",
       id: "level",
       enableHiding: true,
+      defaultHidden: true,
       // Derived client-side from the score's context ids — not a sortable
       // backend column.
       enableSorting: false,
@@ -579,6 +581,7 @@ export default function ScoresTable({
       id: "environment",
       size: 150,
       enableHiding: true,
+      defaultHidden: true,
       loadingCell: <TableBadgeLoadingCell />,
       cell: ({ row }) => {
         const value = row.getValue("environment") as string | undefined;
