@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
   TQueueJobTypes,
@@ -10,6 +10,8 @@ import {
   getEventsForAnalyticsIntegrations,
   getCurrentSpan,
   validateWebhookURL,
+  recordIncrement,
+  dispatchProjectNotification,
 } from "@langfuse/shared/src/server";
 import {
   transformTraceForPostHog,
@@ -21,7 +23,21 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
+import { classifyCustomerFault } from "../integrations/customerFaultClassification";
 import { env, v4WritesToLegacyTables } from "../../env";
+
+// Counter for PostHog integrations auto-disabled after a deterministic
+// customer-config fault, tagged by `reason`. A classifier-regression
+// mass-disable shows up as a spike in the non-SSRF buckets vs a near-zero
+// baseline, separate from expected SSRF/abuse disables (mirrors blob's metric).
+export const POSTHOG_INTEGRATION_DISABLED_METRIC =
+  "langfuse.posthog.integration_disabled.count";
+
+// The integration can be deleted while a run is in flight; a row write racing
+// that delete throws P2025, which marks the job obsolete rather than failing it.
+const isRecordNotFoundError = (error: unknown): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2025";
 
 type PostHogExecutionConfig = {
   projectId: string;
@@ -258,65 +274,70 @@ export const handlePostHogIntegrationProjectJob = async (
     return;
   }
 
-  // Validate PostHog hostname to prevent SSRF attacks before sending data
   try {
-    await validateWebhookURL(postHogIntegration.posthogHostName);
-  } catch (error) {
-    logger.error(
-      `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
+    // Validate PostHog hostname to prevent SSRF attacks before sending data.
+    // Rewrap preserving { cause } so the single catch below can classify the
+    // OutboundUrlValidationError off the chain (LFE-14990).
+    try {
+      await validateWebhookURL(postHogIntegration.posthogHostName);
+    } catch (error) {
+      logger.error(
+        `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new Error(
+        `Invalid PostHog hostname for project ${projectId}: ${error instanceof Error ? error.message : "Unknown error"}`,
+        { cause: error },
+      );
+    }
+
+    // Resume from lastSyncAt. On first run, fall back to the project's
+    // createdAt since no trace data can precede it.
+    const minTimestamp =
+      postHogIntegration.lastSyncAt || postHogIntegration.project.createdAt;
+    const uncappedMaxTimestamp = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
+
+    // Cap maxTimestamp at the next UTC day boundary after minTimestamp. Bounds
+    // per-run work so a stuck integration (or a backfill on an older project)
+    // does not re-scan an ever-growing window on each hourly retry, and aligns
+    // with the toDate(...) ClickHouse partition/ordering keys for better
+    // pruning. Healthy integrations are unaffected because uncappedMaxTimestamp
+    // wins whenever the sync is within one day of present.
+    const nextDayBoundary = new Date(
+      Date.UTC(
+        minTimestamp.getUTCFullYear(),
+        minTimestamp.getUTCMonth(),
+        minTimestamp.getUTCDate() + 1,
+      ),
     );
-    throw new Error(
-      `Invalid PostHog hostname for project ${projectId}: ${error instanceof Error ? error.message : "Unknown error"}`,
+    const maxTimestamp = new Date(
+      Math.min(nextDayBoundary.getTime(), uncappedMaxTimestamp.getTime()),
     );
-  }
 
-  // Resume from lastSyncAt. On first run, fall back to the project's
-  // createdAt since no trace data can precede it.
-  const minTimestamp =
-    postHogIntegration.lastSyncAt || postHogIntegration.project.createdAt;
-  const uncappedMaxTimestamp = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
+    if (maxTimestamp <= minTimestamp) {
+      logger.info(
+        `[POSTHOG] Skipping PostHog integration for project ${projectId}: empty sync window (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
+      );
+      return;
+    }
 
-  // Cap maxTimestamp at the next UTC day boundary after minTimestamp. Bounds
-  // per-run work so a stuck integration (or a backfill on an older project)
-  // does not re-scan an ever-growing window on each hourly retry, and aligns
-  // with the toDate(...) ClickHouse partition/ordering keys for better
-  // pruning. Healthy integrations are unaffected because uncappedMaxTimestamp
-  // wins whenever the sync is within one day of present.
-  const nextDayBoundary = new Date(
-    Date.UTC(
-      minTimestamp.getUTCFullYear(),
-      minTimestamp.getUTCMonth(),
-      minTimestamp.getUTCDate() + 1,
-    ),
-  );
-  const maxTimestamp = new Date(
-    Math.min(nextDayBoundary.getTime(), uncappedMaxTimestamp.getTime()),
-  );
-
-  if (maxTimestamp <= minTimestamp) {
     logger.info(
-      `[POSTHOG] Skipping PostHog integration for project ${projectId}: empty sync window (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
+      `[POSTHOG] Syncing project ${projectId} from ${minTimestamp.toISOString()} to ${maxTimestamp.toISOString()}`,
     );
-    return;
-  }
 
-  logger.info(
-    `[POSTHOG] Syncing project ${projectId} from ${minTimestamp.toISOString()} to ${maxTimestamp.toISOString()}`,
-  );
+    // Fetch relevant data and send it to PostHog
+    const executionConfig: PostHogExecutionConfig = {
+      projectId,
+      projectName: postHogIntegration.project.name,
+      minTimestamp,
+      maxTimestamp,
+      decryptedPostHogApiKey: decrypt(
+        postHogIntegration.encryptedPosthogApiKey,
+      ),
+      postHogHost: postHogIntegration.posthogHostName,
+      useGraceHash: job.attemptsMade > 0,
+      volume: { bytes: 0 },
+    };
 
-  // Fetch relevant data and send it to PostHog
-  const executionConfig: PostHogExecutionConfig = {
-    projectId,
-    projectName: postHogIntegration.project.name,
-    minTimestamp,
-    maxTimestamp,
-    decryptedPostHogApiKey: decrypt(postHogIntegration.encryptedPosthogApiKey),
-    postHogHost: postHogIntegration.posthogHostName,
-    useGraceHash: job.attemptsMade > 0,
-    volume: { bytes: 0 },
-  };
-
-  try {
     // Fail loudly before exporting empty data and advancing lastSyncAt
     // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
     assertExportSourceWritable(
@@ -376,12 +397,16 @@ export const handlePostHogIntegrationProjectJob = async (
     throwIfPostHogSendError(executionConfig);
 
     // Update the last run information for the postHogIntegration record.
+    // Clear any prior error state so a fixed + re-enabled integration reads as
+    // healthy (LFE-14990).
     await prisma.posthogIntegration.update({
       where: {
         projectId,
       },
       data: {
         lastSyncAt: executionConfig.maxTimestamp,
+        lastError: null,
+        lastErrorAt: null,
       },
     });
     // Record gzipped on-wire export volume once the run has succeeded.
@@ -394,10 +419,107 @@ export const handlePostHogIntegrationProjectJob = async (
       `[POSTHOG] PostHog integration processing complete for project ${projectId}`,
     );
   } catch (error) {
-    logger.error(
-      `[POSTHOG] Error processing PostHog integration for project ${projectId}`,
-      error,
-    );
-    throw error;
+    // A deterministic customer-config fault (a bad/malicious hostname rejected
+    // by validateWebhookURL) can't succeed until the customer fixes it.
+    // Classify it, disable the integration, persist the error, notify once,
+    // and RESOLVE (return) — a throw would increment the BullMQ `type:failed`
+    // metric on every attempt and keep the Failures monitor lit for a fault
+    // that will never clear on its own (LFE-14990). Transient/infra faults
+    // stay on the retry+alert path unchanged.
+    const reason = classifyCustomerFault(error);
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (reason === undefined) {
+      logger.error(
+        `[POSTHOG] Error processing PostHog integration for project ${projectId}`,
+        error,
+      );
+      throw error;
+    }
+
+    try {
+      await prisma.posthogIntegration.update({
+        where: { projectId },
+        data: { lastError: message, lastErrorAt: new Date() },
+      });
+    } catch (persistError) {
+      if (isRecordNotFoundError(persistError)) {
+        // Integration deleted mid-run: nothing to persist, nobody to notify.
+        // Drop the obsolete job instead of retrying it.
+        logger.info(
+          `[POSTHOG] PostHog integration for project ${projectId} was deleted mid-run; dropping obsolete job after error: ${message}`,
+        );
+        return;
+      }
+      // Persisting failed for an infra reason (e.g. DB unavailable). Don't claim
+      // the customer fault as handled — rethrow so BullMQ retries and reclassifies.
+      logger.error(
+        `[POSTHOG] Failed to persist PostHog integration error for project ${projectId}`,
+        persistError,
+      );
+      throw persistError;
+    }
+
+    // Atomic disable: count === 1 means THIS worker flipped enabled true→false,
+    // so the terminal notification fires exactly once even if a concurrent run
+    // (distinct jobId, not queue-deduped) races the same fault.
+    const { count } = await prisma.posthogIntegration.updateMany({
+      where: { projectId, enabled: true },
+      data: { enabled: false },
+    });
+    if (count === 1) {
+      recordIncrement(POSTHOG_INTEGRATION_DISABLED_METRIC, 1, { reason });
+      logger.warn(
+        `[POSTHOG] Disabled PostHog integration for project ${projectId} after a customer fault (reason=${reason}): ${message}`,
+        { posthogDisableReason: reason, projectId },
+      );
+      notifyPostHogExportFailedInBackground(
+        projectId,
+        postHogIntegration.project.name,
+        postHogIntegration.posthogHostName,
+      );
+    }
+    return;
   }
 };
+
+// Fire-and-forget terminal "export disabled" notification. Under fail-fast the
+// disable is a one-time event won by the atomic enabled true→false flip, so
+// this is only ever called once (bypassing any cooldown, like blob's disabled
+// path). projectName/host are passed in rather than re-read from the DB — the
+// caller already holds them, and dispatch runs before the first await so the
+// notification is queued as part of resolving the job.
+function notifyPostHogExportFailedInBackground(
+  projectId: string,
+  projectName: string,
+  host: string,
+): void {
+  (async () => {
+    try {
+      const settingsPath = `/project/${projectId}/settings/integrations/posthog`;
+      await dispatchProjectNotification({
+        projectId,
+        event: {
+          eventType: "posthog-export-failed",
+          severity: "ALERT",
+          projectId,
+          projectName,
+          // The integration is keyed by projectId (1:1); the host is the most
+          // useful human label for the failing export destination.
+          resourceId: projectId,
+          resourceName: host || "PostHog integration",
+          message: `PostHog export disabled for project "${projectName}" after a configuration fault.`,
+          url: env.NEXTAUTH_URL
+            ? `${env.NEXTAUTH_URL}${settingsPath}`
+            : undefined,
+          disabled: true,
+        },
+      });
+    } catch (error) {
+      logger.error(
+        `[POSTHOG] Failed to send failure notification for project ${projectId}`,
+        error,
+      );
+    }
+  })();
+}
