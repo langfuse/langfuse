@@ -1,5 +1,12 @@
 import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  fetchWithSecureRedirects,
+  logger,
+  type RedirectUrlValidator,
+  validateWebhookURL,
+  type WebhookValidationWhitelist,
+  whitelistFromEnv,
+} from "@langfuse/shared/src/server";
 
 type AdminAccessWebhookPayload = {
   email: string;
@@ -10,47 +17,66 @@ type AdminAccessWebhookPayload = {
 };
 
 const DEDUPE_WINDOW_MS = 24 * 60 * 60_000;
-// A failed delivery hands its slot back early so the notification is not lost
-// for a full day, but not immediately: an admin session emits one event per
-// tRPC procedure call, and every one of them awaits this helper. Retrying each
-// of them against a dead endpoint would charge DELIVERY_TIMEOUT_MS to every
-// admin request, so failures stay suppressed for a short cooldown instead.
-const FAILED_DELIVERY_COOLDOWN_MS = 60_000;
 // Callers await this helper on user-facing request paths (tRPC procedures,
 // dashboard query streaming, trace export). Without a deadline, an
 // unresponsive webhook endpoint stalls those requests for as long as it takes
 // the connection to die, so cap every delivery attempt. Matches the deadline
 // the web callout sender applies to its own outbound requests.
 const DELIVERY_TIMEOUT_MS = 5_000;
-const suppressedUntilByKey = new Map<string, number>();
+const MAX_REDIRECTS = 10;
+const URL_VALIDATION_LOG_CONTEXT = "Admin access webhook";
+const lastWebhookByKey = new Map<string, number>();
 
 export const resetAdminAccessWebhookCacheForTests = () => {
-  suppressedUntilByKey.clear();
+  lastWebhookByKey.clear();
 };
 
-const getDedupeKey = (payload: AdminAccessWebhookPayload) =>
-  [payload.email, payload.project, payload.org].join(":");
-
-// Claims the delivery slot up front so concurrent callers collapse onto a
-// single delivery, and returns false while a recent delivery — or a recent
-// failed attempt — still suppresses this key. The claim is provisional:
-// `suppressAfterFailedDelivery` shortens it when delivery fails, so the full
-// 24h suppression only survives a webhook that was actually delivered.
-const claimDeliverySlot = (dedupeKey: string) => {
+const shouldSkipDueToRecentDuplicate = (payload: AdminAccessWebhookPayload) => {
+  const dedupeKey = [payload.email, payload.project, payload.org].join(":");
   const nowMs = Date.now();
-  const suppressedUntilMs = suppressedUntilByKey.get(dedupeKey);
+  const lastSentMs = lastWebhookByKey.get(dedupeKey);
 
-  if (suppressedUntilMs !== undefined && nowMs < suppressedUntilMs) {
-    return false;
+  if (lastSentMs && nowMs - lastSentMs < DEDUPE_WINDOW_MS) {
+    return true;
   }
 
-  suppressedUntilByKey.set(dedupeKey, nowMs + DEDUPE_WINDOW_MS);
-  return true;
+  lastWebhookByKey.set(dedupeKey, nowMs);
+  return false;
 };
 
-const suppressAfterFailedDelivery = (dedupeKey: string) => {
-  suppressedUntilByKey.set(dedupeKey, Date.now() + FAILED_DELIVERY_COOLDOWN_MS);
+// The endpoint is operator-configured (env var), not tenant-supplied, so
+// internal targets are legitimate here: self-hosted deployments whitelist them
+// via LANGFUSE_WEBHOOK_WHITELISTED_*, and local development gets localhost for
+// free, mirroring the web callout sender.
+const LOCAL_DEVELOPMENT_WHITELIST: WebhookValidationWhitelist = {
+  hosts: ["localhost", "127.0.0.1", "[::1]"],
+  ips: ["127.0.0.1", "::1"],
+  ip_ranges: ["127.0.0.0/8", "::1/128"],
 };
+
+const adminAccessWebhookWhitelist = (): WebhookValidationWhitelist => {
+  const whitelist = whitelistFromEnv();
+
+  if (env.NODE_ENV !== "development") {
+    return whitelist;
+  }
+
+  return {
+    hosts: [...whitelist.hosts, ...LOCAL_DEVELOPMENT_WHITELIST.hosts],
+    ips: [...whitelist.ips, ...LOCAL_DEVELOPMENT_WHITELIST.ips],
+    ip_ranges: [
+      ...whitelist.ip_ranges,
+      ...LOCAL_DEVELOPMENT_WHITELIST.ip_ranges,
+    ],
+  };
+};
+
+// Operator-configured receivers commonly listen on custom ports, so unlike
+// tenant-facing webhooks the port is unrestricted.
+const validateAdminAccessWebhookUrl: RedirectUrlValidator = (
+  url,
+  whitelist = adminAccessWebhookWhitelist(),
+) => validateWebhookURL(url, whitelist, { allowedPorts: "any" });
 
 export const sendAdminAccessWebhook = async (params: {
   email: string | null | undefined;
@@ -74,8 +100,7 @@ export const sendAdminAccessWebhook = async (params: {
     region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "self-hosted",
   };
 
-  const dedupeKey = getDedupeKey(payload);
-  if (!claimDeliverySlot(dedupeKey)) return;
+  if (shouldSkipDueToRecentDuplicate(payload)) return;
 
   // An explicit controller rather than `AbortSignal.timeout`, so the deadline
   // runs on the ambient `setTimeout` and stays observable to tests.
@@ -89,19 +114,36 @@ export const sendAdminAccessWebhook = async (params: {
   }, DELIVERY_TIMEOUT_MS);
 
   try {
-    const response = await fetch(env.LANGFUSE_ADMIN_ACCESS_WEBHOOK, {
-      method: "POST",
-      body: JSON.stringify(payload),
-      headers: {
-        "Content-Type": "application/json",
+    const whitelist = adminAccessWebhookWhitelist();
+    await validateAdminAccessWebhookUrl(
+      env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,
+      whitelist,
+    );
+
+    const { response } = await fetchWithSecureRedirects(
+      env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: abortController.signal,
       },
-      signal: abortController.signal,
-    });
+      {
+        maxRedirects: MAX_REDIRECTS,
+        redirectValidation: {
+          validateUrl: validateAdminAccessWebhookUrl,
+          whitelist,
+          logContext: URL_VALIDATION_LOG_CONTEXT,
+        },
+      },
+    );
+
+    // Release the pooled connection; the receiver's body is never used.
+    await response.body?.cancel().catch(() => {});
 
     if (!response.ok) {
-      // A rejected delivery must not suppress the next attempt for the full
-      // dedupe window.
-      suppressAfterFailedDelivery(dedupeKey);
       logger.warn("Failed to send admin access webhook", {
         status: response.status,
         statusText: response.statusText,
@@ -111,7 +153,6 @@ export const sendAdminAccessWebhook = async (params: {
       });
     }
   } catch (error) {
-    suppressAfterFailedDelivery(dedupeKey);
     logger.warn("Error while sending admin access webhook", {
       error,
       email: payload.email,
