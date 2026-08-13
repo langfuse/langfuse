@@ -322,8 +322,10 @@ afterAll(async () => {
 });
 
 describe("batch export read replica routing", () => {
-  // Load-bearing: without these two controls a green "no primary traffic"
-  // assertion could just mean the harness never observed anything.
+  // Load-bearing: without these controls a green "no traffic on service X"
+  // assertion could just mean the harness never observed anything. There is one
+  // control per service, so every sink is proven reachable before any test
+  // asserts a sink is empty.
   describe("harness controls", () => {
     it("records a default-routed query on the primary writer only", async () => {
       resetRecordings();
@@ -352,6 +354,25 @@ describe("batch export read replica routing", () => {
       expect(rows).toHaveLength(1);
       expect(primaryQueries()).toEqual([]);
       expect(harness.requests.readOnly.length).toBeGreaterThan(0);
+    });
+
+    // Without this, every `expect(eventsReplicaQueries()).toEqual([])` below
+    // would silently become a tautology if the env rewrite for
+    // CLICKHOUSE_EVENTS_READ_ONLY_URL ever stopped taking effect.
+    it("records an events-replica-routed query on the events replica only", async () => {
+      resetRecordings();
+
+      const rows = await queryClickhouse<{ x: number }>({
+        query: "SELECT 1 AS x",
+        params: {},
+        tags: {},
+        preferredClickhouseService: "EventsReadOnly",
+      });
+
+      expect(rows).toHaveLength(1);
+      expect(primaryQueries()).toEqual([]);
+      expect(harness.requests.readOnly).toEqual([]);
+      expect(harness.requests.eventsReadOnly.length).toBeGreaterThan(0);
     });
   });
 
@@ -455,6 +476,17 @@ describe("batch export read replica routing", () => {
       expect(eventsReplicaQueries()).toEqual([]);
       expect(harness.requests.readOnly.length).toBeGreaterThan(0);
     });
+
+    // Observations have their own dispatch branch in the job — they do not share
+    // the one scores, sessions and dataset run items go through — so without
+    // this test that branch's service forward is executed by nothing.
+    it("reads only from the read-only replica for an observations export", async () => {
+      await runExportJob(BatchExportTableName.Observations, null);
+
+      expect(primaryQueries()).toEqual([]);
+      expect(eventsReplicaQueries()).toEqual([]);
+      expect(harness.requests.readOnly.length).toBeGreaterThan(0);
+    });
   });
 
   // AC2: the same shared functions, called the way a UI/API request calls them
@@ -508,6 +540,40 @@ describe("batch export read replica routing", () => {
         offset: 0,
       });
 
+      expect(harness.requests.primary.length).toBeGreaterThan(0);
+      expect(replicaRequests()).toEqual([]);
+    });
+
+    // The two readers batch actions share with batch export. Batch actions pass
+    // no service because they enumerate a selection the user made against the
+    // primary, so "absent means the writer" is a contract these two owe their
+    // other caller — not an accident of the export not having been wired yet.
+    it("getObservationStream reads the primary when no service is passed", async () => {
+      resetRecordings();
+
+      const rows = await drain(
+        await getObservationStream({ projectId, cutoffCreatedAt, filter: [] }),
+      );
+
+      expect(rows).toHaveLength(2);
+      expect(harness.requests.primary.length).toBeGreaterThan(0);
+      expect(replicaRequests()).toEqual([]);
+    });
+
+    it("getDatabaseReadStreamPaginated reads the primary when no service is passed", async () => {
+      resetRecordings();
+
+      const rows = await drain(
+        await getDatabaseReadStreamPaginated({
+          projectId,
+          tableName: BatchExportTableName.Scores,
+          cutoffCreatedAt,
+          filter: [],
+          orderBy: EXPORT_ORDER_BY[BatchExportTableName.Scores],
+        }),
+      );
+
+      expect(rows).toHaveLength(2);
       expect(harness.requests.primary.length).toBeGreaterThan(0);
       expect(replicaRequests()).toEqual([]);
     });
