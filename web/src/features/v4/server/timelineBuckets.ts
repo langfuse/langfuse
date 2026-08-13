@@ -1,5 +1,3 @@
-import { Prisma } from "@langfuse/shared/src/db";
-
 export type ResolvedTimelineGranularity =
   | "minute"
   | "2m"
@@ -52,21 +50,6 @@ export const getTimelineBucketSql = (
   };
 
   return `toStartOfInterval(${sql}, INTERVAL ${intervalByGranularity[granularity]}, 'UTC')`;
-};
-
-export const getPostgresTimelineBucketExpression = (
-  sql: Prisma.Sql,
-  granularity: ResolvedTimelineGranularity,
-): Prisma.Sql => {
-  const intervalByGranularity: Record<ResolvedTimelineGranularity, string> = {
-    minute: "1 minute",
-    "2m": "2 minutes",
-    "5m": "5 minutes",
-    hour: "1 hour",
-    day: "1 day",
-  };
-
-  return Prisma.sql`date_bin(${intervalByGranularity[granularity]}::interval, ${sql}, '1970-01-01T00:00:00Z'::timestamptz)`;
 };
 
 export const floorTimelineBucket = (
