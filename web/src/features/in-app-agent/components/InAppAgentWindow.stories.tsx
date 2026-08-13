@@ -1042,7 +1042,7 @@ export const Streaming = meta.story({
   render: (args) => <StreamingInAppAgentWindow {...args} />,
 });
 
-export const LoadingResponse = meta.story({
+export const Working = meta.story({
   args: {
     isAssistantTurnInProgress: true,
     messages: [
@@ -1052,13 +1052,6 @@ export const LoadingResponse = meta.story({
         content: {
           type: "text",
           text: "Summarize recent ingestion errors.",
-        },
-      },
-      {
-        id: "assistant-1",
-        role: "assistant",
-        content: {
-          type: "loading",
         },
       },
     ],
@@ -1144,31 +1137,6 @@ export const LoadingAfterToolCall = meta.story({
               }),
             },
           ],
-        },
-      },
-    ],
-  },
-});
-
-export const Connecting = meta.story({
-  args: {
-    isAssistantTurnInProgress: true,
-    isConversationInteractionDisabled: true,
-    messages: [
-      {
-        id: "user-1",
-        role: "user",
-        content: {
-          type: "text",
-          text: "Summarize recent ingestion errors.",
-        },
-      },
-      {
-        id: "connecting",
-        role: "assistant",
-        content: {
-          type: "loading",
-          label: "Connecting...",
         },
       },
     ],
@@ -1310,11 +1278,6 @@ export const BackgroundRun = meta.story({
           text: "Summarize recent ingestion errors.",
         },
       },
-      {
-        id: "assistant-1",
-        role: "assistant",
-        content: { type: "loading" },
-      },
     ],
   },
 });
@@ -1330,11 +1293,6 @@ export const BackgroundRunStops = meta.story({
           type: "text",
           text: "Summarize recent ingestion errors.",
         },
-      },
-      {
-        id: "assistant-1",
-        role: "assistant",
-        content: { type: "loading" },
       },
     ],
   },

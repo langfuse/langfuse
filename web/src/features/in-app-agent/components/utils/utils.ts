@@ -539,46 +539,6 @@ export function getDrawerMessages({
     });
   }
 
-  const latestUserMessageIndex = mappedMessages.findLastIndex(
-    (message) => message.role === "user",
-  );
-  const latestAssistantMessageIndex = mappedMessages.findLastIndex(
-    (message, index) =>
-      index > latestUserMessageIndex && message.role === "assistant",
-  );
-  const latestAssistantMessage = mappedMessages[latestAssistantMessageIndex];
-
-  // Insert an optimistic loading message.
-  if (
-    isRunning &&
-    !error &&
-    latestUserMessageIndex >= 0 &&
-    latestAssistantMessage?.content.type !== "text" &&
-    latestAssistantMessage?.content.type !== "loading" &&
-    latestAssistantMessage?.content.type !== "reasoning" &&
-    latestAssistantMessage?.content.type !== "redirectAction"
-  ) {
-    if (latestAssistantMessage?.content.type === "toolGroup") {
-      return mappedMessages;
-    }
-
-    const hasAssistantAnswer = mappedMessages.some(
-      (message) =>
-        message.role === "assistant" && message.content.type === "text",
-    );
-
-    return [
-      ...mappedMessages,
-      {
-        id: hasAssistantAnswer ? "loading" : "connecting",
-        role: "assistant",
-        content: hasAssistantAnswer
-          ? { type: "loading" }
-          : { type: "loading", label: "Connecting..." },
-      } satisfies InAppAgentWindowMessage,
-    ];
-  }
-
   return mappedMessages;
 }
 

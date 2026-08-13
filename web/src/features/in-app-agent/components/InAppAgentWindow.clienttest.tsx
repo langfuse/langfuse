@@ -469,6 +469,70 @@ describe("InAppAgentWindow scrolling", () => {
   });
 });
 
+describe("InAppAgentWindow activity", () => {
+  it("shows a working status instead of connecting or thinking message blobs", () => {
+    render(
+      windowElement({
+        isAssistantTurnInProgress: true,
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "Summarize recent errors." },
+          },
+          {
+            id: "connecting",
+            role: "assistant",
+            content: { type: "loading", label: "Connecting..." },
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByRole("status", { name: "Working…" })).toBeVisible();
+    expect(screen.queryByText("Connecting...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Thinking...")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Working…" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("labels a completed turn with compact minutes and leftover seconds", () => {
+    render(
+      windowElement({
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "Investigate latency" },
+          },
+          {
+            id: "assistant-reasoning",
+            timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "Checking the slow traces.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-conclusion",
+            runId: "run-1",
+            timestamp: new Date("2026-08-06T15:29:55.000Z").getTime(),
+            role: "assistant",
+            content: { type: "text", text: "The reranker is the bottleneck." },
+          },
+        ],
+      }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Worked for 3m 29s" }),
+    ).toBeVisible();
+  });
+});
+
 describe("InAppAgentWindow message actions", () => {
   it("shows actions only for the final answer and copies that text block", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -511,7 +575,7 @@ describe("InAppAgentWindow message actions", () => {
     const finalAnswer = {
       id: "assistant-conclusion",
       runId: "run-1",
-      timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+      timestamp: new Date("2026-08-06T15:27:17.204Z").getTime(),
       role: "assistant" as const,
       content: {
         type: "text" as const,

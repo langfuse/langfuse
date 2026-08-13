@@ -39,10 +39,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
-import {
-  formatApproximateDuration,
-  formatIntervalSeconds,
-} from "@/src/utils/dates";
+import { formatApproximateDuration } from "@/src/utils/dates";
 import {
   InAppAgentMessage,
   type InAppAgentMessageContent,
@@ -59,6 +56,7 @@ import {
   type InAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
+import messageStyles from "./InAppAgentMessage.module.css";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -277,9 +275,12 @@ function buildConversationDisplayItems(
   isAssistantTurnInProgress: boolean,
 ): ConversationDisplayItem[] {
   const items: ConversationDisplayItem[] = [];
+  const visibleMessages = messages.filter(
+    (message) => message.content.type !== "loading",
+  );
 
-  for (let index = 0; index < messages.length; ) {
-    const message = messages[index];
+  for (let index = 0; index < visibleMessages.length; ) {
+    const message = visibleMessages[index];
     if (!message) {
       break;
     }
@@ -295,12 +296,16 @@ function buildConversationDisplayItems(
     }
 
     const turnStartIndex = index;
-    while (index < messages.length && messages[index]?.role === "assistant") {
+    while (
+      index < visibleMessages.length &&
+      visibleMessages[index]?.role === "assistant"
+    ) {
       index++;
     }
 
-    const turnMessages = messages.slice(turnStartIndex, index);
-    const isInProgress = isAssistantTurnInProgress && index === messages.length;
+    const turnMessages = visibleMessages.slice(turnStartIndex, index);
+    const isInProgress =
+      isAssistantTurnInProgress && index === visibleMessages.length;
     let finalAnswerIndex = -1;
     if (!isInProgress) {
       for (
@@ -319,7 +324,7 @@ function buildConversationDisplayItems(
       finalAnswerIndex === -1
         ? turnMessages
         : turnMessages.slice(0, finalAnswerIndex);
-    const followsUser = messages[turnStartIndex - 1]?.role === "user";
+    const followsUser = visibleMessages[turnStartIndex - 1]?.role === "user";
 
     if (activityMessages.length > 0) {
       items.push({
@@ -348,7 +353,39 @@ function buildConversationDisplayItems(
     }
   }
 
+  if (isAssistantTurnInProgress && items.at(-1)?.type === "user") {
+    items.push({
+      type: "activity",
+      messages: [],
+      followsUser: true,
+      isInProgress: true,
+    });
+  }
+
   return items;
+}
+
+function formatWorkedDuration(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    const parts = [`${hours}h`];
+    if (minutes > 0) {
+      parts.push(`${minutes}m`);
+    }
+    if (seconds > 0) {
+      parts.push(`${seconds}s`);
+    }
+    return parts.join(" ");
+  }
+
+  if (minutes > 0) {
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+
+  return `${totalSeconds}s`;
 }
 
 function AssistantActivityGroup({
@@ -362,40 +399,61 @@ function AssistantActivityGroup({
   isInProgress: boolean;
   messages: InAppAgentWindowMessage[];
 }) {
+  const hasDetails = messages.length > 0;
   const [userToggled, setUserToggled] = useState<boolean | null>(null);
-  const isOpen = userToggled ?? isInProgress;
+  const isOpen = hasDetails && (userToggled ?? isInProgress);
   const startTimestamp = messages.find(
     (message) => message.timestamp !== undefined,
   )?.timestamp;
   const durationSeconds =
     startTimestamp !== undefined && endTimestamp !== undefined
-      ? Math.max(1, (endTimestamp - startTimestamp) / 1_000)
+      ? Math.max(1, Math.round((endTimestamp - startTimestamp) / 1_000))
       : null;
   const label = isInProgress
     ? "Working…"
     : durationSeconds !== null
-      ? `Worked for ${formatIntervalSeconds(durationSeconds, 0)}`
+      ? `Worked for ${formatWorkedDuration(durationSeconds)}`
       : "Activity";
-
-  return (
-    <div className="max-w-full">
-      <button
-        type="button"
-        aria-expanded={isOpen}
-        className={cn(
-          "text-muted-foreground focus-visible:ring-ring flex w-full items-center gap-1 border-b py-1 text-left outline-none focus-visible:ring-2",
-          isCompact ? "text-[0.775rem]" : "text-sm",
-        )}
-        onClick={() => {
-          setUserToggled(!isOpen);
-        }}
-      >
-        <span>{label}</span>
+  const labelClassName = cn(
+    "text-muted-foreground flex w-full items-center gap-1 py-1 text-left",
+    isCompact ? "text-[0.775rem]" : "text-sm",
+  );
+  const labelContent = (
+    <>
+      <span className={cn(isInProgress && messageStyles.thinkingShimmer)}>
+        {label}
+      </span>
+      {hasDetails ? (
         <ChevronRight
           aria-hidden="true"
           className={cn("size-3.5 transition-transform", isOpen && "rotate-90")}
         />
-      </button>
+      ) : null}
+    </>
+  );
+
+  return (
+    <div className="w-full">
+      {hasDetails ? (
+        <button
+          type="button"
+          aria-expanded={isOpen}
+          aria-label={label}
+          className={cn(
+            labelClassName,
+            "focus-visible:ring-ring outline-none focus-visible:ring-2",
+          )}
+          onClick={() => {
+            setUserToggled(!isOpen);
+          }}
+        >
+          {labelContent}
+        </button>
+      ) : (
+        <div role="status" aria-label={label} className={labelClassName}>
+          {labelContent}
+        </div>
+      )}
       {isOpen ? (
         <div className="flex flex-col gap-1 pt-2 pb-1">
           {messages.map((message) => (
@@ -1053,11 +1111,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   if (item.type === "activity") {
                     return (
                       <li
-                        key={`activity-${item.messages[0]?.id}`}
-                        className={cn(
-                          "w-full max-w-[92%]",
-                          item.followsUser && "mt-3",
-                        )}
+                        key={
+                          item.messages[0]?.id
+                            ? `activity-${item.messages[0].id}`
+                            : "activity-pending"
+                        }
+                        className={cn("w-full", item.followsUser && "mt-3")}
                       >
                         <AssistantActivityGroup
                           messages={item.messages}
@@ -1079,10 +1138,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   return (
                     <li
                       key={message.id}
-                      className={cn(
-                        "w-full max-w-[92%]",
-                        item.followsUser && "mt-3",
-                      )}
+                      className={cn("w-full", item.followsUser && "mt-3")}
                     >
                       <InAppAgentMessage
                         role={message.role}
