@@ -32,6 +32,7 @@ import { cn } from "@/src/utils/tailwind";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   formatSdkUpgradeRequirement,
+  formatSdkUpgradeRecommendation,
   formatSdkVersion,
   getCustomInstrumentationSectionState,
   getOtelSectionState,
@@ -118,6 +119,7 @@ function Section({
   children,
   defaultOpen,
   analyticsSection,
+  statusVariant = "action",
 }: {
   title: string;
   /** Number of affected items, shown muted after the title. */
@@ -128,6 +130,7 @@ function Section({
   defaultOpen?: boolean;
   /** Funnel dimension for the section_expanded event (snake_case). */
   analyticsSection: string;
+  statusVariant?: "action" | "done";
 }) {
   const capture = usePostHogClientCapture();
   return (
@@ -142,9 +145,9 @@ function Section({
       }}
     >
       <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-2.5 text-left">
-        {/* A rendered section always needs the user to act (clean ones hide
-            themselves); same dot as the action-required badge. */}
-        <V4MigrationStatusDot variant="action" />
+        {/* Action sections use the warning dot; informational recommendation
+            sections use the completed-state dot. */}
+        <V4MigrationStatusDot variant={statusVariant} />
         <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
           {title}
           {typeof count === "number" && (
@@ -432,7 +435,12 @@ export function V4MigrationSdkSection({
     <Section
       title="Update SDK"
       analyticsSection="sdk"
-      count={isTransient ? undefined : section.actionableCount}
+      count={
+        isTransient || section.actionableCount === 0
+          ? undefined
+          : section.actionableCount
+      }
+      statusVariant={section.status === "recommended" ? "done" : "action"}
       meta={
         section.status === "checking"
           ? "Checking…"
@@ -447,7 +455,7 @@ export function V4MigrationSdkSection({
           "Checking the latest traces for this project…"
         ) : section.status === "error" ? (
           "We could not check the latest traces for this project. Try again later."
-        ) : (
+        ) : section.actionableCount > 0 ? (
           <>
             {section.actionableCount} detected SDK{" "}
             {section.actionableCount === 1
@@ -455,6 +463,18 @@ export function V4MigrationSdkSection({
               : "configurations need"}{" "}
             an update, based on ingestion seen in the last{" "}
             {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
+            <ExternalLink
+              href={SDK_UPGRADE_URL}
+              analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
+            >
+              upgrade path
+            </ExternalLink>
+            .
+          </>
+        ) : (
+          <>
+            These SDK versions support v4. Upgrade to the recommended versions
+            below for the full v4 experience. See{" "}
             <ExternalLink
               href={SDK_UPGRADE_URL}
               analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
@@ -473,6 +493,10 @@ export function V4MigrationSdkSection({
         suffix={(usage) =>
           usage.v4MigrationStatus === "upgrade_required" ? (
             <span>· {formatSdkUpgradeRequirement(usage.canonicalSdkName)}</span>
+          ) : usage.v4MigrationStatus === "upgrade_recommended" ? (
+            <span>
+              · {formatSdkUpgradeRecommendation(usage.canonicalSdkName)}
+            </span>
           ) : usage.v4MigrationStatus === "unknown" ? (
             <span>· version not recognized</span>
           ) : null

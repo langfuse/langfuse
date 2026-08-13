@@ -446,6 +446,31 @@ describe("V4MigrationDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows current-major SDKs as recommended rather than actionable", () => {
+    mocks.migrationData.sdk = {
+      status: "latest",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({
+          sdkVersion: "4.6.9",
+          v4MigrationStatus: "upgrade_recommended",
+        }),
+      ],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    const trigger = screen.getByText("Update SDK").closest("button")!;
+    expect(within(trigger).queryByText("0")).not.toBeInTheDocument();
+    const row = screen.getByText("Python 4.6.9").closest("li")!;
+    expect(within(row).getByText("✅")).toBeInTheDocument();
+    expect(
+      within(row).getByText("· recommended to upgrade to >= 4.7.0"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/needs an update/)).not.toBeInTheDocument();
+  });
+
   it("keeps outdated SDK usage surfaced when a newer version later used the same key", () => {
     // The check reports what it observed in the lookback window: a newer SDK
     // ingesting later on the same public key is not evidence that the

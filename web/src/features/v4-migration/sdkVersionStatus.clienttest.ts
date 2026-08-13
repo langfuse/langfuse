@@ -1,5 +1,7 @@
 import {
   formatSdkUpgradeRequirement,
+  formatSdkUpgradeRecommendation,
+  getSdkSectionState,
   formatSdkVersion,
   getV4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
@@ -50,6 +52,25 @@ describe("v4 migration SDK status", () => {
     ).toMatchObject({
       status: "legacy",
       upgradeRequiredCount: 1,
+    });
+  });
+
+  it("treats the current major below the recommended minor as functional", () => {
+    const state = getLoadedSdkState(
+      sdkSeries({
+        sdkVersion: "4.6.9",
+        v4MigrationStatus: "upgrade_recommended",
+      }),
+    );
+
+    expect(state).toMatchObject({
+      status: "latest",
+      upgradeRequiredCount: 0,
+    });
+    expect(getSdkSectionState(state)).toMatchObject({
+      status: "recommended",
+      actionableCount: 0,
+      recommendedCount: 1,
     });
   });
 
@@ -183,13 +204,24 @@ describe("v4 migration SDK status", () => {
   });
 
   it.each([
-    ["javascript", "upgrade required to >= 5.4.0"],
-    ["python", "upgrade required to >= 4.7.0"],
+    ["javascript", "upgrade required to >= 5.0.0"],
+    ["python", "upgrade required to >= 4.0.0"],
     [null, "upgrade required"],
   ] as const)(
     "formats %s upgrade guidance with its minimum compatible version",
     (sdkName, expected) => {
       expect(formatSdkUpgradeRequirement(sdkName)).toBe(expected);
+    },
+  );
+
+  it.each([
+    ["javascript", "recommended to upgrade to >= 5.4.0"],
+    ["python", "recommended to upgrade to >= 4.7.0"],
+    [null, "recommended to upgrade"],
+  ] as const)(
+    "formats %s recommendation guidance with the preferred minor version",
+    (sdkName, expected) => {
+      expect(formatSdkUpgradeRecommendation(sdkName)).toBe(expected);
     },
   );
 });

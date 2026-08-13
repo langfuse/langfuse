@@ -77,7 +77,9 @@ export const getV4MigrationSdkState = (params: {
       series.v4MigrationStatus === "unknown",
   );
   const hasCompatibleSdk = sdkUsageSeries.some(
-    (series) => series.v4MigrationStatus === "compatible",
+    (series) =>
+      series.v4MigrationStatus === "compatible" ||
+      series.v4MigrationStatus === "upgrade_recommended",
   );
   const hasRealtimeOtelIngestion = sdkUsageSeries.some(
     (series) =>
@@ -134,15 +136,23 @@ export const isActionableSdkSeries = (
   series.v4MigrationStatus === "unknown";
 
 export type V4MigrationSdkSectionState = {
-  /** "latest" and "no_data" mean no offenders; the section hides itself.
+  /** "latest" and "no_data" mean no relevant rows; the section hides itself.
    * Unrecognized SDKs are not mixed in here: they belong to the custom
    * instrumentation section. */
-  status: "checking" | "error" | "legacy" | "latest" | "no_data";
+  status:
+    | "checking"
+    | "error"
+    | "legacy"
+    | "recommended"
+    | "latest"
+    | "no_data";
   /** All detected recognized-SDK series, most recently seen first. */
   series: V4MigrationSdkUsageSeries[];
   /** Series needing action: pending upgrades plus unrecognized versions.
    * Drives both the section badge and the body copy so they always agree. */
   actionableCount: number;
+  /** Functional SDKs below the preferred minor version. */
+  recommendedCount: number;
 };
 
 export const getSdkSectionState = (
@@ -152,6 +162,9 @@ export const getSdkSectionState = (
     (usage) => usage.canonicalSdkName !== null,
   );
   const actionableCount = series.filter(isActionableSdkSeries).length;
+  const recommendedCount = series.filter(
+    (usage) => usage.v4MigrationStatus === "upgrade_recommended",
+  ).length;
 
   return {
     status:
@@ -161,9 +174,12 @@ export const getSdkSectionState = (
           ? "no_data"
           : actionableCount > 0
             ? "legacy"
-            : "latest",
+            : recommendedCount > 0
+              ? "recommended"
+              : "latest",
     series,
     actionableCount,
+    recommendedCount,
   };
 };
 
@@ -215,7 +231,21 @@ export const formatSdkUpgradeRequirement = (
     "appRootObservations",
   );
 
-  return minimumVersion
-    ? `upgrade required to >= ${minimumVersion}`
+  const requiredMajor = minimumVersion?.split(".")[0];
+  return requiredMajor
+    ? `upgrade required to >= ${requiredMajor}.0.0`
     : "upgrade required";
+};
+
+export const formatSdkUpgradeRecommendation = (
+  sdkName: V4MigrationSdkUsageSeries["canonicalSdkName"],
+) => {
+  const minimumVersion = getSdkVersionCapabilityMinimum(
+    sdkName,
+    "appRootObservations",
+  );
+
+  return minimumVersion
+    ? `recommended to upgrade to >= ${minimumVersion}`
+    : "recommended to upgrade";
 };
