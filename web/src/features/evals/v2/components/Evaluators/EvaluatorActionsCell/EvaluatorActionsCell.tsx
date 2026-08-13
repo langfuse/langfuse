@@ -38,7 +38,7 @@ export function EvaluatorActionsCell({
         type="button"
         variant="outline"
         size="sm"
-        className="shrink-0"
+        className="w-32 shrink-0"
         onClick={hasActiveRules ? onViewScores : onManageRules}
       >
         {hasActiveRules ? (

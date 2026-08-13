@@ -2,6 +2,7 @@ import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { parse } from "@/src/features/search-bar/lib/langQ";
 import { validateQuery } from "@/src/features/search-bar/lib/validate";
+import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
 import type { FilterState } from "@langfuse/shared";
 
 function lower(text: string) {
@@ -666,6 +667,62 @@ describe("validateQuery / adapter parity", () => {
 });
 
 describe("filterStateToQueryText", () => {
+  it("renders the experiment and evaluation exclusions as their inline alias", () => {
+    expect(
+      filterStateToQueryText([
+        {
+          column: "environment",
+          type: "string",
+          operator: "does not contain",
+          value: "langfuse-",
+        },
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["sdk-experiment"],
+        },
+        {
+          column: "experimentId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]).text,
+    ).toBe("-experiments-and-evals");
+  });
+
+  it("does not collapse filters to an alias that the registry does not expose", () => {
+    const filters: FilterState = [
+      {
+        column: "environment",
+        type: "string",
+        operator: "does not contain",
+        value: "langfuse-",
+      },
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["sdk-experiment"],
+      },
+      {
+        column: "experimentId",
+        type: "null",
+        operator: "is null",
+        value: "",
+      },
+    ];
+    const registry = fieldRegistryFromColumns([], {
+      id: "evaluationRules",
+      allowFreeText: false,
+    });
+    const result = filterStateToQueryText(filters, {}, registry);
+
+    expect(result.text).toBe("");
+    expect(result.skippedFilters).toEqual(filters);
+  });
+
   it("round-trips legacy filter state through the grammar", () => {
     const filters: FilterState = [
       {

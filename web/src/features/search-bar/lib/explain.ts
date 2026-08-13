@@ -233,6 +233,12 @@ export function explainSegment(
         predicate: `${predicateOf(ref, seg)}.`,
       };
     }
+    case "alias": {
+      const alias = registry.resolveFilterAlias(seg.raw);
+      return alias === null
+        ? null
+        : { subject: alias.description, predicate: "" };
+    }
     case "freeText":
       return {
         subject: "Full-text search",

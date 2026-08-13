@@ -56,6 +56,22 @@ describe("createEvaluatorSetupStore", () => {
     });
   });
 
+  it("keeps sample filters available for the rule creation handoff", () => {
+    const store = createEvaluatorSetupStore({ initialEvaluator: null });
+    const sampleFilter = [
+      {
+        column: "type",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["GENERATION"],
+      },
+    ];
+
+    store.getState().actions.setSampleFilter(sampleFilter);
+
+    expect(store.getState().sampleFilter).toBe(sampleFilter);
+  });
+
   it("keeps configured parameters for the selected model and resets them when the model changes", () => {
     const store = createEvaluatorSetupStore({ initialEvaluator: null });
     const { actions } = store.getState();

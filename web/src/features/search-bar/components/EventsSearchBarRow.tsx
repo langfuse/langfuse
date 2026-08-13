@@ -24,7 +24,7 @@ import type {
   ObservedOptions,
   ObservedScoreNames,
 } from "@/src/features/search-bar/lib/observed-options";
-import { AI_GROUNDING_COLUMNS } from "@/src/features/search-bar/lib/ai-context";
+import { aiContextObservedOptionsKeys } from "@/src/features/search-bar/lib/ai-context";
 import {
   EVENTS_FIELD_REGISTRY,
   type FieldRegistry,
@@ -76,7 +76,7 @@ export function EventsSearchBarRow({
   /**
    * Lazy filter-options: widen the requested column set on demand. Threaded to
    * the composer (request a field's values when typed) and fired on Ask AI open
-   * (request the grounding columns so the prompt sees real values).
+   * (request the observed-options keys so the prompt sees real values).
    */
   onRequestColumns?: (columns: readonly string[]) => void;
   /** Project data context (observed values + metadata keys + result count) for
@@ -103,9 +103,9 @@ export function EventsSearchBarRow({
   const activateAi = React.useCallback(() => {
     // Ground the model on real project values: lazily request the AI columns so
     // they are loaded by the time the user submits a prompt.
-    onRequestColumns?.(AI_GROUNDING_COLUMNS);
+    onRequestColumns?.(aiContextObservedOptionsKeys(registry));
     setAiOpen(true);
-  }, [onRequestColumns]);
+  }, [onRequestColumns, registry]);
 
   return (
     <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>

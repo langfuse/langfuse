@@ -1,5 +1,6 @@
 import {
   EvalTemplateType,
+  type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { ChevronDown } from "lucide-react";
@@ -29,6 +30,7 @@ export function EvaluatorSavedDialogContainer({
     name: string;
     type: EvalTemplateType;
     defaultVariableMapping: ObservationVariableMapping[];
+    sampleFilter: FilterState;
     hasCompletedTestCall?: boolean;
     testRunCostUsd?: number | null;
   };
@@ -256,6 +258,9 @@ export function EvaluatorSavedDialogContainer({
         }
       }}
       initialEvaluator={evaluator}
+      initialFilter={
+        evaluator.sampleFilter.length ? evaluator.sampleFilter : undefined
+      }
     />
   ) : null;
 }

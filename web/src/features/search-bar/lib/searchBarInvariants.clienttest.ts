@@ -137,6 +137,22 @@ describe("search bar invariants — events v4 registry", () => {
       ],
     });
   });
+
+  it("supports the dataset alias used by sample observation filters", () => {
+    expect(
+      planCommit("dataset:dataset-id", undefined, EVENTS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "experimentDatasetId",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["dataset-id"],
+        },
+      ],
+    });
+  });
 });
 
 describe("search bar invariants — evaluation rules registry", () => {
@@ -177,6 +193,40 @@ describe("search bar invariants — evaluation rules registry", () => {
       status: "committed",
       filters: [{ column: "tags", type: "arrayOptions" }],
     });
+
+    expect(
+      planCommit("dataset:dataset-id", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "experimentDatasetId",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["dataset-id"],
+        },
+      ],
+    });
+
+    const datasetCompletion = planInputCompletions(
+      {
+        input: "dataset:",
+        caret: 8,
+        observed: {
+          experimentDatasetId: [{ value: "dataset-id" }],
+        },
+        recents: [],
+        currentQueryText: "dataset:",
+      },
+      RULE_FIELD_REGISTRY,
+    );
+    expect(
+      datasetCompletion?.sections
+        .flatMap((section) => section.options)
+        .some(
+          (option) => option.kind === "value" && option.value === "dataset-id",
+        ),
+    ).toBe(true);
 
     expect(
       planCommit(

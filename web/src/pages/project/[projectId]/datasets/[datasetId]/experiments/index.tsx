@@ -44,6 +44,10 @@ import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBr
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { ExperimentEvaluatorSelectorContent } from "@/src/features/experiments/components/ExperimentEvaluatorSelector";
+import { useExperimentV2EvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentV2EvaluatorSelection";
+import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
+import { ChevronDown } from "lucide-react";
 
 export default function Dataset() {
   const router = useRouter();
@@ -115,19 +119,25 @@ export default function Dataset() {
     scope: "evalJob:read",
   });
 
+  const hasEvaluatorReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:read",
+  });
+
   const hasEvalWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
   });
 
-  const evalTemplates = api.evals.latestTemplates.useQuery({
-    projectId,
-  });
+  const evalTemplates = api.evals.latestTemplates.useQuery(
+    { projectId },
+    { enabled: !isExperimentsBetaActive },
+  );
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: ["dataset", "experiment"] },
     {
-      enabled: hasEvalReadAccess && !!datasetId,
+      enabled: !isExperimentsBetaActive && hasEvalReadAccess && !!datasetId,
     },
   );
 
@@ -146,6 +156,10 @@ export default function Dataset() {
     evaluatorsData: evaluators.data,
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
+  });
+  const v2EvaluatorSelection = useExperimentV2EvaluatorSelection({
+    projectId,
+    enabled: isExperimentsBetaActive && hasEvaluatorReadAccess,
   });
 
   // Callback for preprocessing evaluator form values
@@ -202,16 +216,28 @@ export default function Dataset() {
                 </DialogContent>
               </Dialog>
 
-              {hasEvalReadAccess && (
+              {hasEvaluatorReadAccess && (
                 <div className="w-fit">
-                  <TemplateSelector
-                    projectId={projectId}
-                    datasetId={datasetId}
-                    evalTemplates={evalTemplates.data?.templates ?? []}
-                    onConfigureTemplate={handleConfigureEvaluator}
-                    onSelectEvaluator={handleSelectEvaluator}
-                    disabled={!hasEvalWriteAccess}
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="justify-between px-2 font-normal"
+                      >
+                        {v2EvaluatorSelection.options.length > 0
+                          ? `${v2EvaluatorSelection.options.length} ${v2EvaluatorSelection.options.length === 1 ? "evaluator" : "evaluators"}`
+                          : "No experiment evaluators"}
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <ExperimentEvaluatorSelectorContent
+                      projectId={projectId}
+                      evaluatorOptions={v2EvaluatorSelection.options}
+                      search={v2EvaluatorSelection.search}
+                      onSearchChange={v2EvaluatorSelection.onSearchChange}
+                    />
+                  </Popover>
                 </div>
               )}
             </>

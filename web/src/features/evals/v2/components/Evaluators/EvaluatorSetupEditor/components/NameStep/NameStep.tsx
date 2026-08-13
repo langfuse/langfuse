@@ -1,5 +1,14 @@
+import type { ComponentProps } from "react";
+import { InfoIcon } from "lucide-react";
+
+import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 
 export function NameStep({
@@ -10,7 +19,7 @@ export function NameStep({
   onNameChange,
   description,
   onDescriptionChange,
-  isSuggestingName,
+  nameAIAssistance,
 }: {
   step: number;
   open: boolean;
@@ -19,7 +28,7 @@ export function NameStep({
   onNameChange: (name: string) => void;
   description: string;
   onDescriptionChange: (description: string) => void;
-  isSuggestingName: boolean;
+  nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
 }) {
   return (
     <Stepper
@@ -31,14 +40,28 @@ export function NameStep({
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="evaluator-name">Name</Label>
-          <Input
+          <Label htmlFor="evaluator-name" className="flex items-center gap-1.5">
+            Name
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                The evaluator name is also used as the score name for the scores
+                it produces.
+              </TooltipContent>
+            </Tooltip>
+          </Label>
+          <AIAssistedInput
             id="evaluator-name"
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
             placeholder={
-              isSuggestingName ? "Generating a name…" : "Evaluator name"
+              nameAIAssistance.state === "generating"
+                ? "Generating a name…"
+                : "Evaluator name"
             }
+            aiAssistance={nameAIAssistance}
           />
         </div>
         <div className="space-y-2">

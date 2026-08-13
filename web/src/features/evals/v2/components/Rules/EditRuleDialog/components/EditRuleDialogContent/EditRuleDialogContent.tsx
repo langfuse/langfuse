@@ -178,7 +178,7 @@ export function EditRuleDialogContent({
           evaluatorSearch={evaluatorSearch}
           onEvaluatorSearchChange={onEvaluatorSearchChange}
           store={ruleSetupStore}
-          isSuggestingName={false}
+          nameAIAssistance={{ state: "unavailable" }}
           onNameStepOpenChange={() => undefined}
         />
       </DialogBody>

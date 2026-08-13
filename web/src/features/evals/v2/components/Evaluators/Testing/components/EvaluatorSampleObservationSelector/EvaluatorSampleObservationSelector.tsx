@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Star } from "lucide-react";
 import type { FilterState } from "@langfuse/shared";
 
@@ -31,16 +31,19 @@ export function EvaluatorSampleObservationSelector({
   projectId,
   timeRange,
   selectedObservationId,
+  filterState,
+  onFilterStateChange,
   onSelect,
   onOpenTrace,
 }: {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
   selectedObservationId: string | null;
+  filterState: FilterState;
+  onFilterStateChange: (filters: FilterState) => void;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
 }) {
-  const [filterState, setFilterState] = useState<FilterState>([]);
   const leadingColumns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
       {
@@ -73,7 +76,7 @@ export function EvaluatorSampleObservationSelector({
       projectId={projectId}
       timeRange={timeRange}
       filterState={filterState}
-      onFilterStateChange={setFilterState}
+      onFilterStateChange={onFilterStateChange}
       previewFilters={filterState}
       tableName="evaluator-sample-observations"
       registry={undefined}

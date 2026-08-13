@@ -14,6 +14,46 @@ const datasetFilter = {
 };
 
 describe("experiment rule normalization", () => {
+  it("normalizes the legacy Dataset column used by migrated evaluators", () => {
+    expect(
+      normalizeEvaluationRuleTarget({
+        targetObject: EvalTargetObject.EXPERIMENT,
+        filter: [{ ...datasetFilter, column: "Dataset" }],
+      }),
+    ).toEqual({
+      targetObject: EvalTargetObject.EVENT,
+      filter: [
+        datasetFilter,
+        {
+          type: "boolean",
+          column: "isExperimentItemRootSpan",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+  });
+
+  it("normalizes the legacy datasetId column used before event rules", () => {
+    expect(
+      normalizeEvaluationRuleTarget({
+        targetObject: EvalTargetObject.EXPERIMENT,
+        filter: [{ ...datasetFilter, column: "datasetId" }],
+      }),
+    ).toEqual({
+      targetObject: EvalTargetObject.EVENT,
+      filter: [
+        datasetFilter,
+        {
+          type: "boolean",
+          column: "isExperimentItemRootSpan",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+  });
+
   it("normalizes the legacy experiment target to the canonical event representation", () => {
     expect(
       normalizeEvaluationRuleTarget({

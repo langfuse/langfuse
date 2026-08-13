@@ -367,16 +367,6 @@ export function EditableVariableMapping({
   hasMatchingObservations,
   sourceUnavailableMessage,
 }: EditableVariableMappingProps) {
-  if (mappings.length === 0) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        {
-          "Add a {{variable}} to the prompt to pull in the data being evaluated."
-        }
-      </p>
-    );
-  }
-
   return (
     <div data-variable-mapping-root="" className="flex flex-col gap-4">
       {mappings.map((item) => (

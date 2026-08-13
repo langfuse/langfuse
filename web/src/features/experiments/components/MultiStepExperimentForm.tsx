@@ -29,6 +29,7 @@ import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/use
 import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
 import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
 import { getExistingEvaluators } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
+import { useExperimentV2EvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentV2EvaluatorSelection";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -82,6 +83,7 @@ export const MultiStepExperimentForm = ({
   handleExperimentSettled,
   handleExperimentSuccess,
   enableLegacyNameValidation = false,
+  useV2Evaluators = false,
 }: {
   projectId: string;
   setFormOpen: (open: boolean) => void;
@@ -103,6 +105,7 @@ export const MultiStepExperimentForm = ({
     runName: string;
   }) => Promise<void>;
   enableLegacyNameValidation?: boolean;
+  useV2Evaluators?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const [activeStep, setActiveStep] = useState("prompt");
@@ -137,6 +140,15 @@ export const MultiStepExperimentForm = ({
     scope: "evalJob:read",
   });
 
+  const hasEvaluatorReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:read",
+  });
+
+  const canReadEvaluators = useV2Evaluators
+    ? hasEvaluatorReadAccess
+    : hasEvalReadAccess;
+
   const hasEvalWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
@@ -170,14 +182,14 @@ export const MultiStepExperimentForm = ({
       targetObject: ["dataset", "experiment"],
     },
     {
-      enabled: hasEvalReadAccess && !!datasetId,
+      enabled: !useV2Evaluators && hasEvalReadAccess && !!datasetId,
     },
   );
 
   const evalTemplates = api.evals.latestTemplates.useQuery(
     { projectId },
     {
-      enabled: hasEvalReadAccess,
+      enabled: !useV2Evaluators && hasEvalReadAccess,
     },
   );
 
@@ -196,6 +208,10 @@ export const MultiStepExperimentForm = ({
     evaluatorsData: evaluators.data,
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
+  });
+  const v2EvaluatorSelection = useExperimentV2EvaluatorSelection({
+    projectId,
+    enabled: useV2Evaluators && hasEvaluatorReadAccess,
   });
 
   const {
@@ -354,11 +370,11 @@ export const MultiStepExperimentForm = ({
   }, [experimentName, form]);
 
   // Get evaluator names for review step
-  const activeEvaluatorNames = Object.values(
-    getExistingEvaluators(evaluators.data, datasetId),
-  )
-    .filter((evaluator) => evaluator.isActive)
-    .map((evaluator) => evaluator.templateName);
+  const activeEvaluatorNames = useV2Evaluators
+    ? v2EvaluatorSelection.options.map(({ name }) => name)
+    : Object.values(getExistingEvaluators(evaluators.data, datasetId))
+        .filter((evaluator) => evaluator.isActive)
+        .map((evaluator) => evaluator.templateName);
 
   // Get dataset info for review step
   const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
@@ -448,7 +464,10 @@ export const MultiStepExperimentForm = ({
   if (
     !promptsByName ||
     !datasets.data ||
-    (hasEvalReadAccess && !!datasetId && !evaluators.data)
+    (canReadEvaluators &&
+      (useV2Evaluators
+        ? v2EvaluatorSelection.isPending
+        : !!datasetId && !evaluators.data))
   ) {
     return <Skeleton className="min-h-[70dvh] w-full" />;
   }
@@ -490,18 +509,30 @@ export const MultiStepExperimentForm = ({
       outputVariableName: "expected_output",
     },
   };
-  const evaluatorState = {
-    evalTemplates: evalTemplates.data?.templates ?? [],
-    activeEvaluatorNames,
-    selectedEvaluatorData,
-    showEvaluatorForm,
-    handleConfigureEvaluator,
-    handleCloseEvaluatorForm,
-    handleEvaluatorSuccess,
-    handleSelectEvaluator,
-    preprocessFormValues,
+  const evaluatorState = useV2Evaluators
+    ? {
+        version: "v2" as const,
+        evaluatorOptions: v2EvaluatorSelection.options,
+        activeEvaluatorNames,
+        search: v2EvaluatorSelection.search,
+        onSearchChange: v2EvaluatorSelection.onSearchChange,
+      }
+    : {
+        version: "legacy" as const,
+        evalTemplates: evalTemplates.data?.templates ?? [],
+        activeEvaluatorNames,
+        selectedEvaluatorData,
+        showEvaluatorForm,
+        handleConfigureEvaluator,
+        handleCloseEvaluatorForm,
+        handleEvaluatorSuccess,
+        handleSelectEvaluator,
+        preprocessFormValues,
+      };
+  const permissions = {
+    hasEvalReadAccess: canReadEvaluators,
+    hasEvalWriteAccess,
   };
-  const permissions = { hasEvalReadAccess, hasEvalWriteAccess };
   const reviewSummary = {
     selectedPromptName,
     selectedPromptVersion,

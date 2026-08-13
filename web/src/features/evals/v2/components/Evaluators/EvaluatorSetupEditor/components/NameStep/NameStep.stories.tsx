@@ -14,7 +14,7 @@ export const Default = meta.story({
     onNameChange: fn(),
     description: "Scores whether an answer is factually correct.",
     onDescriptionChange: fn(),
-    isSuggestingName: false,
+    nameAIAssistance: { state: "idle", onGenerate: fn() },
   },
 });
 
@@ -27,6 +27,6 @@ export const SuggestingName = meta.story({
     onNameChange: fn(),
     description: "",
     onDescriptionChange: fn(),
-    isSuggestingName: true,
+    nameAIAssistance: { state: "generating" },
   },
 });

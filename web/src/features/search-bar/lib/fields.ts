@@ -19,6 +19,11 @@
 import { eventsTableCols, type ColumnDefinition } from "@langfuse/shared";
 
 import type { CompareOp } from "./ast";
+import {
+  EXPERIMENTS_AND_EVALS_FILTER_ALIAS,
+  resolveFilterAlias,
+  type FilterAlias,
+} from "./filter-aliases";
 import { quoteIfNeeded, unquote } from "./quoting";
 
 export type FieldKind = "text" | "number" | "datetime" | "boolean";
@@ -63,12 +68,22 @@ export type FieldRegistry = {
   allowFreeText: boolean;
   metadata: boolean;
   scores: boolean;
+  filterAliases: readonly FilterAlias[];
+  aiContextFields: readonly AIContextField[];
+  resolveFilterAlias: (token: string) => FilterAlias | null;
   resolveField: (name: string) => FieldRef | null;
   nullableFields: () => readonly FieldDef[];
   /** Ids of `nullableFields`, precomputed for per-keystroke validation. */
   nullableFieldIds: ReadonlySet<string>;
   isDanglingDotPrefix: (value: string) => boolean;
   columnIdOf: (column: string) => string | null;
+};
+
+export type AIContextField = {
+  /** Key in the observed filter-options payload. */
+  observedOptionsKey: string;
+  /** Human-readable field description rendered into the AI prompt context. */
+  promptLabel: string;
 };
 
 export type FieldOverlay = Partial<
@@ -86,6 +101,8 @@ export function fieldRegistryFromColumns(
     metadata?: boolean;
     scores?: boolean;
     allowFreeText?: boolean;
+    filterAliases?: readonly FilterAlias[];
+    aiContextFields?: readonly AIContextField[];
   },
 ): FieldRegistry {
   const fields = columns
@@ -126,6 +143,8 @@ export function fieldRegistryFromColumns(
     metadata: overlay.metadata ?? false,
     scores: overlay.scores ?? false,
     allowFreeText: overlay.allowFreeText ?? true,
+    filterAliases: overlay.filterAliases ?? [],
+    aiContextFields: overlay.aiContextFields ?? [],
   });
 }
 
@@ -220,6 +239,8 @@ function createFieldRegistry({
   metadata,
   scores,
   allowFreeText,
+  filterAliases,
+  aiContextFields,
 }: {
   id: FieldRegistry["id"];
   fields: readonly FieldDef[];
@@ -227,6 +248,8 @@ function createFieldRegistry({
   metadata: boolean;
   scores: boolean;
   allowFreeText: boolean;
+  filterAliases: readonly FilterAlias[];
+  aiContextFields: readonly AIContextField[];
 }): FieldRegistry {
   const byName = new Map<string, FieldDef>();
   for (const field of fields) {
@@ -250,6 +273,9 @@ function createFieldRegistry({
     allowFreeText,
     metadata,
     scores,
+    filterAliases,
+    aiContextFields,
+    resolveFilterAlias: (token) => resolveFilterAlias(token, filterAliases),
     resolveField: (name) => resolveFromRegistry(name, registry, byName),
     nullableFields: () => nullable,
     nullableFieldIds: new Set(nullable.map((field) => field.id)),
@@ -274,6 +300,44 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   metadata: true,
   scores: true,
   allowFreeText: true,
+  filterAliases: [EXPERIMENTS_AND_EVALS_FILTER_ALIAS],
+  aiContextFields: [
+    { observedOptionsKey: "type", promptLabel: "type" },
+    { observedOptionsKey: "level", promptLabel: "level" },
+    { observedOptionsKey: "environment", promptLabel: "environment" },
+    { observedOptionsKey: "traceName", promptLabel: "traceName" },
+    { observedOptionsKey: "name", promptLabel: "name" },
+    { observedOptionsKey: "traceTags", promptLabel: "traceTags (tags)" },
+    {
+      observedOptionsKey: "providedModelName",
+      promptLabel: "providedModelName (model)",
+    },
+    { observedOptionsKey: "promptName", promptLabel: "promptName" },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.numeric,
+      promptLabel: "scores.<name> (numeric)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.categorical,
+      promptLabel: "scores.<name> (categorical)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.boolean,
+      promptLabel: "scores.<name> (boolean)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.numeric,
+      promptLabel: "traceScores.<name> (numeric)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.categorical,
+      promptLabel: "traceScores.<name> (categorical)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.boolean,
+      promptLabel: "traceScores.<name> (boolean)",
+    },
+  ],
 });
 
 function resolveFromRegistry(

@@ -1,16 +1,17 @@
+import type { ComponentProps } from "react";
 import { useStore } from "zustand";
 
-import { Input } from "@/src/components/ui/input";
+import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 
 export function RuleNameStep({
   store,
-  isSuggestingName,
+  nameAIAssistance,
   onOpenChange,
 }: {
   store: RuleSetupStore;
-  isSuggestingName: boolean;
+  nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
   onOpenChange: (open: boolean) => void;
 }) {
   const name = useStore(store, (state) => state.name);
@@ -28,13 +29,17 @@ export function RuleNameStep({
         <label htmlFor="evaluation-rule-name" className="text-sm font-bold">
           Name
         </label>
-        <Input
+        <AIAssistedInput
           id="evaluation-rule-name"
           value={name}
           maxLength={200}
-          placeholder={isSuggestingName ? "Generating a name…" : "Rule name"}
-          disabled={isSuggestingName}
+          placeholder={
+            nameAIAssistance.state === "generating"
+              ? "Generating a name…"
+              : "Rule name"
+          }
           onChange={(event) => setName(event.target.value)}
+          aiAssistance={nameAIAssistance}
         />
       </div>
     </Stepper>

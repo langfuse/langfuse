@@ -15,7 +15,7 @@ export function EvaluatorTestPanel({
   testSection: ReactNode;
 }) {
   return (
-    <aside className="flex min-h-0 flex-col overflow-hidden">
+    <aside className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex h-12 shrink-0 items-center justify-between border-b px-6">
         {open ? (
           <div className="flex items-center gap-2">

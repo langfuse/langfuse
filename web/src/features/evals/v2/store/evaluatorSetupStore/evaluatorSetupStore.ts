@@ -2,6 +2,7 @@ import {
   EvalTemplateTypeEnum,
   observationVariableMappingList,
   ScoreDataTypeEnum,
+  type FilterState,
   type ModelConfig,
   type EvalTemplateSourceCodeLanguage,
   type EvalTemplateType,
@@ -79,6 +80,7 @@ type EvaluatorSetupStoreActions = {
   setSelectedObservation: (
     selectedObservation: SampleObservation | null,
   ) => void;
+  setSampleFilter: (sampleFilter: FilterState) => void;
   setPromptPreviewEnabled: (promptPreviewEnabled: boolean) => void;
   setTestPanelOpen: (testPanelOpen: boolean) => void;
 };
@@ -100,6 +102,7 @@ export type EvaluatorSetupStoreState = {
   selectedModel: JudgeModel | null;
   modelParams: ModelConfig | null;
   selectedObservation: SampleObservation | null;
+  sampleFilter: FilterState;
   promptPreviewEnabled: boolean;
   testPanelOpen: boolean;
   actions: EvaluatorSetupStoreActions;
@@ -167,6 +170,7 @@ export function createEvaluatorSetupStore({
         ? initialDefinition.modelParams
         : null,
     selectedObservation: null,
+    sampleFilter: [],
     promptPreviewEnabled: false,
     testPanelOpen: true,
     actions: {
@@ -201,6 +205,7 @@ export function createEvaluatorSetupStore({
         set({ selectedModel, modelParams, modelMode: "custom" }),
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
+      setSampleFilter: (sampleFilter) => set({ sampleFilter }),
       setPromptPreviewEnabled: (promptPreviewEnabled) =>
         set({ promptPreviewEnabled }),
       setTestPanelOpen: (testPanelOpen) => set({ testPanelOpen }),

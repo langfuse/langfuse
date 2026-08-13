@@ -66,9 +66,11 @@ export function useProjectDefaultModel({
       { projectId, ...model },
       {
         onSuccess: async () => {
-          await utils.defaultLlmModel.fetchDefaultModel.invalidate({
-            projectId,
-          });
+          await Promise.all([
+            utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId }),
+            utils.evalsV2.list.invalidate({ projectId }),
+            utils.evalsV2.options.invalidate({ projectId }),
+          ]);
           capture("evaluators:default_model_update", {
             source,
             isReplacement,

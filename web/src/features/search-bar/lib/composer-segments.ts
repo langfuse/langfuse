@@ -31,6 +31,15 @@ export type FilterSegment = {
   editable: true;
 };
 
+export type AliasSegment = {
+  id: string;
+  kind: "alias";
+  from: number;
+  to: number;
+  raw: string;
+  editable: true;
+};
+
 export type PlainSegment = {
   id: string;
   kind: "freeText" | "operator" | "paren";
@@ -50,7 +59,11 @@ export type InvalidSegment = {
   editable: true;
 };
 
-export type ComposerSegment = FilterSegment | PlainSegment | InvalidSegment;
+export type ComposerSegment =
+  | FilterSegment
+  | AliasSegment
+  | PlainSegment
+  | InvalidSegment;
 
 // IDs derive from span + raw text (never array index alone) — appending
 // tokens keeps earlier IDs stable; editing a token changes its own.
@@ -66,9 +79,15 @@ function segmentId(
 
 type Leaf =
   | { span: Span; kind: "filter"; node: FilterNode; negated: boolean }
+  | { span: Span; kind: "alias" }
   | { span: Span; kind: "text"; node: TextNode };
 
-function collectLeaves(node: ASTNode, text: string, out: Leaf[]): void {
+function collectLeaves(
+  node: ASTNode,
+  text: string,
+  out: Leaf[],
+  registry: FieldRegistry,
+): void {
   switch (node.kind) {
     case "filter":
       if (node.span)
@@ -94,11 +113,21 @@ function collectLeaves(node: ASTNode, text: string, out: Leaf[]): void {
         });
         return;
       }
-      collectLeaves(node.child, text, out);
+      if (
+        node.child.kind === "text" &&
+        !node.child.quoted &&
+        registry.resolveFilterAlias(`-${node.child.value}`) !== null &&
+        node.span &&
+        text[node.span.from] === "-"
+      ) {
+        out.push({ span: node.span, kind: "alias" });
+        return;
+      }
+      collectLeaves(node.child, text, out, registry);
       return;
     case "and":
     case "or":
-      for (const c of node.children) collectLeaves(c, text, out);
+      for (const c of node.children) collectLeaves(c, text, out, registry);
       return;
   }
 }
@@ -154,7 +183,7 @@ export function deriveComposerSegments(
 
   const { ast, diagnostics } = validateQuery(draftText, scoreTypes, registry);
   const leaves: Leaf[] = [];
-  if (ast !== null) collectLeaves(ast, draftText, leaves);
+  if (ast !== null) collectLeaves(ast, draftText, leaves, registry);
   const leafByFrom = new Map<number, Leaf>();
   for (const leaf of leaves) leafByFrom.set(leaf.span.from, leaf);
 
@@ -202,6 +231,21 @@ export function deriveComposerSegments(
     }
 
     const leaf = leafByFrom.get(span.from);
+    if (
+      leaf !== undefined &&
+      leaf.kind === "alias" &&
+      leaf.span.to === span.to
+    ) {
+      segments.push({
+        id: segmentId("alias", span, raw),
+        kind: "alias",
+        from: span.from,
+        to: span.to,
+        raw,
+        editable: true,
+      });
+      continue;
+    }
     if (
       leaf !== undefined &&
       leaf.kind === "filter" &&

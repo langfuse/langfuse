@@ -1,10 +1,18 @@
 import type { FilterState } from "../../types";
+import { eventsEvalFilterColumns } from "./observationForEval";
 import {
   EvalTargetObject,
   type EvalTargetObject as EvalTargetObjectType,
 } from "./types";
 
 const EXPERIMENT_ROOT_FILTER_COLUMN = "isExperimentItemRootSpan";
+
+// Persisted dataset evaluators used both the display name and the legacy
+// dataset-table id. Keep that storage compatibility independent of UI copy.
+const LEGACY_EVENT_FILTER_COLUMN_ALIASES: Readonly<Record<string, string>> = {
+  Dataset: "experimentDatasetId",
+  datasetId: "experimentDatasetId",
+};
 
 const experimentRootFilter = {
   type: "boolean" as const,
@@ -42,14 +50,36 @@ export function stripExperimentRootFilter(filter: FilterState): FilterState {
   );
 }
 
+function normalizeEventFilterColumns(filter: FilterState): FilterState {
+  return filter.map((entry) => {
+    const inputColumn =
+      LEGACY_EVENT_FILTER_COLUMN_ALIASES[entry.column] ?? entry.column;
+    const column = eventsEvalFilterColumns.find(
+      (candidate) =>
+        candidate.id === inputColumn ||
+        candidate.name === inputColumn ||
+        candidate.aliases?.includes(inputColumn),
+    );
+    return column && column.id !== entry.column
+      ? { ...entry, column: column.id }
+      : entry;
+  });
+}
+
 export function normalizeEvaluationRuleTarget(params: {
   targetObject: EvalTargetObjectType;
   filter: FilterState;
 }) {
-  if (!isExperimentEvaluationRule(params)) return params;
+  const normalizedParams =
+    params.targetObject === EvalTargetObject.EVENT ||
+    params.targetObject === EvalTargetObject.EXPERIMENT
+      ? { ...params, filter: normalizeEventFilterColumns(params.filter) }
+      : params;
+
+  if (!isExperimentEvaluationRule(normalizedParams)) return normalizedParams;
 
   return {
     targetObject: EvalTargetObject.EVENT,
-    filter: ensureExperimentRootFilter(params.filter),
+    filter: ensureExperimentRootFilter(normalizedParams.filter),
   };
 }

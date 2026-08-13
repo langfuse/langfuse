@@ -170,7 +170,7 @@ export const ROUTES: Route[] = [
     projectRbacScopes: ["evalJob:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
-    pathname: `/project/[projectId]/evals`,
+    pathname: `/project/[projectId]/evals/v2`,
   },
   {
     title: "Human Annotation",

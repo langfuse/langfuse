@@ -451,9 +451,12 @@ describe("EvaluatorService", () => {
     ).rejects.toThrow("Evaluator not found");
   });
 
-  it("suggests a name when available and silently falls back to null", async () => {
+  it("suggests a safe name and silently returns null when unavailable", async () => {
     mocks.generateLangfuseAIText
       .mockResolvedValueOnce('  "Concise quality judge"  ')
+      .mockResolvedValueOnce(
+        "I can't provide personalized advice about alcohol consumption limits, as this depends on individual factors",
+      )
       .mockRejectedValueOnce(new Error("AI unavailable"));
     const service = createService();
     const definition = {
@@ -471,6 +474,9 @@ describe("EvaluatorService", () => {
           expect.objectContaining({
             role: ChatMessageRole.System,
             type: ChatMessageType.System,
+            content: expect.stringMatching(
+              /used as the score name.*return exactly "Custom Evaluator"/,
+            ),
           }),
           expect.objectContaining({
             role: ChatMessageRole.User,
@@ -480,6 +486,9 @@ describe("EvaluatorService", () => {
         model: "test-small-model",
       }),
     );
+    await expect(
+      service.suggestName({ projectId, userId: null, definition }),
+    ).resolves.toBe("Custom Evaluator");
     await expect(
       service.suggestName({ projectId, userId: null, definition }),
     ).resolves.toBeNull();

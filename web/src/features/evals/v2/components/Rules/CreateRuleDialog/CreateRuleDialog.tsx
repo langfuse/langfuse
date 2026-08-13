@@ -1,4 +1,8 @@
-import { observationVariableMappingList } from "@langfuse/shared";
+import {
+  type EvalTargetObject,
+  observationVariableMappingList,
+  type FilterState,
+} from "@langfuse/shared";
 import { useState } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { CreateRuleDialogContent } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/CreateRuleDialogContent/CreateRuleDialogContent";
@@ -10,11 +14,15 @@ export function CreateRuleDialog({
   open,
   onOpenChange,
   initialEvaluator,
+  initialFilter,
+  targetObject,
 }: {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialEvaluator?: RuleEvaluatorOption;
+  initialFilter?: FilterState;
+  targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
 }) {
   const [evaluatorSearch, setEvaluatorSearch] = useState("");
   const [evaluatorSearchQuery, setEvaluatorSearchQuery] = useState("");
@@ -59,6 +67,8 @@ export function CreateRuleDialog({
           : options
       }
       initialEvaluator={resolvedInitialEvaluator}
+      initialFilter={initialFilter}
+      targetObject={targetObject}
       evaluatorSearch={evaluatorSearch}
       onEvaluatorSearchChange={(value) => {
         setEvaluatorSearch(value);

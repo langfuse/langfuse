@@ -1,16 +1,18 @@
+import type { ComponentProps } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
+import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { NameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/NameStep/NameStep";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function NameStepContainer({
   store,
-  isSuggestingName,
+  nameAIAssistance,
   onStepOpenChange,
 }: {
   store: EvaluatorSetupStore;
-  isSuggestingName: boolean;
+  nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
   onStepOpenChange: (step: number, open: boolean) => void;
 }) {
   const state = useStore(
@@ -36,7 +38,7 @@ export function NameStepContainer({
       onNameChange={state.actions.setName}
       description={state.description}
       onDescriptionChange={state.actions.setDescription}
-      isSuggestingName={isSuggestingName}
+      nameAIAssistance={nameAIAssistance}
     />
   );
 }

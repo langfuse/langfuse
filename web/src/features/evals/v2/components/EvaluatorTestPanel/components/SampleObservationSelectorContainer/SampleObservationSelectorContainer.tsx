@@ -22,6 +22,7 @@ export function SampleObservationSelectorContainer({
     store,
     (state) => state.selectedObservation?.id ?? null,
   );
+  const filterState = useStore(store, (state) => state.sampleFilter);
   const actions = store.getState().actions;
 
   return (
@@ -29,6 +30,8 @@ export function SampleObservationSelectorContainer({
       projectId={projectId}
       timeRange={timeRange}
       selectedObservationId={selectedObservationId}
+      filterState={filterState}
+      onFilterStateChange={actions.setSampleFilter}
       onSelect={actions.setSelectedObservation}
       onOpenTrace={onOpenTrace}
     />

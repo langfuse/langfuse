@@ -11,6 +11,8 @@ import {
   DefaultEvalModelService,
   EvaluatorBlockSource,
   finalizeEvaluatorBlocks,
+  invalidateProjectEvalConfigCaches,
+  unblockEvaluatorsUsingDefaultModel,
 } from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
@@ -42,7 +44,23 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      return DefaultEvalModelService.upsertDefaultModel(input);
+      const defaultModel =
+        await DefaultEvalModelService.upsertDefaultModel(input);
+      const unblocked = await ctx.prisma.$transaction((tx) =>
+        unblockEvaluatorsUsingDefaultModel({
+          tx,
+          projectId: input.projectId,
+        }),
+      );
+
+      if (
+        unblocked.unblockedJobConfigCount > 0 ||
+        unblocked.unblockedEvaluatorCount > 0
+      ) {
+        await invalidateProjectEvalConfigCaches(input.projectId);
+      }
+
+      return defaultModel;
     }),
   deleteDefaultModel: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))

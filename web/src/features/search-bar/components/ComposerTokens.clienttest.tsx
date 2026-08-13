@@ -13,6 +13,20 @@ function renderedText(draft: string): string {
 }
 
 describe("ComposerTokens", () => {
+  it("renders the experiments-and-evals alias as an inline filter token", () => {
+    const { container, getByTestId } = render(
+      <ComposerTokens draft="-experiments-and-evals" showDiagnostics={false} />,
+    );
+
+    expect((container.textContent ?? "").split(WORD_JOINER).join("")).toBe(
+      "-experiments-and-evals",
+    );
+    expect(getByTestId("search-bar-token")).toHaveAttribute(
+      "data-kind",
+      "alias",
+    );
+  });
+
   it("renders a quoted dot-path key without mangling the value", () => {
     // The field/value split must land at the colon OUTSIDE the quoted key
     // segment. A quote-blind `indexOf(":")` would split inside `"foo:bar"` and

@@ -1,8 +1,10 @@
+import type { ComponentProps } from "react";
 import type {
   RuleEvaluatorOption,
   RuleSetupStore,
 } from "@/src/features/evals/v2/types/rules";
 
+import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { RuleEvaluatorsStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorsStep";
 import { RuleFilterStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { RuleNameStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleNameStep";
@@ -13,7 +15,7 @@ export function RuleSetup({
   evaluatorSearch,
   onEvaluatorSearchChange,
   store,
-  isSuggestingName,
+  nameAIAssistance,
   onNameStepOpenChange,
 }: {
   projectId: string;
@@ -21,7 +23,7 @@ export function RuleSetup({
   evaluatorSearch: string;
   onEvaluatorSearchChange: (search: string) => void;
   store: RuleSetupStore;
-  isSuggestingName: boolean;
+  nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
   onNameStepOpenChange: (open: boolean) => void;
 }) {
   return (
@@ -36,7 +38,7 @@ export function RuleSetup({
       />
       <RuleNameStep
         store={store}
-        isSuggestingName={isSuggestingName}
+        nameAIAssistance={nameAIAssistance}
         onOpenChange={onNameStepOpenChange}
       />
     </div>

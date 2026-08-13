@@ -11,6 +11,7 @@ import {
   type CompletionOption,
   type InputCompletionContext,
 } from "@/src/features/search-bar/lib/completions";
+import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import {
   toObservedOptions,
   type ObservedOptions,
@@ -51,6 +52,46 @@ describe("planInputCompletions", () => {
     const titles = p?.sections.map((s) => s.title);
     expect(titles).toContain(SECTION_FIELDS);
     expect(titles).toContain(SECTION_RECENT);
+  });
+
+  it("suggests and completes the experiments-and-evals alias", () => {
+    const empty = plan("", 0);
+    expect(
+      flattenOptions(empty).find(
+        (option) => option.id === "alias:experiments-and-evals",
+      ),
+    ).toMatchObject({
+      label: "-experiments-and-evals",
+      detail: "Exclude experiments & evals",
+    });
+
+    const partial = plan("-exp", 4);
+    const option = flattenOptions(partial).find(
+      (candidate) => candidate.id === "alias:experiments-and-evals",
+    );
+    expect(option).toBeDefined();
+    if (!partial || !option || option.kind === "recent") return;
+    expect(applyPick(option, "-exp", partial)).toEqual({
+      next: "-experiments-and-evals ",
+      caret: 23,
+      keepOpen: true,
+    });
+
+    const rulePlan = planInputCompletions(
+      {
+        input: "",
+        caret: 0,
+        observed: OBSERVED,
+        recents: [],
+        currentQueryText: "",
+      },
+      RULE_FIELD_REGISTRY,
+    );
+    expect(
+      flattenOptions(rulePlan).some(
+        (candidate) => candidate.id === "alias:experiments-and-evals",
+      ),
+    ).toBe(true);
   });
 
   it("ranks fields against the typed key prefix but does NOT arm Enter (free-text-first)", () => {

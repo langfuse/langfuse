@@ -7,6 +7,7 @@ import {
   blockEvaluatorsUsingDefaultModel,
   blockEvaluatorsUsingProvider,
   EvaluatorBlockSource,
+  unblockEvaluatorsUsingDefaultModel,
 } from "./blockEvaluators";
 
 const updateMany = vi.fn();
@@ -236,5 +237,37 @@ describe("model-usage selection", () => {
     await blockEvaluatorsUsingDefaultModel({ tx, projectId: "project-1" });
 
     expect(claimedIds(evaluatorFindMany)).toEqual(["default-model"]);
+  });
+});
+
+describe("unblockEvaluatorsUsingDefaultModel", () => {
+  it("clears only blocks caused by a missing default model", async () => {
+    const jobConfigurationUpdateMany = vi.fn().mockResolvedValue({ count: 2 });
+    const evaluatorUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const tx = {
+      jobConfiguration: { updateMany: jobConfigurationUpdateMany },
+      evaluator: { updateMany: evaluatorUpdateMany },
+    } as never;
+
+    await expect(
+      unblockEvaluatorsUsingDefaultModel({ tx, projectId: "project-1" }),
+    ).resolves.toEqual({
+      unblockedJobConfigCount: 2,
+      unblockedEvaluatorCount: 1,
+    });
+
+    const expectedUpdate = {
+      where: {
+        projectId: "project-1",
+        blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+      },
+      data: {
+        blockedAt: null,
+        blockReason: null,
+        blockMessage: null,
+      },
+    };
+    expect(jobConfigurationUpdateMany).toHaveBeenCalledWith(expectedUpdate);
+    expect(evaluatorUpdateMany).toHaveBeenCalledWith(expectedUpdate);
   });
 });

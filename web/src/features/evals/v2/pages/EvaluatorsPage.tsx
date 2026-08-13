@@ -14,6 +14,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
+import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EvaluatorActionsCell } from "../components/Evaluators/EvaluatorActionsCell/EvaluatorActionsCell";
@@ -175,6 +176,8 @@ export default function EvaluatorsPage() {
   const selectedRuleEvaluator = evaluators.data?.evaluators.find(
     ({ id }) => id === attachEvaluatorId,
   );
+  const showOnboarding =
+    evaluators.isSuccess && evaluators.data.totalItems === 0 && !searchQuery;
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:read",
@@ -477,83 +480,93 @@ export default function EvaluatorsPage() {
         },
       }}
     >
-      <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-        <EvaluatorsTableToolbar
-          selectionStore={selectionStore}
-          pageRowIds={evaluatorIds}
-          pageSize={pagination.limit}
-          pageIndex={pagination.page - 1}
-          totalCount={evaluators.data?.totalItems ?? null}
-          columns={columns}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          searchConfig={{
-            metadataSearchFields: ["Name"],
-            updateQuery: (query) => {
-              setSearchQuery(query || null);
-              setPagination({ page: 1, limit: pagination.limit });
-              selectionStore.getState().actions.clearSelection();
-            },
-            currentQuery: searchQuery ?? undefined,
-            tableAllowsFullTextSearch: false,
+      {showOnboarding ? (
+        <EvaluatorsOnboarding
+          projectId={projectId}
+          createEvaluatorAction={{
+            label: "Create Evaluator",
+            onClick: () => setGalleryOpen(true),
           }}
         />
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <DataTable
-            tableName="evaluators-v2-overview-v2"
-            columns={columns}
-            data={
-              evaluators.isPending
-                ? { isLoading: true, isError: false }
-                : evaluators.isError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: evaluators.error.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: evaluators.data.evaluators,
-                    }
-            }
-            pagination={{
-              totalCount: evaluators.data?.totalItems ?? null,
-              state: {
-                pageIndex: pagination.page - 1,
-                pageSize: pagination.limit,
-              },
-              onChange: (updater) => {
-                const next =
-                  typeof updater === "function"
-                    ? updater({
-                        pageIndex: pagination.page - 1,
-                        pageSize: pagination.limit,
-                      })
-                    : updater;
-                setPagination({
-                  page: next.pageIndex + 1,
-                  limit: next.pageSize,
-                });
-              },
-            }}
+      ) : (
+        <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+          <EvaluatorsTableToolbar
             selectionStore={selectionStore}
+            pageRowIds={evaluatorIds}
+            pageSize={pagination.limit}
+            pageIndex={pagination.page - 1}
+            totalCount={evaluators.data?.totalItems ?? null}
+            columns={columns}
             columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
+            setColumnVisibility={setColumnVisibility}
             columnOrder={columnOrder}
-            onColumnOrderChange={setColumnOrder}
+            setColumnOrder={setColumnOrder}
             rowHeight={rowHeight}
-            onRowClick={(row) =>
-              router.push(`/project/${projectId}/evals/v2/${row.id}`)
-            }
-            noResultsMessage="No evaluators yet."
+            setRowHeight={setRowHeight}
+            searchConfig={{
+              metadataSearchFields: ["Name"],
+              updateQuery: (query) => {
+                setSearchQuery(query || null);
+                setPagination({ page: 1, limit: pagination.limit });
+                selectionStore.getState().actions.clearSelection();
+              },
+              currentQuery: searchQuery ?? undefined,
+              tableAllowsFullTextSearch: false,
+            }}
           />
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <DataTable
+              tableName="evaluators-v2-overview-v2"
+              columns={columns}
+              data={
+                evaluators.isPending
+                  ? { isLoading: true, isError: false }
+                  : evaluators.isError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: evaluators.error.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: evaluators.data.evaluators,
+                      }
+              }
+              pagination={{
+                totalCount: evaluators.data?.totalItems ?? null,
+                state: {
+                  pageIndex: pagination.page - 1,
+                  pageSize: pagination.limit,
+                },
+                onChange: (updater) => {
+                  const next =
+                    typeof updater === "function"
+                      ? updater({
+                          pageIndex: pagination.page - 1,
+                          pageSize: pagination.limit,
+                        })
+                      : updater;
+                  setPagination({
+                    page: next.pageIndex + 1,
+                    limit: next.pageSize,
+                  });
+                },
+              }}
+              selectionStore={selectionStore}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+              rowHeight={rowHeight}
+              onRowClick={(row) =>
+                router.push(`/project/${projectId}/evals/v2/${row.id}`)
+              }
+              noResultsMessage="No evaluators found."
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <EvaluatorsOverviewSelectionBar
         selectionStore={selectionStore}

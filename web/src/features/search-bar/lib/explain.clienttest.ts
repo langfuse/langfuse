@@ -19,6 +19,9 @@ describe("explainSegment", () => {
     );
     expect(explain("name:(a OR b)")).toBe('Name is exactly "a" or "b".');
     expect(explain("latency:>2")).toBe("Latency is above 2 seconds.");
+    expect(explain("-experiments-and-evals")).toBe(
+      "Exclude experiments & evals.",
+    );
   });
 
   it("names the operator each `=` default actually lowers to", () => {

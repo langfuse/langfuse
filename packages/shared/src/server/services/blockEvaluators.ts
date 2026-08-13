@@ -317,6 +317,37 @@ export async function blockEvaluatorsUsingDefaultModel(params: {
   });
 }
 
+/**
+ * Resumes evaluators that were paused specifically because the project had no
+ * default model. Other block reasons still require their own resolution.
+ */
+export async function unblockEvaluatorsUsingDefaultModel(params: {
+  tx: Prisma.TransactionClient;
+  projectId: string;
+}): Promise<{
+  unblockedJobConfigCount: number;
+  unblockedEvaluatorCount: number;
+}> {
+  const where = {
+    projectId: params.projectId,
+    blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+  };
+  const data = {
+    blockedAt: null,
+    blockReason: null,
+    blockMessage: null,
+  };
+  const [jobConfigs, evaluators] = await Promise.all([
+    params.tx.jobConfiguration.updateMany({ where, data }),
+    params.tx.evaluator.updateMany({ where, data }),
+  ]);
+
+  return {
+    unblockedJobConfigCount: jobConfigs.count,
+    unblockedEvaluatorCount: evaluators.count,
+  };
+}
+
 export async function blockEvaluatorConfigs(
   params: BlockEvaluatorConfigsParams,
 ): Promise<{ blockedJobConfigIds: string[] }> {

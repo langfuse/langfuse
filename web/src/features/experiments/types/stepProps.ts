@@ -8,6 +8,7 @@ import {
   type PromptType,
 } from "@langfuse/shared";
 import { type PartialConfig } from "@/src/features/evals/types";
+import { type RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
 
 type ValidationResult =
   | {
@@ -81,7 +82,8 @@ export type DatasetState = {
   };
 };
 
-export type EvaluatorState = {
+type LegacyEvaluatorState = {
+  version: "legacy";
   evalTemplates: EvalTemplate[];
   activeEvaluatorNames: string[];
   selectedEvaluatorData: EvaluatorData | null;
@@ -92,6 +94,16 @@ export type EvaluatorState = {
   handleSelectEvaluator: (templateId: string) => void;
   preprocessFormValues: (values: any) => any;
 };
+
+type V2EvaluatorState = {
+  version: "v2";
+  evaluatorOptions: RuleEvaluatorOption[];
+  activeEvaluatorNames: string[];
+  search: string;
+  onSearchChange: (value: string) => void;
+};
+
+export type EvaluatorState = LegacyEvaluatorState | V2EvaluatorState;
 
 // Step-specific prop interfaces
 export interface PromptModelStepProps {

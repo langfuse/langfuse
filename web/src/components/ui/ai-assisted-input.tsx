@@ -1,0 +1,89 @@
+import type { ComponentProps } from "react";
+import { Loader2, Sparkles } from "lucide-react";
+
+import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { cn } from "@/src/utils/tailwind";
+import styles from "./ai-assisted-input.module.css";
+
+type AIAssistedInputProps = Pick<
+  ComponentProps<typeof Input>,
+  "disabled" | "id" | "maxLength" | "onChange" | "placeholder" | "value"
+> & {
+  aiAssistance:
+    | { state: "unavailable" }
+    | { state: "idle"; onGenerate: () => void }
+    | { state: "generating" };
+};
+
+export function AIAssistedInput({
+  aiAssistance,
+  disabled,
+  placeholder,
+  value,
+  ...inputProps
+}: AIAssistedInputProps) {
+  const isAvailable = aiAssistance.state !== "unavailable";
+  const isGenerating = aiAssistance.state === "generating";
+  const generateLabel = value
+    ? "Regenerate name with AI"
+    : "Generate name with AI";
+
+  return (
+    <div className="relative">
+      <Input
+        {...inputProps}
+        value={value}
+        placeholder={isGenerating ? "" : placeholder}
+        disabled={disabled || isGenerating}
+        aria-busy={isGenerating}
+        className={cn(
+          isAvailable && "pr-9",
+          isGenerating && "border-primary/60 animate-pulse text-transparent",
+        )}
+      />
+      {isGenerating ? (
+        <span
+          aria-hidden="true"
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-sm"
+        >
+          Generating name
+          <span className={styles.generatingDots} />
+        </span>
+      ) : null}
+      {isAvailable ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-foreground absolute top-1 right-1"
+              aria-label={isGenerating ? "Generating name" : generateLabel}
+              disabled={isGenerating || disabled}
+              onClick={
+                aiAssistance.state === "idle"
+                  ? aiAssistance.onGenerate
+                  : undefined
+              }
+            >
+              {isGenerating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {isGenerating ? "Generating name…" : generateLabel}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+    </div>
+  );
+}

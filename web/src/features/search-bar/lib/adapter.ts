@@ -180,6 +180,13 @@ function lowerTopLevel(
   switch (node.kind) {
     case "text":
       if (negated) {
+        const alias = node.quoted
+          ? null
+          : ctx.registry.resolveFilterAlias(`-${node.value}`);
+        if (alias !== null) {
+          ctx.filters.push(...alias.filters);
+          return;
+        }
         ctx.errors.push(
           `Free text "${node.value}" cannot be negated — search text is global`,
         );

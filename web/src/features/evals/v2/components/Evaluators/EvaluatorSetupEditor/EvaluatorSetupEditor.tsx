@@ -1,5 +1,7 @@
+import type { ComponentProps } from "react";
 import { useStore } from "zustand";
 
+import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { DefinitionStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DefinitionStepContainer/DefinitionStepContainer";
 import { NameStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/NameStep/components/NameStepContainer/NameStepContainer";
 import { VariableMappingStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/VariableMappingStep/components/VariableMappingStepContainer/VariableMappingStepContainer";
@@ -15,7 +17,7 @@ export function EvaluatorSetupEditor({
   providerGroups,
   providerAdapters,
   canSetProjectDefault,
-  isSuggestingName,
+  nameAIAssistance,
   onStepOpenChange,
   onConfigureProviders,
   onSetProjectDefault,
@@ -27,7 +29,7 @@ export function EvaluatorSetupEditor({
   providerGroups: Array<[string, string[]]>;
   providerAdapters: Record<string, LLMAdapter>;
   canSetProjectDefault: boolean;
-  isSuggestingName: boolean;
+  nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
   onStepOpenChange: (step: number, open: boolean) => void;
   onConfigureProviders: () => void;
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
@@ -57,7 +59,7 @@ export function EvaluatorSetupEditor({
       ) : null}
       <NameStepContainer
         store={store}
-        isSuggestingName={isSuggestingName}
+        nameAIAssistance={nameAIAssistance}
         onStepOpenChange={onStepOpenChange}
       />
     </div>

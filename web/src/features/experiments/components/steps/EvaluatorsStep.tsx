@@ -10,6 +10,10 @@ import { TemplateSelector } from "@/src/features/evals/components/template-selec
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { type EvaluatorsStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { ExperimentEvaluatorSelectorContent } from "@/src/features/experiments/components/ExperimentEvaluatorSelector";
+import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
+import { Button } from "@/src/components/ui/button";
+import { ChevronDown } from "lucide-react";
 
 export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
   projectId,
@@ -17,35 +21,52 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
   evaluatorState,
   permissions,
 }) => {
-  const {
-    evalTemplates,
-    selectedEvaluatorData,
-    showEvaluatorForm,
-    handleConfigureEvaluator,
-    handleSelectEvaluator,
-    handleCloseEvaluatorForm,
-    handleEvaluatorSuccess,
-    preprocessFormValues,
-  } = evaluatorState;
   const { hasEvalReadAccess, hasEvalWriteAccess } = permissions;
   return (
     <div className="space-y-6">
       <StepHeader
         title="Evaluators (Optional)"
-        description="Configure evaluators to automatically score experiment results. You can add multiple evaluators to assess different aspects of your LLM outputs."
+        description={
+          evaluatorState.version === "v2"
+            ? "Evaluators with variables mapped to experiment columns."
+            : "Configure evaluators to automatically score experiment results. You can add multiple evaluators to assess different aspects of your LLM outputs."
+        }
       />
 
       <FormItem>
-        <FormLabel>Select Evaluators</FormLabel>
-        {hasEvalReadAccess && datasetId ? (
-          <TemplateSelector
-            projectId={projectId}
-            datasetId={datasetId}
-            evalTemplates={evalTemplates}
-            onConfigureTemplate={handleConfigureEvaluator}
-            onSelectEvaluator={handleSelectEvaluator}
-            disabled={!hasEvalWriteAccess}
-          />
+        <FormLabel>Evaluators</FormLabel>
+        {hasEvalReadAccess && (evaluatorState.version === "v2" || datasetId) ? (
+          evaluatorState.version === "v2" ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between px-2 font-normal"
+                >
+                  {evaluatorState.evaluatorOptions.length > 0
+                    ? `${evaluatorState.evaluatorOptions.length} ${evaluatorState.evaluatorOptions.length === 1 ? "evaluator" : "evaluators"}`
+                    : "No experiment evaluators"}
+                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <ExperimentEvaluatorSelectorContent
+                projectId={projectId}
+                evaluatorOptions={evaluatorState.evaluatorOptions}
+                search={evaluatorState.search}
+                onSearchChange={evaluatorState.onSearchChange}
+              />
+            </Popover>
+          ) : (
+            <TemplateSelector
+              projectId={projectId}
+              datasetId={datasetId!}
+              evalTemplates={evaluatorState.evalTemplates}
+              onConfigureTemplate={evaluatorState.handleConfigureEvaluator}
+              onSelectEvaluator={evaluatorState.handleSelectEvaluator}
+              disabled={!hasEvalWriteAccess}
+            />
+          )
         ) : (
           <p className="text-muted-foreground text-sm">
             {!hasEvalReadAccess
@@ -57,36 +78,47 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
       </FormItem>
 
       {/* Dialog for configuring evaluators */}
-      {selectedEvaluatorData && (
-        <Dialog
-          open={showEvaluatorForm}
-          onOpenChange={(open) => {
-            if (!open) {
-              handleCloseEvaluatorForm();
-            }
-          }}
-        >
-          <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
-                Evaluator
-              </DialogTitle>
-            </DialogHeader>
-            <EvaluatorForm
-              useDialog={true}
-              projectId={projectId}
-              evalTemplates={evalTemplates}
-              templateId={selectedEvaluatorData.templateId}
-              existingEvaluator={selectedEvaluatorData.evaluator}
-              mode={selectedEvaluatorData.evaluator.id ? "edit" : "create"}
-              hideTargetSection={!selectedEvaluatorData.evaluator.id}
-              onFormSuccess={handleEvaluatorSuccess}
-              preprocessFormValues={preprocessFormValues}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
+      {evaluatorState.version === "legacy" &&
+        evaluatorState.selectedEvaluatorData && (
+          <Dialog
+            open={evaluatorState.showEvaluatorForm}
+            onOpenChange={(open) => {
+              if (!open) {
+                evaluatorState.handleCloseEvaluatorForm();
+              }
+            }}
+          >
+            <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {evaluatorState.selectedEvaluatorData.evaluator.id
+                    ? "Edit"
+                    : "Configure"}{" "}
+                  Evaluator
+                </DialogTitle>
+              </DialogHeader>
+              <EvaluatorForm
+                useDialog={true}
+                projectId={projectId}
+                evalTemplates={evaluatorState.evalTemplates}
+                templateId={evaluatorState.selectedEvaluatorData.templateId}
+                existingEvaluator={
+                  evaluatorState.selectedEvaluatorData.evaluator
+                }
+                mode={
+                  evaluatorState.selectedEvaluatorData.evaluator.id
+                    ? "edit"
+                    : "create"
+                }
+                hideTargetSection={
+                  !evaluatorState.selectedEvaluatorData.evaluator.id
+                }
+                onFormSuccess={evaluatorState.handleEvaluatorSuccess}
+                preprocessFormValues={evaluatorState.preprocessFormValues}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
     </div>
   );
 };

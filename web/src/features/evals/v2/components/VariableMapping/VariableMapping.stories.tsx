@@ -296,6 +296,19 @@ export const ReadOnlyEmpty = meta.story({
   args: { mode: "read-only", mappings: [] },
 });
 
+export const EditableEmpty = meta.story({
+  args: {
+    mode: "editable",
+    mappings: [],
+    activeMapping: null,
+    onActiveMappingChange: fn(),
+    onChangeField: fn(),
+    sourceObject,
+    hasMatchingObservations: true,
+  },
+  render: StatefulVariableMapping,
+});
+
 export const OpensJsonPathInput = meta.story({
   name: "(Test) Opens JSONPath Input",
   args: {

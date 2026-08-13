@@ -334,6 +334,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "experimentId",
     clickhouseTableName: "events_proto",
     clickhouseSelect: 'e."experiment_id"',
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Experiment Name",

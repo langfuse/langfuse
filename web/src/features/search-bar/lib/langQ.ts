@@ -752,6 +752,12 @@ export function parse(
         registry,
       );
       if (inner.kind === "text") {
+        if (
+          !inner.quoted &&
+          registry.resolveFilterAlias(`-${inner.value}`) !== null
+        ) {
+          return { kind: "not", child: inner, span: t.span };
+        }
         // "-foo" as free text would be a negated search term; not supported.
         diagnostics.push({
           from: t.span.from,
@@ -961,6 +967,13 @@ export function serialize(
     case "not": {
       const child = ast.child;
       if (child.kind === "filter") return `-${serializeFilter(child)}`;
+      if (
+        child.kind === "text" &&
+        !child.quoted &&
+        registry.resolveFilterAlias(`-${child.value}`) !== null
+      ) {
+        return `-${serializeText(child, false, registry)}`;
+      }
       const sameField = sameFieldOrGroup(child);
       if (sameField !== null) return serializeSameFieldOr(sameField, true);
       if (child.kind === "not") return `NOT (${serialize(child, registry)})`;

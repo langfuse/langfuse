@@ -17,6 +17,7 @@ import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsS
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
+import { EVENTS_FIELD_REGISTRY } from "@/src/features/search-bar/lib/fields";
 import {
   observedScoreNamesFromOptions,
   toObservedOptions,
@@ -26,26 +27,12 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
+import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/search-bar/lib/filter-aliases";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
 
 const PAGE_SIZE = 25;
-
-const EVALUATION_EXCLUSIONS: FilterState = [
-  {
-    column: "environment",
-    type: "string",
-    operator: "does not contain",
-    value: "langfuse-",
-  },
-  {
-    column: "environment",
-    type: "stringOptions",
-    operator: "none of",
-    value: ["sdk-experiment"],
-  },
-];
 
 const EXAMPLES = [
   {
@@ -97,9 +84,9 @@ const EXAMPLES = [
     ] satisfies FilterState,
   },
   {
-    label: "Exclude evaluations and experiments",
+    label: "Exclude experiments & evals",
     icon: EyeOff,
-    filters: EVALUATION_EXCLUSIONS,
+    filters: EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
   },
 ] as const;
 
@@ -317,12 +304,16 @@ export function SampleObservationSelectorBase(
         resultCount: observationPages.every((page) => page.status === "success")
           ? matchingObservations.length
           : null,
+        registry: registry ?? EVENTS_FIELD_REGISTRY,
       }),
-    [matchingObservations, observationPages, observed],
+    [matchingObservations, observationPages, observed, registry],
   );
   const aiScoreNames = useMemo(
-    () => observedScoreNamesFromOptions(observed),
-    [observed],
+    () =>
+      (registry ?? EVENTS_FIELD_REGISTRY).scores
+        ? observedScoreNamesFromOptions(observed)
+        : undefined,
+    [observed, registry],
   );
   const selectionToReconcile =
     observationPages[0]?.status === "success" &&
@@ -529,7 +520,7 @@ export function SampleObservationSelectorBase(
           meta={
             options.approxTotalCount !== null ? (
               <span className="text-muted-foreground shrink-0 text-sm">
-                ≈ {formatCount(options.approxTotalCount)}
+                {formatCount(options.approxTotalCount)}
               </span>
             ) : null
           }

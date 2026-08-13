@@ -5,6 +5,7 @@ import { History, Trash2 } from "lucide-react";
 import {
   observationVariableMappingList,
   type EvalTemplateType,
+  type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { useStore } from "zustand";
@@ -13,6 +14,7 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
@@ -37,6 +39,8 @@ import { DefaultModelChangeConfirmationDialog } from "@/src/features/evals/v2/co
 import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useProject } from "@/src/features/projects/hooks";
 
 type InitialEvaluator = {
   id: string;
@@ -61,6 +65,10 @@ export function EvaluatorSetupPage(
       },
 ) {
   const { projectId } = props;
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useProject(projectId);
+  const nameAIAssistanceAvailable =
+    isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
   const initialEvaluator =
     props.mode === "edit" ? props.initialEvaluator : null;
   const initialDraft = props.mode === "create" ? props.initialDraft : null;
@@ -106,6 +114,7 @@ export function EvaluatorSetupPage(
     name: string;
     type: EvalTemplateType;
     defaultVariableMapping: ObservationVariableMapping[];
+    sampleFilter: FilterState;
     hasCompletedTestCall: boolean;
     testRunCostUsd: number | null;
   } | null>(null);
@@ -194,22 +203,33 @@ export function EvaluatorSetupPage(
   });
   const suggestName = api.evalsV2.suggestName.useMutation({
     onSuccess: (suggested) => {
-      const state = evaluatorSetupStore.getState();
-      if (suggested && !state.name) state.actions.setName(suggested);
+      if (suggested) evaluatorSetupStore.getState().actions.setName(suggested);
     },
   });
+
+  const requestNameSuggestion = () => {
+    if (!nameAIAssistanceAvailable) return;
+    hasRequestedName.current = true;
+    const state = evaluatorSetupStore.getState();
+    const nameDefinition =
+      state.type === "LLM_AS_JUDGE"
+        ? { type: state.type, prompt: state.prompt }
+        : { type: state.type, sourceCode: state.sourceCode };
+    suggestName.mutate({ projectId, definition: nameDefinition });
+  };
 
   const setStepOpen = (step: number, open: boolean) => {
     const state = evaluatorSetupStore.getState();
     state.actions.setStepOpen(step, open);
     const isNameStep = step === (state.type === "LLM_AS_JUDGE" ? 3 : 2);
-    if (open && isNameStep && !state.name && !hasRequestedName.current) {
-      hasRequestedName.current = true;
-      const nameDefinition =
-        state.type === "LLM_AS_JUDGE"
-          ? { type: state.type, prompt: state.prompt }
-          : { type: state.type, sourceCode: state.sourceCode };
-      suggestName.mutate({ projectId, definition: nameDefinition });
+    if (
+      nameAIAssistanceAvailable &&
+      open &&
+      isNameStep &&
+      !state.name &&
+      !hasRequestedName.current
+    ) {
+      requestNameSuggestion();
     }
   };
 
@@ -261,6 +281,7 @@ export function EvaluatorSetupPage(
         defaultVariableMapping: observationVariableMappingList
           .catch([])
           .parse(definition.variableMapping),
+        sampleFilter: state.sampleFilter,
         hasCompletedTestCall,
         testRunCostUsd: lastTestRunCostUsd,
       });
@@ -348,57 +369,69 @@ export function EvaluatorSetupPage(
       }}
     >
       <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
-      <div
-        className={
-          testPanelOpen
-            ? "grid min-h-0 flex-1 grid-cols-[minmax(0,3fr)_minmax(360px,2fr)] divide-x"
-            : "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_48px] divide-x"
-        }
-      >
-        <EvaluatorSetupEditor
-          projectId={projectId}
-          store={evaluatorSetupStore}
-          isEditing={Boolean(initialEvaluator)}
-          defaultModel={projectDefaultModel.defaultModel}
-          providerGroups={projectDefaultModel.providerGroups}
-          providerAdapters={projectDefaultModel.providerAdapters}
-          canSetProjectDefault={projectDefaultModel.canUpdate}
-          onConfigureProviders={projectDefaultModel.openProviderSettings}
-          onSetProjectDefault={projectDefaultModel.update.requestUpdate}
-          onStepOpenChange={setStepOpen}
-          isSuggestingName={suggestName.isPending}
-        />
-
-        <EvaluatorTestPanelContainer
-          projectId={projectId}
-          store={evaluatorSetupStore}
-          sampleSelector={
-            <SampleObservationSelectorContainer
-              store={evaluatorSetupStore}
-              projectId={projectId}
-              timeRange={absoluteTimeRange}
-              onOpenTrace={(observation) => {
-                if (observation.traceId) {
-                  sampleTracePeekNavigation.openPeek(observation.traceId);
-                }
-              }}
-            />
-          }
-          onOpenSampleTrace={(observation) => {
-            if (observation.traceId) {
-              sampleTracePeekNavigation.openPeek(observation.traceId);
+      <ResizableSplitLayout
+        className="min-h-0 flex-1"
+        primaryContent={
+          <EvaluatorSetupEditor
+            projectId={projectId}
+            store={evaluatorSetupStore}
+            isEditing={Boolean(initialEvaluator)}
+            defaultModel={projectDefaultModel.defaultModel}
+            providerGroups={projectDefaultModel.providerGroups}
+            providerAdapters={projectDefaultModel.providerAdapters}
+            canSetProjectDefault={projectDefaultModel.canUpdate}
+            onConfigureProviders={projectDefaultModel.openProviderSettings}
+            onSetProjectDefault={projectDefaultModel.update.requestUpdate}
+            onStepOpenChange={setStepOpen}
+            nameAIAssistance={
+              !nameAIAssistanceAvailable
+                ? { state: "unavailable" }
+                : suggestName.isPending
+                  ? { state: "generating" }
+                  : { state: "idle", onGenerate: requestNameSuggestion }
             }
-          }}
-          testResult={testResult}
-          testPending={testEvaluator.isPending}
-          rawResultOpen={rawResultOpen}
-          onRawResultOpenChange={setRawResultOpen}
-          onRunTest={runTest}
-          onOpenExecutionTrace={(traceId) =>
-            sampleTracePeekNavigation.openPeek(traceId)
-          }
-        />
-      </div>
+          />
+        }
+        secondaryContent={
+          <EvaluatorTestPanelContainer
+            projectId={projectId}
+            store={evaluatorSetupStore}
+            sampleSelector={
+              <SampleObservationSelectorContainer
+                store={evaluatorSetupStore}
+                projectId={projectId}
+                timeRange={absoluteTimeRange}
+                onOpenTrace={(observation) => {
+                  if (observation.traceId) {
+                    sampleTracePeekNavigation.openPeek(observation.traceId);
+                  }
+                }}
+              />
+            }
+            onOpenSampleTrace={(observation) => {
+              if (observation.traceId) {
+                sampleTracePeekNavigation.openPeek(observation.traceId);
+              }
+            }}
+            testResult={testResult}
+            testPending={testEvaluator.isPending}
+            rawResultOpen={rawResultOpen}
+            onRawResultOpenChange={setRawResultOpen}
+            onRunTest={runTest}
+            onOpenExecutionTrace={(traceId) =>
+              sampleTracePeekNavigation.openPeek(traceId)
+            }
+          />
+        }
+        open={testPanelOpen}
+        defaultPrimarySize={60}
+        defaultSecondarySize={40}
+        minPrimarySize={30}
+        minSecondarySize="360px"
+        collapsedSecondarySize="48px"
+        onOpenChange={evaluatorSetupStore.getState().actions.setTestPanelOpen}
+        persistId="evaluator-test-panel"
+      />
       <EvaluatorSetupFooter
         store={evaluatorSetupStore}
         initialSnapshot={initialSnapshot.current}
@@ -414,7 +447,7 @@ export function EvaluatorSetupPage(
           evaluatorName={initialEvaluator.name}
           versions={versions}
           currentVersionId={versions[0]?.id ?? ""}
-          defaultModel={null}
+          defaultModel={projectDefaultModel.defaultModel}
           expandedVersionId={expandedVersionId}
           onExpandedVersionChange={setExpandedVersionId}
           isLoading={versionHistory.isPending}

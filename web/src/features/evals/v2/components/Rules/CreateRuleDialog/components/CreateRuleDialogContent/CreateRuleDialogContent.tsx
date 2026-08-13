@@ -1,6 +1,6 @@
 import {
-  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
   EvalTemplateType,
+  type EvalTargetObject,
   type FilterState,
 } from "@langfuse/shared";
 import { useRef, useState } from "react";
@@ -22,30 +22,13 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/search-bar/lib/filter-aliases";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useProject } from "@/src/features/projects/hooks";
 
-// Exclude Langfuse's own traffic by default, the same set the sidebar hides
-// (DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS): evaluator executions land in
-// `langfuse-*` environments, so without this a new rule would evaluate its own
-// output and every other evaluator's. Matched by prefix rather than enumerated
-// so future internal environments are covered too.
-const LANGFUSE_INTERNAL_ENVIRONMENT_PREFIX = "langfuse-";
-const DEFAULT_RULE_FILTERS: FilterState = [
-  {
-    column: "environment",
-    type: "string",
-    operator: "does not contain",
-    value: LANGFUSE_INTERNAL_ENVIRONMENT_PREFIX,
-  },
-  {
-    column: "environment",
-    type: "stringOptions",
-    operator: "none of",
-    value: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.filter(
-      (environment) =>
-        !environment.startsWith(LANGFUSE_INTERNAL_ENVIRONMENT_PREFIX),
-    ),
-  },
-];
+export function resolveInitialRuleFilters(initialFilter?: FilterState) {
+  return initialFilter ?? EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS;
+}
 
 export function CreateRuleDialogContent({
   projectId,
@@ -53,6 +36,8 @@ export function CreateRuleDialogContent({
   onOpenChange,
   evaluatorOptions,
   initialEvaluator,
+  initialFilter,
+  targetObject,
   evaluatorSearch,
   onEvaluatorSearchChange,
 }: {
@@ -61,15 +46,21 @@ export function CreateRuleDialogContent({
   onOpenChange: (open: boolean) => void;
   evaluatorOptions: RuleEvaluatorOption[];
   initialEvaluator: RuleEvaluatorOption | undefined;
+  initialFilter: FilterState | undefined;
+  targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
   evaluatorSearch: string;
   onEvaluatorSearchChange: (search: string) => void;
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useProject(projectId);
+  const nameAIAssistanceAvailable =
+    isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
   const [ruleSetupStore] = useState(() =>
     createRuleSetupStore({
       name: "",
-      filter: DEFAULT_RULE_FILTERS,
+      filter: resolveInitialRuleFilters(initialFilter),
       sampling: 1,
       assignments: initialEvaluator
         ? [
@@ -87,11 +78,22 @@ export function CreateRuleDialogContent({
   const hasRequestedName = useRef(false);
   const suggestName = api.evalsV2.rules.suggestName.useMutation({
     onSuccess: (suggested) => {
-      if (suggested && !ruleSetupStore.getState().name) {
+      if (suggested) {
         ruleSetupStore.getState().actions.setName(suggested);
       }
     },
   });
+
+  const requestNameSuggestion = () => {
+    if (!nameAIAssistanceAvailable) return;
+    hasRequestedName.current = true;
+    const state = ruleSetupStore.getState();
+    suggestName.mutate({
+      projectId,
+      filter: state.filter,
+      sampling: state.sampling,
+    });
+  };
   const createRule = api.evalsV2.rules.create.useMutation({
     onError: trpcErrorToast,
   });
@@ -104,6 +106,7 @@ export function CreateRuleDialogContent({
       filter: draft.filter,
       sampling: draft.sampling,
       enabled: true,
+      ...(targetObject ? { targetObject } : {}),
       evaluatorAssignments: draft.assignments.map((assignment) => ({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
@@ -186,16 +189,22 @@ export function CreateRuleDialogContent({
               evaluatorSearch={evaluatorSearch}
               onEvaluatorSearchChange={onEvaluatorSearchChange}
               store={ruleSetupStore}
-              isSuggestingName={suggestName.isPending}
+              nameAIAssistance={
+                !nameAIAssistanceAvailable
+                  ? { state: "unavailable" }
+                  : suggestName.isPending
+                    ? { state: "generating" }
+                    : { state: "idle", onGenerate: requestNameSuggestion }
+              }
               onNameStepOpenChange={(stepOpen) => {
                 const state = ruleSetupStore.getState();
-                if (stepOpen && !state.name && !hasRequestedName.current) {
-                  hasRequestedName.current = true;
-                  suggestName.mutate({
-                    projectId,
-                    filter: state.filter,
-                    sampling: state.sampling,
-                  });
+                if (
+                  nameAIAssistanceAvailable &&
+                  stepOpen &&
+                  !state.name &&
+                  !hasRequestedName.current
+                ) {
+                  requestNameSuggestion();
                 }
               }}
             />

@@ -3,7 +3,16 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../../../../.storybook/preview";
 import { EvaluatorActionsCell } from "./EvaluatorActionsCell";
 
-const meta = preview.meta({ component: EvaluatorActionsCell });
+const meta = preview.meta({
+  component: EvaluatorActionsCell,
+  decorators: [
+    (Story) => (
+      <div className="w-[170px]">
+        <Story />
+      </div>
+    ),
+  ],
+});
 
 export const ActiveEvaluator = meta.story({
   args: {
