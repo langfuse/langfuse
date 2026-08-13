@@ -52,10 +52,28 @@ const h = vi.hoisted(() => {
   }
 
   const posthogIntegrationUpdate = vi.fn();
+  // LFE-14990: the atomic disable (enabled true->false) uses updateMany.
+  const posthogIntegrationUpdateMany = vi.fn(async () => ({ count: 1 }));
+  // LFE-14990: hostname preflight (throws OutboundUrlValidationError on a bad
+  // hostname) and the customer notification, both controllable per test.
+  const validateWebhookURL = vi.fn(async () => {});
+  const dispatchProjectNotification = vi.fn(async () => {});
   const getTraces = vi.fn(() => fakeStream("traces"));
   const getGenerations = vi.fn(() => fakeStream("generations"));
   const getScores = vi.fn(() => fakeStream("scores"));
   const getEvents = vi.fn(() => fakeStream("events"));
+
+  // Minimal stand-in for the shared class. The classifier duck-types on
+  // `.name === "OutboundUrlValidationError"` + `.code` (it does not use
+  // instanceof), so this shape is sufficient for the mocked server barrel.
+  class OutboundUrlValidationError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = "OutboundUrlValidationError";
+      this.code = code;
+    }
+  }
 
   const defaultIntegration = () => ({
     projectId: "project-1",
@@ -76,6 +94,10 @@ const h = vi.hoisted(() => {
     constructed,
     state,
     posthogIntegrationUpdate,
+    posthogIntegrationUpdateMany,
+    validateWebhookURL,
+    dispatchProjectNotification,
+    OutboundUrlValidationError,
     getTraces,
     getGenerations,
     getScores,
@@ -90,6 +112,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
     posthogIntegration: {
       findFirst: vi.fn(async () => h.db.integration),
       update: h.posthogIntegrationUpdate,
+      updateMany: h.posthogIntegrationUpdateMany,
     },
   },
 }));
@@ -99,7 +122,9 @@ vi.mock("@langfuse/shared/src/server", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   recordIncrement: vi.fn(),
   getCurrentSpan: vi.fn(() => undefined),
-  validateWebhookURL: vi.fn(async () => {}),
+  validateWebhookURL: h.validateWebhookURL,
+  dispatchProjectNotification: h.dispatchProjectNotification,
+  OutboundUrlValidationError: h.OutboundUrlValidationError,
   getTracesForAnalyticsIntegrations: h.getTraces,
   getGenerationsForAnalyticsIntegrations: h.getGenerations,
   getScoresForAnalyticsIntegrations: h.getScores,
@@ -191,6 +216,12 @@ function resetSharedState() {
   h.state.rowCounts.generations = 2;
   h.state.rowCounts.events = 2;
   h.posthogIntegrationUpdate.mockClear();
+  h.posthogIntegrationUpdateMany.mockReset();
+  h.posthogIntegrationUpdateMany.mockImplementation(async () => ({ count: 1 }));
+  h.validateWebhookURL.mockReset();
+  h.validateWebhookURL.mockImplementation(async () => {});
+  h.dispatchProjectNotification.mockReset();
+  h.dispatchProjectNotification.mockImplementation(async () => {});
   h.getTraces.mockClear();
   h.getGenerations.mockClear();
   h.getScores.mockClear();
@@ -423,5 +454,130 @@ describe("handlePostHogIntegrationProjectJob delivery controls (issue #12786)", 
     );
 
     expect(h.posthogIntegrationUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// LFE-14990: a deterministic customer-config fault (bad/malicious hostname
+// rejected by validateWebhookURL) must be classified as the customer's problem
+// — the job RESOLVES (not thrown, so the type:failed counter never increments
+// and the Failures monitor stays quiet), the integration is auto-disabled,
+// lastError/lastErrorAt are persisted, and the customer is notified once with
+// disabled=true. Transient/infra faults still throw, retry, and trip the
+// monitor unchanged.
+describe("handlePostHogIntegrationProjectJob customer-fault auto-disable (LFE-14990)", () => {
+  beforeEach(() => {
+    resetSharedState();
+    // A known-good source + write-mode combo so the pre-export write-mode
+    // guards pass and the handler reaches the hostname preflight.
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      exportSource: "TRACES_OBSERVATIONS",
+    };
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+  });
+
+  // Every `data` payload written across update + updateMany, so assertions
+  // don't over-constrain which Prisma method carries which column.
+  const writeData = (): Array<Record<string, unknown>> =>
+    [
+      ...h.posthogIntegrationUpdate.mock.calls,
+      ...h.posthogIntegrationUpdateMany.mock.calls,
+    ].map(
+      (call) =>
+        (call[0] as { data?: Record<string, unknown> } | undefined)?.data ?? {},
+    );
+
+  const disableNotifications = (): number =>
+    h.dispatchProjectNotification.mock.calls.filter((call) => {
+      const arg = call[0] as { event?: { disabled?: unknown } } | undefined;
+      return arg?.event?.disabled === true;
+    }).length;
+
+  // Load-bearing: the core journey. A blocked-hostname fault must resolve (no
+  // throw) AND flip enabled to false AND persist the error AND notify once.
+  it("resolves and auto-disables on a blocked-hostname validation fault", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(
+      new h.OutboundUrlValidationError(
+        "blocked-hostname",
+        "Blocked hostname detected",
+      ),
+    );
+
+    // Must not throw — a throw would increment type:failed and fire the monitor.
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(writeData().some((data) => data.enabled === false)).toBe(true);
+    expect(
+      writeData().some(
+        (data) =>
+          typeof data.lastError === "string" &&
+          (data.lastError as string).length > 0,
+      ),
+    ).toBe(true);
+    expect(writeData().some((data) => data.lastErrorAt instanceof Date)).toBe(
+      true,
+    );
+    expect(disableNotifications()).toBe(1);
+  });
+
+  // Load-bearing: the throw site rewraps into `new Error(msg, { cause })`, so
+  // the handler must classify off the cause chain — a wrapped validation error
+  // still disables.
+  it("classifies through a wrapped cause chain and still disables", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(
+      new Error("posthog export failed", {
+        cause: new h.OutboundUrlValidationError(
+          "blocked-hostname",
+          "Blocked hostname detected",
+        ),
+      }),
+    );
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(writeData().some((data) => data.enabled === false)).toBe(true);
+    expect(disableNotifications()).toBe(1);
+  });
+
+  // Load-bearing negative controls: transient/infra faults are NOT customer
+  // faults — the handler must rethrow (so BullMQ retries and the monitor
+  // fires), leave enabled unchanged, and never notify.
+  it.each([
+    [
+      "a dns-lookup-failed validation fault",
+      () =>
+        new h.OutboundUrlValidationError(
+          "dns-lookup-failed",
+          "DNS lookup failed for host.example",
+        ),
+    ],
+    [
+      "a generic ClickHouse-style error",
+      () => new Error("ClickHouse read failed"),
+    ],
+  ] as const)(
+    "rethrows on %s, leaves enabled unchanged, and does not notify",
+    async (_label, makeError) => {
+      h.validateWebhookURL.mockRejectedValueOnce(makeError());
+
+      await expect(
+        handlePostHogIntegrationProjectJob(makeJob()),
+      ).rejects.toThrow();
+
+      expect(writeData().some((data) => data.enabled === false)).toBe(false);
+      expect(h.dispatchProjectNotification).not.toHaveBeenCalled();
+    },
+  );
+
+  // Cheap addition (Semantics table success row): a healthy run clears any
+  // prior error state so a fixed + re-enabled integration reads as healthy.
+  it("clears lastError/lastErrorAt on a successful run", async () => {
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(h.posthogIntegrationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ lastError: null, lastErrorAt: null }),
+      }),
+    );
   });
 });
