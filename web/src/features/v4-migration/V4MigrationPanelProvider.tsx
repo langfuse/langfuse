@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -76,6 +77,17 @@ export function V4MigrationPanelProvider({
     });
     setRequestedOpen(true);
   };
+
+  // The panel is a transient side surface that intentionally survives
+  // programmatic forward navigation (e.g. a status-page row opens it and then
+  // pushes to the project). Browser back/forward is different: landing on a
+  // page the user did not open the panel from — most visibly the org overview —
+  // with the panel still docked is confusing, so close it on popstate.
+  useEffect(() => {
+    const closeOnPopState = () => setRequestedOpen(false);
+    window.addEventListener("popstate", closeOnPopState);
+    return () => window.removeEventListener("popstate", closeOnPopState);
+  }, []);
 
   return (
     <V4MigrationPanelContext.Provider

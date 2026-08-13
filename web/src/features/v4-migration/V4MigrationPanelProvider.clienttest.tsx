@@ -120,4 +120,25 @@ describe("V4MigrationPanelProvider", () => {
       source: "status_page_row",
     });
   });
+
+  it("closes the panel on browser back/forward navigation", () => {
+    flagState.enabled = true;
+    const { result } = renderHook(() => useV4MigrationPanel(), { wrapper });
+
+    act(() =>
+      result.current.openForProject(
+        { id: "project-id", name: "Project" },
+        "project_chip",
+      ),
+    );
+    expect(result.current.open).toBe(true);
+
+    // Browser back/forward emits popstate; the panel is a transient side
+    // surface and must not linger on the page the user lands on.
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(result.current.open).toBe(false);
+  });
 });
