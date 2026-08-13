@@ -266,12 +266,11 @@ export function AuthenticatedLayout({
                       : undefined
                   }
                 />
-                {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
-                    scrollbars, and a definite width also floors `min-width:
-                    auto`, so on a wide page the inset stayed pinned 15px past
-                    the space beside the sidebar once a space-taking vertical
-                    scrollbar showed — spawning a horizontal one. Flex already
-                    sizes the inset to that space. */}
+                {/* `min-w-0` rather than a `100vw`-derived width: viewport units
+                    ignore scrollbars, so sizing the inset off `100vw` makes it
+                    wider than the space beside the sidebar whenever a
+                    space-taking vertical scrollbar appears — which then spawns a
+                    horizontal one. As a flex item it already fills that space. */}
                 <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
                   <AppContentWithRightDrawer>
                     {children}
