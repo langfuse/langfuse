@@ -17,6 +17,8 @@ describe("chartFilterExclusionReason", () => {
       "userId",
       "sessionId",
       "traceName",
+      "version",
+      "release",
       "traceTags",
       "toolNames",
       "experimentId",

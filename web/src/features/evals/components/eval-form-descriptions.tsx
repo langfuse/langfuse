@@ -7,7 +7,7 @@ export function VariableMappingDescription(p: {
   href: string;
 }) {
   return (
-    <div className="flex h-8 w-1/2 items-center">
+    <div className="flex h-8 min-w-0 flex-1 items-center">
       <Label className="text-sm font-normal">{p.title}</Label>
       <DocPopup description={p.description} href={p.href} />
     </div>

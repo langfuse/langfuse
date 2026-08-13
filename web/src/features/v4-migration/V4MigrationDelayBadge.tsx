@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useRouter } from "next/router";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -9,13 +8,14 @@ import {
   useProjectV4SdkData,
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
-import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
-import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import {
-  buildDeprecatedEvaluatorsUrl,
-  buildEvaluatorUpgradeUrl,
-} from "@/src/features/v4-migration/evaluatorMigrationUrls";
+  getCustomInstrumentationSectionState,
+  getOtelSectionState,
+} from "@/src/features/v4-migration/sdkVersionStatus";
+import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
+import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { useRouter } from "next/router";
 
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
@@ -28,20 +28,48 @@ export function V4MigrationDelayBadge() {
     enabled: v4UpgradeUiEnabled && Boolean(project),
   });
 
-  if (!v4UpgradeUiEnabled || !project || sdk.status !== "legacy") {
+  // Every delayed ingestion path shows the pill, matching the migration
+  // panel's per-path offender detectors (LFE-14861) — not just outdated SDKs.
+  // Unlike the panel's Update SDK section, the pill states a factual delay,
+  // so the SDK path needs a confirmed-outdated series: an unparsable version
+  // is grounds for review, not proof the data is delayed.
+  const isTransient = sdk.status === "checking" || sdk.status === "error";
+  const sdkActionable = !isTransient && sdk.upgradeRequiredCount > 0;
+  const otelActionable =
+    !isTransient && getOtelSectionState(sdk).delayedCount > 0;
+  const customActionable =
+    !isTransient && getCustomInstrumentationSectionState(sdk).series.length > 0;
+  const actionablePaths = [
+    sdkActionable,
+    otelActionable,
+    customActionable,
+  ].filter(Boolean).length;
+
+  if (!v4UpgradeUiEnabled || !project || actionablePaths === 0) {
     return null;
   }
 
   const handleClick = () => {
     capture("v4_migration:delay_badge_clicked");
-    openMigrationPanel({ id: project.id, name: project.name });
+    openMigrationPanel({ id: project.id, name: project.name }, "delay_badge");
   };
+
+  // The hover's action clause echoes the panel section the click opens;
+  // multiple delayed paths get the generic clause.
+  const description =
+    actionablePaths > 1
+      ? "Your setup is outdated. Upgrade for real-time data"
+      : sdkActionable
+        ? "Your setup is outdated. Update SDK for real-time data"
+        : otelActionable
+          ? "Your setup is outdated. Update OTel instrumentation for real-time data"
+          : "Your setup is outdated. Upgrade instrumentation for real-time data";
 
   return (
     <V4MigrationBadgeContent
       onClick={handleClick}
       title="New data in ~15 min"
-      description="Update your SDK for real-time data"
+      description={description}
     />
   );
 }
@@ -106,65 +134,6 @@ export function V4MigrationUpdateRequiredBadge() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         scope={{ type: "all" }}
-        assistantPrompt={upgradePlan.assistantPrompt}
-        onManualUpgrade={handleManualUpgrade}
-        onAssistantStarted={() => undefined}
-      />
-    </>
-  );
-}
-
-/** Opens the evaluator migration choices from an individual evaluator peek. */
-export function V4MigrationEvaluatorUpdateRequiredBadge({
-  projectId,
-  evaluatorId,
-}: {
-  projectId: string;
-  evaluatorId: string;
-}) {
-  const router = useRouter();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const capture = usePostHogClientCapture();
-  const canUseAssistant = useCanUseInAppAgent();
-  const { organization } = useQueryProject();
-  const upgradePlan = useEvalUpgradeAssistantPlan({
-    projectId,
-    orgId: organization?.id,
-    enabled: true,
-  });
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-
-  if (!v4UpgradeUiEnabled) return null;
-
-  const handleManualUpgrade = () => {
-    setDialogOpen(false);
-    router.push(buildEvaluatorUpgradeUrl(projectId, evaluatorId));
-  };
-
-  const handleClick = () => {
-    capture("v4_migration:update_required_badge_clicked", {
-      scope: "single",
-    });
-    if (!canUseAssistant) {
-      handleManualUpgrade();
-      return;
-    }
-    setDialogOpen(true);
-  };
-
-  return (
-    <>
-      <V4MigrationBadgeContent
-        onClick={handleClick}
-        title="Action required"
-        description={
-          canUseAssistant ? "Choose how to upgrade" : "Start upgrade now"
-        }
-      />
-      <EvaluatorMigrationDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        scope={{ type: "single" }}
         assistantPrompt={upgradePlan.assistantPrompt}
         onManualUpgrade={handleManualUpgrade}
         onAssistantStarted={() => undefined}

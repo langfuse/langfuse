@@ -14,6 +14,7 @@ import {
   useCanUseInAppAgent,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
@@ -56,6 +57,7 @@ export function EvaluatorMigrationDialog({
   const isSingleEvaluator = scope.type === "single";
   const showAssistantOption = canUseAssistant;
 
+  const capture = usePostHogClientCapture();
   const startAssistant = async () => {
     const opened = openAssistant("v4_migration");
     if (!opened) return;
@@ -79,10 +81,11 @@ export function EvaluatorMigrationDialog({
   };
 
   const handleManualClick = () => {
-    if (isSingleEvaluator) {
-      onManualUpgrade();
-      return;
-    }
+    // The assistant branch is covered by in_app_agent:new_chat_started
+    // (entryPoint "v4_migration"); this event completes the funnel fork.
+    capture("v4_migration:evals_manual_upgrade_clicked", {
+      scope: isSingleEvaluator ? "single" : "bulk",
+    });
     onManualUpgrade();
   };
 

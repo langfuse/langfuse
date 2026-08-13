@@ -13,6 +13,7 @@ const sdkSeries = (
   canonicalSdkName: "python" as const,
   publicKey: "pk-lf-python",
   count: 1,
+  eventsCount: 1,
   firstSeen: "2026-07-23T09:00:00Z",
   lastSeen: "2026-07-23T10:00:00Z",
   hasDelayedOtelEvents: false,
@@ -110,6 +111,23 @@ describe("v4 migration SDK status", () => {
       status: "latest",
       upgradeRequiredCount: 0,
     });
+  });
+
+  it("keeps custom-instrumentation traffic action-needed despite a compatible SDK", () => {
+    expect(
+      getLoadedSdkState(
+        sdkSeries(),
+        sdkSeries({
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          canonicalSdkName: null,
+          publicKey: "pk-lf-custom",
+          attributionStatus: "missing_name_and_version",
+          v4MigrationStatus: "unknown",
+          hasDelayedOtelEvents: null,
+        }),
+      ),
+    ).toMatchObject({ status: "unknown" });
   });
 
   it("keeps a recognized SDK with an invalid version unknown", () => {
