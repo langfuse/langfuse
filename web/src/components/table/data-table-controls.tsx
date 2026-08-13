@@ -692,7 +692,8 @@ export function DataTableControls({
         // to CONTENT width, breaking label truncation). inline has no such
         // viewport, so a plain w-full block is correct.
         layout === "inline" ? "w-full" : "w-0 min-w-full",
-        "pt-1 pb-10",
+        // The search row above supplies the list's top air when it is there.
+        showFacetSearch ? "pb-10" : "pt-1 pb-10",
       )}
       // Any interaction in the list marks the filter change it causes as the
       // user's own edit, so the order holds still (LFE-14843). Capture phase,
@@ -1122,7 +1123,13 @@ export function DataTableControls({
           // px-2 and h-6 are the facet row's own inset and height — the search
           // field lines up with the labels it filters. No bottom border: the
           // list below is already a stack of bordered rows.
-          <div className="bg-background shrink-0 px-2 py-2">
+          //
+          // The space below the field lives HERE rather than in the list,
+          // because the list's own lead-in scrolls away: a facet header pinning
+          // to the top of the scroll area would otherwise sit tight against the
+          // field. pb-1.5 + the header's own 2px = the 8px above the field, so
+          // the field keeps even air whether the list is at rest or scrolled.
+          <div className="bg-background shrink-0 px-2 pt-2 pb-1.5">
             <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
               <Input
