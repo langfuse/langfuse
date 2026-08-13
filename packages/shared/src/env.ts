@@ -37,6 +37,8 @@ const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
   // Same, for the integration-level cutoff (BlobStorageIntegration.createdAt).
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
+  // Same, for the integration-level cutoff applied to PostHog/Mixpanel rows.
+  NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
