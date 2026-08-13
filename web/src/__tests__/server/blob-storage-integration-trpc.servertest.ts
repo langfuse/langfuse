@@ -755,10 +755,41 @@ describe("Blob Storage Integration tRPC Router", () => {
   describe("update: enriched export source guard", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    const originalPreviewOptIn = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
 
     afterEach(() => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
       (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+    });
+
+    it("rejects EVENTS under the legacy write mode even with the preview opt-in enabled", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("allows EVENTS under the dual write mode even with the preview opt-in disabled", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
     });
 
     it("rejects EVENTS under the legacy write mode", async () => {
