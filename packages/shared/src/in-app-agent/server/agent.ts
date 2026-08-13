@@ -33,6 +33,7 @@ import {
   filterInAppAgentAvailableLangfuseMcpTools,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
+  hasCallableExecute,
   type CompletedInAppAgentMcpToolCall,
   type InAppAgentToolPolicy,
   withOptionalSilentMcpOutput,
@@ -985,12 +986,7 @@ function withLangfuseMcpRateLimitWait<TTool>(params: {
 }): Record<string, TTool> {
   return Object.fromEntries(
     Object.entries(params.tools).map(([toolName, tool]) => {
-      if (
-        typeof tool !== "object" ||
-        tool === null ||
-        !("execute" in tool) ||
-        typeof tool.execute !== "function"
-      ) {
+      if (!hasCallableExecute(tool)) {
         return [toolName, tool];
       }
 
