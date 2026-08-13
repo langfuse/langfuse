@@ -365,8 +365,6 @@ export const getDatabaseReadStreamPaginated = async ({
               : [createdAtCutoffFilterCh],
             isTimestampFilter: isGenerationTimestampFilter,
             clickhouseConfigs,
-            // Inert: exports use the stream builders; rows here are unrouted.
-            preferredClickhouseService,
           });
 
           emptyScoreColumns = distinctScoreNames.reduce(
@@ -442,8 +440,6 @@ export const getDatabaseReadStreamPaginated = async ({
               : [createdAtCutoffFilter],
             isTimestampFilter: isTraceTimestampFilter,
             clickhouseConfigs,
-            // Inert: exports use the stream builders; rows here are unrouted.
-            preferredClickhouseService,
           });
           emptyScoreColumns = distinctScoreNames.reduce(
             (acc, name) => ({ ...acc, [name]: null }),
