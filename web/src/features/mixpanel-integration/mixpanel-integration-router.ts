@@ -15,6 +15,7 @@ import { env } from "@/src/env.mjs";
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
+  areEnrichedWritesActive,
   areLegacyWritesActive,
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -97,13 +98,12 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         }
       }
 
-      // EVENTS is always accepted by this router, hence enrichedAvailable:
-      // true. An omitted source preserves the persisted row; on CREATE it
-      // falls back to a default that is validated like an explicit choice
-      // (LFE-9688 / LFE-10148). See export-source-policy.ts.
-      const legacyWritesActive = areLegacyWritesActive(
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      );
+      // An omitted source preserves the persisted row; on CREATE it falls back
+      // to a default that is validated like an explicit choice. See
+      // export-source-policy.ts.
+      const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      const legacyWritesActive = areLegacyWritesActive(writeMode);
+      const enrichedAvailable = areEnrichedWritesActive(writeMode);
       const existingIntegration =
         await ctx.prisma.mixpanelIntegration.findUnique({
           where: { projectId: input.projectId },
@@ -146,7 +146,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         persistedExportSource: existingIntegration?.exportSource,
         ctx: {
           isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-          enrichedAvailable: true,
+          enrichedAvailable,
           legacyWritesActive,
           projectCreatedAt,
         },
@@ -198,7 +198,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           });
           const validation = validateExportSource(result.exportSource, {
             isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-            enrichedAvailable: true,
+            enrichedAvailable,
             legacyWritesActive,
             projectCreatedAt: project.createdAt,
           });
