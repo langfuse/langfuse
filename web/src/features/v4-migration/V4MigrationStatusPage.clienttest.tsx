@@ -67,7 +67,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 }));
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
-  V4_MIGRATION_DEADLINE: "Oct 9",
+  V4_MIGRATION_DEADLINE: "Nov 15",
   useCopyMigrationPrompt: () => vi.fn(),
 }));
 
