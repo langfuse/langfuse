@@ -36,9 +36,10 @@ const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
  *
  * Batch export is the only production caller, so the reads below pin their
  * ClickHouse service inline. Batch actions use getEventsStreamForDataset and
- * getEventsStreamForAnnotationQueue, which must keep reading the primary.
- * Adding a non-export caller here means the service has to become a parameter,
- * as it is on getObservationStream.
+ * getEventsStreamForAnnotationQueue, which pin EventsReadOnly — the same
+ * service the v4 UI list reads, so their enumeration matches the snapshot the
+ * user selected against. Adding a non-export caller here means the service has
+ * to become a parameter, as it is on getObservationStream.
  *
  * @param props - Query parameters including projectId, filters, and limits
  * @returns A Node.js Readable stream of event records

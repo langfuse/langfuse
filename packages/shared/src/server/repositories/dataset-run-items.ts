@@ -915,11 +915,13 @@ const getDatasetRunItemsTableInternal = async <
 
 export const getDatasetRunItemsCh = async (
   opts: DatasetRunItemsTableQuery & {
-    // Export-only wrapper: batch export is its one production caller. The four
-    // sibling wrappers share the same internal query but cannot opt in, because
-    // this field is deliberately absent from DatasetRunItemsTableQuery. Moving
-    // it onto that shared type would put the UI and public API on the replica
-    // too.
+    // Reached only through the worker's paginated read stream, which serves
+    // both the batch export and the eval-create batch action. The export passes
+    // "ReadOnly"; the batch action passes nothing on purpose, so historic eval
+    // creation keeps enumerating from the primary. Do not pin a service here —
+    // that would hide unreplicated run items from eval creation. The four
+    // sibling wrappers cannot opt in at all, because this field is absent from
+    // DatasetRunItemsTableQuery.
     preferredClickhouseService?: PreferredClickhouseService;
   },
 ): Promise<DatasetRunItemDomain[]> => {
