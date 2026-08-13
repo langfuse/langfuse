@@ -2,10 +2,10 @@ import {
   logger,
   fetchWithSecureRedirects,
   validateWebhookURL,
+  whitelistFromEnv,
 } from "@langfuse/shared/src/server";
 import {
   ANALYTICS_INTEGRATION_MAX_REDIRECTS,
-  analyticsIntegrationWhitelistFromEnv,
   validateAnalyticsIntegrationUrl,
 } from "../analyticsIntegrationEgress";
 import { gzipSync } from "zlib";
@@ -129,7 +129,7 @@ export class MixpanelClient {
           maxRedirects: ANALYTICS_INTEGRATION_MAX_REDIRECTS,
           redirectValidation: {
             validateUrl: validateWebhookURL,
-            whitelist: analyticsIntegrationWhitelistFromEnv(),
+            whitelist: whitelistFromEnv(),
             logContext: "Mixpanel integration",
           },
         },

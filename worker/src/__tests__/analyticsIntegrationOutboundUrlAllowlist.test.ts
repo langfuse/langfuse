@@ -6,15 +6,15 @@
  * allowlist a host, the export still delivers end to end. Both halves are
  * required by `.agents/skills/security-review/references/outbound-url-validation.md`.
  *
- * It needs LANGFUSE_ANALYTICS_INTEGRATION_WHITELISTED_HOST set before shared's
- * env module is parsed, which conflicts with the strict premise of the negative
- * suite — hence a separate file rather than a nested describe.
+ * It needs LANGFUSE_WEBHOOK_WHITELISTED_HOST set before shared's env module is
+ * parsed, which conflicts with the strict premise of the negative suite — hence
+ * a separate file rather than a nested describe.
  *
- * Note the allowlist is this surface's OWN trio
- * (LANGFUSE_ANALYTICS_INTEGRATION_WHITELISTED_*), not the webhook trio. A test
- * that allowlisted the webhook host would pass vacuously if the exporters ever
- * regressed to borrowing another surface's allowlist, so asserting through the
- * dedicated accessor is part of the point.
+ * The exporters share the webhook allowlist trio
+ * (LANGFUSE_WEBHOOK_WHITELISTED_*); that is the long-standing behavior of the
+ * PostHog sender and the allowlist this egress path consults end to end. The
+ * guard below asserts through the same accessor the production code uses, so
+ * this suite fails loudly if that plumbing changes underneath it.
  *
  * This is also the Mixpanel positive control for criterion #4 ("legitimate
  * hosts still send successfully"). It replaces an earlier IP-literal control
@@ -31,7 +31,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Runs before the module imports below, so shared's env picks these up.
 vi.hoisted(() => {
-  process.env.LANGFUSE_ANALYTICS_INTEGRATION_WHITELISTED_HOST = "localhost";
+  process.env.LANGFUSE_WEBHOOK_WHITELISTED_HOST = "localhost";
 });
 
 vi.mock("../env", () => ({
@@ -45,7 +45,7 @@ vi.mock("../env", () => ({
   v4WritesToEventsTable: () => false,
 }));
 
-import { analyticsIntegrationWhitelistFromEnv } from "../features/analyticsIntegrationEgress";
+import { whitelistFromEnv } from "@langfuse/shared/src/server";
 import { MixpanelClient } from "../features/mixpanel/mixpanelClient";
 import type { MixpanelEvent } from "../features/mixpanel/transformers";
 
@@ -84,7 +84,7 @@ describe("allowlisted outbound destination", () => {
   // the delivery test below would fail for an unrelated reason and send someone
   // hunting a phantom regression in the client.
   it("reads the operator allowlist from this surface's own environment trio", () => {
-    expect(analyticsIntegrationWhitelistFromEnv().hosts).toContain("localhost");
+    expect(whitelistFromEnv().hosts).toContain("localhost");
   });
 
   // Criterion #4 for Mixpanel: an allowlisted DNS-named host still delivers,

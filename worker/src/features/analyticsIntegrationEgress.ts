@@ -1,28 +1,12 @@
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   isIPAddress,
   parseOutboundUrl,
   validateOutboundResolvedIp,
+  whitelistFromEnv,
   type OutboundUrlValidationWhitelist,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
 
-/**
- * Connect-time egress policy for the analytics integration exporters (PostHog,
- * Mixpanel).
- *
- * This surface keeps its OWN allowlist rather than borrowing the webhook trio:
- * sharing another surface's allowlist means an operator who allows an internal
- * range for a webhook receiver silently also allows analytics exports into it,
- * and a project admin could then point an export host at an internal service.
- * See .agents/skills/security-review/references/outbound-url-validation.md
- * step 3 ("Do not share another surface's allowlist; each surface keeps its
- * own").
- *
- * Unset env means an empty allowlist, i.e. strict: no internal target is
- * permitted. Operators who legitimately export to a private network target
- * must opt in explicitly.
- */
 /**
  * Redirect budget for analytics exports.
  *
@@ -34,18 +18,9 @@ import { UnrecoverableError } from "../errors/UnrecoverableError";
  */
 export const ANALYTICS_INTEGRATION_MAX_REDIRECTS = 10;
 
-export function analyticsIntegrationWhitelistFromEnv(): OutboundUrlValidationWhitelist {
-  return {
-    hosts: sharedEnv.LANGFUSE_ANALYTICS_INTEGRATION_WHITELISTED_HOST || [],
-    ips: sharedEnv.LANGFUSE_ANALYTICS_INTEGRATION_WHITELISTED_IPS || [],
-    ip_ranges:
-      sharedEnv.LANGFUSE_ANALYTICS_INTEGRATION_WHITELISTED_IP_SEGMENTS || [],
-  };
-}
-
 /**
- * Use-time destination check for this surface. Covers exactly what the
- * connect-time hook structurally cannot see, and nothing more:
+ * Use-time destination check for the analytics exporters. Covers exactly what
+ * the connect-time hook structurally cannot see, and nothing more:
  *
  *  - IP-LITERAL hosts. net.connect skips DNS for a literal, so the connect
  *    lookup never fires and the address reaches the socket unchecked.
@@ -64,15 +39,20 @@ export function analyticsIntegrationWhitelistFromEnv(): OutboundUrlValidationWhi
  * closes). Adding a name pre-check here would duplicate the weaker half and
  * cost a DNS resolution per batch.
  *
- * Deliberately NOT validateWebhookURL: that wrapper imposes the webhook
- * surface's port policy (80/443 only), which does not belong to analytics
- * egress, and reusing another surface's wrapper is the same coupling the
- * dedicated allowlist above removes. Ports are unrestricted because host/IP
- * policy, not the port, is what confines egress.
+ * Uses the webhook allowlist, matching the PostHog hostname pre-check and the
+ * connect-time policy at both senders — one allowlist governs this egress path
+ * end to end.
+ *
+ * Deliberately not routed through validateWebhookURL itself: that wrapper also
+ * imposes the webhook surface's port policy (80/443 only), which the exporters
+ * do not have. Ports are unrestricted here because host/IP policy, not the
+ * port, is what confines egress. Redirect targets keep the stricter default,
+ * since an odd port on a redirect is a stronger signal than on an
+ * operator-configured destination.
  */
 export function validateAnalyticsIntegrationUrl(
   urlString: string,
-  whitelist: OutboundUrlValidationWhitelist = analyticsIntegrationWhitelistFromEnv(),
+  whitelist: OutboundUrlValidationWhitelist = whitelistFromEnv(),
 ): void {
   // parseOutboundUrl (not new URL) so embedded credentials and bad encoding are
   // refused without echoing the URL — undici's own guard echoes it, which would
