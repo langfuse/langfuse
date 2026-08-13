@@ -1530,8 +1530,6 @@ describe("v4TransitionRouter", () => {
     expect(rows).toEqual([
       {
         projectId,
-        outdatedSdkUsageSeriesCount: 2,
-        delayedOtelIngestionSeriesCount: 0,
         experimentInstrumentationMigration: {
           status: "sdk_usage_inconclusive",
           upgradePath: "sdk",
@@ -1593,8 +1591,6 @@ describe("v4TransitionRouter", () => {
       },
       {
         projectId: secondProjectId,
-        outdatedSdkUsageSeriesCount: 1,
-        delayedOtelIngestionSeriesCount: 1,
         experimentInstrumentationMigration: {
           status: "not_required",
           upgradePath: null,
@@ -1782,7 +1778,6 @@ describe("v4TransitionRouter", () => {
 
     expect(summary).toMatchObject({
       projectId,
-      outdatedSdkUsageSeriesCount: 1,
       experimentInstrumentationMigration: {
         status: "check_failed",
         upgradePath: null,

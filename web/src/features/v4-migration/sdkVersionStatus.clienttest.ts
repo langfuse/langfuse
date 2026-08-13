@@ -26,8 +26,6 @@ const getLoadedSdkState = (...sdkUsageSeries: ReturnType<typeof sdkSeries>[]) =>
   getV4MigrationSdkState({
     summary: {
       projectId: "project-1",
-      outdatedSdkUsageSeriesCount: 0,
-      delayedOtelIngestionSeriesCount: 0,
       experimentInstrumentationMigration: {
         status: "not_required",
         upgradePath: null,

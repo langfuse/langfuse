@@ -182,10 +182,12 @@ type SdkUsageSummaryByProjectSeries = {
   v4MigrationStatus: "compatible" | "upgrade_required" | "unknown";
 };
 
+// Counts stay out of this row on purpose: the client derives every displayed
+// count from sdkUsageSeries in sdkVersionStatus.ts, so duplicating the
+// predicates here would mean keeping two implementations in sync for values
+// nothing reads.
 type SdkUsageSummaryByProjectResultRow = {
   projectId: string;
-  outdatedSdkUsageSeriesCount: number;
-  delayedOtelIngestionSeriesCount: number;
   experimentInstrumentationMigration: {
     status:
       | "required"
@@ -1024,17 +1026,6 @@ SETTINGS skip_unavailable_shards = 1
 
         return {
           projectId,
-          outdatedSdkUsageSeriesCount: sdkUsageSeries.filter(
-            (series) =>
-              series.count > 0 &&
-              series.v4MigrationStatus === "upgrade_required",
-          ).length,
-          delayedOtelIngestionSeriesCount: sdkUsageSeries.filter(
-            (series) =>
-              series.count > 0 &&
-              series.hasDelayedOtelEvents === true &&
-              series.canonicalSdkName === null,
-          ).length,
           experimentInstrumentationMigration,
           sdkUsageSeries,
         };
