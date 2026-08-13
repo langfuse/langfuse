@@ -100,6 +100,15 @@ const EXPERIMENT_OTEL_INGESTION_URL =
 const SDK_OVERVIEW_URL = "https://langfuse.com/docs/observability/sdk/overview";
 const OTEL_INTEGRATION_URL =
   "https://langfuse.com/integrations/native/opentelemetry";
+// v4 feature docs linked from the upgrade header pitch.
+const FULL_TEXT_SEARCH_URL =
+  "https://langfuse.com/docs/observability/features/full-text-search";
+const FILTER_SEARCH_BAR_URL =
+  "https://langfuse.com/docs/observability/features/filter-search-bar";
+const ALERTS_URL = "https://langfuse.com/docs/metrics/features/alerts";
+const CODE_EVALUATORS_URL =
+  "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators";
+const LANGFUSE_ASSISTANT_URL = "https://langfuse.com/docs/langfuse-assistant";
 // Hassieb's 2 minute walkthrough of the upgrade steps. Linked (not embedded)
 // from the Need help footer, so the panel stays free of YouTube player
 // chrome and the CSP frame-src stays untouched. Cloud only: the video covers
@@ -1032,9 +1041,47 @@ export function V4MigrationHeaderContent({
       </div>
       <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
         <p>
+          Langfuse v4 is live: a re-architecture of our data model and database
+          tables. It is up to 165× more performant in UI and on APIs. It also
+          enables new features such as{" "}
+          <ExternalLink
+            href={FULL_TEXT_SEARCH_URL}
+            analytics={{ section: "header", link: "full_text_search_docs" }}
+          >
+            full-text search
+          </ExternalLink>
+          , a{" "}
+          <ExternalLink
+            href={FILTER_SEARCH_BAR_URL}
+            analytics={{ section: "header", link: "filter_search_bar_docs" }}
+          >
+            new filter search bar
+          </ExternalLink>
+          ,{" "}
+          <ExternalLink
+            href={ALERTS_URL}
+            analytics={{ section: "header", link: "alerts_docs" }}
+          >
+            alerts
+          </ExternalLink>
+          ,{" "}
+          <ExternalLink
+            href={CODE_EVALUATORS_URL}
+            analytics={{ section: "header", link: "code_evaluators_docs" }}
+          >
+            code evaluators
+          </ExternalLink>
+          , and the{" "}
+          <ExternalLink
+            href={LANGFUSE_ASSISTANT_URL}
+            analytics={{ section: "header", link: "langfuse_assistant_docs" }}
+          >
+            Langfuse Assistant
+          </ExternalLink>
+          .
           {actionNeeded
-            ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items below to switch this project over. "
-            : "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. "}
+            ? " Complete the action items below to switch this project over."
+            : ""}{" "}
           <V4MigrationDocsLink />
         </p>
         {actionNeeded && <V4MigrationDeadlineNote />}

@@ -1064,11 +1064,34 @@ describe("V4MigrationHeaderContent", () => {
 
     expect(screen.getByText("Upgrade to v4")).toBeInTheDocument();
     expect(screen.queryByText(/Project 1/)).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/Complete the action items below/),
-    ).toHaveTextContent(
-      "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items below to switch this project over. See docs.",
+    expect(screen.getByText(/Langfuse v4 is live/)).toHaveTextContent(
+      "Langfuse v4 is live: a re-architecture of our data model and database tables. It is up to 165× more performant in UI and on APIs. It also enables new features such as full-text search, a new filter search bar, alerts, code evaluators, and the Langfuse Assistant. Complete the action items below to switch this project over. See docs.",
     );
+    expect(
+      screen.getByRole("link", { name: "full-text search" }),
+    ).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/features/full-text-search",
+    );
+    expect(
+      screen.getByRole("link", { name: "new filter search bar" }),
+    ).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/features/filter-search-bar",
+    );
+    expect(screen.getByRole("link", { name: "alerts" })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/metrics/features/alerts",
+    );
+    expect(
+      screen.getByRole("link", { name: "code evaluators" }),
+    ).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators",
+    );
+    expect(
+      screen.getByRole("link", { name: "Langfuse Assistant" }),
+    ).toHaveAttribute("href", "https://langfuse.com/docs/langfuse-assistant");
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/v4",
@@ -1104,9 +1127,7 @@ describe("V4MigrationHeaderContent", () => {
       expect(
         screen.queryByText(/Complete the action items below/),
       ).not.toBeInTheDocument();
-      expect(
-        screen.getByText(/Langfuse v4 is here: real-time ingestion/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Langfuse v4 is live/)).toBeInTheDocument();
       expect(
         screen.queryByText(/some features may stop working/),
       ).not.toBeInTheDocument();
