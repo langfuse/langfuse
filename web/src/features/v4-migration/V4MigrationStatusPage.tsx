@@ -594,8 +594,8 @@ function V4MigrationStatusPageContent() {
           <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
             <p>
               {actionNeededProjects > 0
-                ? "Some of your projects are outdated. Upgrade to v4 now for real-time ingestion and up to 165x faster queries. "
-                : "Langfuse v4 offers real-time ingestion and up to 165x faster queries. "}
+                ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items on each project below to switch over. "
+                : "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. "}
               <V4MigrationDocsLink />
             </p>
             {actionNeededProjects > 0 && <V4MigrationDeadlineNote />}
