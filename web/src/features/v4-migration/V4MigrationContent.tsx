@@ -1008,8 +1008,8 @@ export function V4MigrationHeaderContent({
       <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
         <p>
           Langfuse v4 is live: a re-architecture of our data model and database
-          tables that is up to 165× more performant in the UI and on APIs. It
-          also enables new features such as{" "}
+          tables. It is up to 165× more performant in UI and on APIs. It also
+          enables new features such as{" "}
           <ExternalLink
             href={FULL_TEXT_SEARCH_URL}
             analytics={{ section: "header", link: "full_text_search_docs" }}
