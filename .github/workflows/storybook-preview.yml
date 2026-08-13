@@ -17,7 +17,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy Storybook preview
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     if: >-
       (github.event_name == 'push' && github.ref_name == 'main') ||
       github.event_name == 'workflow_dispatch' ||
