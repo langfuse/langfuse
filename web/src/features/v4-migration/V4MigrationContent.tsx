@@ -10,6 +10,7 @@ import {
   Copy,
   Info,
 } from "lucide-react";
+import { env } from "@/src/env.mjs";
 import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
@@ -20,6 +21,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
+import { Separator } from "@/src/components/ui/separator";
 import {
   Collapsible,
   CollapsibleContent,
@@ -108,6 +110,11 @@ const ALERTS_URL = "https://langfuse.com/docs/metrics/features/alerts";
 const CODE_EVALUATORS_URL =
   "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators";
 const LANGFUSE_ASSISTANT_URL = "https://langfuse.com/docs/langfuse-assistant";
+// Hassieb's 2 minute walkthrough of the upgrade steps. Linked (not embedded)
+// from the Need help footer, so the panel stays free of YouTube player
+// chrome and the CSP frame-src stays untouched. Cloud only: the video covers
+// the steps as they apply to Langfuse Cloud projects.
+const WALKTHROUGH_VIDEO_URL = "https://www.youtube.com/watch?v=g3YbbqVGt4g";
 
 // Copies the agent migration prompt to the clipboard with toast + analytics;
 // shared by the panel/modal header CTA and the status page.
@@ -979,6 +986,34 @@ export function V4MigrationIntegrationsSection({
   );
 }
 
+// Docs link and deadline note are shared by the panel/modal header and the
+// account-level status page so both surfaces read the same.
+export function V4MigrationDocsLink() {
+  return (
+    <ExternalLink
+      href={V4_DOCS_URL}
+      analytics={{ section: "header", link: "v4_docs" }}
+    >
+      See docs.
+    </ExternalLink>
+  );
+}
+
+export function V4MigrationDeadlineNote() {
+  return (
+    <p>
+      After{" "}
+      <ExternalLink
+        href={V4_TIMELINE_URL}
+        analytics={{ section: "header", link: "v4_timeline" }}
+      >
+        {V4_MIGRATION_DEADLINE}
+      </ExternalLink>{" "}
+      some features may stop working without a v4 upgrade.
+    </p>
+  );
+}
+
 // Title, status link, and the v4 pitch. The agent CTA lives in
 // V4MigrationAgentUpgradeSection, rendered by the details content.
 export function V4MigrationHeaderContent({
@@ -1048,25 +1083,9 @@ export function V4MigrationHeaderContent({
           {actionNeeded
             ? " Complete the action items below to switch this project over."
             : ""}{" "}
-          <ExternalLink
-            href={V4_DOCS_URL}
-            analytics={{ section: "header", link: "v4_docs" }}
-          >
-            See docs.
-          </ExternalLink>
+          <V4MigrationDocsLink />
         </p>
-        {actionNeeded && (
-          <p>
-            After{" "}
-            <ExternalLink
-              href={V4_TIMELINE_URL}
-              analytics={{ section: "header", link: "v4_timeline" }}
-            >
-              {V4_MIGRATION_DEADLINE}
-            </ExternalLink>{" "}
-            some features may stop working without a v4 upgrade.
-          </p>
-        )}
+        {actionNeeded && <V4MigrationDeadlineNote />}
       </div>
     </>
   );
@@ -1378,6 +1397,8 @@ export function V4MigrationDetailsContent({
 
   return (
     <>
+      <Separator />
+
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-base font-bold">
           Action items
@@ -1444,6 +1465,8 @@ export function V4MigrationDetailsContent({
         </div>
       </div>
 
+      <Separator />
+
       <V4MigrationAgentUpgradeSection projectId={projectId} />
 
       {/* The toggle row hides itself when the session cannot toggle v4
@@ -1486,6 +1509,8 @@ export function V4MigrationDetailsContent({
         </>
       )}
 
+      <Separator />
+
       <div className="flex flex-col gap-2">
         <p className="text-base font-bold">Need help?</p>
         <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
@@ -1516,6 +1541,22 @@ export function V4MigrationDetailsContent({
           >
             Book a call
           </a>
+          {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && (
+            <>
+              <span>·</span>
+              <a
+                href={WALKTHROUGH_VIDEO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() =>
+                  capture("v4_migration:walkthrough_video_clicked")
+                }
+                className="underline"
+              >
+                Walkthrough video
+              </a>
+            </>
+          )}
         </div>
       </div>
       {projectId ? (

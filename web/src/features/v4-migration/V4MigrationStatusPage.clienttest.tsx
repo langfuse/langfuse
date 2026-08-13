@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
     upgradeRequiredCount: 0,
     delayedOtelIngestionCount: 0,
   },
+  // Evals are the simplest way to keep the single test project on the table:
+  // ready projects are hidden, so most cases need one open action item.
+  evalCount: 1,
 }));
 
 vi.mock("next/router", () => ({
@@ -70,6 +73,17 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   V4_MIGRATION_DEADLINE: "November 16, 2026",
   useCopyMigrationPrompt: () => vi.fn(),
+  // Stand-ins for the shared sidebar copy: the real components are covered in
+  // V4MigrationContent.clienttest.tsx, here we only assert they are rendered.
+  V4MigrationDocsLink: () => (
+    <a href="https://langfuse.com/docs/v4">See docs.</a>
+  ),
+  V4MigrationDeadlineNote: () => (
+    <p>
+      After November 16, 2026 some features may stop working without a v4
+      upgrade.
+    </p>
+  ),
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -87,7 +101,7 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
         "project-1",
         {
           sdk: mocks.sdk,
-          evals: { status: "loaded", count: 0 },
+          evals: { status: "loaded", count: mocks.evalCount },
           experiments: { status: "loaded", result: "not_required" },
           apis: { status: "loaded", count: 0 },
           exports: { status: "loaded", count: 0 },
@@ -118,6 +132,7 @@ describe("V4MigrationStatusPage", () => {
       upgradeRequiredCount: 0,
       delayedOtelIngestionCount: 0,
     };
+    mocks.evalCount = 1;
   });
 
   it("keeps the project table readable through horizontal scrolling", () => {
@@ -132,7 +147,61 @@ describe("V4MigrationStatusPage", () => {
     render(<V4MigrationStatusPage />);
 
     expect(screen.queryByText("Migrated")).not.toBeInTheDocument();
+    expect(screen.getByText("of 1 projects needs action")).toBeInTheDocument();
+  });
+
+  it("lists only the projects that still need action", () => {
+    mocks.evalCount = 0;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Test project")).not.toBeInTheDocument();
     expect(screen.getByText("of 1 projects need action")).toBeInTheDocument();
+    expect(
+      screen.getByText("All projects are up to date. Nothing to do here."),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps projects whose checks are still running or failed", () => {
+    mocks.evalCount = 0;
+    mocks.sdk = {
+      status: "checking",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("Test project")).toBeInTheDocument();
+    expect(
+      screen.queryByText("All projects are up to date. Nothing to do here."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the summary card with a link to the v4 docs", () => {
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("Upgrade to v4")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/v4",
+    );
+    expect(
+      screen.getByText(/some features may stop working/),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the deadline warning once nothing needs action", () => {
+    mocks.evalCount = 0;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByRole("link", { name: "See docs." })).toBeInTheDocument();
+    expect(
+      screen.queryByText(/some features may stop working/),
+    ).not.toBeInTheDocument();
   });
 
   it("uses the November 16, 2026 deadline throughout the FAQ", () => {
@@ -144,10 +213,7 @@ describe("V4MigrationStatusPage", () => {
   });
 
   it("only shows the status pill when action is required", () => {
-    const { unmount } = render(<V4MigrationStatusPage />);
-    expect(screen.queryByText("Action needed")).not.toBeInTheDocument();
-    unmount();
-
+    mocks.evalCount = 0;
     mocks.sdk = {
       status: "checking",
       sdkUsageSeries: [],
@@ -155,6 +221,7 @@ describe("V4MigrationStatusPage", () => {
       delayedOtelIngestionCount: 0,
     };
     const checking = render(<V4MigrationStatusPage />);
+    expect(screen.queryByText("Action needed")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Checking", { exact: true }),
     ).not.toBeInTheDocument();
@@ -182,7 +249,7 @@ describe("V4MigrationStatusPage", () => {
     fireEvent.click(projectLink);
 
     expect(mocks.openForProject).toHaveBeenCalledWith(
-      { id: "project-1", name: "Test project", readiness: "ready" },
+      { id: "project-1", name: "Test project", readiness: "action-needed" },
       "status_page_row",
     );
     expect(mocks.capture).toHaveBeenCalledWith(
@@ -201,7 +268,7 @@ describe("V4MigrationStatusPage", () => {
     fireEvent.click(projectRow!);
 
     expect(mocks.openForProject).toHaveBeenCalledWith(
-      { id: "project-1", name: "Test project", readiness: "ready" },
+      { id: "project-1", name: "Test project", readiness: "action-needed" },
       "status_page_row",
     );
     expect(mocks.routerPush).toHaveBeenCalledWith("/project/project-1/traces");
