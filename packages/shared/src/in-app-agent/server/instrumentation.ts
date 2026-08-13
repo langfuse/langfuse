@@ -180,6 +180,15 @@ export class InAppAgentInstrumentation {
   private readonly model?: string;
   private nextStepNumber = 0;
   private openLlmStep?: OpenLlmStep;
+  // Tools that finished while an LLM step was still open. Emit after the
+  // generation so the tree sorts model → tools (tool-call chunks arrive during
+  // the LLM stream, before onStepFinish).
+  private readonly deferredToolCompletions = new Map<
+    string,
+    AgentRunToolSpan
+  >();
+  // Clamp tool execution windows to start at/after the last generation end.
+  private lastLlmGenerationEndTime?: Date;
 
   constructor(params: {
     input: AgUiRunAgentInput;
@@ -288,8 +297,9 @@ export class InAppAgentInstrumentation {
     this.toolCallApprovals.set(approval.toolCallId, approval.status);
   }
 
-  // Mastra stream chunks: step-start bookmarks timing/input boundary for the
-  // next onStepFinish generation; tool-call/result override tool windows.
+  // Mastra stream chunks: step-start (or first model delta) bookmarks the LLM
+  // window; tool-result ends tool execution. Do not treat tool-call chunks as
+  // execution start — they fire while the model is still streaming.
   // Usage and output still come from recordStepFinish.
   recordStreamChunk(chunk: unknown) {
     if (this.ended || !isRecord(chunk)) {
@@ -312,6 +322,7 @@ export class InAppAgentInstrumentation {
           level: "ERROR",
           statusMessage: "LLM step closed by a subsequent step-start",
         });
+        this.flushDeferredToolCompletions();
       }
 
       this.openLlmStep = {
@@ -322,15 +333,10 @@ export class InAppAgentInstrumentation {
       return;
     }
 
+    // tool-call means "model requested this tool", not "tool started".
+    // Ensure an LLM step is open so missing step-start still gets a real window.
     if (type === "tool-call") {
-      const toolCallId = getStringValue(payload.toolCallId);
-      if (!toolCallId) {
-        return;
-      }
-
-      const times = this.toolExecutionTimes.get(toolCallId) ?? {};
-      times.startTime ??= now;
-      this.toolExecutionTimes.set(toolCallId, times);
+      this.ensureOpenLlmStep(now);
       return;
     }
 
@@ -347,12 +353,14 @@ export class InAppAgentInstrumentation {
     }
 
     if (
-      this.openLlmStep &&
-      (type === "text-delta" ||
-        type === "reasoning-delta" ||
-        type === "reasoning")
+      type === "text-delta" ||
+      type === "reasoning-delta" ||
+      type === "reasoning"
     ) {
-      this.openLlmStep.completionStartTime ??= now;
+      this.ensureOpenLlmStep(now);
+      if (this.openLlmStep) {
+        this.openLlmStep.completionStartTime ??= now;
+      }
     }
   }
 
@@ -367,12 +375,15 @@ export class InAppAgentInstrumentation {
       this.openLlmStep ??
       ({
         stepNumber: ++this.nextStepNumber,
-        startTime: new Date(),
+        // Prefer a non-zero window when step-start never arrived: backdate to
+        // the last generation end (or run start) so tools do not sort above us.
+        startTime: this.lastLlmGenerationEndTime ?? this.agentRunStartTime,
         inputMessageCount: this.agentRunOutputMessages.length,
       } satisfies OpenLlmStep);
 
     this.emitLlmGeneration(step, event);
     this.openLlmStep = undefined;
+    this.flushDeferredToolCompletions();
   }
 
   recordAvailableSkills(skills: unknown[]) {
@@ -553,12 +564,11 @@ export class InAppAgentInstrumentation {
 
     const name =
       typeof event.toolCallName === "string" ? event.toolCallName : "tool-call";
-    const chunkStartTime = this.toolExecutionTimes.get(
-      event.toolCallId,
-    )?.startTime;
+    // Execution start = AG-UI tool-call start (or later clamp to generation end).
+    // Mastra tool-call chunks are request-time and must not set this.
     this.toolSpans.set(event.toolCallId, {
       name,
-      startTime: chunkStartTime ?? new Date(),
+      startTime: new Date(),
       args: "",
       argsComplete: false,
       ...(typeof event.parentMessageId === "string"
@@ -613,6 +623,14 @@ export class InAppAgentInstrumentation {
       return;
     }
 
+    // Tool-call args/results often arrive while the LLM step is still open.
+    // Hold the observation until step-finish so the tree sorts generation → tools.
+    if (this.openLlmStep) {
+      this.deferredToolCompletions.set(toolCallId, tool);
+      this.toolSpans.delete(toolCallId);
+      return;
+    }
+
     this.createToolObservation(toolCallId, tool);
     this.toolSpans.delete(toolCallId);
   }
@@ -634,16 +652,24 @@ export class InAppAgentInstrumentation {
       getToolFailureMessage(undefined, output);
     const toolCallApproval = this.toolCallApprovals.get(toolCallId);
     const executionTimes = this.toolExecutionTimes.get(toolCallId);
-    const startTime = executionTimes?.startTime ?? tool.startTime;
+    const rawStartTime = executionTimes?.startTime ?? tool.startTime;
     const endTime = executionTimes?.endTime ?? new Date();
+    // Keep causal order: tool execution cannot start before the generation that
+    // requested it finished (or the last known generation end).
+    const startTime =
+      this.lastLlmGenerationEndTime &&
+      rawStartTime.getTime() < this.lastLlmGenerationEndTime.getTime()
+        ? this.lastLlmGenerationEndTime
+        : rawStartTime;
     const body: ObservationBody = {
       id: toolCallId,
       traceId: this.traceId,
       parentObservationId: this.rootObservationId,
       name: tool.name,
-      startTime,
+      startTime: startTime.getTime() > endTime.getTime() ? endTime : startTime,
       endTime,
-      completionStartTime: startTime,
+      completionStartTime:
+        startTime.getTime() > endTime.getTime() ? endTime : startTime,
       input,
       output,
       ...(failureMessage
@@ -710,6 +736,7 @@ export class InAppAgentInstrumentation {
     const model =
       getModelIdFromStepEvent(eventRecord) ?? this.model ?? undefined;
     const endTime = new Date();
+    this.lastLlmGenerationEndTime = endTime;
 
     this.enqueueObservation("generation-create", {
       id: getInAppAgentLlmCallObservationId(this.runId, step.stepNumber),
@@ -798,18 +825,69 @@ export class InAppAgentInstrumentation {
         : {}),
     });
     this.openLlmStep = undefined;
+    this.flushDeferredToolCompletions();
   }
 
   private endOpenToolSpans(
     metadata?: Record<string, unknown>,
     statusMessage?: string,
   ) {
+    // Approval interrupts complete the stream without a tool result. Drop those
+    // incomplete spans — the generation already records the tool_call request,
+    // and the continuation run emits the real tool observation after approval.
+    const forceClose =
+      Boolean(statusMessage) ||
+      Boolean(metadata?.aborted) ||
+      Boolean(metadata?.error);
+
     for (const [toolCallId, tool] of this.toolSpans.entries()) {
+      if (tool.output === undefined && !forceClose) {
+        this.toolSpans.delete(toolCallId);
+        this.toolExecutionTimes.delete(toolCallId);
+        continue;
+      }
+
       this.createToolObservation(toolCallId, tool, {
         metadata,
         statusMessage,
       });
       this.toolSpans.delete(toolCallId);
+    }
+
+    if (forceClose) {
+      for (const [toolCallId, tool] of this.deferredToolCompletions.entries()) {
+        this.createToolObservation(toolCallId, tool, {
+          metadata,
+          statusMessage,
+        });
+      }
+      this.deferredToolCompletions.clear();
+    } else {
+      this.flushDeferredToolCompletions();
+    }
+  }
+
+  private ensureOpenLlmStep(now: Date) {
+    if (this.openLlmStep) {
+      return;
+    }
+
+    this.openLlmStep = {
+      stepNumber: ++this.nextStepNumber,
+      startTime: now,
+      inputMessageCount: this.agentRunOutputMessages.length,
+    };
+  }
+
+  private flushDeferredToolCompletions() {
+    if (this.deferredToolCompletions.size === 0) {
+      return;
+    }
+
+    const deferred = [...this.deferredToolCompletions.entries()];
+    this.deferredToolCompletions.clear();
+    for (const [toolCallId, tool] of deferred) {
+      this.createToolObservation(toolCallId, tool);
     }
   }
 

@@ -1101,27 +1101,34 @@ describe("InAppAgentInstrumentation", () => {
     expect(finalAgentCreate).not.toHaveProperty("model");
   });
 
-  it("uses stream chunk timestamps for parallel tool observations under the root", () => {
+  it("emits tools after the generation and clamps start to generation end", () => {
     const instrumentation = createInstrumentation();
-    const toolAStart = new Date("2026-01-01T00:00:01.000Z");
-    const toolBStart = new Date("2026-01-01T00:00:02.000Z");
+    const stepStart = new Date("2026-01-01T00:00:00.000Z");
+    const toolCallChunkA = new Date("2026-01-01T00:00:01.000Z");
+    const toolCallChunkB = new Date("2026-01-01T00:00:02.000Z");
+    const agUiToolAStart = new Date("2026-01-01T00:00:01.500Z");
+    const agUiToolBStart = new Date("2026-01-01T00:00:02.500Z");
     const toolAEnd = new Date("2026-01-01T00:00:03.000Z");
     const toolBEnd = new Date("2026-01-01T00:00:04.000Z");
+    const stepFinish = new Date("2026-01-01T00:00:02.800Z");
 
-    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+    vi.setSystemTime(stepStart);
     instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
 
-    vi.setSystemTime(toolAStart);
+    // tool-call chunks are request-time during the LLM stream — must not become
+    // tool observation startTimes (that sorted tools above the generation).
+    vi.setSystemTime(toolCallChunkA);
     instrumentation.recordStreamChunk({
       type: "tool-call",
       payload: { toolCallId: "tool-a", toolName: "listObservations" },
     });
-    vi.setSystemTime(toolBStart);
+    vi.setSystemTime(toolCallChunkB);
     instrumentation.recordStreamChunk({
       type: "tool-call",
       payload: { toolCallId: "tool-b", toolName: "getTrace" },
     });
 
+    vi.setSystemTime(agUiToolAStart);
     instrumentation.recordEvents([
       {
         type: EventType.TOOL_CALL_START,
@@ -1137,6 +1144,9 @@ describe("InAppAgentInstrumentation", () => {
         type: EventType.TOOL_CALL_END,
         toolCallId: "tool-a",
       },
+    ]);
+    vi.setSystemTime(agUiToolBStart);
+    instrumentation.recordEvents([
       {
         type: EventType.TOOL_CALL_START,
         toolCallId: "tool-b",
@@ -1179,20 +1189,40 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
+    // Tools completed during the open LLM step — deferred until step-finish.
+    expect(
+      mocks.handler.langfuse.enqueue.mock.calls.filter(
+        ([type]) => type === "tool-create",
+      ),
+    ).toHaveLength(0);
+
+    vi.setSystemTime(stepFinish);
     instrumentation.recordStepFinish({
       usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
       finishReason: "tool-calls",
     });
 
+    const enqueueOrder = mocks.handler.langfuse.enqueue.mock.calls
+      .filter(
+        ([type]) => type === "generation-create" || type === "tool-create",
+      )
+      .map(([type, body]) => ({ type, id: body.id }));
+    expect(enqueueOrder.map((entry) => entry.type)).toEqual([
+      "generation-create",
+      "tool-create",
+      "tool-create",
+    ]);
+
     const toolCreates = mocks.handler.langfuse.enqueue.mock.calls.filter(
       ([type]) => type === "tool-create",
     );
     expect(toolCreates).toHaveLength(2);
+    // Clamped to generation end (stepFinish), not earlier AG-UI/chunk times.
     expect(toolCreates[0]?.[1]).toEqual(
       expect.objectContaining({
         id: "tool-a",
         parentObservationId: agentRunObservationId,
-        startTime: toolAStart,
+        startTime: stepFinish,
         endTime: toolAEnd,
       }),
     );
@@ -1200,12 +1230,66 @@ describe("InAppAgentInstrumentation", () => {
       expect.objectContaining({
         id: "tool-b",
         parentObservationId: agentRunObservationId,
-        startTime: toolBStart,
+        startTime: stepFinish,
         endTime: toolBEnd,
       }),
     );
 
     vi.useRealTimers();
+  });
+
+  it("opens an LLM step on first model delta when step-start is missing", () => {
+    const instrumentation = createInstrumentation();
+    const firstDelta = new Date("2026-01-01T00:00:10.000Z");
+    const stepFinish = new Date("2026-01-01T00:00:12.000Z");
+
+    vi.setSystemTime(firstDelta);
+    instrumentation.recordStreamChunk({
+      type: "reasoning-delta",
+      payload: { text: "thinking" },
+    });
+    vi.setSystemTime(stepFinish);
+    instrumentation.recordStepFinish({
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      finishReason: "stop",
+    });
+
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "generation-create",
+      expect.objectContaining({
+        startTime: firstDelta,
+        endTime: stepFinish,
+      }),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("does not force-close incomplete tools on a normal end (approval interrupt)", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-awaiting-approval",
+        toolCallName: "createAnnotationQueueItem",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-awaiting-approval",
+        delta: '{"queueId":"q1"}',
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-awaiting-approval",
+      },
+    ]);
+    instrumentation.end({});
+
+    expect(mocks.handler.langfuse.enqueue).not.toHaveBeenCalledWith(
+      "tool-create",
+      expect.objectContaining({ id: "tool-awaiting-approval" }),
+    );
   });
 
   it("closes an open LLM step as ERROR when the run is aborted", () => {
