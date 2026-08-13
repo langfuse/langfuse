@@ -54,11 +54,6 @@ type ObservationStreamProps = {
   // BatchExportQuerySchema). When true, read from the ClickHouse events table
   // instead of the legacy observations/traces tables.
   useEventsTable?: boolean;
-  // Absent means "ReadWrite": batch actions must keep reading the primary so
-  // their enumeration matches the snapshot the UI selection was built from.
-  // Ignored entirely when useEventsTable is set — that branch pins
-  // EventsReadOnly for both its row and its score-name read, because those two
-  // must resolve against the same service.
   preferredClickhouseService?: PreferredClickhouseService;
 };
 
@@ -491,11 +486,7 @@ const getObservationStreamFromEvents = async (
     ): filterItem is TimeFilter =>
       filterItem.column === "Start Time" && filterItem.type === "datetime",
     clickhouseConfigs,
-    // Must be the same service that reads the score values below, not the
-    // caller's choice. Any score whose name is missing from this list is
-    // dropped from the export by getChunkWithFlattenedScores, so a name set
-    // lagging behind the rows silently loses a column. The main query reads
-    // the classic scores table through the events service, so this follows it.
+    // Same service as the values read below: a missing name is silently dropped.
     preferredClickhouseService: "EventsReadOnly",
   });
 

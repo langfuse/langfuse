@@ -94,7 +94,6 @@ export const getSessionsWithMetrics = async (props: {
   limit?: number;
   page?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
-  // Absent means "ReadWrite": only batch export opts into the read replica.
   preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const rows = await getSessionsTableGeneric<SessionWithMetricsReturnType>({
@@ -125,7 +124,6 @@ export type FetchSessionsTableProps = {
   page?: number;
   tags?: Record<string, string>;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
-  // Absent means "ReadWrite": only batch export opts into the read replica.
   preferredClickhouseService?: PreferredClickhouseService;
 };
 

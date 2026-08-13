@@ -1225,7 +1225,6 @@ export async function getScoresUiTable<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadataFlag?: IncludeHasMetadata;
-  // Absent means "ReadWrite": only batch export opts into the read replica.
   preferredClickhouseService?: PreferredClickhouseService;
 }) {
   const {
@@ -1314,7 +1313,6 @@ const getScoresUiGeneric = async <T>(props: {
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: boolean;
   includeHasMetadataFlag?: boolean;
-  // Absent means "ReadWrite": only batch export opts into the read replica.
   preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<T[]> => {
   const {
@@ -2253,8 +2251,6 @@ export const getDistinctScoreNames = async (
     projectId: string;
     cutoffCreatedAt: Date;
     clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
-    // No default: absent means "ReadWrite". Callers that enumerate rows for a
-    // user-visible selection (batch actions) must keep reading the primary.
     preferredClickhouseService?: PreferredClickhouseService;
   } & DistinctScoreNamesTimestampSource,
 ) => {

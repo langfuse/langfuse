@@ -544,7 +544,6 @@ type GetDatasetRunItemsTableOpts<IncludeIO extends boolean> =
   DatasetRunItemsTableQuery & {
     select: "count" | "rows";
     includeIO?: IncludeIO;
-    // Absent means "ReadWrite": only batch export opts into the read replica.
     preferredClickhouseService?: PreferredClickhouseService;
   };
 
@@ -915,13 +914,6 @@ const getDatasetRunItemsTableInternal = async <
 
 export const getDatasetRunItemsCh = async (
   opts: DatasetRunItemsTableQuery & {
-    // Reached only through the worker's paginated read stream, which serves
-    // both the batch export and the eval-create batch action. The export passes
-    // "ReadOnly"; the batch action passes nothing on purpose, so historic eval
-    // creation keeps enumerating from the primary. Do not pin a service here —
-    // that would hide unreplicated run items from eval creation. The four
-    // sibling wrappers cannot opt in at all, because this field is absent from
-    // DatasetRunItemsTableQuery.
     preferredClickhouseService?: PreferredClickhouseService;
   },
 ): Promise<DatasetRunItemDomain[]> => {

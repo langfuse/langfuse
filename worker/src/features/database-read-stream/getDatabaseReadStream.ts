@@ -162,8 +162,6 @@ export const getDatabaseReadStreamPaginated = async ({
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
-  // No default: absent means "ReadWrite". Batch actions enumerate rows for a
-  // selection the user made against the primary, so only batch export opts in.
   preferredClickhouseService?: PreferredClickhouseService;
 } & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
@@ -367,14 +365,7 @@ export const getDatabaseReadStreamPaginated = async ({
               : [createdAtCutoffFilterCh],
             isTimestampFilter: isGenerationTimestampFilter,
             clickhouseConfigs,
-            // Inert today: batch export routes observations to
-            // getObservationStream, and batch actions pass no service. Before
-            // routing an observations export through here, parameterize both
-            // other ClickHouse reads in this case
-            // (getObservationsTableWithModelData and getScoresForObservations).
-            // They still read the primary, and score values read there while
-            // this name list comes from a replica would make
-            // getChunkWithFlattenedScores drop columns silently.
+            // Inert: exports use the stream builders; rows here are unrouted.
             preferredClickhouseService,
           });
 
@@ -451,13 +442,7 @@ export const getDatabaseReadStreamPaginated = async ({
               : [createdAtCutoffFilter],
             isTimestampFilter: isTraceTimestampFilter,
             clickhouseConfigs,
-            // Inert today: batch export routes traces to getTraceStream, and
-            // batch actions pass no service. Before routing a traces export
-            // through here, parameterize every other ClickHouse read in this
-            // case — there are four, two of them hidden inside the Promise.all
-            // below. They all still read the primary, and score values read
-            // there while this name list comes from a replica would make
-            // getChunkWithFlattenedScores drop columns silently.
+            // Inert: exports use the stream builders; rows here are unrouted.
             preferredClickhouseService,
           });
           emptyScoreColumns = distinctScoreNames.reduce(

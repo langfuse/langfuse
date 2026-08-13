@@ -27,14 +27,6 @@ import { fetchCommentsForExport } from "./fetchCommentsForExport";
 
 const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
 
-/**
- * Streams traces from ClickHouse for batch export.
- *
- * Batch export is the only production caller, so both queries below pin the
- * read replica inline. Batch actions enumerate traces through
- * getTraceIdentifierStream instead. Adding a non-export caller here means the
- * service has to become a parameter, as it is on getObservationStream.
- */
 export const getTraceStream = async (props: {
   projectId: string;
   cutoffCreatedAt: Date;

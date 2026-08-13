@@ -33,10 +33,6 @@ const tableToCommentType: Record<string, CommentObjectType | undefined> = {
   sessions: "SESSION",
 };
 
-// Exports scan far more rows than a UI request and must not compete with
-// ingestion on the writer cluster. Every read reachable from this job belongs on
-// a read replica, so a new export path added below should pass this too. Streams
-// that pin their own service internally (traces, events) do not take it.
 const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
 
 export const handleBatchExportJob = async (
