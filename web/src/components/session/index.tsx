@@ -87,6 +87,7 @@ import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualiz
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
 import { ModernSession } from "@/src/components/session/ModernSession";
 import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
+import { SessionMetadataJsonPathControl } from "@/src/components/session/SessionMetadataJsonPathControl";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import { ModernSessionHeaderActionsController } from "@/src/components/session/ModernSessionHeaderActionsController";
 import { ModernSessionFilterControls } from "@/src/components/session/ModernSessionFilterControls";
@@ -1572,6 +1573,20 @@ const LoadedSessionEventsPage: React.FC<{
               totalCost={session.totalCost ?? 0}
               environment={session.environment ?? null}
               users={session.users ?? []}
+              trailingContent={
+                <SessionMetadataJsonPathControl
+                  key={`${projectId}:${sessionId}`}
+                  projectId={projectId}
+                  sessionId={sessionId}
+                  traces={
+                    isTracesSuccess
+                      ? { state: "loaded", data: traces ?? [] }
+                      : { state: "loading" }
+                  }
+                  filterState={visibleFilterState}
+                  filterKey={visibleFilterMeasurementKey}
+                />
+              }
               scores={session.scores}
             />
           ) : null}

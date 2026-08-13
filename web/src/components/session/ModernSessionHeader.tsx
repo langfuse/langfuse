@@ -36,6 +36,7 @@ type ModernSessionHeaderProps = {
   totalCost: number;
   environment: string | null;
   users: readonly string[];
+  trailingContent: ReactNode;
   scores: ReadonlyArray<
     Pick<
       WithStringifiedMetadata<ScoreDomain>,
@@ -87,6 +88,7 @@ export function ModernSessionHeader({
   totalCost,
   environment,
   users,
+  trailingContent,
   scores,
 }: ModernSessionHeaderProps) {
   const [search, setSearch] = useState("");
@@ -245,6 +247,7 @@ export function ModernSessionHeader({
         additionalOverflowCount={remainingUsers.length}
         getKey={(pill) => pill.key}
         renderItem={(pill) => pill.content}
+        trailingContent={trailingContent}
         renderOverflow={({ hiddenItems: hiddenPills, overflowItemCount }) => {
           const normalizedSearch = search.trim().toLocaleLowerCase();
           const filteredPills = normalizedSearch

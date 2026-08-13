@@ -1,8 +1,10 @@
 import { type ComponentProps } from "react";
+import { Plus } from "lucide-react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
+import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
 
 const scores = [
   {
@@ -45,6 +47,7 @@ const defaultArgs = {
   totalCost: 0.084291,
   environment: "production",
   users: ["customer@example.com", "support@example.com"],
+  trailingContent: null,
   scores,
 } satisfies ComponentProps<typeof ModernSessionHeader>;
 
@@ -82,6 +85,14 @@ export const TestSearchesHiddenPills = meta.story({
   args: {
     ...defaultArgs,
     scores: overflowScores,
+    trailingContent: (
+      <ModernSessionHeaderPill
+        variant="button"
+        ariaLabel="Add metadata JSONPath"
+      >
+        <Plus className="h-3 w-3" />
+      </ModernSessionHeaderPill>
+    ),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -112,6 +123,14 @@ export const TestSearchesHiddenPills = meta.story({
           (lastVisiblePillRect.top + lastVisiblePillRect.height / 2),
       ),
     ).toBeLessThanOrEqual(0.5);
+    const trailingButton = canvas.getByRole("button", {
+      name: "Add metadata JSONPath",
+    });
+    const trailingGap =
+      trailingButton.getBoundingClientRect().left -
+      overflowButton.getBoundingClientRect().right;
+    await expect(trailingGap).toBeGreaterThanOrEqual(0);
+    await expect(trailingGap).toBeLessThanOrEqual(8);
 
     await userEvent.click(overflowButton);
 
