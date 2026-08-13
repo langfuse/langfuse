@@ -6,8 +6,13 @@ import {
 } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import type { ProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 
-export type V4MigrationTargetProject = { id: string; name: string };
+export type V4MigrationTargetProject = {
+  id: string;
+  name: string;
+  readiness?: ProjectMigrationReadiness;
+};
 
 /** Which surface opened the panel; the funnel's entry dimension. */
 export type V4MigrationPanelOpenSource =

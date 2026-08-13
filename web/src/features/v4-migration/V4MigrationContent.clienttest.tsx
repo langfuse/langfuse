@@ -248,6 +248,7 @@ describe("V4MigrationDetailsContent", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     expect(screen.getByText("Migrate APIs")).toBeInTheDocument();
+    expect(screen.getByText("Migrate APIs")).toHaveClass("font-bold");
     expect(screen.getByText("Migrate Integrations")).toBeInTheDocument();
     expect(screen.queryByText("Legacy APIs")).not.toBeInTheDocument();
     expect(screen.queryByText("Legacy Integrations")).not.toBeInTheDocument();
@@ -405,7 +406,11 @@ describe("V4MigrationDetailsContent", () => {
           sdkVersion: "2.60.3",
           v4MigrationStatus: "upgrade_required",
         }),
-        makeSdkUsageSeries({ publicKey: "pk-lf-fedcba0987654321" }),
+        makeSdkUsageSeries({
+          sdkVersion: "4.6.9",
+          publicKey: "pk-lf-fedcba0987654321",
+          v4MigrationStatus: "upgrade_recommended",
+        }),
       ],
       upgradeRequiredCount: 1,
       delayedOtelIngestionCount: 0,
@@ -418,8 +423,11 @@ describe("V4MigrationDetailsContent", () => {
       within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
     ).toBeInTheDocument();
     expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
-    expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
+    expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
     expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
+    expect(
+      screen.getByText("· recommended to upgrade to >= 4.7.0"),
+    ).toBeInTheDocument();
     // The explicit evidence link targets this key + SDK name/version over the
     // detection lookback window, so versions on the same key stay distinct.
     const outdatedRow = screen.getByText("Python 2.60.3").closest("li")!;
@@ -446,7 +454,7 @@ describe("V4MigrationDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows current-major SDKs as recommended rather than actionable", () => {
+  it("hides Update SDK when current-major SDKs only need a recommended bump", () => {
     mocks.migrationData.sdk = {
       status: "latest",
       sdkUsageSeries: [
@@ -461,13 +469,11 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    const trigger = screen.getByText("Update SDK").closest("button")!;
-    expect(within(trigger).queryByText("0")).not.toBeInTheDocument();
-    const row = screen.getByText("Python 4.6.9").closest("li")!;
-    expect(within(row).getByText("✅")).toBeInTheDocument();
+    expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
+    expect(screen.queryByText("Python 4.6.9")).not.toBeInTheDocument();
     expect(
-      within(row).getByText("· recommended to upgrade to >= 4.7.0"),
-    ).toBeInTheDocument();
+      screen.queryByText("· recommended to upgrade to >= 4.7.0"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/needs an update/)).not.toBeInTheDocument();
   });
 
@@ -869,7 +875,7 @@ describe("V4MigrationDetailsContent", () => {
   it("renders the agent upgrade group with the prompt CTA", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    expect(screen.getByText("Upgrade with coding agent")).toBeInTheDocument();
+    expect(screen.getByText("Upgrade using coding agents")).toBeInTheDocument();
     expect(
       screen.getByText(/Paste prompt into Claude Code or other coding agents/),
     ).toBeInTheDocument();
@@ -993,6 +999,22 @@ describe("V4MigrationHeaderContent", () => {
     // body's top-right corner; without the gutter it overlaps the title.
     render(<V4MigrationHeaderContent titleRowClassName="pr-6" />);
     expect(screen.getByText("Upgrade to v4").parentElement).toHaveClass("pr-6");
+  });
+
+  it("does not call ready or unresolved projects outdated", () => {
+    for (const readiness of ["ready", "checking", "unavailable"] as const) {
+      const { unmount } = render(
+        <V4MigrationHeaderContent readiness={readiness} />,
+      );
+
+      expect(
+        screen.queryByText(/Your project setup is outdated/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/Langfuse v4 offers real-time ingestion/),
+      ).toBeInTheDocument();
+      unmount();
+    }
   });
 
   it("labels the help footer and renders no horizontal separators", () => {

@@ -59,8 +59,8 @@ function V4MigrationModalContent({
           <V4MigrationHeaderContent
             // Clear the dialog's floating fallback close button (top-right).
             titleRowClassName="pr-6"
+            readiness="action-needed"
           />
-          {/* Details opens with its own separator above Action items. */}
           <div className="mt-6 flex flex-col gap-6">
             <V4MigrationDetailsContent
               onNavigate={() => setOpen(false)}

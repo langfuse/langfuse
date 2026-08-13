@@ -153,13 +153,22 @@ function OrgStatusSection({
       { enabled: org.projects.length > 0 },
     );
 
-  const openProjectMigration = (row: { id: string; name: string }) => {
+  const openProjectMigration = (
+    row: { id: string; name: string },
+    readiness: ProjectMigrationReadiness,
+  ) => {
     capture("v4_migration:status_row_clicked");
-    openMigrationPanel({ id: row.id, name: row.name }, "status_page_row");
+    openMigrationPanel(
+      { id: row.id, name: row.name, readiness },
+      "status_page_row",
+    );
   };
 
-  const handleRowClick = (row: { id: string; name: string }) => {
-    openProjectMigration(row);
+  const handleRowClick = (
+    row: { id: string; name: string },
+    readiness: ProjectMigrationReadiness,
+  ) => {
+    openProjectMigration(row, readiness);
     router.push(`/project/${row.id}/traces`);
   };
 
@@ -326,7 +335,7 @@ function OrgStatusSection({
                   <TableRow
                     key={row.id}
                     className="group/row cursor-pointer"
-                    onClick={() => handleRowClick(row)}
+                    onClick={() => handleRowClick(row, readiness)}
                   >
                     <TableCell density="comfortable" className="max-w-48">
                       <Link
@@ -335,7 +344,7 @@ function OrgStatusSection({
                         title={row.name}
                         onClick={(event) => {
                           event.stopPropagation();
-                          openProjectMigration(row);
+                          openProjectMigration(row, readiness);
                         }}
                       >
                         {row.name}

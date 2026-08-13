@@ -25,31 +25,41 @@ export const V4MigrationPanel = ({
   // targetProject only decides on project-less routes (home, status page),
   // where it carries the project the opening surface was about.
   const project = routeProject
-    ? { id: routeProject.id, name: routeProject.name }
+    ? {
+        id: routeProject.id,
+        name: routeProject.name,
+        readiness:
+          targetProject?.id === routeProject.id
+            ? targetProject.readiness
+            : undefined,
+      }
     : targetProject;
 
   return (
     <div
       className={cn([
-        "bg-background flex h-full w-full min-w-0 flex-col",
+        "bg-background relative flex h-full w-full min-w-0 flex-col",
         className,
       ])}
     >
       {showCloseButton && (
-        <div className="flex min-h-11 w-full items-center justify-end px-4 py-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setOpen(false)}
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-2 right-2"
+          onClick={() => setOpen(false)}
+          aria-label="Close"
+        >
+          <X className="h-4 w-4" />
+        </Button>
       )}
       <div className="flex-1 overflow-y-auto">
         <div className="px-4 pt-4">
-          <V4MigrationHeaderContent key={project?.id} />
+          <V4MigrationHeaderContent
+            key={project?.id}
+            titleRowClassName={showCloseButton ? "pr-10" : undefined}
+            readiness={project?.readiness}
+          />
         </div>
 
         <div className="flex flex-col gap-6 px-4 pt-6 pb-16">

@@ -48,6 +48,7 @@ import {
   V4_MIGRATION_LOOKBACK_DAYS,
   type MigrationActionState,
   type MigrationCountState,
+  type ProjectMigrationReadiness,
 } from "@/src/features/v4-migration/migrationData";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { numberFormatter } from "@/src/utils/numbers";
@@ -119,7 +120,6 @@ function Section({
   children,
   defaultOpen,
   analyticsSection,
-  statusVariant = "action",
 }: {
   title: string;
   /** Number of affected items, shown muted after the title. */
@@ -130,7 +130,6 @@ function Section({
   defaultOpen?: boolean;
   /** Funnel dimension for the section_expanded event (snake_case). */
   analyticsSection: string;
-  statusVariant?: "action" | "done";
 }) {
   const capture = usePostHogClientCapture();
   return (
@@ -145,10 +144,8 @@ function Section({
       }}
     >
       <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-2.5 text-left">
-        {/* Action sections use the warning dot; informational recommendation
-            sections use the completed-state dot. */}
-        <V4MigrationStatusDot variant={statusVariant} />
-        <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+        <V4MigrationStatusDot variant="action" />
+        <span className="text-foreground flex items-center gap-1.5 text-sm font-bold">
           {title}
           {typeof count === "number" && (
             // Same count-badge recipe as the "My Views" table button.
@@ -426,7 +423,12 @@ export function V4MigrationSdkSection({
   projectId?: string;
 }) {
   const section = getSdkSectionState(sdk);
-  if (section.status === "latest" || section.status === "no_data") return null;
+  if (
+    section.status === "latest" ||
+    section.status === "recommended" ||
+    section.status === "no_data"
+  )
+    return null;
 
   const isTransient =
     section.status === "checking" || section.status === "error";
@@ -440,7 +442,6 @@ export function V4MigrationSdkSection({
           ? undefined
           : section.actionableCount
       }
-      statusVariant={section.status === "recommended" ? "done" : "action"}
       meta={
         section.status === "checking"
           ? "Checking…"
@@ -455,7 +456,7 @@ export function V4MigrationSdkSection({
           "Checking the latest traces for this project…"
         ) : section.status === "error" ? (
           "We could not check the latest traces for this project. Try again later."
-        ) : section.actionableCount > 0 ? (
+        ) : (
           <>
             {section.actionableCount} detected SDK{" "}
             {section.actionableCount === 1
@@ -463,18 +464,6 @@ export function V4MigrationSdkSection({
               : "configurations need"}{" "}
             an update, based on ingestion seen in the last{" "}
             {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
-            <ExternalLink
-              href={SDK_UPGRADE_URL}
-              analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
-            >
-              upgrade path
-            </ExternalLink>
-            .
-          </>
-        ) : (
-          <>
-            These SDK versions support v4. Upgrade to the recommended versions
-            below for the full v4 experience. See{" "}
             <ExternalLink
               href={SDK_UPGRADE_URL}
               analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
@@ -973,13 +962,19 @@ export function V4MigrationIntegrationsSection({
 // V4MigrationAgentUpgradeSection, rendered by the details content.
 export function V4MigrationHeaderContent({
   titleRowClassName,
+  readiness,
 }: {
   /** Extra classes on the title row. The modal host passes a right gutter:
    *  its dialog floats a fallback close button over the body's top-right
    *  corner (the title is sr-only, so there is no DialogHeader row), which
    *  would otherwise overlap the title. */
   titleRowClassName?: string;
+  /** Known readiness from the organization status page. Other action-only
+   * entry points omit this and retain the action-needed copy. */
+  readiness?: ProjectMigrationReadiness;
 }) {
+  const actionNeeded = readiness === undefined || readiness === "action-needed";
+
   return (
     <>
       <div
@@ -991,8 +986,9 @@ export function V4MigrationHeaderContent({
         <p className="min-w-0 text-lg font-bold">Upgrade to v4</p>
       </div>
       <p className="text-muted-foreground text-sm leading-relaxed">
-        Your project setup is outdated. Upgrade to v4 for real-time ingestion
-        and up to 165x faster queries.{" "}
+        {actionNeeded
+          ? "Your project setup is outdated. Upgrade to v4 for real-time ingestion and up to 165x faster queries. "
+          : "Langfuse v4 offers real-time ingestion and up to 165x faster queries. "}
         <ExternalLink
           href={V4_DOCS_URL}
           analytics={{ section: "header", link: "v4_docs" }}
@@ -1099,7 +1095,7 @@ export function V4MigrationAgentUpgradeSection({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-base font-bold">
-          Upgrade with coding agent
+          Upgrade using coding agents
         </div>
         <p className="text-muted-foreground text-sm">
           Paste prompt into Claude Code or other coding agents
