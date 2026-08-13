@@ -75,12 +75,12 @@ export function V4MigrationDelayBadge() {
   // multiple delayed paths get the generic clause.
   const description =
     actionablePaths > 1
-      ? "Your setup is outdated. Upgrade for real-time data"
+      ? "Upgrade to v4 for real-time data"
       : sdkActionable
-        ? "Your setup is outdated. Update SDK for real-time data"
+        ? "Update your SDK for real-time data"
         : otelActionable
-          ? "Your setup is outdated. Update OTel instrumentation for real-time data"
-          : "Your setup is outdated. Upgrade instrumentation for real-time data";
+          ? "Update your OTel instrumentation for real-time data"
+          : "Upgrade your instrumentation for real-time data";
 
   return (
     <V4MigrationBadgeContent
