@@ -584,41 +584,34 @@ export const v4TransitionRouter = createTRPCRouter({
         input.fromTimestamp,
         input.toTimestamp,
       );
-      const bucketTimeSql = getTimelineBucketSql("event_time", granularity);
+      const bucketTimeSql = getTimelineBucketSql("start_time", granularity);
+      const sdkNameSql =
+        "if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name)";
+      const sdkVersionSql =
+        "if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version)";
 
       const rows = await queryClickhouse<SdkUsageTimeSeriesRow>({
         query: `
-WITH selected AS (
-  SELECT
-    start_time AS event_time,
-    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
-    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
-    ingestion_api_key AS public_key,
-    source = 'otel-dual-write' AS is_otel_ingestion,
-    source = 'otel-dual-write' AS is_delayed_otel
-  FROM events_core
-  WHERE
-    project_id = {projectId: String}
-    AND start_time >= {fromTimestamp: DateTime64(3)}
-    AND start_time <= {toTimestamp: DateTime64(3)}
-    AND source IN {legacyDualWriteSources: Array(String)}
-    AND NOT startsWith(environment, 'langfuse-')
-    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
-    AND is_deleted = 0
-)
-
 SELECT
   formatDateTime(${bucketTimeSql}, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time,
-  sdk_name AS sdkName,
-  sdk_version AS sdkVersion,
-  public_key AS publicKey,
+  ${sdkNameSql} AS sdkName,
+  ${sdkVersionSql} AS sdkVersion,
+  ingestion_api_key AS publicKey,
   count() AS count,
-  formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
-  formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
-  if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents
-FROM selected
-GROUP BY ${bucketTimeSql}, sdk_name, sdk_version, public_key
-ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
+  formatDateTime(min(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
+  formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
+  if(countIf(source = 'otel-dual-write') > 0, true, NULL) AS hasDelayedOtelEvents
+FROM events_core
+WHERE
+  project_id = {projectId: String}
+  AND start_time >= {fromTimestamp: DateTime64(3)}
+  AND start_time <= {toTimestamp: DateTime64(3)}
+  AND source IN {legacyDualWriteSources: Array(String)}
+  AND NOT startsWith(environment, 'langfuse-')
+  AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
+  AND is_deleted = 0
+GROUP BY ${bucketTimeSql}, ${sdkNameSql}, ${sdkVersionSql}, ingestion_api_key
+ORDER BY ${bucketTimeSql} ASC, ${sdkNameSql} ASC, ${sdkVersionSql} ASC, ingestion_api_key ASC
         `,
         params: {
           projectId: input.projectId,
@@ -667,39 +660,35 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
       const [rows, datasetRunItemsPostUsageResult] = await Promise.all([
         queryClickhouse<SdkUsageSummaryByProjectRow>({
           query: `
-WITH selected AS (
-  SELECT
-    project_id,
-    start_time AS event_time,
-    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
-    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
-    ingestion_api_key AS public_key,
-    source = 'otel-dual-write' AS is_otel_ingestion,
-    source = 'otel-dual-write' AS is_delayed_otel
-  FROM events_core
-  WHERE
-    project_id IN {projectIds: Array(String)}
-    AND start_time >= {fromTimestamp: DateTime64(3)}
-    AND start_time <= {toTimestamp: DateTime64(3)}
-    AND source IN {legacyDualWriteSources: Array(String)}
-    AND NOT startsWith(environment, 'langfuse-')
-    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
-    AND is_deleted = 0
-)
-
 SELECT
   project_id AS projectId,
-  sdk_name AS sdkName,
-  sdk_version AS sdkVersion,
-  public_key AS publicKey,
+  if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdkName,
+  if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdkVersion,
+  ingestion_api_key AS publicKey,
   count() AS count,
   count() AS eventsCount,
-  formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
-  formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
-  if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents
-FROM selected
-GROUP BY project_id, sdk_name, sdk_version, public_key
-ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
+  formatDateTime(min(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
+  formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
+  if(countIf(source = 'otel-dual-write') > 0, true, NULL) AS hasDelayedOtelEvents
+FROM events_core
+WHERE
+  project_id IN {projectIds: Array(String)}
+  AND start_time >= {fromTimestamp: DateTime64(3)}
+  AND start_time <= {toTimestamp: DateTime64(3)}
+  AND source IN {legacyDualWriteSources: Array(String)}
+  AND NOT startsWith(environment, 'langfuse-')
+  AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
+  AND is_deleted = 0
+GROUP BY
+  project_id,
+  if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name),
+  if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version),
+  ingestion_api_key
+ORDER BY
+  project_id ASC,
+  if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) ASC,
+  if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) ASC,
+  ingestion_api_key ASC
           `,
           params: {
             projectIds,

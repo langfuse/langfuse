@@ -1129,6 +1129,8 @@ describe("v4TransitionRouter", () => {
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(clickhouseQuery?.query).toContain("FROM events_core");
+    expect(clickhouseQuery?.query).not.toContain("WITH selected");
+    expect(clickhouseQuery?.query).not.toContain("FROM selected");
     expect(clickhouseQuery?.query).not.toContain("UNION ALL");
     expect(clickhouseQuery?.query).not.toContain("FROM scores");
     expect(clickhouseQuery?.query).toContain(
@@ -1139,24 +1141,18 @@ describe("v4TransitionRouter", () => {
     ).toHaveLength(1);
     expect(clickhouseQuery?.query).not.toContain("system.columns");
     expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time, INTERVAL 2 MINUTE, 'UTC')",
+      "toStartOfInterval(start_time, INTERVAL 2 MINUTE, 'UTC')",
     );
     expect(clickhouseQuery?.query).toContain(
-      "if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name",
+      "if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdkName",
     );
     expect(clickhouseQuery?.query).toContain(
-      "if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version",
+      "if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdkVersion",
     );
-    expect(clickhouseQuery?.query).toContain("ingestion_api_key AS public_key");
-    expect(clickhouseQuery?.query).toContain(
-      "source = 'otel-dual-write' AS is_delayed_otel",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "source = 'otel-dual-write' AS is_otel_ingestion",
-    );
+    expect(clickhouseQuery?.query).toContain("ingestion_api_key AS publicKey");
     expect(clickhouseQuery?.query).not.toContain("source = 'otel' OR");
     expect(clickhouseQuery?.query).toContain(
-      "if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents",
+      "if(countIf(source = 'otel-dual-write') > 0, true, NULL) AS hasDelayedOtelEvents",
     );
     expect(clickhouseQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
@@ -1167,7 +1163,7 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.query).not.toContain("toDate(start_time)");
     expect(clickhouseQuery?.query).not.toContain("toDate(timestamp)");
     expect(clickhouseQuery?.query).toContain(
-      "GROUP BY toStartOfInterval(event_time, INTERVAL 2 MINUTE, 'UTC'), sdk_name, sdk_version, public_key",
+      "GROUP BY toStartOfInterval(start_time, INTERVAL 2 MINUTE, 'UTC'), if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name), if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version), ingestion_api_key",
     );
     expect(clickhouseQuery?.params).toMatchObject({
       projectId,
@@ -1525,6 +1521,8 @@ describe("v4TransitionRouter", () => {
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
     const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(usageQuery?.query).toContain("FROM events_core");
+    expect(usageQuery?.query).not.toContain("WITH selected");
+    expect(usageQuery?.query).not.toContain("FROM selected");
     expect(usageQuery?.query).not.toContain("UNION ALL");
     expect(usageQuery?.query).not.toContain("FROM scores");
     expect(usageQuery?.query).toContain(
@@ -1535,24 +1533,17 @@ describe("v4TransitionRouter", () => {
       usageQuery?.query.match(/project_id IN \{projectIds: Array\(String\)\}/g),
     ).toHaveLength(1);
     expect(usageQuery?.query).toContain(
-      "GROUP BY project_id, sdk_name, sdk_version, public_key",
+      "GROUP BY\n  project_id,\n  if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name),",
     );
     expect(usageQuery?.query).toContain(
-      "if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents",
-    );
-    expect(usageQuery?.query).toContain(
-      "source = 'otel-dual-write' AS is_delayed_otel",
-    );
-    expect(usageQuery?.query).toContain(
-      "source = 'otel-dual-write' AS is_otel_ingestion",
+      "if(countIf(source = 'otel-dual-write') > 0, true, NULL) AS hasDelayedOtelEvents",
     );
     expect(usageQuery?.query).not.toContain("source = 'otel' OR");
-    expect(usageQuery?.query.match(/AS event_time/g)).toHaveLength(1);
     expect(usageQuery?.query).toContain(
-      "formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen",
+      "formatDateTime(min(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen",
     );
     expect(usageQuery?.query).toContain(
-      "formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen",
+      "formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen",
     );
     expect(usageQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
