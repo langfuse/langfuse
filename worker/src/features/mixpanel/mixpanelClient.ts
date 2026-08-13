@@ -3,7 +3,10 @@ import {
   fetchWithSecureRedirects,
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
-import { analyticsIntegrationWhitelistFromEnv } from "../analyticsIntegrationEgress";
+import {
+  analyticsIntegrationWhitelistFromEnv,
+  validateAnalyticsIntegrationUrl,
+} from "../analyticsIntegrationEgress";
 import { gzipSync } from "zlib";
 import { env } from "../../env";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
@@ -98,6 +101,10 @@ export class MixpanelClient {
     }, env.LANGFUSE_MIXPANEL_TIMEOUT_MS);
 
     try {
+      // Covers what the connect-time hook cannot see (IP literals, embedded
+      // credentials, non-HTTP schemes) — see validateAnalyticsIntegrationUrl.
+      validateAnalyticsIntegrationUrl(url);
+
       // Re-resolve and re-validate the destination IP at socket connect time so
       // a host that resolves to a public IP during validation but rebinds to a
       // private/loopback address at connect cannot bypass the SSRF check
