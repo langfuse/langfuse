@@ -137,6 +137,28 @@ describe("assertExportSourceAllowed", () => {
     });
   });
 
+  // Forwarding guard: analytics adapters override the integration-level cutoff
+  // through the context. A destructuring assert that drops the field would
+  // silently fall back to the blob cutoff and reject a grandfathered row.
+  it("forwards a context-supplied exporterCutoff instead of the blob default", () => {
+    const ctx: ExportSourceContext & { exporterCutoff?: Date } = {
+      isCloud: true,
+      enrichedAvailable: true,
+      legacyWritesActive: true,
+      // Between the blob cutoff (2026-06-22) and the analytics one
+      // (2026-08-15): blocked under the default, grandfathered under the
+      // override.
+      integrationCreatedAt: new Date("2026-07-01T00:00:00.000Z"),
+      exporterCutoff: new Date("2026-08-15T00:00:00.000Z"),
+    };
+    expect(() =>
+      assertExportSourceAllowed({
+        nextExportSource: "TRACES_OBSERVATIONS",
+        ctx,
+      }),
+    ).not.toThrow();
+  });
+
   it("omitted source without a persisted row is a no-op", () => {
     expect(() =>
       assertExportSourceAllowed({

@@ -402,6 +402,61 @@ describe("write mode drives the settings-page selector", () => {
   );
 });
 
+// Product-analytics integrations (Mixpanel/PostHog) carry a later
+// integration-level cutoff than blob storage, supplied through the context.
+describe("analytics integrations: exporterCutoff-driven selector state", () => {
+  type Ctx = ExportSourceContext & { exporterCutoff?: Date };
+
+  // Spec dates written literally: the analytics cutoff, and a row age that sits
+  // between the blob cutoff (2026-06-22) and it.
+  const ANALYTICS_CUTOFF = new Date("2026-08-15T00:00:00.000Z");
+  const ROW_BETWEEN_CUTOFFS = new Date("2026-07-01T00:00:00.000Z");
+
+  const newCloudIntegration: Ctx = {
+    isCloud: true,
+    enrichedAvailable: true,
+    legacyWritesActive: true,
+    projectCreatedAt: PROJECT_PRE,
+    integrationCreatedAt: null,
+    exporterCutoff: ANALYTICS_CUTOFF,
+  };
+  const grandfatheredCloudIntegration: Ctx = {
+    ...newCloudIntegration,
+    integrationCreatedAt: ROW_BETWEEN_CUTOFFS,
+  };
+
+  it("hides the selector for a brand-new Cloud integration, pinned to EVENTS", () => {
+    const options = getExportSourceOptions(undefined, newCloudIntegration);
+    expect(options.map((o) => o.value)).toEqual([
+      AnalyticsIntegrationExportSource.EVENTS,
+    ]);
+    expect(shouldHideExportSourceSelector(options)).toBe(true);
+    expect(getExportSourceFormValue(undefined, newCloudIntegration)).toBe(
+      AnalyticsIntegrationExportSource.EVENTS,
+    );
+  });
+
+  it("keeps the selector visible and legacy selectable for a grandfathered Cloud integration", () => {
+    const options = getExportSourceOptions(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      grandfatheredCloudIntegration,
+    );
+    expect(shouldHideExportSourceSelector(options)).toBe(false);
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        grandfatheredCloudIntegration,
+      ),
+    ).toBe(true);
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.EVENTS,
+        grandfatheredCloudIntegration,
+      ),
+    ).toBe(true);
+  });
+});
+
 describe("getExportSourceUnavailableMessage", () => {
   it("names the write mode for enriched-unavailable (self-hosted operator-facing)", () => {
     const message = getExportSourceUnavailableMessage("enriched-unavailable");

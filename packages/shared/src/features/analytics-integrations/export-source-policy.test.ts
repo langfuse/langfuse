@@ -169,6 +169,122 @@ describe("validateExportSource matrix", () => {
   });
 });
 
+// The integration-level ("exporter") cutoff is per-integration-kind: blob
+// storage keeps its own date, product-analytics integrations (Mixpanel,
+// PostHog) get a later one. The policy takes it from the context so both
+// families share one implementation.
+describe("exporterCutoff parameterization", () => {
+  // Spec dates, written literally so these behaviour tests do not depend on
+  // the constant existing yet; the constants test below pins the exports.
+  const ANALYTICS_CUTOFF = new Date("2026-08-15T00:00:00.000Z");
+  // Deliberately between the two cutoffs: past blob's 2026-06-22, before
+  // analytics' 2026-08-15. Any assertion using it distinguishes "the context's
+  // cutoff was honoured" from "the blob default was hard-coded".
+  const ROW_BETWEEN_CUTOFFS = new Date("2026-07-01T00:00:00.000Z");
+
+  type Ctx = ExportSourceContext & { exporterCutoff?: Date };
+
+  // projectCreatedAt is pinned pre-project-cutoff throughout so the only Cloud
+  // gate in play is the integration-level one.
+  const cloud = (over: Partial<Ctx>): Ctx => ({
+    isCloud: true,
+    enrichedAvailable: true,
+    legacyWritesActive: true,
+    projectCreatedAt: PROJECT_PRE,
+    ...over,
+  });
+
+  it("absent exporterCutoff keeps the blob constant as the boundary; supplying one moves it", () => {
+    // Blob call sites pass no exporterCutoff and must be unaffected.
+    expect(
+      reasonOf(
+        "TRACES_OBSERVATIONS",
+        cloud({ integrationCreatedAt: ROW_BETWEEN_CUTOFFS }),
+      ),
+    ).toBe("cloud-cutoff");
+    // Analytics call sites pass the later cutoff, so the same row is still
+    // grandfathered.
+    expect(
+      reasonOf(
+        "TRACES_OBSERVATIONS",
+        cloud({
+          integrationCreatedAt: ROW_BETWEEN_CUTOFFS,
+          exporterCutoff: ANALYTICS_CUTOFF,
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("the supplied cutoff keeps >= semantics on the row's creation date", () => {
+    const at = (integrationCreatedAt: Date) =>
+      reasonOf(
+        "TRACES_OBSERVATIONS",
+        cloud({ integrationCreatedAt, exporterCutoff: ANALYTICS_CUTOFF }),
+      );
+    expect(at(new Date(ANALYTICS_CUTOFF.getTime() - 1))).toBeUndefined();
+    expect(at(ANALYTICS_CUTOFF)).toBe("cloud-cutoff");
+    expect(at(new Date(ANALYTICS_CUTOFF.getTime() + MS_PER_DAY))).toBe(
+      "cloud-cutoff",
+    );
+  });
+
+  it("a brand-new Cloud row (null createdAt) is pinned to enriched even before the cutoff date passes", () => {
+    // Create pins regardless of wall-clock: "no existing row" follows
+    // new-customer rules, it is not a date comparison.
+    const brandNew = cloud({
+      integrationCreatedAt: null,
+      exporterCutoff: ANALYTICS_CUTOFF,
+    });
+    expect(reasonOf("TRACES_OBSERVATIONS", brandNew)).toBe("cloud-cutoff");
+    expect(reasonOf("TRACES_OBSERVATIONS_EVENTS", brandNew)).toBe(
+      "cloud-cutoff",
+    );
+    expect(reasonOf("EVENTS", brandNew)).toBeUndefined();
+  });
+
+  it("self-hosted ignores exporterCutoff entirely", () => {
+    expect(
+      reasonOf("TRACES_OBSERVATIONS", {
+        isCloud: false,
+        enrichedAvailable: true,
+        legacyWritesActive: true,
+        integrationCreatedAt: null,
+        exporterCutoff: ANALYTICS_CUTOFF,
+      } as Ctx),
+    ).toBeUndefined();
+  });
+
+  it("leaves EVENTS as the only selectable source for a brand-new Cloud analytics integration", () => {
+    expect(
+      getAvailableExportSources(
+        cloud({
+          integrationCreatedAt: null,
+          exporterCutoff: ANALYTICS_CUTOFF,
+        }),
+      ),
+    ).toEqual([
+      { source: "TRACES_OBSERVATIONS", blockedReason: "cloud-cutoff" },
+      { source: "TRACES_OBSERVATIONS_EVENTS", blockedReason: "cloud-cutoff" },
+      { source: "EVENTS" },
+    ]);
+  });
+
+  it("exports both cutoff constants; the blob one is unchanged", () => {
+    // Moving LEGACY_BLOB_EXPORTER_CUTOFF instead of adding a second constant
+    // would silently re-open legacy sources for blob rows created between the
+    // two dates, so both values are pinned.
+    expect(LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()).toBe(
+      "2026-06-22T00:00:00.000Z",
+    );
+    const analyticsCutoff = (exportSourcePolicy as unknown as Record<string, unknown>)
+      .LEGACY_ANALYTICS_EXPORTER_CUTOFF;
+    expect(analyticsCutoff).toBeInstanceOf(Date);
+    expect((analyticsCutoff as Date | undefined)?.toISOString()).toBe(
+      ANALYTICS_CUTOFF.toISOString(),
+    );
+  });
+});
+
 describe("getAvailableExportSources", () => {
   it("returns all sources in UI order with per-source reasons", () => {
     const sources = getAvailableExportSources(
