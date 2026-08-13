@@ -83,7 +83,9 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
           )}
           <span className={isMenu ? "text-sm" : undefined}>Annotate</span>
           {showAnnotationCount && annotationCount > 0 ? (
-            <ActionButtonCountBadge className="ml-1" count={annotationCount} />
+            <span className="ml-1">
+              <ActionButtonCountBadge count={annotationCount} />
+            </span>
           ) : null}
         </Button>
       </DrawerTrigger>
