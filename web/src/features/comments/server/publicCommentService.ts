@@ -10,7 +10,7 @@ import type {
   PostCommentsV1Body,
 } from "@/src/features/public-api/types/comments";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 
 type CommentAuditScope = {
   projectId: string;
@@ -172,28 +172,57 @@ export const updateCommentForApi = async ({
   // Prisma P2025 racing through the update.
   const before = await getCommentRecordOrThrow({ projectId, commentId });
 
-  const updated = await prisma.comment.update({
-    where: {
-      id: commentId,
-      projectId,
-    },
-    data: {
-      content: input.content,
-    },
-  });
+  // Wrap the update + audit-log in a single transaction so the two
+  // operations either both succeed or both roll back. Pre-fix, a failure
+  // in auditLog after prisma.comment.update returned 500 even though
+  // the new content was already persisted, which let callers retry an
+  // operation the server reported as failed.
+  const updated = await prisma.$transaction(async (tx) => {
+    let next;
+    try {
+      next = await tx.comment.update({
+        where: {
+          id: commentId,
+          projectId,
+        },
+        data: {
+          content: input.content,
+        },
+      });
+    } catch (error) {
+      // Handle the race: if the comment was deleted between the lookup
+      // above and this update, Prisma throws P2025. The REST middleware
+      // maps P2025 to a generic 500; surface a clean 404 instead so the
+      // public API contract is preserved.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        throw new LangfuseNotFoundError(
+          "Comment not found within authorized project",
+        );
+      }
+      throw error;
+    }
 
-  if (auditScope) {
-    await auditLog({
-      action: "update",
-      resourceType: "comment",
-      resourceId: updated.id,
-      projectId: auditScope.projectId,
-      orgId: auditScope.orgId,
-      apiKeyId: auditScope.apiKeyId,
-      before,
-      after: updated,
-    });
-  }
+    if (auditScope) {
+      await auditLog(
+        {
+          action: "update",
+          resourceType: "comment",
+          resourceId: next.id,
+          projectId: auditScope.projectId,
+          orgId: auditScope.orgId,
+          apiKeyId: auditScope.apiKeyId,
+          before,
+          after: next,
+        },
+        tx,
+      );
+    }
+
+    return next;
+  });
 
   return toPublicComment(updated);
 };
