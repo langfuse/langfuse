@@ -13,6 +13,15 @@ import {
  * SDKs (e.g. posthog-node) may wrap it again, so the signal only shows up by
  * walking the chain. Mirrors `findSecureLlmValidationError` in the shared
  * secureLlmFetch helper.
+ *
+ * DRIFT WARNING: this is a deliberate fork of the (module-private)
+ * findSecureLlmValidationError in
+ * packages/shared/src/server/llm/secureLlmFetch.ts — same four instanceof arms,
+ * same visited-set walk. If a new failure mode is added to
+ * packages/shared/src/server/outbound-url/fetch.ts, add its arm HERE too:
+ * otherwise this copy silently stops classifying it, the terminal branches in
+ * the PostHog/Mixpanel exporters stop firing, and both go back to burning every
+ * BullMQ attempt on a permanent block with no test failing.
  */
 export function findOutboundUrlValidationError(
   error: unknown,

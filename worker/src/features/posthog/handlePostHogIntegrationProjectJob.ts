@@ -422,6 +422,7 @@ export const handlePostHogIntegrationProjectJob = async (
     if (validationError) {
       logger.error(
         `[POSTHOG] Outbound send for project ${projectId} blocked by secure-outbound validation: ${validationError.message}`,
+        error,
       );
       const unrecoverable = new UnrecoverableError(
         `PostHog integration for project ${projectId} blocked by outbound SSRF protection: ${validationError.message}`,

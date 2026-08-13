@@ -183,6 +183,7 @@ export class MixpanelClient {
       if (validationError) {
         logger.error(
           `Mixpanel outbound send blocked by secure-outbound validation: ${validationError.message}`,
+          error,
         );
         const unrecoverable = new UnrecoverableError(
           `Mixpanel export blocked by outbound SSRF protection: ${validationError.message}`,
