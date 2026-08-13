@@ -75,6 +75,68 @@ describe("annotationQueueItems trpc", () => {
     });
   });
 
+  describe("createMany", () => {
+    it("only writes 'create' audit logs for items actually created", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+
+      const { caller } = createCallerForProjectRole(setup, "ADMIN");
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: "Test Queue",
+          scoreConfigIds: [],
+          projectId: setup.project.id,
+        },
+      });
+
+      const existingObjectIds = [uuidv4(), uuidv4()];
+      const newObjectId = uuidv4();
+
+      const getCreateAuditLogs = () =>
+        prisma.auditLog.findMany({
+          where: {
+            projectId: setup.project.id,
+            resourceType: "annotationQueueItem",
+            action: "create",
+          },
+        });
+
+      const first = await caller.annotationQueueItems.createMany({
+        projectId: setup.project.id,
+        queueId: queue.id,
+        objectIds: existingObjectIds,
+        objectType: AnnotationQueueObjectType.TRACE,
+      });
+      expect(first.createdCount).toBe(2);
+
+      const firstAuditLogs = await getCreateAuditLogs();
+      const items = await prisma.annotationQueueItem.findMany({
+        where: { projectId: setup.project.id, queueId: queue.id },
+      });
+      expect(firstAuditLogs.map((l) => l.resourceId).sort()).toEqual(
+        items.map((i) => i.id).sort(),
+      );
+
+      // re-adding already-queued objects plus one new one must only create
+      // and audit-log the new item
+      const second = await caller.annotationQueueItems.createMany({
+        projectId: setup.project.id,
+        queueId: queue.id,
+        objectIds: [...existingObjectIds, newObjectId],
+        objectType: AnnotationQueueObjectType.TRACE,
+      });
+      expect(second.createdCount).toBe(1);
+
+      const itemsAfterSecondCall = await prisma.annotationQueueItem.findMany({
+        where: { projectId: setup.project.id, queueId: queue.id },
+      });
+      expect(itemsAfterSecondCall).toHaveLength(3);
+
+      const secondAuditLogs = await getCreateAuditLogs();
+      expect(secondAuditLogs).toHaveLength(3);
+    });
+  });
+
   describe("typeById", () => {
     it("requires annotationQueues:read access", async () => {
       const setup = await createOrgProjectAndApiKey();
