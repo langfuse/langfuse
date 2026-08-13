@@ -216,7 +216,9 @@ function OrgStatusSection({
   // table. The summary card still counts them.
   const rows = org.projects.flatMap((project) => {
     const status = statusByProjectId.get(project.id);
-    if (!status || getProjectMigrationReadiness(status) === "ready") return [];
+    if (!status) return [];
+    const readiness = getProjectMigrationReadiness(status);
+    if (readiness === "ready") return [];
     const lastTraceAt = lastTraceTimes?.find(
       (trace) => trace.projectId === project.id,
     )?.lastTraceAt;
@@ -225,6 +227,7 @@ function OrgStatusSection({
         id: project.id,
         name: project.name,
         status,
+        readiness,
         lastTraceLabel: lastTraceAt
           ? formatCompactRelativeTime(new Date(lastTraceAt))
           : "—",
@@ -247,7 +250,7 @@ function OrgStatusSection({
           "action-needed": 2,
           ready: 3,
           "partner-managed": 4,
-        }[getProjectMigrationReadiness(row.status)];
+        }[row.readiness];
       case "sdk":
         return row.status.sdk.status === "latest"
           ? 5
@@ -358,7 +361,7 @@ function OrgStatusSection({
             </TableHeader>
             <TableBody>
               {sortedRows.map((row) => {
-                const readiness = getProjectMigrationReadiness(row.status);
+                const { readiness } = row;
                 return (
                   <TableRow
                     key={row.id}
