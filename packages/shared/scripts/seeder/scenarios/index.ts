@@ -10,6 +10,7 @@ import { sessionShapesScenario } from "./session-shapes";
 import { supportAgentScenario } from "./support-agent";
 import { traceTreeScenario } from "./trace-tree";
 import { ScenarioDefinition } from "./types";
+import { v4MigrationScenario } from "./v4-migration";
 
 /**
  * Scenario registry. Names are part of the CLI contract — additive only.
@@ -26,6 +27,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "annotation-queue": annotationQueueScenario,
   "custom-models": customModelsScenario,
   "support-agent": supportAgentScenario,
+  "v4-migration": v4MigrationScenario,
 };
 
 export * from "./types";
