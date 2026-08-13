@@ -8744,10 +8744,18 @@ components:
         columns of both portions are controlled by `exportFieldGroups`.
 
 
-        **Note:** `OBSERVATIONS_V2` and the enriched-observations portion of
-        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` rely on the enriched
-        observations table (Langfuse Fast Preview / v4), which is currently
-        available on Langfuse Cloud only. See https://langfuse.com/docs/v4.
+        **Note:** which sources a deployment accepts depends on how far it has
+        moved to the v4 data model. `OBSERVATIONS_V2` and the
+        enriched-observations portion of
+        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` read the enriched observations
+        table, so they require a deployment that already populates it.
+        `LEGACY_TRACES_OBSERVATIONS` and the legacy portion of
+        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` read the legacy traces and
+        observations tables, so they require a deployment that still populates
+        those. A deployment part-way through the migration populates both and
+        accepts every source. Selecting a source the deployment cannot serve is
+        rejected with `400`, rather than exporting an empty result. See
+        https://langfuse.com/docs/v4.
     BlobStorageExportFieldGroup:
       title: BlobStorageExportFieldGroup
       type: string
@@ -8836,10 +8844,12 @@ components:
           nullable: true
           description: >-
             Data to export. When omitted on update, the existing value is
-            preserved. When omitted on create: integrations on Langfuse Cloud
-            default to `OBSERVATIONS_V2`; self-hosted deployments fall back to
-            `LEGACY_TRACES_OBSERVATIONS`. Required when `exportFieldGroups` is
-            provided.
+            preserved. When omitted on create, the default is `OBSERVATIONS_V2`
+            on Langfuse Cloud, and on self-hosted deployments
+            `LEGACY_TRACES_OBSERVATIONS` — or `OBSERVATIONS_V2` where the
+            deployment no longer populates the legacy tables. The default is
+            never a source the deployment cannot serve. Required when
+            `exportFieldGroups` is provided.
 
 
             **Cloud-only project deprecation gate (effective 2026-05-20):** For
