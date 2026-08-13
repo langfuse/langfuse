@@ -79,7 +79,10 @@ export const getEnvironmentsForProject = async (
 
 export type EnvironmentCount = {
   environment: string;
-  count: number;
+  // ClickHouse returns count(DISTINCT id) as UInt64; the clickhouse-client
+  // surfaces it as a string to preserve precision past 2^53. Type it as
+  // string and let callers coerce for arithmetic / display.
+  count: string;
 };
 
 /**

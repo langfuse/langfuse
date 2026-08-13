@@ -11,7 +11,11 @@
  */
 import { parseArgs } from "node:util";
 import { prisma } from "../../src/db";
-import { getEnvironmentsWithCountsForProject, logger, redis } from "../../src/server";
+import {
+  getEnvironmentsWithCountsForProject,
+  logger,
+  redis,
+} from "../../src/server";
 import { preflight, runDoctor } from "./doctor";
 import { scenarios } from "./scenarios";
 import { ScenarioContext, ScenarioFlag, SeedError } from "./scenarios/types";
@@ -95,7 +99,9 @@ const usage = (): string => {
     "  pnpm run seed -- long-session --traces 300 --observations-per-trace 8",
   );
   lines.push("  pnpm run seed -- many-traces --count 100000 --days 14");
-  lines.push("  pnpm run seed -- env                      # inspect envs and trace counts");
+  lines.push(
+    "  pnpm run seed -- env                      # inspect envs and trace counts",
+  );
   return lines.join("\n");
 };
 
@@ -184,9 +190,7 @@ const printEnv = (
     "TRACES".length,
     ...rows.map((r) => String(r.count).length),
   );
-  console.log(
-    `${"ENV".padEnd(envWidth)}  ${"TRACES".padStart(countWidth)}`,
-  );
+  console.log(`${"ENV".padEnd(envWidth)}  ${"TRACES".padStart(countWidth)}`);
   for (const row of rows) {
     console.log(
       `${row.environment.padEnd(envWidth)}  ${String(row.count).padStart(countWidth)}`,
@@ -291,6 +295,13 @@ const main = async (): Promise<number> => {
       );
     }
     const projectId = values.project ?? DEFAULT_PROJECT_ID;
+    // env is a read-only ClickHouse scan; preflight guarantees the
+    // connectivity and schema requirements before we hit the user with
+    // a raw SQL error.
+    const log: ScenarioContext["log"] = (message) => {
+      if (values.json !== true) console.error(`[seed:env] ${message}`);
+    };
+    await preflight({ projectId, needV4: false, log });
     const rows = await getEnvironmentsWithCountsForProject({ projectId });
     printEnv(projectId, rows, values.json === true);
     return 0;
