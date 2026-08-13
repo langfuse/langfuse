@@ -104,6 +104,7 @@ type LegacyApiUsageSummaryByProjectRow = {
   entrypoint: string;
   count: string | number;
   lastSeen: string;
+  clickhouseHost: string;
 };
 
 type LegacyApiUsageSummaryByProjectResultRow = {
@@ -112,6 +113,11 @@ type LegacyApiUsageSummaryByProjectResultRow = {
   count: number;
   lastSeen: string;
 };
+
+type LegacyApiUsageSummaryByProjectServiceRow =
+  LegacyApiUsageSummaryByProjectResultRow & {
+    clickhouseHost: string;
+  };
 
 type SdkUsageSummaryByProjectRow = {
   projectId: string;
@@ -174,6 +180,60 @@ type SdkUsageSummaryByProjectResultRow = {
 type DatasetRunItemsPostUsageByProjectRow = {
   projectId: string;
   count: string | number;
+  clickhouseHost: string;
+};
+
+type SystemQueryLogReadService = "ReadOnly" | "EventsReadOnly";
+
+const getSystemQueryLogServices = ({
+  readService,
+  readUrl,
+}: {
+  readService: SystemQueryLogReadService;
+  readUrl: string | undefined;
+}): PreferredClickhouseService[] =>
+  readUrl &&
+  new URL(readUrl).toString() !== new URL(env.CLICKHOUSE_URL).toString()
+    ? [readService, "ReadWrite"]
+    : ["ReadWrite"];
+
+const querySystemQueryLogAcrossServices = async <T>({
+  preferredClickhouseServices,
+  queryService,
+  failureMessage,
+}: {
+  preferredClickhouseServices: PreferredClickhouseService[];
+  queryService: (service: PreferredClickhouseService) => Promise<T[]>;
+  failureMessage: string;
+}): Promise<T[]> => {
+  const settledServiceRows = await Promise.allSettled(
+    preferredClickhouseServices.map(queryService),
+  );
+  const firstSuccessfulResult = settledServiceRows.find(
+    (result) => result.status === "fulfilled",
+  );
+  if (!firstSuccessfulResult) {
+    const firstFailure = settledServiceRows.find(
+      (result) => result.status === "rejected",
+    );
+    throw firstFailure?.reason ?? new Error("ClickHouse services unavailable");
+  }
+
+  settledServiceRows.forEach((result, index) => {
+    if (result.status === "rejected") {
+      logger.warn(failureMessage, {
+        preferredClickhouseService: preferredClickhouseServices[index],
+        error:
+          result.reason instanceof Error
+            ? result.reason.message
+            : "Unknown error",
+      });
+    }
+  });
+
+  return settledServiceRows.flatMap((result) =>
+    result.status === "fulfilled" ? result.value : [],
+  );
 };
 
 const toBoolean = (value: boolean | string | number): boolean =>
@@ -356,6 +416,12 @@ const getSdkUsageSummaries = async ({
 }): Promise<SdkUsageSummaryByProjectResultRow[]> => {
   if (projectIds.length === 0) return [];
 
+  const systemQueryLogServices = getSystemQueryLogServices({
+    readService: "EventsReadOnly",
+    readUrl:
+      env.CLICKHOUSE_EVENTS_READ_ONLY_URL ?? env.CLICKHOUSE_READ_ONLY_URL,
+  });
+
   const [rows, datasetRunItemsPostUsageResult] = await Promise.all([
     queryClickhouse<SdkUsageSummaryByProjectRow>({
       query: `
@@ -484,11 +550,15 @@ ORDER BY
       tags: { route: "v4-sdk-usage-summary" },
       preferredClickhouseService: "EventsReadOnly",
     }),
-    queryClickhouse<DatasetRunItemsPostUsageByProjectRow>({
-      query: `
+    querySystemQueryLogAcrossServices({
+      preferredClickhouseServices: systemQueryLogServices,
+      queryService: (preferredClickhouseService) =>
+        queryClickhouse<DatasetRunItemsPostUsageByProjectRow>({
+          query: `
 SELECT
   JSONExtractString(log_comment, 'projectId') AS projectId,
-  count() AS count
+  count() AS count,
+  hostName() AS clickhouseHost
 FROM ${systemTableRef("system.query_log")}
 WHERE
   event_time >= {fromTimestamp: DateTime64(3)}
@@ -500,17 +570,20 @@ WHERE
   AND JSONExtractString(log_comment, 'surface') = 'publicapi'
   AND JSONExtractString(log_comment, 'projectId') IN {projectIds: Array(String)}
   AND splitByChar('?', JSONExtractString(log_comment, 'route'))[1] = 'POST /api/public/dataset-run-items'
-GROUP BY projectId
+GROUP BY projectId, clickhouseHost
 SETTINGS skip_unavailable_shards = 1
       `,
-      params: {
-        projectIds,
-        fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
-        toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
-      },
-      tags: { route: "v4-experiment-instrumentation-summary" },
-      preferredClickhouseService: "EventsReadOnly",
-      clickhouseSettings: { skip_unavailable_shards: 1 },
+          params: {
+            projectIds,
+            fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
+            toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
+          },
+          tags: { route: "v4-experiment-instrumentation-summary" },
+          preferredClickhouseService,
+          clickhouseSettings: { skip_unavailable_shards: 1 },
+        }),
+      failureMessage:
+        "Failed to query dataset-run-items POST usage from ClickHouse service",
     })
       .then((rows) => ({ status: "success" as const, rows }))
       .catch((error: unknown) => {
@@ -616,7 +689,7 @@ const getLegacyApiUsageSummariesForService = async ({
   fromTimestamp: Date;
   toTimestamp: Date;
   preferredClickhouseService: PreferredClickhouseService;
-}): Promise<LegacyApiUsageSummaryByProjectResultRow[]> => {
+}): Promise<LegacyApiUsageSummaryByProjectServiceRow[]> => {
   if (projectIds.length === 0) return [];
 
   const rows = await queryClickhouse<LegacyApiUsageSummaryByProjectRow>({
@@ -625,6 +698,7 @@ WITH selected AS (
   SELECT
     JSONExtractString(log_comment, 'projectId') AS project_id,
     event_time_microseconds,
+    hostName() AS clickhouse_host,
     splitByChar('?', JSONExtractString(log_comment, 'route'))[1] AS route_path
   FROM ${systemTableRef("system.query_log")}
   WHERE
@@ -641,6 +715,7 @@ classified AS (
   SELECT
     project_id,
     event_time_microseconds,
+    clickhouse_host,
     multiIf(
       route_path IN (
         'GET /api/public/spans',
@@ -661,7 +736,6 @@ classified AS (
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/{id}',
       match(route_path, '^GET /api/public/datasets/[^/?#]+/runs$'), 'GET /api/public/datasets/{datasetName}/runs',
       match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 'GET /api/public/datasets/{datasetName}/runs/{runName}',
-      match(route_path, '^DELETE /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 'DELETE /api/public/datasets/{datasetName}/runs/{runName}',
       NULL
     ) AS legacy_route,
     multiIf(
@@ -686,7 +760,6 @@ classified AS (
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/datasets/[^/?#]+/runs$'), 1,
       match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1,
-      match(route_path, '^DELETE /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1,
       NULL
     ) AS clickhouse_queries_per_api_call
   FROM selected
@@ -696,12 +769,13 @@ SELECT
   project_id AS projectId,
   concat('publicapi: ', legacy_route) AS entrypoint,
   sum(1.0 / clickhouse_queries_per_api_call) AS count,
-  formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen
+  formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen,
+  clickhouse_host AS clickhouseHost
 FROM classified
 WHERE legacy_route IS NOT NULL
   AND clickhouse_queries_per_api_call IS NOT NULL
-GROUP BY project_id, legacy_route
-ORDER BY project_id ASC, legacy_route ASC
+GROUP BY project_id, legacy_route, clickhouse_host
+ORDER BY project_id ASC, legacy_route ASC, clickhouse_host ASC
 SETTINGS skip_unavailable_shards = 1
     `,
     params: {
@@ -719,6 +793,7 @@ SETTINGS skip_unavailable_shards = 1
     entrypoint: row.entrypoint,
     count: Number(row.count),
     lastSeen: row.lastSeen,
+    clickhouseHost: row.clickhouseHost,
   }));
 };
 
@@ -733,52 +808,50 @@ const getLegacyApiUsageSummaries = async ({
 }): Promise<LegacyApiUsageSummaryByProjectResultRow[]> => {
   if (projectIds.length === 0) return [];
 
-  const preferredClickhouseServices: PreferredClickhouseService[] =
-    env.CLICKHOUSE_READ_ONLY_URL &&
-    new URL(env.CLICKHOUSE_READ_ONLY_URL).toString() !==
-      new URL(env.CLICKHOUSE_URL).toString()
-      ? ["ReadOnly", "ReadWrite"]
-      : ["ReadWrite"];
-  const settledServiceRows = await Promise.allSettled(
-    preferredClickhouseServices.map((preferredClickhouseService) =>
+  const preferredClickhouseServices = getSystemQueryLogServices({
+    readService: "ReadOnly",
+    readUrl: env.CLICKHOUSE_READ_ONLY_URL,
+  });
+  const serviceRows = await querySystemQueryLogAcrossServices({
+    preferredClickhouseServices,
+    queryService: (preferredClickhouseService) =>
       getLegacyApiUsageSummariesForService({
         projectIds,
         fromTimestamp,
         toTimestamp,
         preferredClickhouseService,
       }),
-    ),
-  );
-  const firstSuccessfulResult = settledServiceRows.find(
-    (result) => result.status === "fulfilled",
-  );
-  if (!firstSuccessfulResult) {
-    const firstFailure = settledServiceRows.find(
-      (result) => result.status === "rejected",
+    failureMessage: "Failed to query legacy API usage from ClickHouse service",
+  });
+
+  const rowsByProjectEntrypointAndHost = new Map<
+    string,
+    LegacyApiUsageSummaryByProjectServiceRow
+  >();
+  for (const row of serviceRows) {
+    const key = `${row.projectId}\u0000${row.entrypoint}\u0000${row.clickhouseHost}`;
+    const existing = rowsByProjectEntrypointAndHost.get(key);
+    rowsByProjectEntrypointAndHost.set(
+      key,
+      existing
+        ? {
+            ...existing,
+            count: Math.max(existing.count, row.count),
+            lastSeen:
+              existing.lastSeen > row.lastSeen
+                ? existing.lastSeen
+                : row.lastSeen,
+          }
+        : row,
     );
-    throw firstFailure?.reason ?? new Error("ClickHouse services unavailable");
   }
 
-  settledServiceRows.forEach((result, index) => {
-    if (result.status === "rejected") {
-      logger.warn("Failed to query legacy API usage from ClickHouse service", {
-        preferredClickhouseService: preferredClickhouseServices[index],
-        error:
-          result.reason instanceof Error
-            ? result.reason.message
-            : "Unknown error",
-      });
-    }
-  });
-  const serviceRows = settledServiceRows.flatMap((result) =>
-    result.status === "fulfilled" ? [result.value] : [],
-  );
   const rowsByProjectAndEntrypoint = new Map<
     string,
     LegacyApiUsageSummaryByProjectResultRow
   >();
 
-  for (const row of serviceRows.flat()) {
+  for (const row of rowsByProjectEntrypointAndHost.values()) {
     const key = `${row.projectId}\u0000${row.entrypoint}`;
     const existing = rowsByProjectAndEntrypoint.get(key);
     rowsByProjectAndEntrypoint.set(
@@ -792,7 +865,12 @@ const getLegacyApiUsageSummaries = async ({
                 ? existing.lastSeen
                 : row.lastSeen,
           }
-        : row,
+        : {
+            projectId: row.projectId,
+            entrypoint: row.entrypoint,
+            count: row.count,
+            lastSeen: row.lastSeen,
+          },
     );
   }
 
