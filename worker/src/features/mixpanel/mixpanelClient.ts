@@ -177,8 +177,10 @@ export class MixpanelClient {
         throw timeoutError;
       }
       // A connect-time SSRF/redirect block is a permanent misconfiguration, not
-      // a transient failure. Surface it as an UnrecoverableError so BullMQ stops
-      // retrying the same blocked send.
+      // a transient failure. Surface it as an UnrecoverableError so BullMQ skips
+      // the remaining attempts for THIS job rather than re-running the same
+      // hopeless send. The integration is not disabled: the schedule re-enqueues
+      // the project on the next cycle.
       const validationError = findOutboundUrlValidationError(error);
       if (validationError) {
         logger.error(

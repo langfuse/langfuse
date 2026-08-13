@@ -416,8 +416,11 @@ export const handlePostHogIntegrationProjectJob = async (
   } catch (error) {
     // A connect-time SSRF/redirect block is a permanent misconfiguration of the
     // integration host, not a transient failure. Surface it as an
-    // UnrecoverableError so BullMQ stops retrying instead of re-attempting the
-    // same blocked send every hour.
+    // UnrecoverableError so BullMQ skips the remaining attempts for THIS job
+    // rather than re-running the same hopeless send. The integration is not
+    // disabled: handlePostHogIntegrationSchedule re-enqueues the project on the
+    // next cycle (failed jobs are removed, so the dedup key frees up), which is
+    // what lets a fixed hostname recover on its own.
     const validationError = findOutboundUrlValidationError(error);
     if (validationError) {
       logger.error(
