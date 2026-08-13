@@ -24,18 +24,9 @@ import {
  */
 export const GRAPH_LAYOUT_DEADLINE_MS = 60_000;
 
-/**
- * A superseded layout is killed only once it has been running this long: past it,
- * the stale layout is holding the single worker thread and would delay the layout
- * that replaced it; below it, letting it finish and discarding the result is
- * cheaper than a fresh worker startup on every view-mode toggle.
- */
-const TERMINATE_STALE_AFTER_MS = 250;
-
 type PendingLayout = {
   id: string;
   request: GraphLayoutRequest;
-  startedAt: number;
   timer: ReturnType<typeof setTimeout>;
   resolve: (layout: GraphLayout) => void;
   reject: (error: Error) => void;
@@ -167,9 +158,13 @@ function cancel(id: string) {
   if (!entry) return; // already answered
   pending.delete(id);
   clearTimeout(entry.timer);
-  if (performance.now() - entry.startedAt > TERMINATE_STALE_AFTER_MS) {
-    restartWorker();
-  }
+  // ALWAYS terminate, however young the run is. Letting a just-started layout
+  // finish looks cheaper — it saves a worker startup — but its duration is not
+  // knowable at cancel time, and dropping the entry also drops its deadline: a
+  // 60s layout cancelled after 100ms would keep the single worker thread busy
+  // with no deadline at all, and the request that replaced it would sit behind
+  // the zombie until ITS deadline reported a false "too large".
+  restartWorker();
   entry.reject(new GraphLayoutCancelledError());
 }
 
@@ -210,7 +205,6 @@ export function requestGraphLayout(
       {
         id,
         request: prepared.request,
-        startedAt: performance.now(),
         timer: setTimeout(() => onDeadline(id), GRAPH_LAYOUT_DEADLINE_MS),
         resolve,
         reject,

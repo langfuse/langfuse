@@ -108,17 +108,24 @@ describe("requestGraphLayout", () => {
     const stale = client
       .requestGraphLayout(graph, {}, "DOWN", controller.signal)
       .catch((error: Error) => error);
+    const staleWorker = FakeWorker.instances[0];
+    await flush();
+    const [staleRequest] = staleWorker.layoutRequests;
+
     controller.abort();
     expect(await stale).toBeInstanceOf(client.GraphLayoutCancelledError);
+    // Cancelling always kills the worker, however young the run is: ELK cannot be
+    // interrupted, so anything left running would hold the one worker thread with
+    // no deadline and starve the request that replaced it.
+    expect(staleWorker.terminated).toBe(true);
 
     const fresh = client.requestGraphLayout(graph, {}, "RIGHT");
-    const worker = FakeWorker.instances[0];
+    const freshWorker = FakeWorker.instances[1];
     await flush();
-    const [staleRequest, freshRequest] = worker.layoutRequests;
 
-    // The stale answer arrives first — it must not become the current layout.
-    worker.answer(staleRequest, laidOut(1));
-    worker.answer(freshRequest, laidOut(2));
+    // A late answer from the killed worker must not become the current layout.
+    staleWorker.answer(staleRequest, laidOut(1));
+    freshWorker.answer(freshWorker.layoutRequests[0], laidOut(2));
     await expect(fresh).resolves.toMatchObject({ width: 2 });
   });
 

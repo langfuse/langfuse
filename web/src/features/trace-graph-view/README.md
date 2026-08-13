@@ -20,7 +20,7 @@ agentGraphData (tRPC getAgentGraphData)
                              happened-before sibling ordering (fork/join)
   → layout/graphLayoutWorkerClient.requestGraphLayout
       layout/elkLayout       prepare (dedupe, size, count ceiling) on the main
-                             thread → run ELK in workers/graph-layout.worker.ts
+                             thread → run ELK in workers/elk-layout.worker.ts
       layout/measureNode     estimates node boxes (labels, counter reserve)
   → components/ElkGraphRenderer           draws + gestures
       components/GraphNode                view-only node (memo)
@@ -53,7 +53,7 @@ downstream is mode-agnostic. The selected mode is a trace view preference
   (`layout/*.clienttest.ts`). `elkLayout.ts` stays free of worker plumbing so it
   runs unchanged on either thread; `graphLayoutWorkerClient.ts` owns the worker
   singleton, request ids, cancellation and the wall-clock deadline.
-- **Layout thread**: ELK runs in `web/src/workers/graph-layout.worker.ts`, so a
+- **Layout thread**: ELK runs in `web/src/workers/elk-layout.worker.ts`, so a
   slow layout never blocks the trace view. ELK is uninterruptible even there —
   cancelling a stale layout means terminating the worker.
 

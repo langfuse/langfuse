@@ -157,7 +157,10 @@ const run = async (
     traces: 1,
     observations: planned.length,
     events: withV4 ? planned.length + 1 : 0,
-    graphNodes: nodes,
+    // Distinct names actually visited, NOT the --nodes vocabulary: the hash spread
+    // does not guarantee full coverage (steps x parallel picks over `nodes` slots),
+    // so a small run touches fewer names than the flag asks for.
+    graphNodes: new Set(planned.map((p) => p.node)).size,
     graphConnections: distinctEdges,
   };
 
