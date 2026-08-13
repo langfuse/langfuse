@@ -69,7 +69,7 @@ import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evalua
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 // Consumed by the status page deadline copy.
-export const V4_MIGRATION_DEADLINE = "Oct 9";
+export const V4_MIGRATION_DEADLINE = "Nov 15";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
