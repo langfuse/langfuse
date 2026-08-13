@@ -651,6 +651,7 @@ export default function ScoresTable({
         );
       },
       enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "traceName",
