@@ -145,6 +145,13 @@ export function areLegacyWritesActive(writeMode: BlobExportWriteMode): boolean {
   return writeMode !== "events_only";
 }
 
+/** Whether the deployment already writes the v4 events table. */
+export function areEnrichedWritesActive(
+  writeMode: BlobExportWriteMode,
+): boolean {
+  return writeMode !== "legacy";
+}
+
 /**
  * Everything the policy needs to know about a deployment/project/integration.
  * Adapters assemble it (env reads stay server/worker-side); optional fields
