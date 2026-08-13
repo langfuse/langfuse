@@ -143,6 +143,7 @@ export const events = {
     "truncated_observation_download_click",
     "inline_tools_toggled",
     "system_prompt_toggled",
+    "metadata_jsonpath_config_changed",
   ],
   eval_config: [
     "new_form_submit",

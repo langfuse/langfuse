@@ -1,7 +1,7 @@
 import isEqual from "lodash/isEqual";
 
 // Display copy for the per-card observation cap; the authoritative limit is
-// SESSION_OBSERVATIONS_PER_TRACE_LIMIT in the sessions router (LFE-10958).
+// SESSION_OBSERVATIONS_PER_TRACE_LIMIT in the sessions router.
 export const SESSION_CARD_OBSERVATIONS_NOTICE_COUNT = 50;
 
 export type SessionObservationVisibilityFields = {

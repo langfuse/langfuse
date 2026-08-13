@@ -25,6 +25,7 @@ import {
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type ModernSessionHeaderProps = {
   projectId: string;
@@ -89,10 +90,13 @@ const resolveAgainstSource = (
   source: FirstVisibleObservationMetadataState,
   path: string,
 ) => {
+  if (source.state === "ready") {
+    return resolveMetadataJsonPath(source.metadata, path);
+  }
+
   const syntax = resolveMetadataJsonPath({}, path);
   if (syntax.state === "invalid") return syntax;
-  if (source.state !== "ready") return source;
-  return resolveMetadataJsonPath(source.metadata, path);
+  return source;
 };
 
 const getConfiguredMetadataDisplay = (
@@ -148,9 +152,11 @@ const MetadataJsonPathPill = ({
 const MetadataJsonPathEditorContent = ({
   metadataJsonPaths,
   onClose,
+  onSave,
 }: {
   metadataJsonPaths: SessionMetadataJsonPathState;
   onClose: () => void;
+  onSave: (path: string) => void;
 }) => {
   const [draftPath, setDraftPath] = useState("");
   const normalizedDraftPath = draftPath.trim();
@@ -168,7 +174,7 @@ const MetadataJsonPathEditorContent = ({
   const handleSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!draftIsValid) return;
-    metadataJsonPaths.onSave(normalizedDraftPath);
+    onSave(normalizedDraftPath);
     onClose();
   };
 
@@ -192,7 +198,11 @@ const MetadataJsonPathEditorContent = ({
         </div>
         <div className="bg-muted/40 flex min-h-14 flex-col gap-1 rounded-md border p-2 text-xs">
           <span className="text-muted-foreground font-bold">Preview</span>
-          {draftIsDuplicate ? (
+          {normalizedDraftPath.length === 0 ? (
+            <span className="text-muted-foreground">
+              Enter a JSONPath to preview metadata.
+            </span>
+          ) : draftIsDuplicate ? (
             <span className="text-muted-foreground">
               This JSONPath is already shown.
             </span>
@@ -253,6 +263,7 @@ export function ModernSessionHeader({
   metadataJsonPaths,
   scores,
 }: ModernSessionHeaderProps) {
+  const capture = usePostHogClientCapture();
   const [search, setSearch] = useState("");
   const [visibleUserCount, setVisibleUserCount] = useState(
     SESSION_USERS_PER_PAGE,
@@ -261,6 +272,22 @@ export function ModernSessionHeader({
   const handleMetadataEditorOpenChange = (open: boolean) => {
     setIsMetadataEditorOpen(open);
     metadataJsonPaths.onEditorOpenChange(open);
+  };
+  const saveMetadataJsonPath = (path: string) => {
+    metadataJsonPaths.onSave(path);
+    capture("session_detail:metadata_jsonpath_config_changed", {
+      action: "add",
+      configuredPathCount: metadataJsonPaths.paths.length + 1,
+      isV4: true,
+    });
+  };
+  const removeMetadataJsonPath = (path: string) => {
+    metadataJsonPaths.onRemove(path);
+    capture("session_detail:metadata_jsonpath_config_changed", {
+      action: "remove",
+      configuredPathCount: Math.max(metadataJsonPaths.paths.length - 1, 0),
+      isV4: true,
+    });
   };
   const latencies =
     traces.state === "loaded"
@@ -418,7 +445,7 @@ export function ModernSessionHeader({
       content: (
         <MetadataJsonPathPill
           display={display}
-          onRemove={metadataJsonPaths.onRemove}
+          onRemove={removeMetadataJsonPath}
         />
       ),
     });
@@ -448,6 +475,7 @@ export function ModernSessionHeader({
               <MetadataJsonPathEditorContent
                 metadataJsonPaths={metadataJsonPaths}
                 onClose={() => handleMetadataEditorOpenChange(false)}
+                onSave={saveMetadataJsonPath}
               />
             ) : null}
           </Popover>

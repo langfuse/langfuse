@@ -266,6 +266,12 @@ export const TestConfiguresMultipleMetadataPaths = meta.story({
     await openEditor();
     let input = body.getByLabelText("Metadata JSONPath");
     let save = body.getByRole("button", { name: "Save" });
+    await expect(
+      body.getByText("Enter a JSONPath to preview metadata."),
+    ).toBeInTheDocument();
+    await expect(
+      body.queryByText("JSONPath must start with $."),
+    ).not.toBeInTheDocument();
     await userEvent.type(input, "$.email");
     await userEvent.click(save);
 
