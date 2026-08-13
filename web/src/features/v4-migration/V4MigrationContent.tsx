@@ -346,8 +346,6 @@ function SdkUsageSeriesRows({
           : hideMissingApiKey
             ? null
             : "No API key";
-        const ingestionLabel =
-          usage.ingestionPath === "otel" ? "OTel" : "Ingestion API";
         const evidenceHref =
           projectId && usage.eventCount > 0
             ? `/project/${projectId}/observations?filter=${encodeURIComponent(
@@ -366,7 +364,6 @@ function SdkUsageSeriesRows({
             <div className="text-muted-foreground flex items-center gap-1.5">
               <span aria-hidden="true">{needsAction(usage) ? "⚠️" : "✅"}</span>
               <MonoValue>{sdkLabel}</MonoValue>
-              <span>· {ingestionLabel}</span>
               {suffix(usage)}
             </div>
             {/* Metadata line, indented under the label (emoji + gap). */}

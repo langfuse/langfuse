@@ -475,8 +475,6 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("Detected instrumentation")).toBeInTheDocument();
     expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
     expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
-    expect(screen.getByText("· Ingestion API")).toBeInTheDocument();
-    expect(screen.getByText("· OTel")).toBeInTheDocument();
     expect(screen.getByText("· up to date")).toBeInTheDocument();
     expect(screen.getByText("· real-time")).toBeInTheDocument();
   });
@@ -515,9 +513,6 @@ describe("V4MigrationDetailsContent", () => {
     // The explicit evidence link targets this key + SDK name/version over the
     // detection lookback window, so versions on the same key stay distinct.
     const outdatedRow = screen.getByText("Python 2.60.3").closest("li")!;
-    expect(
-      within(outdatedRow).getByText("· Ingestion API"),
-    ).toBeInTheDocument();
     const evidenceLink = within(outdatedRow).getByRole("link", {
       name: "View observations",
     });
@@ -809,12 +804,6 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
     expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
     expect(screen.getByText("· real-time")).toBeInTheDocument();
-    const delayedRow = screen.getByText("openlit 1.35.4").closest("li")!;
-    expect(within(delayedRow).getByText("· OTel")).toBeInTheDocument();
-    const compatibleRow = screen.getByText("Python 4.7.1").closest("li")!;
-    expect(
-      within(compatibleRow).getByText("· Ingestion API"),
-    ).toBeInTheDocument();
   });
 
   it("keeps Update SDK visible for a recognized SDK with an unparsable version", () => {
