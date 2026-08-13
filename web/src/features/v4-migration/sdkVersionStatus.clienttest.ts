@@ -53,6 +53,26 @@ describe("v4 migration SDK status", () => {
     });
   });
 
+  it("orders SDK usage by most recent last seen", () => {
+    const state = getLoadedSdkState(
+      sdkSeries({
+        sdkVersion: "4.6.9",
+        publicKey: "pk-lf-older-outdated",
+        lastSeen: "2026-07-22T10:00:00Z",
+        v4MigrationStatus: "upgrade_required",
+      }),
+      sdkSeries({
+        publicKey: "pk-lf-newer-compatible",
+        lastSeen: "2026-07-23T10:00:00Z",
+      }),
+    );
+
+    expect(state.sdkUsageSeries.map((series) => series.publicKey)).toEqual([
+      "pk-lf-newer-compatible",
+      "pk-lf-older-outdated",
+    ]);
+  });
+
   it("does not require action for raw OTel already using real-time ingestion", () => {
     expect(
       getLoadedSdkState(

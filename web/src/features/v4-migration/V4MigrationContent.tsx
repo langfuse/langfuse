@@ -20,7 +20,6 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
-import { Separator } from "@/src/components/ui/separator";
 import {
   Collapsible,
   CollapsibleContent,
@@ -303,6 +302,7 @@ function SdkUsageSeriesRows({
   needsAction,
   suffix,
   unknownSeriesLabel = "OTLP exporter",
+  hideMissingApiKey = false,
   projectId,
   analyticsSection,
 }: {
@@ -312,6 +312,8 @@ function SdkUsageSeriesRows({
   suffix: (series: V4MigrationSdkUsageSeries) => ReactNode;
   /** Row label when the series carries no usable SDK name. */
   unknownSeriesLabel?: string;
+  /** Omits the empty-key fallback when it is not useful to the user. */
+  hideMissingApiKey?: boolean;
   /** Enables the evidence deep link. */
   projectId?: string;
   /** Funnel dimension for the evidence_link_clicked event (snake_case). */
@@ -330,10 +332,13 @@ function SdkUsageSeriesRows({
                 language: usage.canonicalSdkName ?? usage.sdkName,
                 version: usage.sdkVersion,
               });
-        const publicKey =
-          usage.publicKey.length > 18
+        const publicKey = usage.publicKey
+          ? usage.publicKey.length > 18
             ? `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`
-            : usage.publicKey || "No API key";
+            : usage.publicKey
+          : hideMissingApiKey
+            ? null
+            : "No API key";
         const evidenceHref =
           projectId && usage.eventsCount > 0
             ? `/project/${projectId}/observations?filter=${encodeURIComponent(
@@ -356,9 +361,11 @@ function SdkUsageSeriesRows({
             </div>
             {/* Metadata line, indented under the label (emoji + gap). */}
             <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
-              <span title={usage.publicKey || undefined}>{publicKey}</span>
+              {publicKey ? (
+                <span title={usage.publicKey || undefined}>{publicKey}</span>
+              ) : null}
               <span>
-                · last seen{" "}
+                {publicKey ? "· " : ""}last seen{" "}
                 {formatCompactRelativeTime(new Date(usage.lastSeen))}
               </span>
               {/* Deep link to the exact evidence: the events table filtered by
@@ -588,6 +595,7 @@ export function V4MigrationCustomInstrumentationSection({
         series={section.series}
         projectId={projectId}
         unknownSeriesLabel="Custom instrumentation"
+        hideMissingApiKey
         analyticsSection="custom_instrumentation"
         needsAction={() => true}
         suffix={() => null}
@@ -616,7 +624,7 @@ export function V4MigrationEvalsSection({
   const capture = usePostHogClientCapture();
   return (
     <Section
-      title="Repoint Evals"
+      title="Retarget Evals"
       analyticsSection="evals"
       count={state.status === "loaded" ? state.count : undefined}
       meta={
@@ -940,31 +948,14 @@ export function V4MigrationIntegrationsSection({
 // Title, status link, and the v4 pitch. The agent CTA lives in
 // V4MigrationAgentUpgradeSection, rendered by the details content.
 export function V4MigrationHeaderContent({
-  projectName,
-  projectId,
   titleRowClassName,
 }: {
-  projectName?: string;
-  projectId?: string;
   /** Extra classes on the title row. The modal host passes a right gutter:
    *  its dialog floats a fallback close button over the body's top-right
    *  corner (the title is sr-only, so there is no DialogHeader row), which
    *  would otherwise overlap the title. */
   titleRowClassName?: string;
 }) {
-  // Same queries as V4MigrationDetailsContent below, so react-query dedupes
-  // them. Only claim the project needs migrating once the checks confirm it —
-  // a fully migrated project shows the v4 value prop without a status claim.
-  const { organization } = useProject(projectId ?? null);
-  const migrationData = useProjectV4MigrationData({
-    projectId,
-    orgId: organization?.id,
-    enabled: Boolean(projectId),
-  });
-  const needsMigration =
-    Boolean(projectId) &&
-    getProjectMigrationReadiness(migrationData) === "action-needed";
-
   return (
     <>
       <div
@@ -973,21 +964,17 @@ export function V4MigrationHeaderContent({
           titleRowClassName,
         )}
       >
-        <p className="min-w-0 text-lg font-bold">
-          {projectName ? <>Migrate {projectName} to v4</> : "Migrate to v4"}
-        </p>
+        <p className="min-w-0 text-lg font-bold">Upgrade to v4</p>
       </div>
       <p className="text-muted-foreground text-sm leading-relaxed">
-        {/* Only claim the setup is outdated once the checks confirm it. */}
-        {needsMigration && "Your setup is outdated. "}
-        Upgrade to Langfuse v4 for{" "}
+        Your project setup is outdated. Upgrade to v4 for real-time ingestion
+        and up to 165x faster queries.{" "}
         <ExternalLink
           href={V4_DOCS_URL}
           analytics={{ section: "header", link: "v4_docs" }}
         >
-          real-time ingestion
-        </ExternalLink>{" "}
-        and up to 165× faster queries.
+          See docs.
+        </ExternalLink>
       </p>
     </>
   );
@@ -1088,7 +1075,7 @@ export function V4MigrationAgentUpgradeSection({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-base font-bold">
-          Auto-upgrade with agents
+          Upgrade with coding agent
         </div>
         <p className="text-muted-foreground text-sm">
           Paste prompt into Claude Code or other coding agents
@@ -1295,8 +1282,6 @@ export function V4MigrationDetailsContent({
 
   return (
     <>
-      <Separator />
-
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-base font-bold">
           Action items
@@ -1360,8 +1345,6 @@ export function V4MigrationDetailsContent({
         </div>
       </div>
 
-      <Separator />
-
       <V4MigrationAgentUpgradeSection projectId={projectId} />
 
       {/* The toggle row hides itself when the session cannot toggle v4
@@ -1404,36 +1387,37 @@ export function V4MigrationDetailsContent({
         </>
       )}
 
-      <Separator />
-
-      <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        <a
-          href={V4_DOCS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => capture("v4_migration:panel_docs_link_clicked")}
-          className="underline"
-        >
-          Docs
-        </a>
-        <span>·</span>
-        <button
-          type="button"
-          onClick={handleEmailEngineer}
-          className="underline"
-        >
-          Email an engineer
-        </button>
-        <span>·</span>
-        <a
-          href="https://cal.com/team/langfuse/v4-upgrade"
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => capture("v4_migration:contact_book_call_clicked")}
-          className="underline"
-        >
-          Book a call
-        </a>
+      <div className="flex flex-col gap-2">
+        <p className="text-base font-bold">Need help?</p>
+        <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <a
+            href={V4_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => capture("v4_migration:panel_docs_link_clicked")}
+            className="underline"
+          >
+            Docs
+          </a>
+          <span>·</span>
+          <button
+            type="button"
+            onClick={handleEmailEngineer}
+            className="underline"
+          >
+            Email an engineer
+          </button>
+          <span>·</span>
+          <a
+            href="https://cal.com/team/langfuse/v4-upgrade"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => capture("v4_migration:contact_book_call_clicked")}
+            className="underline"
+          >
+            Book a call
+          </a>
+        </div>
       </div>
       {projectId ? (
         <EvaluatorMigrationDialog

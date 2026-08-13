@@ -44,16 +44,7 @@ export const isCustomInstrumentationSeries = (
 const sortSdkUsageSeries = (
   rows: V4MigrationSdkUsageSeries[],
 ): V4MigrationSdkUsageSeries[] =>
-  [...rows].sort(
-    (left, right) =>
-      Number(right.v4MigrationStatus === "upgrade_required") -
-        Number(left.v4MigrationStatus === "upgrade_required") ||
-      Number(requiresOtelIngestionHeader(right)) -
-        Number(requiresOtelIngestionHeader(left)) ||
-      Number(right.v4MigrationStatus === "unknown") -
-        Number(left.v4MigrationStatus === "unknown") ||
-      left.lastSeen.localeCompare(right.lastSeen),
-  );
+  [...rows].sort((left, right) => right.lastSeen.localeCompare(left.lastSeen));
 
 export const getV4MigrationSdkState = (params: {
   summary: SdkUsageSummary | undefined;
@@ -147,7 +138,7 @@ export type V4MigrationSdkSectionState = {
    * Unrecognized SDKs are not mixed in here: they belong to the custom
    * instrumentation section. */
   status: "checking" | "error" | "legacy" | "latest" | "no_data";
-  /** All detected recognized-SDK series, offenders sorted first. */
+  /** All detected recognized-SDK series, most recently seen first. */
   series: V4MigrationSdkUsageSeries[];
   /** Series needing action: pending upgrades plus unrecognized versions.
    * Drives both the section badge and the body copy so they always agree. */
@@ -188,7 +179,7 @@ export const getCustomInstrumentationSectionState = (
 });
 
 export type V4MigrationOtelSectionState = {
-  /** All detected OTel exporter series, delayed ones sorted first. */
+  /** All detected OTel exporter series, most recently seen first. */
   series: V4MigrationSdkUsageSeries[];
   delayedCount: number;
 };

@@ -54,13 +54,9 @@ function V4MigrationModalContent({
         overlayClassName="backdrop-blur-sm"
         closeOnInteractionOutside
       >
-        <DialogTitle className="sr-only">
-          {`Upgrade ${project.name} to v4`}
-        </DialogTitle>
+        <DialogTitle className="sr-only">Upgrade to v4</DialogTitle>
         <DialogBody className="gap-0 p-4">
           <V4MigrationHeaderContent
-            projectName={project.name}
-            projectId={project.id}
             // Clear the dialog's floating fallback close button (top-right).
             titleRowClassName="pr-6"
           />

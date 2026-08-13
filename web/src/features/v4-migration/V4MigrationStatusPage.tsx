@@ -20,7 +20,6 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { cn } from "@/src/utils/tailwind";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {
@@ -86,27 +85,11 @@ function MigrationActionCell({ state }: { state: MigrationActionState }) {
 }
 
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
-  const label =
-    readiness === "ready"
-      ? "Migrated"
-      : readiness === "checking"
-        ? "Checking"
-        : readiness === "unavailable"
-          ? "Unavailable"
-          : "Action needed";
+  if (readiness !== "action-needed") return null;
 
   return (
-    <span
-      className={cn(
-        "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
-        readiness === "ready"
-          ? "bg-light-green text-dark-green"
-          : readiness === "checking" || readiness === "unavailable"
-            ? "bg-muted text-muted-foreground"
-            : "bg-light-yellow text-dark-yellow",
-      )}
-    >
-      {label}
+    <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+      Action needed
     </span>
   );
 }

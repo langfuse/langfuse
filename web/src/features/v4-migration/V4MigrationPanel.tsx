@@ -35,9 +35,8 @@ export const V4MigrationPanel = ({
         className,
       ])}
     >
-      <div className="flex min-h-11 w-full items-center justify-between gap-1 px-4 py-1">
-        <span className="text-sm font-bold">Update</span>
-        {showCloseButton && (
+      {showCloseButton && (
+        <div className="flex min-h-11 w-full items-center justify-end px-4 py-1">
           <Button
             variant="ghost"
             size="icon"
@@ -46,15 +45,11 @@ export const V4MigrationPanel = ({
           >
             <X className="h-4 w-4" />
           </Button>
-        )}
-      </div>
-      <div className="flex-1 overflow-y-auto border-t">
+        </div>
+      )}
+      <div className="flex-1 overflow-y-auto">
         <div className="px-4 pt-4">
-          <V4MigrationHeaderContent
-            key={project?.id}
-            projectName={project?.name}
-            projectId={project?.id}
-          />
+          <V4MigrationHeaderContent key={project?.id} />
         </div>
 
         <div className="flex flex-col gap-6 px-4 pt-6 pb-16">

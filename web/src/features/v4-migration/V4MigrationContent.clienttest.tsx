@@ -299,7 +299,7 @@ describe("V4MigrationDetailsContent", () => {
         "Evals, experiments, APIs and integrations are up to date.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Repoint Evals")).not.toBeInTheDocument();
+    expect(screen.queryByText("Retarget Evals")).not.toBeInTheDocument();
     expect(screen.queryByText("Experiments")).not.toBeInTheDocument();
     expect(screen.queryByText("Migrate APIs")).not.toBeInTheDocument();
     expect(screen.queryByText("Migrate Integrations")).not.toBeInTheDocument();
@@ -315,7 +315,7 @@ describe("V4MigrationDetailsContent", () => {
       screen.getByText("Evals and experiments are up to date."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Repoint Evals", { exact: true }),
+      screen.queryByText("Retarget Evals", { exact: true }),
     ).not.toBeInTheDocument();
   });
 
@@ -817,9 +817,34 @@ describe("V4MigrationDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("omits a missing API key from custom instrumentation rows", () => {
+    mocks.migrationData.sdk = {
+      status: "unknown",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          canonicalSdkName: null,
+          publicKey: "",
+          attributionStatus: "missing_name_and_version",
+          v4MigrationStatus: "unknown",
+        }),
+      ],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    const row = screen.getByText("Custom instrumentation").closest("li")!;
+    expect(within(row).queryByText("No API key")).not.toBeInTheDocument();
+    expect(within(row).getByText(/last seen/)).toBeInTheDocument();
+  });
+
   it("renders the agent upgrade group with the prompt CTA", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
+    expect(screen.getByText("Upgrade with coding agent")).toBeInTheDocument();
     expect(
       screen.getByText(/Paste prompt into Claude Code or other coding agents/),
     ).toBeInTheDocument();
@@ -922,47 +947,38 @@ describe("V4MigrationHeaderContent", () => {
     );
   });
 
-  it("claims the project needs migrating while checks report action needed", () => {
-    render(<V4MigrationHeaderContent projectId="project-1" />);
-    expect(screen.getByText(/Your setup is outdated/)).toBeInTheDocument();
-  });
+  it("uses the project-independent upgrade title and requested description", () => {
+    render(<V4MigrationHeaderContent />);
 
-  it("drops the status claim once every check is clean", () => {
-    mocks.migrationData.apis = { status: "loaded", count: 0 };
-    mocks.migrationData.exports = { status: "loaded", count: 0 };
-    render(<V4MigrationHeaderContent projectId="project-1" />);
+    expect(screen.getByText("Upgrade to v4")).toBeInTheDocument();
+    expect(screen.queryByText(/Project 1/)).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/Your setup is outdated/),
-    ).not.toBeInTheDocument();
-  });
-
-  it("drops the status claim while checks are still loading", () => {
-    mocks.migrationData.apis = { status: "loading", count: 0 };
-    render(<V4MigrationHeaderContent projectId="project-1" />);
-    expect(
-      screen.queryByText(/Your setup is outdated/),
-    ).not.toBeInTheDocument();
+      screen.getByText(/Your project setup is outdated/),
+    ).toHaveTextContent(
+      "Your project setup is outdated. Upgrade to v4 for real-time ingestion and up to 165x faster queries. See docs.",
+    );
+    expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/v4",
+    );
   });
 
   it("reserves a close-button gutter on the title row when the host asks", () => {
     // The modal host floats the dialog's fallback close button over the
     // body's top-right corner; without the gutter it overlaps the title.
-    render(
-      <V4MigrationHeaderContent
-        projectId="project-1"
-        titleRowClassName="pr-6"
-      />,
-    );
-    expect(screen.getByText("Migrate to v4").parentElement).toHaveClass("pr-6");
+    render(<V4MigrationHeaderContent titleRowClassName="pr-6" />);
+    expect(screen.getByText("Upgrade to v4").parentElement).toHaveClass("pr-6");
   });
 
-  it("links to the docs from the details footer", () => {
+  it("labels the help footer and renders no horizontal separators", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
+    expect(screen.getByText("Need help?")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Docs" })).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/v4",
     );
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
   });
 
   it("does not create credentials when revealing or copying the prompt", () => {

@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
       | "legacy"
       | "otel_realtime"
       | "otel_header_required"
-      | "no_data",
+      | "no_data"
+      | "checking",
     sdkUsageSeries: [],
     upgradeRequiredCount: 0,
     delayedOtelIngestionCount: 0,
@@ -129,8 +130,35 @@ describe("V4MigrationStatusPage", () => {
   it("shows migration readiness to project members", () => {
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Migrated")).toBeInTheDocument();
+    expect(screen.queryByText("Migrated")).not.toBeInTheDocument();
     expect(screen.getByText("of 1 projects need action")).toBeInTheDocument();
+  });
+
+  it("only shows the status pill when action is required", () => {
+    const { unmount } = render(<V4MigrationStatusPage />);
+    expect(screen.queryByText("Action needed")).not.toBeInTheDocument();
+    unmount();
+
+    mocks.sdk = {
+      status: "checking",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+    const checking = render(<V4MigrationStatusPage />);
+    expect(
+      screen.queryByText("Checking", { exact: true }),
+    ).not.toBeInTheDocument();
+    checking.unmount();
+
+    mocks.sdk = {
+      status: "legacy",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 1,
+      delayedOtelIngestionCount: 0,
+    };
+    render(<V4MigrationStatusPage />);
+    expect(screen.getByText("Action needed")).toBeInTheDocument();
   });
 
   it("links projects to traces and opens the migration panel", () => {
@@ -207,7 +235,7 @@ describe("V4MigrationStatusPage", () => {
 
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Migrated")).toBeInTheDocument();
+    expect(screen.queryByText("Migrated")).not.toBeInTheDocument();
     expect(screen.getByText("OTel real-time")).toBeInTheDocument();
     expect(screen.queryByText("Latest")).not.toBeInTheDocument();
   });
@@ -222,7 +250,7 @@ describe("V4MigrationStatusPage", () => {
 
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Migrated")).toBeInTheDocument();
+    expect(screen.queryByText("Migrated")).not.toBeInTheDocument();
     expect(screen.getByText("No data detected")).toBeInTheDocument();
   });
 });

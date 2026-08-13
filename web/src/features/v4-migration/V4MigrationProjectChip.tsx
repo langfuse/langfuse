@@ -17,16 +17,9 @@ export function V4MigrationProjectChip({
   const capture = usePostHogClientCapture();
 
   const readiness = status ? getProjectMigrationReadiness(status) : "checking";
-  if (readiness === "ready") {
+  if (readiness !== "action-needed") {
     return null;
   }
-
-  const label =
-    readiness === "checking"
-      ? "Checking"
-      : readiness === "unavailable"
-        ? "Check status"
-        : "Update";
 
   const handleClick = () => {
     capture("v4_migration:project_chip_clicked");
@@ -43,7 +36,7 @@ export function V4MigrationProjectChip({
         aria-hidden
         className="size-1.75 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
       ></span>
-      {label}
+      Update
     </button>
   );
 }
