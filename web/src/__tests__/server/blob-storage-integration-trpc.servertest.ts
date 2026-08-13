@@ -718,28 +718,14 @@ describe("Blob Storage Integration tRPC Router", () => {
   });
 
   describe("get: isEnrichedExportAvailable flag", () => {
-    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
     afterEach(() => {
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
-        originalV4Preview;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
     });
 
-    it("returns true for Cloud deployments regardless of V4 flag", async () => {
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
-      const { caller, project } = await prepare();
-      const result = await caller.blobStorageIntegration.get({
-        projectId: project.id,
-      });
-      expect(result.isEnrichedExportAvailable).toBe(true);
-    });
-
-    it("returns false for self-hosted without V4 preview opt-in", async () => {
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+    it("returns false under the legacy write mode", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { caller, project } = await prepare();
       const result = await caller.blobStorageIntegration.get({
         projectId: project.id,
@@ -747,9 +733,17 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(result.isEnrichedExportAvailable).toBe(false);
     });
 
-    it("returns true for self-hosted with V4 preview opt-in enabled", async () => {
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+    it("returns true under the dual write mode", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.isEnrichedExportAvailable).toBe(true);
+    });
+
+    it("returns true under the events_only write mode", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
       const { caller, project } = await prepare();
       const result = await caller.blobStorageIntegration.get({
         projectId: project.id,
@@ -760,17 +754,16 @@ describe("Blob Storage Integration tRPC Router", () => {
 
   describe("update: enriched export source guard", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
     afterEach(() => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
-        originalV4Preview;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
     });
 
-    it("rejects EVENTS on self-hosted without V4 preview opt-in", async () => {
+    it("rejects EVENTS under the legacy write mode", async () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { caller, project } = await prepare();
       await expect(
         caller.blobStorageIntegration.update({
@@ -781,9 +774,9 @@ describe("Blob Storage Integration tRPC Router", () => {
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
 
-    it("rejects TRACES_OBSERVATIONS_EVENTS on self-hosted without V4 preview opt-in", async () => {
+    it("rejects TRACES_OBSERVATIONS_EVENTS under the legacy write mode", async () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { caller, project } = await prepare();
       await prisma.project.update({
         where: { id: project.id },
@@ -798,9 +791,43 @@ describe("Blob Storage Integration tRPC Router", () => {
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
 
-    it("allows EVENTS on self-hosted with V4 preview opt-in", async () => {
+    it("rejects TRACES_OBSERVATIONS_EVENTS under the events_only write mode", async () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("allows TRACES_OBSERVATIONS_EVENTS under the dual write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("allows EVENTS under the events_only write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
       const { caller, project } = await prepare();
       await expect(
         caller.blobStorageIntegration.update({
@@ -811,9 +838,9 @@ describe("Blob Storage Integration tRPC Router", () => {
       ).resolves.not.toThrow();
     });
 
-    it("allows EVENTS on Cloud regardless of V4 flag", async () => {
+    it("allows EVENTS on Cloud under the dual write mode", async () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
       const { caller, project } = await prepare();
       await expect(
         caller.blobStorageIntegration.update({
@@ -939,19 +966,18 @@ describe("Blob Storage Integration tRPC Router", () => {
   // enriched source alive on a deployment without the enriched export path.
   describe("update: omitted exportSource", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
     afterEach(() => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
-        originalV4Preview;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
     });
 
     const { exportSource: _ignored, ...configWithoutExportSource } = baseConfig;
 
     it("preserves a persisted enriched source when enriched export is available", async () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
       const { caller, project } = await prepare();
       await createIntegration({
         projectId: project.id,
@@ -969,9 +995,9 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(row.exportSource).toBe("EVENTS");
     });
 
-    it("rejects an omitted exportSource over a stale enriched row on rolled-back self-hosted", async () => {
+    it("rejects an omitted exportSource over a stale enriched row on a legacy-write-mode deployment", async () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { caller, project } = await prepare();
       await createIntegration({
         projectId: project.id,
@@ -991,9 +1017,9 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(row.exportSource).toBe("EVENTS");
     });
 
-    it("preserves a persisted legacy source on rolled-back self-hosted", async () => {
+    it("preserves a persisted legacy source on a legacy-write-mode deployment", async () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { caller, project } = await prepare();
       await createIntegration({
         projectId: project.id,
@@ -1017,7 +1043,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       // default (TRACES_OBSERVATIONS) — mirror of the REST handler's
       // forceEventsOnCreate behavior.
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
       const { caller, project } = await prepare();
       await prisma.project.update({
         where: { id: project.id },
@@ -1035,9 +1061,9 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(row.exportSource).toBe("EVENTS");
     });
 
-    it("still allows an explicit downgrade to a legacy source on rolled-back self-hosted", async () => {
+    it("still allows an explicit downgrade to a legacy source on a legacy-write-mode deployment", async () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { caller, project } = await prepare();
       await createIntegration({
         projectId: project.id,
