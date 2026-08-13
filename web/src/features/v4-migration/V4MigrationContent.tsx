@@ -69,6 +69,7 @@ import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evalua
 // (side panel and modal) render these components — edit copy here only.
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
 // Consumed by the status page deadline copy.
 export const V4_MIGRATION_DEADLINE = "Oct 9";
 const SDK_UPGRADE_URL =
@@ -984,17 +985,31 @@ export function V4MigrationHeaderContent({
       >
         <p className="min-w-0 text-lg font-bold">Upgrade to v4</p>
       </div>
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        {actionNeeded
-          ? "Your project setup is outdated. Upgrade to v4 for real-time ingestion and up to 165x faster queries. "
-          : "Langfuse v4 offers real-time ingestion and up to 165x faster queries. "}
-        <ExternalLink
-          href={V4_DOCS_URL}
-          analytics={{ section: "header", link: "v4_docs" }}
-        >
-          See docs.
-        </ExternalLink>
-      </p>
+      <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
+        <p>
+          {actionNeeded
+            ? "Your project setup is outdated. Upgrade to v4 now for real-time ingestion and up to 165x faster queries. "
+            : "Langfuse v4 offers real-time ingestion and up to 165x faster queries. "}
+          <ExternalLink
+            href={V4_DOCS_URL}
+            analytics={{ section: "header", link: "v4_docs" }}
+          >
+            See docs.
+          </ExternalLink>
+        </p>
+        {actionNeeded && (
+          <p>
+            After{" "}
+            <ExternalLink
+              href={V4_TIMELINE_URL}
+              analytics={{ section: "header", link: "v4_timeline" }}
+            >
+              November 15, 2026
+            </ExternalLink>{" "}
+            some features may stop working without a v4 upgrade.
+          </p>
+        )}
+      </div>
     </>
   );
 }

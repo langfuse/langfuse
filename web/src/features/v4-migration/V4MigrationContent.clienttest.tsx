@@ -998,12 +998,20 @@ describe("V4MigrationHeaderContent", () => {
     expect(
       screen.getByText(/Your project setup is outdated/),
     ).toHaveTextContent(
-      "Your project setup is outdated. Upgrade to v4 for real-time ingestion and up to 165x faster queries. See docs.",
+      "Your project setup is outdated. Upgrade to v4 now for real-time ingestion and up to 165x faster queries. See docs.",
     );
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/v4",
     );
+    expect(
+      screen.getByText(/some features may stop working/),
+    ).toHaveTextContent(
+      "After November 15, 2026 some features may stop working without a v4 upgrade.",
+    );
+    expect(
+      screen.getByRole("link", { name: "November 15, 2026" }),
+    ).toHaveAttribute("href", "https://langfuse.com/docs/v4#timeline");
   });
 
   it("reserves a close-button gutter on the title row when the host asks", () => {
@@ -1030,6 +1038,9 @@ describe("V4MigrationHeaderContent", () => {
       expect(
         screen.getByText(/Langfuse v4 offers real-time ingestion/),
       ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/some features may stop working/),
+      ).not.toBeInTheDocument();
       unmount();
     }
   });
