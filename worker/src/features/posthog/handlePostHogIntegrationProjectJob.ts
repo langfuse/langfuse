@@ -277,7 +277,7 @@ export const handlePostHogIntegrationProjectJob = async (
   try {
     // Validate PostHog hostname to prevent SSRF attacks before sending data.
     // Rewrap preserving { cause } so the single catch below can classify the
-    // OutboundUrlValidationError off the chain (LFE-14990).
+    // OutboundUrlValidationError off the chain.
     try {
       await validateWebhookURL(postHogIntegration.posthogHostName);
     } catch (error) {
@@ -398,7 +398,7 @@ export const handlePostHogIntegrationProjectJob = async (
 
     // Update the last run information for the postHogIntegration record.
     // Clear any prior error state so a fixed + re-enabled integration reads as
-    // healthy (LFE-14990).
+    // healthy.
     await prisma.posthogIntegration.update({
       where: {
         projectId,
@@ -424,8 +424,8 @@ export const handlePostHogIntegrationProjectJob = async (
     // Classify it, disable the integration, persist the error, notify once,
     // and RESOLVE (return) — a throw would increment the BullMQ `type:failed`
     // metric on every attempt and keep the Failures monitor lit for a fault
-    // that will never clear on its own (LFE-14990). Transient/infra faults
-    // stay on the retry+alert path unchanged.
+    // that will never clear on its own. Transient/infra faults stay on the
+    // retry+alert path unchanged.
     const reason = classifyCustomerFault(error);
     // Bounded like blob's extractStorageErrorMessage: today's classified
     // messages are short static strings, but lastError is surfaced in settings
@@ -467,64 +467,79 @@ export const handlePostHogIntegrationProjectJob = async (
 
     // Atomic disable: count === 1 means THIS worker flipped enabled true→false,
     // so the terminal notification fires exactly once even if a concurrent run
-    // (distinct jobId, not queue-deduped) races the same fault.
+    // (distinct jobId, not queue-deduped) races the same fault. The host is
+    // part of the predicate so a run carrying stale config cannot disable a
+    // hostname the customer corrected mid-run — the fault we caught refers to a
+    // config that no longer exists, and the next scheduled run re-evaluates.
     const { count } = await prisma.posthogIntegration.updateMany({
-      where: { projectId, enabled: true },
+      where: {
+        projectId,
+        enabled: true,
+        posthogHostName: postHogIntegration.posthogHostName,
+      },
       data: { enabled: false },
     });
-    if (count === 1) {
-      recordIncrement(POSTHOG_INTEGRATION_DISABLED_METRIC, 1, { reason });
-      logger.warn(
-        `[POSTHOG] Disabled PostHog integration for project ${projectId} after a customer fault (reason=${reason}): ${message}`,
-        { posthogDisableReason: reason, projectId },
+    if (count === 0) {
+      // Already disabled by a concurrent run, or the host changed under us.
+      logger.info(
+        `[POSTHOG] Skipped disabling PostHog integration for project ${projectId}: already disabled or host changed mid-run`,
       );
-      notifyPostHogExportFailedInBackground(
-        projectId,
-        postHogIntegration.project.name,
-        postHogIntegration.posthogHostName,
-      );
+      return;
     }
+
+    recordIncrement(POSTHOG_INTEGRATION_DISABLED_METRIC, 1, { reason });
+    logger.warn(
+      `[POSTHOG] Disabled PostHog integration for project ${projectId} after a customer fault (reason=${reason}): ${message}`,
+      { posthogDisableReason: reason, projectId },
+    );
+    // Awaited, not fire-and-forget: the job resolves immediately after this and
+    // the integration is now disabled, so the scheduler (which only enqueues
+    // enabled integrations) never revisits it. An interrupted dispatch would
+    // leave the customer silently disabled with no notification and no retry.
+    await notifyPostHogExportFailed(
+      projectId,
+      postHogIntegration.project.name,
+      postHogIntegration.posthogHostName,
+    );
     return;
   }
 };
 
-// Fire-and-forget terminal "export disabled" notification. Under fail-fast the
-// disable is a one-time event won by the atomic enabled true→false flip, so
-// this is only ever called once (bypassing any cooldown, like blob's disabled
-// path). projectName/host are passed in rather than re-read from the DB — the
-// caller already holds them, and dispatch runs before the first await so the
-// notification is queued as part of resolving the job.
-function notifyPostHogExportFailedInBackground(
+// Terminal "export disabled" notification. Called at most once per broken
+// integration, guarded by the atomic enabled true→false claim, so it needs no
+// cooldown of its own (matching blob's disabled path, which also bypasses it).
+// Swallows every failure: notification trouble must not turn the deliberate
+// RESOLVE back into a job failure. projectName/host are passed in rather than
+// re-read — the caller already holds them.
+async function notifyPostHogExportFailed(
   projectId: string,
   projectName: string,
   host: string,
-): void {
-  (async () => {
-    try {
-      const settingsPath = `/project/${projectId}/settings/integrations/posthog`;
-      await dispatchProjectNotification({
+): Promise<void> {
+  try {
+    const settingsPath = `/project/${projectId}/settings/integrations/posthog`;
+    await dispatchProjectNotification({
+      projectId,
+      event: {
+        eventType: "posthog-export-failed",
+        severity: "ALERT",
         projectId,
-        event: {
-          eventType: "posthog-export-failed",
-          severity: "ALERT",
-          projectId,
-          projectName,
-          // The integration is keyed by projectId (1:1); the host is the most
-          // useful human label for the failing export destination.
-          resourceId: projectId,
-          resourceName: host || "PostHog integration",
-          message: `PostHog export disabled for project "${projectName}" after a configuration fault.`,
-          url: env.NEXTAUTH_URL
-            ? `${env.NEXTAUTH_URL}${settingsPath}`
-            : undefined,
-          disabled: true,
-        },
-      });
-    } catch (error) {
-      logger.error(
-        `[POSTHOG] Failed to send failure notification for project ${projectId}`,
-        error,
-      );
-    }
-  })();
+        projectName,
+        // The integration is keyed by projectId (1:1); the host is the most
+        // useful human label for the failing export destination.
+        resourceId: projectId,
+        resourceName: host || "PostHog integration",
+        message: `PostHog export disabled for project "${projectName}" after a configuration fault.`,
+        url: env.NEXTAUTH_URL
+          ? `${env.NEXTAUTH_URL}${settingsPath}`
+          : undefined,
+        disabled: true,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      `[POSTHOG] Failed to send failure notification for project ${projectId}`,
+      error,
+    );
+  }
 }

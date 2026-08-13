@@ -5,7 +5,7 @@ import {
   isCustomerFaultError,
 } from "./customerFaultClassification";
 
-// LFE-14990: the PostHog integration must treat a deterministic
+// The PostHog integration must treat a deterministic
 // customer-config fault (a bad/malicious hostname rejected by
 // validateWebhookURL) as the customer's problem — classify it, disable, and
 // stay quiet — while transient/infra faults keep retrying and tripping the
@@ -31,7 +31,7 @@ const ALLOWLISTED_CUSTOMER_FAULT_CODES = [
 // `new Error(msg, { cause: originalError })`. Classification must survive it.
 const wrapped = (cause: unknown): Error => new Error("wrapped", { cause });
 
-describe("classifyCustomerFault / isCustomerFaultError (PostHog, LFE-14990)", () => {
+describe("classifyCustomerFault / isCustomerFaultError (PostHog)", () => {
   describe("allowlisted OutboundUrlValidationError codes are customer faults", () => {
     // Load-bearing: these are the codes whose only cure is a customer config
     // change, so each must map to a defined reason (the disable decision).

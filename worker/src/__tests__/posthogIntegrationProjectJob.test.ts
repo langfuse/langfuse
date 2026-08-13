@@ -52,9 +52,9 @@ const h = vi.hoisted(() => {
   }
 
   const posthogIntegrationUpdate = vi.fn();
-  // LFE-14990: the atomic disable (enabled true->false) uses updateMany.
+  // The atomic disable (enabled true->false) uses updateMany.
   const posthogIntegrationUpdateMany = vi.fn(async () => ({ count: 1 }));
-  // LFE-14990: hostname preflight (throws OutboundUrlValidationError on a bad
+  // Hostname preflight (throws OutboundUrlValidationError on a bad
   // hostname) and the customer notification, both controllable per test.
   const validateWebhookURL = vi.fn(async () => {});
   const dispatchProjectNotification = vi.fn(async () => {});
@@ -457,14 +457,14 @@ describe("handlePostHogIntegrationProjectJob delivery controls (issue #12786)", 
   });
 });
 
-// LFE-14990: a deterministic customer-config fault (bad/malicious hostname
+// A deterministic customer-config fault (bad/malicious hostname
 // rejected by validateWebhookURL) must be classified as the customer's problem
 // — the job RESOLVES (not thrown, so the type:failed counter never increments
 // and the Failures monitor stays quiet), the integration is auto-disabled,
 // lastError/lastErrorAt are persisted, and the customer is notified once with
 // disabled=true. Transient/infra faults still throw, retry, and trip the
 // monitor unchanged.
-describe("handlePostHogIntegrationProjectJob customer-fault auto-disable (LFE-14990)", () => {
+describe("handlePostHogIntegrationProjectJob customer-fault auto-disable", () => {
   beforeEach(() => {
     resetSharedState();
     // A known-good source + write-mode combo so the pre-export write-mode

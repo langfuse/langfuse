@@ -1075,8 +1075,9 @@ model PosthogIntegration {
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")
 
-  // Cooldown claim for failure notifications; reset when the customer re-saves
-  // the integration so a fresh failure emails promptly.
+  // Parity with blob storage; unused by the PostHog worker, which guarantees
+  // at-most-once notification via the atomic enabled true->false claim instead
+  // of a cooldown. Reset when the customer re-saves an enabled integration.
   lastFailureNotificationSentAt DateTime? @map("last_failure_notification_sent_at")
 
   @@map("posthog_integrations")
