@@ -192,9 +192,7 @@ export function CommentDrawerButton({
               }
             />
             <span className={isMenu ? "text-sm" : undefined}>Add comment</span>
-            {!!count ? (
-              <ActionButtonCountBadge count={count} />
-            ) : null}
+            {!!count ? <ActionButtonCountBadge count={count} /> : null}
           </div>
         </Button>
       </DrawerTrigger>
