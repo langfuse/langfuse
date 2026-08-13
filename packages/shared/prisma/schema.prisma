@@ -1070,6 +1070,15 @@ model PosthogIntegration {
   createdAt              DateTime                         @default(now()) @map("created_at")
   exportSource           AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
 
+  // Last deterministic customer-config fault (bad hostname) that disabled the
+  // integration, surfaced in settings. Cleared on a successful run.
+  lastError   String?   @map("last_error")
+  lastErrorAt DateTime? @map("last_error_at")
+
+  // Cooldown claim for failure notifications; reset when the customer re-saves
+  // the integration so a fresh failure emails promptly.
+  lastFailureNotificationSentAt DateTime? @map("last_failure_notification_sent_at")
+
   @@map("posthog_integrations")
 }
 
