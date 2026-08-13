@@ -12,6 +12,7 @@ import { VariableMappingCardShell } from "../VariableMappingCardShell";
 import { VariableMappingBinding } from "../VariableMappingBinding/VariableMappingBinding";
 import { buildJsonPathSuggestions } from "@/src/features/evals/v2/fns/variableMapping/buildJsonPathSuggestions";
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
+import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
 import {
   jsonPathToSegments,
   segmentsToJsonPath,
@@ -19,8 +20,7 @@ import {
 } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 import {
   deepParseJsonIterative,
-  eventTargetEvalVariableColumns,
-  extractValueFromObjectAsString,
+  experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
@@ -115,7 +115,7 @@ function TreeSelectorBody({
   const roots = useMemo(
     () =>
       sourceObject
-        ? eventTargetEvalVariableColumns.map((column) => ({
+        ? experimentTargetEvalVariableColumns.map((column) => ({
             id: column.id,
             label: column.name,
             // Tool calls are already normalized; deep parsing can corrupt
@@ -245,7 +245,7 @@ function VariableMappingRow({
   const extracted = useMemo(() => {
     if (unmapped || !fieldState.selectedColumnId) return null;
     if (!sourceObject) return null;
-    const { value, error } = extractValueFromObjectAsString(
+    const { value, error } = extractVariableMappingValue(
       sourceObject,
       fieldState.selectedColumnId,
       fieldState.jsonSelector ?? undefined,

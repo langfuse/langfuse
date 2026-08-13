@@ -23,6 +23,14 @@ export const RULE_FIELD_REGISTRY = fieldRegistryFromColumns(
         negatedLabel: "Is not root observation",
       },
       experimentId: { aliases: ["experimentid", "experiment_id"] },
+      isExperimentItemRootSpan: {
+        aliases: [
+          "isexperimentitemrootspan",
+          "is_experiment_item_root_span",
+          "experimentroot",
+        ],
+        negatedLabel: "Is not experiment item root span",
+      },
       calledToolNames: {
         aliases: [
           "calledtoolnames",

@@ -182,6 +182,7 @@ export type ObservationEvalFilterColumnInternal =
     | "tags"
     | "experiment_id"
     | "experiment_dataset_id"
+    | "experiment_item_root_span_id"
     | "metadata"
     | "parent_span_id"
     | "is_app_root"
@@ -393,6 +394,12 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     internal: "experiment_id",
     options: [], // to be filled at runtime
     nullable: true,
+  },
+  {
+    name: "Is Experiment Item Root Span",
+    id: "isExperimentItemRootSpan",
+    type: "boolean",
+    internal: "experiment_item_root_span_id",
   },
   {
     name: "Called Tool Names",

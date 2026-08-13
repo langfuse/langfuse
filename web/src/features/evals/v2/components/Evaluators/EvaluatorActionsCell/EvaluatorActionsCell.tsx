@@ -33,7 +33,7 @@ export function EvaluatorActionsCell({
   onDelete: () => void;
 }) {
   return (
-    <div className="flex w-full min-w-0 items-center justify-end gap-1">
+    <div className="flex w-full min-w-0 items-center justify-start gap-1">
       <Button
         type="button"
         variant="outline"

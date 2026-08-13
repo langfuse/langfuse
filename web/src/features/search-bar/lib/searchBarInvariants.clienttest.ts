@@ -117,6 +117,26 @@ describe("search bar invariants — events v4 registry", () => {
             )}${failures.length > 25 ? `\n  …and ${failures.length - 25} more` : ""}`,
     ).toEqual([]);
   });
+
+  it("supports filtering to experiment item root spans", () => {
+    expect(
+      planCommit(
+        "isExperimentItemRootSpan:true",
+        undefined,
+        EVENTS_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "isExperimentItemRootSpan",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+  });
 });
 
 describe("search bar invariants — evaluation rules registry", () => {
@@ -156,6 +176,24 @@ describe("search bar invariants — evaluation rules registry", () => {
     ).toMatchObject({
       status: "committed",
       filters: [{ column: "tags", type: "arrayOptions" }],
+    });
+
+    expect(
+      planCommit(
+        "isExperimentItemRootSpan:true",
+        undefined,
+        RULE_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "isExperimentItemRootSpan",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
     });
   });
 

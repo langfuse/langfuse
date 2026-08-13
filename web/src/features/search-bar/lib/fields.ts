@@ -175,6 +175,7 @@ export const FIELDS: FieldDef[] = [
   { id: "commentContent", aliases: ["commentcontent", "comment_content", "comment"], kind: "text", syncMode: "textSearch", label: "Comment text", description: "Comment text", nullable: true },
   { id: "experimentDatasetId", aliases: ["experimentdatasetid", "experiment_dataset_id", "dataset"], kind: "text", syncMode: "exactOption", label: "Experiment dataset ID", description: "Experiment dataset identifier", nullable: true },
   { id: "experimentId", aliases: ["experimentid", "experiment_id"], kind: "text", syncMode: "exactOption", label: "Experiment ID", description: "Experiment identifier", nullable: true },
+  { id: "isExperimentItemRootSpan", aliases: ["isexperimentitemrootspan", "is_experiment_item_root_span", "experimentroot"], kind: "boolean", syncMode: "textSearch", label: "Is experiment item root span", negatedLabel: "Is not experiment item root span", description: "Whether the observation is the root span for an experiment item" },
   { id: "experimentName", aliases: ["experimentname", "experiment_name", "experiment"], kind: "text", syncMode: "exactOption", label: "Experiment name", description: "Experiment name", nullable: true },
   { id: "input", aliases: [], kind: "text", syncMode: "textSearch", label: "Input", description: "Observation input", nullable: true },
   { id: "output", aliases: [], kind: "text", syncMode: "textSearch", label: "Output", description: "Observation output", nullable: true },

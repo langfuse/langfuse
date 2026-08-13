@@ -43,6 +43,17 @@ describe("validateEvaluatorFiltersForTarget", () => {
       targetObject: EvalTargetObject.EVENT,
       filter: [
         {
+          type: "boolean",
+          column: "isExperimentItemRootSpan",
+          operator: "=",
+          value: true,
+        },
+      ] satisfies FilterState,
+    },
+    {
+      targetObject: EvalTargetObject.EVENT,
+      filter: [
+        {
           type: "null",
           column: "experimentId",
           operator: "is not null",

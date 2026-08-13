@@ -16,7 +16,8 @@ export function useEvaluatorSetupSample({
     store,
     (state) => state.selectedObservation,
   );
-  const selectedObservationDetails = api.events.batchIO.useQuery(
+  // We need `experimentBatchIO` as we want to include experiment events
+  const selectedObservationDetails = api.events.experimentBatchIO.useQuery(
     {
       projectId,
       observations: [

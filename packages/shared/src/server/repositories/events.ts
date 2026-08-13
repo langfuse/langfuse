@@ -3602,6 +3602,9 @@ export const getRecentEvaluatorExecutionTraces = async (
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
     .whereRaw("has(e.metadata_names, 'evaluator_id')")
+    .whereRaw(
+      `NOT (has(e.metadata_names, 'evaluator_test') AND ${eventMetadataValue("evaluator_test")} = 'true')`,
+    )
     .whereRaw("evaluator_id IN ({evaluatorIds: Array(String)})", {
       evaluatorIds,
     })

@@ -56,7 +56,7 @@ export function RuleEvaluatorsStep({
     store,
     (state) => state.selectedObservation,
   );
-  const selectedObservationDetails = api.events.batchIO.useQuery(
+  const selectedObservationDetails = api.events.experimentBatchIO.useQuery(
     {
       projectId,
       observations: [

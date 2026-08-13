@@ -294,7 +294,13 @@ export default function EvaluatorsPage() {
               className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
               aria-label={`View executions for ${row.original.name}`}
               onClick={() =>
-                router.push(evaluatorExecutionsUrl(projectId, row.original.id))
+                router.push(
+                  evaluatorExecutionsUrl(
+                    projectId,
+                    row.original.id,
+                    row.original.type,
+                  ),
+                )
               }
             >
               {history}
@@ -363,8 +369,8 @@ export default function EvaluatorsPage() {
       {
         accessorKey: "actions",
         id: "actions",
-        header: () => <div className="w-full text-right">Actions</div>,
-        size: 180,
+        header: "Actions",
+        size: 170,
         isFixedPosition: true,
         enableSorting: false,
         enableResizing: false,
@@ -377,7 +383,13 @@ export default function EvaluatorsPage() {
                 router.push(evaluatorScoresUrl(projectId, row.original.name))
               }
               onViewExecutions={() =>
-                router.push(evaluatorExecutionsUrl(projectId, row.original.id))
+                router.push(
+                  evaluatorExecutionsUrl(
+                    projectId,
+                    row.original.id,
+                    row.original.type,
+                  ),
+                )
               }
               onManageRules={() => setAttachEvaluatorId(row.original.id)}
               onEdit={() =>

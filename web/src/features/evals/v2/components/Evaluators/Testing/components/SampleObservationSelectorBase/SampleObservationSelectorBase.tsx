@@ -77,10 +77,10 @@ const EXAMPLES = [
     icon: FlaskConical,
     filters: [
       {
-        column: "experimentId",
-        type: "null",
-        operator: "is not null",
-        value: "",
+        column: "isExperimentItemRootSpan",
+        type: "boolean",
+        operator: "=",
+        value: true,
       },
     ] satisfies FilterState,
   },
@@ -204,6 +204,7 @@ export function SampleObservationSelectorBase(
     projectId,
     startTimeFilter,
     refiningFilter: previewFilters,
+    includeApproxCount: true,
     lazy: true,
   });
   const observed = useMemo(
@@ -253,7 +254,6 @@ export function SampleObservationSelectorBase(
       ),
     ),
   );
-  const count = api.events.countAll.useQuery(queryInput);
   const matchingObservations = observationPages.flatMap(
     (page) => page.data?.observations ?? [],
   );
@@ -527,9 +527,9 @@ export function SampleObservationSelectorBase(
         <SectionHeader
           title="Matching observations"
           meta={
-            count.data ? (
+            options.approxTotalCount !== null ? (
               <span className="text-muted-foreground shrink-0 text-sm">
-                {formatCount(count.data.totalCount)}
+                ≈ {formatCount(options.approxTotalCount)}
               </span>
             ) : null
           }

@@ -118,8 +118,9 @@ describe("Clickhouse Events Repository Test", () => {
       ).resolves.toBe(1);
     });
 
-    it("returns recent evaluator traces", async () => {
+    it("returns recent evaluator traces without test runs", async () => {
       const traceId = randomUUID();
+      const testTraceId = randomUUID();
       const evaluatorId = randomUUID();
       await createEventsCh([
         createEvent({
@@ -129,6 +130,14 @@ describe("Clickhouse Events Repository Test", () => {
           level: "ERROR",
           metadata_names: ["evaluator_id"],
           metadata_values: [evaluatorId],
+          cost_details: { total: 0 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "SPAN",
+          metadata_names: ["evaluator_id", "evaluator_test"],
+          metadata_values: [evaluatorId, "true"],
           cost_details: { total: 0 },
         }),
       ]);
