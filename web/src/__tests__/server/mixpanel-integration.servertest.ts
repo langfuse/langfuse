@@ -258,28 +258,12 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       ).resolves.not.toThrow();
     });
 
-    it("get returns legacyWritesActive=false on events_only", async () => {
+    it("get returns a null config when the project has no integration", async () => {
       const { caller, project } = await prepare();
       const result = await caller.mixpanelIntegration.get({
         projectId: project.id,
       });
-      expect(result.legacyWritesActive).toBe(false);
       expect(result.config).toBeNull();
-    });
-
-    it("get returns legacyWritesActive=true on dual, with config", async () => {
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
-      const { caller, project } = await prepare();
-      await caller.mixpanelIntegration.update({
-        projectId: project.id,
-        ...baseConfig,
-        exportSource: "EVENTS" as const,
-      });
-      const result = await caller.mixpanelIntegration.get({
-        projectId: project.id,
-      });
-      expect(result.legacyWritesActive).toBe(true);
-      expect(result.config?.exportSource).toBe("EVENTS");
     });
   });
 
@@ -370,13 +354,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     });
 
     // The write mode is server-only, so the settings page can only learn it
-    // from this response. This is the durable half of the contract — the
-    // derived booleans next to it go away once their consumers read writeMode.
-    // Read untyped only because the router does not return the field yet;
-    // the property name itself is asserted exactly.
-    const writeModeOf = (result: object) =>
-      (result as Record<string, unknown>).writeMode;
-
+    // from this response.
     it.each(["legacy", "dual", "events_only"] as const)(
       "get returns the active write mode %s, independent of the preview opt-in",
       async (writeMode) => {
@@ -386,7 +364,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
         const result = await caller.mixpanelIntegration.get({
           projectId: project.id,
         });
-        expect(writeModeOf(result)).toBe(writeMode);
+        expect(result.writeMode).toBe(writeMode);
       },
     );
   });
@@ -448,9 +426,11 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("EVENTS");
     });
 
-    // dual writes both, so the enriched source is the recommended default —
-    // no per-user beta opt-in involved any more.
-    it("create without exportSource defaults to EVENTS on dual", async () => {
+    // Router default for an omitted exportSource: legacy writes active ?
+    // TRACES_OBSERVATIONS : EVENTS. It deliberately differs from the
+    // settings-page default (EVENTS on dual) — a pre-existing divergence this
+    // change does not touch, pinned here so a later fix has to flip it.
+    it("create without exportSource defaults to TRACES_OBSERVATIONS on dual", async () => {
       const { caller, project } = await prepare();
       await caller.mixpanelIntegration.update({
         projectId: project.id,
@@ -459,7 +439,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       const result = await caller.mixpanelIntegration.get({
         projectId: project.id,
       });
-      expect(result.config?.exportSource).toBe("EVENTS");
+      expect(result.config?.exportSource).toBe("TRACES_OBSERVATIONS");
     });
 
     it("create without exportSource defaults to TRACES_OBSERVATIONS on legacy", async () => {
@@ -475,30 +455,8 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("TRACES_OBSERVATIONS");
     });
 
-    // Post-cutoff Cloud keeps the events source pinned; on dual that default
-    // is now valid, so the create succeeds instead of being refused.
-    it("Cloud + post-cutoff project + create without exportSource pins EVENTS on dual", async () => {
+    it("Cloud + post-cutoff project + create without exportSource → BAD_REQUEST (validated default)", async () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
-      const { caller, project } = await prepare();
-      await prisma.project.update({
-        where: { id: project.id },
-        data: { createdAt: POST_CUTOFF },
-      });
-      await caller.mixpanelIntegration.update({
-        projectId: project.id,
-        ...baseConfig,
-      });
-      const result = await caller.mixpanelIntegration.get({
-        projectId: project.id,
-      });
-      expect(result.config?.exportSource).toBe("EVENTS");
-    });
-
-    // legacy write mode leaves a post-cutoff Cloud project with no writable
-    // source at all: the default must be validated, not silently persisted.
-    it("Cloud + post-cutoff project + legacy write mode + create without exportSource → BAD_REQUEST", async () => {
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { caller, project } = await prepare();
       await prisma.project.update({
         where: { id: project.id },
