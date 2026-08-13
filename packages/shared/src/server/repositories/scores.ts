@@ -2245,9 +2245,17 @@ export const getDistinctScoreNames = async (
     projectId: string;
     cutoffCreatedAt: Date;
     clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+    // No default: absent means "ReadWrite". Callers that enumerate rows for a
+    // user-visible selection (batch actions) must keep reading the primary.
+    preferredClickhouseService?: PreferredClickhouseService;
   } & DistinctScoreNamesTimestampSource,
 ) => {
-  const { projectId, cutoffCreatedAt, clickhouseConfigs } = p;
+  const {
+    projectId,
+    cutoffCreatedAt,
+    clickhouseConfigs,
+    preferredClickhouseService,
+  } = p;
   const startTimeFrom = getDistinctScoreNamesStartTimeFrom(p);
 
   const query = `    SELECT DISTINCT
@@ -2273,6 +2281,7 @@ export const getDistinctScoreNames = async (
     },
     tags: { projectId },
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 
   return rows.map((row) => row.name);

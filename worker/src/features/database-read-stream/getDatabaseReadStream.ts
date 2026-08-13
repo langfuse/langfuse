@@ -28,6 +28,7 @@ import {
   getTracesByIds,
   getScoresForTraces,
   getDatasetItems,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
@@ -153,6 +154,7 @@ export const getDatabaseReadStreamPaginated = async ({
   searchQuery,
   searchType,
   useEventsTable,
+  preferredClickhouseService,
   rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
 }: {
   projectId: string;
@@ -160,6 +162,9 @@ export const getDatabaseReadStreamPaginated = async ({
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
+  // No default: absent means "ReadWrite". Batch actions enumerate rows for a
+  // selection the user made against the primary, so only batch export opts in.
+  preferredClickhouseService?: PreferredClickhouseService;
 } & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
   const createdAtCutoffFilter: FilterCondition = {
@@ -360,6 +365,7 @@ export const getDatabaseReadStreamPaginated = async ({
               : [createdAtCutoffFilterCh],
             isTimestampFilter: isGenerationTimestampFilter,
             clickhouseConfigs,
+            preferredClickhouseService,
           });
 
           emptyScoreColumns = distinctScoreNames.reduce(
@@ -435,6 +441,7 @@ export const getDatabaseReadStreamPaginated = async ({
               : [createdAtCutoffFilter],
             isTimestampFilter: isTraceTimestampFilter,
             clickhouseConfigs,
+            preferredClickhouseService,
           });
           emptyScoreColumns = distinctScoreNames.reduce(
             (acc, name) => ({ ...acc, [name]: null }),

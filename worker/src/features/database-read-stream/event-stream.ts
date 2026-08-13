@@ -75,12 +75,16 @@ export const getEventsStream = async (props: {
   });
   const { query, params: queryParams } = queryBuilder.buildWithParams();
 
-  // Get distinct score names for empty columns
+  // Get distinct score names for empty columns.
+  // Batch export is the only production caller of getEventsStream, so the read
+  // replica is pinned inline. Batch actions use getEventsStreamForDataset and
+  // getEventsStreamForAnnotationQueue, which must keep reading the primary.
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
     startTimeFrom,
     clickhouseConfigs,
+    preferredClickhouseService: "ReadOnly",
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(

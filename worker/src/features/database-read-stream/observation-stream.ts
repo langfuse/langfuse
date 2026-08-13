@@ -110,6 +110,7 @@ export const getObservationStream = async (
       return filter.column === "Start Time" && filter.type === "datetime";
     },
     clickhouseConfigs,
+    preferredClickhouseService: props.preferredClickhouseService,
   });
 
   const scoresFilter = new FilterList([
@@ -487,6 +488,10 @@ const getObservationStreamFromEvents = async (
     ): filterItem is TimeFilter =>
       filterItem.column === "Start Time" && filterItem.type === "datetime",
     clickhouseConfigs,
+    // The events branch reads its main query from EventsReadOnly, but score
+    // names still come from the classic scores table, so this query follows the
+    // caller's choice like the legacy branch does.
+    preferredClickhouseService: props.preferredClickhouseService,
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(
