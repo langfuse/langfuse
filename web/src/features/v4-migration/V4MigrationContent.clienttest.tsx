@@ -320,16 +320,17 @@ describe("V4MigrationDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("uses Retarget consistently for affected evals", () => {
+  it("uses Update consistently for affected evals", () => {
     mocks.migrationData.evals = { status: "loaded", count: 2 };
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Retarget Evals/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Update Evals/ }));
     expect(
-      screen.getByText(/Retarget them at observations/),
+      screen.getByText(/Update them to target observations/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Repoint them/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Retarget them/)).not.toBeInTheDocument();
   });
 
   it("shows the experiment instrumentation upgrade requirement", () => {
