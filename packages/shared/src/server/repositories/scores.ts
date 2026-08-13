@@ -1225,11 +1225,15 @@ export async function getScoresUiTable<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadataFlag?: IncludeHasMetadata;
+  // Batch export opts into the read replica here; the scores UI table passes
+  // nothing and keeps reading the primary.
+  preferredClickhouseService?: PreferredClickhouseService;
 }) {
   const {
     excludeMetadata = false,
     includeHasMetadataFlag = false,
     clickhouseConfigs,
+    preferredClickhouseService,
     ...rest
   } = props;
 
@@ -1273,6 +1277,7 @@ export async function getScoresUiTable<
     excludeMetadata,
     includeHasMetadataFlag,
     clickhouseConfigs,
+    preferredClickhouseService,
     ...rest,
   });
 
@@ -1310,6 +1315,8 @@ const getScoresUiGeneric = async <T>(props: {
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: boolean;
   includeHasMetadataFlag?: boolean;
+  // No default: absent means "ReadWrite", which is what the UI needs.
+  preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<T[]> => {
   const {
     projectId,
@@ -1318,6 +1325,7 @@ const getScoresUiGeneric = async <T>(props: {
     limit,
     offset,
     clickhouseConfigs,
+    preferredClickhouseService,
     excludeMetadata = false,
     includeHasMetadataFlag = false,
   } = props;
@@ -1406,6 +1414,7 @@ const getScoresUiGeneric = async <T>(props: {
     params: input.params,
     tags: input.tags,
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 };
 
