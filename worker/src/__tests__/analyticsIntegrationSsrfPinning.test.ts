@@ -51,6 +51,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PostHog } from "posthog-node";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 
+// The senders' own allowlist comes from the environment, and vitest loads
+// ../.env. A developer who allowlists localhost for local webhook testing would
+// otherwise turn the block assertions below into mystery failures. The oracles
+// pass STRICT_WHITELIST explicitly, but the two sender-level tests cannot.
+vi.hoisted(() => {
+  delete process.env.LANGFUSE_WEBHOOK_WHITELISTED_HOST;
+  delete process.env.LANGFUSE_WEBHOOK_WHITELISTED_IPS;
+  delete process.env.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS;
+});
+
 const STRICT_WHITELIST = { hosts: [], ips: [], ip_ranges: [] };
 
 const openServers: Server[] = [];
@@ -469,17 +479,18 @@ describe("Mixpanel sender — SSRF connect-time pinning", () => {
     );
   }, 40_000);
 
-  // NOTE — two Mixpanel cases deliberately do NOT live in this file:
+  // NOTE — two Mixpanel cases deliberately do NOT live in this file. Neither is
+  // blocked by this file's mocks; both are placement decisions.
   //
-  // 1. "an IP-literal destination is refused". It cannot be tested here: this
-  //    file mocks validateWebhookURL to a no-op file-wide (required to model
-  //    "the host validated as public" for the PostHog TOCTOU above), and that
-  //    is the very validator the sender's use-time check calls — so the mock
-  //    would disable the defense under test and the case could only ever fail
-  //    for a harness reason. It is covered against the real validators in
-  //    analyticsIntegrationOutboundUrlNegative.test.ts, together with the rest
-  //    of the mandated negative set (loopback, IPv6 loopback, cloud metadata,
-  //    RFC1918, private-resolving hostname, embedded credentials).
+  // 1. "an IP-literal destination is refused". It WOULD pass here (verified):
+  //    the destination check is validateAnalyticsIntegrationUrl, which uses
+  //    parseOutboundUrl / isIPAddress / validateOutboundResolvedIp and never
+  //    touches the validateWebhookURL this file stubs. It lives in
+  //    analyticsIntegrationOutboundUrlNegative.test.ts for cohesion: it is one
+  //    of the mandated negative cases (loopback, IPv6 loopback, cloud metadata,
+  //    RFC1918, private-resolving hostname, embedded credentials) and belongs
+  //    with its siblings, under that file's self-enforced empty allowlist.
+  //    Duplicating it here would double the maintenance for no extra signal.
   //
   // 2. The positive control (gzip body + dispatcher + response handling). An
   //    earlier version of this file asserted an IP literal DELIVERS, which was
@@ -489,7 +500,9 @@ describe("Mixpanel sender — SSRF connect-time pinning", () => {
   //    analyticsIntegrationOutboundUrlAllowlist.test.ts by allowlisting a
   //    DNS-named host, which does not depend on the literal loophole.
   //
-  // What remains here is the connect-time rebind assertion, which is
-  // independent of validateWebhookURL and therefore sound under this file's
-  // mocks.
+  // The file's stubbed validateWebhookURL IS still a real constraint, just not
+  // on the two cases above: it is the REDIRECT-HOP validator the senders pass to
+  // fetchWithSecureRedirects. So do not add a redirect-target assertion to this
+  // file — it would be vacuous here. Those live in the negative suite and in O5
+  // above, which reaches for the real validator explicitly.
 });

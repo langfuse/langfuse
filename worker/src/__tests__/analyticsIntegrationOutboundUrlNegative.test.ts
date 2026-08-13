@@ -29,6 +29,25 @@ import { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 
+// The empty allowlist is this file's PREMISE, so enforce it instead of assuming
+// it. vitest loads ../.env, and LANGFUSE_WEBHOOK_WHITELISTED_* are variables a
+// developer plausibly sets locally for webhook testing.
+//
+// Measured effect of an ambient value, so nobody has to guess: with
+// LANGFUSE_WEBHOOK_WHITELISTED_HOST=localhost and no clearing, the two
+// "hostname resolving to loopback" cases FAIL (one after a 5s timeout) while the
+// IP-literal cases are unaffected, because allowlisting a name does not
+// allowlist a literal. So the hazard is spurious RED for developers with a local
+// webhook allowlist — not silent vacuity — and an ambient allowlist of the
+// matching IPs would break the literal cases the same way. Either way the suite
+// stops measuring what it claims to. Clearing makes it deterministic.
+// Runs in vi.hoisted so it lands before shared's env module is parsed.
+vi.hoisted(() => {
+  delete process.env.LANGFUSE_WEBHOOK_WHITELISTED_HOST;
+  delete process.env.LANGFUSE_WEBHOOK_WHITELISTED_IPS;
+  delete process.env.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS;
+});
+
 const openServers: Server[] = [];
 
 async function startLoopbackServer(onRequest: () => void) {
@@ -127,6 +146,7 @@ vi.mock("../env", () => ({
   v4WritesToEventsTable: () => false,
 }));
 
+import { whitelistFromEnv } from "@langfuse/shared/src/server";
 import { handlePostHogIntegrationProjectJob } from "../features/posthog/handlePostHogIntegrationProjectJob";
 import { MixpanelClient } from "../features/mixpanel/mixpanelClient";
 import type { MixpanelEvent } from "../features/mixpanel/transformers";
@@ -159,6 +179,16 @@ const BLOCKED_DESTINATIONS: Array<[label: string, url: string]> = [
 ];
 
 const CREDENTIALED_URL = "http://exporter:hunter2@127.0.0.1/";
+
+// Fails loudly, and in ONE obvious place, if the premise is ever voided — by
+// ambient environment, or by a future change to how the allowlist is sourced
+// that the clearing above no longer covers. Without it, such a change surfaces
+// as a scatter of confusing rejection failures elsewhere in the file.
+describe("negative-suite premise", () => {
+  it("runs with a genuinely empty allowlist", () => {
+    expect(whitelistFromEnv()).toEqual({ hosts: [], ips: [], ip_ranges: [] });
+  });
+});
 
 describe("PostHog export — blocked outbound destinations are rejected", () => {
   beforeEach(() => {
