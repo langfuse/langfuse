@@ -158,9 +158,8 @@ export function EvaluatorMigrationDialog({
                         "Open the evaluator upgrade form."
                       ) : (
                         <>
-                          Click evaluators with the Deprecated label to review{" "}
-                          <br />
-                          them and start each upgrade individually.
+                          Click the Upgrade now button on an evaluator to <br />
+                          review it and start each upgrade individually.
                         </>
                       )}
                     </span>
