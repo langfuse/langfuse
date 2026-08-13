@@ -658,6 +658,7 @@ export default function ScoresTable({
       id: "traceName",
       enableHiding: true,
       enableSorting: true,
+      defaultHidden: true,
       size: 150,
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
