@@ -527,6 +527,7 @@ export default function ScoresTable({
       id: "dataType",
       enableHiding: true,
       enableSorting: true,
+      defaultHidden: true,
       size: 100,
     },
     {
@@ -782,6 +783,7 @@ export default function ScoresTable({
       id: "author",
       header: "Author",
       enableHiding: true,
+      defaultHidden: true,
       size: 150,
       cell: ({ row }) => {
         const { userId, name, image } = row.getValue(
