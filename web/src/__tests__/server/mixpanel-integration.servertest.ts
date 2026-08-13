@@ -510,7 +510,14 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       ).toBeNull();
     });
 
-    it("raced delete: the backstop re-validates as a brand-new row, not the stale pre-flight row", async () => {
+    // Both raced-CREATE cases below share one shape and differ only in whether
+    // the caller sent an explicit exportSource. That single difference is the
+    // point: the real settings form always sends one (it lives in the form's
+    // defaultValues and onSubmit spreads every value), so a backstop that only
+    // runs when the field is omitted never runs in production.
+    const expectRacedCreateRejected = async (
+      extraInput: { exportSource?: "TRACES_OBSERVATIONS" } = {},
+    ) => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       const { caller, project } = await prepare();
       // Pre-cutoff project, so the project-level gate cannot fire. The only
@@ -522,10 +529,10 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       });
       // The pre-flight read sees a row old enough to be grandfathered under
       // either exporter cutoff, so the pre-flight assert allows the legacy
-      // source it carries. If the backstop then re-used this stale createdAt
-      // instead of treating the resulting CREATE as a brand-new row, the legacy
-      // row would be persisted and the guard would do nothing until the
-      // analytics cutoff date passes.
+      // source it carries and cannot be the thing that rejects. Meanwhile the
+      // DB genuinely holds no row, so the upsert lands as a CREATE — the race.
+      // If the backstop re-used this stale createdAt, or skipped itself
+      // entirely, the legacy row would be persisted.
       const spy = vi
         .spyOn(prisma.mixpanelIntegration, "findUnique")
         .mockResolvedValueOnce({
@@ -537,6 +544,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
           caller.mixpanelIntegration.update({
             projectId: project.id,
             ...baseConfig,
+            ...extraInput,
           }),
         ).rejects.toMatchObject({
           code: "BAD_REQUEST",
@@ -552,6 +560,16 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
           where: { projectId: project.id },
         }),
       ).toBeNull();
+    };
+
+    it("raced delete with the source omitted: the backstop re-validates as a brand-new row, not the stale pre-flight row", async () => {
+      await expectRacedCreateRejected();
+    });
+
+    it("raced delete with the source explicitly present: the backstop still re-validates as a brand-new row", async () => {
+      await expectRacedCreateRejected({
+        exportSource: "TRACES_OBSERVATIONS",
+      });
     });
 
     it("create without exportSource defaults to EVENTS on events_only", async () => {
