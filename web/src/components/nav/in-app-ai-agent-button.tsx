@@ -23,7 +23,7 @@ export const InAppAiAgentButton = ({
 }: {
   prominent?: boolean;
 } = {}) => {
-  const { open, setOpen, openAssistant } = useInAppAiAgent();
+  const { open, setOpen, openAssistant, attentionCount } = useInAppAiAgent();
   const canUseAssistant = useCanUseInAppAgent();
 
   const toggleAssistant = useCallback(
@@ -66,11 +66,18 @@ export const InAppAiAgentButton = ({
     return null;
   }
 
+  const attentionSuffix =
+    attentionCount > 0
+      ? ` (${attentionCount} ${attentionCount === 1 ? "needs" : "need"} attention)`
+      : "";
+
   return (
     <Button
       type="button"
       variant="outline"
-      aria-label={open ? "Close assistant" : "Open assistant"}
+      // Count lives on the button name — a nested badge aria-label is ignored
+      // once the parent already has aria-label.
+      aria-label={`${open ? "Close" : "Open"} assistant${attentionSuffix}`}
       aria-pressed={open}
       data-ignore-outside-interaction
       onClick={() => toggleAssistant("top_nav")}
@@ -88,7 +95,7 @@ export const InAppAiAgentButton = ({
           : undefined
       }
       className={cn(
-        "gap-2",
+        "relative gap-2",
         // Compact icon-only launcher for the top bar.
         prominent && "size-9 shrink-0 px-0",
         !prominent &&
@@ -99,6 +106,17 @@ export const InAppAiAgentButton = ({
       <BotMessageSquare
         className={cn("h-4 w-4", prominent && open && "text-primary-accent")}
       />
+      {/* Conversations still owed a look. Anchored to the button rather than
+          the icon so it survives the prominent (icon-only) variant. Visual
+          only — accessible name is on the button. */}
+      {attentionCount > 0 && (
+        <span
+          aria-hidden="true"
+          className="bg-primary-accent text-primary-foreground absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold"
+        >
+          {attentionCount > 99 ? "99+" : attentionCount}
+        </span>
+      )}
       {/* The prominent launcher is a fixed 36px square (top bar, below md), so
           it stays strictly icon-only — the `sm:inline` label would otherwise
           reveal in the 640–767px band and overflow the box. */}
