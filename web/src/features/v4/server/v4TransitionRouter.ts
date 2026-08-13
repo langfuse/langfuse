@@ -10,6 +10,7 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
+import { env } from "@langfuse/shared/src/env";
 import {
   convertDateToClickhouseDateTime,
   INTERNAL_INGESTION_SDK_NAMES,
@@ -18,6 +19,7 @@ import {
   queryClickhouse,
   systemTableRef,
   type IngestionSdkAttributionStatus,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 const MAX_DETECTION_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -604,14 +606,16 @@ SETTINGS skip_unavailable_shards = 1
   });
 };
 
-const getLegacyApiUsageSummaries = async ({
+const getLegacyApiUsageSummariesForService = async ({
   projectIds,
   fromTimestamp,
   toTimestamp,
+  preferredClickhouseService,
 }: {
   projectIds: string[];
   fromTimestamp: Date;
   toTimestamp: Date;
+  preferredClickhouseService: PreferredClickhouseService;
 }): Promise<LegacyApiUsageSummaryByProjectResultRow[]> => {
   if (projectIds.length === 0) return [];
 
@@ -655,7 +659,9 @@ classified AS (
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 'GET /api/public/observations/{id}',
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 'GET /api/public/scores/{id}',
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/{id}',
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs$'), 'GET /api/public/datasets/{datasetName}/runs',
       match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 'GET /api/public/datasets/{datasetName}/runs/{runName}',
+      match(route_path, '^DELETE /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 'DELETE /api/public/datasets/{datasetName}/runs/{runName}',
       NULL
     ) AS legacy_route,
     multiIf(
@@ -678,7 +684,9 @@ classified AS (
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 1,
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs$'), 1,
       match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1,
+      match(route_path, '^DELETE /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1,
       NULL
     ) AS clickhouse_queries_per_api_call
   FROM selected
@@ -702,7 +710,7 @@ SETTINGS skip_unavailable_shards = 1
       toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
     },
     tags: { route: "v4-legacy-api-usage-summary" },
-    preferredClickhouseService: "ReadOnly",
+    preferredClickhouseService,
     clickhouseSettings: { skip_unavailable_shards: 1 },
   });
 
@@ -712,6 +720,63 @@ SETTINGS skip_unavailable_shards = 1
     count: Number(row.count),
     lastSeen: row.lastSeen,
   }));
+};
+
+const getLegacyApiUsageSummaries = async ({
+  projectIds,
+  fromTimestamp,
+  toTimestamp,
+}: {
+  projectIds: string[];
+  fromTimestamp: Date;
+  toTimestamp: Date;
+}): Promise<LegacyApiUsageSummaryByProjectResultRow[]> => {
+  if (projectIds.length === 0) return [];
+
+  const preferredClickhouseServices: PreferredClickhouseService[] =
+    env.CLICKHOUSE_READ_ONLY_URL &&
+    new URL(env.CLICKHOUSE_READ_ONLY_URL).toString() !==
+      new URL(env.CLICKHOUSE_URL).toString()
+      ? ["ReadOnly", "ReadWrite"]
+      : ["ReadWrite"];
+  const serviceRows = await Promise.all(
+    preferredClickhouseServices.map((preferredClickhouseService) =>
+      getLegacyApiUsageSummariesForService({
+        projectIds,
+        fromTimestamp,
+        toTimestamp,
+        preferredClickhouseService,
+      }),
+    ),
+  );
+  const rowsByProjectAndEntrypoint = new Map<
+    string,
+    LegacyApiUsageSummaryByProjectResultRow
+  >();
+
+  for (const row of serviceRows.flat()) {
+    const key = `${row.projectId}\u0000${row.entrypoint}`;
+    const existing = rowsByProjectAndEntrypoint.get(key);
+    rowsByProjectAndEntrypoint.set(
+      key,
+      existing
+        ? {
+            ...existing,
+            count: existing.count + row.count,
+            lastSeen:
+              existing.lastSeen > row.lastSeen
+                ? existing.lastSeen
+                : row.lastSeen,
+          }
+        : row,
+    );
+  }
+
+  return Array.from(rowsByProjectAndEntrypoint.values()).sort(
+    (left, right) =>
+      left.projectId.localeCompare(right.projectId) ||
+      left.entrypoint.localeCompare(right.entrypoint),
+  );
 };
 
 export const v4TransitionRouter = createTRPCRouter({
