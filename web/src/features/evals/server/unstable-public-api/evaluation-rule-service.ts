@@ -484,7 +484,7 @@ async function prepareAssignment(params: {
   const inherited =
     template.variableMapping == null
       ? undefined
-      : toApiMappings(template.vapririableMapping);
+      : toApiMappings(template.variableMapping);
   const storedMapping =
     params.mapping === undefined
       ? null
