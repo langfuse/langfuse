@@ -43,8 +43,11 @@ export const Messages: React.FC<MessagesContext> = (props) => {
   );
 };
 
+const REPETITION_OPTIONS = [1, 3, 5, 10];
+
 const SubmitButton = () => {
-  const { handleSubmit, isStreaming } = usePlaygroundContext();
+  const { handleSubmit, isStreaming, runCount, setRunCount } =
+    usePlaygroundContext();
   const defaultStreamingEnabled =
     env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT === "true";
   const [streamingEnabled, setStreamingEnabled] = useLocalStorage(
@@ -63,7 +66,7 @@ const SubmitButton = () => {
         }}
         loading={isStreaming}
       >
-        <p>Submit</p>
+        <p>{runCount > 1 ? `Submit \u00d7${runCount}` : "Submit"}</p>
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -93,6 +96,32 @@ const SubmitButton = () => {
               checked={streamingEnabled}
               onCheckedChange={setStreamingEnabled}
             />
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex cursor-pointer items-center justify-between py-2.5"
+            onClick={(e) => e.preventDefault()}
+          >
+            <div className="flex flex-col">
+              <span className="font-bold">Repetitions</span>
+              <span className="text-muted-foreground text-xs">
+                {runCount > 1
+                  ? `Run ${runCount}\u00d7 to compare consistency`
+                  : "Run the same setup multiple times"}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              {REPETITION_OPTIONS.map((option) => (
+                <Button
+                  key={option}
+                  size="sm"
+                  variant={runCount === option ? "default" : "outline"}
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setRunCount(option)}
+                >
+                  {option}
+                </Button>
+              ))}
+            </div>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
