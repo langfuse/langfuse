@@ -300,7 +300,7 @@ describe("V4MigrationDetailsContent", () => {
         "Evals, experiments, APIs and integrations are up to date.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Retarget Evals")).not.toBeInTheDocument();
+    expect(screen.queryByText("Update Evals")).not.toBeInTheDocument();
     expect(screen.queryByText("Experiments")).not.toBeInTheDocument();
     expect(screen.queryByText("Migrate APIs")).not.toBeInTheDocument();
     expect(screen.queryByText("Migrate Integrations")).not.toBeInTheDocument();
@@ -316,20 +316,21 @@ describe("V4MigrationDetailsContent", () => {
       screen.getByText("Evals and experiments are up to date."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Retarget Evals", { exact: true }),
+      screen.queryByText("Update Evals", { exact: true }),
     ).not.toBeInTheDocument();
   });
 
-  it("uses Retarget consistently for affected evals", () => {
+  it("uses Update consistently for affected evals", () => {
     mocks.migrationData.evals = { status: "loaded", count: 2 };
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Retarget Evals/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Update Evals/ }));
     expect(
-      screen.getByText(/Retarget them at observations/),
+      screen.getByText(/Update them to target observations/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Repoint them/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Retarget them/)).not.toBeInTheDocument();
   });
 
   it("shows the experiment instrumentation upgrade requirement", () => {
@@ -919,12 +920,18 @@ describe("V4MigrationDetailsContent", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    // The panel entry point preselects the assistant: no choice screen.
     const migrationDialog = screen.getByRole("dialog");
-    fireEvent.click(
-      within(migrationDialog).getByRole("button", {
+    expect(
+      within(migrationDialog).getByRole("heading", {
+        name: "Ready to start your evaluator upgrade?",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(migrationDialog).queryByRole("button", {
         name: /^Use Assistant/,
       }),
-    );
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(migrationDialog).getByRole("button", {
         name: "Start upgrade now",
@@ -940,6 +947,33 @@ describe("V4MigrationDetailsContent", () => {
     );
   });
 
+  it("keeps the choice screen when AI features are disabled", () => {
+    mocks.migrationData.evals = { status: "loaded", count: 1 };
+    mocks.aiFeaturesEnabled = false;
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    // Without AI features the button drops the assistant branding …
+    expect(
+      screen.queryByRole("button", { name: "Use Assistant" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Update evals" }));
+
+    // … and the dialog does not preselect the assistant, so the choice
+    // screen keeps owning the enable-AI flow.
+    const migrationDialog = screen.getByRole("dialog");
+    expect(
+      within(migrationDialog).getByRole("heading", {
+        name: "How would you like to upgrade your evaluators?",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(migrationDialog).getByRole("button", {
+        name: /^Use Assistant/,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("shows the admin handoff after a non-admin chooses the Assistant", () => {
     mocks.migrationData.evals = { status: "loaded", count: 1 };
     mocks.canUpdateOrgSettings = false;
@@ -947,7 +981,7 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Update evals" }));
     const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
       within(migrationDialog).getByRole("button", {
@@ -996,9 +1030,9 @@ describe("V4MigrationHeaderContent", () => {
     expect(screen.getByText("Upgrade to v4")).toBeInTheDocument();
     expect(screen.queryByText(/Project 1/)).not.toBeInTheDocument();
     expect(
-      screen.getByText(/Your project setup is outdated/),
+      screen.getByText(/Complete the action items below/),
     ).toHaveTextContent(
-      "Your project setup is outdated. Upgrade to v4 now for real-time ingestion and up to 165x faster queries. See docs.",
+      "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items below to switch this project over. See docs.",
     );
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
@@ -1021,7 +1055,7 @@ describe("V4MigrationHeaderContent", () => {
     expect(screen.getByText("Upgrade to v4").parentElement).toHaveClass("pr-6");
   });
 
-  it("does not call ready or unresolved projects outdated", () => {
+  it("keeps the pitch but drops the action ask for ready or unresolved projects", () => {
     for (const readiness of [
       "ready",
       "checking",
@@ -1033,10 +1067,10 @@ describe("V4MigrationHeaderContent", () => {
       );
 
       expect(
-        screen.queryByText(/Your project setup is outdated/),
+        screen.queryByText(/Complete the action items below/),
       ).not.toBeInTheDocument();
       expect(
-        screen.getByText(/Langfuse v4 offers real-time ingestion/),
+        screen.getByText(/Langfuse v4 is here: real-time ingestion/),
       ).toBeInTheDocument();
       expect(
         screen.queryByText(/some features may stop working/),

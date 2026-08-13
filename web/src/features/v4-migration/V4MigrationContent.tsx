@@ -53,7 +53,10 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { useProject } from "@/src/features/projects/hooks";
+import {
+  useProject,
+  useQueryProjectOrOrganization,
+} from "@/src/features/projects/hooks";
 import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import {
   useEvalUpgradeAssistantPlan,
@@ -629,8 +632,10 @@ export function V4MigrationEvalsSection({
   defaultOpen,
 }: {
   state: MigrationCountState;
-  /** Assistant CTA; null hides the button. */
-  assistant: { onMigrate: () => void } | null;
+  /** Upgrade CTA; null hides the button. Assistant branding only while AI
+   *  features are on — otherwise the dialog opens on its choice screen, so
+   *  the button must not promise the assistant. */
+  assistant: { onMigrate: () => void; aiFeaturesEnabled?: boolean } | null;
   evalsUrl?: string;
   onNavigate?: () => void;
   defaultOpen?: boolean;
@@ -638,7 +643,7 @@ export function V4MigrationEvalsSection({
   const capture = usePostHogClientCapture();
   return (
     <Section
-      title="Retarget Evals"
+      title="Update Evals"
       analyticsSection="evals"
       count={state.status === "loaded" ? state.count : undefined}
       meta={
@@ -684,13 +689,19 @@ export function V4MigrationEvalsSection({
                 input/output
               </>
             )}
-            , which v4 no longer sets. Retarget{" "}
-            {state.count === 1 ? "it" : "them"} at observations.
+            , which v4 no longer sets. Update{" "}
+            {state.count === 1 ? "it" : "them"} to target observations.
           </p>
           {assistant && (
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
-              <BotMessageSquare className="mr-1.5 h-4 w-4" />
-              Use Assistant
+              {assistant.aiFeaturesEnabled !== false ? (
+                <>
+                  <BotMessageSquare className="mr-1.5 h-4 w-4" />
+                  Use Assistant
+                </>
+              ) : (
+                "Update evals"
+              )}
             </Button>
           )}
         </>
@@ -959,6 +970,34 @@ export function V4MigrationIntegrationsSection({
   );
 }
 
+// Docs link and deadline note are shared by the panel/modal header and the
+// account-level status page so both surfaces read the same.
+export function V4MigrationDocsLink() {
+  return (
+    <ExternalLink
+      href={V4_DOCS_URL}
+      analytics={{ section: "header", link: "v4_docs" }}
+    >
+      See docs.
+    </ExternalLink>
+  );
+}
+
+export function V4MigrationDeadlineNote() {
+  return (
+    <p>
+      After{" "}
+      <ExternalLink
+        href={V4_TIMELINE_URL}
+        analytics={{ section: "header", link: "v4_timeline" }}
+      >
+        {V4_MIGRATION_DEADLINE}
+      </ExternalLink>{" "}
+      some features may stop working without a v4 upgrade.
+    </p>
+  );
+}
+
 // Title, status link, and the v4 pitch. The agent CTA lives in
 // V4MigrationAgentUpgradeSection, rendered by the details content.
 export function V4MigrationHeaderContent({
@@ -988,27 +1027,11 @@ export function V4MigrationHeaderContent({
       <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
         <p>
           {actionNeeded
-            ? "Your project setup is outdated. Upgrade to v4 now for real-time ingestion and up to 165x faster queries. "
-            : "Langfuse v4 offers real-time ingestion and up to 165x faster queries. "}
-          <ExternalLink
-            href={V4_DOCS_URL}
-            analytics={{ section: "header", link: "v4_docs" }}
-          >
-            See docs.
-          </ExternalLink>
+            ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items below to switch this project over. "
+            : "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. "}
+          <V4MigrationDocsLink />
         </p>
-        {actionNeeded && (
-          <p>
-            After{" "}
-            <ExternalLink
-              href={V4_TIMELINE_URL}
-              analytics={{ section: "header", link: "v4_timeline" }}
-            >
-              {V4_MIGRATION_DEADLINE}
-            </ExternalLink>{" "}
-            some features may stop working without a v4 upgrade.
-          </p>
-        )}
+        {actionNeeded && <V4MigrationDeadlineNote />}
       </div>
     </>
   );
@@ -1290,6 +1313,10 @@ export function V4MigrationDetailsContent({
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
   const canUseAssistant = useCanUseInAppAgent();
+  // Same org source as EvaluatorMigrationDialog's gating, so the button
+  // branding and the dialog's preselect can't disagree.
+  const { organization: routeOrganization } = useQueryProjectOrOrganization();
+  const aiFeaturesEnabled = Boolean(routeOrganization?.aiFeaturesEnabled);
   const [evalMigrationDialogOpen, setEvalMigrationDialogOpen] = useState(false);
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId,
@@ -1339,7 +1366,10 @@ export function V4MigrationDetailsContent({
               state={migrationData.evals}
               assistant={
                 canUseAssistant
-                  ? { onMigrate: handleMigrateEvalsWithAgent }
+                  ? {
+                      onMigrate: handleMigrateEvalsWithAgent,
+                      aiFeaturesEnabled,
+                    }
                   : null
               }
               evalsUrl={evalsUrl}
@@ -1458,6 +1488,7 @@ export function V4MigrationDetailsContent({
           open={evalMigrationDialogOpen}
           onOpenChange={setEvalMigrationDialogOpen}
           scope={{ type: "all" }}
+          initialAction="assistant"
           assistantPrompt={upgradePlan.assistantPrompt}
           onManualUpgrade={handleManualEvalUpgrade}
           onAssistantStarted={() => onNavigate?.()}
