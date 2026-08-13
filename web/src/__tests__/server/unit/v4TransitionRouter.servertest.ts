@@ -388,7 +388,6 @@ describe("v4TransitionRouter", () => {
         entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: "0.6666666666666666",
         lastSeen: "2026-06-24T12:34:56.789123Z",
-        clickhouseHost: "read-host",
       },
     ]);
   });
@@ -405,14 +404,12 @@ describe("v4TransitionRouter", () => {
           entrypoint: "publicapi: GET /api/public/traces/{id}",
           count: "0.6666666666666666",
           lastSeen: "2026-06-24T12:34:56.789123Z",
-          clickhouseHost: "read-host",
         },
         {
           projectId,
           entrypoint: "publicapi: GET /api/public/datasets/{datasetName}/runs",
           count: "1",
           lastSeen: "2026-06-24T14:00:00.000000Z",
-          clickhouseHost: "read-host",
         },
       ])
       .mockResolvedValueOnce([
@@ -421,7 +418,6 @@ describe("v4TransitionRouter", () => {
           entrypoint: "publicapi: GET /api/public/traces/{id}",
           count: "1.3333333333333335",
           lastSeen: "2026-06-24T15:00:00.000000Z",
-          clickhouseHost: "main-host",
         },
       ]);
     const caller = createCaller();
@@ -477,9 +473,9 @@ describe("v4TransitionRouter", () => {
       "JSONExtractString(log_comment, 'projectId') IN {projectIds: Array(String)}",
     );
     expect(clickhouseQuery?.query).toContain(
-      "GROUP BY project_id, legacy_route, clickhouse_host",
+      "GROUP BY project_id, legacy_route",
     );
-    expect(clickhouseQuery?.query).toContain("hostName() AS clickhouse_host");
+    expect(clickhouseQuery?.query).not.toContain("hostName()");
     expect(clickhouseQuery?.params).toMatchObject({
       projectIds: [projectId],
     });
@@ -575,7 +571,6 @@ describe("v4TransitionRouter", () => {
           entrypoint: "publicapi: GET /api/public/traces/{id}",
           count: "1",
           lastSeen: "2026-06-24T15:00:00.000000Z",
-          clickhouseHost: "main-host",
         },
       ]);
     const caller = createCaller();
@@ -598,7 +593,7 @@ describe("v4TransitionRouter", () => {
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
   });
 
-  it("does not double-count the same ClickHouse host through two services", async () => {
+  it("does not double-count identical results from two ClickHouse services", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
         {
@@ -606,7 +601,6 @@ describe("v4TransitionRouter", () => {
           entrypoint: "publicapi: GET /api/public/traces/{id}",
           count: "2",
           lastSeen: "2026-06-24T14:00:00.000000Z",
-          clickhouseHost: "shared-host",
         },
       ])
       .mockResolvedValueOnce([
@@ -614,8 +608,7 @@ describe("v4TransitionRouter", () => {
           projectId,
           entrypoint: "publicapi: GET /api/public/traces/{id}",
           count: "2",
-          lastSeen: "2026-06-24T15:00:00.000000Z",
-          clickhouseHost: "shared-host",
+          lastSeen: "2026-06-24T14:00:00.000000Z",
         },
       ]);
     const caller = createCaller();
@@ -631,7 +624,7 @@ describe("v4TransitionRouter", () => {
         projectId,
         entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: 2,
-        lastSeen: "2026-06-24T15:00:00.000000Z",
+        lastSeen: "2026-06-24T14:00:00.000000Z",
       },
     ]);
   });
@@ -1183,9 +1176,7 @@ describe("v4TransitionRouter", () => {
           lastSeen: "2026-06-24T03:00:00Z",
         }),
       ])
-      .mockResolvedValueOnce([
-        { projectId, count: "1", clickhouseHost: "main-host" },
-      ]);
+      .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const mockPrisma = {
       project: {
         findMany: vi.fn().mockResolvedValue([
@@ -1415,9 +1406,7 @@ describe("v4TransitionRouter", () => {
     expect(experimentUsageQuery?.query).toContain(
       "event_date >= toDate({fromTimestamp: DateTime64(3)})",
     );
-    expect(experimentUsageQuery?.query).toContain(
-      "hostName() AS clickhouseHost",
-    );
+    expect(experimentUsageQuery?.query).not.toContain("hostName()");
     expect(experimentUsageQuery?.params).toMatchObject({
       projectIds: [projectId, secondProjectId],
       fromTimestamp: "2026-06-24 00:00:00.000",
@@ -1441,9 +1430,7 @@ describe("v4TransitionRouter", () => {
         }),
       ])
       .mockRejectedValueOnce(new Error("events read replica unavailable"))
-      .mockResolvedValueOnce([
-        { projectId, count: "1", clickhouseHost: "main-host" },
-      ]);
+      .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1619,9 +1606,7 @@ describe("v4TransitionRouter", () => {
           lastSeen: "2026-06-24T04:00:00Z",
         }),
       ])
-      .mockResolvedValueOnce([
-        { projectId, count: "1", clickhouseHost: "main-host" },
-      ]);
+      .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1700,9 +1685,7 @@ describe("v4TransitionRouter", () => {
           lastSeen: "2026-06-24T04:00:00Z",
         }),
       ])
-      .mockResolvedValueOnce([
-        { projectId, count: "1", clickhouseHost: "main-host" },
-      ]);
+      .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1734,9 +1717,7 @@ describe("v4TransitionRouter", () => {
           lastSeen: "2026-06-24T04:00:00Z",
         }),
       ])
-      .mockResolvedValueOnce([
-        { projectId, count: "1", clickhouseHost: "main-host" },
-      ]);
+      .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1763,14 +1744,12 @@ describe("v4TransitionRouter", () => {
           entrypoint: "publicapi: GET /api/public/traces/{id}",
           count: "0.6666666666666666",
           lastSeen: "2026-06-24T12:34:56.789123Z",
-          clickhouseHost: "read-host",
         },
         {
           projectId: secondProjectId,
           entrypoint: "publicapi: GET /api/public/metrics",
           count: 3,
           lastSeen: "2026-06-24T15:00:00.000000Z",
-          clickhouseHost: "read-host",
         },
       ])
       .mockResolvedValueOnce([
@@ -1779,14 +1758,12 @@ describe("v4TransitionRouter", () => {
           entrypoint: "publicapi: GET /api/public/traces/{id}",
           count: "0.3333333333333334",
           lastSeen: "2026-06-24T14:00:00.000000Z",
-          clickhouseHost: "main-host",
         },
         {
           projectId: secondProjectId,
           entrypoint: "publicapi: GET /api/public/metrics",
           count: 2,
           lastSeen: "2026-06-24T16:00:00.000000Z",
-          clickhouseHost: "main-host",
         },
       ]);
     const mockPrisma = {
@@ -1838,7 +1815,7 @@ describe("v4TransitionRouter", () => {
       "formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen",
     );
     expect(clickhouseQuery?.query).toContain(
-      "GROUP BY project_id, legacy_route, clickhouse_host",
+      "GROUP BY project_id, legacy_route",
     );
     expect(clickhouseQuery?.params).toMatchObject({
       projectIds: [projectId, secondProjectId],
