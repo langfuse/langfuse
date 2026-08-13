@@ -1080,7 +1080,7 @@ describe("V4MigrationHeaderContent", () => {
     }
   });
 
-  it("labels the help footer and groups content with two separators", () => {
+  it("labels the help footer and groups content with three separators", () => {
     const { container } = render(
       <V4MigrationDetailsContent projectId="project-1" />,
     );
