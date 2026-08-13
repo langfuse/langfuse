@@ -1179,6 +1179,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRunItemRequest'
+      deprecated: true
     get:
       description: List dataset run items
       operationId: datasetRunItems_list
@@ -1242,6 +1243,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/v2/datasets:
     get:
       description: Get all datasets
@@ -1436,6 +1438,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
     delete:
       description: Delete a dataset run and all its run items. This action is irreversible.
       operationId: datasets_deleteRun
@@ -1485,6 +1488,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/datasets/{datasetName}/runs:
     get:
       description: Get dataset runs
@@ -1544,6 +1548,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/experiments:
     get:
       description: |-
@@ -1985,6 +1990,7 @@ paths:
                     debugging.
               required:
                 - batch
+      deprecated: true
   /api/public/metrics:
     get:
       description: >-
@@ -2086,6 +2092,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/observations/{observationId}:
     get:
       description: Get a observation
@@ -2134,6 +2141,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/observations:
     get:
       description: >-
@@ -2422,6 +2430,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/scores/{scoreId}:
     delete:
       description: Delete a score (supports both trace and session scores)
@@ -5973,6 +5982,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/v2/scores/{scoreId}:
     get:
       description: |-
@@ -6023,6 +6033,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/sessions:
     get:
       description: >-
@@ -6122,6 +6133,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/sessions/{sessionId}:
     get:
       description: >-
@@ -6180,6 +6192,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/traces/{traceId}:
     get:
       description: Get a specific trace
@@ -6239,6 +6252,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
     delete:
       description: Delete a specific trace
       operationId: trace_delete
@@ -6611,6 +6625,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
     delete:
       description: Delete multiple traces
       operationId: trace_deleteMultiple

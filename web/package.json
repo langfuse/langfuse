@@ -29,6 +29,7 @@
     "storybook": "dotenv -e ../.env -- storybook dev -p 6006",
     "structure:stats": "node scripts/structure/stats.mjs",
     "structure:move": "node scripts/structure/move.mjs",
+    "openapi:sync-deprecations": "tsx scripts/openapi/sync-deprecations.ts",
     "build-storybook": "dotenv -e ../.env -- storybook build",
     "sfdc:backfill": "dotenv -e ../.env -- tsx src/ee/features/sfdc-sync/scripts/backfillSfdcLeads.ts"
   },
