@@ -11,11 +11,10 @@ export function V4MigrationNavItem() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
-  const { project, organization } = useQueryProject();
+  const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
   const migrationData = useProjectV4MigrationData({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled: v4UpgradeUiEnabled && Boolean(project),
   });
 

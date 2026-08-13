@@ -20,11 +20,10 @@ import { useRouter } from "next/router";
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const openMigrationPanel = useOpenV4MigrationPanel();
-  const { project, organization } = useQueryProject();
+  const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
   const sdk = useProjectV4SdkData({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled: v4UpgradeUiEnabled && Boolean(project),
   });
 
@@ -78,11 +77,10 @@ export function V4MigrationDelayBadge() {
  * project context, and a loaded, non-zero deprecated-eval count. */
 function useEvalUpdateRequiredBadgeState() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const { project, organization } = useQueryProject();
+  const { project } = useQueryProject();
   const enabled = v4UpgradeUiEnabled && Boolean(project);
   const evalState = useProjectV4EvalData({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled,
   });
 
@@ -92,7 +90,7 @@ function useEvalUpdateRequiredBadgeState() {
     evalState.status === "loaded" &&
     evalState.count > 0;
 
-  return { project, organization, enabled, visible };
+  return { project, enabled, visible };
 }
 
 /** Opens the evaluator migration choices from the v4 migration badge. */
@@ -100,11 +98,9 @@ export function V4MigrationUpdateRequiredBadge() {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
-  const { project, visible, enabled, organization } =
-    useEvalUpdateRequiredBadgeState();
+  const { project, visible, enabled } = useEvalUpdateRequiredBadgeState();
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled,
   });
 

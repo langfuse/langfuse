@@ -14,8 +14,7 @@ export type V4MigrationSdkStatus =
   | "legacy"
   | "latest";
 
-type SdkUsageSummary =
-  RouterOutputs["v4Transition"]["sdkUsageSummaryByProject"][number];
+type SdkUsageSummary = RouterOutputs["v4Transition"]["sdkUsageSummary"];
 
 export type V4MigrationSdkUsageSeries =
   SdkUsageSummary["sdkUsageSeries"][number];

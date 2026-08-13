@@ -52,7 +52,6 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { useProject } from "@/src/features/projects/hooks";
 import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import {
   useEvalUpgradeAssistantPlan,
@@ -955,10 +954,8 @@ export function V4MigrationHeaderContent({
   // Same queries as V4MigrationDetailsContent below, so react-query dedupes
   // them. Only claim the project needs migrating once the checks confirm it —
   // a fully migrated project shows the v4 value prop without a status claim.
-  const { organization } = useProject(projectId ?? null);
   const migrationData = useProjectV4MigrationData({
     projectId,
-    orgId: organization?.id,
     enabled: Boolean(projectId),
   });
   const needsMigration =
@@ -1175,10 +1172,8 @@ export function V4MigrationDetailsContent({
   const projectId =
     projectIdProp ??
     (typeof routeProjectId === "string" ? routeProjectId : undefined);
-  const { organization } = useProject(projectId ?? null);
   const migrationData = useProjectV4MigrationData({
     projectId,
-    orgId: organization?.id,
     enabled: Boolean(projectId),
   });
   const { canToggleV4, isBetaEnabled } = useV4Beta();
@@ -1272,7 +1267,6 @@ export function V4MigrationDetailsContent({
   const [evalMigrationDialogOpen, setEvalMigrationDialogOpen] = useState(false);
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId,
-    orgId: organization?.id,
     enabled: Boolean(projectId),
   });
   const evalsUrl =

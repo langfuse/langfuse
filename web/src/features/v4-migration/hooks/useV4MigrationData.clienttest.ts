@@ -103,11 +103,13 @@ describe("account v4 migration data", () => {
             projectId: "project-1",
             entrypoint: "publicapi: GET /api/public/traces",
             count: 4,
+            lastSeen: "2026-07-23T10:00:00Z",
           },
           {
             projectId: "project-1",
             entrypoint: "publicapi: GET /api/public/sessions",
             count: 2,
+            lastSeen: "2026-07-23T09:30:00Z",
           },
         ]),
       ],
