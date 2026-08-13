@@ -693,7 +693,7 @@ export function DataTableControls({
         // viewport, so a plain w-full block is correct.
         layout === "inline" ? "w-full" : "w-0 min-w-full",
         // The search row above supplies the list's top air when it is there.
-        showFacetSearch ? "pb-10" : "pt-1 pb-10",
+        showFacetSearch ? "pb-10" : "pt-0.5 pb-10",
       )}
       // Any interaction in the list marks the filter change it causes as the
       // user's own edit, so the order holds still (LFE-14843). Capture phase,
@@ -1125,11 +1125,11 @@ export function DataTableControls({
           // list below is already a stack of bordered rows.
           //
           // The space below the field lives HERE rather than in the list,
-          // because the list's own lead-in scrolls away: a facet header pinning
-          // to the top of the scroll area would otherwise sit tight against the
-          // field. pb-1.5 + the header's own 2px = the 8px above the field, so
-          // the field keeps even air whether the list is at rest or scrolled.
-          <div className="bg-background shrink-0 px-2 pt-2 pb-1.5">
+          // because anything inside the list scrolls away: a facet header
+          // pinning to the top of the scroll area would otherwise sit tight
+          // against the field. pb-0.5 + the header's own 6px = the 8px above
+          // the field, at rest and scrolled alike.
+          <div className="bg-background shrink-0 px-2 pt-2 pb-0.5">
             <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
               <Input
@@ -1310,7 +1310,10 @@ const FilterAccordionTrigger = ({
   // (ScrollArea wraps only the facet list), so triggers stick to its top.
   // The expand chevron leads the row (> closed, v open); the clear button
   // sits at the row's right edge and stays visible whenever a value is set.
-  <AccordionPrimitive.Header className="bg-background sticky top-0 z-[1] flex px-2 py-0.5">
+  // pt-1.5/pb-0.5 rather than an even py: the 8px between two rows is split so
+  // that 6px of it sits INSIDE this sticky box, which is what keeps a pinned
+  // header the same distance from whatever is above it as it was at rest.
+  <AccordionPrimitive.Header className="bg-background sticky top-0 z-[1] flex px-2 pt-1.5 pb-0.5">
     <AccordionPrimitive.Trigger
       className={cn(
         // min-w-0: without it the trigger's automatic min width equals the
@@ -1372,8 +1375,9 @@ export function FilterAccordionItem({
   return (
     <FilterAccordionItemPrimitive
       value={filterKey}
-      className="py-0.5"
-      // Anchor for the follow-scroll after a re-sort moves this facet.
+      // No padding here: the row rhythm lives on the STICKY header instead, so
+      // a header keeps the same gap above it pinned as it had at rest — padding
+      // on this wrapper scrolls away with it and the gap would shift.
       data-facet-column={filterKey}
     >
       <FilterAccordionTrigger
