@@ -23,7 +23,10 @@ import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 import Decimal from "decimal.js";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  type PreferredClickhouseService,
+} from "../clickhouse/client";
 import { ScoreAggregate } from "../../features/scores";
 
 type DatasetItemIdsByTraceIdQuery = {
@@ -541,6 +544,9 @@ type GetDatasetRunItemsTableOpts<IncludeIO extends boolean> =
   DatasetRunItemsTableQuery & {
     select: "count" | "rows";
     includeIO?: IncludeIO;
+    // No default: absent means "ReadWrite". Kept off DatasetRunItemsTableQuery
+    // so only the wrapper that batch export calls can pass it.
+    preferredClickhouseService?: PreferredClickhouseService;
   };
 
 // Phase 1: Find dataset item IDs or count that satisfy conditions across ALL runs
@@ -902,13 +908,18 @@ const getDatasetRunItemsTableInternal = async <
     },
     tags: { projectId },
     clickhouseConfigs: opts.clickhouseConfigs,
+    preferredClickhouseService: opts.preferredClickhouseService,
   });
 
   return res;
 };
 
 export const getDatasetRunItemsCh = async (
-  opts: DatasetRunItemsTableQuery,
+  opts: DatasetRunItemsTableQuery & {
+    // Batch export opts into the read replica here; the dataset run items UI
+    // and public API wrappers pass nothing and keep reading the primary.
+    preferredClickhouseService?: PreferredClickhouseService;
+  },
 ): Promise<DatasetRunItemDomain[]> => {
   const rows = await getDatasetRunItemsTableInternal<DatasetRunItemRecord>({
     ...opts,
