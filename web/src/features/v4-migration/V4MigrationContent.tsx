@@ -2,7 +2,14 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
-import { Bot, Check, ChevronRight, Copy, Info } from "lucide-react";
+import {
+  Bot,
+  BotMessageSquare,
+  Check,
+  ChevronRight,
+  Copy,
+  Info,
+} from "lucide-react";
 import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
@@ -660,7 +667,8 @@ export function V4MigrationEvalsSection({
           </p>
           {assistant && (
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
-              Repoint evals
+              <BotMessageSquare className="mr-1.5 h-4 w-4" />
+              Use Assistant
             </Button>
           )}
         </>
