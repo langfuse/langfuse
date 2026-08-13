@@ -51,13 +51,37 @@ const h = vi.hoisted(() => {
     })();
   }
 
+  // How many rows the atomic disable claim matches. 0 simulates a lost claim:
+  // either a concurrent run already flipped enabled, or the customer corrected
+  // the hostname mid-run so the run's `where` predicate no longer matches.
+  const disableClaim = { matchedRows: 1 };
+
+  // Observable completion of the terminal notification. `settled` flips only
+  // after a macrotask, so a caller that fires the dispatch without awaiting it
+  // returns while `settled` is still false — that gap is what distinguishes an
+  // awaited dispatch from a fire-and-forget one.
+  const notification = { settled: false, rejects: false };
+
   const posthogIntegrationUpdate = vi.fn();
-  // The atomic disable (enabled true->false) uses updateMany.
-  const posthogIntegrationUpdateMany = vi.fn(async () => ({ count: 1 }));
+  // The atomic disable (enabled true->false) uses updateMany. Only the disable
+  // write is claim-controlled; any other updateMany keeps matching.
+  const posthogIntegrationUpdateMany = vi.fn(
+    async (args?: { data?: Record<string, unknown> }) => ({
+      count: args?.data?.enabled === false ? disableClaim.matchedRows : 1,
+    }),
+  );
   // Hostname preflight (throws OutboundUrlValidationError on a bad
   // hostname) and the customer notification, both controllable per test.
   const validateWebhookURL = vi.fn(async () => {});
-  const dispatchProjectNotification = vi.fn(async () => {});
+  const recordIncrement = vi.fn();
+  const dispatchProjectNotification = vi.fn(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      if (notification.rejects) throw new Error("notification dispatch failed");
+    } finally {
+      notification.settled = true;
+    }
+  });
   const getTraces = vi.fn(() => fakeStream("traces"));
   const getGenerations = vi.fn(() => fakeStream("generations"));
   const getScores = vi.fn(() => fakeStream("scores"));
@@ -95,7 +119,10 @@ const h = vi.hoisted(() => {
     state,
     posthogIntegrationUpdate,
     posthogIntegrationUpdateMany,
+    disableClaim,
+    notification,
     validateWebhookURL,
+    recordIncrement,
     dispatchProjectNotification,
     OutboundUrlValidationError,
     getTraces,
@@ -120,7 +147,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 vi.mock("@langfuse/shared/src/server", () => ({
   QueueName: { PostHogIntegrationProcessingQueue: "posthog" },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-  recordIncrement: vi.fn(),
+  recordIncrement: h.recordIncrement,
   getCurrentSpan: vi.fn(() => undefined),
   validateWebhookURL: h.validateWebhookURL,
   dispatchProjectNotification: h.dispatchProjectNotification,
@@ -216,12 +243,16 @@ function resetSharedState() {
   h.state.rowCounts.generations = 2;
   h.state.rowCounts.events = 2;
   h.posthogIntegrationUpdate.mockClear();
-  h.posthogIntegrationUpdateMany.mockReset();
-  h.posthogIntegrationUpdateMany.mockImplementation(async () => ({ count: 1 }));
+  // mockClear, not mockReset: the implementations above are claim/notification
+  // aware and must survive between tests; only the recorded calls reset.
+  h.posthogIntegrationUpdateMany.mockClear();
+  h.disableClaim.matchedRows = 1;
+  h.notification.settled = false;
+  h.notification.rejects = false;
+  h.recordIncrement.mockClear();
   h.validateWebhookURL.mockReset();
   h.validateWebhookURL.mockImplementation(async () => {});
-  h.dispatchProjectNotification.mockReset();
-  h.dispatchProjectNotification.mockImplementation(async () => {});
+  h.dispatchProjectNotification.mockClear();
   h.getTraces.mockClear();
   h.getGenerations.mockClear();
   h.getScores.mockClear();
@@ -493,6 +524,33 @@ describe("handlePostHogIntegrationProjectJob customer-fault auto-disable", () =>
       return arg?.event?.disabled === true;
     }).length;
 
+  // The atomic disable writes: updateMany calls carrying `enabled: false`.
+  const disableWrites = (): Array<{
+    where?: Record<string, unknown>;
+    data?: Record<string, unknown>;
+  }> =>
+    h.posthogIntegrationUpdateMany.mock.calls
+      .map((call) => call[0] as { where?: any; data?: any } | undefined)
+      .filter((arg): arg is { where?: any; data?: any } => Boolean(arg))
+      .filter((arg) => arg.data?.enabled === false);
+
+  // Counter emitted when an integration is auto-disabled. Matched on the
+  // metric-name fragment rather than the full string so the assertion tracks
+  // the behavior, not the namespace. The winning-claim test below asserts this
+  // filter yields exactly one call, which keeps the "not recorded" assertions
+  // from passing vacuously if the metric were ever renamed away.
+  const disableMetrics = (): unknown[][] =>
+    h.recordIncrement.mock.calls.filter(
+      ([name]) =>
+        typeof name === "string" && name.includes("integration_disabled"),
+    );
+
+  const badHostnameFault = () =>
+    new h.OutboundUrlValidationError(
+      "blocked-hostname",
+      "Blocked hostname detected",
+    );
+
   // Load-bearing: the core journey. A blocked-hostname fault must resolve (no
   // throw) AND flip enabled to false AND persist the error AND notify once.
   it("resolves and auto-disables on a blocked-hostname validation fault", async () => {
@@ -579,5 +637,76 @@ describe("handlePostHogIntegrationProjectJob customer-fault auto-disable", () =>
         data: expect.objectContaining({ lastError: null, lastErrorAt: null }),
       }),
     );
+  });
+
+  // Load-bearing: the disable predicate must pin the hostname this run actually
+  // validated. Without it, a run carrying stale config would disable a hostname
+  // the customer already corrected mid-run. Asserted on the real argument, so a
+  // predicate that silently drops the host guard goes red.
+  it("scopes the atomic disable to the hostname this run validated", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(disableWrites()).toHaveLength(1);
+    expect(disableWrites()[0].where).toEqual({
+      projectId: "project-1",
+      enabled: true,
+      posthogHostName: "https://us.posthog.com",
+    });
+  });
+
+  // Positive control for the two "not recorded / not notified" assertions
+  // below: proves the disable-metric filter and the notification counter both
+  // observe something real on the winning path.
+  it("records the disable metric and notifies once when the claim is won", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(disableMetrics()).toHaveLength(1);
+    expect(disableNotifications()).toBe(1);
+  });
+
+  // Load-bearing: the notify-once guarantee under a lost claim. count === 0
+  // means either a concurrent run already flipped enabled or the customer
+  // corrected the hostname mid-run; in both cases this run must stay silent
+  // rather than claim a state it did not write.
+  it("stays silent when the disable claim matches no row", async () => {
+    h.disableClaim.matchedRows = 0;
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+
+    // Still a deliberate resolve: a lost claim is not a job failure.
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(disableWrites()).toHaveLength(1);
+    expect(h.dispatchProjectNotification).not.toHaveBeenCalled();
+    expect(disableMetrics()).toHaveLength(0);
+  });
+
+  // Load-bearing: fail-fast resolves the job and the scheduler only enqueues
+  // enabled integrations, so a dispatch left in flight has no retry path and
+  // would leave the customer silently disabled. The notification mock settles
+  // one macrotask late, so this flag is still false if the dispatch is fired
+  // without being awaited.
+  it("completes the disable notification before the handler resolves", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(h.notification.settled).toBe(true);
+  });
+
+  // Load-bearing: awaiting the dispatch must not turn the deliberate resolve
+  // into a job failure — the notify helper swallows its own errors, and the
+  // disable stands regardless of whether the customer could be reached.
+  it("resolves and keeps the integration disabled when the notification rejects", async () => {
+    h.notification.rejects = true;
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(disableWrites()).toHaveLength(1);
+    expect(h.notification.settled).toBe(true);
   });
 });
