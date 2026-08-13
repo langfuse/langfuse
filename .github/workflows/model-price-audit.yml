@@ -51,7 +51,7 @@ env:
 jobs:
   audit:
     if: github.repository == 'langfuse/langfuse'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
       has_changes: ${{ steps.prepare.outputs.has_changes }}
@@ -711,7 +711,7 @@ jobs:
   publish:
     needs: audit
     if: needs.audit.outputs.has_changes == 'true' && needs.audit.outputs.dry_run_mode == 'disabled'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Download pull request artifact

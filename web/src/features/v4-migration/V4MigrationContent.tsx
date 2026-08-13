@@ -3,13 +3,13 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import {
-  Bot,
   BotMessageSquare,
   Check,
   ChevronRight,
   Copy,
   Info,
 } from "lucide-react";
+import { env } from "@/src/env.mjs";
 import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
@@ -33,6 +33,7 @@ import { cn } from "@/src/utils/tailwind";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   formatSdkUpgradeRequirement,
+  formatSdkUpgradeRecommendation,
   formatSdkVersion,
   getCustomInstrumentationSectionState,
   getOtelSectionState,
@@ -48,11 +49,15 @@ import {
   V4_MIGRATION_LOOKBACK_DAYS,
   type MigrationActionState,
   type MigrationCountState,
+  type ProjectMigrationReadiness,
 } from "@/src/features/v4-migration/migrationData";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { useProject } from "@/src/features/projects/hooks";
+import {
+  useProject,
+  useQueryProjectOrOrganization,
+} from "@/src/features/projects/hooks";
 import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import {
   useEvalUpgradeAssistantPlan,
@@ -68,8 +73,9 @@ import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evalua
 // (side panel and modal) render these components — edit copy here only.
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
 // Consumed by the status page deadline copy.
-export const V4_MIGRATION_DEADLINE = "Oct 9";
+export const V4_MIGRATION_DEADLINE = "November 16, 2026";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -94,6 +100,20 @@ const EXPERIMENT_OTEL_INGESTION_URL =
 const SDK_OVERVIEW_URL = "https://langfuse.com/docs/observability/sdk/overview";
 const OTEL_INTEGRATION_URL =
   "https://langfuse.com/integrations/native/opentelemetry";
+// v4 feature docs linked from the upgrade header pitch.
+const FULL_TEXT_SEARCH_URL =
+  "https://langfuse.com/docs/observability/features/full-text-search";
+const FILTER_SEARCH_BAR_URL =
+  "https://langfuse.com/docs/observability/features/filter-search-bar";
+const ALERTS_URL = "https://langfuse.com/docs/metrics/features/alerts";
+const CODE_EVALUATORS_URL =
+  "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators";
+const LANGFUSE_ASSISTANT_URL = "https://langfuse.com/docs/langfuse-assistant";
+// Hassieb's 2 minute walkthrough of the upgrade steps. Linked (not embedded)
+// from the Need help footer, so the panel stays free of YouTube player
+// chrome and the CSP frame-src stays untouched. Cloud only: the video covers
+// the steps as they apply to Langfuse Cloud projects.
+const WALKTHROUGH_VIDEO_URL = "https://www.youtube.com/watch?v=g3YbbqVGt4g";
 
 // Copies the agent migration prompt to the clipboard with toast + analytics;
 // shared by the panel/modal header CTA and the status page.
@@ -143,10 +163,8 @@ function Section({
       }}
     >
       <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-2.5 text-left">
-        {/* A rendered section always needs the user to act (clean ones hide
-            themselves); same dot as the action-required badge. */}
         <V4MigrationStatusDot variant="action" />
-        <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+        <span className="text-foreground flex items-center gap-1.5 text-sm font-bold">
           {title}
           {typeof count === "number" && (
             // Same count-badge recipe as the "My Views" table button.
@@ -303,6 +321,7 @@ function SdkUsageSeriesRows({
   needsAction,
   suffix,
   unknownSeriesLabel = "OTLP exporter",
+  hideMissingApiKey = false,
   projectId,
   analyticsSection,
 }: {
@@ -312,6 +331,8 @@ function SdkUsageSeriesRows({
   suffix: (series: V4MigrationSdkUsageSeries) => ReactNode;
   /** Row label when the series carries no usable SDK name. */
   unknownSeriesLabel?: string;
+  /** Omits the empty-key fallback when it is not useful to the user. */
+  hideMissingApiKey?: boolean;
   /** Enables the evidence deep link. */
   projectId?: string;
   /** Funnel dimension for the evidence_link_clicked event (snake_case). */
@@ -330,10 +351,13 @@ function SdkUsageSeriesRows({
                 language: usage.canonicalSdkName ?? usage.sdkName,
                 version: usage.sdkVersion,
               });
-        const publicKey =
-          usage.publicKey.length > 18
+        const publicKey = usage.publicKey
+          ? usage.publicKey.length > 18
             ? `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`
-            : usage.publicKey || "No API key";
+            : usage.publicKey
+          : hideMissingApiKey
+            ? null
+            : "No API key";
         const evidenceHref =
           projectId && usage.eventsCount > 0
             ? `/project/${projectId}/observations?filter=${encodeURIComponent(
@@ -356,9 +380,11 @@ function SdkUsageSeriesRows({
             </div>
             {/* Metadata line, indented under the label (emoji + gap). */}
             <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
-              <span title={usage.publicKey || undefined}>{publicKey}</span>
+              {publicKey ? (
+                <span title={usage.publicKey || undefined}>{publicKey}</span>
+              ) : null}
               <span>
-                · last seen{" "}
+                {publicKey ? "· " : ""}last seen{" "}
                 {formatCompactRelativeTime(new Date(usage.lastSeen))}
               </span>
               {/* Deep link to the exact evidence: the events table filtered by
@@ -416,7 +442,12 @@ export function V4MigrationSdkSection({
   projectId?: string;
 }) {
   const section = getSdkSectionState(sdk);
-  if (section.status === "latest" || section.status === "no_data") return null;
+  if (
+    section.status === "latest" ||
+    section.status === "recommended" ||
+    section.status === "no_data"
+  )
+    return null;
 
   const isTransient =
     section.status === "checking" || section.status === "error";
@@ -425,7 +456,11 @@ export function V4MigrationSdkSection({
     <Section
       title="Update SDK"
       analyticsSection="sdk"
-      count={isTransient ? undefined : section.actionableCount}
+      count={
+        isTransient || section.actionableCount === 0
+          ? undefined
+          : section.actionableCount
+      }
       meta={
         section.status === "checking"
           ? "Checking…"
@@ -466,6 +501,10 @@ export function V4MigrationSdkSection({
         suffix={(usage) =>
           usage.v4MigrationStatus === "upgrade_required" ? (
             <span>· {formatSdkUpgradeRequirement(usage.canonicalSdkName)}</span>
+          ) : usage.v4MigrationStatus === "upgrade_recommended" ? (
+            <span>
+              · {formatSdkUpgradeRecommendation(usage.canonicalSdkName)}
+            </span>
           ) : usage.v4MigrationStatus === "unknown" ? (
             <span>· version not recognized</span>
           ) : null
@@ -588,6 +627,7 @@ export function V4MigrationCustomInstrumentationSection({
         series={section.series}
         projectId={projectId}
         unknownSeriesLabel="Custom instrumentation"
+        hideMissingApiKey
         analyticsSection="custom_instrumentation"
         needsAction={() => true}
         suffix={() => null}
@@ -607,8 +647,10 @@ export function V4MigrationEvalsSection({
   defaultOpen,
 }: {
   state: MigrationCountState;
-  /** Assistant CTA; null hides the button. */
-  assistant: { onMigrate: () => void } | null;
+  /** Upgrade CTA; null hides the button. Assistant branding only while AI
+   *  features are on — otherwise the dialog opens on its choice screen, so
+   *  the button must not promise the assistant. */
+  assistant: { onMigrate: () => void; aiFeaturesEnabled?: boolean } | null;
   evalsUrl?: string;
   onNavigate?: () => void;
   defaultOpen?: boolean;
@@ -616,7 +658,7 @@ export function V4MigrationEvalsSection({
   const capture = usePostHogClientCapture();
   return (
     <Section
-      title="Repoint Evals"
+      title="Update Evals"
       analyticsSection="evals"
       count={state.status === "loaded" ? state.count : undefined}
       meta={
@@ -662,13 +704,19 @@ export function V4MigrationEvalsSection({
                 input/output
               </>
             )}
-            , which v4 no longer sets. Repoint{" "}
-            {state.count === 1 ? "it" : "them"} at observations.
+            , which v4 no longer sets. Update{" "}
+            {state.count === 1 ? "it" : "them"} to target observations.
           </p>
           {assistant && (
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
-              <BotMessageSquare className="mr-1.5 h-4 w-4" />
-              Use Assistant
+              {assistant.aiFeaturesEnabled !== false ? (
+                <>
+                  <BotMessageSquare className="mr-1.5 h-4 w-4" />
+                  Use Assistant
+                </>
+              ) : (
+                "Update evals"
+              )}
             </Button>
           )}
         </>
@@ -937,33 +985,49 @@ export function V4MigrationIntegrationsSection({
   );
 }
 
+// Docs link and deadline note are shared by the panel/modal header and the
+// account-level status page so both surfaces read the same.
+export function V4MigrationDocsLink() {
+  return (
+    <ExternalLink
+      href={V4_DOCS_URL}
+      analytics={{ section: "header", link: "v4_docs" }}
+    >
+      See docs.
+    </ExternalLink>
+  );
+}
+
+export function V4MigrationDeadlineNote() {
+  return (
+    <p>
+      After{" "}
+      <ExternalLink
+        href={V4_TIMELINE_URL}
+        analytics={{ section: "header", link: "v4_timeline" }}
+      >
+        {V4_MIGRATION_DEADLINE}
+      </ExternalLink>{" "}
+      some features may stop working without a v4 upgrade.
+    </p>
+  );
+}
+
 // Title, status link, and the v4 pitch. The agent CTA lives in
 // V4MigrationAgentUpgradeSection, rendered by the details content.
 export function V4MigrationHeaderContent({
-  projectName,
-  projectId,
   titleRowClassName,
+  readiness,
 }: {
-  projectName?: string;
-  projectId?: string;
   /** Extra classes on the title row. The modal host passes a right gutter:
    *  its dialog floats a fallback close button over the body's top-right
    *  corner (the title is sr-only, so there is no DialogHeader row), which
    *  would otherwise overlap the title. */
   titleRowClassName?: string;
+  /** Known readiness from the organization status page or an action-only entry point. */
+  readiness?: ProjectMigrationReadiness;
 }) {
-  // Same queries as V4MigrationDetailsContent below, so react-query dedupes
-  // them. Only claim the project needs migrating once the checks confirm it —
-  // a fully migrated project shows the v4 value prop without a status claim.
-  const { organization } = useProject(projectId ?? null);
-  const migrationData = useProjectV4MigrationData({
-    projectId,
-    orgId: organization?.id,
-    enabled: Boolean(projectId),
-  });
-  const needsMigration =
-    Boolean(projectId) &&
-    getProjectMigrationReadiness(migrationData) === "action-needed";
+  const actionNeeded = readiness === "action-needed";
 
   return (
     <>
@@ -973,32 +1037,64 @@ export function V4MigrationHeaderContent({
           titleRowClassName,
         )}
       >
-        <p className="min-w-0 text-lg font-bold">
-          {projectName ? <>Migrate {projectName} to v4</> : "Migrate to v4"}
-        </p>
+        <p className="min-w-0 text-lg font-bold">Upgrade to v4</p>
       </div>
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        {/* Only claim the setup is outdated once the checks confirm it. */}
-        {needsMigration && "Your setup is outdated. "}
-        Upgrade to Langfuse v4 for{" "}
-        <ExternalLink
-          href={V4_DOCS_URL}
-          analytics={{ section: "header", link: "v4_docs" }}
-        >
-          real-time ingestion
-        </ExternalLink>{" "}
-        and up to 165× faster queries.
-      </p>
+      <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
+        <p>
+          Langfuse v4 is live: a re-architecture of our data model and database
+          tables. It is up to 165× more performant in UI and on APIs. It also
+          enables new features such as{" "}
+          <ExternalLink
+            href={FULL_TEXT_SEARCH_URL}
+            analytics={{ section: "header", link: "full_text_search_docs" }}
+          >
+            full-text search
+          </ExternalLink>
+          , a{" "}
+          <ExternalLink
+            href={FILTER_SEARCH_BAR_URL}
+            analytics={{ section: "header", link: "filter_search_bar_docs" }}
+          >
+            new filter search bar
+          </ExternalLink>
+          ,{" "}
+          <ExternalLink
+            href={ALERTS_URL}
+            analytics={{ section: "header", link: "alerts_docs" }}
+          >
+            alerts
+          </ExternalLink>
+          ,{" "}
+          <ExternalLink
+            href={CODE_EVALUATORS_URL}
+            analytics={{ section: "header", link: "code_evaluators_docs" }}
+          >
+            code evaluators
+          </ExternalLink>
+          , and the{" "}
+          <ExternalLink
+            href={LANGFUSE_ASSISTANT_URL}
+            analytics={{ section: "header", link: "langfuse_assistant_docs" }}
+          >
+            Langfuse Assistant
+          </ExternalLink>
+          .
+          {actionNeeded
+            ? " Complete the action items below to switch this project over."
+            : ""}{" "}
+          <V4MigrationDocsLink />
+        </p>
+        {actionNeeded && <V4MigrationDeadlineNote />}
+      </div>
     </>
   );
 }
 
-// The primary agent CTA as its own group. The CTA is two-step: the first
-// click reveals the prompt so users can see what they hand to their agent,
-// the second click copies it. Project API keys are NOT created as a side
-// effect: credentials only exist after an explicit click on the separate
-// "Create keys for project access" action, and secrets never enter the
-// agent prompt.
+// The primary agent CTA as its own group. The prompt is always visible so a
+// single click on the CTA (or the code block's corner button) copies it.
+// Project API keys are NOT created as a side effect: credentials only exist
+// after an explicit click on the separate "Create keys for project access"
+// action, and secrets never enter the agent prompt.
 export function V4MigrationAgentUpgradeSection({
   projectId,
 }: {
@@ -1006,7 +1102,6 @@ export function V4MigrationAgentUpgradeSection({
 }) {
   const capture = usePostHogClientCapture();
   const handleCopyPrompt = useCopyMigrationPrompt();
-  const [promptVisible, setPromptVisible] = useState(false);
 
   const [generatedKeys, setGeneratedKeys] = useState<{
     projectId: string;
@@ -1024,11 +1119,6 @@ export function V4MigrationAgentUpgradeSection({
     projectId,
     scope: "apiKeys:CUD",
   });
-
-  const handleShowPrompt = () => {
-    capture("v4_migration:coding_agent_prompt_viewed");
-    setPromptVisible(true);
-  };
 
   const handleCreateKeys = () => {
     // Guards double-clicks and re-creation once keys exist for this project.
@@ -1088,36 +1178,27 @@ export function V4MigrationAgentUpgradeSection({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-base font-bold">
-          Auto-upgrade with agents
+          Upgrade using coding agents
         </div>
         <p className="text-muted-foreground text-sm">
           Paste prompt into Claude Code or other coding agents
         </p>
       </div>
       <div className="flex flex-col gap-2">
-        <RainbowButton
-          className="w-full"
-          onClick={promptVisible ? handleCopyPrompt : handleShowPrompt}
-        >
-          {promptVisible ? (
-            <Copy className="mr-1.5 h-4 w-4 shrink-0" />
-          ) : (
-            <Bot className="mr-1.5 h-4 w-4 shrink-0" />
-          )}
+        <RainbowButton className="w-full" onClick={handleCopyPrompt}>
+          <Copy className="mr-1.5 h-4 w-4 shrink-0" />
           <span className="min-w-0 truncate" title="Copy prompt">
             Copy prompt
           </span>
         </RainbowButton>
-        {promptVisible && (
-          <CodeBlockWithCopy
-            text={V4_CODING_AGENT_PROMPT}
-            copyLabel="Copy prompt to clipboard"
-            onCopy={() => capture("v4_migration:coding_agent_prompt_copied")}
-            scrollable
-            className="my-3"
-          />
-        )}
-        {promptVisible && projectId && (
+        <CodeBlockWithCopy
+          text={V4_CODING_AGENT_PROMPT}
+          copyLabel="Copy prompt to clipboard"
+          onCopy={() => capture("v4_migration:coding_agent_prompt_copied")}
+          scrollable
+          className="my-3"
+        />
+        {projectId && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-muted-foreground min-w-0 text-sm leading-relaxed">
@@ -1269,6 +1350,10 @@ export function V4MigrationDetailsContent({
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
   const canUseAssistant = useCanUseInAppAgent();
+  // Same org source as EvaluatorMigrationDialog's gating, so the button
+  // branding and the dialog's preselect can't disagree.
+  const { organization: routeOrganization } = useQueryProjectOrOrganization();
+  const aiFeaturesEnabled = Boolean(routeOrganization?.aiFeaturesEnabled);
   const [evalMigrationDialogOpen, setEvalMigrationDialogOpen] = useState(false);
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId,
@@ -1320,7 +1405,10 @@ export function V4MigrationDetailsContent({
               state={migrationData.evals}
               assistant={
                 canUseAssistant
-                  ? { onMigrate: handleMigrateEvalsWithAgent }
+                  ? {
+                      onMigrate: handleMigrateEvalsWithAgent,
+                      aiFeaturesEnabled,
+                    }
                   : null
               }
               evalsUrl={evalsUrl}
@@ -1406,40 +1494,60 @@ export function V4MigrationDetailsContent({
 
       <Separator />
 
-      <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        <a
-          href={V4_DOCS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => capture("v4_migration:panel_docs_link_clicked")}
-          className="underline"
-        >
-          Docs
-        </a>
-        <span>·</span>
-        <button
-          type="button"
-          onClick={handleEmailEngineer}
-          className="underline"
-        >
-          Email an engineer
-        </button>
-        <span>·</span>
-        <a
-          href="https://cal.com/team/langfuse/v4-upgrade"
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => capture("v4_migration:contact_book_call_clicked")}
-          className="underline"
-        >
-          Book a call
-        </a>
+      <div className="flex flex-col gap-2">
+        <p className="text-base font-bold">Need help?</p>
+        <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <a
+            href={V4_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => capture("v4_migration:panel_docs_link_clicked")}
+            className="underline"
+          >
+            Docs
+          </a>
+          <span>·</span>
+          <button
+            type="button"
+            onClick={handleEmailEngineer}
+            className="underline"
+          >
+            Email an engineer
+          </button>
+          <span>·</span>
+          <a
+            href="https://cal.com/team/langfuse/v4-upgrade"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => capture("v4_migration:contact_book_call_clicked")}
+            className="underline"
+          >
+            Book a call
+          </a>
+          {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && (
+            <>
+              <span>·</span>
+              <a
+                href={WALKTHROUGH_VIDEO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() =>
+                  capture("v4_migration:walkthrough_video_clicked")
+                }
+                className="underline"
+              >
+                Walkthrough video
+              </a>
+            </>
+          )}
+        </div>
       </div>
       {projectId ? (
         <EvaluatorMigrationDialog
           open={evalMigrationDialogOpen}
           onOpenChange={setEvalMigrationDialogOpen}
           scope={{ type: "all" }}
+          initialAction="assistant"
           assistantPrompt={upgradePlan.assistantPrompt}
           onManualUpgrade={handleManualEvalUpgrade}
           onAssistantStarted={() => onNavigate?.()}

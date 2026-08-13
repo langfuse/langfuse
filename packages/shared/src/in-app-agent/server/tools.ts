@@ -632,18 +632,30 @@ export type CompletedInAppAgentMcpToolCall = {
   createdAt: Date;
 };
 
+type ToolWithCallableExecute = {
+  execute: (...args: never[]) => unknown;
+};
+
 type WrappableMcpTool = Pick<
   Tool,
   "execute" | "inputSchema" | "toModelOutput"
 > &
   Required<Pick<Tool, "execute" | "inputSchema">>;
 
-function isWrappableMcpTool(tool: unknown): tool is WrappableMcpTool {
+export function hasCallableExecute(
+  tool: unknown,
+): tool is ToolWithCallableExecute {
   return (
     typeof tool === "object" &&
     tool !== null &&
     "execute" in tool &&
-    typeof tool.execute === "function" &&
+    typeof tool.execute === "function"
+  );
+}
+
+function isWrappableMcpTool(tool: unknown): tool is WrappableMcpTool {
+  return (
+    hasCallableExecute(tool) &&
     "inputSchema" in tool &&
     tool.inputSchema !== undefined &&
     (!("toModelOutput" in tool) ||

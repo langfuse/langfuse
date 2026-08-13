@@ -32,8 +32,8 @@ import {
   isEventTarget,
   isExperimentTarget,
   isLegacyEvalTarget,
-  isTraceTarget,
   isTraceOrDatasetObject,
+  shouldShowLegacyTracePreview,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   FormControl,
@@ -98,8 +98,10 @@ export const VariableMappingCard = ({
     typeof router.query.peek === "string" ? router.query.peek : undefined;
   const isPeekView = Boolean(peekId);
   const target = form.watch("target");
+  // The trace preview reads the legacy traces table, which is not the v4
+  // user's experience — never offer it there.
   const shouldShowPreviewForTarget =
-    isTraceTarget(target) ||
+    shouldShowLegacyTracePreview(target, isBetaEnabled) ||
     isEventTarget(target) ||
     (isExperimentTarget(target) && isBetaEnabled);
 
@@ -241,12 +243,13 @@ export const VariableMappingCard = ({
           )}
         </div>
       </div>
-      {isTraceTarget(form.watch("target")) && !disabled && (
-        <FormDescription>
-          Preview of the evaluation prompt with the variables replaced with the
-          first matched trace data subject to the filters.
-        </FormDescription>
-      )}
+      {shouldShowLegacyTracePreview(form.watch("target"), isBetaEnabled) &&
+        !disabled && (
+          <FormDescription>
+            Preview of the evaluation prompt with the variables replaced with
+            the first matched trace data subject to the filters.
+          </FormDescription>
+        )}
       <div className="flex max-w-full flex-col gap-4">
         <FormField
           control={form.control}
@@ -259,7 +262,10 @@ export const VariableMappingCard = ({
                   !shouldWrapVariables && "lg:flex-row",
                 )}
               >
-                {showPreview ? (
+                {/* Derive eligibility at render time: showPreview is state set
+                    by an effect and must never override target eligibility
+                    (e.g. trace targets on v4 have no preview data source). */}
+                {showPreview && shouldShowPreviewControls ? (
                   previewData ? (
                     <EvaluationPromptPreview
                       projectId={projectId}
