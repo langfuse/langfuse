@@ -17,6 +17,7 @@ import {
   getCurrentSpan,
   applyCommentFilters,
   type CommentObjectType,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
@@ -31,6 +32,12 @@ const tableToCommentType: Record<string, CommentObjectType | undefined> = {
   events: "OBSERVATION",
   sessions: "SESSION",
 };
+
+// Exports scan far more rows than a UI request and must not compete with
+// ingestion on the writer cluster. Every read reachable from this job belongs on
+// a read replica, so a new export path added below should pass this too. Streams
+// that pin their own service internally (traces, events) do not take it.
+const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -180,6 +187,7 @@ export const handleBatchExportJob = async (
           ...parsedQuery.data,
           filter: processedFilter,
           fileFormat: jobDetails.format as BatchExportFileFormat,
+          preferredClickhouseService: BATCH_EXPORT_CLICKHOUSE_SERVICE,
         })
       : parsedQuery.data.tableName === BatchExportTableName.Traces
         ? await getTraceStream({
@@ -200,6 +208,7 @@ export const handleBatchExportJob = async (
               cutoffCreatedAt: jobDetails.createdAt,
               ...parsedQuery.data,
               filter: processedFilter,
+              preferredClickhouseService: BATCH_EXPORT_CLICKHOUSE_SERVICE,
             });
 
   // Transform data to desired format

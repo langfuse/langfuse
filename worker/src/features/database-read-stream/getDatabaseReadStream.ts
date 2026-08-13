@@ -219,6 +219,7 @@ export const getDatabaseReadStreamPaginated = async ({
                 limit: pageSize,
                 offset,
                 clickhouseConfigs,
+                preferredClickhouseService,
               });
 
           // Get author user info for scores
@@ -298,6 +299,7 @@ export const getDatabaseReadStreamPaginated = async ({
                 limit: pageSize,
                 page: Math.floor(offset / pageSize),
                 clickhouseConfigs,
+                preferredClickhouseService,
               });
 
           const prismaSessionInfo = await prisma.traceSession.findMany({
@@ -365,6 +367,13 @@ export const getDatabaseReadStreamPaginated = async ({
               : [createdAtCutoffFilterCh],
             isTimestampFilter: isGenerationTimestampFilter,
             clickhouseConfigs,
+            // Inert today: batch export routes observations to
+            // getObservationStream, and batch actions pass no service. Before
+            // routing an observations export through here, parameterize
+            // getObservationsTableWithModelData and getScoresForObservations
+            // below — they still read the primary, so a replica name list could
+            // lag behind their rows and getChunkWithFlattenedScores would
+            // silently drop score columns.
             preferredClickhouseService,
           });
 
@@ -441,6 +450,12 @@ export const getDatabaseReadStreamPaginated = async ({
               : [createdAtCutoffFilter],
             isTimestampFilter: isTraceTimestampFilter,
             clickhouseConfigs,
+            // Inert today: batch export routes traces to getTraceStream, and
+            // batch actions pass no service. Before routing a traces export
+            // through here, parameterize getTracesTable and getScoresForTraces
+            // below — they still read the primary, so a replica name list could
+            // lag behind their rows and getChunkWithFlattenedScores would
+            // silently drop score columns.
             preferredClickhouseService,
           });
           emptyScoreColumns = distinctScoreNames.reduce(
@@ -568,6 +583,7 @@ export const getDatabaseReadStreamPaginated = async ({
             },
             offset,
             clickhouseConfigs,
+            preferredClickhouseService,
           });
 
           // fetch all project dataset names
