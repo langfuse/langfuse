@@ -369,30 +369,26 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       ).resolves.not.toThrow();
     });
 
-    // The write mode is server-only, so the settings page can only learn
-    // enriched availability from this response. Field name is the
-    // implementer's call; the signal has to be there and has to track the mode.
-    const enrichedSignal = (result: Record<string, unknown>) =>
-      result.isEnrichedExportAvailable ??
-      result.enrichedWritesActive ??
-      result.enrichedAvailable;
+    // The write mode is server-only, so the settings page can only learn it
+    // from this response. This is the durable half of the contract — the
+    // derived booleans next to it go away once their consumers read writeMode.
+    // Read untyped only because the router does not return the field yet;
+    // the property name itself is asserted exactly.
+    const writeModeOf = (result: object) =>
+      (result as Record<string, unknown>).writeMode;
 
-    it("get reports enriched availability derived from the write mode", async () => {
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
-      const { caller, project } = await prepare();
-      const onDual = await caller.mixpanelIntegration.get({
-        projectId: project.id,
-      });
-      expect(enrichedSignal(onDual)).toBe(true);
-
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
-      const onLegacy = await caller.mixpanelIntegration.get({
-        projectId: project.id,
-      });
-      expect(enrichedSignal(onLegacy)).toBe(false);
-    });
+    it.each(["legacy", "dual", "events_only"] as const)(
+      "get returns the active write mode %s, independent of the preview opt-in",
+      async (writeMode) => {
+        (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = writeMode;
+        (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+        const { caller, project } = await prepare();
+        const result = await caller.mixpanelIntegration.get({
+          projectId: project.id,
+        });
+        expect(writeModeOf(result)).toBe(writeMode);
+      },
+    );
   });
 
   // LFE-10148 review: the form schema's zod default must not be injected into

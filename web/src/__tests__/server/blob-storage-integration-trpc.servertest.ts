@@ -717,39 +717,34 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
   });
 
-  describe("get: isEnrichedExportAvailable flag", () => {
+  // The write mode is server-only, so the settings page can only learn it
+  // from this response. This is the durable half of the contract — the
+  // derived booleans next to it go away once their consumers read writeMode.
+  describe("get: writeMode", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    const originalPreviewOptIn = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
 
     afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
       (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
     });
 
-    it("returns false under the legacy write mode", async () => {
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
-      const { caller, project } = await prepare();
-      const result = await caller.blobStorageIntegration.get({
-        projectId: project.id,
-      });
-      expect(result.isEnrichedExportAvailable).toBe(false);
-    });
-
-    it("returns true under the dual write mode", async () => {
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
-      const { caller, project } = await prepare();
-      const result = await caller.blobStorageIntegration.get({
-        projectId: project.id,
-      });
-      expect(result.isEnrichedExportAvailable).toBe(true);
-    });
-
-    it("returns true under the events_only write mode", async () => {
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
-      const { caller, project } = await prepare();
-      const result = await caller.blobStorageIntegration.get({
-        projectId: project.id,
-      });
-      expect(result.isEnrichedExportAvailable).toBe(true);
-    });
+    it.each(["legacy", "dual", "events_only"] as const)(
+      "returns the active write mode %s, independent of the preview opt-in",
+      async (writeMode) => {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = writeMode;
+        (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+        const { caller, project } = await prepare();
+        const result = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        expect(result.writeMode).toBe(writeMode);
+      },
+    );
   });
 
   describe("update: enriched export source guard", () => {
