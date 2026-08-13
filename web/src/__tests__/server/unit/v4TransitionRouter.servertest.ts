@@ -10,6 +10,7 @@ vi.mock("@/src/server/auth", () => ({
 
 const sharedServerMock = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
+  isForceV3ExperienceProject: vi.fn(() => false),
   logger: {
     warn: vi.fn(),
   },
@@ -368,10 +369,7 @@ describe("v4TransitionRouter", () => {
   });
 
   it("rejects ranges over 30 days", async () => {
-    const mockPrisma = {
-      $queryRaw: vi.fn(),
-    };
-    const caller = createCaller(mockPrisma);
+    const caller = createCaller();
 
     await expect(
       caller.legacyApiUsageSummary({
@@ -382,7 +380,6 @@ describe("v4TransitionRouter", () => {
     ).rejects.toThrow("30 days");
 
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
-    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it("queries SDK usage for only the authorized project", async () => {
@@ -647,6 +644,7 @@ describe("v4TransitionRouter", () => {
             mixpanel: false,
             blobStorage: false,
           },
+          forceV3Experience: false,
         },
         {
           projectId: secondProjectId,
@@ -657,6 +655,7 @@ describe("v4TransitionRouter", () => {
             mixpanel: true,
             blobStorage: false,
           },
+          forceV3Experience: false,
         },
       ],
     });
@@ -812,6 +811,7 @@ describe("v4TransitionRouter", () => {
             mixpanel: false,
             blobStorage: false,
           },
+          forceV3Experience: false,
         },
       ],
     });

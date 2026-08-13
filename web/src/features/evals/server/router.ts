@@ -97,6 +97,7 @@ import {
   prepareVariableMappingForEvaluatorUpgrade,
 } from "@/src/features/evals/server/evaluatorUpgrade";
 import { deleteJobConfigurationWithExecutions } from "@/src/features/evals/server/evaluatorRepository";
+import { assertCanCreateLegacyEvalJob } from "@/src/features/evals/server/legacyEvalGate";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
@@ -1002,6 +1003,11 @@ export const evalRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalJob:CUD",
+      });
+
+      assertCanCreateLegacyEvalJob({
+        projectId: input.projectId,
+        target: input.target,
       });
 
       const evalTemplate = await ctx.prisma.evalTemplate.findFirst({

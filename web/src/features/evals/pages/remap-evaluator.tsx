@@ -46,7 +46,7 @@ export default function RemapEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evalConfigId = router.query.evaluator as string;
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(projectId);
   const capture = usePostHogClientCapture();
   const canUseAssistant = useCanUseInAppAgent();
   const { openAssistant, submit } = useInAppAiAgent();

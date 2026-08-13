@@ -61,6 +61,7 @@ const migrationStatus = (
   experiments: { status: "loaded", result: "not_required" },
   apis: { status: "loaded", count: 0 },
   exports: { status: "loaded", count: 0 },
+  forceV3Experience: false,
   ...overrides,
 });
 

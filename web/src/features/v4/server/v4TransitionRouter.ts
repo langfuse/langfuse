@@ -15,6 +15,7 @@ import {
   classifyIngestionSdkVersion,
   convertDateToClickhouseDateTime,
   INTERNAL_INGESTION_SDK_NAMES,
+  isForceV3ExperienceProject,
   logger,
   queryClickhouse,
   systemTableRef,
@@ -22,7 +23,6 @@ import {
   type IngestionSdkUpgradeStatus,
 } from "@langfuse/shared/src/server";
 import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
-
 const MAX_DETECTION_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 const legacyIntegrationExportSources =
@@ -659,6 +659,10 @@ SETTINGS skip_unavailable_shards = 1
 };
 
 export const v4TransitionRouter = createTRPCRouter({
+  forceV3Experience: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ input }) => isForceV3ExperienceProject(input.projectId)),
+
   summary: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -706,6 +710,7 @@ export const v4TransitionRouter = createTRPCRouter({
           return {
             ...summary,
             projectName: project.name,
+            forceV3Experience: isForceV3ExperienceProject(project.id),
           };
         }),
       };
