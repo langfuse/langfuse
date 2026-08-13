@@ -27,8 +27,8 @@ import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { env, v4WritesToLegacyTables } from "../../env";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import {
+  describeOutboundFailure,
   findOutboundUrlValidationError,
-  isRedirectChainFailure,
 } from "../../errors/findOutboundUrlValidationError";
 
 type PostHogExecutionConfig = {
@@ -427,12 +427,13 @@ export const handlePostHogIntegrationProjectJob = async (
     // what lets a fixed hostname recover on its own.
     const validationError = findOutboundUrlValidationError(error);
     if (validationError) {
-      // Describe the fault accurately: a redirect budget/loop fault is not an
-      // IP-policy block, and reporting it as one would fire operators' SSRF
-      // alerting on a benign misconfigured redirect chain.
-      const reason = isRedirectChainFailure(validationError)
-        ? "rejected: unusable redirect chain"
-        : "blocked by outbound SSRF protection";
+      // Claim only what is known. A truncated or looping chain is stopped
+      // BEFORE its final target is validated, so whether that target was
+      // internal is genuinely unknown: asserting an SSRF block would cry wolf
+      // on a benign over-long chain, and asserting a benign chain would bury a
+      // redirect aimed at cloud metadata. Name the fact and show the
+      // unvalidated target so the operator can tell which they have.
+      const reason = describeOutboundFailure(validationError);
       logger.error(
         `[POSTHOG] Outbound send for project ${projectId} ${reason}: ${validationError.message}`,
         error,

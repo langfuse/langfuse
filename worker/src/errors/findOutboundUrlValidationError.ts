@@ -32,9 +32,13 @@ const POLICY_BLOCK_ERROR_NAMES = new Set([
   "RedirectValidationError",
 ]);
 
-// Redirect budget exhaustion and loops. Also permanent, but NOT an IP-policy
-// block: reporting these as SSRF blocks poisons operators' SSRF alerting, since
-// a benign misconfigured redirect chain would fire it.
+// Redirect budget exhaustion and loops. Permanent, but the SSRF status is
+// genuinely UNKNOWN: outbound-url/fetch.ts checks the budget and the loop
+// BEFORE validating the hop's target, so the chain's final target was never
+// checked. It may be a benign over-long chain of the operator's own hosts, or a
+// deliberate attempt to land on an internal address after burning the budget.
+// Callers must claim neither, and must surface the unvalidated target so an
+// operator can tell the two apart.
 const REDIRECT_CHAIN_ERROR_NAMES = new Set([
   "MaxRedirectsExceededError",
   "CircularRedirectError",
@@ -52,6 +56,50 @@ const OUTBOUND_VALIDATION_ERROR_NAMES = new Set([
  */
 export function isRedirectChainFailure(error: Error): boolean {
   return REDIRECT_CHAIN_ERROR_NAMES.has(error.name);
+}
+
+/**
+ * The redirect target that was NEVER validated, for a truncated or looping
+ * chain. Both shared errors carry the chain with that target appended last
+ * (MaxRedirectsExceededError: [...chain, redirectUrl]; CircularRedirectError:
+ * the same). Surfacing it is the whole detection signal for this branch: an
+ * operator seeing their own hostname has an over-long chain, while one seeing
+ * 169.254.169.254 has something redirecting the exporter at cloud metadata.
+ *
+ * Read as a plain property, not via instanceof, for the same reason the rest of
+ * this module matches on name: no module bindings to resolve, nothing to throw.
+ */
+/**
+ * How to describe a terminal outbound failure in a log line and in the error
+ * that reaches BullMQ's failedReason.
+ *
+ * A host/IP policy block is stated as one. A truncated or looping redirect
+ * chain is NOT: it asserts only that the chain stopped before its final target
+ * was validated, and names that target. Claiming an SSRF block there would cry
+ * wolf on a benign over-long chain; claiming a benign chain would bury a
+ * redirect aimed at an internal address.
+ */
+export function describeOutboundFailure(error: Error): string {
+  if (!isRedirectChainFailure(error)) {
+    return "blocked by outbound SSRF protection";
+  }
+
+  const finalTarget = unvalidatedRedirectTarget(error);
+  const targetSuffix = finalTarget
+    ? `; unvalidated final target: ${finalTarget}`
+    : "";
+
+  return `rejected: redirect chain stopped before its final target was validated${targetSuffix}`;
+}
+
+export function unvalidatedRedirectTarget(error: Error): string | undefined {
+  if (!REDIRECT_CHAIN_ERROR_NAMES.has(error.name)) return undefined;
+
+  const chain: unknown = (error as { redirectChain?: unknown }).redirectChain;
+  if (!Array.isArray(chain) || chain.length === 0) return undefined;
+
+  const finalTarget: unknown = chain[chain.length - 1];
+  return typeof finalTarget === "string" ? finalTarget : undefined;
 }
 
 // A resolver hiccup is not a policy block: the host may be perfectly legitimate
