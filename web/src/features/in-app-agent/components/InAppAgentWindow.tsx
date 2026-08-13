@@ -304,6 +304,7 @@ function joinAnswerMessages(
   let sources = lastText.content.sources;
   let feedback = lastText.content.feedback;
   let runId = lastText.runId;
+  let feedbackMessageId = lastText.feedbackMessageId;
   let isStreaming = false;
 
   for (let index = textMessages.length - 1; index >= 0; index--) {
@@ -327,6 +328,9 @@ function joinAnswerMessages(
     if (!runId && message.runId) {
       runId = message.runId;
     }
+    if (!feedbackMessageId && message.feedbackMessageId) {
+      feedbackMessageId = message.feedbackMessageId;
+    }
   }
 
   if (!redirectAction) {
@@ -341,6 +345,7 @@ function joinAnswerMessages(
   return {
     ...lastText,
     runId,
+    ...(feedbackMessageId ? { feedbackMessageId } : {}),
     content: {
       type: "text",
       text: textMessages.map((message) => message.content.text).join("\n\n"),
@@ -497,7 +502,7 @@ function AssistantActivityGroup({
 }) {
   const hasDetails = messages.length > 0;
   const [userToggled, setUserToggled] = useState<boolean | null>(null);
-  const isOpen = hasDetails && (userToggled ?? false);
+  const isOpen = userToggled ?? false;
   const durationSeconds =
     startTimestamp !== undefined && endTimestamp !== undefined
       ? Math.max(1, Math.round((endTimestamp - startTimestamp) / 1_000))
@@ -508,7 +513,9 @@ function AssistantActivityGroup({
       : [],
   );
   const label = isInProgress
-    ? getInAppAgentActivityProgressLabel(toolNames)
+    ? hasDetails
+      ? getInAppAgentActivityProgressLabel(toolNames)
+      : "There for you in a second…"
     : durationSeconds !== null
       ? `Worked for ${formatWorkedDuration(durationSeconds)}`
       : "Activity";
@@ -516,43 +523,30 @@ function AssistantActivityGroup({
     "text-muted-foreground flex w-full items-center gap-1 py-1 text-left",
     isCompact ? "text-[0.775rem]" : "text-sm",
   );
-  const labelContent = (
-    <>
-      <span className={cn(isInProgress && messageStyles.thinkingShimmer)}>
-        {label}
-      </span>
-      {hasDetails ? (
+
+  return (
+    <div className="w-full">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-label={label}
+        className={cn(
+          labelClassName,
+          "focus-visible:ring-ring outline-none focus-visible:ring-2",
+        )}
+        onClick={() => {
+          setUserToggled(!isOpen);
+        }}
+      >
+        <span className={cn(isInProgress && messageStyles.thinkingShimmer)}>
+          {label}
+        </span>
         <ChevronRight
           aria-hidden="true"
           className={cn("size-3.5 transition-transform", isOpen && "rotate-90")}
         />
-      ) : null}
-    </>
-  );
-
-  return (
-    <div className="w-full">
-      {hasDetails ? (
-        <button
-          type="button"
-          aria-expanded={isOpen}
-          aria-label={label}
-          className={cn(
-            labelClassName,
-            "focus-visible:ring-ring outline-none focus-visible:ring-2",
-          )}
-          onClick={() => {
-            setUserToggled(!isOpen);
-          }}
-        >
-          {labelContent}
-        </button>
-      ) : (
-        <div role="status" aria-label={label} className={labelClassName}>
-          {labelContent}
-        </div>
-      )}
-      {isOpen ? (
+      </button>
+      {isOpen && hasDetails ? (
         <div className="flex flex-col gap-1 pt-2 pb-1">
           {messages.map((message) => (
             <InAppAgentMessage
@@ -1234,9 +1228,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     return (
                       <li
                         key={
-                          item.messages[0]?.id
-                            ? `activity-${item.messages[0].id}`
-                            : "activity-pending"
+                          item.isInProgress
+                            ? "activity-pending"
+                            : `activity-${item.messages[0]?.id ?? "done"}`
                         }
                         className={cn("w-full", item.followsUser && "mt-3")}
                       >

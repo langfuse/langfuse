@@ -498,16 +498,17 @@ describe("InAppAgentWindow composer action", () => {
 });
 
 describe("InAppAgentWindow activity", () => {
-  it("shows a working status instead of connecting or thinking message blobs", () => {
-    render(
+  it("shows a waiting drawer, then Working once the first activity arrives", () => {
+    const userMessage = {
+      id: "user-1",
+      role: "user" as const,
+      content: { type: "text" as const, text: "Summarize recent errors." },
+    };
+    const { rerender } = render(
       windowElement({
         isAssistantTurnInProgress: true,
         messages: [
-          {
-            id: "user-1",
-            role: "user",
-            content: { type: "text", text: "Summarize recent errors." },
-          },
+          userMessage,
           {
             id: "connecting",
             role: "assistant",
@@ -517,11 +518,42 @@ describe("InAppAgentWindow activity", () => {
       }),
     );
 
-    expect(screen.getByRole("status", { name: "Working…" })).toBeVisible();
+    const waitingTrigger = screen.getByRole("button", {
+      name: "There for you in a second…",
+    });
+    expect(waitingTrigger).toBeVisible();
+    expect(waitingTrigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Connecting...")).not.toBeInTheDocument();
     expect(screen.queryByText("Thinking...")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Working…" }),
+      screen.queryByRole("status", { name: "Working…" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(waitingTrigger);
+    expect(waitingTrigger).toHaveAttribute("aria-expanded", "true");
+
+    rerender(
+      windowElement({
+        isAssistantTurnInProgress: true,
+        messages: [
+          userMessage,
+          {
+            id: "assistant-reasoning",
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "I will inspect the recent errors.",
+              isStreaming: false,
+            },
+          },
+        ],
+      }),
+    );
+
+    const workingTrigger = screen.getByRole("button", { name: "Working…" });
+    expect(workingTrigger).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "There for you in a second…" }),
     ).not.toBeInTheDocument();
   });
 
@@ -978,6 +1010,48 @@ describe("InAppAgentWindow message actions", () => {
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(`${analysis}\n\n${closer}`);
+    });
+  });
+
+  it("submits joined-answer feedback to the source message", async () => {
+    const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      windowElement({
+        selectedConversationId: "conversation-1",
+        onSubmitFeedback,
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "What happened?" },
+          },
+          {
+            id: "display-text-assistant-1-1",
+            feedbackMessageId: "assistant-1",
+            runId: "run-1",
+            role: "assistant",
+            content: { type: "text", text: "First paragraph." },
+          },
+          {
+            id: "display-text-assistant-1-2",
+            runId: "run-1",
+            role: "assistant",
+            content: { type: "text", text: "Second paragraph." },
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Good response" }));
+
+    await waitFor(() => {
+      expect(onSubmitFeedback).toHaveBeenCalledWith({
+        messageId: "assistant-1",
+        runId: "run-1",
+        value: "thumbs_up",
+        comment: null,
+      });
     });
   });
 });

@@ -1489,12 +1489,17 @@ export const BackgroundHint = meta.story({
       "Compare cost against last week",
     );
     await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
-    await expect(await canvas.findByRole("status")).toHaveTextContent(
-      "I keep running in the background",
-    );
+    await waitFor(() => {
+      expect(
+        canvas.getByText(/I keep running in the background/),
+      ).toBeVisible();
+    });
 
     await waitFor(
-      () => expect(canvas.queryByRole("status")).not.toBeInTheDocument(),
+      () =>
+        expect(
+          canvas.queryByText(/I keep running in the background/),
+        ).not.toBeInTheDocument(),
       { timeout: STORY_RUN_MS * 2 },
     );
   },
@@ -1827,19 +1832,22 @@ export const FeedbackControlsWaitForTurnEnd = meta.story({
   },
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
+    const midTurnText =
+      "I found a cluster of ingestion errors around malformed JSON payloads";
 
-    await canvas.findByText(
-      "I found a cluster of ingestion errors around malformed JSON payloads",
-    );
+    expect(canvas.queryByText(midTurnText)).not.toBeInTheDocument();
+    expect(
+      canvas.queryByRole("button", { name: "Good response" }),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByRole("button", { name: "Bad response" }),
+    ).not.toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(
-        canvas.queryByRole("button", { name: "Good response" }),
-      ).not.toBeInTheDocument();
-      expect(
-        canvas.queryByRole("button", { name: "Bad response" }),
-      ).not.toBeInTheDocument();
-    });
+    await userEvent.click(canvas.getByRole("button", { name: "Working…" }));
+    await expect(canvas.getByText(midTurnText)).toBeVisible();
+    expect(
+      canvas.queryByRole("button", { name: "Good response" }),
+    ).not.toBeInTheDocument();
   },
 });
 
