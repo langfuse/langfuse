@@ -61,13 +61,11 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { buildEvaluatorUpgradeUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
-function DeprecatedChipCell() {
+function DeprecatedChip() {
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
-        Deprecated
-      </span>
-    </div>
+    <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+      Deprecated
+    </span>
   );
 }
 
@@ -182,7 +180,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("scoreName", {
       id: "scoreName",
       header: "Generated Score Name",
-      size: v4UpgradeUiEnabled ? 320 : 200,
+      size: 320,
       cell: (row) => {
         const scoreName = row.getValue();
         if (!scoreName) return undefined;
@@ -190,14 +188,18 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         return (
           <div className="flex w-[calc(var(--col-scoreName-size)*1px-0.75rem)] items-center gap-2">
             <TableIdOrName value={scoreName} className="min-w-[4px] flex-1" />
-            {v4UpgradeUiEnabled && row.row.original.isLegacy ? (
+            {row.row.original.isLegacy ? (
               <span className="ml-auto justify-self-end">
-                <V4MigrationBadgeContent
-                  onClick={() => openEvaluatorUpgrade(row.row.original.id)}
-                  title="Upgrade now"
-                  showChevron={false}
-                  compact
-                />
+                {v4UpgradeUiEnabled ? (
+                  <V4MigrationBadgeContent
+                    onClick={() => openEvaluatorUpgrade(row.row.original.id)}
+                    title="Upgrade now"
+                    showChevron={false}
+                    compact
+                  />
+                ) : (
+                  <DeprecatedChip />
+                )}
               </span>
             ) : null}
           </div>
@@ -216,20 +218,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <StatusBadge type={status.toLowerCase()} />
           </div>
         );
-      },
-    }),
-    columnHelper.accessor("isLegacy", {
-      id: "isLegacy",
-      header: "Eval Version",
-      size: 180,
-      enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: (row) => {
-        // Set by useEvaluatorTableData only for active legacy evaluators with
-        // a NEW time scope — the ones that actually require migration.
-        if (!row.row.original.isLegacy) return null;
-
-        return <DeprecatedChipCell />;
       },
     }),
     columnHelper.accessor("totalCost", {
