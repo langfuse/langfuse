@@ -488,10 +488,12 @@ const getObservationStreamFromEvents = async (
     ): filterItem is TimeFilter =>
       filterItem.column === "Start Time" && filterItem.type === "datetime",
     clickhouseConfigs,
-    // The events branch reads its main query from EventsReadOnly, but score
-    // names still come from the classic scores table, so this query follows the
-    // caller's choice like the legacy branch does.
-    preferredClickhouseService: props.preferredClickhouseService,
+    // Must be the same service that reads the score values below, not the
+    // caller's choice. Any score whose name is missing from this list is
+    // dropped from the export by getChunkWithFlattenedScores, so a name set
+    // lagging behind the rows silently loses a column. The main query reads
+    // the classic scores table through the events service, so this follows it.
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(

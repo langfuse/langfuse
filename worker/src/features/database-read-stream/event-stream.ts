@@ -34,6 +34,12 @@ const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
  * Creates a stream of events from ClickHouse for batch export.
  * Includes comments fetched in batches and flattened scores.
  *
+ * Batch export is the only production caller, so the reads below pin their
+ * ClickHouse service inline. Batch actions use getEventsStreamForDataset and
+ * getEventsStreamForAnnotationQueue, which must keep reading the primary.
+ * Adding a non-export caller here means the service has to become a parameter,
+ * as it is on getObservationStream.
+ *
  * @param props - Query parameters including projectId, filters, and limits
  * @returns A Node.js Readable stream of event records
  */
@@ -76,15 +82,15 @@ export const getEventsStream = async (props: {
   const { query, params: queryParams } = queryBuilder.buildWithParams();
 
   // Get distinct score names for empty columns.
-  // Batch export is the only production caller of getEventsStream, so the read
-  // replica is pinned inline. Batch actions use getEventsStreamForDataset and
-  // getEventsStreamForAnnotationQueue, which must keep reading the primary.
+  // Same service as the score values read below, not merely a replica: a name
+  // missing from this list is dropped from the export by
+  // getChunkWithFlattenedScores, so this read must not lag behind the rows.
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
     startTimeFrom,
     clickhouseConfigs,
-    preferredClickhouseService: "ReadOnly",
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(
