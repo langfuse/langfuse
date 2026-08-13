@@ -397,7 +397,7 @@ export const VariantMatrix = meta.story({
             />,
           ],
           [
-            "7. Detected instrumentation (compatible SDK + realtime OTel)",
+            "7. Detected V4-compatible instrumentation (compatible SDK + realtime OTel)",
             <V4MigrationDetectedInstrumentationSection
               key="7"
               sdk={detectedInstrumentationState}

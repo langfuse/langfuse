@@ -137,6 +137,7 @@ function Section({
   defaultOpen,
   analyticsSection,
   statusVariant = "action",
+  tone = "default",
 }: {
   title: string;
   /** Number of affected items, shown muted after the title. */
@@ -148,6 +149,9 @@ function Section({
   /** Funnel dimension for the section_expanded event (snake_case). */
   analyticsSection: string;
   statusVariant?: "action" | "done";
+  /** "muted" recesses the trigger to match the settled-checks summary line, so
+   *  a section that needs no action does not read as an action item. */
+  tone?: "default" | "muted";
 }) {
   const capture = usePostHogClientCapture();
   return (
@@ -163,7 +167,14 @@ function Section({
     >
       <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-2.5 text-left">
         <V4MigrationStatusDot variant={statusVariant} />
-        <span className="text-foreground flex items-center gap-1.5 text-sm font-bold">
+        <span
+          className={cn(
+            "flex items-center gap-1.5 text-sm",
+            tone === "muted"
+              ? "text-muted-foreground"
+              : "text-foreground font-bold",
+          )}
+        >
           {title}
           {typeof count === "number" && (
             // Same count-badge recipe as the "My Views" table button.
@@ -642,11 +653,11 @@ export function V4MigrationDetectedInstrumentationSection({
 
   return (
     <Section
-      title="Detected instrumentation"
+      title="Detected V4-compatible instrumentation"
       analyticsSection="detected_instrumentation"
       count={series.length}
-      meta="No action needed"
       statusVariant="done"
+      tone="muted"
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
         These configurations are already on the latest SDK major or use
@@ -1475,13 +1486,13 @@ export function V4MigrationDetailsContent({
               {cleanSummary}
             </p>
           )}
+
+          <V4MigrationDetectedInstrumentationSection
+            sdk={migrationData.sdk}
+            projectId={evidenceProjectId}
+          />
         </div>
       </div>
-
-      <V4MigrationDetectedInstrumentationSection
-        sdk={migrationData.sdk}
-        projectId={evidenceProjectId}
-      />
 
       <Separator />
 

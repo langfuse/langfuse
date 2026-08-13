@@ -481,7 +481,9 @@ describe("V4MigrationDetailsContent", () => {
     expect(
       screen.queryByText("Update OTel Instrumentation"),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Detected instrumentation")).toBeInTheDocument();
+    expect(
+      screen.getByText("Detected V4-compatible instrumentation"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
     expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
     expect(screen.getByText("· up to date")).toBeInTheDocument();
@@ -512,8 +514,10 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
     expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
-    // Compatible current-major traffic lands in Detected instrumentation.
-    expect(screen.getByText("Detected instrumentation")).toBeInTheDocument();
+    // Compatible current-major traffic lands in the detected section.
+    expect(
+      screen.getByText("Detected V4-compatible instrumentation"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
     expect(screen.getByText("· up to date")).toBeInTheDocument();
     expect(
@@ -562,7 +566,9 @@ describe("V4MigrationDetailsContent", () => {
 
     expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
     expect(screen.queryByText(/needs an update/)).not.toBeInTheDocument();
-    expect(screen.getByText("Detected instrumentation")).toBeInTheDocument();
+    expect(
+      screen.getByText("Detected V4-compatible instrumentation"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
   });
 
@@ -595,8 +601,10 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
     expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
     expect(screen.queryByText(/upgrade completed/)).not.toBeInTheDocument();
-    // Compatible series are listed under Detected instrumentation, not Update SDK.
-    expect(screen.getByText("Detected instrumentation")).toBeInTheDocument();
+    // Compatible series are listed under the detected section, not Update SDK.
+    expect(
+      screen.getByText("Detected V4-compatible instrumentation"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
   });
 
@@ -807,8 +815,10 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("openlit 1.35.4")).toBeInTheDocument();
     expect(screen.getByText("· delayed")).toBeInTheDocument();
     expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
-    // Compatible SDK + realtime OTel land in Detected instrumentation.
-    expect(screen.getByText("Detected instrumentation")).toBeInTheDocument();
+    // Compatible SDK + realtime OTel land in the detected section.
+    expect(
+      screen.getByText("Detected V4-compatible instrumentation"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
     expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
     expect(screen.getByText("· real-time")).toBeInTheDocument();
