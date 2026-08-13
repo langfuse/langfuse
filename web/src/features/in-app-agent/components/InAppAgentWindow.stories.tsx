@@ -1,6 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
   InAppAgentWindow,
@@ -8,6 +8,7 @@ import {
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
 import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/quickActions";
+import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import {
   createInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
@@ -571,6 +572,81 @@ const conversations = [
   },
 ];
 
+/**
+ * One conversation per activity state, in the priority order a row applies:
+ * only the first matching state is ever rendered.
+ */
+const activityConversations = [
+  {
+    id: "activity-approval",
+    title: "Create the eval dataset",
+    updatedAt: new Date("2026-05-19T10:00:00.000Z"),
+  },
+  {
+    id: "activity-running",
+    title: "Activity digest comparing last two weeks",
+    updatedAt: new Date("2026-05-19T09:30:00.000Z"),
+  },
+  {
+    id: "activity-failed",
+    title: "Score correlation",
+    updatedAt: new Date("2026-05-19T09:00:00.000Z"),
+  },
+  {
+    id: "activity-done",
+    title: "Latency outliers",
+    updatedAt: new Date("2026-05-19T08:30:00.000Z"),
+  },
+  {
+    id: "activity-none",
+    title: "Seed conversation",
+    updatedAt: new Date("2026-05-19T08:00:00.000Z"),
+  },
+];
+
+const activityByConversationId: InAppAgentActivityByConversationId = new Map([
+  [
+    "activity-approval",
+    {
+      state: "approval",
+      title: "Create the eval dataset",
+      runId: "run-1",
+      activityKey: "run-1:AWAITING_APPROVAL",
+      needsAttention: true,
+    },
+  ],
+  [
+    "activity-running",
+    {
+      state: "running",
+      title: "Activity digest comparing last two weeks",
+      runId: "run-2",
+      activityKey: "run-2:RUNNING",
+      needsAttention: false,
+    },
+  ],
+  [
+    "activity-failed",
+    {
+      state: "failed-unread",
+      title: "Score correlation",
+      runId: "run-3",
+      activityKey: "run-3:FAILED",
+      needsAttention: true,
+    },
+  ],
+  [
+    "activity-done",
+    {
+      state: "done-unread",
+      title: "Latency outliers",
+      runId: "run-4",
+      activityKey: "run-4:SUCCEEDED",
+      needsAttention: true,
+    },
+  ],
+]);
+
 const longUnbrokenWord = `trace-${"0123456789abcdef".repeat(18)}`;
 const longUnbrokenTableValue = `observation-${"abcdefghijklmnopqrstuvwxyz".repeat(10)}`;
 const longReasoningText = [
@@ -601,6 +677,7 @@ const meta = preview.meta({
     isConversationInteractionDisabled: false,
     isSelectedConversationHydrating: false,
     conversations,
+    activityByConversationId: new Map(),
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
     isAssistantTurnInProgress: false,
@@ -1003,6 +1080,106 @@ export const Error = meta.story({
   },
 });
 
+/**
+ * Every activity state in the row it belongs to, sharing one fixed-width slot
+ * so the column stays straight despite the dots being narrower than the icons.
+ *
+ * The trigger badge counts the same rows, so it reads 3 here, not 4: the
+ * running conversation has nothing for the user to act on yet.
+ */
+export const ConversationActivity = meta.story({
+  args: {
+    conversations: activityConversations,
+    activityByConversationId,
+    selectedConversationId: "activity-running",
+    messages: [],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    // Exact name (not the prefix match the activity-free stories use) so the
+    // badge count is asserted on the way in.
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Conversation history (3 need attention)",
+      }),
+    );
+    // The dropdown portals out of the canvas.
+    await screen.findByText("Recent conversations");
+  },
+});
+
+/** Long enough to watch the hint, short enough to settle before it expires. */
+const STORY_RUN_MS = 3_000;
+
+/**
+ * The nudge that opens a conversation. Send a second message to see that it
+ * belongs to the first one only, and wait for the run to settle to see it go.
+ */
+export const BackgroundHint = meta.story({
+  args: {
+    messages: [],
+  },
+  render: function Render(args) {
+    const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([]);
+    const [isRunning, setIsRunning] = useState(false);
+
+    return (
+      <StatefulInAppAgentWindow
+        {...args}
+        messages={messages}
+        isAssistantTurnInProgress={isRunning}
+        onSubmit={(input) => {
+          setMessages((currentMessages) => [
+            ...currentMessages,
+            {
+              id: `user-${currentMessages.length}`,
+              role: "user",
+              content: { type: "text", text: input },
+            },
+          ]);
+          setIsRunning(true);
+
+          window.setTimeout(() => {
+            setIsRunning(false);
+            setMessages((currentMessages) => [
+              ...currentMessages,
+              {
+                id: `assistant-${currentMessages.length}`,
+                role: "assistant",
+                content: {
+                  type: "text",
+                  text: "Cost is up 12% week over week, driven by gpt-4o traces.",
+                },
+              },
+            ]);
+          }, STORY_RUN_MS);
+
+          args.onSubmit(input);
+          return true;
+        }}
+      />
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.type(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      "Compare cost against last week",
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+    await expect(await canvas.findByRole("status")).toHaveTextContent(
+      "I keep running in the background",
+    );
+
+    await waitFor(
+      () => expect(canvas.queryByRole("status")).not.toBeInTheDocument(),
+      { timeout: STORY_RUN_MS * 2 },
+    );
+  },
+});
+
 export const BackgroundRun = meta.story({
   args: {
     isAssistantTurnInProgress: true,
@@ -1133,7 +1310,7 @@ export const LoadingConversation = meta.story({
       canvas.getByRole("button", { name: "Start new conversation" }),
     ).toBeEnabled();
     await expect(
-      canvas.getByRole("button", { name: "Conversation history" }),
+      canvas.getByRole("button", { name: /^Conversation history/ }),
     ).toBeEnabled();
     await expect(
       canvas.getByRole("textbox", { name: "Message the assistant" }),
@@ -1213,7 +1390,7 @@ export const RateLimited = meta.story({
       canvas.getByRole("button", { name: "Start new conversation" }),
     ).toBeEnabled();
     await expect(
-      canvas.getByRole("button", { name: "Conversation history" }),
+      canvas.getByRole("button", { name: /^Conversation history/ }),
     ).toBeEnabled();
   },
 });

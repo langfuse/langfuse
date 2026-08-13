@@ -26,7 +26,10 @@ import TableIdOrName from "@/src/components/table/table-id";
 import { ExternalLinkIcon, Pen } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
-import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
+import {
+  evalConfigTargetValues,
+  evalConfigTimeScopeValues,
+} from "@/src/server/api/definitions/evalConfigsTable";
 import { Button } from "@/src/components/ui/button";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -92,6 +95,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const newFilterOptions = {
     status: ["ACTIVE", "PAUSED", "INACTIVE"],
     target: evalConfigTargetValues,
+    timeScope: evalConfigTimeScopeValues,
   };
 
   const queryFilter = useSidebarFilterState(

@@ -297,6 +297,61 @@ describe("evals trpc", () => {
         { id: inactiveEvaluator.id, displayStatus: "INACTIVE" },
       ]);
     });
+
+    it("filters evaluator configurations by time scope", async () => {
+      const { project, caller } = await prepare();
+
+      const createEvaluator = (scoreName: string, timeScope: string[]) =>
+        prisma.jobConfiguration.create({
+          data: {
+            projectId: project.id,
+            jobType: "EVAL",
+            scoreName,
+            filter: [],
+            targetObject: EvalTargetObject.TRACE,
+            variableMapping: [],
+            sampling: 1,
+            delay: 0,
+            status: "ACTIVE",
+            timeScope,
+          },
+        });
+
+      const newEvaluator = await createEvaluator("new-score", ["NEW"]);
+      const newAndExistingEvaluator = await createEvaluator(
+        "new-and-existing-score",
+        ["NEW", "EXISTING"],
+      );
+      const existingEvaluator = await createEvaluator("existing-score", [
+        "EXISTING",
+      ]);
+
+      const response = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [
+          {
+            column: "timeScope",
+            type: "arrayOptions",
+            operator: "any of",
+            value: ["NEW"],
+          },
+        ],
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        limit: 10,
+        page: 0,
+      });
+
+      expect(response.configs.map((config) => config.id)).toEqual(
+        expect.arrayContaining([newEvaluator.id, newAndExistingEvaluator.id]),
+      );
+      expect(response.configs.map((config) => config.id)).not.toContain(
+        existingEvaluator.id,
+      );
+      expect(response.totalCount).toBe(2);
+    });
   });
 
   describe("evals.templateNames", () => {

@@ -31,7 +31,6 @@ const makeSeries = (
   hasDelayedOtelEvents: null,
   attributionStatus: "attributed",
   v4MigrationStatus: "compatible",
-  upgradeCompleted: false,
   ...overrides,
 });
 
@@ -63,12 +62,6 @@ const outdatedJavascript = makeSeries({
   canonicalSdkName: "javascript",
   v4MigrationStatus: "upgrade_required",
   publicKey: "pk-lf-fedcba0987654321",
-});
-const upgradedPython = makeSeries({
-  v4MigrationStatus: "upgrade_required",
-  upgradeCompleted: true,
-  publicKey: "pk-lf-0000111122223333",
-  lastSeen: new Date(Date.now() - 0.25 * HOUR_MS).toISOString(),
 });
 const unrecognizedSdk = makeSeries({
   sdkName: "my-custom-wrapper",
@@ -117,12 +110,7 @@ const customInstrumentation = makeSeries({
 
 const sdkOutdatedState = makeSdkState({
   status: "legacy",
-  sdkUsageSeries: [
-    outdatedPython,
-    scoresOnlyPython,
-    outdatedJavascript,
-    upgradedPython,
-  ],
+  sdkUsageSeries: [outdatedPython, scoresOnlyPython, outdatedJavascript],
   upgradeRequiredCount: 3,
 });
 
@@ -151,7 +139,6 @@ const combinedState = makeSdkState({
   status: "legacy",
   sdkUsageSeries: [
     outdatedPython,
-    upgradedPython,
     delayedOtelExporter,
     realtimeOtelExporter,
     customInstrumentation,

@@ -67,6 +67,7 @@ export function ControlledInAppAgentWindow(
 ) {
   const router = useRouter();
   const {
+    activityByConversationId,
     conversations,
     error,
     hasMoreConversations,
@@ -187,6 +188,7 @@ export function ControlledInAppAgentWindow(
       quickActionResetKey={quickActionResetKey}
       screenContextDescription={screenContextDescription}
       conversations={conversations}
+      activityByConversationId={activityByConversationId}
       hasMoreConversations={hasMoreConversations}
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}

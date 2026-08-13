@@ -1289,4 +1289,54 @@ describe("in-app agent background runs", () => {
 
     expect(enqueuedJobs).toHaveLength(0);
   });
+
+  it("lists the newest run per conversation and classifies a dead worker without writing", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.SUCCEEDED,
+        finishedAt: new Date(Date.now() - 10 * 60_000),
+        createdAt: new Date(Date.now() - 10 * 60_000),
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+    const deadRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: new Date(Date.now() - 5 * 60_000),
+        heartbeatAt: new Date(Date.now() - 5 * 60_000),
+        createdAt: new Date(Date.now() - 5 * 60_000),
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+
+    const listed = await caller.listConversations({ projectId, limit: 50 });
+
+    // The newest run wins, and a run whose worker stopped reporting is served
+    // as failed even though nothing has written that verdict yet.
+    expect(
+      listed.conversations.find((row) => row.id === conversation.id)?.latestRun,
+    ).toEqual({
+      id: deadRun.id,
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.WORKER_LOST,
+      cancelRequested: false,
+    });
+
+    const stored = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: deadRun.id, projectId },
+    });
+    expect(stored.status).toBe(InAppAgentRunStatus.RUNNING);
+    expect(stored.finishedAt).toBeNull();
+  });
 });
