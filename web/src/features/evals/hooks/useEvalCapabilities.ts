@@ -12,6 +12,7 @@ export interface EvalCapabilities {
   allowLegacy: boolean;
   isLoading: boolean;
   hasLegacyEvals: boolean;
+  forceV3Experience: boolean;
 }
 
 /**
@@ -56,15 +57,14 @@ export function useEvalCapabilities(
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const v4WriteMode = session?.environment?.v4WriteMode;
 
-  // Projects forced onto the v3 experience keep the full legacy eval experience
-  // (create and update trace/dataset evaluators), regardless of write mode.
-  const forceV3 = useForceV3Experience(projectId);
+  // Projects forced onto v3 keep legacy evals while legacy tables are written.
+  const forceV3Experience = useForceV3Experience(projectId);
 
   // Whether a *new* config may use the legacy experience.
   const modeAllowsNewLegacy = isNewLegacyEvalAllowed({
     v4WriteMode,
     isLangfuseCloud,
-    isForceV3Project: forceV3,
+    isForceV3Project: forceV3Experience,
   });
 
   return {
@@ -78,5 +78,6 @@ export function useEvalCapabilities(
     isLoading:
       evalCounts.isLoading || isSessionLoading || sdkVersionInfo.isLoading,
     hasLegacyEvals,
+    forceV3Experience,
   };
 }

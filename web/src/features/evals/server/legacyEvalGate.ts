@@ -7,8 +7,8 @@ import { isNewLegacyEvalAllowed } from "@/src/features/evals/utils/legacyEvalGat
 /**
  * Server-side guard mirroring the UI capability hook: reject creating a *new*
  * legacy-target (trace/dataset) evaluator on deployments where the legacy
- * experience is disabled, unless the project is forced onto the v3 experience.
- * Non-legacy targets and updates to existing evaluators are unaffected.
+ * experience is disabled. Forced-v3 projects are exempt unless events_only is
+ * set. Non-legacy targets and updates to existing evaluators are unaffected.
  */
 export function assertCanCreateLegacyEvalJob(params: {
   projectId: string;

@@ -38,8 +38,8 @@ describe("isNewLegacyEvalAllowed", () => {
     ).toBe(true);
   });
 
-  it("always allows new legacy evals for forced-v3 projects", () => {
-    for (const v4WriteMode of ["events_only", "dual", "legacy"] as const) {
+  it("allows new legacy evals for forced-v3 projects while legacy writes exist", () => {
+    for (const v4WriteMode of ["dual", "legacy"] as const) {
       expect(
         isNewLegacyEvalAllowed({
           v4WriteMode,
@@ -48,5 +48,15 @@ describe("isNewLegacyEvalAllowed", () => {
         }),
       ).toBe(true);
     }
+  });
+
+  it("blocks forced-v3 projects in events_only mode", () => {
+    expect(
+      isNewLegacyEvalAllowed({
+        v4WriteMode: "events_only",
+        isLangfuseCloud: true,
+        isForceV3Project: true,
+      }),
+    ).toBe(false);
   });
 });

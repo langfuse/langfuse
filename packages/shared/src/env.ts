@@ -226,6 +226,7 @@ const EnvSchema = z.object({
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+  // Has no effect in events_only mode, where the v3 experience cannot work.
   LANGFUSE_FORCE_V3_EXPERIENCE: z
     .string()
     .optional()

@@ -1148,32 +1148,27 @@ describe("evals trpc", () => {
       }
     });
 
-    it("allows new trace-target evaluators for force-v3 projects", async () => {
+    it("rejects new trace-target evaluators for force-v3 projects in events_only mode", async () => {
       const { project, caller } = await prepare();
-      // events_only is the strictest mode (no new legacy evals anywhere); the
-      // force list must still let this project through.
       const originalMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
       Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "events_only");
       forceV3ProjectIds.current = [project.id];
 
       try {
         const template = await createTraceTemplate(project.id);
-        const created = await caller.evals.createJob({
-          projectId: project.id,
-          evalTemplateId: template.id,
-          scoreName: "gate-forced-score",
-          target: EvalTargetObject.TRACE,
-          filter: [],
-          mapping: traceMapping,
-          sampling: 1,
-          delay: 0,
-          timeScope: ["NEW"],
-        });
-
-        const savedJob = await prisma.jobConfiguration.findUnique({
-          where: { id: created.id },
-        });
-        expect(savedJob?.targetObject).toBe(EvalTargetObject.TRACE);
+        await expect(
+          caller.evals.createJob({
+            projectId: project.id,
+            evalTemplateId: template.id,
+            scoreName: "gate-forced-score",
+            target: EvalTargetObject.TRACE,
+            filter: [],
+            mapping: traceMapping,
+            sampling: 1,
+            delay: 0,
+            timeScope: ["NEW"],
+          }),
+        ).rejects.toThrow("Trace- and dataset-level evaluators are no longer");
       } finally {
         Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalMode);
       }
