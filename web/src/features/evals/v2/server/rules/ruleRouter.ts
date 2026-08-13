@@ -10,7 +10,6 @@ import { RuleService } from "./ruleService";
 import {
   CreateRuleSchema,
   EvaluatorRulesSchema,
-  EvaluatorOptionsSchema,
   ListRulesSchema,
   RuleAssignmentIdSchema,
   RuleAssignmentSchema,
@@ -81,20 +80,6 @@ export const ruleRouter = createTRPCRouter({
         scope: "evalJob:read",
       });
       return serviceForContext(ctx).getTotalCosts({
-        ...input,
-        projectId: ctx.session.projectId,
-      });
-    }),
-
-  evaluatorOptions: protectedProjectProcedure
-    .input(EvaluatorOptionsSchema)
-    .query(({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: ctx.session.projectId,
-        scope: "evalJob:read",
-      });
-      return serviceForContext(ctx).evaluatorOptions({
         ...input,
         projectId: ctx.session.projectId,
       });

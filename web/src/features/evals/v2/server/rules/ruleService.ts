@@ -1,8 +1,10 @@
 import {
   EvalTargetObject,
   InvalidRequestError,
+  isExperimentEvaluationRule,
   LangfuseConflictError,
   LangfuseNotFoundError,
+  normalizeEvaluationRuleTarget,
   validateEvaluatorFiltersForTarget,
   type FilterState,
   type ObservationVariableMapping,
@@ -40,6 +42,10 @@ export type RuleAuditEvent = {
   action: "create" | "update" | "delete";
   projectId: string;
   ruleId: string;
+};
+
+type RuleServiceUpdateInput = UpdateRuleInput & {
+  targetObject?: EvalTargetObject;
 };
 
 export class RuleService {
@@ -88,17 +94,6 @@ export class RuleService {
     return Object.fromEntries(
       costs.map(({ ruleId, totalCost }) => [ruleId, totalCost]),
     );
-  }
-
-  evaluatorOptions(params: {
-    projectId: string;
-    search?: string;
-    limit: number;
-  }) {
-    return evaluatorRepository.listEvaluatorOptions({
-      prisma: this.prisma,
-      ...params,
-    });
   }
 
   async listRulesForEvaluator(projectId: string, evaluatorId: string) {
@@ -176,7 +171,14 @@ export class RuleService {
   }
 
   async create(input: CreateRuleInput, createdByUserId: string | null) {
-    const filter = this.validateRuleFilters(input.targetObject, input.filter);
+    const normalized = normalizeEvaluationRuleTarget({
+      targetObject: input.targetObject,
+      filter: input.filter,
+    });
+    const filter = this.validateRuleFilters(
+      normalized.targetObject,
+      normalized.filter,
+    );
     this.assertUniqueAssignments(input.evaluatorAssignments);
     const rule = await this.prisma.$transaction(async (prisma) => {
       await assertActiveRuleLimitNotExceeded({
@@ -191,7 +193,12 @@ export class RuleService {
       });
       return repository.createRule({
         prisma,
-        input: { ...input, filter },
+        input: {
+          ...input,
+          targetObject:
+            normalized.targetObject as CreateRuleInput["targetObject"],
+          filter,
+        },
         createdByUserId,
       });
     });
@@ -205,7 +212,7 @@ export class RuleService {
     return response;
   }
 
-  async update(input: UpdateRuleInput) {
+  async update(input: RuleServiceUpdateInput) {
     if (input.evaluatorMappings) {
       this.assertUniqueAssignments(input.evaluatorMappings);
     }
@@ -215,13 +222,29 @@ export class RuleService {
         input.projectId,
         input.ruleId,
       );
-      const filter =
-        input.filter === undefined
-          ? undefined
-          : this.validateRuleFilters(
-              current.targetObject as EvalTargetObject,
-              input.filter,
-            );
+      const currentTargetObject = current.targetObject as EvalTargetObject;
+      const currentFilter = current.filter as FilterState;
+      // Whether a rule targets experiments is derived from its filter, so an
+      // update that supplies a filter re-decides it — otherwise removing the
+      // experiment-root filter would be silently undone. Only an update that
+      // leaves the filter alone inherits the stored classification.
+      const effectiveFilter = (input.filter ?? currentFilter) as FilterState;
+      const inheritedTargetObject =
+        input.filter === undefined &&
+        isExperimentEvaluationRule({
+          targetObject: currentTargetObject,
+          filter: currentFilter,
+        })
+          ? EvalTargetObject.EXPERIMENT
+          : currentTargetObject;
+      const normalized = normalizeEvaluationRuleTarget({
+        targetObject: input.targetObject ?? inheritedTargetObject,
+        filter: effectiveFilter,
+      });
+      const filter = this.validateRuleFilters(
+        normalized.targetObject,
+        normalized.filter,
+      );
       await assertActiveRuleLimitNotExceeded({
         prisma,
         projectId: input.projectId,
@@ -240,7 +263,8 @@ export class RuleService {
       await repository.updateRule({
         prisma,
         input,
-        filter: filter as Prisma.InputJsonValue | undefined,
+        targetObject: normalized.targetObject,
+        filter: filter as Prisma.InputJsonValue,
       });
       if (input.evaluatorMappings) {
         await repository.replaceAssignments({
@@ -490,10 +514,15 @@ type StoredRule = NonNullable<Awaited<ReturnType<typeof repository.findRule>>>;
 
 function toRuleResponse(rule: StoredRule) {
   const { status, assignments, filter, sampling, ...rest } = rule;
+  const normalized = normalizeEvaluationRuleTarget({
+    targetObject: rest.targetObject as EvalTargetObject,
+    filter: filter as FilterState,
+  });
   return {
     ...rest,
+    targetObject: normalized.targetObject,
     enabled: status === JobConfigState.ACTIVE,
-    filter: filter as FilterState,
+    filter: normalized.filter,
     sampling: sampling.toNumber(),
     assignments: assignments.map(
       ({ evaluator, variableMapping, ...assignment }) => {

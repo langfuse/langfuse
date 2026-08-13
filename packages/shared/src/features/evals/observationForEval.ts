@@ -507,5 +507,12 @@ export function mapEventEvalFilterColumnIdToField(
     });
   }
 
+  if (columnMapping.id === "isExperimentItemRootSpan") {
+    return (
+      observation.experiment_item_root_span_id !== null &&
+      observation.experiment_item_root_span_id === observation.span_id
+    );
+  }
+
   return observation[columnMapping.internal];
 }

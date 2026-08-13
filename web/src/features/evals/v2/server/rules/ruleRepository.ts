@@ -3,7 +3,11 @@ import {
   Prisma,
   type PrismaClient,
 } from "@langfuse/shared/src/db";
-import type { FilterState, ObservationVariableMapping } from "@langfuse/shared";
+import type {
+  EvalTargetObject,
+  FilterState,
+  ObservationVariableMapping,
+} from "@langfuse/shared";
 import type {
   CreateRuleInput,
   ListRulesInput,
@@ -127,11 +131,15 @@ export function createRule(params: {
 export function updateRule(params: {
   prisma: RulePrisma;
   input: UpdateRuleInput;
+  targetObject?: EvalTargetObject;
   filter?: Prisma.InputJsonValue;
 }) {
   return params.prisma.evaluationRule.update({
     where: { id: params.input.ruleId, projectId: params.input.projectId },
     data: {
+      ...(params.targetObject === undefined
+        ? {}
+        : { targetObject: params.targetObject }),
       ...(params.input.name === undefined ? {} : { name: params.input.name }),
       ...(params.filter === undefined ? {} : { filter: params.filter }),
       ...(params.input.sampling === undefined

@@ -4,17 +4,13 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod";
-import { findDefaultModelEvalTemplateIds } from "./evaluatorRepository";
+
+import { EvaluatorBlockReason, ZodModelConfig } from "@langfuse/shared";
 import {
-  EvaluatorBlockReason,
-  ZodModelConfig,
-  getEvaluatorBlockMetadata,
-} from "@langfuse/shared";
-import {
+  blockEvaluatorsUsingDefaultModel,
   DefaultEvalModelService,
-  blockEvaluatorConfigsInTx,
   EvaluatorBlockSource,
-  finalizeBlockedEvaluatorConfigBlocks,
+  finalizeEvaluatorBlocks,
 } from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
@@ -58,23 +54,9 @@ export const defaultEvalModelRouter = createTRPCRouter({
       });
 
       const result = await ctx.prisma.$transaction(async (tx) => {
-        const evalTemplateIds = await findDefaultModelEvalTemplateIds({
+        const blockResult = await blockEvaluatorsUsingDefaultModel({
           tx,
           projectId: input.projectId,
-        });
-
-        const blockResult = await blockEvaluatorConfigsInTx({
-          tx,
-          projectId: input.projectId,
-          where: {
-            evalTemplateId: {
-              in: evalTemplateIds,
-            },
-          },
-          blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-          blockMessage: getEvaluatorBlockMetadata(
-            EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-          ).message,
         });
 
         // Delete the default model within the transaction
@@ -88,12 +70,16 @@ export const defaultEvalModelRouter = createTRPCRouter({
         return blockResult;
       });
 
-      await finalizeBlockedEvaluatorConfigBlocks({
+      await finalizeEvaluatorBlocks({
         projectId: input.projectId,
         source: EvaluatorBlockSource.DEFAULT_EVAL_MODEL_DELETION,
-        blockedByReason: {
+        jobConfigIdsByReason: {
           [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
             result.blockedJobConfigIds,
+        },
+        evaluatorIdsByReason: {
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
+            result.blockedEvaluatorIds,
         },
       });
 

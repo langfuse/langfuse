@@ -119,6 +119,12 @@ export const ListEvaluatorsSchema = z.object({
   search: z.string().trim().max(200).optional(),
 });
 
+export const EvaluatorOptionsSchema = z.object({
+  projectId: z.string(),
+  search: z.string().trim().max(200).optional(),
+  limit: paginationLimitZod.optional().default(50),
+});
+
 export const SuggestEvaluatorNameSchema = z.object({
   projectId: z.string(),
   definition: z.discriminatedUnion("type", [

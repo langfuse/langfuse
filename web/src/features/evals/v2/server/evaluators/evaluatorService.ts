@@ -69,6 +69,14 @@ export class EvaluatorService {
     });
   }
 
+  /** Name-searchable projection with the latest version, for pickers. */
+  listOptions(params: { projectId: string; search?: string; limit: number }) {
+    return repository.listEvaluatorOptions({
+      prisma: this.prisma,
+      ...params,
+    });
+  }
+
   async get(projectId: string, evaluatorId: string) {
     const evaluator = await repository.findEvaluator({
       prisma: this.prisma,

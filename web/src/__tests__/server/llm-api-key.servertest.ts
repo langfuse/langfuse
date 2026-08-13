@@ -9,7 +9,12 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
-import { prisma } from "@langfuse/shared/src/db";
+import { randomUUID } from "crypto";
+import {
+  EvalTemplateType,
+  EvaluatorBlockReason,
+  prisma,
+} from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
@@ -1390,5 +1395,151 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKeys[0].extraHeaderKeys).toContain("Authorization");
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-Another-Header");
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-New-Header");
+  });
+
+  describe("deleting a connection pauses the evaluators that ran on it", () => {
+    const PROVIDER = "openai";
+
+    const createLegacyEvaluator = async (template: {
+      provider: string | null;
+      model: string | null;
+    }) => {
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId,
+          name: `legacy-${randomUUID()}`,
+          version: 1,
+          prompt: "Evaluate {{output}}",
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          vars: ["output"],
+          ...template,
+        },
+      });
+      const jobConfiguration = await prisma.jobConfiguration.create({
+        data: {
+          projectId,
+          jobType: "EVAL",
+          evalTemplateId: evalTemplate.id,
+          scoreName: "quality",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+        },
+      });
+      return jobConfiguration.id;
+    };
+
+    /** Versions are given oldest-first; the last one is the evaluator's head. */
+    const createV2Evaluator = async (
+      versions: Array<{ provider: string | null; model: string | null }>,
+    ) => {
+      const evaluator = await prisma.evaluator.create({
+        data: {
+          projectId,
+          name: `evaluator-${randomUUID()}`,
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          versions: {
+            create: versions.map((version, index) => ({
+              version: index + 1,
+              prompt: "Evaluate {{output}}",
+              vars: ["output"],
+              ...version,
+            })),
+          },
+        },
+      });
+      return evaluator.id;
+    };
+
+    it("blocks both data models by their current model, and leaves the rest running", async () => {
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: "test-secret",
+        provider: PROVIDER,
+        adapter: LLMAdapter.OpenAI,
+        customModels: [],
+        withDefaultModels: true,
+      });
+      const connection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: PROVIDER },
+      });
+
+      const [
+        legacyOnProvider,
+        legacyOnDefaultModel,
+        legacyOnOtherProvider,
+        v2OnProvider,
+        v2OnDefaultModel,
+        v2MovedOffProvider,
+        v2OnOtherProvider,
+      ] = await Promise.all([
+        createLegacyEvaluator({ provider: PROVIDER, model: "gpt-4o" }),
+        createLegacyEvaluator({ provider: null, model: null }),
+        createLegacyEvaluator({ provider: "anthropic", model: "claude" }),
+        createV2Evaluator([{ provider: PROVIDER, model: "gpt-4o" }]),
+        createV2Evaluator([{ provider: null, model: null }]),
+        // Upgraded off the deleted provider: only the head version counts.
+        createV2Evaluator([
+          { provider: PROVIDER, model: "gpt-4o" },
+          { provider: "anthropic", model: "claude" },
+        ]),
+        createV2Evaluator([{ provider: "anthropic", model: "claude" }]),
+      ]);
+
+      // Point the project's default eval model at the connection too, so both
+      // block reasons fire from one deletion.
+      await prisma.defaultLlmModel.create({
+        data: {
+          projectId,
+          llmApiKeyId: connection.id,
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+        },
+      });
+
+      await caller.llmApiKey.delete({ projectId, id: connection.id });
+
+      const [jobConfigurations, evaluators] = await Promise.all([
+        prisma.jobConfiguration.findMany({ where: { projectId } }),
+        prisma.evaluator.findMany({ where: { projectId } }),
+      ]);
+      const blockStateById = new Map(
+        [...jobConfigurations, ...evaluators].map((row) => [
+          row.id,
+          { blocked: row.blockedAt !== null, reason: row.blockReason },
+        ]),
+      );
+
+      expect(blockStateById.get(legacyOnProvider)).toEqual({
+        blocked: true,
+        reason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+      });
+      expect(blockStateById.get(v2OnProvider)).toEqual({
+        blocked: true,
+        reason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+      });
+      expect(blockStateById.get(legacyOnDefaultModel)).toEqual({
+        blocked: true,
+        reason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+      });
+      expect(blockStateById.get(v2OnDefaultModel)).toEqual({
+        blocked: true,
+        reason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+      });
+
+      for (const untouched of [
+        legacyOnOtherProvider,
+        v2MovedOffProvider,
+        v2OnOtherProvider,
+      ]) {
+        expect(blockStateById.get(untouched)).toEqual({
+          blocked: false,
+          reason: null,
+        });
+      }
+    });
   });
 });

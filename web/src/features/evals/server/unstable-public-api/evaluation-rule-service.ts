@@ -1,8 +1,5 @@
-import {
-  invalidateProjectEvalConfigCaches,
-  type ApiAccessScope,
-} from "@langfuse/shared/src/server";
-import { EvalTemplateType, Prisma, prisma } from "@langfuse/shared/src/db";
+import { type ApiAccessScope } from "@langfuse/shared/src/server";
+import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
   JobConfigState,
   LangfuseNotFoundError,
@@ -44,13 +41,11 @@ import {
   assertActiveRuleLimitNotExceeded,
 } from "@/src/features/evals/v2/server/rules/ruleErrors";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
-import { replaceAssignments } from "@/src/features/evals/v2/server/rules/ruleRepository";
 import {
   findPublicV2EvaluatorByIdOrThrow,
   findPublicV2EvaluationRule,
   findPublicV2EvaluatorInFamilyOrThrow,
   listPublicEvaluationRulePage,
-  publicV2RuleInclude,
 } from "./queries";
 import type {
   EvaluationRuleEvaluatorFamilyReference,
@@ -108,10 +103,6 @@ function toEvaluatorDefinition(
     createdAt: evaluator.createdAt,
     updatedAt: evaluator.updatedAt,
   };
-}
-
-function jsonValue(value: unknown) {
-  return value === null ? Prisma.DbNull : (value as Prisma.InputJsonValue);
 }
 
 async function resolveProjectEvaluator(params: {
@@ -681,74 +672,16 @@ export async function updatePublicEvaluationRule(params: {
     });
   }
 
-  const usesRuleService = existingPublic.target === nextTarget;
-  const updated = usesRuleService
-    ? await updateRuleWithRuleService({
-        projectId: params.projectId,
-        evaluationRuleId: params.evaluationRuleId,
-        input: params.input,
-        fields: ruleFields,
-        existing,
-        replacementAssignments,
-        patchedFirstAssignment,
-        effectiveAssignmentCount: effectiveAssignments.length,
-      })
-    : await prisma.$transaction(async (tx) => {
-        if (replacementAssignments) {
-          await replaceAssignments({
-            prisma: tx,
-            projectId: params.projectId,
-            ruleId: params.evaluationRuleId,
-            assignments: replacementAssignments.map((assignment) => ({
-              evaluatorId: assignment.evaluatorId,
-              variableMapping: assignment.storedMapping as
-                | ObservationVariableMapping[]
-                | null,
-            })),
-          });
-        } else if (patchedFirstAssignment) {
-          const storedMapping = getPatchedFirstStoredMapping({
-            input: params.input,
-            firstAssignment,
-            patchedFirstAssignment,
-          });
-          if (firstAssignment) {
-            await tx.evaluationRuleEvaluatorAssignment.update({
-              where: { id: firstAssignment.id },
-              data: {
-                evaluatorId: patchedFirstAssignment.evaluatorId,
-                variableMapping: jsonValue(storedMapping),
-              },
-            });
-          } else {
-            await tx.evaluationRuleEvaluatorAssignment.create({
-              data: {
-                projectId: params.projectId,
-                evaluationRuleId: params.evaluationRuleId,
-                evaluatorId: patchedFirstAssignment.evaluatorId,
-                variableMapping: jsonValue(storedMapping),
-              },
-            });
-          }
-        }
-        return tx.evaluationRule.update({
-          where: { id: params.evaluationRuleId, projectId: params.projectId },
-          data: {
-            name: ruleFields.scoreName,
-            status:
-              effectiveAssignments.length === 0
-                ? JobConfigState.INACTIVE
-                : ruleFields.status,
-            targetObject: ruleFields.targetObject,
-            filter: ruleFields.filter,
-            sampling: ruleFields.sampling,
-          },
-          include: publicV2RuleInclude(params.projectId),
-        });
-      });
-  if (!usesRuleService) {
-    await invalidateProjectEvalConfigCaches(params.projectId);
-  }
+  const updated = await updateRuleWithRuleService({
+    projectId: params.projectId,
+    evaluationRuleId: params.evaluationRuleId,
+    input: params.input,
+    fields: ruleFields,
+    existing,
+    replacementAssignments,
+    patchedFirstAssignment,
+    effectiveAssignmentCount: effectiveAssignments.length,
+  });
   const evaluationRule = toApiWritableV2EvaluationRule(updated);
   if (params.auditScope) {
     await auditLog({
@@ -820,6 +753,7 @@ async function updateRuleWithRuleService(params: {
     ruleService.update({
       projectId: params.projectId,
       ruleId: params.evaluationRuleId,
+      targetObject: params.fields.targetObject as EvalTargetObject,
       name: params.fields.scoreName,
       enabled:
         params.effectiveAssignmentCount > 0 &&

@@ -144,10 +144,17 @@ export async function listEvaluatorOptions(params: {
       id: true,
       name: true,
       type: true,
+      blockedAt: true,
       versions: {
         orderBy: { version: "desc" },
         take: 1,
-        select: { id: true, version: true, variableMapping: true },
+        // `prompt` powers the evaluator prompt previews in pickers.
+        select: {
+          id: true,
+          version: true,
+          variableMapping: true,
+          prompt: true,
+        },
       },
     },
   });

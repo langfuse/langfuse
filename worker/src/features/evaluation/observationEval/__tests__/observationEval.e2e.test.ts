@@ -36,6 +36,13 @@ vi.mock("@langfuse/shared/src/db", () => ({
     jobConfiguration: {
       findFirst: vi.fn(),
     },
+    evaluationRuleEvaluatorAssignment: {
+      findFirst: vi.fn(),
+    },
+    evaluator: {
+      findFirst: vi.fn(),
+      updateMany: vi.fn(),
+    },
   },
 }));
 
@@ -86,6 +93,10 @@ describe("Observation Eval E2E Pipeline", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (
+      prisma.evaluationRuleEvaluatorAssignment.findFirst as Mock
+    ).mockResolvedValue(null);
+    (prisma.evaluator.findFirst as Mock).mockResolvedValue(null);
     (runLLMAsJudgeEvaluation as Mock).mockResolvedValue(
       mockEvalExecutionResult,
     );

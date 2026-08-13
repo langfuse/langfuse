@@ -474,17 +474,43 @@ describe("unstable public eval contracts", () => {
       name: "experiment-expected-output-match",
       target: "experiment",
       filter: [
+        // The experiment-root filter is what `target: "experiment"` means, so
+        // it is not separately addressable on either target.
         {
-          type: "stringOptions",
-          column: "type",
-          operator: "any of",
-          value: ["GENERATION"],
+          type: "boolean",
+          column: "isExperimentItemRootSpan",
+          operator: "=",
+          value: true,
         },
       ],
     });
 
     expect(parsed.success).toBe(false);
     expect(parsed.error?.issues.length).toBeGreaterThan(0);
+  });
+
+  it("accepts observation filters on the experiment target", () => {
+    // An experiment rule is an observation rule scoped to experiment root
+    // spans, so every observation filter stays available alongside datasetId.
+    const parsed = PatchUnstableEvaluationRuleBody.safeParse({
+      target: "experiment",
+      filter: [
+        {
+          type: "stringOptions",
+          column: "type",
+          operator: "any of",
+          value: ["GENERATION"],
+        },
+        {
+          type: "stringOptions",
+          column: "datasetId",
+          operator: "any of",
+          value: ["dataset-prod"],
+        },
+      ],
+    });
+
+    expect(parsed.success).toBe(true);
   });
 
   it("strips evaluator type from patch bodies so a rule's evaluator type cannot be changed", () => {

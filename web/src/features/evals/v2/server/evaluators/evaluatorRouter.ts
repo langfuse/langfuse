@@ -13,6 +13,7 @@ import {
   EvaluatorDefinitionSchema,
   EvaluatorIdSchema,
   EvaluatorIdsSchema,
+  EvaluatorOptionsSchema,
   EvaluatorVersionsSchema,
   ListEvaluatorsSchema,
   SuggestEvaluatorNameSchema,
@@ -61,6 +62,20 @@ export const evaluatorRouter = createTRPCRouter({
         scope: "evalTemplate:read",
       });
       return serviceForContext(ctx).list({
+        ...input,
+        projectId: ctx.session.projectId,
+      });
+    }),
+
+  options: protectedProjectProcedure
+    .input(EvaluatorOptionsSchema)
+    .query(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evalTemplate:read",
+      });
+      return serviceForContext(ctx).listOptions({
         ...input,
         projectId: ctx.session.projectId,
       });

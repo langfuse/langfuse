@@ -32,7 +32,7 @@ export function EditRuleDialog({
     300,
     false,
   );
-  const evaluatorOptions = api.evalsV2.rules.evaluatorOptions.useQuery({
+  const evaluatorOptions = api.evalsV2.options.useQuery({
     projectId,
     limit: 100,
     search: evaluatorSearchQuery.trim() || undefined,

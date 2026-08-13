@@ -31,6 +31,7 @@ import {
   setNoEvalConfigsCache,
   DatasetRunItemUpsertEventType,
   classifyEvaluatorLlmError,
+  blockEvaluator,
   blockEvaluatorConfigs,
   buildEvalExecutionMetadata,
   EvaluatorBlockSource,
@@ -57,7 +58,7 @@ import {
   EvalTargetObject,
   getEvaluatorBlockMetadata,
   getBlockReasonForInvalidModelConfig,
-  isJobConfigExecutable,
+  isEvalRuleExecutable,
   type EvalTemplateLlmAsAJudge,
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
@@ -760,6 +761,7 @@ export const createEvalJobs = async ({
  * @param params.extractedVariables - Pre-extracted variables from trace/observation data
  * @param params.executionMetadata - Metadata identifying this eval execution
  * @param params.deps - Optional dependency injection for testing (defaults to production deps)
+ * @param params.evaluatorId - Evaluator v2 identity, when the execution came from an evaluation rule
  */
 export async function runLLMAsJudgeEvaluation({
   projectId,
@@ -770,6 +772,7 @@ export async function runLLMAsJudgeEvaluation({
   extractedVariables,
   executionMetadata,
   deps,
+  evaluatorId,
 }: {
   projectId: string;
   jobExecutionId: string;
@@ -779,7 +782,35 @@ export async function runLLMAsJudgeEvaluation({
   extractedVariables: ExtractedVariable[];
   executionMetadata: Record<string, string>;
   deps: EvalExecutionDeps;
+  /**
+   * Evaluator v2 identity, when the execution came from an evaluation rule.
+   * It selects where a self-inflicted pause is recorded: on the evaluator, so
+   * every rule using it stops, rather than on a single job configuration.
+   */
+  evaluatorId?: string;
 }): Promise<EvalExecutionResult> {
+  const pauseEvaluator = (
+    blockReason: Parameters<typeof blockEvaluator>[0]["blockReason"],
+    source: EvaluatorBlockSource,
+  ) => {
+    const blockMessage = getEvaluatorBlockMetadata(blockReason).message;
+    return evaluatorId
+      ? blockEvaluator({
+          projectId,
+          evaluatorId,
+          blockReason,
+          blockMessage,
+          source,
+        })
+      : blockEvaluatorConfigs({
+          projectId,
+          where: { id: config.id },
+          blockReason,
+          blockMessage,
+          source,
+        });
+  };
+
   return instrumentAsync(
     { name: "eval.execute-llm-as-judge" },
     async (span) => {
@@ -848,13 +879,10 @@ export async function runLLMAsJudgeEvaluation({
           "eval.llm.block.source": EvaluatorBlockSource.INVALID_MODEL_CONFIG,
         });
 
-        await blockEvaluatorConfigs({
-          projectId,
-          where: { id: config.id },
+        await pauseEvaluator(
           blockReason,
-          blockMessage: getEvaluatorBlockMetadata(blockReason).message,
-          source: EvaluatorBlockSource.INVALID_MODEL_CONFIG,
-        });
+          EvaluatorBlockSource.INVALID_MODEL_CONFIG,
+        );
         span.setAttribute("eval.llm.block.applied", true);
 
         logger.warn(
@@ -977,13 +1005,10 @@ export async function runLLMAsJudgeEvaluation({
 
         if (classification?.blockReason) {
           const blockReason = classification.blockReason;
-          await blockEvaluatorConfigs({
-            projectId,
-            where: { id: config.id },
+          await pauseEvaluator(
             blockReason,
-            blockMessage: getEvaluatorBlockMetadata(blockReason).message,
-            source: EvaluatorBlockSource.LLM_COMPLETION_ERROR,
-          });
+            EvaluatorBlockSource.LLM_COMPLETION_ERROR,
+          );
           span.setAttribute("eval.llm.block.applied", true);
         }
 
@@ -1155,7 +1180,7 @@ export const evaluate = async ({
     );
   }
 
-  if (!isJobConfigExecutable(config)) {
+  if (!isEvalRuleExecutable(config)) {
     logger.debug(
       `Skipping non-executable config ${config.id} for job ${job.id}`,
     );

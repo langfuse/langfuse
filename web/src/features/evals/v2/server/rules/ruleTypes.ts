@@ -96,12 +96,6 @@ export const SetRulesEnabledSchema = z.intersection(
   z.object({ enabled: z.boolean() }),
 );
 
-export const EvaluatorOptionsSchema = z.object({
-  projectId: z.string(),
-  search: z.string().trim().max(200).optional(),
-  limit: paginationLimitZod.optional().default(50),
-});
-
 export const EvaluatorRulesSchema = z.object({
   projectId: z.string(),
   evaluatorId: z.string(),

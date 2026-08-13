@@ -10,13 +10,18 @@ import { EvaluatorPromptPreview } from "./EvaluatorPromptPreview";
 import { renderPromptPreviewFromObservation } from "./utils";
 import { Eye, Plus, X } from "lucide-react";
 
-type Evaluator = RouterOutputs["evals"]["jobConfigsByTarget"][number];
+export type BatchEvaluator = Pick<
+  RouterOutputs["evals"]["jobConfigsByTarget"][number],
+  "id" | "scoreName" | "variableMapping"
+> & {
+  evalTemplate?: { name?: string | null; prompt?: string | null } | null;
+};
 type ObservationPreview = RouterOutputs["observations"]["byId"];
 type EventPreview = RouterOutputs["events"]["batchIO"][number];
 
 type EvaluatorSelectionStepProps = {
-  eligibleEvaluators: Evaluator[];
-  selectedEvaluators: Evaluator[];
+  eligibleEvaluators: BatchEvaluator[];
+  selectedEvaluators: BatchEvaluator[];
   isQueryLoading: boolean;
   isQueryError: boolean;
   queryErrorMessage: string | undefined;
@@ -27,7 +32,7 @@ type EvaluatorSelectionStepProps = {
   evaluatorSearchQuery: string;
   onSearchQueryChange: (query: string) => void;
   onToggleEvaluator: (evaluatorId: string) => void;
-  onCreateEvaluator: () => void;
+  onCreateEvaluator?: () => void;
 };
 
 export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
@@ -67,7 +72,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
     );
   }, [eligibleEvaluators, evaluatorSearchQuery]);
 
-  const getPromptPreview = (evaluator: Evaluator) => {
+  const getPromptPreview = (evaluator: BatchEvaluator) => {
     if (isPreviewLoading) {
       return "Loading preview...";
     }
@@ -240,15 +245,17 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
         )}
       </div>
 
-      <Button
-        variant="outline"
-        size="default"
-        className="h-9 w-full"
-        onClick={onCreateEvaluator}
-      >
-        <Plus className="mr-1 h-4 w-4" />
-        Create new Evaluator
-      </Button>
+      {onCreateEvaluator ? (
+        <Button
+          variant="outline"
+          size="default"
+          className="h-9 w-full"
+          onClick={onCreateEvaluator}
+        >
+          <Plus className="mr-1 h-4 w-4" />
+          Create new Evaluator
+        </Button>
+      ) : null}
     </div>
   );
 }

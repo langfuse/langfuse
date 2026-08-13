@@ -688,12 +688,92 @@ describe("/api/public/unstable evaluators API", () => {
         include: { assignments: true },
       }),
     ).resolves.toMatchObject({
-      targetObject: "experiment",
+      targetObject: "event",
+      filter: [
+        {
+          column: "isExperimentItemRootSpan",
+          operator: "=",
+          value: true,
+        },
+      ],
       assignments: [{ evaluatorId: evaluator.body.id }],
     });
     await expect(
       prisma.jobConfiguration.findUnique({ where: { id: created.body.id } }),
     ).resolves.toBeNull();
+
+    const observationRule = await makeZodVerifiedAPICall(
+      PatchUnstableEvaluationRuleResponse,
+      "PATCH",
+      `/api/public/unstable/evaluation-rules/${created.body.id}`,
+      { target: "observation" },
+      auth,
+    );
+    expect(observationRule.body).toMatchObject({ target: "observation" });
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: created.body.id },
+      }),
+    ).resolves.toMatchObject({ targetObject: "event", filter: [] });
+
+    const experimentRule = await makeZodVerifiedAPICall(
+      PatchUnstableEvaluationRuleResponse,
+      "PATCH",
+      `/api/public/unstable/evaluation-rules/${created.body.id}`,
+      { target: "experiment" },
+      auth,
+    );
+    expect(experimentRule.body).toMatchObject({ target: "experiment" });
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: created.body.id },
+      }),
+    ).resolves.toMatchObject({
+      targetObject: "event",
+      filter: [
+        {
+          column: "isExperimentItemRootSpan",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+
+    // An experiment rule is an observation rule scoped to experiment root
+    // spans, so observation filters survive the round trip alongside the
+    // implicit root filter rather than failing the experiment filter schema.
+    const scopedExperimentRule = await makeZodVerifiedAPICall(
+      PatchUnstableEvaluationRuleResponse,
+      "PATCH",
+      `/api/public/unstable/evaluation-rules/${created.body.id}`,
+      {
+        target: "experiment",
+        filter: [
+          {
+            type: "stringOptions",
+            column: "environment",
+            operator: "any of",
+            value: ["production"],
+          },
+        ],
+      },
+      auth,
+    );
+    expect(scopedExperimentRule.body).toMatchObject({
+      target: "experiment",
+      filter: [{ column: "environment", value: ["production"] }],
+    });
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: created.body.id },
+      }),
+    ).resolves.toMatchObject({
+      targetObject: "event",
+      filter: [
+        { column: "environment" },
+        { column: "isExperimentItemRootSpan", operator: "=", value: true },
+      ],
+    });
 
     const fetchedEvaluator = await makeZodVerifiedAPICall(
       GetUnstableEvaluatorResponse,

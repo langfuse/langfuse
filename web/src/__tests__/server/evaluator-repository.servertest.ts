@@ -1,10 +1,12 @@
 import { EvalTemplateType } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  findDefaultModelEvalTemplateIds,
+} from "@langfuse/shared/src/server";
 import {
   deleteJobConfigurationWithExecutions,
   deleteEvalTemplatesByIds,
-  findDefaultModelEvalTemplateIds,
   findEvalTemplateById,
   findEvalTemplateFamilyVersions,
   findJobConfigurationsReferencingEvalTemplates,

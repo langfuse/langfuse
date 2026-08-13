@@ -270,6 +270,8 @@ export default function EvaluatorsPage() {
             ruleCount={row.original._count.assignments}
             active={row.original.hasActiveRules}
             blocked={Boolean(row.original.blockedAt)}
+            blockReason={row.original.blockReason}
+            blockMessage={row.original.blockMessage}
           />
         ),
       },

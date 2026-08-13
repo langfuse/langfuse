@@ -18,6 +18,8 @@ import {
   FilterCondition,
   EvalTargetObject,
   EvalTemplateType,
+  JobConfigState,
+  normalizeEvaluationRuleTarget,
 } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import {
@@ -462,8 +464,14 @@ export const handleBatchActionJob = async (
       observations,
     });
   } else if (actionId === "observation-run-batched-evaluation") {
-    const { projectId, query, cutoffCreatedAt, evaluatorIds, batchActionId } =
-      batchActionEvent;
+    const {
+      projectId,
+      query,
+      cutoffCreatedAt,
+      evaluatorIds,
+      batchActionId,
+      evalVersion,
+    } = batchActionEvent;
 
     if (!batchActionId) {
       throw new Error(
@@ -474,41 +482,92 @@ export const handleBatchActionJob = async (
     const selectedEvaluatorIds = Array.from(new Set(evaluatorIds));
 
     let evaluators;
+    let evaluatorLabels: string[];
     try {
-      const rawEvaluators = await prisma.jobConfiguration.findMany({
-        where: {
-          id: { in: selectedEvaluatorIds },
-          projectId,
-          evalTemplateId: { not: null },
-          // Preserve the selected evaluators as-is. Executability is checked
-          // later when each scheduling attempt runs.
-        },
-        select: {
-          id: true,
-          projectId: true,
-          evalTemplateId: true,
-          evalTemplate: {
-            select: {
-              type: true,
+      if (evalVersion === "v2") {
+        const stableEvaluators = await prisma.evaluator.findMany({
+          where: { id: { in: selectedEvaluatorIds }, projectId },
+          select: {
+            id: true,
+            name: true,
+            projectId: true,
+            type: true,
+            blockedAt: true,
+            versions: {
+              orderBy: { version: "desc" },
+              take: 1,
+              select: { id: true, variableMapping: true },
             },
           },
-          scoreName: true,
-          targetObject: true,
-          variableMapping: true,
-          status: true,
-          blockedAt: true,
-        },
-      });
+        });
 
-      // For batch evaluation the user's table-level selection determines which
-      // observations to evaluate, so we intentionally set filter=[] and
-      // sampling=1 to ensure every streamed observation is evaluated.
-      evaluators = rawEvaluators.map((e) => ({
-        ...e,
-        evalTemplate: e.evalTemplate!,
-        filter: [] as [],
-        sampling: new Decimal(1),
-      }));
+        evaluatorLabels = stableEvaluators.map(({ name }) => name);
+        // A batch run addresses evaluators directly, so there is no rule:
+        // `ruleId` stays null and the evaluator id anchors the job execution.
+        // The user's table selection already picked the rows, so filter=[] and
+        // sampling=1 make every streamed observation match.
+        evaluators = stableEvaluators.map((evaluator) => ({
+          id: evaluator.id,
+          ruleId: null,
+          projectId,
+          filter: [] as [],
+          sampling: new Decimal(1),
+          status: JobConfigState.ACTIVE,
+          targetObject: EvalTargetObject.EVENT,
+          assignments: [
+            {
+              id: evaluator.id,
+              evaluatorId: evaluator.id,
+              variableMapping: null,
+              evaluator: {
+                id: evaluator.id,
+                projectId: evaluator.projectId,
+                type: evaluator.type,
+                blockedAt: evaluator.blockedAt,
+                versions: evaluator.versions,
+              },
+            },
+          ],
+        }));
+      } else {
+        const rawEvaluators = await prisma.jobConfiguration.findMany({
+          where: {
+            id: { in: selectedEvaluatorIds },
+            projectId,
+            evalTemplateId: { not: null },
+            // Preserve the selected evaluators as-is. Executability is checked
+            // later when each scheduling attempt runs.
+          },
+          select: {
+            id: true,
+            projectId: true,
+            evalTemplateId: true,
+            evalTemplate: { select: { type: true } },
+            scoreName: true,
+            targetObject: true,
+            variableMapping: true,
+            status: true,
+            blockedAt: true,
+          },
+        });
+
+        evaluatorLabels = rawEvaluators.map(({ scoreName }) => scoreName);
+        // For batch evaluation the user's table-level selection determines
+        // which observations to evaluate, so every config matches every row.
+        // The experiment target still has to keep its root-span constraint,
+        // which the canonical representation expresses as a filter.
+        evaluators = rawEvaluators.map((e) => ({
+          ...e,
+          evalTemplate: e.evalTemplate!,
+          ...normalizeEvaluationRuleTarget({
+            targetObject: e.targetObject as
+              | typeof EvalTargetObject.EVENT
+              | typeof EvalTargetObject.EXPERIMENT,
+            filter: [],
+          }),
+          sampling: new Decimal(1),
+        }));
+      }
     } catch (error) {
       await prisma.batchAction.update({
         where: { id: batchActionId },
@@ -546,6 +605,7 @@ export const handleBatchActionJob = async (
       projectId,
       batchActionId,
       evaluators,
+      evaluatorLabels,
       observationStream: dbReadStream,
     });
   }

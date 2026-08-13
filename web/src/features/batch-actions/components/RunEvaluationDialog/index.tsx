@@ -5,6 +5,7 @@ import {
   EvalTargetObject,
   BatchEvalSourceTable as SourceTable,
   getEvalTargetObjectFromSourceTable,
+  observationVariableMappingList,
 } from "@langfuse/shared";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import {
@@ -20,7 +21,10 @@ import { Button } from "@/src/components/ui/button";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { ChevronLeft } from "lucide-react";
-import { EvaluatorSelectionStep } from "./EvaluatorSelectionStep";
+import {
+  EvaluatorSelectionStep,
+  type BatchEvaluator,
+} from "./EvaluatorSelectionStep";
 import { ConfirmationStep } from "./ConfirmationStep";
 import { CreateEvaluatorDialog } from "./CreateEvaluatorDialog";
 import { buildQueryWithSelectedIds } from "./utils";
@@ -44,6 +48,9 @@ type RunEvaluationDialogProps = {
 
 type DialogStep = "select-evaluator" | "confirm";
 
+/** Matches the evaluator overview page size; the step filters client-side. */
+const BATCH_EVALUATOR_LIMIT = 100;
+
 export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   const { isBetaEnabled } = useV4Beta();
   const {
@@ -56,19 +63,29 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   } = props;
 
   const [step, setStep] = useState<DialogStep>("select-evaluator");
-  const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<string[]>(
-    [],
-  );
+  const [selectedEvaluators, setSelectedEvaluators] = useState<
+    BatchEvaluator[]
+  >([]);
   const [evaluatorSearchQuery, setEvaluatorSearchQuery] = useState("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   // Derive targetObject from sourceTable
   const targetObject = getEvalTargetObjectFromSourceTable(sourceTable);
 
-  const evaluatorsQuery = api.evals.jobConfigsByTarget.useQuery({
-    projectId,
-    targetObject,
-  });
+  const legacyEvaluatorsQuery = api.evals.jobConfigsByTarget.useQuery(
+    { projectId, targetObject },
+    { enabled: !isBetaEnabled },
+  );
+  // Unsearched: `EvaluatorSelectionStep` filters the list client-side, the
+  // same way the legacy query does, so typing does not refetch.
+  const v2EvaluatorsQuery = api.evalsV2.options.useQuery(
+    { projectId, limit: BATCH_EVALUATOR_LIMIT },
+    { enabled: isBetaEnabled },
+  );
+
+  const evaluatorsQuery = isBetaEnabled
+    ? v2EvaluatorsQuery
+    : legacyEvaluatorsQuery;
 
   const runEvaluationMutation =
     api.batchAction.runEvaluation.create.useMutation({
@@ -132,25 +149,52 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   );
 
   const eligibleEvaluators = useMemo(() => {
-    return (evaluatorsQuery.data ?? []).filter(
+    if (isBetaEnabled) {
+      // A blocked evaluator is skipped by the scheduler, so offering it would
+      // report a successful batch that produced no scores.
+      return (v2EvaluatorsQuery.data ?? [])
+        .filter((evaluator) => evaluator.blockedAt === null)
+        .map(
+          (evaluator): BatchEvaluator => ({
+            id: evaluator.id,
+            scoreName: evaluator.name,
+            variableMapping:
+              observationVariableMappingList.safeParse(
+                evaluator.latestVersion?.variableMapping,
+              ).data ?? [],
+            evalTemplate: {
+              name: evaluator.name,
+              prompt: evaluator.latestVersion?.prompt ?? null,
+            },
+          }),
+        );
+    }
+
+    return (legacyEvaluatorsQuery.data ?? []).filter(
       (evaluator) => evaluator.targetObject === targetObject,
     );
-  }, [evaluatorsQuery.data, targetObject]);
+  }, [
+    isBetaEnabled,
+    legacyEvaluatorsQuery.data,
+    targetObject,
+    v2EvaluatorsQuery.data,
+  ]);
 
-  const selectedEvaluators = useMemo(
-    () =>
-      eligibleEvaluators.filter((evaluator) =>
-        selectedEvaluatorIds.includes(evaluator.id),
-      ),
-    [eligibleEvaluators, selectedEvaluatorIds],
+  const selectedEvaluatorIds = useMemo(
+    () => selectedEvaluators.map((evaluator) => evaluator.id),
+    [selectedEvaluators],
   );
 
   const toggleEvaluatorSelection = (evaluatorId: string) => {
-    setSelectedEvaluatorIds((previous) =>
-      previous.includes(evaluatorId)
-        ? previous.filter((id) => id !== evaluatorId)
-        : [...previous, evaluatorId],
-    );
+    setSelectedEvaluators((previous) => {
+      if (previous.some((evaluator) => evaluator.id === evaluatorId)) {
+        return previous.filter((evaluator) => evaluator.id !== evaluatorId);
+      }
+      const evaluator = eligibleEvaluators.find(
+        (candidate) => candidate.id === evaluatorId,
+      );
+      return evaluator ? [...previous, evaluator] : previous;
+    });
   };
 
   const onSubmit = async () => {
@@ -170,6 +214,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
         query: finalQuery,
         evaluatorIds: selectedEvaluators.map((evaluator) => evaluator.id),
         sourceTable,
+        ...(isBetaEnabled ? { evalVersion: "v2" as const } : {}),
       });
     } catch {
       return;
@@ -232,7 +277,9 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 evaluatorSearchQuery={evaluatorSearchQuery}
                 onSearchQueryChange={setEvaluatorSearchQuery}
                 onToggleEvaluator={toggleEvaluatorSelection}
-                onCreateEvaluator={() => setShowCreateDialog(true)}
+                onCreateEvaluator={
+                  isBetaEnabled ? undefined : () => setShowCreateDialog(true)
+                }
               />
             ) : (
               <ConfirmationStep
@@ -285,12 +332,14 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
         </DialogContent>
       </Dialog>
 
-      <CreateEvaluatorDialog
-        projectId={projectId}
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        targetObject={targetObject}
-      />
+      {!isBetaEnabled ? (
+        <CreateEvaluatorDialog
+          projectId={projectId}
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          targetObject={targetObject}
+        />
+      ) : null}
     </>
   );
 }

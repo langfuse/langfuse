@@ -262,11 +262,16 @@ describe("RuleService", () => {
           null,
         ),
       ).resolves.toMatchObject({
-        targetObject: EvalTargetObject.EXPERIMENT,
+        targetObject: EvalTargetObject.EVENT,
         filter: [
           {
             column: "experimentDatasetId",
             value: ["dataset-id"],
+          },
+          {
+            column: "isExperimentItemRootSpan",
+            operator: "=",
+            value: true,
           },
         ],
         assignments: [
@@ -346,6 +351,48 @@ describe("RuleService", () => {
         assignments: [{ evaluatorId: second.id, variableMapping }],
       });
       expect(updated.assignments).toHaveLength(1);
+    });
+
+    it("normalizes legacy experiment rules on read and persists them canonically on update", async () => {
+      const service = createService();
+      const rule = await service.create(createInput(), null);
+      await prisma.evaluationRule.update({
+        where: { id: rule.id },
+        data: {
+          targetObject: EvalTargetObject.EXPERIMENT,
+          filter: [],
+        },
+      });
+
+      await expect(service.get(projectId, rule.id)).resolves.toMatchObject({
+        targetObject: EvalTargetObject.EVENT,
+        filter: [
+          {
+            column: "isExperimentItemRootSpan",
+            operator: "=",
+            value: true,
+          },
+        ],
+      });
+
+      await service.update({
+        projectId,
+        ruleId: rule.id,
+        name: "Canonical experiment rule",
+      });
+
+      await expect(
+        prisma.evaluationRule.findUniqueOrThrow({ where: { id: rule.id } }),
+      ).resolves.toMatchObject({
+        targetObject: EvalTargetObject.EVENT,
+        filter: [
+          {
+            column: "isExperimentItemRootSpan",
+            operator: "=",
+            value: true,
+          },
+        ],
+      });
     });
   });
 
@@ -432,6 +479,7 @@ describe("RuleService", () => {
         service.update({
           projectId,
           ruleId: rule.id,
+          targetObject: EvalTargetObject.EXPERIMENT,
           filter: [
             {
               type: "stringOptions",
@@ -453,8 +501,11 @@ describe("RuleService", () => {
           ],
         }),
       ).resolves.toMatchObject({
-        targetObject: EvalTargetObject.EXPERIMENT,
-        filter: [{ column: "experimentDatasetId" }],
+        targetObject: EvalTargetObject.EVENT,
+        filter: [
+          { column: "experimentDatasetId" },
+          { column: "isExperimentItemRootSpan", value: true },
+        ],
         assignments: [
           {
             evaluatorId: second.id,
@@ -463,6 +514,57 @@ describe("RuleService", () => {
             ],
           },
         ],
+      });
+    });
+
+    it("lets an update drop the experiment scope by omitting its root filter", async () => {
+      const service = createService();
+      const rule = await service.create(
+        {
+          ...createInput(),
+          targetObject: EvalTargetObject.EXPERIMENT,
+          filter: [],
+        },
+        null,
+      );
+
+      // A filter-bearing update re-decides the experiment classification, so
+      // removing the root filter is not silently undone.
+      await expect(
+        service.update({
+          projectId,
+          ruleId: rule.id,
+          filter: [
+            {
+              type: "stringOptions",
+              column: "environment",
+              operator: "any of",
+              value: ["production"],
+            },
+          ],
+        }),
+      ).resolves.toMatchObject({
+        targetObject: EvalTargetObject.EVENT,
+        filter: [{ column: "environment" }],
+      });
+    });
+
+    it("keeps the experiment scope when an update does not touch the filter", async () => {
+      const service = createService();
+      const rule = await service.create(
+        {
+          ...createInput(),
+          targetObject: EvalTargetObject.EXPERIMENT,
+          filter: [],
+        },
+        null,
+      );
+
+      await expect(
+        service.update({ projectId, ruleId: rule.id, name: "Renamed" }),
+      ).resolves.toMatchObject({
+        targetObject: EvalTargetObject.EVENT,
+        filter: [{ column: "isExperimentItemRootSpan", value: true }],
       });
     });
 

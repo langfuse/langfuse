@@ -4,7 +4,7 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
-import { blockEvaluatorConfigsInTx } from "../../../packages/shared/src/server/services/blockEvaluatorConfigs";
+import { blockEvaluatorConfigsInTx } from "../../../packages/shared/src/server/services/blockEvaluators";
 
 describe("blockEvaluatorConfigsInTx", () => {
   it("only returns newly blocked active evaluators", async () => {

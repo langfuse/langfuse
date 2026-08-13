@@ -1,6 +1,6 @@
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useMemo } from "react";
-import { isJobConfigExecutable } from "@langfuse/shared";
+import { isEvalRuleExecutable } from "@langfuse/shared";
 import { getEvalTemplateFamilyKey } from "@/src/features/evals/utils/eval-template-family";
 
 /**
@@ -32,7 +32,7 @@ export const getExistingEvaluators = (
     if (!matchesDataset || !jobConfig.evalTemplate) continue;
 
     const familyKey = getEvalTemplateFamilyKey(jobConfig.evalTemplate);
-    const isActive = isJobConfigExecutable({
+    const isActive = isEvalRuleExecutable({
       status: jobConfig.status,
       blockedAt: jobConfig.blockedAt,
     });

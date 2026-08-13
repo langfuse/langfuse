@@ -6,10 +6,13 @@ import {
   extractVariables,
   JobTimeScopeZod,
   JobConfigState,
+  isExperimentEvaluationRule,
   observationVariableMappingList,
   PersistedEvalOutputDefinitionSchema,
   resolvePersistedEvalOutputDefinition,
   singleFilter,
+  stripExperimentRootFilter,
+  type FilterState,
   type ObservationVariableMapping,
   type PersistedEvalOutputDefinition,
   variableMappingList,
@@ -391,7 +394,11 @@ function toApiFilters(
     throw new InternalServerError("Evaluation rule filter is corrupted");
   }
 
-  const publicFilters = storedFilters.data.map((filter) =>
+  const effectiveFilters =
+    target === "experiment"
+      ? stripExperimentRootFilter(storedFilters.data)
+      : storedFilters.data;
+  const publicFilters = effectiveFilters.map((filter) =>
     toApiFilter(filter, target),
   );
   const parsedPublicFilters =
@@ -467,7 +474,15 @@ export function toApiV2EvaluationRule(
     name: candidate.evaluator.name,
     type: toPublicEvaluatorType(candidate.evaluator.type),
   });
-  const target = assertPublicTarget(rule.targetObject);
+  const storedFilters = z.array(singleFilter).safeParse(rule.filter);
+  const target =
+    storedFilters.success &&
+    isExperimentEvaluationRule({
+      targetObject: rule.targetObject as EvalTargetObject,
+      filter: storedFilters.data as FilterState,
+    })
+      ? "experiment"
+      : assertPublicTarget(rule.targetObject);
   if (target === "trace" || target === "dataset") {
     const evaluators = rule.assignments.map((candidate) => ({
       evaluator: toEvaluator(candidate),

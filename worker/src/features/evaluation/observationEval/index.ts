@@ -2,7 +2,7 @@ export {
   isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
 } from "./scheduleObservationEvals";
-export { fetchObservationEvalConfigs } from "./fetchObservationEvalConfigs";
+export { fetchObservationEvalRules } from "./fetchObservationEvalRules";
 export { createObservationEvalSchedulerDeps } from "./createSchedulerDeps";
 export {
   processObservationEval,
@@ -11,6 +11,8 @@ export {
 } from "./observationEvalProcessor";
 export type {
   ObservationForEval,
-  ObservationEvalConfig,
+  ObservationEvalAssignment,
+  ObservationEvalRule,
+  EvaluationRuleWithAssignments,
   ObservationEvalSchedulerDeps,
 } from "./types";

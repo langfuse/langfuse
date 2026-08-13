@@ -6,17 +6,14 @@ import {
   DeleteLlmConnectionV1Response,
 } from "@/src/features/public-api/types/llm-connections";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { EvaluatorBlockReason, LangfuseNotFoundError } from "@langfuse/shared";
 import {
-  EvaluatorBlockReason,
-  getEvaluatorBlockMetadata,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
-import {
-  blockEvaluatorConfigsInTx,
+  blockEvaluatorsUsingDefaultModel,
+  blockEvaluatorsUsingProvider,
+  EMPTY_EVALUATOR_BLOCK,
   EvaluatorBlockSource,
-  finalizeBlockedEvaluatorConfigBlocks,
+  finalizeEvaluatorBlocks,
 } from "@langfuse/shared/src/server";
-import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/evaluatorRepository";
 
 export default withMiddlewares({
   DELETE: createAuthedProjectAPIRoute({
@@ -44,61 +41,18 @@ export default withMiddlewares({
           select: { llmApiKeyId: true },
         });
 
-        const providerBlockedJobConfigIds = new Set<string>();
-        const defaultModelBlockedJobConfigIds = new Set<string>();
-
-        if (llmApiKey.provider) {
-          const evalTemplates = await tx.evalTemplate.findMany({
-            where: {
-              OR: [{ projectId }, { projectId: null }],
+        const providerBlock = llmApiKey.provider
+          ? await blockEvaluatorsUsingProvider({
+              tx,
+              projectId,
               provider: llmApiKey.provider,
-            },
-            select: { id: true },
-          });
+            })
+          : EMPTY_EVALUATOR_BLOCK;
 
-          const providerBlockResult = await blockEvaluatorConfigsInTx({
-            tx,
-            projectId,
-            where: {
-              evalTemplateId: {
-                in: evalTemplates.map((template) => template.id),
-              },
-            },
-            blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            ).message,
-          });
-
-          for (const configId of providerBlockResult.blockedJobConfigIds) {
-            providerBlockedJobConfigIds.add(configId);
-          }
-        }
-
-        if (defaultModel && defaultModel.llmApiKeyId === llmApiKey.id) {
-          const evalTemplateIds = await findDefaultModelEvalTemplateIds({
-            tx,
-            projectId,
-          });
-
-          const defaultModelBlockResult = await blockEvaluatorConfigsInTx({
-            tx,
-            projectId,
-            where: {
-              evalTemplateId: {
-                in: evalTemplateIds,
-              },
-            },
-            blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            ).message,
-          });
-
-          for (const configId of defaultModelBlockResult.blockedJobConfigIds) {
-            defaultModelBlockedJobConfigIds.add(configId);
-          }
-        }
+        const defaultModelBlock =
+          defaultModel && defaultModel.llmApiKeyId === llmApiKey.id
+            ? await blockEvaluatorsUsingDefaultModel({ tx, projectId })
+            : EMPTY_EVALUATOR_BLOCK;
 
         await tx.llmApiKeys.delete({
           where: { id: llmApiKey.id, projectId },
@@ -114,22 +68,23 @@ export default withMiddlewares({
           before: llmApiKey,
         });
 
-        return {
-          providerBlockedJobConfigIds: Array.from(providerBlockedJobConfigIds),
-          defaultModelBlockedJobConfigIds: Array.from(
-            defaultModelBlockedJobConfigIds,
-          ),
-        };
+        return { providerBlock, defaultModelBlock };
       });
 
-      await finalizeBlockedEvaluatorConfigBlocks({
+      await finalizeEvaluatorBlocks({
         projectId,
         source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
-        blockedByReason: {
+        jobConfigIdsByReason: {
           [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
-            result.providerBlockedJobConfigIds,
+            result.providerBlock.blockedJobConfigIds,
           [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
-            result.defaultModelBlockedJobConfigIds,
+            result.defaultModelBlock.blockedJobConfigIds,
+        },
+        evaluatorIdsByReason: {
+          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
+            result.providerBlock.blockedEvaluatorIds,
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
+            result.defaultModelBlock.blockedEvaluatorIds,
         },
       });
 

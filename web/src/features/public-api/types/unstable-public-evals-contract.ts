@@ -223,13 +223,23 @@ function createTargetFilterSchema(
   );
 }
 
-export const OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS =
-  observationEvalFilterColumns.map((column) => ({
-    id: column.id,
-    type: column.type as SupportedFilterFactory,
-  }));
+// The experiment-root filter is what the `experiment` target *means*, so it is
+// not separately addressable: exposing it on `observation` too would give one
+// rule two contradictory public representations.
+const EXPERIMENT_ROOT_FILTER_COLUMN = "isExperimentItemRootSpan";
 
+export const OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS =
+  observationEvalFilterColumns
+    .filter((column) => column.id !== EXPERIMENT_ROOT_FILTER_COLUMN)
+    .map((column) => ({
+      id: column.id,
+      type: column.type as SupportedFilterFactory,
+    }));
+
+// An experiment rule is an observation rule scoped to experiment root spans,
+// so it accepts every observation filter plus the dataset scope.
 export const EXPERIMENT_EVALUATION_RULE_FILTER_COLUMNS = [
+  ...OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS,
   {
     id: "datasetId",
     type: experimentEvalFilterColumns[0]!.type as SupportedFilterFactory,

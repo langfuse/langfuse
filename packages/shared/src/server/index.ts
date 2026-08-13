@@ -154,7 +154,7 @@ export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultViewService";
 export * from "./services/DefaultEvaluationModelService";
-export * from "./services/blockEvaluatorConfigs";
+export * from "./services/blockEvaluators";
 export * from "./services/getProjectAdminEmails";
 export * from "./services/SlackService";
 export * from "./services/buildColoredAttachmentSlackMessage";
