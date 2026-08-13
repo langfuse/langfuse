@@ -8,7 +8,7 @@
 import { useCallback } from "react";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { usePrefetchObservation } from "@/src/features/traces/hooks/usePrefetchObservation";
-import { type TreeNode } from "../fns/types";
+import { type TreeNode } from "../types/treeNode";
 
 /**
  * Returns a callback to prefetch observation data when hovering over nodes.

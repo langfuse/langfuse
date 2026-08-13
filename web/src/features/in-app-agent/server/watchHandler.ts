@@ -14,6 +14,7 @@ const WatchQuerySchema = z.object({
   projectId: z.string().min(1),
   conversationId: z.string().min(1),
   cursor: z.coerce.number().int().min(-1).default(-1),
+  openRunId: z.string().min(1).optional(),
 });
 
 export default async function watchHandler(request: Request) {
@@ -36,13 +37,14 @@ export default async function watchHandler(request: Request) {
         url.searchParams.get("cursor") ??
         request.headers.get("last-event-id") ??
         -1,
+      openRunId: url.searchParams.get("openRunId") ?? undefined,
     });
 
     if (!query.success) {
       return Response.json({ error: "Invalid watch query" }, { status: 400 });
     }
 
-    const { projectId, conversationId, cursor } = query.data;
+    const { projectId, conversationId, cursor, openRunId } = query.data;
 
     if (!isProjectMemberOrAdmin(user, projectId)) {
       throw new ForbiddenError("User is not a member of this project");
@@ -70,6 +72,7 @@ export default async function watchHandler(request: Request) {
       projectId,
       conversationId,
       cursor,
+      openRunId,
       signal: request.signal,
     });
 
@@ -98,6 +101,7 @@ function createWatchStream(params: {
   projectId: string;
   conversationId: string;
   cursor: number;
+  openRunId?: string;
   signal: AbortSignal;
 }): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -109,6 +113,7 @@ function createWatchStream(params: {
         projectId: params.projectId,
         conversationId: params.conversationId,
         cursor: params.cursor,
+        openRunId: params.openRunId,
         signal: params.signal,
       });
 

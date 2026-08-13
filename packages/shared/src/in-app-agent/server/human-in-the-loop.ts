@@ -1,14 +1,12 @@
 import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
-import { InvalidRequestError } from "../../index";
-import { prisma } from "../../db";
 import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "../constants";
 import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
   type InAppAgentLangfuseMcpToolName,
 } from "./tools";
-import { safeJsonParse, stableJsonStringify } from "../../utils/json";
+import { safeJsonParse } from "../../utils/json";
 import {
   type AgUiEvent,
   type AgUiMessage,
@@ -26,15 +24,6 @@ const MANUAL_TOOL_APPROVAL_REJECTION_ERROR = JSON.stringify({
 
 type DeveloperGuidanceMessage = Extract<AgUiMessage, { role: "developer" }>;
 
-export const IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS = 60 * 60;
-
-const PendingToolApprovalSchema = z.object({
-  toolCallId: z.string().min(1),
-  toolName: z.string().min(1),
-  runId: z.string().min(1),
-  argsFingerprint: z.string(),
-});
-
 const InAppAgentLangfuseMcpToolNameSchema =
   z.custom<InAppAgentLangfuseMcpToolName>(
     (value) =>
@@ -45,9 +34,16 @@ const InAppAgentLangfuseMcpToolNameSchema =
     { message: "Invalid MCP tool name" },
   );
 
-export const InAppAgentMcpRunOverrideSchema = z.object({
-  toolName: InAppAgentLangfuseMcpToolNameSchema,
-});
+/** Accept the legacy single-tool shape while older continuations may still be queued. */
+export const InAppAgentMcpRunOverrideSchema = z
+  .union([
+    z.object({ toolNames: z.array(InAppAgentLangfuseMcpToolNameSchema) }),
+    z.object({ toolName: InAppAgentLangfuseMcpToolNameSchema }),
+  ])
+  .transform((override) => ({
+    toolNames:
+      "toolNames" in override ? override.toolNames : [override.toolName],
+  }));
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -57,94 +53,13 @@ const MastraSuspendEventSchema = z.object({
   runId: z.string().min(1),
 });
 
-export async function storePendingToolApproval(params: {
-  projectId: string;
-  conversationId: string;
-  approvalRequest: InAppAgentToolApprovalRequest;
-}) {
-  const approvalFingerprint = createPendingToolApprovalFingerprint(
-    params.approvalRequest,
-  );
-  const expiresAt = new Date(
-    Date.now() + IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS * 1000,
-  );
-
-  await prisma.inAppAgentPendingToolApproval.upsert({
-    where: {
-      projectId_conversationId_toolCallId: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        toolCallId: params.approvalRequest.toolCallId,
-      },
-    },
-    create: {
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      toolCallId: params.approvalRequest.toolCallId,
-      approvalFingerprint,
-      expiresAt,
-    },
-    update: {
-      approvalFingerprint,
-      expiresAt,
-    },
-  });
-}
-
-// Check early, before stream setup, so malformed or forged resume payloads fail
-// without starting another model/tool execution attempt.
-export async function validatePendingToolApproval(params: {
-  projectId: string;
-  conversationId: string;
-  forwardedProps: ResumeForwardedProps;
-}) {
-  const approvalRequest = params.forwardedProps.command.resume.approvalRequest;
-  const pendingApproval = await prisma.inAppAgentPendingToolApproval.findFirst({
-    where: {
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      toolCallId: approvalRequest.toolCallId,
-      approvalFingerprint:
-        createPendingToolApprovalFingerprint(approvalRequest),
-      expiresAt: { gt: new Date() },
-    },
-    select: { toolCallId: true },
-  });
-
-  if (!pendingApproval) {
-    throw new InvalidRequestError("Invalid forwarded props");
-  }
-}
-
-// Atomically consume before stream setup so a pending approval can start at most
-// one resumed tool call attempt.
-export async function consumeAndValidatePendingToolApproval(params: {
-  projectId: string;
-  conversationId: string;
-  forwardedProps: ResumeForwardedProps;
-}) {
-  const approvalRequest = params.forwardedProps.command.resume.approvalRequest;
-  const consumeResult = await prisma.inAppAgentPendingToolApproval.deleteMany({
-    where: {
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      toolCallId: approvalRequest.toolCallId,
-      approvalFingerprint:
-        createPendingToolApprovalFingerprint(approvalRequest),
-      expiresAt: { gt: new Date() },
-    },
-  });
-
-  if (consumeResult.count !== 1) {
-    throw new InvalidRequestError("Invalid forwarded props");
-  }
-}
-
 export async function createInAppAgentMcpRunOverride(params: {
-  toolName: InAppAgentLangfuseMcpToolName;
+  toolNames: InAppAgentLangfuseMcpToolName[];
 }) {
   return JSON.stringify({
-    toolName: params.toolName,
+    // Older web pods read the singular field during rolling deploys.
+    toolName: params.toolNames[0],
+    toolNames: params.toolNames,
   });
 }
 
@@ -439,19 +354,4 @@ function serializeToolResultContent(value: unknown) {
   } catch {
     return String(value);
   }
-}
-
-function createPendingToolApprovalFingerprint(
-  approvalRequest: InAppAgentToolApprovalRequest,
-): string {
-  // Persist only the stable approval identity, including a sorted-JSON argument
-  // fingerprint, so approved calls cannot be replayed with changed arguments.
-  return JSON.stringify(
-    PendingToolApprovalSchema.parse({
-      toolCallId: approvalRequest.toolCallId,
-      toolName: approvalRequest.toolName,
-      runId: approvalRequest.runId,
-      argsFingerprint: stableJsonStringify(approvalRequest.args),
-    }),
-  );
 }

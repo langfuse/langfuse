@@ -15,12 +15,14 @@ import {
 } from "@/src/components/ui/table";
 import {
   useCopyMigrationPrompt,
+  V4MigrationDeadlineNote,
+  V4MigrationDocsLink,
   V4_MIGRATION_DEADLINE,
 } from "@/src/features/v4-migration/V4MigrationContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { cn } from "@/src/utils/tailwind";
+import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {
@@ -34,6 +36,7 @@ import {
   type ProjectMigrationReadiness,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
+import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -86,27 +89,28 @@ function MigrationActionCell({ state }: { state: MigrationActionState }) {
 }
 
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
-  const label =
-    readiness === "ready"
-      ? "Migrated"
-      : readiness === "checking"
-        ? "Checking"
-        : readiness === "unavailable"
-          ? "Unavailable"
-          : "Action needed";
+  // Forced-v3 projects are managed by their integration partner — link the pill
+  // straight to the FAQ instead of showing a migration action state.
+  if (readiness === "partner-managed") {
+    return (
+      <a
+        href={PARTNER_INTEGRATION_FAQ_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(event) => event.stopPropagation()}
+        className="bg-muted text-muted-foreground inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap hover:underline"
+        title="Upgrade is handled by your integration partner"
+      >
+        Integration partner
+      </a>
+    );
+  }
+
+  if (readiness !== "action-needed") return null;
 
   return (
-    <span
-      className={cn(
-        "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
-        readiness === "ready"
-          ? "bg-light-green text-dark-green"
-          : readiness === "checking" || readiness === "unavailable"
-            ? "bg-muted text-muted-foreground"
-            : "bg-light-yellow text-dark-yellow",
-      )}
-    >
-      {label}
+    <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+      Action needed
     </span>
   );
 }
@@ -170,13 +174,25 @@ function OrgStatusSection({
       { enabled: org.projects.length > 0 },
     );
 
-  const openProjectMigration = (row: { id: string; name: string }) => {
+  const openProjectMigration = (
+    row: { id: string; name: string },
+    readiness: ProjectMigrationReadiness,
+  ) => {
     capture("v4_migration:status_row_clicked");
-    openMigrationPanel({ id: row.id, name: row.name });
+    openMigrationPanel(
+      { id: row.id, name: row.name, readiness },
+      "status_page_row",
+    );
   };
 
-  const handleRowClick = (row: { id: string; name: string }) => {
-    openProjectMigration(row);
+  const handleRowClick = (
+    row: { id: string; name: string; status: ProjectMigrationStatus },
+    readiness: ProjectMigrationReadiness,
+  ) => {
+    // Forced-v3 projects have no migration panel — just navigate to the project.
+    if (!row.status.forceV3Experience) {
+      openProjectMigration(row, readiness);
+    }
     router.push(`/project/${row.id}/traces`);
   };
 
@@ -196,19 +212,28 @@ function OrgStatusSection({
     setOrderBy(next);
   };
 
-  const rows = org.projects.map((project) => {
+  // The page is a work list: projects with nothing left to do drop out of the
+  // table. The summary card still counts them.
+  const rows = org.projects.flatMap((project) => {
+    const status = statusByProjectId.get(project.id);
+    if (!status) return [];
+    const readiness = getProjectMigrationReadiness(status);
+    if (readiness === "ready") return [];
     const lastTraceAt = lastTraceTimes?.find(
       (trace) => trace.projectId === project.id,
     )?.lastTraceAt;
-    return {
-      id: project.id,
-      name: project.name,
-      status: statusByProjectId.get(project.id),
-      lastTraceLabel: lastTraceAt
-        ? formatCompactRelativeTime(new Date(lastTraceAt))
-        : "—",
-      lastTraceSort: lastTraceAt ? new Date(lastTraceAt).getTime() : -1,
-    };
+    return [
+      {
+        id: project.id,
+        name: project.name,
+        status,
+        readiness,
+        lastTraceLabel: lastTraceAt
+          ? formatCompactRelativeTime(new Date(lastTraceAt))
+          : "—",
+        lastTraceSort: lastTraceAt ? new Date(lastTraceAt).getTime() : -1,
+      },
+    ];
   });
 
   const sortValue = (
@@ -219,42 +244,41 @@ function OrgStatusSection({
       case "name":
         return row.name.toLowerCase();
       case "status":
-        return row.status
-          ? {
-              unavailable: 0,
-              checking: 1,
-              "action-needed": 2,
-              ready: 3,
-            }[getProjectMigrationReadiness(row.status)]
-          : 0;
+        return {
+          unavailable: 0,
+          checking: 1,
+          "action-needed": 2,
+          ready: 3,
+          "partner-managed": 4,
+        }[row.readiness];
       case "sdk":
-        return row.status?.sdk.status === "latest"
+        return row.status.sdk.status === "latest"
           ? 5
-          : row.status?.sdk.status === "otel_realtime"
+          : row.status.sdk.status === "otel_realtime"
             ? 5
-            : row.status?.sdk.status === "no_data"
+            : row.status.sdk.status === "no_data"
               ? 5
-              : row.status?.sdk.status === "legacy"
+              : row.status.sdk.status === "legacy"
                 ? 4
-                : row.status?.sdk.status === "otel_header_required"
+                : row.status.sdk.status === "otel_header_required"
                   ? 3
-                  : row.status?.sdk.status === "unknown"
+                  : row.status.sdk.status === "unknown"
                     ? 2
-                    : row.status?.sdk.status === "checking"
+                    : row.status.sdk.status === "checking"
                       ? 1
                       : 0;
       case "evals":
-        return row.status?.evals.count ?? 0;
+        return row.status.evals.count;
       case "experiments":
-        return row.status?.experiments.result === "required"
+        return row.status.experiments.result === "required"
           ? 2
-          : row.status?.experiments.result === "sdk_usage_inconclusive"
+          : row.status.experiments.result === "sdk_usage_inconclusive"
             ? 1
             : 0;
       case "apis":
-        return row.status?.apis.count ?? 0;
+        return row.status.apis.count;
       case "exports":
-        return row.status?.exports.count ?? 0;
+        return row.status.exports.count;
       case "lastTrace":
         return row.lastTraceSort;
     }
@@ -337,13 +361,12 @@ function OrgStatusSection({
             </TableHeader>
             <TableBody>
               {sortedRows.map((row) => {
-                if (!row.status) return null;
-                const readiness = getProjectMigrationReadiness(row.status);
+                const { readiness } = row;
                 return (
                   <TableRow
                     key={row.id}
                     className="group/row cursor-pointer"
-                    onClick={() => handleRowClick(row)}
+                    onClick={() => handleRowClick(row, readiness)}
                   >
                     <TableCell density="comfortable" className="max-w-48">
                       <Link
@@ -352,7 +375,10 @@ function OrgStatusSection({
                         title={row.name}
                         onClick={(event) => {
                           event.stopPropagation();
-                          openProjectMigration(row);
+                          // Forced-v3 projects have no migration panel.
+                          if (!row.status.forceV3Experience) {
+                            openProjectMigration(row, readiness);
+                          }
                         }}
                       >
                         {row.name}
@@ -511,8 +537,8 @@ function V4MigrationStatusPageContent() {
           >
             one prompt
           </button>
-          : the agent updates your SDK, repoints your evals, and migrates your
-          API calls, checking with you before it changes anything.
+          : the agent updates your SDK and evals, and migrates your API calls,
+          checking with you before it changes anything.
         </>
       ),
     },
@@ -541,7 +567,17 @@ function V4MigrationStatusPageContent() {
       return status ? [getProjectMigrationReadiness(status)] : [];
     }),
   );
-  const readyProjects = readiness.filter((state) => state === "ready").length;
+  const actionNeededProjects = readiness.filter(
+    (state) => state === "action-needed",
+  ).length;
+  // Projects whose checks failed are neither clean nor counted as needing
+  // action; surface them instead of silently finalizing the count.
+  const unavailableProjects = readiness.filter(
+    (state) => state === "unavailable",
+  ).length;
+  // Ready projects are hidden from the org tables, so the page needs its own
+  // "nothing left to do" state once every project drops out.
+  const listedProjects = readiness.filter((state) => state !== "ready").length;
   const isChecking =
     session.status === "loading" ||
     readiness.some((state) => state === "checking");
@@ -553,31 +589,39 @@ function V4MigrationStatusPageContent() {
       }}
     >
       <div className="flex flex-col gap-6 pt-2 pb-24">
-        <Card className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 p-6">
-          <div className="flex min-w-0 flex-col gap-2.5">
-            <p className="text-base font-bold">
-              Langfuse v4 is here. Real-time and up to 165× faster
+        <Card className="flex min-w-0 flex-col gap-2.5 p-6">
+          <p className="text-base font-bold">Upgrade to v4</p>
+          <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
+            <p>
+              {actionNeededProjects > 0
+                ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items on each project below to switch over. "
+                : "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. "}
+              <V4MigrationDocsLink />
             </p>
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              {isChecking ? (
-                <span className="text-muted-foreground text-sm">
-                  Checking project status…
+            {actionNeededProjects > 0 && <V4MigrationDeadlineNote />}
+          </div>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            {isChecking ? (
+              <span className="text-muted-foreground text-sm">
+                Checking project status…
+              </span>
+            ) : totalProjects === 0 ? (
+              <span className="text-muted-foreground text-sm">
+                No active projects
+              </span>
+            ) : (
+              <>
+                <span className="text-2xl leading-none font-bold tracking-tight">
+                  {actionNeededProjects}
                 </span>
-              ) : totalProjects === 0 ? (
                 <span className="text-muted-foreground text-sm">
-                  No active projects
+                  of {totalProjects} projects{" "}
+                  {actionNeededProjects === 1 ? "needs" : "need"} action
+                  {unavailableProjects > 0 &&
+                    ` · ${unavailableProjects} could not be checked`}
                 </span>
-              ) : (
-                <>
-                  <span className="text-2xl leading-none font-bold tracking-tight">
-                    {readyProjects}
-                  </span>
-                  <span className="text-muted-foreground text-sm">
-                    of {totalProjects} projects migrated
-                  </span>
-                </>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </Card>
 
@@ -588,6 +632,13 @@ function V4MigrationStatusPageContent() {
             statusByProjectId={statusByProjectId}
           />
         ))}
+
+        {!isChecking && totalProjects > 0 && listedProjects === 0 && (
+          <p className="text-muted-foreground flex items-center gap-2.5 text-sm">
+            <V4MigrationStatusDot variant="done" />
+            All projects are up to date. Nothing to do here.
+          </p>
+        )}
 
         <div className="mt-6">
           <p className="text-base font-bold">What&apos;s new in v4</p>

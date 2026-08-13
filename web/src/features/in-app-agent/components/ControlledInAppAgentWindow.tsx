@@ -67,6 +67,7 @@ export function ControlledInAppAgentWindow(
 ) {
   const router = useRouter();
   const {
+    activityByConversationId,
     conversations,
     error,
     hasMoreConversations,
@@ -81,6 +82,7 @@ export function ControlledInAppAgentWindow(
     messages,
     pendingToolApprovals,
     approveToolCall,
+    alwaysAllowToolCall,
     rejectToolCall,
     selectConversation,
     selectedConversationId,
@@ -88,10 +90,8 @@ export function ControlledInAppAgentWindow(
     submit,
     submitFeedback,
   } = useInAppAiAgent();
-  const isCancellingRun =
-    execution.type === "background" && execution.isCancelling;
-  const shouldFlushCancelledRun =
-    execution.type === "background" && execution.run?.cancelRequested === true;
+  const isCancellingRun = execution.isCancelling;
+  const shouldFlushCancelledRun = execution.run?.cancelRequested === true;
   const {
     finishAnimation,
     isAnimating,
@@ -107,23 +107,19 @@ export function ControlledInAppAgentWindow(
     // `isCancelling` has cleared, and must not restart the reveal after Stop.
     shouldFlush: error !== null || isCancellingRun || shouldFlushCancelledRun,
   });
-  const windowExecutionUi: InAppAgentWindowExecutionUi =
-    execution.type === "foreground"
-      ? execution
-      : {
-          type: "background",
-          notice: getBackgroundRunNotice(execution.run),
-          stop:
-            execution.run && isCancellableBackgroundRun(execution.run.status)
-              ? {
-                  status: execution.isCancelling ? "stopping" : "available",
-                  onStop: () => {
-                    finishAnimation();
-                    execution.cancel();
-                  },
-                }
-              : null,
-        };
+  const windowExecutionUi: InAppAgentWindowExecutionUi = {
+    notice: getBackgroundRunNotice(execution.run),
+    stop:
+      execution.run && isCancellableBackgroundRun(execution.run.status)
+        ? {
+            status: execution.isCancelling ? "stopping" : "available",
+            onStop: () => {
+              finishAnimation();
+              execution.cancel();
+            },
+          }
+        : null,
+  };
   // Only a read-only conversation disables the composer outright. An assistant
   // turn -- including one paused on an approval -- blocks submission but leaves
   // the draft editable.
@@ -184,6 +180,7 @@ export function ControlledInAppAgentWindow(
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
+      isSelectedConversationHydrating={isSelectedConversationHydrating}
       disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       quickActionContext={quickActionContext}
@@ -191,6 +188,7 @@ export function ControlledInAppAgentWindow(
       quickActionResetKey={quickActionResetKey}
       screenContextDescription={screenContextDescription}
       conversations={conversations}
+      activityByConversationId={activityByConversationId}
       hasMoreConversations={hasMoreConversations}
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
@@ -205,6 +203,7 @@ export function ControlledInAppAgentWindow(
       onSubmit={submit}
       executionUi={windowExecutionUi}
       onApproveToolCall={approveToolCall}
+      onAlwaysAllowToolCall={alwaysAllowToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}

@@ -19,6 +19,7 @@ import {
   SendHorizontal,
   Square,
   Trash2,
+  X,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -35,7 +36,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
-import { useIsMobile } from "@/src/hooks/use-mobile";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { formatApproximateDuration } from "@/src/utils/dates";
 import {
   InAppAgentMessage,
@@ -44,6 +45,10 @@ import {
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
+import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import { ConversationActivityIndicator } from "@/src/features/in-app-agent/components/ConversationActivityIndicator";
+import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components/InAppAgentBackgroundHint";
+import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
   type InAppAgentError,
@@ -256,19 +261,18 @@ type InAppAgentWindowCloseButtonProps =
       onClose: () => void;
     };
 
-export type InAppAgentWindowExecutionUi =
-  | { type: "foreground" }
-  | {
-      type: "background";
-      notice: string | null;
-      stop: {
-        status: "available" | "stopping";
-        onStop: () => void;
-      } | null;
-    };
+export type InAppAgentWindowExecutionUi = {
+  notice: string | null;
+  stop: {
+    status: "available" | "stopping";
+    onStop: () => void;
+  } | null;
+};
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
+  /** Per-conversation attention state, for the recent-conversation indicators. */
+  activityByConversationId: InAppAgentActivityByConversationId;
   disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   executionUi: InAppAgentWindowExecutionUi;
@@ -277,6 +281,8 @@ export type InAppAgentWindowProps = {
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isConversationInteractionDisabled: boolean;
+  /** Distinguishes a loading transcript from an empty conversation. */
+  isSelectedConversationHydrating: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
   onExpandedChange: (isExpanded: boolean) => void;
@@ -284,6 +290,7 @@ export type InAppAgentWindowProps = {
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
+  onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
@@ -370,6 +377,7 @@ function InAppAgentGenericError({
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
+    activityByConversationId,
     conversations,
     disablePendingToolApprovalActions = false,
     error,
@@ -377,15 +385,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     hasMoreConversations,
     isAssistantTurnInProgress,
     isHeaderDragHandleEnabled = false,
-    isExpanded,
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
+    isSelectedConversationHydrating,
     messages,
     onDeleteConversation,
     onExpandedChange,
     onLoadMoreConversations,
     onNewConversation,
     onApproveToolCall,
+    onAlwaysAllowToolCall,
     onRejectToolCall,
     onOpenConversationHistory,
     onSelectConversation,
@@ -401,16 +410,20 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
   );
   const capture = usePostHogClientCapture();
-  // No auto-focus on mobile — it springs the keyboard and buries the panel.
-  const isMobile = useIsMobile();
+  // A phone renders the assistant full-screen (see InAppAgentWindowShell), so
+  // it drops the window chrome and never auto-focuses — that springs the
+  // keyboard over the conversation.
+  const isHandheld = useIsHandheld();
+  // Full-screen has no expanded variant. Narrowing a desktop window into
+  // handheld while expanded would otherwise keep the desktop-expanded layout
+  // with no toggle left to undo it; the prop survives, so widening restores it.
+  const isExpanded = props.isExpanded && !isHandheld;
   const isRateLimited = isInAppAgentRateLimited(error);
   const isComposerDisabled = isConversationInteractionDisabled;
   const isSubmitDisabled =
     isComposerDisabled || isRateLimited || isAssistantTurnInProgress;
-  const backgroundNotice =
-    executionUi.type === "background" ? executionUi.notice : null;
-  const executionStop =
-    executionUi.type === "background" ? executionUi.stop : null;
+  const backgroundNotice = executionUi.notice;
+  const executionStop = executionUi.stop;
   const canStopRun = executionStop !== null && isAssistantTurnInProgress;
   const isCancellingRun = executionStop?.status === "stopping";
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -424,6 +437,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const [input, setInput] = useState("");
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
+  // Same conversations the launcher badge counts, narrowed to the ones behind
+  // this trigger: the list is the only place to act on them.
+  const historyAttentionCount = [...activityByConversationId.values()].filter(
+    (entry) => entry.needsAttention,
+  ).length;
+  const historyAttentionSuffix =
+    historyAttentionCount > 0
+      ? ` (${historyAttentionCount} ${historyAttentionCount === 1 ? "needs" : "need"} attention)`
+      : "";
   const hasUserMessage = messages.some((message) => message.role === "user");
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
@@ -454,6 +476,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     })
     .filter((message): message is InAppAgentWindowMessage => message !== null);
 
+  const backgroundHint = useInAppAgentBackgroundHint({
+    isRunActive: isAssistantTurnInProgress,
+  });
+
   const submitInput = (content: string, options?: InAppAgentSubmitOptions) => {
     const trimmedContent = content.trim();
 
@@ -461,9 +487,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       return;
     }
 
+    // Read before the parent appends the message: the hint belongs to the
+    // message that opens a conversation, not to every turn inside it.
+    const startsConversation = !hasUserMessage;
+
     Promise.resolve(onSubmit(trimmedContent, options))
       .then((submitted) => {
         if (submitted) {
+          if (startsConversation) {
+            backgroundHint.show();
+          }
+
           isAutoScrollAttachedRef.current = true;
 
           setInput((currentInput) =>
@@ -509,13 +543,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         ((previousIsInputDisabledRef.current && !isComposerDisabled) ||
           (previousIsAssistantTurnInProgressRef.current &&
             !isAssistantTurnInProgress)) &&
-        !isMobile;
+        !isHandheld;
 
       if (input && shouldRefocusInput) {
         input.focus();
       }
     },
-    [isAssistantTurnInProgress, isComposerDisabled, isMobile],
+    [isAssistantTurnInProgress, isComposerDisabled, isHandheld],
   );
 
   useEffect(() => {
@@ -532,7 +566,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   return (
     <section
       aria-label="Assistant"
-      className="bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5"
+      className={cn(
+        "bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
+        // Full-bleed on mobile: the drawer owns the edge, so drop the window chrome.
+        isHandheld && "rounded-none border-0 shadow-none",
+      )}
     >
       <header
         data-in-app-agent-window-drag-handle={
@@ -563,9 +601,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6 shrink-0"
                 onClick={onNewConversation}
-                disabled={
-                  isConversationInteractionDisabled || isAssistantTurnInProgress
-                }
                 aria-label="Start new conversation"
               >
                 <Plus className="size-3" />
@@ -590,14 +625,24 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-6 shrink-0"
-                    disabled={
-                      isConversationInteractionDisabled ||
-                      isAssistantTurnInProgress
-                    }
-                    aria-label="Conversation history"
+                    className="relative size-6 shrink-0"
+                    // Count lives on the button name, as on the launcher — a
+                    // nested badge aria-label is ignored once the parent has one.
+                    aria-label={`Conversation history${historyAttentionSuffix}`}
                   >
                     <History className="size-3" />
+                    {/* Launcher badge, scaled to the 24px trigger. Visual only —
+                        accessible name is on the button. */}
+                    {historyAttentionCount > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="bg-primary-accent text-primary-foreground absolute -top-0.5 -right-0.5 flex h-3 min-w-3 items-center justify-center rounded-full px-1 text-[9px] leading-none font-bold"
+                      >
+                        {historyAttentionCount > 99
+                          ? "99+"
+                          : historyAttentionCount}
+                      </span>
+                    )}
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
@@ -617,6 +662,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 conversations.map((conversation) => {
                   const conversationTitle =
                     conversation.title?.trim() || "Untitled conversation";
+                  const activityState = activityByConversationId.get(
+                    conversation.id,
+                  )?.state;
 
                   return (
                     <DropdownMenuItem
@@ -636,15 +684,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       >
                         {conversationTitle}
                       </span>
+                      {activityState ? (
+                        <ConversationActivityIndicator state={activityState} />
+                      ) : null}
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon-xs"
                         className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
-                        disabled={
-                          isConversationInteractionDisabled ||
-                          isAssistantTurnInProgress
-                        }
+                        // Deleting is always allowed; it cancels whatever the
+                        // conversation was doing rather than refusing.
+                        disabled={isConversationInteractionDisabled}
                         aria-label="Delete conversation"
                         onClick={(event) => {
                           event.preventDefault();
@@ -672,29 +722,32 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Tooltip delayDuration={100} disableHoverableContent>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-6"
-                aria-label={isExpanded ? "Collapse window" : "Expand window"}
-                onClick={() => {
-                  onExpandedChange(!isExpanded);
-                }}
-              >
-                {isExpanded ? (
-                  <Minimize2 className="size-3" />
-                ) : (
-                  <Maximize2 className="size-3" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isExpanded ? "Collapse window" : "Expand window"}
-            </TooltipContent>
-          </Tooltip>
+          {/* Mobile is always full-screen, so there is nothing to expand. */}
+          {!isHandheld ? (
+            <Tooltip delayDuration={100} disableHoverableContent>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  aria-label={isExpanded ? "Collapse window" : "Expand window"}
+                  onClick={() => {
+                    onExpandedChange(!isExpanded);
+                  }}
+                >
+                  {isExpanded ? (
+                    <Minimize2 className="size-3" />
+                  ) : (
+                    <Maximize2 className="size-3" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isExpanded ? "Collapse window" : "Expand window"}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
           {props.showCloseButton !== false ? (
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>
@@ -703,13 +756,23 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   variant="ghost"
                   size="icon"
                   className="size-6"
-                  aria-label="Minimize assistant"
+                  // Full-screen has nothing to minimize into, and with no
+                  // drag-to-dismiss this is the only way out.
+                  aria-label={
+                    isHandheld ? "Close assistant" : "Minimize assistant"
+                  }
                   onClick={props.onClose}
                 >
-                  <Minus className="size-3" />
+                  {isHandheld ? (
+                    <X className="size-3" />
+                  ) : (
+                    <Minus className="size-3" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Minimize assistant</TooltipContent>
+              <TooltipContent>
+                {isHandheld ? "Close assistant" : "Minimize assistant"}
+              </TooltipContent>
             </Tooltip>
           ) : null}
         </div>
@@ -717,7 +780,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div
           ref={viewportRef}
-          className="min-h-0 flex-1 overflow-y-auto"
+          // `overscroll-contain`: the conversation is the only scroller, so its
+          // rubber-band must not chain out to whatever is behind it.
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
           onScroll={(event) => {
             const viewport = event.currentTarget;
             const distanceFromBottom =
@@ -745,7 +810,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               isExpanded ? "px-0" : "px-3",
             )}
           >
-            {messages.length === 0 ? (
+            {/* An empty transcript that is still loading is not an empty
+                conversation. Offering the welcome screen and its quick actions
+                mid-switch flashes the wrong thing and invites a click that
+                would start a turn in the conversation being left behind. */}
+            {messages.length === 0 &&
+            isSelectedConversationHydrating ? null : messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
                   <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
@@ -858,6 +928,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     isRateLimited || disablePendingToolApprovalActions
                   }
                   onApproveToolCall={onApproveToolCall}
+                  onAlwaysAllowToolCall={onAlwaysAllowToolCall}
                   onRejectToolCall={onRejectToolCall}
                 />
               ))}
@@ -911,6 +982,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               </p>
             </div>
           </div>
+        ) : null}
+        {backgroundHint.isVisible && props.onClose ? (
+          <InAppAgentBackgroundHint
+            isExpanded={isExpanded}
+            onMinimize={() => {
+              backgroundHint.hide();
+              props.onClose?.();
+            }}
+          />
         ) : null}
         {error?.type === "rate_limit" && (
           <div
@@ -974,7 +1054,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             }}
           >
             <textarea
-              autoFocus={!isExpanded && !isMobile}
+              autoFocus={!isExpanded && !isHandheld}
               ref={setInputRef}
               value={input}
               onChange={(event) => {

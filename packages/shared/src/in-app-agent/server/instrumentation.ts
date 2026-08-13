@@ -7,6 +7,12 @@ import {
 } from "../constants";
 import type { AgUiEvent, AgUiMessage, AgUiRunAgentInput } from "../schema";
 import { compactTextMessageChunks } from "./eventCompaction";
+import {
+  getToolFailureMessage,
+  isRecord,
+  normalizeToolOutput,
+  parseJsonOrString,
+} from "./toolErrors";
 import type { InAppAgentUserAccess } from "./tools";
 import { assertUnreachable } from "../../utils/typeChecks";
 
@@ -91,6 +97,15 @@ type ToolObservationBody = {
   metadata?: Record<string, unknown>;
 };
 type ToolCallApprovalStatus = "approved" | "rejected";
+type AgentRunToolSpan = {
+  name: string;
+  startTime: Date;
+  args: string;
+  argsComplete: boolean;
+  output?: unknown;
+  failureMessage?: string;
+  parentMessageId?: string;
+};
 
 export function createInAppAgentInstrumentation({
   input,
@@ -128,17 +143,7 @@ export class InAppAgentInstrumentation {
   private readonly agentRun: InAppAgentGeneration;
   private agentRunInput: unknown;
   private readonly prompt?: InAppAgentPromptMetadata;
-  private readonly toolSpans = new Map<
-    string,
-    {
-      name: string;
-      startTime: Date;
-      args: string;
-      argsComplete: boolean;
-      output?: unknown;
-      parentMessageId?: string;
-    }
-  >();
+  private readonly toolSpans = new Map<string, AgentRunToolSpan>();
   private readonly toolCallApprovals = new Map<
     string,
     ToolCallApprovalStatus
@@ -541,6 +546,7 @@ export class InAppAgentInstrumentation {
     const tool = this.toolSpans.get(event.toolCallId);
     if (tool) {
       tool.output = event.content;
+      tool.failureMessage = getToolFailureMessage(event.error, event.content);
       this.endToolSpanIfComplete(event.toolCallId, tool);
     }
   }
@@ -559,17 +565,7 @@ export class InAppAgentInstrumentation {
     this.endToolSpanIfComplete(event.toolCallId, tool);
   }
 
-  private endToolSpanIfComplete(
-    toolCallId: string,
-    tool: {
-      name: string;
-      startTime: Date;
-      args: string;
-      argsComplete: boolean;
-      output?: unknown;
-      parentMessageId?: string;
-    },
-  ) {
+  private endToolSpanIfComplete(toolCallId: string, tool: AgentRunToolSpan) {
     if (!tool.argsComplete || tool.output === undefined) {
       return;
     }
@@ -580,14 +576,7 @@ export class InAppAgentInstrumentation {
 
   private createToolObservation(
     toolCallId: string,
-    tool: {
-      name: string;
-      startTime: Date;
-      args: string;
-      argsComplete: boolean;
-      output?: unknown;
-      parentMessageId?: string;
-    },
+    tool: AgentRunToolSpan,
     options?: {
       metadata?: Record<string, unknown>;
       statusMessage?: string;
@@ -596,7 +585,10 @@ export class InAppAgentInstrumentation {
     const input = parseJsonOrUndefined(tool.args);
     const output =
       tool.output === undefined ? undefined : normalizeToolOutput(tool.output);
-    const isError = options?.statusMessage !== undefined || isToolError(output);
+    const failureMessage =
+      options?.statusMessage ??
+      tool.failureMessage ??
+      getToolFailureMessage(undefined, output);
     const toolCallApproval = this.toolCallApprovals.get(toolCallId);
     const body: ToolObservationBody = {
       id: toolCallId,
@@ -608,9 +600,8 @@ export class InAppAgentInstrumentation {
       completionStartTime: tool.startTime,
       input,
       output,
-      ...(isError ? { level: "ERROR" } : {}),
-      ...(options?.statusMessage
-        ? { statusMessage: options.statusMessage }
+      ...(failureMessage
+        ? { level: "ERROR", statusMessage: failureMessage }
         : {}),
       metadata: {
         ...(options?.metadata ?? {}),
@@ -973,32 +964,6 @@ function parseContextValue(description: string, value: string): unknown {
   return parsed;
 }
 
-function normalizeToolOutput(output: unknown): unknown {
-  const parsedOutput =
-    typeof output === "string" ? parseJsonOrString(output) : output;
-
-  if (!isRecord(parsedOutput) || !Array.isArray(parsedOutput.content)) {
-    return parsedOutput;
-  }
-
-  const firstContent: unknown = parsedOutput.content[0];
-
-  if (
-    parsedOutput.content.length !== 1 ||
-    !isRecord(firstContent) ||
-    firstContent.type !== "text" ||
-    typeof firstContent.text !== "string"
-  ) {
-    return parsedOutput;
-  }
-
-  return parseJsonOrString(firstContent.text);
-}
-
-function isToolError(output: unknown): boolean {
-  return isRecord(output) && output.error === true;
-}
-
 function getFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value
@@ -1079,22 +1044,6 @@ function parseJsonOrUndefined(value: string): unknown {
   }
 
   return parseJsonOrString(value);
-}
-
-function parseJsonOrString(value: string): unknown {
-  if (!value) {
-    return value;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function getStringValue(value: unknown): string | undefined {

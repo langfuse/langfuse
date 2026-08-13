@@ -1,5 +1,5 @@
 import { AbstractAgent, type RunAgentInput } from "@ag-ui/client";
-import type { BaseEvent } from "@ag-ui/core";
+import { EventType, type BaseEvent } from "@ag-ui/core";
 import { Observable } from "rxjs";
 
 import { InAppAgentRunStatus } from "@langfuse/shared";
@@ -47,6 +47,10 @@ type StartRunFn = (params: {
   context: AgUiRunAgentInput["context"];
 }) => Promise<{ runId: string }>;
 
+type RunFramingState = {
+  openRunId: string | null;
+};
+
 // AG-UI's Zod v3 declarations resolve as unknown against this repo's Zod v4.
 function asAgUiRunAgentInput(input: RunAgentInput): AgUiRunAgentInput {
   return input as unknown as AgUiRunAgentInput;
@@ -71,12 +75,10 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     onStatus?: (status: InAppAgentRunStatusUpdate) => void;
     threadId?: string;
     initialMessages?: AgUiMessage[];
-    initialState?: unknown;
   }) {
     super({
       threadId: config.threadId,
       initialMessages: config.initialMessages as never,
-      initialState: config.initialState as never,
     });
 
     this.projectId = config.projectId;
@@ -179,13 +181,14 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   ): Promise<void> {
     let consecutiveFailures = 0;
     let consecutiveQuietConnections = 0;
+    const runFraming: RunFramingState = { openRunId: null };
 
     while (!signal.aborted) {
       const cursorBeforeRequest = this.cursor;
       let sawDoneFrame: boolean;
 
       try {
-        sawDoneFrame = await this.streamOnce(subscriber, signal);
+        sawDoneFrame = await this.streamOnce(subscriber, signal, runFraming);
       } catch (error) {
         if (signal.aborted) {
           break;
@@ -243,6 +246,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   private async streamOnce(
     subscriber: { next: (event: BaseEvent) => void },
     signal: AbortSignal,
+    runFraming: RunFramingState,
   ): Promise<boolean> {
     const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
     const url = new URL(
@@ -252,6 +256,9 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     url.searchParams.set("projectId", this.projectId);
     url.searchParams.set("conversationId", this.conversationId);
     url.searchParams.set("cursor", String(this.cursor));
+    if (runFraming.openRunId) {
+      url.searchParams.set("openRunId", runFraming.openRunId);
+    }
 
     const response = await fetch(url.toString(), {
       method: "GET",
@@ -324,9 +331,24 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
           throw new Error(frame.data.message);
         }
 
+        const event = frame.data.event;
+
+        if (
+          event.type === EventType.RUN_STARTED &&
+          typeof event.runId === "string"
+        ) {
+          runFraming.openRunId = event.runId;
+        } else if (
+          (event.type === EventType.RUN_FINISHED ||
+            event.type === EventType.RUN_ERROR) &&
+          event.runId === runFraming.openRunId
+        ) {
+          runFraming.openRunId = null;
+        }
+
         this.cursor = frame.data.sequenceNumber;
         this.onCursor?.(this.cursor);
-        subscriber.next(frame.data.event as unknown as BaseEvent);
+        subscriber.next(event as unknown as BaseEvent);
       }
     }
 

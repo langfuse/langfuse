@@ -399,6 +399,11 @@ export function getDrawerMessages({
               } else {
                 resultState = "incomplete";
               }
+
+              if (resultState === "incomplete" && !pendingApproval) {
+                return [];
+              }
+
               const status = TOOL_CALL_STATUS_BY_RESULT_STATE[resultState];
 
               return [

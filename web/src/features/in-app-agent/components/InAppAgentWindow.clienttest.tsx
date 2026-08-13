@@ -11,26 +11,25 @@ import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
   value: {
-    conversations: [],
+    conversations: [] as Array<{ id: string; title: string | null }>,
+    activityByConversationId: new Map<string, { state: string }>(),
+    attentionCount: 0,
     error: null,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
     isRunning: true,
     isSelectedConversationHydrating: false,
     isSubmitting: false,
-    execution: { type: "foreground" } as
-      | { type: "foreground" }
-      | {
-          type: "background";
-          run: {
-            id: string;
-            status: InAppAgentRunStatus;
-            errorCode: string | null;
-            cancelRequested: boolean;
-          } | null;
-          isCancelling: boolean;
-          cancel: () => void;
-        },
+    execution: {
+      run: null as {
+        id: string;
+        status: InAppAgentRunStatus;
+        errorCode: string | null;
+        cancelRequested: boolean;
+      } | null,
+      isCancelling: false,
+      cancel: vi.fn(),
+    },
     invalidateConversations: vi.fn(),
     liveMessageVersion: 0,
     loadMoreConversations: vi.fn(),
@@ -79,12 +78,14 @@ function windowElement(
 ) {
   const props: InAppAgentWindowProps = {
     conversations: [],
+    activityByConversationId: new Map(),
     error: null,
-    executionUi: { type: "foreground" },
+    executionUi: { notice: null, stop: null },
     hasMoreConversations: false,
     isAssistantTurnInProgress: false,
     isExpanded: false,
     isConversationInteractionDisabled: false,
+    isSelectedConversationHydrating: false,
     isLoadingMoreConversations: false,
     messages: [],
     onApproveToolCall: vi.fn(),
@@ -206,32 +207,51 @@ describe("InAppAgentWindow quick actions", () => {
   });
 });
 
-describe("ControlledInAppAgentWindow composer", () => {
-  it("keeps a draft editable but prevents submitting it while rate limited", () => {
-    const onSubmit = vi.fn().mockResolvedValue(true);
+describe("InAppAgentWindow conversation history", () => {
+  it("counts conversations that still owe the user a look on the history trigger", () => {
     render(
       windowElement({
-        error: { type: "rate_limit", retryAt: Date.now() + 60_000 },
-        onSubmit,
+        activityByConversationId: new Map([
+          [
+            "conversation-1",
+            {
+              activityKey: "run-1:SUCCEEDED",
+              runId: "run-1",
+              title: "Latency outliers",
+              state: "done-unread",
+              needsAttention: true,
+            },
+          ],
+          [
+            "conversation-2",
+            {
+              activityKey: "run-2:RUNNING",
+              runId: "run-2",
+              title: "Score correlation",
+              state: "running",
+              needsAttention: false,
+            },
+          ],
+        ]),
       }),
     );
 
-    const input = screen.getByRole("textbox", {
-      name: "Message the assistant",
-    });
-    fireEvent.change(input, { target: { value: "Follow up" } });
+    expect(
+      screen.getByRole("button", {
+        name: "Conversation history (1 needs attention)",
+      }),
+    ).toBeInTheDocument();
+  });
+});
 
-    expect(input).toHaveValue("Follow up");
-    expect(input).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
-
-    const form = input.closest("form");
-    if (!form) {
-      throw new Error("Expected the assistant composer to render a form");
-    }
-
-    fireEvent.submit(form);
-    expect(onSubmit).not.toHaveBeenCalled();
+describe("ControlledInAppAgentWindow composer", () => {
+  beforeEach(() => {
+    controlledAgent.value.error = null;
+    controlledAgent.value.isRunning = true;
+    controlledAgent.value.isSelectedConversationHydrating = false;
+    controlledAgent.value.isSubmitting = false;
+    controlledAgent.value.pendingToolApprovals = [];
+    controlledAgent.value.selectedConversationIsWriteLocked = false;
   });
 
   it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {
@@ -268,7 +288,7 @@ describe("ControlledInAppAgentWindow composer", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("keeps navigation disabled while an approval is pending", () => {
+  it("blocks another turn here but still lets you leave", () => {
     controlledAgent.value.isRunning = false;
     controlledAgent.value.pendingToolApprovals = [{ id: "approval-1" }];
     controlledAgent.value.submit = vi.fn();
@@ -290,10 +310,36 @@ describe("ControlledInAppAgentWindow composer", () => {
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: /^Conversation history/ }),
+    ).toBeEnabled();
+  });
+
+  it("lets you leave a read-only conversation", () => {
+    controlledAgent.value.isRunning = false;
+    controlledAgent.value.selectedConversationIsWriteLocked = true;
+
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "Conversation history" }),
-    ).toBeDisabled();
+      screen.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: /^Conversation history/ }),
+    ).toBeEnabled();
   });
 });
 
@@ -303,7 +349,6 @@ describe("ControlledInAppAgentWindow stop", () => {
     controlledAgent.value.isRunning = true;
     controlledAgent.value.pendingToolApprovals = [];
     controlledAgent.value.execution = {
-      type: "background",
       run: {
         id: "run-1",
         status: InAppAgentRunStatus.RUNNING,
@@ -331,30 +376,5 @@ describe("ControlledInAppAgentWindow stop", () => {
     // buffered block keeps typing out, which reads as "stop did nothing".
     expect(cancel).toHaveBeenCalledOnce();
     expect(finishAnimation).toHaveBeenCalledOnce();
-  });
-});
-
-describe("InAppAgentWindow focus", () => {
-  it("refocuses the composer when an active turn completes", () => {
-    const { rerender } = render(
-      <>
-        <button type="button">Other control</button>
-        {windowElement({ isAssistantTurnInProgress: true })}
-      </>,
-    );
-
-    screen.getByRole("button", { name: "Other control" }).focus();
-    expect(screen.getByRole("button", { name: "Other control" })).toHaveFocus();
-
-    rerender(
-      <>
-        <button type="button">Other control</button>
-        {windowElement({ isAssistantTurnInProgress: false })}
-      </>,
-    );
-
-    expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
-    ).toHaveFocus();
   });
 });

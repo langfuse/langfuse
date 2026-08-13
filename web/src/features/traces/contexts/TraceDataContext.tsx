@@ -10,6 +10,7 @@
  * - UI state (selection, collapsed nodes) - see SelectionContext
  * - Display preferences - see ViewPreferencesContext
  */
+import type { TraceSearchListItem } from "@/src/features/traces/types/traceSearchListItem";
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import {
@@ -19,19 +20,20 @@ import {
 } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { type TreeNode, type TraceSearchListItem } from "../fns/types";
+import { type TreeNode } from "../types/treeNode";
 import {
   buildTraceUiData,
   dedupeObservationsById,
   getObservationLevels,
   removeHiddenNodes,
-} from "../fns/tree-building";
+} from "../fns/treeBuilding";
 import {
   calculateTraceDuration,
   findEarliestStartTime,
-} from "@/src/features/traces/components/TraceTimeline/timeline-calculations";
+} from "@/src/features/traces/fns/timelineCalculations";
 import { useViewPreferences } from "./ViewPreferencesContext";
 import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
+import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/nodeScores";
 
 type TraceType = Omit<
   WithStringifiedMetadata<TraceDomain>,
@@ -48,9 +50,31 @@ interface TraceDataContextValue {
   mergedScores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   roots: TreeNode[];
+  /** Node ids that own the trace's trace-level scores. Derived from the
+   * STRUCTURAL roots, never the level-filtered ones — hiding a root promotes its
+   * children into `roots`, and a promoted child is not a stand-in for the trace. */
+  traceLevelScoreOwnerIds: Set<string>;
   nodeMap: Map<string, TreeNode>;
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
+  /**
+   * Observation that was merged in from a by-id fetch because it sits outside the
+   * loaded (capped) list. Its ancestors are unknown, so treeBuilding places it at
+   * root level — the views MUST mark it, or a deeply nested observation silently
+   * reads as top-level.
+   */
+  detachedObservationId: string | null;
+  /**
+   * True when that observation renders at root level WITHOUT being a root: its
+   * own parent fell past the cap too, so treeBuilding could not resolve the
+   * reference and nulled it. The three cases collapse to this one question —
+   * a loaded parent nests correctly, and a genuinely parentless row IS a root —
+   * but they must not be conflated: reading "no parent" as "parent is loaded"
+   * is what made the UI claim a position it did not have.
+   */
+  detachedObservationIsMisplaced: boolean;
+  /** Observation cap this trace was loaded under, when it hit it. */
+  truncatedAtObservations?: number;
   comments: Map<string, number>;
   /** Timeline origin (the 0s mark): earliest start across the whole tree. The
    * single owner of the temporal frame — timeline, playhead, and graph all
@@ -76,6 +100,9 @@ interface TraceDataProviderProps {
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   comments: Map<string, number>;
+  detachedObservationId?: string | null;
+  detachedObservationIsMisplaced?: boolean;
+  truncatedAtObservations?: number;
   children: ReactNode;
 }
 
@@ -89,6 +116,9 @@ export function TraceDataProvider({
   serverScores,
   corrections,
   comments,
+  detachedObservationId = null,
+  detachedObservationIsMisplaced = false,
+  truncatedAtObservations,
   children,
 }: TraceDataProviderProps) {
   const { minObservationLevel } = useViewPreferences();
@@ -149,6 +179,17 @@ export function TraceDataProvider({
     [filteredRoots, traceStartTime],
   );
 
+  const traceLevelScoreOwnerIdSet = useMemo(
+    () =>
+      traceLevelScoreOwnerIds(
+        uiData.roots,
+        // Only a misplaced row is an impostor among the roots; a genuine root
+        // that happened to fall past the cap is still a root.
+        detachedObservationIsMisplaced ? detachedObservationId : null,
+      ),
+    [uiData.roots, detachedObservationId, detachedObservationIsMisplaced],
+  );
+
   // Merge scores with optimistic cache
   const mergedScores = useMergedScores(
     serverScores,
@@ -167,9 +208,13 @@ export function TraceDataProvider({
       mergedScores,
       corrections,
       roots: filteredRoots,
+      traceLevelScoreOwnerIds: traceLevelScoreOwnerIdSet,
       nodeMap: uiData.nodeMap,
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
+      detachedObservationId,
+      detachedObservationIsMisplaced,
+      truncatedAtObservations,
       comments,
       traceStartTime,
       traceDuration,
@@ -181,8 +226,12 @@ export function TraceDataProvider({
       mergedScores,
       corrections,
       filteredRoots,
+      traceLevelScoreOwnerIdSet,
       filteredSearchItems,
       hiddenObservationsCount,
+      detachedObservationId,
+      detachedObservationIsMisplaced,
+      truncatedAtObservations,
       uiData.nodeMap,
       comments,
       traceStartTime,
