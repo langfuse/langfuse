@@ -5,19 +5,15 @@
     "devTerminalDescription": "Main development terminal running the development server"
   },
   "mcpServers": {
-    "playwright": {
+    "agent-browser": {
       "transport": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@playwright/mcp@latest",
-        "--isolated",
-        "--save-session",
-        "--output-dir",
-        "/tmp/playwright-mcp",
-        "--test-id-attribute",
-        "data-testid"
-      ]
+      "command": "bash",
+      "args": ["scripts/agents/start-agent-browser-mcp.sh"]
+    },
+    "next-devtools": {
+      "transport": "stdio",
+      "command": "pnpm",
+      "args": ["exec", "next-devtools-mcp"]
     },
     "langfuse-docs": {
       "transport": "http",

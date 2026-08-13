@@ -36,9 +36,9 @@ else
   echo "Skipping local in-app agent sandbox image build because Docker is not available."
 fi
 
-# Install Chromium into the default user-level Playwright cache so frontend
-# browser review works on first bootstrap. Provider-specific OS dependencies
-# belong in the provider setup rather than this shared script.
+# Install Chromium into the default user-level Playwright cache for E2E tests.
+# Agent-browser also auto-detects this installation. Provider-specific OS
+# dependencies belong in the provider setup rather than this shared script.
 pnpm run playwright:install
 
 # Generate the shared Prisma client explicitly in the current worktree before

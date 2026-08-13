@@ -43,6 +43,7 @@ allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
   "@sentry/cli": true
+  agent-browser: true
   esbuild: true
   sharp: true
   unrs-resolver: true
