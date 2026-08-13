@@ -252,7 +252,7 @@ export function useTableViewManager({
         return;
       }
       setStoredViewId(defaultViewId);
-      setSelectedViewId(defaultViewId);
+      setSelectedViewId(defaultViewId, "replaceIn");
       return;
     }
 
@@ -484,10 +484,19 @@ export function useTableViewManager({
     // restore, and the resolved default view. Classify as "default" when the
     // applied view is the resolved default, else treat as a "permalink"
     // (deep-link / session-restore) entry (LFE-10781).
+    const isResolvedDefault = requestedViewId === defaultViewId;
     applyViewState(selectedViewData, {
-      trigger: requestedViewId === defaultViewId ? "default" : "permalink",
+      trigger: isResolvedDefault ? "default" : "permalink",
       viewId: requestedViewId,
     });
+    // Query-param writes are batched by the app provider, and the final
+    // setter's update type controls the single navigation. Re-setting the
+    // already-selected default viewId last therefore folds all synchronous
+    // saved-view state writes (filters/order/search) into the current history
+    // entry without changing deliberate view selections, which still push.
+    if (isResolvedDefault) {
+      setSelectedViewId(requestedViewId, "replaceIn");
+    }
     if (storedViewId !== requestedViewId) {
       setStoredViewId(requestedViewId);
     }
@@ -505,6 +514,7 @@ export function useTableViewManager({
     applyViewState,
     storedViewId,
     setStoredViewId,
+    setSelectedViewId,
     defaultViewId,
     isDefaultLoading,
   ]);
