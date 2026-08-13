@@ -576,6 +576,37 @@ describe("v4TransitionRouter", () => {
     );
   });
 
+  it("returns legacy API usage when one ClickHouse service is unavailable", async () => {
+    mockedQueryClickhouse
+      .mockRejectedValueOnce(new Error("read replica unavailable"))
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: "1",
+          lastSeen: "2026-06-24T15:00:00.000000Z",
+        },
+      ]);
+    const caller = createCaller();
+
+    await expect(
+      caller.legacyApiUsageSummary({
+        projectId,
+        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+        toTimestamp: new Date("2026-06-25T00:00:00Z"),
+      }),
+    ).resolves.toEqual([
+      {
+        projectId,
+        entrypoint: "publicapi: GET /api/public/traces/{id}",
+        count: 1,
+        lastSeen: "2026-06-24T15:00:00.000000Z",
+      },
+    ]);
+
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
+  });
+
   it("queries SDK usage for only the authorized project", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([

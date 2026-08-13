@@ -739,7 +739,7 @@ const getLegacyApiUsageSummaries = async ({
       new URL(env.CLICKHOUSE_URL).toString()
       ? ["ReadOnly", "ReadWrite"]
       : ["ReadWrite"];
-  const serviceRows = await Promise.all(
+  const settledServiceRows = await Promise.allSettled(
     preferredClickhouseServices.map((preferredClickhouseService) =>
       getLegacyApiUsageSummariesForService({
         projectIds,
@@ -748,6 +748,30 @@ const getLegacyApiUsageSummaries = async ({
         preferredClickhouseService,
       }),
     ),
+  );
+  const firstSuccessfulResult = settledServiceRows.find(
+    (result) => result.status === "fulfilled",
+  );
+  if (!firstSuccessfulResult) {
+    const firstFailure = settledServiceRows.find(
+      (result) => result.status === "rejected",
+    );
+    throw firstFailure?.reason ?? new Error("ClickHouse services unavailable");
+  }
+
+  settledServiceRows.forEach((result, index) => {
+    if (result.status === "rejected") {
+      logger.warn("Failed to query legacy API usage from ClickHouse service", {
+        preferredClickhouseService: preferredClickhouseServices[index],
+        error:
+          result.reason instanceof Error
+            ? result.reason.message
+            : "Unknown error",
+      });
+    }
+  });
+  const serviceRows = settledServiceRows.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
   );
   const rowsByProjectAndEntrypoint = new Map<
     string,
