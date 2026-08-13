@@ -270,6 +270,86 @@ type ConversationDisplayItem =
       isFinalAnswer: boolean;
     };
 
+function joinAnswerMessages(
+  messages: InAppAgentWindowMessage[],
+): InAppAgentWindowMessage | null {
+  if (messages.length === 0) {
+    return null;
+  }
+
+  if (messages.length === 1) {
+    return messages[0] ?? null;
+  }
+
+  const textMessages = messages.filter(
+    (
+      message,
+    ): message is InAppAgentWindowMessage & {
+      content: Extract<InAppAgentMessageContent, { type: "text" }>;
+    } => message.content.type === "text",
+  );
+
+  if (textMessages.length === 0) {
+    return messages.at(-1) ?? null;
+  }
+
+  const lastText = textMessages[textMessages.length - 1];
+  if (!lastText) {
+    return messages.at(-1) ?? null;
+  }
+
+  let redirectAction = lastText.content.redirectAction;
+  let sources = lastText.content.sources;
+  let feedback = lastText.content.feedback;
+  let runId = lastText.runId;
+  let isStreaming = false;
+
+  for (let index = textMessages.length - 1; index >= 0; index--) {
+    const message = textMessages[index];
+    if (!message) {
+      continue;
+    }
+
+    if (message.content.isStreaming) {
+      isStreaming = true;
+    }
+    if (!redirectAction && message.content.redirectAction) {
+      redirectAction = message.content.redirectAction;
+    }
+    if (!sources && message.content.sources) {
+      sources = message.content.sources;
+    }
+    if (!feedback && message.content.feedback) {
+      feedback = message.content.feedback;
+    }
+    if (!runId && message.runId) {
+      runId = message.runId;
+    }
+  }
+
+  if (!redirectAction) {
+    const standaloneRedirect = [...messages]
+      .reverse()
+      .find((message) => message.content.type === "redirectAction");
+    if (standaloneRedirect?.content.type === "redirectAction") {
+      redirectAction = standaloneRedirect.content;
+    }
+  }
+
+  return {
+    ...lastText,
+    runId,
+    content: {
+      type: "text",
+      text: textMessages.map((message) => message.content.text).join("\n\n"),
+      ...(isStreaming ? { isStreaming: true } : {}),
+      ...(sources ? { sources } : {}),
+      ...(feedback ? { feedback } : {}),
+      ...(redirectAction ? { redirectAction } : {}),
+    },
+  };
+}
+
 function buildConversationDisplayItems(
   messages: InAppAgentWindowMessage[],
   isAssistantTurnInProgress: boolean,
@@ -306,24 +386,34 @@ function buildConversationDisplayItems(
     const turnMessages = visibleMessages.slice(turnStartIndex, index);
     const isInProgress =
       isAssistantTurnInProgress && index === visibleMessages.length;
-    let finalAnswerIndex = -1;
-    if (!isInProgress) {
-      for (
-        let turnIndex = turnMessages.length - 1;
-        turnIndex >= 0;
-        turnIndex--
+    const lastReasoningIndex = turnMessages.findLastIndex(
+      (turnMessage) => turnMessage.content.type === "reasoning",
+    );
+    const activityMessages = turnMessages.filter((turnMessage, turnIndex) => {
+      if (
+        turnMessage.content.type === "reasoning" ||
+        turnMessage.content.type === "toolGroup"
       ) {
-        if (turnMessages[turnIndex]?.content.type === "text") {
-          finalAnswerIndex = turnIndex;
-          break;
-        }
+        return true;
       }
-    }
 
-    const activityMessages =
-      finalAnswerIndex === -1
-        ? turnMessages
-        : turnMessages.slice(0, finalAnswerIndex);
+      return (
+        turnMessage.content.type === "text" &&
+        lastReasoningIndex !== -1 &&
+        turnIndex < lastReasoningIndex
+      );
+    });
+    const answerMessages = turnMessages.filter((turnMessage, turnIndex) => {
+      if (
+        turnMessage.content.type !== "text" &&
+        turnMessage.content.type !== "redirectAction"
+      ) {
+        return false;
+      }
+
+      return lastReasoningIndex === -1 || turnIndex > lastReasoningIndex;
+    });
+    const joinedAnswer = joinAnswerMessages(answerMessages);
     const followsUser = visibleMessages[turnStartIndex - 1]?.role === "user";
 
     if (activityMessages.length > 0) {
@@ -331,25 +421,19 @@ function buildConversationDisplayItems(
         type: "activity",
         messages: activityMessages,
         endTimestamp:
-          finalAnswerIndex === -1
-            ? activityMessages.at(-1)?.timestamp
-            : turnMessages[finalAnswerIndex]?.timestamp,
+          joinedAnswer?.timestamp ?? activityMessages.at(-1)?.timestamp,
         followsUser,
         isInProgress,
       });
     }
 
-    if (finalAnswerIndex !== -1) {
-      turnMessages
-        .slice(finalAnswerIndex)
-        .forEach((assistantMessage, offset) => {
-          items.push({
-            type: "assistant",
-            message: assistantMessage,
-            followsUser: activityMessages.length === 0 && followsUser,
-            isFinalAnswer: offset === 0,
-          });
-        });
+    if (joinedAnswer) {
+      items.push({
+        type: "assistant",
+        message: joinedAnswer,
+        followsUser: activityMessages.length === 0 && followsUser,
+        isFinalAnswer: true,
+      });
     }
   }
 

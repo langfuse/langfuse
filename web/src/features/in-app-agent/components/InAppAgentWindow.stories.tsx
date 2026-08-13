@@ -1015,6 +1015,74 @@ export const GroupedAssistantTurn = meta.story({
   },
 });
 
+export const MultiBlockAnswer = meta.story({
+  args: {
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    screenContextDescription: {
+      type: "trace-list",
+      hasAppliedFilters: true,
+    },
+    messages: [
+      {
+        id: "multiblock-user",
+        role: "user",
+        content: { type: "text", text: "What is going on with errors?" },
+      },
+      {
+        id: "multiblock-reasoning",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "I should inspect the error traces first.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "multiblock-tool",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_getTraces",
+              status: "succeeded",
+              args: JSON.stringify({ level: "ERROR", limit: 20 }),
+              result: JSON.stringify({ count: 12, synthetic: true }),
+            },
+          ],
+        },
+      },
+      {
+        id: "multiblock-analysis",
+        timestamp: new Date("2026-08-06T15:27:20.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The traces are synthetic seed data, not real traffic. Error volume is concentrated on the ingestion path.",
+          redirectAction: {
+            type: "redirectAction",
+            label: "Open error traces",
+            href: "/project/project-1/traces?level=ERROR",
+          },
+        },
+      },
+      {
+        id: "multiblock-closer",
+        runId: "multiblock-run",
+        timestamp: new Date("2026-08-06T15:27:48.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "I've prepared a link to the error-level traces.",
+        },
+      },
+    ],
+  },
+});
+
 export const LightConversation = meta.story({
   globals: { theme: "light" },
   args: {

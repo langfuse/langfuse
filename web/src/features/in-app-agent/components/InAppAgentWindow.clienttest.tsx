@@ -636,4 +636,93 @@ describe("InAppAgentWindow message actions", () => {
       expect(writeText).toHaveBeenCalledWith("The reranker is the bottleneck.");
     });
   });
+
+  it("joins later answer texts into one visible reply after Working", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    vi.stubGlobal("ClipboardItem", undefined);
+
+    const analysis = "The traces are synthetic seed data, not real traffic.";
+    const closer = "I've prepared a link to the error-level traces.";
+
+    render(
+      windowElement({
+        messages: [
+          {
+            id: "user-1",
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: "What is going on with errors?",
+            },
+          },
+          {
+            id: "assistant-reasoning",
+            timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+            role: "assistant" as const,
+            content: {
+              type: "reasoning" as const,
+              text: "I should inspect the error traces first.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-tool",
+            role: "assistant" as const,
+            content: { type: "toolGroup" as const, tools: [] },
+          },
+          {
+            id: "assistant-analysis",
+            timestamp: new Date("2026-08-06T15:27:20.000Z").getTime(),
+            role: "assistant" as const,
+            content: {
+              type: "text" as const,
+              text: analysis,
+              redirectAction: {
+                type: "redirectAction" as const,
+                label: "Open error traces",
+                href: "/project/project-1/traces?level=ERROR",
+              },
+            },
+          },
+          {
+            id: "assistant-closer",
+            runId: "run-1",
+            timestamp: new Date("2026-08-06T15:27:48.000Z").getTime(),
+            role: "assistant" as const,
+            content: {
+              type: "text" as const,
+              text: closer,
+            },
+          },
+        ],
+      }),
+    );
+
+    const activityTrigger = screen.getByRole("button", {
+      name: /Worked for/,
+    });
+    expect(activityTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText(analysis)).toBeVisible();
+    expect(screen.getByText(closer)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Open error traces" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("I should inspect the error traces first."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(activityTrigger);
+    expect(screen.getByText("Thought")).toBeVisible();
+    expect(screen.getByText(analysis)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(`${analysis}\n\n${closer}`);
+    });
+  });
 });
