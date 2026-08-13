@@ -90,7 +90,7 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   // Top 15 facets by real usage — 60 days of PostHog `filters:applied` on
   // this table: they cover ~98% of sidebar filter applies per project on
-  // average, ~95% at the 10th percentile (LFE-15041). The rest folds behind
+  // average, ~95% at the 10th percentile. The rest folds behind
   // "Show N more".
   commonFacets: [
     "environment",

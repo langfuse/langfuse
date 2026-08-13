@@ -1982,7 +1982,7 @@ export function useSidebarFilterPresentation(
     // v3-vs-v4 dimension as the hook's own events.
     isV4: isV4Surface,
     // The curated default-visible facet set; DataTableControls folds the
-    // rest behind "Show N more" (LFE-15041).
+    // rest behind "Show N more".
     commonFacets: config.commonFacets,
   };
 }

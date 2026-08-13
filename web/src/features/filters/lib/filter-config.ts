@@ -79,7 +79,7 @@ export interface FilterConfig {
   defaultSidebarCollapsed?: boolean;
   /**
    * The facets most sessions actually use (curated from PostHog
-   * `filters:applied` data, LFE-15041). When set, the sidebar shows only
+   * `filters:applied` data). When set, the sidebar shows only
    * these by default and folds the rest behind a "Show N more" control.
    * A facet with an active filter is always shown regardless of this list.
    * Unset = every facet stays visible (tables that haven't opted in).

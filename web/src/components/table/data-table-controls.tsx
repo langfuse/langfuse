@@ -169,7 +169,7 @@ export interface QueryFilter {
   isV4?: boolean;
   /**
    * Curated default-visible facet set from the table's FilterConfig
-   * (LFE-15041). When present, facets outside it fold behind "Show N more";
+   * When present, facets outside it fold behind "Show N more";
    * absent = the whole catalog stays visible.
    */
   commonFacets?: string[];
@@ -253,7 +253,16 @@ export function DataTableControls({
     facetInteractionRef.current,
   );
   facetOrderRef.current = facetOrder;
-  const noteFacetInteraction = () => {
+  const noteFacetInteraction = (event: React.SyntheticEvent) => {
+    // The fold toggle never changes promotion, so it must not arm the
+    // attribution token: a dangling token would wrongly hold the order
+    // through the next external filter change (search bar, saved view).
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-facet-fold-toggle]")
+    ) {
+      return;
+    }
     facetInteractionRef.current += 1;
   };
   // Boundaries the sidebar owns itself (Clear all, AI apply): the change they
@@ -270,7 +279,7 @@ export function DataTableControls({
     ? orderedFilters.filter(isPromoted)
     : orderedFilters;
 
-  // Fold the uncommon tail of the catalog behind "Show N more" (LFE-15041),
+  // Fold the uncommon tail of the catalog behind "Show N more",
   // on tables that declare a curated `commonFacets` set. Session-scoped like
   // the per-facet expanded state: a mid-session "show all" survives
   // navigation, a fresh session starts folded again. Active-only mode is a
@@ -287,7 +296,7 @@ export function DataTableControls({
   // back into catalog order), so the facets already on screen keep their
   // exact positions when the button is clicked. Group membership uses the
   // settled promotion — not the live one — so a facet activated in place
-  // stays in place until the next settle (LFE-14843). A live-active tail
+  // stays in place until the next settle. A live-active tail
   // facet still never hides: when folded it renders at the end of the top
   // group, right above the button.
   const inTopFoldGroup = (filter: UIFilter) =>
@@ -307,6 +316,12 @@ export function DataTableControls({
         ...(showAllFacets ? tailFoldGroup : tailFoldGroup.filter(isPromoted)),
       ]
     : displayedFilters;
+  // The header expand/collapse-all toggle reads only what is on screen: a
+  // column left expanded behind the fold must not flip its label/icon to
+  // "Collapse all filters" while every visible facet is collapsed.
+  const anyRenderedFacetExpanded = renderedFilters.some((filter) =>
+    queryFilter.expanded.includes(filter.column),
+  );
 
   // Facet-usage recency, feeding the "Add filter" dropdown's ordering so the
   // filters someone actually uses on this table surface first.
@@ -699,7 +714,7 @@ export function DataTableControls({
         })}
       </Accordion>
 
-      {/* The fold control (LFE-15041): the uncommon tail of the catalog sits
+      {/* The fold control: the uncommon tail of the catalog sits
           behind an accurate "Show N more"; expanding reveals every remaining
           facet, so nothing is unreachable. Hidden while nothing is foldable
           (e.g. every tail facet currently carries an active filter). */}
@@ -708,6 +723,7 @@ export function DataTableControls({
           <Button
             variant="ghost"
             size="sm"
+            data-facet-fold-toggle
             onClick={() => {
               const next = !showAllFacets;
               setShowAllFacets(next);
@@ -959,31 +975,31 @@ export function DataTableControls({
                   className="h-6 w-6"
                   onClick={() =>
                     queryFilter.onExpandedChange(
-                      queryFilter.expanded.length === 0
-                        ? // Only what is on screen: expanding facets hidden
+                      anyRenderedFacetExpanded
+                        ? []
+                        : // Only what is on screen: expanding facets hidden
                           // behind the fold would fire their option loads
-                          // without any visible effect (LFE-15041).
-                          renderedFilters.map((filter) => filter.column)
-                        : [],
+                          // without any visible effect.
+                          renderedFilters.map((filter) => filter.column),
                     )
                   }
                   aria-label={
-                    queryFilter.expanded.length === 0
-                      ? "Expand all filters"
-                      : "Collapse all filters"
+                    anyRenderedFacetExpanded
+                      ? "Collapse all filters"
+                      : "Expand all filters"
                   }
                 >
-                  {queryFilter.expanded.length === 0 ? (
-                    <UnfoldVertical className="h-3.5 w-3.5" />
-                  ) : (
+                  {anyRenderedFacetExpanded ? (
                     <FoldVertical className="h-3.5 w-3.5" />
+                  ) : (
+                    <UnfoldVertical className="h-3.5 w-3.5" />
                   )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {queryFilter.expanded.length === 0
-                  ? "Expand all filters"
-                  : "Collapse all filters"}
+                {anyRenderedFacetExpanded
+                  ? "Collapse all filters"
+                  : "Expand all filters"}
               </TooltipContent>
             </Tooltip>
             <DropdownMenu>

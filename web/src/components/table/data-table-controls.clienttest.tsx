@@ -799,7 +799,7 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
   });
 });
 
-describe("DataTableControls facet fold (LFE-15041)", () => {
+describe("DataTableControls facet fold", () => {
   const categoricalFilter = (
     column: string,
     label: string,
