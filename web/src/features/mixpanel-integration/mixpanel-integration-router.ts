@@ -192,7 +192,6 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         // re-validate the row that landed as a brand-new one and roll back on
         // failure.
         if (
-          input.exportSource === undefined &&
           existingIntegration &&
           result.createdAt.getTime() !== existingIntegration.createdAt.getTime()
         ) {
