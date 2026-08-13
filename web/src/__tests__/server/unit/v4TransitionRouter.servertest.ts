@@ -10,6 +10,7 @@ vi.mock("@/src/server/auth", () => ({
 
 const sharedServerMock = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
+  isForceV3ExperienceProject: vi.fn(() => false),
   logger: {
     warn: vi.fn(),
   },
@@ -823,6 +824,7 @@ describe("v4TransitionRouter", () => {
             mixpanel: false,
             blobStorage: false,
           },
+          forceV3Experience: false,
         },
         {
           projectId: secondProjectId,
@@ -833,6 +835,7 @@ describe("v4TransitionRouter", () => {
             mixpanel: true,
             blobStorage: false,
           },
+          forceV3Experience: false,
         },
       ],
     });
@@ -1005,6 +1008,7 @@ describe("v4TransitionRouter", () => {
             mixpanel: false,
             blobStorage: false,
           },
+          forceV3Experience: false,
         },
       ],
     });

@@ -17,7 +17,7 @@ import { api } from "@/src/utils/api";
 // use deprecated features (currently Evals) and opens on arrival.
 export function V4MigrationModal() {
   const { project } = useQueryProject();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const traceLevelEvalSummary = api.v4Transition.traceLevelEvalSummary.useQuery(
     { projectId: project?.id ?? "" },
     {

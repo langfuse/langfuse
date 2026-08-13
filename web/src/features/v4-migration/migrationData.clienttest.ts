@@ -25,6 +25,7 @@ const migrationStatus = (
   experiments: loadedAction("not_required"),
   apis: loaded(0),
   exports: loaded(0),
+  forceV3Experience: false,
   ...overrides,
 });
 

@@ -142,6 +142,7 @@ describe("account v4 migration data", () => {
       },
       apis: { status: "loaded", count: 2 },
       exports: { status: "loaded", count: 1 },
+      forceV3Experience: false,
     });
     expect(mocks.summaryByProject).toHaveBeenCalledWith(
       { orgId: "org-1" },
@@ -155,5 +156,30 @@ describe("account v4 migration data", () => {
       expect.objectContaining({ orgId: "org-1" }),
       expect.objectContaining({ enabled: true }),
     );
+  });
+
+  it("marks projects forced onto the v3 experience as partner-managed", () => {
+    const [integrationResultSet] = mocks.queryResultSets as [
+      [{ data: { projects: Record<string, unknown>[] } }],
+      ...unknown[][],
+    ];
+    integrationResultSet[0].data.projects[0].forceV3Experience = true;
+
+    const { result } = renderHook(() =>
+      useAccountV4MigrationData({
+        organizations: [
+          {
+            id: "org-1",
+            name: "Organization",
+            projects: [{ id: "project-1", name: "Project" }],
+          },
+        ],
+        enabled: true,
+      }),
+    );
+
+    expect(result.current.get("project-1")).toMatchObject({
+      forceV3Experience: true,
+    });
   });
 });
