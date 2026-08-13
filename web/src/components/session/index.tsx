@@ -1437,6 +1437,7 @@ const LoadedSessionEventsPage: React.FC<{
                     environment: session.environment,
                   }}
                   buttonVariant="outline"
+                  showAnnotationCount={isModernSessionEnabled}
                 />
                 <CreateNewAnnotationQueueItem
                   projectId={projectId}
@@ -1521,6 +1522,7 @@ const LoadedSessionEventsPage: React.FC<{
                 }}
                 buttonVariant="outline"
                 layout="menu"
+                showAnnotationCount={isModernSessionEnabled}
               />
               <CreateNewAnnotationQueueItem
                 projectId={projectId}
