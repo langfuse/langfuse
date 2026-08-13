@@ -192,10 +192,13 @@ const ENRICHED_UNAVAILABLE_MESSAGE =
 // counted separately in logs. Customer-facing via the public REST PUT.
 const PROJECT_CUTOFF_MESSAGE =
   "Legacy export sources are not available for Cloud projects created on or after 2026-05-20. Use 'OBSERVATIONS_V2' instead.";
+// Covers both integration-level rejections: a brand-new integration (which
+// follows new-customer rules whatever today's date is) and an existing one that
+// postdates the cutoff.
 const exporterCutoffMessage = (
   exporterCutoff: Date = LEGACY_BLOB_EXPORTER_CUTOFF,
 ) =>
-  `Legacy export sources are not available for integrations created on or after ${exporterCutoff.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`;
+  `Legacy export sources are not available on Cloud for new integrations, or for integrations created on or after ${exporterCutoff.toISOString()}. Use 'OBSERVATIONS_V2' instead.`;
 
 // Self-hosted-operator-facing: naming the env var is intentional. Worded
 // integration-neutrally since blob storage, PostHog, and Mixpanel all surface
