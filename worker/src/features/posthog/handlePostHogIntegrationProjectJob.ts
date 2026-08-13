@@ -427,7 +427,12 @@ export const handlePostHogIntegrationProjectJob = async (
     // that will never clear on its own (LFE-14990). Transient/infra faults
     // stay on the retry+alert path unchanged.
     const reason = classifyCustomerFault(error);
-    const message = error instanceof Error ? error.message : String(error);
+    // Bounded like blob's extractStorageErrorMessage: today's classified
+    // messages are short static strings, but lastError is surfaced in settings
+    // and must not grow unbounded if a future classified path carries an SDK body.
+    const message = (
+      error instanceof Error ? error.message : String(error)
+    ).slice(0, 1000);
 
     if (reason === undefined) {
       logger.error(
