@@ -24,30 +24,44 @@ import {
 /** Project notifications route to webhooks or Slack; GitHub dispatch is not wired for this event source. */
 const PROJECT_NOTIFICATION_ACTION_TYPES: ActionTypes[] = ["WEBHOOK", "SLACK"];
 
-/** NOTIFIED_EVENTS lists the toggleable project-notification events, keyed by their eventType. */
-const NOTIFIED_EVENTS: {
-  value: ProjectNotificationEventType;
-  title: string;
-  description: string;
-}[] = [
-  {
-    value: "blob-export-failed",
+/**
+ * NOTIFIED_EVENTS holds the copy for the toggleable project-notification
+ * events, keyed by their eventType. Deliberately exhaustive: new channels
+ * subscribe to every event type, so a type missing here would be delivered with
+ * no toggle to turn it off. Adding one to ProjectNotificationEventTypeSchema
+ * must therefore fail to compile until it is listed here too.
+ */
+const NOTIFIED_EVENTS: Record<
+  ProjectNotificationEventType,
+  { title: string; description: string }
+> = {
+  "blob-export-failed": {
     title: "Blob storage export failed",
     description: "Sent when a scheduled blob storage export fails.",
   },
-  {
-    value: "posthog-export-failed",
+  "posthog-export-failed": {
     title: "PostHog export failed",
     description:
       "Sent when a PostHog export is disabled after a configuration error, such as an unreachable host.",
   },
-  {
-    value: "evaluator-blocked",
+  "evaluator-blocked": {
     title: "Evaluator deactivated",
     description:
       "Sent when an evaluator is deactivated due to an unrecoverable error, such as a deleted model or LLM connection.",
   },
-];
+};
+
+/** Rendered in declaration order; Object.entries preserves it for string keys. */
+const NOTIFIED_EVENT_ROWS: {
+  value: ProjectNotificationEventType;
+  title: string;
+  description: string;
+}[] = (
+  Object.entries(NOTIFIED_EVENTS) as [
+    ProjectNotificationEventType,
+    { title: string; description: string },
+  ][]
+).map(([value, copy]) => ({ value, ...copy }));
 
 /**
  * ProjectNotificationChannels is the admin-only "Project Notifications"
@@ -106,7 +120,7 @@ export function ProjectNotificationChannels({
                   : "Configure a channel above to enable project notifications."}
               </p>
             </div>
-            {NOTIFIED_EVENTS.map((event) => (
+            {NOTIFIED_EVENT_ROWS.map((event) => (
               <div
                 key={event.value}
                 className="flex items-center justify-between gap-4 rounded-lg border p-4"
