@@ -110,10 +110,7 @@ export default function BlobStorageIntegrationSettings() {
               config={state.data?.config ?? null}
               projectId={projectId}
               isLoading={state.isLoading}
-              isEnrichedExportAvailable={
-                state.data?.isEnrichedExportAvailable ?? false
-              }
-              legacyWritesActive={state.data?.legacyWritesActive ?? true}
+              writeMode={state.data?.writeMode ?? "legacy"}
             />
           </Card>
         </>

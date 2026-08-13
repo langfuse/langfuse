@@ -74,9 +74,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         scope: "integrations:CRUD",
       });
       try {
-        // Data capability for both source families (see export-source-policy.ts).
-        const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
             projectId: input.projectId,
@@ -86,11 +83,11 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           },
         });
 
+        // The client derives export-source availability from this via the
+        // shared policy helpers (see export-source-policy.ts).
         return {
           config: config ?? null,
-          writeMode,
-          isEnrichedExportAvailable: areEnrichedWritesActive(writeMode),
-          legacyWritesActive: areLegacyWritesActive(writeMode),
+          writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
         };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);

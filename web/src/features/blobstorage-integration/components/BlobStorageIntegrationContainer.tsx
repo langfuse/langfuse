@@ -6,6 +6,9 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import {
+  areEnrichedWritesActive,
+  areLegacyWritesActive,
+  type BlobExportWriteMode,
   type BlobStorageIntegration,
   type ExportSourceContext,
 } from "@langfuse/shared";
@@ -26,14 +29,12 @@ export const BlobStorageIntegrationContainer = ({
   config,
   projectId,
   isLoading,
-  isEnrichedExportAvailable,
-  legacyWritesActive,
+  writeMode,
 }: {
   config: Partial<BlobStorageIntegration> | null;
   projectId: string;
   isLoading: boolean;
-  isEnrichedExportAvailable: boolean;
-  legacyWritesActive: boolean;
+  writeMode: BlobExportWriteMode;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -46,8 +47,8 @@ export const BlobStorageIntegrationContainer = ({
   const exportSourceCtx: ExportSourceContext = useMemo(
     () => ({
       isCloud: isLangfuseCloud,
-      enrichedAvailable: isEnrichedExportAvailable,
-      legacyWritesActive,
+      enrichedAvailable: areEnrichedWritesActive(writeMode),
+      legacyWritesActive: areLegacyWritesActive(writeMode),
       projectCreatedAt: projectCreatedAt
         ? new Date(projectCreatedAt)
         : undefined,
@@ -55,13 +56,7 @@ export const BlobStorageIntegrationContainer = ({
         ? new Date(integrationCreatedAt)
         : null,
     }),
-    [
-      isLangfuseCloud,
-      isEnrichedExportAvailable,
-      legacyWritesActive,
-      projectCreatedAt,
-      integrationCreatedAt,
-    ],
+    [isLangfuseCloud, writeMode, projectCreatedAt, integrationCreatedAt],
   );
 
   const utils = api.useUtils();
