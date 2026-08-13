@@ -284,9 +284,18 @@ export const handlePostHogIntegrationProjectJob = async (
     return;
   }
 
-  // Validate PostHog hostname to prevent SSRF attacks before sending data
+  // Validate PostHog hostname to prevent SSRF attacks before sending data.
+  // Uses the analytics allowlist explicitly: left to its default this would
+  // consult the WEBHOOK allowlist while the connect-time check below consults
+  // the analytics one, so the two layers could disagree about the same host —
+  // the same shape as the rebind gap this fix closes. Failing here is also the
+  // better failure: early, retryable, and reported as an invalid hostname
+  // rather than dying at connect as a terminal SSRF block.
   try {
-    await validateWebhookURL(postHogIntegration.posthogHostName);
+    await validateWebhookURL(
+      postHogIntegration.posthogHostName,
+      analyticsIntegrationWhitelistFromEnv(),
+    );
   } catch (error) {
     logger.error(
       `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
