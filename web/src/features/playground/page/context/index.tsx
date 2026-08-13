@@ -45,6 +45,7 @@ import {
   MULTI_WINDOW_CONFIG,
 } from "@/src/features/playground/page/types";
 import {
+  getGlobalRunCount,
   getPlaygroundEventBus,
   useWindowCoordination,
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
@@ -75,8 +76,6 @@ type PlaygroundContextType = {
   outputToolCalls: LLMToolCall[];
 
   runs: PlaygroundRunResult[];
-  runCount: number;
-  setRunCount: React.Dispatch<React.SetStateAction<number>>;
 
   handleSubmit: (streaming?: boolean) => Promise<void>;
   isStreaming: boolean;
@@ -127,7 +126,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   const [outputToolCalls, setOutputToolCalls] = useState<LLMToolCall[]>([]);
   const [outputJson, setOutputJson] = useState("");
   const [runs, setRuns] = useState<PlaygroundRunResult[]>([]);
-  const [runCount, setRunCount] = useState(1);
   const [isStreaming, setIsStreaming] = useState(false);
   const isStreamingRef = useRef(isStreaming);
   const [tools, setTools] = useState<PlaygroundTool[]>([]);
@@ -393,6 +391,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           );
         }
 
+        const runCount = getGlobalRunCount();
+
         let response = "";
         if (runCount > 1) {
           // Repetitions mode: execute the same configuration N times in
@@ -463,38 +463,53 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
             };
           };
 
-          const results = await Promise.all(
-            Array.from({ length: runCount }, async (_, index) => {
-              const startedAt = performance.now();
-              let run: PlaygroundRunResult;
-              try {
-                const result = await executeOnce();
-                run = {
-                  index,
-                  status: "completed",
-                  content: result.content,
-                  reasoning: result.reasoning,
-                  toolCalls: result.toolCalls,
-                  latencyMs: Math.round(performance.now() - startedAt),
-                };
-              } catch (err) {
-                run = {
-                  index,
-                  status: "error",
-                  content: "",
-                  toolCalls: [],
-                  latencyMs: Math.round(performance.now() - startedAt),
-                  error:
-                    err instanceof Error ? err.message : "An error occurred",
-                };
-              }
-              setRuns((prev) =>
-                prev.map((prevRun) =>
-                  prevRun.index === index ? run : prevRun,
-                ),
-              );
-              return run;
-            }),
+          // Bounded worker pool: with up to MAX_RUN_COUNT repetitions,
+          // firing everything at once would trip provider rate limits.
+          const CONCURRENT_RUNS = 5;
+          const results: PlaygroundRunResult[] = new Array(runCount);
+          let nextRunIndex = 0;
+
+          const executeRunAt = async (index: number) => {
+            const startedAt = performance.now();
+            let run: PlaygroundRunResult;
+            try {
+              const result = await executeOnce();
+              run = {
+                index,
+                status: "completed",
+                content: result.content,
+                reasoning: result.reasoning,
+                toolCalls: result.toolCalls,
+                latencyMs: Math.round(performance.now() - startedAt),
+              };
+            } catch (err) {
+              run = {
+                index,
+                status: "error",
+                content: "",
+                toolCalls: [],
+                latencyMs: Math.round(performance.now() - startedAt),
+                error:
+                  err instanceof Error ? err.message : "An error occurred",
+              };
+            }
+            results[index] = run;
+            setRuns((prev) =>
+              prev.map((prevRun) => (prevRun.index === index ? run : prevRun)),
+            );
+          };
+
+          await Promise.all(
+            Array.from(
+              { length: Math.min(CONCURRENT_RUNS, runCount) },
+              async () => {
+                while (nextRunIndex < runCount) {
+                  const index = nextRunIndex;
+                  nextRunIndex += 1;
+                  await executeRunAt(index);
+                }
+              },
+            ),
           );
 
           const firstCompleted = results.find(
@@ -614,7 +629,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       setPlaygroundCache,
       structuredOutputSchema,
       projectId,
-      runCount,
     ],
   );
 
@@ -875,8 +889,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         outputJson,
         outputToolCalls,
         runs,
-        runCount,
-        setRunCount,
         handleSubmit,
         isStreaming,
         scrollToMessage,

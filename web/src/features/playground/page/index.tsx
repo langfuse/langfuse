@@ -3,7 +3,21 @@ import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import { Play } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
-import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
+import {
+  MAX_RUN_COUNT,
+  setGlobalRunCount,
+  useGlobalRunCount,
+  useWindowCoordination,
+} from "@/src/features/playground/page/hooks/useWindowCoordination";
+import { Input } from "@/src/components/ui/input";
+import { Slider } from "@/src/components/ui/slider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { ChevronDown, Repeat } from "lucide-react";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnter";
 import { type MultiWindowState } from "@/src/features/playground/page/types";
@@ -46,6 +60,7 @@ export default function PlaygroundPage() {
   }, []);
 
   const projectId = useProjectIdFromURL();
+  const runCount = useGlobalRunCount();
   const { windowIds, isLoaded, addWindowWithCopy, removeWindowId } =
     usePersistedWindowIds();
 
@@ -171,6 +186,51 @@ export default function PlaygroundPage() {
                   </>
                 )}
               </div>
+
+              {/* Global repetitions selector, LangSmith-style: applies to
+                  every submission (Run All and per-window Submit alike) */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={globalIsExecutingAll}
+                    className="hidden shrink-0 gap-1 md:flex"
+                    title="Number of times each window runs per submission"
+                  >
+                    <Repeat className="h-3 w-3" />
+                    <span>{`\u00d7${runCount}`}</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60 p-3">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold">Repetitions</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={MAX_RUN_COUNT}
+                        value={runCount}
+                        onChange={(e) =>
+                          setGlobalRunCount(Number(e.target.value))
+                        }
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="h-7 w-16 text-xs"
+                      />
+                    </div>
+                    <Slider
+                      min={1}
+                      max={MAX_RUN_COUNT}
+                      step={1}
+                      value={[runCount]}
+                      onValueChange={(value) => setGlobalRunCount(value[0])}
+                    />
+                    <span className="text-muted-foreground text-xs">
+                      Runs per submission (max {MAX_RUN_COUNT})
+                    </span>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Multi-Window Controls - Hidden on mobile */}
               <Button

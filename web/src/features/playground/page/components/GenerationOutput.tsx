@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "../context";
 import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
-import { BracesIcon, Check, Copy, Plus } from "lucide-react";
+import {
+  BracesIcon,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Plus,
+} from "lucide-react";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { ThinkingBlock } from "@/src/features/traces";
@@ -144,13 +151,34 @@ export const GenerationOutput = () => {
 };
 
 /**
- * Output panel for repeated ("Run xN") submissions: every run stacked with
- * its own latency and tool calls, preceded by deterministic consistency
- * stats (counts, frequencies, and latency distribution only).
+ * Output panel for repeated ("Run xN") submissions: a carousel over the runs
+ * (one run visible at a time, prev/next navigation) preceded by deterministic
+ * consistency stats (counts, frequencies, and latency distribution only).
  */
 const MultiRunOutput = ({ runs }: { runs: PlaygroundRunResult[] }) => {
   const stats = useMemo(() => computeRunStats(runs), [runs]);
+  const [activeIndex, setActiveIndex] = useState(0);
   const isRunning = runs.some((run) => run.status === "running");
+  const activeRun = runs[Math.min(activeIndex, runs.length - 1)];
+
+  // While executing, follow the most recently settled run so the carousel
+  // shows progress without requiring interaction; once the batch finishes,
+  // reset to the first run so review always starts from the beginning.
+  const wasRunningRef = useRef(false);
+  useEffect(() => {
+    if (isRunning) {
+      const lastSettled = runs.reduce(
+        (latest, run, index) => (run.status !== "running" ? index : latest),
+        0,
+      );
+      setActiveIndex(lastSettled);
+    } else if (wasRunningRef.current) {
+      setActiveIndex(0);
+    }
+    wasRunningRef.current = isRunning;
+  }, [runs, isRunning]);
+
+  if (!activeRun) return null;
 
   return (
     <div className="flex flex-col gap-3 pb-4">
@@ -184,43 +212,67 @@ const MultiRunOutput = ({ runs }: { runs: PlaygroundRunResult[] }) => {
         )}
       </div>
 
-      {runs.map((run) => (
-        <div key={run.index} className="rounded-md border">
-          <div className="bg-background/50 text-muted-foreground flex items-center justify-between border-b px-2 py-1 text-xs">
-            <span className="font-bold">Run {run.index + 1}</span>
-            <span className="flex items-center gap-1">
-              {run.status === "running" && <Spinner size="xxs" />}
-              {run.status === "error" && (
-                <span className="text-destructive">failed</span>
-              )}
-              {run.status === "completed" && `${run.latencyMs}ms`}
+      <div className="rounded-md border">
+        <div className="bg-background/50 flex items-center justify-between border-b px-2 py-1 text-xs">
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-5 w-5"
+              disabled={activeIndex === 0}
+              onClick={() => setActiveIndex((prev) => Math.max(prev - 1, 0))}
+              title="Previous run"
+            >
+              <ChevronLeft className="h-3 w-3" />
+            </Button>
+            <span className="font-bold whitespace-nowrap">
+              Run {activeIndex + 1}/{runs.length}
             </span>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-5 w-5"
+              disabled={activeIndex >= runs.length - 1}
+              onClick={() =>
+                setActiveIndex((prev) => Math.min(prev + 1, runs.length - 1))
+              }
+              title="Next run"
+            >
+              <ChevronRight className="h-3 w-3" />
+            </Button>
           </div>
-          <div className="px-2 py-1.5">
-            {run.status === "error" ? (
-              <pre className="text-destructive text-xs wrap-break-word whitespace-break-spaces">
-                {run.error}
-              </pre>
-            ) : (
-              <>
-                {run.reasoning && (
-                  <div className="-ml-1">
-                    <ThinkingBlock content={run.reasoning} />
-                  </div>
-                )}
-                <pre className="text-xs wrap-break-word whitespace-break-spaces">
-                  {run.content}
-                </pre>
-                {run.toolCalls.map((toolCall) => (
-                  <div className="mt-2" key={toolCall.id}>
-                    <ToolCallCard toolCall={toolCall} />
-                  </div>
-                ))}
-              </>
+          <span className="text-muted-foreground flex items-center gap-1">
+            {activeRun.status === "running" && <Spinner size="xxs" />}
+            {activeRun.status === "error" && (
+              <span className="text-destructive">failed</span>
             )}
-          </div>
+            {activeRun.status === "completed" && `${activeRun.latencyMs}ms`}
+          </span>
         </div>
-      ))}
+        <div className="px-2 py-1.5">
+          {activeRun.status === "error" ? (
+            <pre className="text-destructive text-xs wrap-break-word whitespace-break-spaces">
+              {activeRun.error}
+            </pre>
+          ) : (
+            <>
+              {activeRun.reasoning && (
+                <div className="-ml-1">
+                  <ThinkingBlock content={activeRun.reasoning} />
+                </div>
+              )}
+              <pre className="text-xs wrap-break-word whitespace-break-spaces">
+                {activeRun.content}
+              </pre>
+              {activeRun.toolCalls.map((toolCall) => (
+                <div className="mt-2" key={toolCall.id}>
+                  <ToolCallCard toolCall={toolCall} />
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
       {isRunning && (
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
           <Spinner size="xxs" />
