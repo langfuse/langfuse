@@ -12,7 +12,10 @@ import {
   validateWebhookURL,
   recordIncrement,
   dispatchProjectNotification,
+  whitelistFromEnv,
+  fetchWithSecureRedirects,
 } from "@langfuse/shared/src/server";
+import { ANALYTICS_INTEGRATION_MAX_REDIRECTS } from "../analyticsIntegrationEgress";
 import {
   transformTraceForPostHog,
   transformGenerationForPostHog,
@@ -26,6 +29,8 @@ import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { env, v4WritesToLegacyTables } from "../../env";
+import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import { findOutboundUrlValidationError } from "../../errors/findOutboundUrlValidationError";
 
 // Counter for PostHog integrations auto-disabled after a deterministic
 // customer-config fault, tagged by `reason`. A classifier-regression
@@ -88,7 +93,7 @@ type PostHogClientOptions = NonNullable<
 // mode uses /i/v1/analytics/events; feature-flag requests are excluded.
 export const countingFetch =
   (volume: { bytes: number }): PostHogClientOptions["fetch"] =>
-  (url, options) => {
+  async (url, options) => {
     // Extend the existing V0 counter to cover the additional capture mode
     // supported by newer posthog-node releases.
     if (url.endsWith("/batch/") || url.endsWith("/i/v1/analytics/events")) {
@@ -106,7 +111,23 @@ export const countingFetch =
         );
       }
     }
-    return globalThis.fetch(url, options as RequestInit);
+    // Re-resolve and re-validate the destination IP at socket connect time: a
+    // host that validated as public in the pre-check can rebind to a
+    // private/loopback address before the socket opens (TOCTOU). Redirect
+    // targets are re-validated with the same URL validator.
+    const { response } = await fetchWithSecureRedirects(
+      url,
+      options as RequestInit,
+      {
+        maxRedirects: ANALYTICS_INTEGRATION_MAX_REDIRECTS,
+        redirectValidation: {
+          validateUrl: validateWebhookURL,
+          whitelist: whitelistFromEnv(),
+          logContext: "PostHog integration",
+        },
+      },
+    );
+    return response;
   };
 
 const processPostHogStream = async <T>(
@@ -430,6 +451,26 @@ export const handlePostHogIntegrationProjectJob = async (
     ).slice(0, 1000);
 
     if (reason === undefined) {
+      // A connect-time SSRF block is a permanent misconfiguration of the
+      // integration host, not a transient failure, so skip the remaining BullMQ
+      // attempts for this job. Only reached for blocks the classifier above does
+      // not own (e.g. a rejected redirect target): a blocked hostname/IP is a
+      // customer fault and disables the integration instead. The integration
+      // stays enabled here, so the schedule re-enqueues the project next cycle,
+      // which is what lets a fixed endpoint recover on its own.
+      const validationError = findOutboundUrlValidationError(error);
+      if (validationError) {
+        logger.error(
+          `[POSTHOG] Outbound send for project ${projectId} blocked by SSRF protection: ${validationError.message}`,
+          error,
+        );
+        const unrecoverable = new UnrecoverableError(
+          `PostHog integration for project ${projectId} blocked by SSRF protection: ${validationError.message}`,
+        );
+        unrecoverable.cause = error;
+        throw unrecoverable;
+      }
+
       logger.error(
         `[POSTHOG] Error processing PostHog integration for project ${projectId}`,
         error,
