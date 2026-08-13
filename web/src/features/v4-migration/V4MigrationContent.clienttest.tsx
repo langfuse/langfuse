@@ -996,9 +996,9 @@ describe("V4MigrationHeaderContent", () => {
     expect(screen.getByText("Upgrade to v4")).toBeInTheDocument();
     expect(screen.queryByText(/Project 1/)).not.toBeInTheDocument();
     expect(
-      screen.getByText(/Your project setup is outdated/),
+      screen.getByText(/Complete the action items below/),
     ).toHaveTextContent(
-      "Your project setup is outdated. Upgrade to v4 now for real-time ingestion and up to 165x faster queries. See docs.",
+      "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items below to switch this project over. See docs.",
     );
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
@@ -1021,7 +1021,7 @@ describe("V4MigrationHeaderContent", () => {
     expect(screen.getByText("Upgrade to v4").parentElement).toHaveClass("pr-6");
   });
 
-  it("does not call ready or unresolved projects outdated", () => {
+  it("keeps the pitch but drops the action ask for ready or unresolved projects", () => {
     for (const readiness of [
       "ready",
       "checking",
@@ -1033,10 +1033,10 @@ describe("V4MigrationHeaderContent", () => {
       );
 
       expect(
-        screen.queryByText(/Your project setup is outdated/),
+        screen.queryByText(/Complete the action items below/),
       ).not.toBeInTheDocument();
       expect(
-        screen.getByText(/Langfuse v4 offers real-time ingestion/),
+        screen.getByText(/Langfuse v4 is here: real-time ingestion/),
       ).toBeInTheDocument();
       expect(
         screen.queryByText(/some features may stop working/),
