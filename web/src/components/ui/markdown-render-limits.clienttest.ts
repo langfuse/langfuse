@@ -70,6 +70,33 @@ describe("estimateMarkdownNestingDepth", () => {
   });
 });
 
+describe("MARKDOWN_MAX_RENDER_BYTES derivation", () => {
+  const importWithCharacterLimit = async (limit: number) => {
+    vi.resetModules();
+    vi.doMock("@/src/env.mjs", () => ({
+      env: { NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: limit },
+    }));
+    return await import("@/src/components/ui/markdown-render-limits");
+  };
+
+  afterEach(() => {
+    vi.doUnmock("@/src/env.mjs");
+    vi.resetModules();
+  });
+
+  it("follows a raised character limit", async () => {
+    const mod = await importWithCharacterLimit(300_000);
+    expect(mod.MARKDOWN_MAX_RENDER_BYTES).toBe(300_000);
+    expect(mod.exceedsMarkdownRenderLimits("a".repeat(200_000))).toBe(false);
+    expect(mod.exceedsMarkdownRenderLimits("a".repeat(300_001))).toBe(true);
+  });
+
+  it("never drops below the 150k default", async () => {
+    const mod = await importWithCharacterLimit(10);
+    expect(mod.MARKDOWN_MAX_RENDER_BYTES).toBe(150_000);
+  });
+});
+
 describe("exceedsMarkdownRenderLimits", () => {
   it("allows normal content", () => {
     expect(exceedsMarkdownRenderLimits("Hello **world**")).toBe(false);
