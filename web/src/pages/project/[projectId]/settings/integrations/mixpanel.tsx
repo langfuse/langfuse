@@ -33,7 +33,6 @@ import {
   type MixpanelRegion,
 } from "@/src/features/mixpanel-integration/types";
 import {
-  AnalyticsIntegrationExportSource,
   LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   validateExportSource,
   type BlobExportWriteMode,
@@ -43,10 +42,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
+  getDefaultExportSource,
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-  shouldHideExportSourceSelector,
+  shouldShowExportSourceField,
 } from "@/src/features/analytics-integrations/exportSource";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -189,29 +189,16 @@ const MixpanelIntegrationSettingsForm = ({
     }),
     [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
   );
-  const legacyValidation = validateExportSource(
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-    exportSourceCtx,
-  );
-  // Post-cutoff Cloud projects: field hidden, form value pinned to EVENTS via
-  // the default below (LFE-9688 / 9830 behavior, unchanged).
-  const isPostCutoffCloud =
-    !legacyValidation.ok && legacyValidation.reason === "cloud-cutoff";
   const exportSourceOptions = getExportSourceOptions(
     state?.exportSource ?? null,
     exportSourceCtx,
   );
-  // Selector is beta-gated off Cloud, except a persisted source blocked by
-  // capability forces it visible so the blocked-save alert has something to
-  // point at.
-  const persistedBlockedByCapability =
-    state?.exportSource != null &&
-    !isPostCutoffCloud &&
-    !isExportSourceSelectable(state.exportSource, exportSourceCtx);
-  const showExportSourceField =
-    (((isLangfuseCloud || isBetaEnabled) && !isPostCutoffCloud) ||
-      persistedBlockedByCapability) &&
-    !shouldHideExportSourceSelector(exportSourceOptions);
+  const showExportSourceField = shouldShowExportSourceField({
+    persisted: state?.exportSource,
+    ctx: exportSourceCtx,
+    isBetaEnabled,
+    options: exportSourceOptions,
+  });
 
   // Blocked-save validation instead of silent rewrite (LFE-10296).
   const formSchema = useMemo(
@@ -238,12 +225,11 @@ const MixpanelIntegrationSettingsForm = ({
     [exportSourceCtx, state],
   );
 
-  const defaultExportSource = isPostCutoffCloud
-    ? AnalyticsIntegrationExportSource.EVENTS
-    : (state?.exportSource ??
-      (isLangfuseCloud || isBetaEnabled || !exportSourceCtx.legacyWritesActive
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS));
+  const defaultExportSource = getDefaultExportSource({
+    persisted: state?.exportSource,
+    ctx: exportSourceCtx,
+    isBetaEnabled,
+  });
 
   const mixpanelForm = useForm({
     resolver: zodResolver(formSchema),

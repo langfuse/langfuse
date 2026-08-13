@@ -89,6 +89,66 @@ export function getExportSourceOptions(
   });
 }
 
+/**
+ * Selector visibility and initial form value for the PostHog and Mixpanel
+ * settings forms, which derive both identically. `isBetaEnabled` is the V4
+ * preview opt-in; on Cloud the selector does not depend on it, because enriched
+ * export is always available there.
+ */
+
+// Post-cutoff Cloud: the selector is hidden and the form value is pinned to
+// EVENTS. Brand-new Cloud rows land here too — they follow new-customer rules.
+function isPostCutoffCloud(ctx: ExportSourceContext): boolean {
+  const legacyValidation = validateExportSource(
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    ctx,
+  );
+  return !legacyValidation.ok && legacyValidation.reason === "cloud-cutoff";
+}
+
+export function shouldShowExportSourceField({
+  persisted,
+  ctx,
+  isBetaEnabled,
+  options,
+}: {
+  persisted: AnalyticsIntegrationExportSource | null | undefined;
+  ctx: ExportSourceContext;
+  isBetaEnabled: boolean;
+  options: SelectableExportSourceOption[];
+}): boolean {
+  const postCutoffCloud = isPostCutoffCloud(ctx);
+  // A persisted source blocked by capability forces the field visible so the
+  // blocked-save alert has something to point at.
+  const persistedBlockedByCapability =
+    persisted != null &&
+    !postCutoffCloud &&
+    !isExportSourceSelectable(persisted, ctx);
+  return (
+    (((ctx.isCloud || isBetaEnabled) && !postCutoffCloud) ||
+      persistedBlockedByCapability) &&
+    !shouldHideExportSourceSelector(options)
+  );
+}
+
+export function getDefaultExportSource({
+  persisted,
+  ctx,
+  isBetaEnabled,
+}: {
+  persisted: AnalyticsIntegrationExportSource | null | undefined;
+  ctx: ExportSourceContext;
+  isBetaEnabled: boolean;
+}): AnalyticsIntegrationExportSource {
+  if (isPostCutoffCloud(ctx)) return AnalyticsIntegrationExportSource.EVENTS;
+  return (
+    persisted ??
+    (ctx.isCloud || isBetaEnabled || !ctx.legacyWritesActive
+      ? AnalyticsIntegrationExportSource.EVENTS
+      : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS)
+  );
+}
+
 // Blocked-save alert body per policy reason.
 const EXPORT_SOURCE_UNAVAILABLE_MESSAGES: Record<
   ExportSourceBlockedReason,
