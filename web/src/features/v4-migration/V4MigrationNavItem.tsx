@@ -30,16 +30,10 @@ export function V4MigrationNavItem() {
     exports: migrationData.exports,
     forceV3Experience: migrationData.forceV3Experience,
   });
-  if (readiness === "ready") {
+  if (readiness !== "action-needed") {
     return null;
   }
-
-  const label =
-    readiness === "checking"
-      ? "Checking"
-      : readiness === "unavailable"
-        ? "Check status"
-        : "Action required";
+  const label = "Action required";
 
   const handleClick = () => {
     capture("sidebar:v4_migration_card_clicked");

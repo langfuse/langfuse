@@ -128,7 +128,7 @@ type DecoratedSdkUsageSummaryRow = {
   hasDelayedOtelEvents: boolean | null;
   attributionStatus: IngestionSdkAttributionStatus;
   canonicalSdkName: "python" | "javascript" | null;
-  upgradeStatus: IngestionSdkUpgradeStatus;
+  upgradeStatus: IngestionSdkUpgradeStatus | "outdated_minor";
 };
 
 type SdkUsageSummaryByProjectRow = {
@@ -158,7 +158,11 @@ type SdkUsageSummaryByProjectSeries = {
   lastSeen: string;
   hasDelayedOtelEvents: boolean | null;
   attributionStatus: IngestionSdkAttributionStatus;
-  v4MigrationStatus: "compatible" | "upgrade_required" | "unknown";
+  v4MigrationStatus:
+    | "compatible"
+    | "upgrade_recommended"
+    | "upgrade_required"
+    | "unknown";
 };
 
 // Counts stay out of this row on purpose: the client derives every displayed
@@ -659,8 +663,9 @@ SETTINGS skip_unavailable_shards = 1
               upgradeStatus:
                 capabilityStatus === "supported"
                   ? "current"
-                  : capabilityStatus === "unsupported"
-                    ? "outdated_major"
+                  : capabilityStatus === "unsupported" &&
+                      classification.status === "current"
+                    ? "outdated_minor"
                     : classification.status,
             };
           },
@@ -681,9 +686,11 @@ SETTINGS skip_unavailable_shards = 1
               v4MigrationStatus:
                 row.upgradeStatus === "current"
                   ? "compatible"
-                  : row.upgradeStatus === "outdated_major"
-                    ? "upgrade_required"
-                    : "unknown",
+                  : row.upgradeStatus === "outdated_minor"
+                    ? "upgrade_recommended"
+                    : row.upgradeStatus === "outdated_major"
+                      ? "upgrade_required"
+                      : "unknown",
             };
           },
         );
