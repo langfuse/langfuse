@@ -40,10 +40,6 @@ export const AttachEvaluatorToEvaluationRuleBaseSchema = z.object({
   variableMapping: VariableMappingSchema.optional(),
 });
 
-// Attach takes no filters, so discovery and runtime schemas coincide.
-export const AttachEvaluatorToEvaluationRuleInputSchema =
-  AttachEvaluatorToEvaluationRuleBaseSchema;
-
 export const DetachEvaluatorFromEvaluationRuleInputSchema = z.object(
   EvaluationRuleEvaluatorInputBase,
 );

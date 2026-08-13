@@ -3,7 +3,6 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 import { createMcpRuleService, toStoredAssignments } from "../rule-service";
 import {
   AttachEvaluatorToEvaluationRuleBaseSchema,
-  AttachEvaluatorToEvaluationRuleInputSchema,
   DetachEvaluatorFromEvaluationRuleInputSchema,
   EvaluationRuleEvaluatorMutationResponseSchema,
 } from "../rule-schema";
@@ -18,7 +17,7 @@ export const [
     "Omit variableMapping to inherit the evaluator version's mapping, or provide a rule-specific override.",
   ].join(" "),
   baseSchema: AttachEvaluatorToEvaluationRuleBaseSchema,
-  inputSchema: AttachEvaluatorToEvaluationRuleInputSchema,
+  inputSchema: AttachEvaluatorToEvaluationRuleBaseSchema,
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.evaluation_rules.attach_evaluator",

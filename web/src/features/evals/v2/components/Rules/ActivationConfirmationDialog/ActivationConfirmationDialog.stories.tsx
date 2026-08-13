@@ -31,7 +31,7 @@ const estimatedCost = {
   estimates: [
     {
       evaluatorId: "conciseness",
-      evaluatorName: "Conciseness Toi",
+      evaluatorName: "Conciseness",
       matchingObservations: 715,
       sampling: 0.77,
       testRunCostUsd: 0.000968,

@@ -46,10 +46,17 @@ export const OpenMenu = meta.story({
     );
 
     const body = within(canvasElement.ownerDocument.body);
+    const menuElement = await body.findByRole("menu");
+    await expect(menuElement).toHaveAttribute("data-state", "open");
+    const menu = within(menuElement);
     await expect(
-      await body.findByRole("menuitem", { name: "View executions" }),
-    ).toBeVisible();
-    await expect(body.getByRole("menuitem", { name: "Edit" })).toBeVisible();
-    await expect(body.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+      menu.getByRole("menuitem", { name: "View executions" }),
+    ).toBeInTheDocument();
+    await expect(
+      menu.getByRole("menuitem", { name: "Edit" }),
+    ).toBeInTheDocument();
+    await expect(
+      menu.getByRole("menuitem", { name: "Delete" }),
+    ).toBeInTheDocument();
   },
 });
