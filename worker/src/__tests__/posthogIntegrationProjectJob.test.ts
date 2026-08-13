@@ -62,7 +62,25 @@ const h = vi.hoisted(() => {
   // awaited dispatch from a fire-and-forget one.
   const notification = { settled: false, rejects: false };
 
-  const posthogIntegrationUpdate = vi.fn();
+  // Stand-in for the Prisma namespace class. The record-not-found predicate is
+  // instanceof-based, so a duck-typed `{ code: "P2025" }` would not satisfy it
+  // — tests must throw a real instance of this class.
+  class PrismaClientKnownRequestError extends Error {
+    code: string;
+    constructor(message: string, { code }: { code: string }) {
+      super(message);
+      this.name = "PrismaClientKnownRequestError";
+      this.code = code;
+    }
+  }
+
+  // Lets a test fail the lastError/lastErrorAt persist write without disturbing
+  // the tests that need it to resolve.
+  const persist = { failWith: undefined as unknown };
+
+  const posthogIntegrationUpdate = vi.fn(async () => {
+    if (persist.failWith !== undefined) throw persist.failWith;
+  });
   // The atomic disable (enabled true->false) uses updateMany. Only the disable
   // write is claim-controlled; any other updateMany keeps matching.
   const posthogIntegrationUpdateMany = vi.fn(
@@ -119,6 +137,8 @@ const h = vi.hoisted(() => {
     state,
     posthogIntegrationUpdate,
     posthogIntegrationUpdateMany,
+    PrismaClientKnownRequestError,
+    persist,
     disableClaim,
     notification,
     validateWebhookURL,
@@ -141,6 +161,12 @@ vi.mock("@langfuse/shared/src/db", () => ({
       update: h.posthogIntegrationUpdate,
       updateMany: h.posthogIntegrationUpdateMany,
     },
+  },
+  // The record-not-found predicate lives in its own module but imports Prisma
+  // from this specifier, so this factory intercepts it too. Without this
+  // export the predicate throws a TypeError instead of returning a boolean.
+  Prisma: {
+    PrismaClientKnownRequestError: h.PrismaClientKnownRequestError,
   },
 }));
 
@@ -243,6 +269,7 @@ function resetSharedState() {
   h.state.rowCounts.generations = 2;
   h.state.rowCounts.events = 2;
   h.posthogIntegrationUpdate.mockClear();
+  h.persist.failWith = undefined;
   // mockClear, not mockReset: the implementations above are claim/notification
   // aware and must survive between tests; only the recorded calls reset.
   h.posthogIntegrationUpdateMany.mockClear();
@@ -708,5 +735,41 @@ describe("handlePostHogIntegrationProjectJob customer-fault auto-disable", () =>
 
     expect(disableWrites()).toHaveLength(1);
     expect(h.notification.settled).toBe(true);
+  });
+
+  // Load-bearing: the integration can be deleted while the run is in flight, so
+  // the persist races the delete and throws P2025. There is nothing to persist
+  // and nobody to notify — the job is obsolete, so it must resolve quietly
+  // rather than disable a row that no longer exists or fail the job.
+  it("drops the obsolete job when the integration is deleted mid-run", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+    h.persist.failWith = new h.PrismaClientKnownRequestError(
+      "An operation failed because it depends on one or more records that were required but not found.",
+      { code: "P2025" },
+    );
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(h.posthogIntegrationUpdate).toHaveBeenCalledTimes(1);
+    expect(disableWrites()).toHaveLength(0);
+    expect(disableMetrics()).toHaveLength(0);
+    expect(h.dispatchProjectNotification).not.toHaveBeenCalled();
+  });
+
+  // Load-bearing contrast to the case above: any other persist failure means we
+  // do NOT know the fault was recorded, so the run must not claim it as handled
+  // — rethrow and let BullMQ retry and reclassify. Without this, a swallowed DB
+  // outage would silently drop the customer fault.
+  it("rethrows when persisting the error fails for any other reason", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+    h.persist.failWith = new Error("database unavailable");
+
+    await expect(
+      handlePostHogIntegrationProjectJob(makeJob()),
+    ).rejects.toThrow();
+
+    expect(disableWrites()).toHaveLength(0);
+    expect(disableMetrics()).toHaveLength(0);
+    expect(h.dispatchProjectNotification).not.toHaveBeenCalled();
   });
 });
