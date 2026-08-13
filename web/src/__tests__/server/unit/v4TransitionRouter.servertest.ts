@@ -1001,7 +1001,7 @@ describe("v4TransitionRouter", () => {
             lastSeen: "2026-06-24T13:00:00Z",
             hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
-            v4MigrationStatus: "upgrade_required",
+            v4MigrationStatus: "upgrade_recommended",
           },
           {
             sdkName: "python",
@@ -1036,7 +1036,7 @@ describe("v4TransitionRouter", () => {
             lastSeen: "2026-06-24T04:00:00Z",
             hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
-            v4MigrationStatus: "upgrade_required",
+            v4MigrationStatus: "upgrade_recommended",
           },
           {
             sdkName: "unknown",

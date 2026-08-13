@@ -62,6 +62,12 @@ const outdatedJavascript = makeSeries({
   v4MigrationStatus: "upgrade_required",
   publicKey: "pk-lf-fedcba0987654321",
 });
+const recommendedPython = makeSeries({
+  sdkVersion: "4.6.9",
+  v4MigrationStatus: "upgrade_recommended",
+  publicKey: "pk-lf-recommended-0001",
+  lastSeen: new Date(Date.now() - 2 * HOUR_MS).toISOString(),
+});
 const unrecognizedSdk = makeSeries({
   sdkName: "my-custom-wrapper",
   sdkVersion: "0.4.0",
@@ -109,7 +115,12 @@ const customInstrumentation = makeSeries({
 
 const sdkOutdatedState = makeSdkState({
   status: "legacy",
-  sdkUsageSeries: [outdatedPython, scoresOnlyPython, outdatedJavascript],
+  sdkUsageSeries: [
+    recommendedPython,
+    outdatedPython,
+    scoresOnlyPython,
+    outdatedJavascript,
+  ],
   upgradeRequiredCount: 3,
 });
 
