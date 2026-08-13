@@ -528,8 +528,8 @@ function V4MigrationStatusPageContent() {
           >
             one prompt
           </button>
-          : the agent updates your SDK, repoints your evals, and migrates your
-          API calls, checking with you before it changes anything.
+          : the agent updates your SDK and evals, and migrates your API calls,
+          checking with you before it changes anything.
         </>
       ),
     },

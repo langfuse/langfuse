@@ -365,7 +365,7 @@ describe("V4MigrationDetailsContent", () => {
         "Evals, experiments, APIs and integrations are up to date.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Retarget Evals")).not.toBeInTheDocument();
+    expect(screen.queryByText("Update Evals")).not.toBeInTheDocument();
     expect(screen.queryByText("Experiments")).not.toBeInTheDocument();
     expect(screen.queryByText("Migrate APIs")).not.toBeInTheDocument();
     expect(screen.queryByText("Migrate Integrations")).not.toBeInTheDocument();
@@ -381,20 +381,21 @@ describe("V4MigrationDetailsContent", () => {
       screen.getByText("Evals and experiments are up to date."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Retarget Evals", { exact: true }),
+      screen.queryByText("Update Evals", { exact: true }),
     ).not.toBeInTheDocument();
   });
 
-  it("uses Retarget consistently for affected evals", () => {
+  it("uses Update consistently for affected evals", () => {
     mocks.migrationData.evals = { status: "loaded", count: 2 };
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Retarget Evals/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Update Evals/ }));
     expect(
-      screen.getByText(/Retarget them at observations/),
+      screen.getByText(/Update them to target observations/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Repoint them/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Retarget them/)).not.toBeInTheDocument();
   });
 
   it("shows the experiment instrumentation upgrade requirement", () => {
@@ -991,12 +992,18 @@ describe("V4MigrationDetailsContent", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    // The panel entry point preselects the assistant: no choice screen.
     const migrationDialog = screen.getByRole("dialog");
-    fireEvent.click(
-      within(migrationDialog).getByRole("button", {
+    expect(
+      within(migrationDialog).getByRole("heading", {
+        name: "Ready to start your evaluator upgrade?",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(migrationDialog).queryByRole("button", {
         name: /^Use Assistant/,
       }),
-    );
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(migrationDialog).getByRole("button", {
         name: "Start upgrade now",
@@ -1012,6 +1019,33 @@ describe("V4MigrationDetailsContent", () => {
     );
   });
 
+  it("keeps the choice screen when AI features are disabled", () => {
+    mocks.migrationData.evals = { status: "loaded", count: 1 };
+    mocks.aiFeaturesEnabled = false;
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    // Without AI features the button drops the assistant branding …
+    expect(
+      screen.queryByRole("button", { name: "Use Assistant" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Update evals" }));
+
+    // … and the dialog does not preselect the assistant, so the choice
+    // screen keeps owning the enable-AI flow.
+    const migrationDialog = screen.getByRole("dialog");
+    expect(
+      within(migrationDialog).getByRole("heading", {
+        name: "How would you like to upgrade your evaluators?",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(migrationDialog).getByRole("button", {
+        name: /^Use Assistant/,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("shows the admin handoff after a non-admin chooses the Assistant", () => {
     mocks.migrationData.evals = { status: "loaded", count: 1 };
     mocks.canUpdateOrgSettings = false;
@@ -1019,7 +1053,7 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Update evals" }));
     const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
       within(migrationDialog).getByRole("button", {
