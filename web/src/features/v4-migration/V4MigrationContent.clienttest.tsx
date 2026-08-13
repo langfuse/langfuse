@@ -850,11 +850,11 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Repoint evals" }));
     const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
       within(migrationDialog).getByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Repoint evals/,
       }),
     );
     fireEvent.click(
@@ -879,11 +879,11 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Repoint evals" }));
     const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
       within(migrationDialog).getByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Repoint evals/,
       }),
     );
 
