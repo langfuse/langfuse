@@ -1383,6 +1383,52 @@ describe("InAppAgentInstrumentation", () => {
       expect.anything(),
     );
   });
+
+  it("applies late step-finish usage to the last generation after end()", () => {
+    const instrumentation = createInstrumentation();
+    const modelName = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
+
+    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
+    instrumentation.end({});
+
+    const generationCreate = mocks.handler.langfuse.enqueue.mock.calls.find(
+      ([type]) => type === "generation-create",
+    )?.[1];
+    expect(generationCreate).toEqual(
+      expect.objectContaining({
+        id: getInAppAgentLlmCallObservationId(runId, 1),
+      }),
+    );
+    expect(generationCreate).not.toHaveProperty("usageDetails");
+
+    instrumentation.recordStepFinish({
+      usage: { inputTokens: 200, outputTokens: 40, totalTokens: 240 },
+      finishReason: "stop",
+    });
+
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "generation-update",
+      expect.objectContaining({
+        id: getInAppAgentLlmCallObservationId(runId, 1),
+        model: modelName,
+        usageDetails: {
+          input: 200,
+          output: 40,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+          total: 240,
+        },
+        metadata: expect.objectContaining({
+          finish_reason: "stop",
+        }),
+      }),
+    );
+    expect(
+      mocks.handler.langfuse.enqueue.mock.calls.filter(
+        ([type]) => type === "generation-create",
+      ),
+    ).toHaveLength(1);
+  });
 });
 
 function createInstrumentation(
