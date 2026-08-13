@@ -531,6 +531,170 @@ describe("InAppAgentWindow activity", () => {
       screen.getByRole("button", { name: "Worked for 3m 29s" }),
     ).toBeVisible();
   });
+
+  it("keeps the activity drawer collapsed and shows technical names when opened", () => {
+    render(
+      windowElement({
+        isAssistantTurnInProgress: true,
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "Why did latency increase?" },
+          },
+          {
+            id: "assistant-reasoning",
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "The slowest traces share a reranking step.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-tool-1",
+            role: "assistant",
+            content: {
+              type: "toolGroup",
+              tools: [
+                {
+                  type: "tool",
+                  name: "langfuse_getObservations",
+                  status: "succeeded",
+                  args: "{}",
+                },
+              ],
+            },
+          },
+          {
+            id: "assistant-reasoning-2",
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "The reranking step is slow across both outlier traces.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-tool-2",
+            role: "assistant",
+            content: {
+              type: "toolGroup",
+              tools: [
+                {
+                  type: "tool",
+                  name: "langfuse_listObservations",
+                  status: "running",
+                  args: "{}",
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const headline = screen.getByRole("button", {
+      name: "Browsing observations",
+    });
+    expect(headline).toBeVisible();
+    expect(headline).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Thought")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "The reranking step is slow across both outlier traces.",
+      ),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(headline);
+    expect(headline).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByText("Thought")).toHaveLength(2);
+    expect(screen.getByLabelText("getObservations: succeeded")).toBeVisible();
+    expect(screen.getByLabelText("listObservations: running")).toBeVisible();
+    expect(screen.queryByText("Calling 1 tool")).not.toBeInTheDocument();
+  });
+});
+
+describe("InAppAgentWindow composer", () => {
+  it("uses Reply after an assistant answer and the welcome copy on a fresh conversation", () => {
+    const { rerender } = render(windowElement());
+
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toHaveAttribute("placeholder", "Let me know what I can do for you...");
+
+    rerender(
+      windowElement({
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "What failed overnight?" },
+          },
+          {
+            id: "assistant-1",
+            role: "assistant",
+            content: {
+              type: "text",
+              text: "Ingestion errors spiked after 2am.",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toHaveAttribute("placeholder", "Reply...");
+  });
+
+  it("does not settle mid-turn assistant text while the run is still working", () => {
+    render(
+      windowElement({
+        isAssistantTurnInProgress: true,
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "Cluster the failed traces." },
+          },
+          {
+            id: "assistant-tool",
+            role: "assistant",
+            content: {
+              type: "toolGroup",
+              tools: [
+                {
+                  type: "tool",
+                  name: "langfuse_listObservations",
+                  status: "succeeded",
+                  args: "{}",
+                },
+              ],
+            },
+          },
+          {
+            id: "assistant-mid-turn",
+            role: "assistant",
+            content: {
+              type: "text",
+              text: "Let me confirm by inspecting a couple of payloads.",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(
+      screen.getByText("Let me confirm by inspecting a couple of payloads."),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Copy message" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toHaveAttribute("placeholder", "Let me know what I can do for you...");
+  });
 });
 
 describe("InAppAgentWindow message actions", () => {
@@ -591,8 +755,10 @@ describe("InAppAgentWindow message actions", () => {
     );
 
     const workingTrigger = screen.getByRole("button", { name: "Working…" });
-    expect(workingTrigger).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("I will inspect the slow traces.")).toBeVisible();
+    expect(workingTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByText("I will inspect the slow traces."),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Current trace view in context")).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Copy message" }),

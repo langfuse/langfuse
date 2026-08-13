@@ -48,6 +48,128 @@ export function getInAppAgentToolDisplayName(toolName: string): string {
   return toolName.replace(/^(?:docs_|langfuseDocs_|langfuse_)/, "");
 }
 
+const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
+  addDashboardPlacement: "Adding widget to dashboard",
+  bash: "Running command",
+  createAnnotationQueueAssignment: "Assigning annotation queue",
+  createAnnotationQueueItem: "Adding to annotation queue",
+  createChatPrompt: "Creating chat prompt",
+  createDashboardWidget: "Creating widget",
+  createTextPrompt: "Creating text prompt",
+  deleteAnnotationQueueAssignment: "Unassigning annotation queue",
+  deleteDashboardPlacement: "Removing widget from dashboard",
+  deleteDashboardWidget: "Deleting widget",
+  edit: "Editing file",
+  getDashboardWidget: "Inspecting widget",
+  getHealth: "Checking health",
+  getMetricsSchema: "Checking metrics",
+  getObservationFieldSchema: "Checking observation fields",
+  getObservationFilterSchema: "Checking observation filters",
+  getObservationFilterValues: "Looking up observation filters",
+  getPromptUnresolved: "Inspecting prompt",
+  listDashboardWidgets: "Browsing widgets",
+  queryMetrics: "Checking metrics",
+  read: "Reading file",
+  submitFeedback: "Submitting user feedback",
+  updateDashboardPlacement: "Moving widget",
+  updateDashboardWidget: "Updating widget",
+  updatePromptLabels: "Updating prompt labels",
+  write: "Writing file",
+};
+
+const IN_APP_AGENT_TOOL_PROGRESS_VERBS: Record<string, string> = {
+  add: "Adding",
+  create: "Creating",
+  delete: "Deleting",
+  get: "Inspecting",
+  list: "Browsing",
+  query: "Checking",
+  submit: "Submitting",
+  update: "Updating",
+  upsert: "Saving",
+};
+
+const IN_APP_AGENT_TOOL_PROGRESS_NOUNS: Array<[string, string]> = [
+  ["dashboard widgets", "widgets"],
+  ["dashboard widget", "widget"],
+  ["dashboard placement", "widget on dashboard"],
+  ["prompt unresolved", "prompt"],
+];
+
+function splitInAppAgentToolNameWords(toolName: string): string[] {
+  return toolName
+    .replaceAll("_", " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function isInAppAgentDocsToolName(toolName: string) {
+  return /^(?:docs_|langfuseDocs_)/.test(toolName);
+}
+
+function isInAppAgentSkillToolName(toolName: string) {
+  const strippedName = getInAppAgentToolDisplayName(toolName);
+  return /(?:^|[-_])skill(?:$|[-_A-Z])/i.test(strippedName);
+}
+
+function getAutoInAppAgentToolProgressLabel(strippedName: string): string {
+  const [firstWord, ...rest] = splitInAppAgentToolNameWords(strippedName);
+  if (!firstWord) {
+    return strippedName;
+  }
+
+  const verb = IN_APP_AGENT_TOOL_PROGRESS_VERBS[firstWord.toLowerCase()];
+  if (verb) {
+    if (rest.length === 0) {
+      return verb;
+    }
+
+    let noun = rest.map((word) => word.toLowerCase()).join(" ");
+    for (const [from, to] of IN_APP_AGENT_TOOL_PROGRESS_NOUNS) {
+      if (noun === from) {
+        noun = to;
+        break;
+      }
+    }
+
+    return `${verb} ${noun}`;
+  }
+
+  return [firstWord, ...rest]
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+export function getInAppAgentToolProgressLabelResolution(toolName: string): {
+  source: "docs" | "skill" | "override" | "auto";
+  label: string;
+} {
+  if (isInAppAgentDocsToolName(toolName)) {
+    return { source: "docs", label: "Reading Langfuse docs" };
+  }
+
+  if (isInAppAgentSkillToolName(toolName)) {
+    return { source: "skill", label: "Learning skill" };
+  }
+
+  const strippedName = getInAppAgentToolDisplayName(toolName);
+  const override = IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES[strippedName];
+  if (override) {
+    return { source: "override", label: override };
+  }
+
+  return {
+    source: "auto",
+    label: getAutoInAppAgentToolProgressLabel(strippedName),
+  };
+}
+
+export function getInAppAgentToolProgressLabel(toolName: string): string {
+  return getInAppAgentToolProgressLabelResolution(toolName).label;
+}
+
 const InAppAgentToolRejectionErrorSchema = z.object({
   code: z.literal(IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE),
   message: z.string(),

@@ -1,7 +1,14 @@
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
+  IN_APP_AGENT_SANDBOX_TOOL_NAMES,
+} from "@langfuse/shared/in-app-agent/server/tools";
 import {
   extractLangfuseDocsSources,
   getInAppAgentToolDisplayName,
+  getInAppAgentToolProgressLabel,
+  getInAppAgentToolProgressLabelResolution,
   getDrawerMessages,
   getInAppAgentError,
   isInAppAgentRateLimited,
@@ -16,6 +23,138 @@ describe("getInAppAgentToolDisplayName", () => {
     ["read", "read"],
   ])("strips a display-only namespace from %s", (toolName, expected) => {
     expect(getInAppAgentToolDisplayName(toolName)).toBe(expected);
+  });
+});
+
+const KNOWN_IN_APP_AGENT_PROGRESS_TOOLS = [
+  ...[...IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES].map(
+    (toolName) => `langfuse_${toolName}`,
+  ),
+  ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  "langfuseDocs_search",
+  "langfuseDocs_fetch",
+  "skill",
+];
+
+// Auto-parsed headlines that a human has reviewed. Add a new tool here only
+// after reading the suggested label in the failure output. Prefer an override
+// in utils.ts when the auto label is wrong.
+const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
+  langfuse_createAnnotationQueue: "Creating annotation queue",
+  langfuse_createComment: "Creating comment",
+  langfuse_createDashboard: "Creating dashboard",
+  langfuse_createDatasetRunItem: "Creating dataset run item",
+  langfuse_createEvaluationRule: "Creating evaluation rule",
+  langfuse_createModel: "Creating model",
+  langfuse_createScore: "Creating score",
+  langfuse_createScoreConfig: "Creating score config",
+  langfuse_deleteAnnotationQueueItem: "Deleting annotation queue item",
+  langfuse_deleteDashboard: "Deleting dashboard",
+  langfuse_deleteDatasetItem: "Deleting dataset item",
+  langfuse_deleteDatasetRun: "Deleting dataset run",
+  langfuse_deleteEvaluationRule: "Deleting evaluation rule",
+  langfuse_deleteEvaluator: "Deleting evaluator",
+  langfuse_deleteModel: "Deleting model",
+  langfuse_deleteScoreConfig: "Deleting score config",
+  langfuse_getAlert: "Inspecting alert",
+  langfuse_getAnnotationQueue: "Inspecting annotation queue",
+  langfuse_getAnnotationQueueItem: "Inspecting annotation queue item",
+  langfuse_getComment: "Inspecting comment",
+  langfuse_getDashboard: "Inspecting dashboard",
+  langfuse_getDataset: "Inspecting dataset",
+  langfuse_getDatasetItem: "Inspecting dataset item",
+  langfuse_getDatasetRun: "Inspecting dataset run",
+  langfuse_getEvaluationRule: "Inspecting evaluation rule",
+  langfuse_getEvaluator: "Inspecting evaluator",
+  langfuse_getMedia: "Inspecting media",
+  langfuse_getModel: "Inspecting model",
+  langfuse_getObservation: "Inspecting observation",
+  langfuse_getPrompt: "Inspecting prompt",
+  langfuse_getScore: "Inspecting score",
+  langfuse_getScoreConfig: "Inspecting score config",
+  langfuse_listAlerts: "Browsing alerts",
+  langfuse_listAnnotationQueueItems: "Browsing annotation queue items",
+  langfuse_listAnnotationQueues: "Browsing annotation queues",
+  langfuse_listComments: "Browsing comments",
+  langfuse_listDashboards: "Browsing dashboards",
+  langfuse_listDatasetItems: "Browsing dataset items",
+  langfuse_listDatasetRunItems: "Browsing dataset run items",
+  langfuse_listDatasetRuns: "Browsing dataset runs",
+  langfuse_listDatasets: "Browsing datasets",
+  langfuse_listEvaluationRules: "Browsing evaluation rules",
+  langfuse_listEvaluators: "Browsing evaluators",
+  langfuse_listExperimentItems: "Browsing experiment items",
+  langfuse_listExperiments: "Browsing experiments",
+  langfuse_listModels: "Browsing models",
+  langfuse_listObservations: "Browsing observations",
+  langfuse_listPrompts: "Browsing prompts",
+  langfuse_listScoreConfigs: "Browsing score configs",
+  langfuse_listScores: "Browsing scores",
+  langfuse_proposeRedirect: "Propose Redirect",
+  langfuse_updateAnnotationQueueItem: "Updating annotation queue item",
+  langfuse_updateDashboard: "Updating dashboard",
+  langfuse_updateEvaluationRule: "Updating evaluation rule",
+  langfuse_updateScoreConfig: "Updating score config",
+  langfuse_upsertDataset: "Saving dataset",
+  langfuse_upsertDatasetItem: "Saving dataset item",
+  langfuse_upsertEvaluator: "Saving evaluator",
+};
+
+describe("getInAppAgentToolProgressLabel", () => {
+  it("requires a reviewed headline for every known tool", () => {
+    const unresolved: string[] = [];
+    const staleAccepted: string[] = [];
+
+    for (const toolName of KNOWN_IN_APP_AGENT_PROGRESS_TOOLS) {
+      const resolution = getInAppAgentToolProgressLabelResolution(toolName);
+      const acceptedAutoLabel =
+        ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS[toolName];
+
+      if (resolution.source !== "auto") {
+        if (acceptedAutoLabel !== undefined) {
+          staleAccepted.push(
+            `${toolName} is ${resolution.source} ("${resolution.label}") but still listed as accepted auto`,
+          );
+        }
+        continue;
+      }
+
+      if (acceptedAutoLabel === undefined) {
+        unresolved.push(`${toolName} → "${resolution.label}"`);
+        continue;
+      }
+
+      if (acceptedAutoLabel !== resolution.label) {
+        unresolved.push(
+          `${toolName} auto label is now "${resolution.label}" (accepted "${acceptedAutoLabel}")`,
+        );
+      }
+    }
+
+    const extraAccepted = Object.keys(
+      ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS,
+    ).filter(
+      (toolName) => !KNOWN_IN_APP_AGENT_PROGRESS_TOOLS.includes(toolName),
+    );
+
+    expect({
+      unresolved,
+      staleAccepted,
+      extraAccepted,
+    }).toEqual({
+      unresolved: [],
+      staleAccepted: [],
+      extraAccepted: [],
+    });
+  });
+
+  it.each([
+    ["docs_search", "Reading Langfuse docs"],
+    ["skill", "Learning skill"],
+    ["customThing", "Custom Thing"],
+  ])("labels %s as %s", (toolName, expected) => {
+    expect(getInAppAgentToolProgressLabel(toolName)).toBe(expected);
   });
 });
 

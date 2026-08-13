@@ -175,13 +175,7 @@ export function InAppAgentMessage({
   }
 
   if (content.type === "toolGroup") {
-    return (
-      <ToolCallGroup
-        tools={content.tools}
-        isLoading={content.isLoading}
-        isCompact={isCompact}
-      />
-    );
+    return <ToolCallGroup tools={content.tools} isCompact={isCompact} />;
   }
 
   if (content.type === "reasoning") {
@@ -755,51 +749,26 @@ function RedirectActionButton({
 
 function ToolCallGroup({
   tools,
-  isLoading = false,
   isCompact = false,
 }: {
   tools: InAppAgentToolCallContent[];
-  isLoading?: boolean;
   isCompact?: boolean;
 }) {
-  const label = `${isLoading ? "Calling" : "Called"} ${tools.length} ${
-    tools.length === 1 ? "tool" : "tools"
-  }`;
-  const [userToggled, setUserToggled] = useState<boolean | null>(null);
-  const isOpen = userToggled ?? isLoading;
-
   return (
-    <details
-      open={isOpen}
-      onToggle={(event) => {
-        if (event.currentTarget.open !== isOpen) {
-          setUserToggled(event.currentTarget.open);
-        }
-      }}
+    <div
       className={cn(
-        "text-muted-foreground max-w-full",
+        "text-muted-foreground flex max-w-full flex-col gap-0",
         isCompact ? "text-[0.775rem]" : "text-sm",
       )}
     >
-      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-        <span className={cn(isLoading && styles.thinkingShimmer)}>{label}</span>
-        <ChevronDown
-          className={cn(
-            "size-3.5 shrink-0 transition-transform",
-            !isOpen && "-rotate-90",
-          )}
+      {tools.map((tool, index) => (
+        <ToolCallDisclosure
+          key={`${tool.name}-${index}`}
+          tool={tool}
+          isCompact={isCompact}
         />
-      </summary>
-      <div className="mt-0.5 flex flex-col gap-0">
-        {tools.map((tool, index) => (
-          <ToolCallDisclosure
-            key={`${tool.name}-${index}`}
-            tool={tool}
-            isCompact={isCompact}
-          />
-        ))}
-      </div>
-    </details>
+      ))}
+    </div>
   );
 }
 
@@ -811,12 +780,12 @@ function ToolCallDisclosure({
   isCompact: boolean;
 }) {
   const status = tool.status;
-  const displayName = getInAppAgentToolDisplayName(tool.name);
+  const toolName = getInAppAgentToolDisplayName(tool.name);
 
   return (
     <details className="group/tool min-w-0">
       <summary
-        aria-label={`${displayName}: ${status}`}
+        aria-label={`${toolName}: ${status}`}
         className={cn(
           "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
           isCompact && "px-0.5",
@@ -829,9 +798,9 @@ function ToolCallDisclosure({
             status === "failed" && "text-destructive",
             status === "denied" && "text-dark-yellow",
           )}
-          title={displayName}
+          title={toolName}
         >
-          {displayName}
+          {toolName}
         </span>
       </summary>
       <div className={cn("mt-1.5 mb-1 ml-3 px-3", isCompact && "px-2.5")}>

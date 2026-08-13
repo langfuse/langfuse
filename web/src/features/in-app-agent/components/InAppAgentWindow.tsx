@@ -53,6 +53,7 @@ import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
+  getInAppAgentToolProgressLabel,
   type InAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
@@ -259,6 +260,7 @@ type ConversationDisplayItem =
   | {
       type: "activity";
       messages: InAppAgentWindowMessage[];
+      startTimestamp?: number;
       endTimestamp?: number;
       followsUser: boolean;
       isInProgress: boolean;
@@ -391,8 +393,8 @@ function buildConversationDisplayItems(
     );
     const activityMessages = turnMessages.filter((turnMessage, turnIndex) => {
       if (
-        turnMessage.content.type === "reasoning" ||
-        turnMessage.content.type === "toolGroup"
+        turnMessage.content.type === "toolGroup" ||
+        turnMessage.content.type === "reasoning"
       ) {
         return true;
       }
@@ -420,6 +422,9 @@ function buildConversationDisplayItems(
       items.push({
         type: "activity",
         messages: activityMessages,
+        startTimestamp: turnMessages.find(
+          (turnMessage) => turnMessage.timestamp !== undefined,
+        )?.timestamp,
         endTimestamp:
           joinedAnswer?.timestamp ?? activityMessages.at(-1)?.timestamp,
         followsUser,
@@ -432,7 +437,7 @@ function buildConversationDisplayItems(
         type: "assistant",
         message: joinedAnswer,
         followsUser: activityMessages.length === 0 && followsUser,
-        isFinalAnswer: true,
+        isFinalAnswer: !isInProgress,
       });
     }
   }
@@ -477,24 +482,30 @@ function AssistantActivityGroup({
   isCompact,
   isInProgress,
   messages,
+  startTimestamp,
 }: {
   endTimestamp?: number;
   isCompact: boolean;
   isInProgress: boolean;
   messages: InAppAgentWindowMessage[];
+  startTimestamp?: number;
 }) {
   const hasDetails = messages.length > 0;
   const [userToggled, setUserToggled] = useState<boolean | null>(null);
-  const isOpen = hasDetails && (userToggled ?? isInProgress);
-  const startTimestamp = messages.find(
-    (message) => message.timestamp !== undefined,
-  )?.timestamp;
+  const isOpen = hasDetails && (userToggled ?? false);
   const durationSeconds =
     startTimestamp !== undefined && endTimestamp !== undefined
       ? Math.max(1, Math.round((endTimestamp - startTimestamp) / 1_000))
       : null;
+  const latestTool = messages
+    .flatMap((message) =>
+      message.content.type === "toolGroup" ? message.content.tools : [],
+    )
+    .at(-1);
   const label = isInProgress
-    ? "Working…"
+    ? latestTool
+      ? getInAppAgentToolProgressLabel(latestTool.name)
+      : "Working…"
     : durationSeconds !== null
       ? `Worked for ${formatWorkedDuration(durationSeconds)}`
       : "Activity";
@@ -799,6 +810,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const displayItems = buildConversationDisplayItems(
     visibleMessages,
     isAssistantTurnInProgress,
+  );
+  const hasSettledAssistantReply = displayItems.some(
+    (item) => item.type === "assistant" && item.isFinalAnswer,
   );
 
   const backgroundHint = useInAppAgentBackgroundHint({
@@ -1204,6 +1218,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       >
                         <AssistantActivityGroup
                           messages={item.messages}
+                          startTimestamp={item.startTimestamp}
                           endTimestamp={item.endTimestamp}
                           isCompact={!isExpanded}
                           isInProgress={item.isInProgress}
@@ -1412,7 +1427,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               }}
               disabled={isComposerDisabled}
               aria-label="Message the assistant"
-              placeholder="Let me know what I can do for you..."
+              placeholder={
+                hasSettledAssistantReply
+                  ? "Reply..."
+                  : "Let me know what I can do for you..."
+              }
               rows={1}
               className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />

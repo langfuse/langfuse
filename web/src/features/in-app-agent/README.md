@@ -9,6 +9,9 @@ three-derivations contract, where code lives and why, and the boundaries between
 browser, web server, shared runtime, and worker.
 Read it before changing how messages are represented or where logic lives.
 
+`progress-log.md` is the activity UI contract: human tool labels, thinking
+opener, and when a turn is allowed to look settled.
+
 ## Core Model
 
 AG-UI events are the durable transcript vocabulary. Langfuse-owned protocols

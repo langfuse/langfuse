@@ -1015,6 +1015,147 @@ export const GroupedAssistantTurn = meta.story({
   },
 });
 
+const progressLogSeedMessages: InAppAgentWindowMessage[] = [
+  {
+    id: "progress-user",
+    role: "user",
+    content: { type: "text", text: "What changed in yesterday's dashboards?" },
+  },
+  {
+    id: "progress-reasoning",
+    timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: "I should read the dashboards first, then list recent observations.",
+      isStreaming: false,
+    },
+  },
+  {
+    id: "progress-tools-start",
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "skill",
+          status: "succeeded",
+          args: JSON.stringify({ name: "error-analysis" }),
+          result: JSON.stringify({ ok: true }),
+        },
+        {
+          type: "tool",
+          name: "langfuseDocs_search",
+          status: "succeeded",
+          args: JSON.stringify({ query: "dashboards" }),
+          result: JSON.stringify({ hits: 2 }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_getDashboard",
+          status: "succeeded",
+          args: JSON.stringify({ dashboardId: "dash-1" }),
+          result: JSON.stringify({ name: "Latency" }),
+        },
+      ],
+    },
+  },
+  {
+    id: "progress-reasoning-2",
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: "The dashboard spike lines up with a reranking change. Checking observation volume next.",
+      isStreaming: false,
+    },
+  },
+  {
+    id: "progress-tool-latest",
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_listObservations",
+          status: "running",
+          args: JSON.stringify({ limit: 20 }),
+        },
+      ],
+    },
+  },
+];
+
+export const ProgressLogWorking = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: progressLogSeedMessages,
+  },
+});
+
+export const ProgressLogOpened = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: progressLogSeedMessages,
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Browsing observations" }),
+    );
+    await expect(canvas.getAllByText("Thought")).toHaveLength(2);
+    await expect(canvas.getByLabelText("skill: succeeded")).toBeVisible();
+    await expect(canvas.getByLabelText("search: succeeded")).toBeVisible();
+    await expect(
+      canvas.getByLabelText("getDashboard: succeeded"),
+    ).toBeVisible();
+    await expect(
+      canvas.getByLabelText("listObservations: running"),
+    ).toBeVisible();
+  },
+});
+
+export const ProgressLogCompleted = meta.story({
+  args: {
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      ...progressLogSeedMessages.slice(0, -1),
+      {
+        id: "progress-tool-latest",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_listObservations",
+              status: "succeeded",
+              args: JSON.stringify({ limit: 20 }),
+              result: JSON.stringify({ count: 20 }),
+            },
+          ],
+        },
+      },
+      {
+        id: "progress-answer",
+        runId: "progress-run",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Yesterday's latency dashboard picked up a reranking spike. Observation volume stayed flat.",
+        },
+      },
+    ],
+  },
+});
+
 export const MultiBlockAnswer = meta.story({
   args: {
     isExpanded: true,

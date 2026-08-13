@@ -592,7 +592,9 @@ describe("in-app agent execution", () => {
 
     renderExecutionUi();
 
-    expect(await screen.findByText("Calling 1 tool")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Browsing traces" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps approval cancellation visibly stopping until hydration settles", async () => {
@@ -648,7 +650,7 @@ describe("in-app agent execution", () => {
       ).toHaveBeenCalledOnce();
     });
     expect(screen.getByRole("button", { name: "Stopping run" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Stopping the run…");
+    expect(screen.getByText("Stopping the run…")).toBeVisible();
   });
 
   it("does not observe a cached active run while the assistant is closed", async () => {
