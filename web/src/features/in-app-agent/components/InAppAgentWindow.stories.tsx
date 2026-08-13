@@ -1846,6 +1846,7 @@ export const ContinuedToolResultRendersOnce = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.queryByText("Called 2 tools")).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Activity" }));
     await expect(
       canvas.getAllByLabelText("createDashboardWidget: succeeded"),
     ).toHaveLength(1);

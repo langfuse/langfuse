@@ -853,9 +853,7 @@ describe("in-app agent execution", () => {
       ).not.toBeInTheDocument();
     });
     expect(screen.getByText(finalText)).toBeVisible();
-    expect(
-      screen.getByText("The assistant is aware of this trace view."),
-    ).toBeVisible();
+    expect(screen.getByText("Current trace view in context")).toBeVisible();
     expect(screen.getByRole("button", { name: "Good response" })).toBeVisible();
   });
 
