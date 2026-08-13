@@ -1,4 +1,9 @@
-import { logger } from "@langfuse/shared/src/server";
+import {
+  logger,
+  fetchWithSecureRedirects,
+  validateWebhookURL,
+  whitelistFromEnv,
+} from "@langfuse/shared/src/server";
 import { gzipSync } from "zlib";
 import { env } from "../../env";
 import type { MixpanelEvent } from "./transformers";
@@ -10,6 +15,13 @@ type MixpanelClientConfig = {
    * Validated at API layer via MIXPANEL_REGIONS in web/src/features/mixpanel-integration/types.ts
    */
   region: string;
+  /**
+   * Overrides the Mixpanel API origin (scheme + host [+ port]). Defaults to
+   * the region-derived https://<region>.mixpanel.com. Test-only seam so the
+   * secure-outbound send can be pointed at a local server to exercise
+   * connect-time SSRF pinning; production leaves this unset.
+   */
+  baseUrl?: string;
 };
 
 export class MixpanelClient {
@@ -63,7 +75,9 @@ export class MixpanelClient {
    * Send a batch of events to Mixpanel Import API
    */
   private async sendBatch(events: MixpanelEvent[]): Promise<void> {
-    const url = `https://${this.config.region}.mixpanel.com/import?strict=1`;
+    const origin =
+      this.config.baseUrl ?? `https://${this.config.region}.mixpanel.com`;
+    const url = `${origin}/import?strict=1`;
     const body = JSON.stringify(events);
 
     // Compress the body with gzip
@@ -82,16 +96,31 @@ export class MixpanelClient {
     }, env.LANGFUSE_MIXPANEL_TIMEOUT_MS);
 
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Encoding": "gzip",
-          Authorization: authHeader,
+      // Re-resolve and re-validate the destination IP at socket connect time so
+      // a host that resolves to a public IP during validation but rebinds to a
+      // private/loopback address at connect cannot bypass the SSRF check
+      // (TOCTOU). Redirect targets are re-validated with the same URL validator.
+      const { response } = await fetchWithSecureRedirects(
+        url,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Encoding": "gzip",
+            Authorization: authHeader,
+          },
+          body: compressedBody as unknown as BodyInit,
+          signal: abortController.signal,
         },
-        body: compressedBody as unknown as BodyInit,
-        signal: abortController.signal,
-      });
+        {
+          maxRedirects: 3,
+          redirectValidation: {
+            validateUrl: validateWebhookURL,
+            whitelist: whitelistFromEnv(),
+            logContext: "Mixpanel integration",
+          },
+        },
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
