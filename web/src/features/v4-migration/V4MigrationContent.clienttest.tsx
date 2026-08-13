@@ -1007,10 +1007,10 @@ describe("V4MigrationHeaderContent", () => {
     expect(
       screen.getByText(/some features may stop working/),
     ).toHaveTextContent(
-      "After November 15, 2026 some features may stop working without a v4 upgrade.",
+      "After November 16, 2026 some features may stop working without a v4 upgrade.",
     );
     expect(
-      screen.getByRole("link", { name: "November 15, 2026" }),
+      screen.getByRole("link", { name: "November 16, 2026" }),
     ).toHaveAttribute("href", "https://langfuse.com/docs/v4#timeline");
   });
 
