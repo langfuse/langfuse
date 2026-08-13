@@ -480,9 +480,8 @@ describe("V4MigrationDetailsContent", () => {
   });
 
   it("renders the key as plain text when an offender has no observation evidence", () => {
-    // A scores-only offender: detection counts score ingestions, but the
-    // events table has nothing for this key — a link would open an empty
-    // table, so the evidence link must stay hidden.
+    // A series with no events_core rows: a link would open an empty table,
+    // so the evidence link must stay hidden.
     mocks.migrationData.sdk = {
       status: "legacy",
       sdkUsageSeries: [

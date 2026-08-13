@@ -44,6 +44,12 @@ const legacyIntegrationExportSources =
 const TRACE_EVAL_TARGET = "trace";
 const DATASET_EVAL_TARGET = "dataset";
 
+/** Event-propagation stamps these sources onto delayed writes into events_core. */
+const LEGACY_DUAL_WRITE_EVENT_SOURCES = [
+  "ingestion-api-dual-write",
+  "otel-dual-write",
+] as const;
+
 const isLegacyIntegrationExportSource = (
   exportSource: AnalyticsIntegrationExportSource | null | undefined,
 ) => exportSource != null && legacyIntegrationExportSources.has(exportSource);
@@ -158,7 +164,7 @@ type SdkUsageSummaryByProjectRow = {
   sdkVersion: string;
   publicKey: string;
   count: string | number;
-  /** Hits from events_core only (count also includes score ingestions). */
+  /** Observation hits in events_core. Same as count; scores are not queried. */
   eventsCount: string | number;
   firstSeen: string;
   lastSeen: string;
@@ -171,9 +177,9 @@ type SdkUsageSummaryByProjectSeries = {
   canonicalSdkName: "python" | "javascript" | null;
   publicKey: string;
   count: number;
-  /** Hits with observation evidence: rows in events_core, excluding scores.
-      Zero means the offender is scores-only and an events-table evidence
-      link would open an empty result set. */
+  /** Observation hits in events_core. Same as count after scores were
+      dropped from detection; kept so the evidence link can hide if a
+      series somehow has no observation rows. */
   eventsCount: number;
   firstSeen: string;
   lastSeen: string;
@@ -689,27 +695,6 @@ ORDER BY bucket_time ASC, score_name ASC
       );
       const bucketTimeSql = getTimelineBucketSql("event_time", granularity);
 
-      const scoresUnionSql = `
-  UNION ALL
-
-  SELECT
-    timestamp AS event_time,
-    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
-    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
-    ingestion_api_key AS public_key,
-    false AS is_otel_ingestion,
-    false AS is_delayed_otel
-  FROM scores FINAL
-  WHERE
-    project_id = {projectId: String}
-    AND timestamp >= {fromTimestamp: DateTime64(3)}
-    AND timestamp <= {toTimestamp: DateTime64(3)}
-    AND NOT startsWith(environment, 'langfuse-')
-    AND execution_trace_id IS NULL
-    AND source != 'ANNOTATION'
-    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
-    AND is_deleted = 0`;
-
       const rows = await queryClickhouse<SdkUsageTimeSeriesRow>({
         query: `
 WITH selected AS (
@@ -718,17 +703,17 @@ WITH selected AS (
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key,
-    (source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion,
-    startsWith(source, 'otel-dual-write') AS is_delayed_otel
+    source = 'otel-dual-write' AS is_otel_ingestion,
+    source = 'otel-dual-write' AS is_delayed_otel
   FROM events_core
   WHERE
     project_id = {projectId: String}
     AND start_time >= {fromTimestamp: DateTime64(3)}
     AND start_time <= {toTimestamp: DateTime64(3)}
+    AND source IN {legacyDualWriteSources: Array(String)}
     AND NOT startsWith(environment, 'langfuse-')
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0
-  ${scoresUnionSql}
 )
 
 SELECT
@@ -749,6 +734,7 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
           fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
           toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
           internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
+          legacyDualWriteSources: [...LEGACY_DUAL_WRITE_EVENT_SOURCES],
         },
         tags: {
           projectId: input.projectId,
@@ -787,29 +773,6 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
 
       if (projectIds.length === 0) return [];
 
-      const scoresUnionSql = `
-  UNION ALL
-
-  SELECT
-    project_id,
-    timestamp AS event_time,
-    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
-    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
-    ingestion_api_key AS public_key,
-    false AS is_otel_ingestion,
-    false AS is_delayed_otel,
-    true AS is_score_ingestion
-  FROM scores FINAL
-  WHERE
-    project_id IN {projectIds: Array(String)}
-    AND timestamp >= {fromTimestamp: DateTime64(3)}
-    AND timestamp <= {toTimestamp: DateTime64(3)}
-    AND NOT startsWith(environment, 'langfuse-')
-    AND execution_trace_id IS NULL
-    AND source != 'ANNOTATION'
-    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
-    AND is_deleted = 0`;
-
       const [rows, datasetRunItemsPostUsageResult] = await Promise.all([
         queryClickhouse<SdkUsageSummaryByProjectRow>({
           query: `
@@ -820,18 +783,17 @@ WITH selected AS (
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key,
-    (source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion,
-    startsWith(source, 'otel-dual-write') AS is_delayed_otel,
-    false AS is_score_ingestion
+    source = 'otel-dual-write' AS is_otel_ingestion,
+    source = 'otel-dual-write' AS is_delayed_otel
   FROM events_core
   WHERE
     project_id IN {projectIds: Array(String)}
     AND start_time >= {fromTimestamp: DateTime64(3)}
     AND start_time <= {toTimestamp: DateTime64(3)}
+    AND source IN {legacyDualWriteSources: Array(String)}
     AND NOT startsWith(environment, 'langfuse-')
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0
-  ${scoresUnionSql}
 )
 
 SELECT
@@ -840,7 +802,7 @@ SELECT
   sdk_version AS sdkVersion,
   public_key AS publicKey,
   count() AS count,
-  countIf(NOT is_score_ingestion) AS eventsCount,
+  count() AS eventsCount,
   formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
   formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
   if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents
@@ -853,6 +815,7 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
             fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
             toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
             internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
+            legacyDualWriteSources: [...LEGACY_DUAL_WRITE_EVENT_SOURCES],
           },
           tags: {
             route: "v4-org-sdk-usage-summary",

@@ -364,8 +364,8 @@ function SdkUsageSeriesRows({
               {/* Deep link to the exact evidence: the events table filtered by
                   this public key, plus SDK name and version when attributed,
                   over the detection lookback. An empty public key is an exact
-                  filter value for raw OTel ingestion; scores-only offenders
-                  stay unlinked because their target would be empty. */}
+                  filter value for raw OTel ingestion; series without
+                  observation evidence stay unlinked. */}
               {evidenceHref ? (
                 <>
                   <span aria-hidden="true">·</span>

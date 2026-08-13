@@ -1161,7 +1161,7 @@ describe("v4TransitionRouter", () => {
     expect(query?.values?.[0]).toBe("1 hour");
   });
 
-  it("queries SDK usage by exact SDK, version, and API key across event and score ingestion", async () => {
+  it("queries SDK usage by exact SDK, version, and API key from delayed dual-write events", async () => {
     mockedQueryClickhouse.mockResolvedValueOnce([
       {
         time: "2026-06-25T12:00:00Z",
@@ -1257,16 +1257,14 @@ describe("v4TransitionRouter", () => {
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(clickhouseQuery?.query).toContain("FROM events_core");
-    expect(clickhouseQuery?.query).toContain("UNION ALL");
-    expect(clickhouseQuery?.query).toContain("FROM scores FINAL");
-    const [eventsQuery, scoresQuery] = clickhouseQuery?.query.split(
-      "UNION ALL",
-    ) ?? ["", ""];
-    expect(eventsQuery).not.toContain("execution_trace_id IS NULL");
-    expect(scoresQuery).toContain("execution_trace_id IS NULL");
+    expect(clickhouseQuery?.query).not.toContain("UNION ALL");
+    expect(clickhouseQuery?.query).not.toContain("FROM scores");
+    expect(clickhouseQuery?.query).toContain(
+      "source IN {legacyDualWriteSources: Array(String)}",
+    );
     expect(
       clickhouseQuery?.query.match(/project_id = \{projectId: String\}/g),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(clickhouseQuery?.query).not.toContain("system.columns");
     expect(clickhouseQuery?.query).toContain(
       "toStartOfInterval(event_time, INTERVAL 2 MINUTE, 'UTC')",
@@ -1278,26 +1276,20 @@ describe("v4TransitionRouter", () => {
       "if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version",
     );
     expect(clickhouseQuery?.query).toContain("ingestion_api_key AS public_key");
-    expect(clickhouseQuery?.query).toContain("false AS is_delayed_otel");
-    expect(clickhouseQuery?.query).toContain("false AS is_otel_ingestion");
     expect(clickhouseQuery?.query).toContain(
-      "startsWith(source, 'otel-dual-write') AS is_delayed_otel",
+      "source = 'otel-dual-write' AS is_delayed_otel",
     );
     expect(clickhouseQuery?.query).toContain(
-      "(source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion",
+      "source = 'otel-dual-write' AS is_otel_ingestion",
     );
+    expect(clickhouseQuery?.query).not.toContain("source = 'otel' OR");
     expect(clickhouseQuery?.query).toContain(
       "if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents",
     );
     expect(clickhouseQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
     );
-    const [eventsUsageQuery, scoresUsageQuery] =
-      clickhouseQuery?.query.split("UNION ALL") ?? [];
-    expect(eventsUsageQuery).toContain(
-      "AND NOT startsWith(environment, 'langfuse-')",
-    );
-    expect(scoresUsageQuery).toContain(
+    expect(clickhouseQuery?.query).toContain(
       "AND NOT startsWith(environment, 'langfuse-')",
     );
     expect(clickhouseQuery?.query).not.toContain("toDate(start_time)");
@@ -1313,6 +1305,7 @@ describe("v4TransitionRouter", () => {
         "langfuse-internal-ai-sdk",
         "langfuse-internal-otel-writer",
       ],
+      legacyDualWriteSources: ["ingestion-api-dual-write", "otel-dual-write"],
     });
     expect(clickhouseQuery?.tags).toEqual({
       projectId,
@@ -1412,11 +1405,14 @@ describe("v4TransitionRouter", () => {
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
     const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(usageQuery?.query).toContain("FROM events_core");
-    expect(usageQuery?.query).toContain("FROM scores FINAL");
-    expect(usageQuery?.query).toContain("UNION ALL");
+    expect(usageQuery?.query).not.toContain("FROM scores");
+    expect(usageQuery?.query).not.toContain("UNION ALL");
+    expect(usageQuery?.query).toContain(
+      "source IN {legacyDualWriteSources: Array(String)}",
+    );
     expect(
       usageQuery?.query.match(/project_id = \{projectId: String\}/g),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(usageQuery?.query).not.toContain("system.columns");
   });
 
@@ -1657,25 +1653,29 @@ describe("v4TransitionRouter", () => {
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
     const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(usageQuery?.query).toContain("FROM events_core");
-    expect(usageQuery?.query).toContain("UNION ALL");
-    expect(usageQuery?.query).toContain("FROM scores FINAL");
-    const [eventsQuery, scoresQuery] = usageQuery?.query.split("UNION ALL") ?? [
-      "",
-      "",
-    ];
-    expect(eventsQuery).not.toContain("execution_trace_id IS NULL");
-    expect(scoresQuery).toContain("execution_trace_id IS NULL");
+    expect(usageQuery?.query).not.toContain("UNION ALL");
+    expect(usageQuery?.query).not.toContain("FROM scores");
+    expect(usageQuery?.query).toContain(
+      "source IN {legacyDualWriteSources: Array(String)}",
+    );
     expect(usageQuery?.query).not.toContain("system.columns");
     expect(
       usageQuery?.query.match(/project_id IN \{projectIds: Array\(String\)\}/g),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(usageQuery?.query).toContain(
       "GROUP BY project_id, sdk_name, sdk_version, public_key",
     );
     expect(usageQuery?.query).toContain(
       "if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents",
     );
-    expect(usageQuery?.query.match(/AS event_time/g)).toHaveLength(2);
+    expect(usageQuery?.query).toContain(
+      "source = 'otel-dual-write' AS is_delayed_otel",
+    );
+    expect(usageQuery?.query).toContain(
+      "source = 'otel-dual-write' AS is_otel_ingestion",
+    );
+    expect(usageQuery?.query).not.toContain("source = 'otel' OR");
+    expect(usageQuery?.query.match(/AS event_time/g)).toHaveLength(1);
     expect(usageQuery?.query).toContain(
       "formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen",
     );
@@ -1685,12 +1685,7 @@ describe("v4TransitionRouter", () => {
     expect(usageQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
     );
-    const [eventsUsageQuery, scoresUsageQuery] =
-      usageQuery?.query.split("UNION ALL") ?? [];
-    expect(eventsUsageQuery).toContain(
-      "AND NOT startsWith(environment, 'langfuse-')",
-    );
-    expect(scoresUsageQuery).toContain(
+    expect(usageQuery?.query).toContain(
       "AND NOT startsWith(environment, 'langfuse-')",
     );
     expect(usageQuery?.query).not.toContain("toDate(start_time)");
@@ -1699,6 +1694,7 @@ describe("v4TransitionRouter", () => {
       projectIds: [projectId, secondProjectId],
       fromTimestamp: "2026-06-24 00:00:00.000",
       toTimestamp: "2026-06-25 00:00:00.000",
+      legacyDualWriteSources: ["ingestion-api-dual-write", "otel-dual-write"],
     });
     expect(usageQuery?.tags).toEqual({
       route: "v4-org-sdk-usage-summary",

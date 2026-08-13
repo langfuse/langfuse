@@ -48,8 +48,7 @@ const outdatedPython = makeSeries({
   sdkVersion: "2.60.3",
   v4MigrationStatus: "upgrade_required",
 });
-// Scores-only offender: detection sees its score ingestions but the events
-// table has nothing for it, so the key renders as plain text, not a link.
+// Series with no observation evidence: the key renders as plain text, not a link.
 const scoresOnlyPython = makeSeries({
   sdkVersion: "2.44.0",
   v4MigrationStatus: "upgrade_required",
