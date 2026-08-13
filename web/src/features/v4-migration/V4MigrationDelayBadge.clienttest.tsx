@@ -213,7 +213,7 @@ describe("V4MigrationDelayBadge", () => {
       0,
     );
     expect(
-      screen.getAllByText(/Update SDK for real-time data/).length,
+      screen.getAllByText(/Update your SDK for real-time data/).length,
     ).toBeGreaterThan(0);
   });
 
@@ -221,7 +221,7 @@ describe("V4MigrationDelayBadge", () => {
     setSdk("otel_header_required", [delayedOtelSeries()]);
     render(<V4MigrationDelayBadge />);
     expect(
-      screen.getAllByText(/Update OTel instrumentation for real-time data/)
+      screen.getAllByText(/Update your OTel instrumentation for real-time data/)
         .length,
     ).toBeGreaterThan(0);
   });
@@ -230,7 +230,8 @@ describe("V4MigrationDelayBadge", () => {
     setSdk("unknown", [customIngestionSeries()]);
     render(<V4MigrationDelayBadge />);
     expect(
-      screen.getAllByText(/Upgrade instrumentation for real-time data/).length,
+      screen.getAllByText(/Upgrade your instrumentation for real-time data/)
+        .length,
     ).toBeGreaterThan(0);
   });
 
@@ -238,11 +239,11 @@ describe("V4MigrationDelayBadge", () => {
     setSdk("legacy", [outdatedSdkSeries(), delayedOtelSeries()]);
     render(<V4MigrationDelayBadge />);
     expect(
-      screen.getAllByText(/Upgrade for real-time data/).length,
+      screen.getAllByText(/Upgrade to v4 for real-time data/).length,
     ).toBeGreaterThan(0);
-    expect(screen.queryAllByText(/Update SDK for real-time data/)).toHaveLength(
-      0,
-    );
+    expect(
+      screen.queryAllByText(/Update your SDK for real-time data/),
+    ).toHaveLength(0);
   });
 
   it("stays hidden when an SDK version is merely unrecognized", () => {

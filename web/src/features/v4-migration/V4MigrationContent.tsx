@@ -1026,8 +1026,8 @@ export function V4MigrationHeaderContent({
       <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
         <p>
           {actionNeeded
-            ? "Your project setup is outdated. Upgrade to v4 now for real-time ingestion and up to 165x faster queries. "
-            : "Langfuse v4 offers real-time ingestion and up to 165x faster queries. "}
+            ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items below to switch this project over. "
+            : "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. "}
           <ExternalLink
             href={V4_DOCS_URL}
             analytics={{ section: "header", link: "v4_docs" }}

@@ -5,8 +5,7 @@ import { V4MigrationBadgeContent } from "./V4MigrationBadgeContent";
 
 // The longest copy the delay badge renders (V4MigrationDelayBadge); the
 // hover reveal must expand to whatever width this needs (LF-90).
-const OTEL_DESCRIPTION =
-  "Your setup is outdated. Update OTel instrumentation for real-time data";
+const OTEL_DESCRIPTION = "Update your OTel instrumentation for real-time data";
 
 const meta = preview.meta({
   component: V4MigrationBadgeContent,
@@ -16,7 +15,7 @@ export const Default = meta.story({
   args: {
     onClick: fn(),
     title: "New data in ~15 min",
-    description: "Your setup is outdated. Update SDK for real-time data",
+    description: "Update your SDK for real-time data",
   },
 });
 
@@ -53,7 +52,7 @@ export const TestFocusRevealsLongestDescription = meta.story({
     // The description sits in an overflow-hidden wrapper that animates open;
     // once expanded it must fit the whole text (no clipping mid-word).
     const text = within(button).getByText(
-      /Update OTel instrumentation for real-time data/,
+      /Update your OTel instrumentation for real-time data/,
     );
     const clipBox = text.parentElement;
     if (!clipBox) throw new Error("description wrapper not found");
