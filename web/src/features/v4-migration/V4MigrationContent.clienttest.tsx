@@ -630,8 +630,8 @@ describe("V4MigrationDetailsContent", () => {
       sdkUsageSeries: [
         makeSdkUsageSeries({
           source: "otel-dual-write",
-          sdkName: "openlit",
-          sdkVersion: "1.35.4",
+          sdkName: "unknown",
+          sdkVersion: "unknown",
           canonicalSdkName: null,
           publicKey: "",
         }),
@@ -643,6 +643,7 @@ describe("V4MigrationDetailsContent", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     expect(screen.getByText("No API key")).toBeInTheDocument();
+    expect(screen.getByText("Custom instrumentation")).toBeInTheDocument();
     const evidenceLink = screen.getByRole("link", {
       name: "View observations",
     });
@@ -650,9 +651,7 @@ describe("V4MigrationDetailsContent", () => {
       "href",
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;," +
-          "ingestionSource;stringOptions;;any of;otel-dual-write," +
-          "ingestionSdkName;stringOptions;;any of;openlit," +
-          "ingestionSdkVersion;stringOptions;;any of;1.35.4",
+          "ingestionSource;stringOptions;;any of;otel-dual-write",
       )}&dateRange=14d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");

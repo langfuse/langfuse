@@ -315,7 +315,7 @@ function SdkUsageSeriesRows({
   series,
   needsAction,
   suffix,
-  unknownSeriesLabel = "OTLP exporter",
+  unknownSeriesLabel = "Custom instrumentation",
   hideMissingApiKey = false,
   projectId,
   analyticsSection,
