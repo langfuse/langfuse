@@ -469,43 +469,27 @@ describe("Mixpanel sender — SSRF connect-time pinning", () => {
     );
   }, 40_000);
 
-  // No-regression control for Mixpanel — read the scope carefully before
-  // treating this as criterion-#4 coverage.
+  // NOTE — two Mixpanel cases deliberately do NOT live in this file:
   //
-  // WHAT IT PROVES: the client's whole send path still works through
-  // fetchWithSecureRedirects — gzip request body, the secure-outbound
-  // dispatcher, and response handling — and that the block asserted above is
-  // the IP policy acting on the resolved name, not a broken client or a dead
-  // harness. An IP literal is used because the connect-time DNS `lookup` hook
-  // never fires for literals (the same fact O5 relies on), so the send lands.
+  // 1. "an IP-literal destination is refused". It cannot be tested here: this
+  //    file mocks validateWebhookURL to a no-op file-wide (required to model
+  //    "the host validated as public" for the PostHog TOCTOU above), and that
+  //    is the very validator the sender's use-time check calls — so the mock
+  //    would disable the defense under test and the case could only ever fail
+  //    for a harness reason. It is covered against the real validators in
+  //    analyticsIntegrationOutboundUrlNegative.test.ts, together with the rest
+  //    of the mandated negative set (loopback, IPv6 loopback, cloud metadata,
+  //    RFC1918, private-resolving hostname, embedded credentials).
   //
-  // WHAT IT DOES NOT PROVE: that a legitimate DNS-NAMED host still delivers.
-  // That is NOT covered for Mixpanel. The whitelist here is necessarily empty:
-  // MixpanelClient passes `whitelistFromEnv()`, which reads SHARED's env
-  // (LANGFUSE_WEBHOOK_WHITELISTED_*), while this file's `vi.mock("../env")`
-  // only replaces the WORKER env — so there is no seam to whitelist a test
-  // host, and none was added on purpose. Proof that the whitelist is empty is
-  // behavioural: the `localhost` send in the test above was blocked, which a
-  // whitelisted host would not be. The whitelist semantics themselves are
-  // covered against the shared infra by O4.
-  it("sends successfully when the connect-time DNS hook does not fire (IP literal)", async () => {
-    let requestCount = 0;
-    const { nameUrl } = await startLoopbackServer(
-      () => {
-        requestCount++;
-      },
-      (res) => res.end("{}"),
-    );
-
-    const client = new MixpanelClient({
-      projectToken: "t",
-      region: "api",
-      baseUrl: nameUrl.replace("localhost", "127.0.0.1"),
-    });
-    addOneEvent(client);
-
-    await client.flush();
-
-    expect(requestCount).toBeGreaterThan(0);
-  }, 40_000);
+  // 2. The positive control (gzip body + dispatcher + response handling). An
+  //    earlier version of this file asserted an IP literal DELIVERS, which was
+  //    wrong — it only delivered because the connect-time DNS hook never fires
+  //    for literals, so that test documented the hole as intended behaviour.
+  //    The success path is now proven in
+  //    analyticsIntegrationOutboundUrlAllowlist.test.ts by allowlisting a
+  //    DNS-named host, which does not depend on the literal loophole.
+  //
+  // What remains here is the connect-time rebind assertion, which is
+  // independent of validateWebhookURL and therefore sound under this file's
+  // mocks.
 });
