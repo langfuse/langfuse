@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
   TQueueJobTypes,
@@ -24,6 +24,7 @@ import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
+import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { env, v4WritesToLegacyTables } from "../../env";
 
 // Counter for PostHog integrations auto-disabled after a deterministic
@@ -32,12 +33,6 @@ import { env, v4WritesToLegacyTables } from "../../env";
 // baseline, separate from expected SSRF/abuse disables (mirrors blob's metric).
 export const POSTHOG_INTEGRATION_DISABLED_METRIC =
   "langfuse.posthog.integration_disabled.count";
-
-// The integration can be deleted while a run is in flight; a row write racing
-// that delete throws P2025, which marks the job obsolete rather than failing it.
-const isRecordNotFoundError = (error: unknown): boolean =>
-  error instanceof Prisma.PrismaClientKnownRequestError &&
-  error.code === "P2025";
 
 type PostHogExecutionConfig = {
   projectId: string;
@@ -428,8 +423,8 @@ export const handlePostHogIntegrationProjectJob = async (
     // retry+alert path unchanged.
     const reason = classifyCustomerFault(error);
     // Bounded like blob's extractStorageErrorMessage: today's classified
-    // messages are short static strings, but lastError is surfaced in settings
-    // and must not grow unbounded if a future classified path carries an SDK body.
+    // messages are short static strings, but persisted error text should not
+    // grow unbounded if a future classified path carries a large SDK body.
     const message = (
       error instanceof Error ? error.message : String(error)
     ).slice(0, 1000);
