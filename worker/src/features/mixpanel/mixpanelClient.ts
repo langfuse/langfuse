@@ -4,13 +4,17 @@ import {
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import {
+  ANALYTICS_INTEGRATION_MAX_REDIRECTS,
   analyticsIntegrationWhitelistFromEnv,
   validateAnalyticsIntegrationUrl,
 } from "../analyticsIntegrationEgress";
 import { gzipSync } from "zlib";
 import { env } from "../../env";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
-import { findOutboundUrlValidationError } from "../../errors/findOutboundUrlValidationError";
+import {
+  findOutboundUrlValidationError,
+  isRedirectChainFailure,
+} from "../../errors/findOutboundUrlValidationError";
 import type { MixpanelEvent } from "./transformers";
 
 type MixpanelClientConfig = {
@@ -122,7 +126,7 @@ export class MixpanelClient {
           signal: abortController.signal,
         },
         {
-          maxRedirects: 3,
+          maxRedirects: ANALYTICS_INTEGRATION_MAX_REDIRECTS,
           redirectValidation: {
             validateUrl: validateWebhookURL,
             whitelist: analyticsIntegrationWhitelistFromEnv(),
@@ -190,12 +194,18 @@ export class MixpanelClient {
       // the project on the next cycle.
       const validationError = findOutboundUrlValidationError(error);
       if (validationError) {
+        // Describe the fault accurately: a redirect budget/loop fault is not an
+        // IP-policy block, and reporting it as one would fire operators' SSRF
+        // alerting on a benign misconfigured redirect chain.
+        const reason = isRedirectChainFailure(validationError)
+          ? "rejected: unusable redirect chain"
+          : "blocked by outbound SSRF protection";
         logger.error(
-          `Mixpanel outbound send blocked by secure-outbound validation: ${validationError.message}`,
+          `Mixpanel outbound send ${reason}: ${validationError.message}`,
           error,
         );
         const unrecoverable = new UnrecoverableError(
-          `Mixpanel export blocked by outbound SSRF protection: ${validationError.message}`,
+          `Mixpanel export ${reason}: ${validationError.message}`,
         );
         unrecoverable.cause = error;
         throw unrecoverable;

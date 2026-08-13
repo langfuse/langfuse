@@ -25,12 +25,34 @@
  * silently stops recognising it and the exporters' terminal branches stop
  * firing for that mode.
  */
-const OUTBOUND_VALIDATION_ERROR_NAMES = new Set([
+// Host/IP policy blocks — the SSRF signal proper. RedirectValidationError
+// belongs here: it means a redirect TARGET failed host validation.
+const POLICY_BLOCK_ERROR_NAMES = new Set([
   "OutboundUrlValidationError",
   "RedirectValidationError",
+]);
+
+// Redirect budget exhaustion and loops. Also permanent, but NOT an IP-policy
+// block: reporting these as SSRF blocks poisons operators' SSRF alerting, since
+// a benign misconfigured redirect chain would fire it.
+const REDIRECT_CHAIN_ERROR_NAMES = new Set([
   "MaxRedirectsExceededError",
   "CircularRedirectError",
 ]);
+
+const OUTBOUND_VALIDATION_ERROR_NAMES = new Set([
+  ...POLICY_BLOCK_ERROR_NAMES,
+  ...REDIRECT_CHAIN_ERROR_NAMES,
+]);
+
+/**
+ * Distinguishes a redirect budget/loop fault from a host/IP policy block, so
+ * callers can describe the failure accurately instead of labelling every
+ * terminal outbound failure an SSRF block.
+ */
+export function isRedirectChainFailure(error: Error): boolean {
+  return REDIRECT_CHAIN_ERROR_NAMES.has(error.name);
+}
 
 // A resolver hiccup is not a policy block: the host may be perfectly legitimate
 // and the very next attempt may succeed, so it must stay retryable. The shared

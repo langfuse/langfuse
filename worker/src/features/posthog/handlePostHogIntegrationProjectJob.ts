@@ -12,7 +12,10 @@ import {
   validateWebhookURL,
   fetchWithSecureRedirects,
 } from "@langfuse/shared/src/server";
-import { analyticsIntegrationWhitelistFromEnv } from "../analyticsIntegrationEgress";
+import {
+  ANALYTICS_INTEGRATION_MAX_REDIRECTS,
+  analyticsIntegrationWhitelistFromEnv,
+} from "../analyticsIntegrationEgress";
 import {
   transformTraceForPostHog,
   transformGenerationForPostHog,
@@ -25,7 +28,10 @@ import { recordExportVolume } from "../../services/exportVolumeMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { env, v4WritesToLegacyTables } from "../../env";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
-import { findOutboundUrlValidationError } from "../../errors/findOutboundUrlValidationError";
+import {
+  findOutboundUrlValidationError,
+  isRedirectChainFailure,
+} from "../../errors/findOutboundUrlValidationError";
 
 type PostHogExecutionConfig = {
   projectId: string;
@@ -107,7 +113,7 @@ export const countingFetch =
       url,
       options as RequestInit,
       {
-        maxRedirects: 3,
+        maxRedirects: ANALYTICS_INTEGRATION_MAX_REDIRECTS,
         redirectValidation: {
           validateUrl: validateWebhookURL,
           whitelist: analyticsIntegrationWhitelistFromEnv(),
@@ -423,12 +429,18 @@ export const handlePostHogIntegrationProjectJob = async (
     // what lets a fixed hostname recover on its own.
     const validationError = findOutboundUrlValidationError(error);
     if (validationError) {
+      // Describe the fault accurately: a redirect budget/loop fault is not an
+      // IP-policy block, and reporting it as one would fire operators' SSRF
+      // alerting on a benign misconfigured redirect chain.
+      const reason = isRedirectChainFailure(validationError)
+        ? "rejected: unusable redirect chain"
+        : "blocked by outbound SSRF protection";
       logger.error(
-        `[POSTHOG] Outbound send for project ${projectId} blocked by secure-outbound validation: ${validationError.message}`,
+        `[POSTHOG] Outbound send for project ${projectId} ${reason}: ${validationError.message}`,
         error,
       );
       const unrecoverable = new UnrecoverableError(
-        `PostHog integration for project ${projectId} blocked by outbound SSRF protection: ${validationError.message}`,
+        `PostHog integration for project ${projectId} ${reason}: ${validationError.message}`,
       );
       unrecoverable.cause = error;
       throw unrecoverable;

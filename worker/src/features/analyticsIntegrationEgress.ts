@@ -23,6 +23,17 @@ import { UnrecoverableError } from "../errors/UnrecoverableError";
  * permitted. Operators who legitimately export to a private network target
  * must opt in explicitly.
  */
+/**
+ * Redirect budget for analytics exports.
+ *
+ * Both senders previously used a plain fetch, which auto-follows up to 20
+ * redirects, so the budget must stay generous enough not to break a
+ * self-hosted endpoint behind a redirecting edge (vanity host → canonical host
+ * → regional host → /batch/). Mirrors MAX_LLM_REDIRECTS on the LLM path:
+ * bounded, but close to the platform's prior behavior.
+ */
+export const ANALYTICS_INTEGRATION_MAX_REDIRECTS = 10;
+
 export function analyticsIntegrationWhitelistFromEnv(): OutboundUrlValidationWhitelist {
   return {
     hosts: sharedEnv.LANGFUSE_ANALYTICS_INTEGRATION_WHITELISTED_HOST || [],
