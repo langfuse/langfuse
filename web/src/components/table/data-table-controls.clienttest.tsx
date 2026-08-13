@@ -798,3 +798,173 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     }
   });
 });
+
+describe("DataTableControls facet fold (LFE-15041)", () => {
+  const categoricalFilter = (
+    column: string,
+    label: string,
+    isActive: boolean,
+  ): CategoricalUIFilter => ({
+    type: "categorical",
+    column,
+    label,
+    loading: false,
+    expanded: false,
+    isActive,
+    isDisabled: false,
+    onReset: () => {},
+    value: isActive ? ["x"] : [],
+    options: ["x", "y"],
+    counts: new Map(),
+    onChange: () => {},
+  });
+
+  const queryFilter = (
+    filters: UIFilter[],
+    commonFacets?: string[],
+  ): QueryFilter => ({
+    filters,
+    expanded: [],
+    onExpandedChange: () => {},
+    clearAll: () => {},
+    isFiltered: filters.some((f) => f.isActive),
+    setFilterState: () => {},
+    commonFacets,
+  });
+
+  // The fold preference is session-scoped and (without a provider) shares one
+  // key across tests.
+  beforeEach(() => {
+    sessionStorage.clear();
+    captureSpy.mockClear();
+  });
+
+  // Config order deliberately interleaves a tail facet (Release) between the
+  // common ones, so the append-below-the-fold ordering is distinguishable
+  // from plain catalog order.
+  const CATALOG = [
+    categoricalFilter("environment", "Environment", false),
+    categoricalFilter("release", "Release", false),
+    categoricalFilter("name", "Name", false),
+    categoricalFilter("version", "Version", false),
+  ];
+
+  const labelOrder = (first: string, second: string) => {
+    const a = screen.getByText(first);
+    const b = screen.getByText(second);
+    return Boolean(
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  };
+
+  it("folds uncommon facets behind 'Show N more' with the real hidden count", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter(CATALOG, ["environment", "name"])}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Environment")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.queryByText("Release")).not.toBeInTheDocument();
+    expect(screen.queryByText("Version")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Show 2 more" }),
+    ).toBeInTheDocument();
+  });
+
+  it("expands to the full catalog and collapses back, capturing the toggle", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter(CATALOG, ["environment", "name"])}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
+    expect(screen.getByText("Release")).toBeInTheDocument();
+    expect(screen.getByText("Version")).toBeInTheDocument();
+    // Revealed facets APPEND below the common block — the facets already on
+    // screen keep their positions, so Release (config-ordered between
+    // Environment and Name) lands after Name, not between them.
+    expect(labelOrder("Environment", "Name")).toBe(true);
+    expect(labelOrder("Name", "Release")).toBe(true);
+    expect(labelOrder("Release", "Version")).toBe(true);
+    const toggled = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:facet_fold_toggled",
+    );
+    expect(toggled).toHaveLength(1);
+    expect(toggled[0][1]).toMatchObject({
+      expanded: true,
+      foldedCount: 2,
+      isV4: false,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Show fewer" }));
+    expect(screen.queryByText("Release")).not.toBeInTheDocument();
+    expect(screen.queryByText("Version")).not.toBeInTheDocument();
+  });
+
+  it("never folds a facet with an active filter, even outside the common set", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter(
+            [
+              categoricalFilter("environment", "Environment", false),
+              categoricalFilter("name", "Name", false),
+              categoricalFilter("release", "Release", true),
+              categoricalFilter("version", "Version", false),
+            ],
+            ["environment", "name"],
+          )}
+        />
+      </TooltipProvider>,
+    );
+
+    // Active Release stays reachable; only inactive Version counts as folded.
+    expect(screen.getByText("Release")).toBeInTheDocument();
+    expect(screen.queryByText("Version")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Show 1 more" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the full catalog with no fold control when the table declares no common set", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={queryFilter(CATALOG)} />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Release")).toBeInTheDocument();
+    expect(screen.getByText("Version")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Show \d+ more/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the fold control when every tail facet is promoted (nothing left to fold)", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter(
+            [
+              categoricalFilter("environment", "Environment", false),
+              categoricalFilter("release", "Release", true),
+            ],
+            ["environment"],
+          )}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Release")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Show \d+ more|Show fewer/ }),
+    ).not.toBeInTheDocument();
+  });
+});

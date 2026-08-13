@@ -31,6 +31,7 @@ import {
 } from "@/src/features/filters/lib/facet-order";
 import { useMediaQuery } from "react-responsive";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { Accordion } from "@/src/components/ui/accordion";
@@ -166,6 +167,12 @@ export interface QueryFilter {
   setFilterState: (filters: FilterState) => void;
   /** v3-vs-v4 analytics dimension of the surface (see useSidebarFilterState). */
   isV4?: boolean;
+  /**
+   * Curated default-visible facet set from the table's FilterConfig
+   * (LFE-15041). When present, facets outside it fold behind "Show N more";
+   * absent = the whole catalog stays visible.
+   */
+  commonFacets?: string[];
 }
 
 interface DataTableControlsProps {
@@ -262,6 +269,44 @@ export function DataTableControls({
   const displayedFilters = showOnlyActive
     ? orderedFilters.filter(isPromoted)
     : orderedFilters;
+
+  // Fold the uncommon tail of the catalog behind "Show N more" (LFE-15041),
+  // on tables that declare a curated `commonFacets` set. Session-scoped like
+  // the per-facet expanded state: a mid-session "show all" survives
+  // navigation, a fresh session starts folded again. Active-only mode is a
+  // stricter collapse already, so the fold only applies outside it.
+  const [showAllFacets, setShowAllFacets] = useSessionStorage(
+    `${storagePrefix}-facets-show-all`,
+    false,
+  );
+  const commonFacetSet = new Set(queryFilter.commonFacets ?? []);
+  const facetFoldEnabled = commonFacetSet.size > 0 && !showOnlyActive;
+  // Two groups, both in settled order: the top group is the curated common
+  // set plus the SETTLED promoted block; everything else is the tail.
+  // Expanding APPENDS the tail below the top group (never interleaves it
+  // back into catalog order), so the facets already on screen keep their
+  // exact positions when the button is clicked. Group membership uses the
+  // settled promotion — not the live one — so a facet activated in place
+  // stays in place until the next settle (LFE-14843). A live-active tail
+  // facet still never hides: when folded it renders at the end of the top
+  // group, right above the button.
+  const inTopFoldGroup = (filter: UIFilter) =>
+    commonFacetSet.has(filter.column) || facetOrder.promoted.has(filter.column);
+  const topFoldGroup = facetFoldEnabled
+    ? displayedFilters.filter(inTopFoldGroup)
+    : displayedFilters;
+  const tailFoldGroup = facetFoldEnabled
+    ? displayedFilters.filter((filter) => !inTopFoldGroup(filter))
+    : [];
+  const foldedFacetCount = tailFoldGroup.filter(
+    (filter) => !isPromoted(filter),
+  ).length;
+  const renderedFilters = facetFoldEnabled
+    ? [
+        ...topFoldGroup,
+        ...(showAllFacets ? tailFoldGroup : tailFoldGroup.filter(isPromoted)),
+      ]
+    : displayedFilters;
 
   // Facet-usage recency, feeding the "Add filter" dropdown's ordering so the
   // filters someone actually uses on this table surface first.
@@ -405,10 +450,9 @@ export function DataTableControls({
   // counting every displayed facet keeps the divider out of the render loop's
   // range, as the live count did before.
   const promotedFacetCount = showOnlyActive
-    ? displayedFilters.length
-    : displayedFilters.filter((filter) =>
-        facetOrder.promoted.has(filter.column),
-      ).length;
+    ? renderedFilters.length
+    : renderedFilters.filter((filter) => facetOrder.promoted.has(filter.column))
+        .length;
 
   const renderFacet = (filter: UIFilter) => {
     // A column the current surface can't honour blocks the facet whether or
@@ -635,7 +679,7 @@ export function DataTableControls({
             only match keys within the same array, so a facet crossing
             the promoted/rest boundary would REMOUNT (wiping input
             focus and draft state) instead of moving. */}
-        {displayedFilters.flatMap((filter, index) => {
+        {renderedFilters.flatMap((filter, index) => {
           const nodes = [];
           if (index === promotedFacetCount && promotedFacetCount > 0) {
             // Clear spatial break between the active/added block and
@@ -654,6 +698,44 @@ export function DataTableControls({
           return nodes;
         })}
       </Accordion>
+
+      {/* The fold control (LFE-15041): the uncommon tail of the catalog sits
+          behind an accurate "Show N more"; expanding reveals every remaining
+          facet, so nothing is unreachable. Hidden while nothing is foldable
+          (e.g. every tail facet currently carries an active filter). */}
+      {facetFoldEnabled && foldedFacetCount > 0 && (
+        <div className="px-2 pt-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const next = !showAllFacets;
+              setShowAllFacets(next);
+              capture("filters:facet_fold_toggled", {
+                tableName,
+                expanded: next,
+                foldedCount: foldedFacetCount,
+                isV4: queryFilter.isV4 ?? false,
+              });
+            }}
+            // Reads like a facet header row: same muted color, size, and
+            // chevron treatment (> folded, v expanded), same left inset.
+            className="text-muted-foreground hover:text-foreground h-auto w-full justify-start gap-1.5 px-2 py-1 text-xs font-normal"
+          >
+            {showAllFacets ? (
+              <>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                Show fewer
+              </>
+            ) : (
+              <>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                Show {foldedFacetCount} more
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Active-only mode: surface the rest of the catalog behind an
           explicit "Add filter" picker, most-recently-used first, so
