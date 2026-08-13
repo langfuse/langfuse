@@ -19,7 +19,6 @@ const sdkSeries = (
   hasDelayedOtelEvents: false,
   attributionStatus: "attributed" as const,
   v4MigrationStatus: "compatible" as const,
-  upgradeCompleted: false,
   ...overrides,
 });
 
@@ -27,8 +26,6 @@ const getLoadedSdkState = (...sdkUsageSeries: ReturnType<typeof sdkSeries>[]) =>
   getV4MigrationSdkState({
     summary: {
       projectId: "project-1",
-      outdatedSdkUsageSeriesCount: 0,
-      delayedOtelIngestionSeriesCount: 0,
       experimentInstrumentationMigration: {
         status: "not_required",
         upgradePath: null,
@@ -97,19 +94,18 @@ describe("v4 migration SDK status", () => {
     });
   });
 
-  it("does not require action for an SDK series superseded by a clean upgrade", () => {
+  it("requires action when an outdated SDK was used within the lookback window", () => {
     expect(
       getLoadedSdkState(
         sdkSeries({
           sdkVersion: "4.6.9",
           v4MigrationStatus: "upgrade_required",
-          upgradeCompleted: true,
         }),
         sdkSeries(),
       ),
     ).toMatchObject({
-      status: "latest",
-      upgradeRequiredCount: 0,
+      status: "legacy",
+      upgradeRequiredCount: 1,
     });
   });
 

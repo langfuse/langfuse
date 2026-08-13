@@ -39,7 +39,6 @@ const makeSdkUsageSeries = (
   hasDelayedOtelEvents: null,
   attributionStatus: "attributed",
   v4MigrationStatus: "compatible",
-  upgradeCompleted: false,
   ...overrides,
 });
 
@@ -447,6 +446,39 @@ describe("V4MigrationDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps outdated SDK usage surfaced when a newer version later used the same key", () => {
+    // The check reports what it observed in the lookback window: a newer SDK
+    // ingesting later on the same public key is not evidence that the
+    // outdated usage is gone, so it must not retire the offender.
+    mocks.migrationData.sdk = {
+      status: "legacy",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({
+          sdkVersion: "2.60.3",
+          v4MigrationStatus: "upgrade_required",
+          firstSeen: "2026-07-20T09:00:00Z",
+          lastSeen: "2026-07-20T10:00:00Z",
+        }),
+        makeSdkUsageSeries({
+          firstSeen: "2026-07-21T09:00:00Z",
+          lastSeen: "2026-07-21T10:00:00Z",
+        }),
+      ],
+      upgradeRequiredCount: 1,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(
+      within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
+    expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
+    expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
+    expect(screen.queryByText(/upgrade completed/)).not.toBeInTheDocument();
+  });
+
   it("renders the key as plain text when an offender has no observation evidence", () => {
     // A scores-only offender: detection counts score ingestions, but the
     // events table has nothing for this key — a link would open an empty
@@ -765,8 +797,10 @@ describe("V4MigrationDetailsContent", () => {
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
+    // The guidance stays language-agnostic: the upgrade applies to every
+    // Langfuse SDK, so the copy must not read as Python-or-JS-only.
     expect(
-      screen.getByRole("link", { name: "Python or JS SDK" }),
+      screen.getByRole("link", { name: "any Langfuse SDK" }),
     ).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/observability/sdk/overview",

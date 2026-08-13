@@ -37,6 +37,7 @@ import {
   getCustomInstrumentationSectionState,
   getOtelSectionState,
   getSdkSectionState,
+  isActionableSdkSeries,
   type V4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
 } from "@/src/features/v4-migration/sdkVersionStatus";
@@ -87,8 +88,9 @@ const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
 };
 const EXPERIMENT_OTEL_INGESTION_URL =
   "https://langfuse.com/integrations/native/opentelemetry/experiments";
-// The docs ship one combined SDK page; Python and JS have no standalone
-// landing pages to deep-link.
+// The docs ship one combined SDK page, which is also the right target for
+// language-agnostic guidance: the upgrade applies to every Langfuse SDK, not
+// just the two most common ones.
 const SDK_OVERVIEW_URL = "https://langfuse.com/docs/observability/sdk/overview";
 const OTEL_INTEGRATION_URL =
   "https://langfuse.com/integrations/native/opentelemetry";
@@ -444,7 +446,8 @@ export function V4MigrationSdkSection({
             {section.actionableCount === 1
               ? "configuration needs"
               : "configurations need"}{" "}
-            an update. See{" "}
+            an update, based on ingestion seen in the last{" "}
+            {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
             <ExternalLink
               href={SDK_UPGRADE_URL}
               analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
@@ -459,17 +462,10 @@ export function V4MigrationSdkSection({
         series={section.series}
         projectId={projectId}
         analyticsSection="sdk"
-        needsAction={(usage) =>
-          (usage.v4MigrationStatus === "upgrade_required" &&
-            !usage.upgradeCompleted) ||
-          usage.v4MigrationStatus === "unknown"
-        }
+        needsAction={isActionableSdkSeries}
         suffix={(usage) =>
-          usage.v4MigrationStatus === "upgrade_required" &&
-          !usage.upgradeCompleted ? (
+          usage.v4MigrationStatus === "upgrade_required" ? (
             <span>· {formatSdkUpgradeRequirement(usage.canonicalSdkName)}</span>
-          ) : usage.upgradeCompleted ? (
-            <span>· upgrade completed</span>
           ) : usage.v4MigrationStatus === "unknown" ? (
             <span>· version not recognized</span>
           ) : null
@@ -566,7 +562,7 @@ export function V4MigrationCustomInstrumentationSection({
       <p className="text-muted-foreground text-sm leading-relaxed">
         Data is arriving through the ingestion API without a Langfuse SDK
         header, so this looks like custom instrumentation or a very old SDK
-        version. Please upgrade to one of our latest{" "}
+        version. Please upgrade to the latest version of{" "}
         <ExternalLink
           href={SDK_OVERVIEW_URL}
           analytics={{
@@ -574,9 +570,9 @@ export function V4MigrationCustomInstrumentationSection({
             link: "sdk_overview_docs",
           }}
         >
-          Python or JS SDK
-        </ExternalLink>{" "}
-        versions, or use the{" "}
+          any Langfuse SDK
+        </ExternalLink>
+        , or use the{" "}
         <ExternalLink
           href={OTEL_INTEGRATION_URL}
           analytics={{
