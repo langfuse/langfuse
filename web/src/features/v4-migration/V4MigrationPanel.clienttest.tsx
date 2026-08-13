@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     experiments: { status: "loading" as const, result: null },
     apis: { status: "loading" as const, count: 0 },
     exports: { status: "loading" as const, count: 0 },
+    forceV3Experience: false,
   } as ProjectMigrationStatus,
 }));
 

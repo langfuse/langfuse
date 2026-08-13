@@ -8,10 +8,10 @@ import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrat
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 
 export function V4MigrationNavItem() {
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const { project, organization } = useQueryProject();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
-  const { project, organization } = useQueryProject();
   const capture = usePostHogClientCapture();
   const migrationData = useProjectV4MigrationData({
     projectId: project?.id,
@@ -28,6 +28,7 @@ export function V4MigrationNavItem() {
     experiments: migrationData.experiments,
     apis: migrationData.apis,
     exports: migrationData.exports,
+    forceV3Experience: migrationData.forceV3Experience,
   });
   if (readiness !== "action-needed") {
     return null;

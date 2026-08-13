@@ -15,6 +15,10 @@ vi.mock("./useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiEnabled: () => flagState.enabled,
 }));
 
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProject: () => ({ project: null, organization: null }),
+}));
+
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => captureMock,
 }));
