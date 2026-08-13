@@ -24,6 +24,8 @@ import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { env, v4WritesToLegacyTables } from "../../env";
+import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import { findOutboundUrlValidationError } from "../../errors/findOutboundUrlValidationError";
 
 type PostHogExecutionConfig = {
   projectId: string;
@@ -412,6 +414,22 @@ export const handlePostHogIntegrationProjectJob = async (
       `[POSTHOG] PostHog integration processing complete for project ${projectId}`,
     );
   } catch (error) {
+    // A connect-time SSRF/redirect block is a permanent misconfiguration of the
+    // integration host, not a transient failure. Surface it as an
+    // UnrecoverableError so BullMQ stops retrying instead of re-attempting the
+    // same blocked send every hour.
+    const validationError = findOutboundUrlValidationError(error);
+    if (validationError) {
+      logger.error(
+        `[POSTHOG] Outbound send for project ${projectId} blocked by secure-outbound validation: ${validationError.message}`,
+      );
+      const unrecoverable = new UnrecoverableError(
+        `PostHog integration for project ${projectId} blocked by outbound SSRF protection: ${validationError.message}`,
+      );
+      unrecoverable.cause = error;
+      throw unrecoverable;
+    }
+
     logger.error(
       `[POSTHOG] Error processing PostHog integration for project ${projectId}`,
       error,
