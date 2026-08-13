@@ -4,10 +4,8 @@ import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import {
-  AnalyticsIntegrationExportSource,
-  Prisma,
-} from "@langfuse/shared/src/db";
+import { AnalyticsIntegrationExportSource } from "@langfuse/shared/src/db";
+import type { Prisma } from "@langfuse/shared/src/db";
 import { variableMapping } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import {
@@ -15,6 +13,7 @@ import {
   classifyIngestionSdkVersion,
   convertDateToClickhouseDateTime,
   INTERNAL_INGESTION_SDK_NAMES,
+  isForceV3ExperienceProject,
   logger,
   queryClickhouse,
   systemTableRef,
@@ -26,7 +25,6 @@ import {
   addTimelineBucket,
   floorTimelineBucket,
   formatTimelineBucket,
-  getPostgresTimelineBucketExpression,
   getTimelineBucketSql,
   MAX_TIMELINE_RANGE_MS,
   resolveTimelineGranularity,
@@ -120,19 +118,7 @@ type LegacyApiUsageSummaryByProjectResultRow = {
   count: number;
 };
 
-type SdkUsageTimeSeriesRow = {
-  time: string;
-  sdkName: string;
-  sdkVersion: string;
-  publicKey: string;
-  count: string | number;
-  firstSeen: string;
-  lastSeen: string;
-  hasDelayedOtelEvents: boolean | string | number | null;
-};
-
-type SdkUsageTimeSeriesResultRow = {
-  time: string;
+type DecoratedSdkUsageSummaryRow = {
   sdkName: string;
   sdkVersion: string;
   publicKey: string;
@@ -142,14 +128,7 @@ type SdkUsageTimeSeriesResultRow = {
   hasDelayedOtelEvents: boolean | null;
   attributionStatus: IngestionSdkAttributionStatus;
   canonicalSdkName: "python" | "javascript" | null;
-  latestMajor: number | null;
-  major: number | null;
-  upgradeStatus: IngestionSdkUpgradeStatus;
-};
-
-type SdkUsageTimeSeriesResult = {
-  bucketTimes: string[];
-  rows: SdkUsageTimeSeriesResultRow[];
+  upgradeStatus: IngestionSdkUpgradeStatus | "outdated_minor";
 };
 
 type SdkUsageSummaryByProjectRow = {
@@ -179,7 +158,11 @@ type SdkUsageSummaryByProjectSeries = {
   lastSeen: string;
   hasDelayedOtelEvents: boolean | null;
   attributionStatus: IngestionSdkAttributionStatus;
-  v4MigrationStatus: "compatible" | "upgrade_required" | "unknown";
+  v4MigrationStatus:
+    | "compatible"
+    | "upgrade_recommended"
+    | "upgrade_required"
+    | "unknown";
 };
 
 // Counts stay out of this row on purpose: the client derives every displayed
@@ -239,96 +222,12 @@ const compareTimelineRows = (
   return left.entrypoint.localeCompare(right.entrypoint);
 };
 
-const getTimelineBucketTimes = (
-  fromTimestamp: Date,
-  toTimestamp: Date,
-  granularity: ResolvedTimelineGranularity,
-): string[] => {
-  const buckets: string[] = [];
-
-  for (
-    let bucket = floorTimelineBucket(fromTimestamp, granularity);
-    bucket.getTime() < toTimestamp.getTime();
-    bucket = addTimelineBucket(bucket, granularity)
-  ) {
-    buckets.push(formatTimelineBucket(bucket));
-  }
-
-  return buckets;
-};
-
-const getSdkUsageSeriesKey = (row: {
-  sdkName: string;
-  sdkVersion: string;
-  publicKey: string;
-}): string => `${row.sdkName}\u0000${row.sdkVersion}\u0000${row.publicKey}`;
-
-const compareSdkUsageRows = (
-  left: SdkUsageTimeSeriesResultRow,
-  right: SdkUsageTimeSeriesResultRow,
-): number => {
-  if (left.time < right.time) return -1;
-  if (left.time > right.time) return 1;
-
-  const leftSeries = getSdkUsageSeriesKey(left);
-  const rightSeries = getSdkUsageSeriesKey(right);
-
-  return leftSeries.localeCompare(rightSeries);
-};
-
 const toBoolean = (value: boolean | string | number): boolean =>
   value === true || value === 1 || value === "1";
 
 const toNullableBoolean = (
   value: boolean | string | number | null,
 ): boolean | null => (value === null ? null : toBoolean(value));
-
-const decorateSdkUsageRows = ({
-  rows,
-}: {
-  rows: SdkUsageTimeSeriesRow[];
-}): SdkUsageTimeSeriesResultRow[] => {
-  return rows
-    .map((row) => {
-      const classification = classifyIngestionSdkVersion({
-        sdkName: row.sdkName,
-        sdkVersion: row.sdkVersion,
-      });
-      const attributionStatus = classifyIngestionSdkAttribution({
-        sdkName: row.sdkName,
-        sdkVersion: row.sdkVersion,
-      });
-
-      return {
-        time: row.time,
-        sdkName: row.sdkName,
-        sdkVersion: row.sdkVersion,
-        publicKey: row.publicKey,
-        count: Number(row.count),
-        firstSeen: row.firstSeen,
-        lastSeen: row.lastSeen,
-        hasDelayedOtelEvents: toNullableBoolean(row.hasDelayedOtelEvents),
-        attributionStatus,
-        canonicalSdkName: classification.canonicalSdkName,
-        latestMajor: classification.latestMajor,
-        major: classification.major,
-        upgradeStatus: classification.status,
-      };
-    })
-    .sort(compareSdkUsageRows);
-};
-
-type TraceLevelEvalExecutionTimeSeriesRow = {
-  time: string;
-  scoreName: string;
-  count: bigint | number;
-};
-
-type TraceLevelEvalExecutionTimeSeriesPoint = {
-  time: string;
-  scoreName: string;
-  count: number;
-};
 
 type TraceLevelEvalSummaryByProjectResultRow = {
   projectId: string;
@@ -339,48 +238,6 @@ type LegacyIntegrations = {
   posthog: boolean;
   mixpanel: boolean;
   blobStorage: boolean;
-};
-
-const fillTraceLevelEvalExecutionBuckets = ({
-  rows,
-  fromTimestamp,
-  toTimestamp,
-  granularity,
-}: {
-  rows: TraceLevelEvalExecutionTimeSeriesPoint[];
-  fromTimestamp: Date;
-  toTimestamp: Date;
-  granularity: ResolvedTimelineGranularity;
-}): TraceLevelEvalExecutionTimeSeriesPoint[] => {
-  const scoreNames = Array.from(
-    new Set(rows.map((row) => row.scoreName)),
-  ).sort();
-  if (scoreNames.length === 0) return [];
-
-  const counts = new Map(
-    rows.map(
-      (row) => [`${row.time}\u0000${row.scoreName}`, row.count] as const,
-    ),
-  );
-  const filledRows: TraceLevelEvalExecutionTimeSeriesPoint[] = [];
-
-  for (
-    let bucket = floorTimelineBucket(fromTimestamp, granularity);
-    bucket.getTime() < toTimestamp.getTime();
-    bucket = addTimelineBucket(bucket, granularity)
-  ) {
-    const time = formatTimelineBucket(bucket);
-
-    for (const scoreName of scoreNames) {
-      filledRows.push({
-        time,
-        scoreName,
-        count: counts.get(`${time}\u0000${scoreName}`) ?? 0,
-      });
-    }
-  }
-
-  return filledRows;
 };
 
 const getAccessibleOrganizationProjectWhere = ({
@@ -425,6 +282,11 @@ const getLegacyIntegrations = ({
 });
 
 export const v4TransitionRouter = createTRPCRouter({
+  // Whether this project is forced onto the v3 experience
+  forceV3Experience: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ input }) => isForceV3ExperienceProject(input.projectId)),
+
   summary: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -579,6 +441,7 @@ export const v4TransitionRouter = createTRPCRouter({
             legacyIntegrationCount:
               Object.values(legacyIntegrations).filter(Boolean).length,
             legacyIntegrations,
+            forceV3Experience: isForceV3ExperienceProject(project.id),
           };
         }),
       };
@@ -624,151 +487,6 @@ export const v4TransitionRouter = createTRPCRouter({
             traceLevelEvalCountsByProjectId.get(projectId) ?? 0,
         }),
       );
-    }),
-
-  traceLevelEvalExecutionsTimeSeries: protectedProjectProcedure
-    .input(timelineInputSchema)
-    .query(async ({ input, ctx }) => {
-      const granularity = resolveTimelineGranularity(
-        input.fromTimestamp,
-        input.toTimestamp,
-      );
-      const bucketExpression = getPostgresTimelineBucketExpression(
-        Prisma.sql`je.created_at`,
-        granularity,
-      );
-
-      const rows = await ctx.prisma.$queryRaw<
-        TraceLevelEvalExecutionTimeSeriesRow[]
-      >(Prisma.sql`
-WITH selected AS (
-  SELECT
-    ${bucketExpression} AS bucket_time,
-    jc.score_name AS score_name
-  FROM job_executions je
-  INNER JOIN job_configurations jc ON jc.id = je.job_configuration_id
-    AND jc.project_id = je.project_id
-  WHERE je.project_id = ${input.projectId}
-    AND jc.project_id = ${input.projectId}
-    AND jc.job_type = 'EVAL'
-    AND jc.target_object IN (${TRACE_EVAL_TARGET}, ${DATASET_EVAL_TARGET})
-    AND jc.status = 'ACTIVE'
-    AND 'NEW' = ANY(jc.time_scope)
-    AND je.status != 'CANCELLED'
-    AND je.created_at >= ${input.fromTimestamp}
-    AND je.created_at <= ${input.toTimestamp}
-)
-
-SELECT
-  to_char(bucket_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time,
-  score_name AS "scoreName",
-  COUNT(*)::bigint AS count
-FROM selected
-GROUP BY bucket_time, score_name
-ORDER BY bucket_time ASC, score_name ASC
-      `);
-
-      return fillTraceLevelEvalExecutionBuckets({
-        rows: rows.map((row) => ({
-          time: row.time,
-          scoreName: row.scoreName,
-          count: Number(row.count),
-        })),
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
-        granularity,
-      });
-    }),
-
-  sdkUsageTimeSeries: protectedProjectProcedure
-    .input(timelineInputSchema)
-    .query(async ({ input }) => {
-      const granularity = resolveTimelineGranularity(
-        input.fromTimestamp,
-        input.toTimestamp,
-      );
-      const bucketTimeSql = getTimelineBucketSql("event_time", granularity);
-
-      const scoresUnionSql = `
-  UNION ALL
-
-  SELECT
-    timestamp AS event_time,
-    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
-    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
-    ingestion_api_key AS public_key,
-    false AS is_otel_ingestion,
-    false AS is_delayed_otel
-  FROM scores FINAL
-  WHERE
-    project_id = {projectId: String}
-    AND timestamp >= {fromTimestamp: DateTime64(3)}
-    AND timestamp <= {toTimestamp: DateTime64(3)}
-    AND NOT startsWith(environment, 'langfuse-')
-    AND execution_trace_id IS NULL
-    AND source != 'ANNOTATION'
-    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
-    AND is_deleted = 0`;
-
-      const rows = await queryClickhouse<SdkUsageTimeSeriesRow>({
-        query: `
-WITH selected AS (
-  SELECT
-    start_time AS event_time,
-    if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
-    if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
-    ingestion_api_key AS public_key,
-    (source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion,
-    startsWith(source, 'otel-dual-write') AS is_delayed_otel
-  FROM events_core
-  WHERE
-    project_id = {projectId: String}
-    AND start_time >= {fromTimestamp: DateTime64(3)}
-    AND start_time <= {toTimestamp: DateTime64(3)}
-    AND NOT startsWith(environment, 'langfuse-')
-    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
-    AND is_deleted = 0
-  ${scoresUnionSql}
-)
-
-SELECT
-  formatDateTime(${bucketTimeSql}, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time,
-  sdk_name AS sdkName,
-  sdk_version AS sdkVersion,
-  public_key AS publicKey,
-  count() AS count,
-  formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
-  formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
-  if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents
-FROM selected
-GROUP BY ${bucketTimeSql}, sdk_name, sdk_version, public_key
-ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
-        `,
-        params: {
-          projectId: input.projectId,
-          fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
-          toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
-          internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
-        },
-        tags: {
-          projectId: input.projectId,
-          route: "v4-sdk-usage-timeseries",
-        },
-        preferredClickhouseService: "EventsReadOnly",
-      });
-
-      const decoratedRows = decorateSdkUsageRows({
-        rows,
-      });
-
-      return {
-        bucketTimes: getTimelineBucketTimes(
-          input.fromTimestamp,
-          input.toTimestamp,
-          granularity,
-        ),
-        rows: decoratedRows,
-      } satisfies SdkUsageTimeSeriesResult;
     }),
 
   sdkUsageSummaryByProject: protectedOrganizationProcedure
@@ -918,7 +636,7 @@ SETTINGS skip_unavailable_shards = 1
 
       return projectIds.map((projectId): SdkUsageSummaryByProjectResultRow => {
         const projectRows = (rowsByProjectId.get(projectId) ?? []).map(
-          (row): SdkUsageTimeSeriesResultRow & { eventsCount: number } => {
+          (row): DecoratedSdkUsageSummaryRow & { eventsCount: number } => {
             const classification = classifyIngestionSdkVersion({
               sdkName: row.sdkName,
               sdkVersion: row.sdkVersion,
@@ -929,7 +647,6 @@ SETTINGS skip_unavailable_shards = 1
             );
 
             return {
-              time: row.firstSeen,
               sdkName: row.sdkName,
               sdkVersion: row.sdkVersion,
               publicKey: row.publicKey,
@@ -943,13 +660,12 @@ SETTINGS skip_unavailable_shards = 1
                 sdkVersion: row.sdkVersion,
               }),
               canonicalSdkName: classification.canonicalSdkName,
-              latestMajor: classification.latestMajor,
-              major: classification.major,
               upgradeStatus:
                 capabilityStatus === "supported"
                   ? "current"
-                  : capabilityStatus === "unsupported"
-                    ? "outdated_major"
+                  : capabilityStatus === "unsupported" &&
+                      classification.status === "current"
+                    ? "outdated_minor"
                     : classification.status,
             };
           },
@@ -970,9 +686,11 @@ SETTINGS skip_unavailable_shards = 1
               v4MigrationStatus:
                 row.upgradeStatus === "current"
                   ? "compatible"
-                  : row.upgradeStatus === "outdated_major"
-                    ? "upgrade_required"
-                    : "unknown",
+                  : row.upgradeStatus === "outdated_minor"
+                    ? "upgrade_recommended"
+                    : row.upgradeStatus === "outdated_major"
+                      ? "upgrade_required"
+                      : "unknown",
             };
           },
         );

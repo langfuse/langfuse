@@ -316,7 +316,7 @@ function ConnectedAppSidebar({
 }) {
   const { isMobile } = useSidebar();
   const uiCustomization = useUiCustomization();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(routerProjectId);
   const plan = usePlan();
   const capture = usePostHogClientCapture();
   const session = useSession();
