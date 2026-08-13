@@ -473,7 +473,7 @@ describe("test eval filtering", () => {
 
     // "contains ''" on a metadata key should behave as a key-existence
     // check, not match every trace regardless of whether the key was ever
-    // set (LFE-15074).
+    // set.
     await configureDefaultJobWithSingleFilter({
       type: "stringObject",
       key: "turn",
