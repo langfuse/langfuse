@@ -125,38 +125,6 @@ type LegacyApiUsageSummaryByProjectResultRow = {
   count: number;
 };
 
-type SdkUsageTimeSeriesRow = {
-  time: string;
-  sdkName: string;
-  sdkVersion: string;
-  publicKey: string;
-  count: string | number;
-  firstSeen: string;
-  lastSeen: string;
-  hasDelayedOtelEvents: boolean | string | number | null;
-};
-
-type SdkUsageTimeSeriesResultRow = {
-  time: string;
-  sdkName: string;
-  sdkVersion: string;
-  publicKey: string;
-  count: number;
-  firstSeen: string | null;
-  lastSeen: string | null;
-  hasDelayedOtelEvents: boolean | null;
-  attributionStatus: IngestionSdkAttributionStatus;
-  canonicalSdkName: "python" | "javascript" | null;
-  latestMajor: number | null;
-  major: number | null;
-  upgradeStatus: IngestionSdkUpgradeStatus;
-};
-
-type SdkUsageTimeSeriesResult = {
-  bucketTimes: string[];
-  rows: SdkUsageTimeSeriesResultRow[];
-};
-
 type SdkUsageSummaryByProjectRow = {
   projectId: string;
   sdkName: string;
@@ -204,6 +172,20 @@ type SdkUsageSummaryByProjectResultRow = {
   sdkUsageSeries: SdkUsageSummaryByProjectSeries[];
 };
 
+type ClassifiedSdkUsageRow = {
+  sdkName: string;
+  sdkVersion: string;
+  canonicalSdkName: "python" | "javascript" | null;
+  publicKey: string;
+  count: number;
+  eventsCount: number;
+  firstSeen: string;
+  lastSeen: string;
+  hasDelayedOtelEvents: boolean | null;
+  attributionStatus: IngestionSdkAttributionStatus;
+  upgradeStatus: IngestionSdkUpgradeStatus;
+};
+
 type DatasetRunItemsPostUsageByProjectRow = {
   projectId: string;
   count: string | number;
@@ -244,84 +226,12 @@ const compareTimelineRows = (
   return left.entrypoint.localeCompare(right.entrypoint);
 };
 
-const getTimelineBucketTimes = (
-  fromTimestamp: Date,
-  toTimestamp: Date,
-  granularity: ResolvedTimelineGranularity,
-): string[] => {
-  const buckets: string[] = [];
-
-  for (
-    let bucket = floorTimelineBucket(fromTimestamp, granularity);
-    bucket.getTime() < toTimestamp.getTime();
-    bucket = addTimelineBucket(bucket, granularity)
-  ) {
-    buckets.push(formatTimelineBucket(bucket));
-  }
-
-  return buckets;
-};
-
-const getSdkUsageSeriesKey = (row: {
-  sdkName: string;
-  sdkVersion: string;
-  publicKey: string;
-}): string => `${row.sdkName}\u0000${row.sdkVersion}\u0000${row.publicKey}`;
-
-const compareSdkUsageRows = (
-  left: SdkUsageTimeSeriesResultRow,
-  right: SdkUsageTimeSeriesResultRow,
-): number => {
-  if (left.time < right.time) return -1;
-  if (left.time > right.time) return 1;
-
-  const leftSeries = getSdkUsageSeriesKey(left);
-  const rightSeries = getSdkUsageSeriesKey(right);
-
-  return leftSeries.localeCompare(rightSeries);
-};
-
 const toBoolean = (value: boolean | string | number): boolean =>
   value === true || value === 1 || value === "1";
 
 const toNullableBoolean = (
   value: boolean | string | number | null,
 ): boolean | null => (value === null ? null : toBoolean(value));
-
-const decorateSdkUsageRows = ({
-  rows,
-}: {
-  rows: SdkUsageTimeSeriesRow[];
-}): SdkUsageTimeSeriesResultRow[] => {
-  return rows
-    .map((row) => {
-      const classification = classifyIngestionSdkVersion({
-        sdkName: row.sdkName,
-        sdkVersion: row.sdkVersion,
-      });
-      const attributionStatus = classifyIngestionSdkAttribution({
-        sdkName: row.sdkName,
-        sdkVersion: row.sdkVersion,
-      });
-
-      return {
-        time: row.time,
-        sdkName: row.sdkName,
-        sdkVersion: row.sdkVersion,
-        publicKey: row.publicKey,
-        count: Number(row.count),
-        firstSeen: row.firstSeen,
-        lastSeen: row.lastSeen,
-        hasDelayedOtelEvents: toNullableBoolean(row.hasDelayedOtelEvents),
-        attributionStatus,
-        canonicalSdkName: classification.canonicalSdkName,
-        latestMajor: classification.latestMajor,
-        major: classification.major,
-        upgradeStatus: classification.status,
-      };
-    })
-    .sort(compareSdkUsageRows);
-};
 
 type TraceLevelEvalSummaryByProjectResultRow = {
   projectId: string;
@@ -577,70 +487,6 @@ export const v4TransitionRouter = createTRPCRouter({
       );
     }),
 
-  sdkUsageTimeSeries: protectedProjectProcedure
-    .input(timelineInputSchema)
-    .query(async ({ input }) => {
-      const granularity = resolveTimelineGranularity(
-        input.fromTimestamp,
-        input.toTimestamp,
-      );
-      const bucketTimeSql = getTimelineBucketSql("start_time", granularity);
-      const sdkNameSql =
-        "if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name)";
-      const sdkVersionSql =
-        "if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version)";
-
-      const rows = await queryClickhouse<SdkUsageTimeSeriesRow>({
-        query: `
-SELECT
-  formatDateTime(${bucketTimeSql}, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time,
-  ${sdkNameSql} AS sdkName,
-  ${sdkVersionSql} AS sdkVersion,
-  ingestion_api_key AS publicKey,
-  count() AS count,
-  formatDateTime(min(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
-  formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
-  if(countIf(source = 'otel-dual-write') > 0, true, NULL) AS hasDelayedOtelEvents
-FROM events_core
-WHERE
-  project_id = {projectId: String}
-  AND start_time >= {fromTimestamp: DateTime64(3)}
-  AND start_time <= {toTimestamp: DateTime64(3)}
-  AND source IN {legacyDualWriteSources: Array(String)}
-  AND NOT startsWith(environment, 'langfuse-')
-  AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
-  AND is_deleted = 0
-GROUP BY ${bucketTimeSql}, ${sdkNameSql}, ${sdkVersionSql}, ingestion_api_key
-ORDER BY ${bucketTimeSql} ASC, ${sdkNameSql} ASC, ${sdkVersionSql} ASC, ingestion_api_key ASC
-        `,
-        params: {
-          projectId: input.projectId,
-          fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
-          toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
-          internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
-          legacyDualWriteSources: [...LEGACY_DUAL_WRITE_EVENT_SOURCES],
-        },
-        tags: {
-          projectId: input.projectId,
-          route: "v4-sdk-usage-timeseries",
-        },
-        preferredClickhouseService: "EventsReadOnly",
-      });
-
-      const decoratedRows = decorateSdkUsageRows({
-        rows,
-      });
-
-      return {
-        bucketTimes: getTimelineBucketTimes(
-          input.fromTimestamp,
-          input.toTimestamp,
-          granularity,
-        ),
-        rows: decoratedRows,
-      } satisfies SdkUsageTimeSeriesResult;
-    }),
-
   sdkUsageSummaryByProject: protectedOrganizationProcedure
     .input(organizationTimeRangeInputSchema)
     .query(async ({ input, ctx }) => {
@@ -761,7 +607,7 @@ SETTINGS skip_unavailable_shards = 1
 
       return projectIds.map((projectId): SdkUsageSummaryByProjectResultRow => {
         const projectRows = (rowsByProjectId.get(projectId) ?? []).map(
-          (row): SdkUsageTimeSeriesResultRow & { eventsCount: number } => {
+          (row): ClassifiedSdkUsageRow => {
             const classification = classifyIngestionSdkVersion({
               sdkName: row.sdkName,
               sdkVersion: row.sdkVersion,
@@ -772,7 +618,6 @@ SETTINGS skip_unavailable_shards = 1
             );
 
             return {
-              time: row.firstSeen,
               sdkName: row.sdkName,
               sdkVersion: row.sdkVersion,
               publicKey: row.publicKey,
@@ -786,8 +631,6 @@ SETTINGS skip_unavailable_shards = 1
                 sdkVersion: row.sdkVersion,
               }),
               canonicalSdkName: classification.canonicalSdkName,
-              latestMajor: classification.latestMajor,
-              major: classification.major,
               upgradeStatus:
                 capabilityStatus === "supported"
                   ? "current"
@@ -806,8 +649,8 @@ SETTINGS skip_unavailable_shards = 1
               publicKey: row.publicKey,
               count: row.count,
               eventsCount: row.eventsCount,
-              firstSeen: row.firstSeen!,
-              lastSeen: row.lastSeen!,
+              firstSeen: row.firstSeen,
+              lastSeen: row.lastSeen,
               hasDelayedOtelEvents: row.hasDelayedOtelEvents,
               attributionStatus: row.attributionStatus,
               v4MigrationStatus:

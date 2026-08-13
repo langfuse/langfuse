@@ -134,7 +134,6 @@ const mockedQueryClickhouse = vi.mocked(queryClickhouse);
 const projectId = "project-v4-transition";
 const orgId = "org-v4-transition";
 const secondProjectId = "project-v4-transition-second";
-const outsideProjectId = "project-v4-transition-outside";
 
 // Mocked Prisma delegates only implement the methods a test exercises, so
 // accept any subset of PrismaClient keys with loosely typed values.
@@ -608,15 +607,6 @@ describe("v4TransitionRouter", () => {
       }),
     ).rejects.toThrow("30 days");
 
-    await expect(
-      caller.sdkUsageTimeSeries({
-        projectId,
-        fromTimestamp: new Date("2026-05-25T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
-        granularity: "auto",
-      }),
-    ).rejects.toThrow("30 days");
-
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
     expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
   });
@@ -1033,189 +1023,6 @@ describe("v4TransitionRouter", () => {
     );
   });
 
-  it("queries SDK usage by exact SDK, version, and API key from delayed dual-write events", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        time: "2026-06-25T12:00:00Z",
-        sdkName: "python",
-        sdkVersion: "3.9.0",
-        publicKey: "pk-lf-old-python",
-        count: "3",
-        firstSeen: "2026-06-25T12:01:00Z",
-        lastSeen: "2026-06-25T12:03:00Z",
-        hasDelayedOtelEvents: "0",
-      },
-      {
-        time: "2026-06-25T12:04:00Z",
-        sdkName: "@langfuse/tracing",
-        sdkVersion: "5.1.0",
-        publicKey: "pk-lf-js-current",
-        count: 7,
-        firstSeen: "2026-06-25T12:04:00Z",
-        lastSeen: "2026-06-25T12:05:00Z",
-        hasDelayedOtelEvents: 0,
-      },
-    ]);
-    const caller = createCaller();
-
-    const result = await caller.sdkUsageTimeSeries({
-      projectId,
-      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-      toTimestamp: new Date("2026-06-25T13:00:00Z"),
-      granularity: "auto",
-    });
-    const rows = result.rows;
-
-    expect(result.bucketTimes).toHaveLength(30);
-    expect(result.bucketTimes[0]).toBe("2026-06-25T12:00:00Z");
-    expect(result.bucketTimes.at(-1)).toBe("2026-06-25T12:58:00Z");
-    expect(rows).toHaveLength(2);
-    expect(
-      rows.find(
-        (row) =>
-          row.time === "2026-06-25T12:00:00Z" &&
-          row.sdkName === "python" &&
-          row.sdkVersion === "3.9.0" &&
-          row.publicKey === "pk-lf-old-python",
-      ),
-    ).toEqual({
-      time: "2026-06-25T12:00:00Z",
-      sdkName: "python",
-      sdkVersion: "3.9.0",
-      publicKey: "pk-lf-old-python",
-      count: 3,
-      firstSeen: "2026-06-25T12:01:00Z",
-      lastSeen: "2026-06-25T12:03:00Z",
-      hasDelayedOtelEvents: false,
-      attributionStatus: "attributed",
-      canonicalSdkName: "python",
-      latestMajor: 4,
-      major: 3,
-      upgradeStatus: "outdated_major",
-    });
-    expect(
-      rows.find(
-        (row) =>
-          row.time === "2026-06-25T12:04:00Z" &&
-          row.sdkName === "@langfuse/tracing" &&
-          row.sdkVersion === "5.1.0" &&
-          row.publicKey === "pk-lf-js-current",
-      ),
-    ).toEqual({
-      time: "2026-06-25T12:04:00Z",
-      sdkName: "@langfuse/tracing",
-      sdkVersion: "5.1.0",
-      publicKey: "pk-lf-js-current",
-      count: 7,
-      firstSeen: "2026-06-25T12:04:00Z",
-      lastSeen: "2026-06-25T12:05:00Z",
-      hasDelayedOtelEvents: false,
-      attributionStatus: "attributed",
-      canonicalSdkName: "javascript",
-      latestMajor: 5,
-      major: 5,
-      upgradeStatus: "current",
-    });
-    expect(
-      rows.find(
-        (row) =>
-          row.time === "2026-06-25T12:02:00Z" &&
-          row.sdkName === "python" &&
-          row.sdkVersion === "3.9.0" &&
-          row.publicKey === "pk-lf-old-python",
-      ),
-    ).toBeUndefined();
-
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
-    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(clickhouseQuery?.query).toContain("FROM events_core");
-    expect(clickhouseQuery?.query).not.toContain("WITH selected");
-    expect(clickhouseQuery?.query).not.toContain("FROM selected");
-    expect(clickhouseQuery?.query).not.toContain("UNION ALL");
-    expect(clickhouseQuery?.query).not.toContain("FROM scores");
-    expect(clickhouseQuery?.query).toContain(
-      "source IN {legacyDualWriteSources: Array(String)}",
-    );
-    expect(
-      clickhouseQuery?.query.match(/project_id = \{projectId: String\}/g),
-    ).toHaveLength(1);
-    expect(clickhouseQuery?.query).not.toContain("system.columns");
-    expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(start_time, INTERVAL 2 MINUTE, 'UTC')",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdkName",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdkVersion",
-    );
-    expect(clickhouseQuery?.query).toContain("ingestion_api_key AS publicKey");
-    expect(clickhouseQuery?.query).not.toContain("source = 'otel' OR");
-    expect(clickhouseQuery?.query).toContain(
-      "if(countIf(source = 'otel-dual-write') > 0, true, NULL) AS hasDelayedOtelEvents",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "AND NOT startsWith(environment, 'langfuse-')",
-    );
-    expect(clickhouseQuery?.query).not.toContain("toDate(start_time)");
-    expect(clickhouseQuery?.query).not.toContain("toDate(timestamp)");
-    expect(clickhouseQuery?.query).toContain(
-      "GROUP BY toStartOfInterval(start_time, INTERVAL 2 MINUTE, 'UTC'), if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name), if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version), ingestion_api_key",
-    );
-    expect(clickhouseQuery?.params).toMatchObject({
-      projectId,
-      fromTimestamp: "2026-06-25 12:00:00.000",
-      toTimestamp: "2026-06-25 13:00:00.000",
-      internalSdkNames: [
-        "langfuse-internal-ai-sdk",
-        "langfuse-internal-otel-writer",
-      ],
-      legacyDualWriteSources: ["ingestion-api-dual-write", "otel-dual-write"],
-    });
-    expect(clickhouseQuery?.tags).toEqual({
-      projectId,
-      route: "v4-sdk-usage-timeseries",
-    });
-    expect(clickhouseQuery?.preferredClickhouseService).toBe("EventsReadOnly");
-  });
-
-  it("distinguishes raw OTel already using real-time ingestion", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        time: "2026-06-25T12:00:00Z",
-        sdkName: "unknown",
-        sdkVersion: "unknown",
-        publicKey: "pk-lf-raw-otel",
-        count: "4",
-        firstSeen: "2026-06-25T12:01:00Z",
-        lastSeen: "2026-06-25T12:03:00Z",
-        hasDelayedOtelEvents: "0",
-      },
-    ]);
-    const caller = createCaller();
-
-    const result = await caller.sdkUsageTimeSeries({
-      projectId,
-      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-      toTimestamp: new Date("2026-06-25T13:00:00Z"),
-      granularity: "auto",
-    });
-
-    expect(result.rows).toEqual([
-      expect.objectContaining({
-        sdkName: "unknown",
-        sdkVersion: "unknown",
-        publicKey: "pk-lf-raw-otel",
-        hasDelayedOtelEvents: false,
-        attributionStatus: "missing_name_and_version",
-        upgradeStatus: "unknown",
-      }),
-    ]);
-  });
-
   it.each(["MEMBER", "VIEWER"] as const)(
     "allows project %s roles to access project-level v4 data",
     async (role) => {
@@ -1246,58 +1053,6 @@ describe("v4TransitionRouter", () => {
       });
     },
   );
-
-  it("queries SDK usage without a ClickHouse metadata preflight", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        time: "2026-06-25T12:00:00Z",
-        sdkName: "python",
-        sdkVersion: "4.0.0",
-        publicKey: "pk-lf-python",
-        count: 2,
-        firstSeen: "2026-06-25T12:00:00Z",
-        lastSeen: "2026-06-25T12:01:00Z",
-      },
-    ]);
-    const caller = createCaller();
-
-    const result = await caller.sdkUsageTimeSeries({
-      projectId,
-      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-      toTimestamp: new Date("2026-06-25T12:10:00Z"),
-      granularity: "auto",
-    });
-
-    expect(result.bucketTimes).toHaveLength(10);
-    expect(result.rows).toHaveLength(1);
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
-    const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(usageQuery?.query).toContain("FROM events_core");
-    expect(usageQuery?.query).not.toContain("FROM scores");
-    expect(usageQuery?.query).not.toContain("UNION ALL");
-    expect(usageQuery?.query).toContain(
-      "source IN {legacyDualWriteSources: Array(String)}",
-    );
-    expect(
-      usageQuery?.query.match(/project_id = \{projectId: String\}/g),
-    ).toHaveLength(1);
-    expect(usageQuery?.query).not.toContain("system.columns");
-  });
-
-  it("rejects SDK usage requests for projects outside the caller session", async () => {
-    const caller = createCaller();
-
-    await expect(
-      caller.sdkUsageTimeSeries({
-        projectId: outsideProjectId,
-        fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-        toTimestamp: new Date("2026-06-25T13:00:00Z"),
-        granularity: "auto",
-      }),
-    ).rejects.toThrow("User is not a member of this project");
-
-    expect(mockedQueryClickhouse).not.toHaveBeenCalled();
-  });
 
   it("summarizes outdated SDK usage series by organization project", async () => {
     mockedQueryClickhouse
