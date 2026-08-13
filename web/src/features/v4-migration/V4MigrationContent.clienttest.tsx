@@ -320,6 +320,18 @@ describe("V4MigrationDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("uses Retarget consistently for affected evals", () => {
+    mocks.migrationData.evals = { status: "loaded", count: 2 };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Retarget Evals/ }));
+    expect(
+      screen.getByText(/Retarget them at observations/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Repoint them/)).not.toBeInTheDocument();
+  });
+
   it("shows the experiment instrumentation upgrade requirement", () => {
     mocks.migrationData.experiments = { status: "loaded", result: "required" };
     mocks.migrationData.experimentInstrumentationUpgradePath = "sdk";
@@ -979,7 +991,7 @@ describe("V4MigrationHeaderContent", () => {
   });
 
   it("uses the project-independent upgrade title and requested description", () => {
-    render(<V4MigrationHeaderContent />);
+    render(<V4MigrationHeaderContent readiness="action-needed" />);
 
     expect(screen.getByText("Upgrade to v4")).toBeInTheDocument();
     expect(screen.queryByText(/Project 1/)).not.toBeInTheDocument();
@@ -1002,7 +1014,12 @@ describe("V4MigrationHeaderContent", () => {
   });
 
   it("does not call ready or unresolved projects outdated", () => {
-    for (const readiness of ["ready", "checking", "unavailable"] as const) {
+    for (const readiness of [
+      "ready",
+      "checking",
+      "unavailable",
+      undefined,
+    ] as const) {
       const { unmount } = render(
         <V4MigrationHeaderContent readiness={readiness} />,
       );

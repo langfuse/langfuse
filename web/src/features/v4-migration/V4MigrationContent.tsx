@@ -683,7 +683,7 @@ export function V4MigrationEvalsSection({
                 input/output
               </>
             )}
-            , which v4 no longer sets. Repoint{" "}
+            , which v4 no longer sets. Retarget{" "}
             {state.count === 1 ? "it" : "them"} at observations.
           </p>
           {assistant && (
@@ -969,11 +969,10 @@ export function V4MigrationHeaderContent({
    *  corner (the title is sr-only, so there is no DialogHeader row), which
    *  would otherwise overlap the title. */
   titleRowClassName?: string;
-  /** Known readiness from the organization status page. Other action-only
-   * entry points omit this and retain the action-needed copy. */
+  /** Known readiness from the organization status page or an action-only entry point. */
   readiness?: ProjectMigrationReadiness;
 }) {
-  const actionNeeded = readiness === undefined || readiness === "action-needed";
+  const actionNeeded = readiness === "action-needed";
 
   return (
     <>

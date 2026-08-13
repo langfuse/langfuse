@@ -65,7 +65,13 @@ export function V4MigrationPanelProvider({
     if (!v4UpgradeUiEnabled) return;
     if (!open || project.id !== targetProject?.id)
       capture("v4_migration:panel_opened", { source });
-    setTargetProject(project);
+    // Entry points that only appear for actionable projects may omit readiness.
+    // Normalize them here so a later route change can distinguish that known
+    // state from an unrelated project whose readiness has not been loaded.
+    setTargetProject({
+      ...project,
+      readiness: project.readiness ?? "action-needed",
+    });
     setRequestedOpen(true);
   };
 
