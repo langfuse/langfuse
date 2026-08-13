@@ -50,6 +50,11 @@ const cleanSdkState = (): V4MigrationSdkState => ({
 });
 
 const mocks = vi.hoisted(() => ({
+  // Mutable so tests can flip between Cloud and self-hosted; the component
+  // reads the env at render time.
+  env: { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "US" } as {
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: string | undefined;
+  },
   routerPush: vi.fn(),
   capture: vi.fn(),
   openAssistant: vi.fn(),
@@ -91,6 +96,8 @@ const mocks = vi.hoisted(() => ({
   aiFeaturesEnabled: true,
   createProjectApiKey: vi.fn(),
 }));
+
+vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
 
 vi.mock("next/router", () => ({
   useRouter: () => ({
@@ -215,6 +222,7 @@ vi.mock("@/src/components/ui/collapsible", () => {
 describe("V4MigrationDetailsContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
     mocks.routerPush.mockResolvedValue(true);
     mocks.submitAgentMessage.mockResolvedValue(undefined);
     mocks.migrationData.evals = { status: "loaded", count: 0 };
@@ -897,6 +905,33 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
   });
 
+  it("links the walkthrough video from the help footer on Cloud", () => {
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    const link = screen.getByRole("link", { name: "Walkthrough video" });
+    // Straight to YouTube in a new tab; the panel never embeds the player,
+    // so no iframe may render before or after the click.
+    expect(link).toHaveAttribute(
+      "href",
+      "https://www.youtube.com/watch?v=g3YbbqVGt4g",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(document.querySelector("iframe")).toBeNull();
+
+    fireEvent.click(link);
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:walkthrough_video_clicked",
+    );
+    expect(document.querySelector("iframe")).toBeNull();
+  });
+
+  it("hides the walkthrough video link on self-hosted deployments", () => {
+    mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.queryByText("Walkthrough video")).not.toBeInTheDocument();
+  });
+
   it("shows the preview-toggle section only when the session can toggle v4", () => {
     const { unmount } = render(
       <V4MigrationDetailsContent projectId="project-1" />,
@@ -1079,15 +1114,22 @@ describe("V4MigrationHeaderContent", () => {
     }
   });
 
-  it("labels the help footer and renders no horizontal separators", () => {
-    render(<V4MigrationDetailsContent projectId="project-1" />);
+  it("labels the help footer and groups content with three separators", () => {
+    const { container } = render(
+      <V4MigrationDetailsContent projectId="project-1" />,
+    );
 
     expect(screen.getByText("Need help?")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Docs" })).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/v4",
     );
-    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+    // One divider above Action items, one above the agent CTA, one above
+    // Need help. Decorative Radix separators render role="none", so query
+    // by data attribute.
+    expect(
+      container.querySelectorAll('[data-orientation="horizontal"]'),
+    ).toHaveLength(3);
   });
 
   it("does not create credentials when revealing or copying the prompt", () => {

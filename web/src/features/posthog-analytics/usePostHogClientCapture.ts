@@ -345,6 +345,7 @@ export const events = {
     "section_link_clicked",
     "project_keys_copied",
     "evals_manual_upgrade_clicked",
+    "walkthrough_video_clicked",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
