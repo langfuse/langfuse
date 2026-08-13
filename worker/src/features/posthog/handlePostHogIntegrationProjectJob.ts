@@ -63,6 +63,24 @@ const sleep = (ms: number) =>
     ? new Promise((resolve) => setTimeout(resolve, ms))
     : Promise.resolve();
 
+/**
+ * The hostname of a configured URL, for log lines. Never log the configured URL
+ * itself: it can carry credentials (http://user:pass@host), and this log line
+ * fires exactly when the URL was rejected — including when it was rejected FOR
+ * carrying them. The hostname component cannot contain userinfo.
+ *
+ * Uses `new URL` rather than parseOutboundUrl deliberately: this is redaction,
+ * not validation, and parseOutboundUrl refuses a credentialed URL outright, so
+ * it cannot extract a safe hostname from the case that matters most.
+ */
+const hostnameForLog = (configuredUrl: string): string => {
+  try {
+    return new URL(configuredUrl).hostname || "<no hostname>";
+  } catch {
+    return "<unparseable>";
+  }
+};
+
 const throwIfPostHogSendError = (config: PostHogExecutionConfig) => {
   if (config.sendError) throw config.sendError;
 };
@@ -287,7 +305,7 @@ export const handlePostHogIntegrationProjectJob = async (
     await validateWebhookURL(postHogIntegration.posthogHostName);
   } catch (error) {
     logger.error(
-      `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
+      `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${hostnameForLog(postHogIntegration.posthogHostName)}. Error: ${error instanceof Error ? error.message : String(error)}`,
     );
     throw new Error(
       `Invalid PostHog hostname for project ${projectId}: ${error instanceof Error ? error.message : "Unknown error"}`,
