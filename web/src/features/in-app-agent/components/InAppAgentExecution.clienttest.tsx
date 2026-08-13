@@ -404,6 +404,7 @@ describe("in-app agent execution", () => {
     renderExecutionUi();
 
     expect(await screen.findByText("Create the prompt")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Working…" }));
     expect(screen.getByText("I need approval.")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", {

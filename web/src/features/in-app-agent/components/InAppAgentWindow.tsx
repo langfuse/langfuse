@@ -53,7 +53,7 @@ import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
-  getInAppAgentToolProgressLabel,
+  getInAppAgentActivityProgressLabel,
   type InAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
@@ -354,7 +354,7 @@ function joinAnswerMessages(
 
 function buildConversationDisplayItems(
   messages: InAppAgentWindowMessage[],
-  isAssistantTurnInProgress: boolean,
+  isRunUnsettled: boolean,
 ): ConversationDisplayItem[] {
   const items: ConversationDisplayItem[] = [];
   const visibleMessages = messages.filter(
@@ -386,8 +386,7 @@ function buildConversationDisplayItems(
     }
 
     const turnMessages = visibleMessages.slice(turnStartIndex, index);
-    const isInProgress =
-      isAssistantTurnInProgress && index === visibleMessages.length;
+    const isInProgress = isRunUnsettled && index === visibleMessages.length;
     const lastReasoningIndex = turnMessages.findLastIndex(
       (turnMessage) => turnMessage.content.type === "reasoning",
     );
@@ -399,22 +398,28 @@ function buildConversationDisplayItems(
         return true;
       }
 
-      return (
-        turnMessage.content.type === "text" &&
-        lastReasoningIndex !== -1 &&
-        turnIndex < lastReasoningIndex
-      );
-    });
-    const answerMessages = turnMessages.filter((turnMessage, turnIndex) => {
-      if (
-        turnMessage.content.type !== "text" &&
-        turnMessage.content.type !== "redirectAction"
-      ) {
+      if (turnMessage.content.type !== "text") {
         return false;
       }
 
-      return lastReasoningIndex === -1 || turnIndex > lastReasoningIndex;
+      if (isInProgress) {
+        return true;
+      }
+
+      return lastReasoningIndex !== -1 && turnIndex < lastReasoningIndex;
     });
+    const answerMessages = isInProgress
+      ? []
+      : turnMessages.filter((turnMessage, turnIndex) => {
+          if (
+            turnMessage.content.type !== "text" &&
+            turnMessage.content.type !== "redirectAction"
+          ) {
+            return false;
+          }
+
+          return lastReasoningIndex === -1 || turnIndex > lastReasoningIndex;
+        });
     const joinedAnswer = joinAnswerMessages(answerMessages);
     const followsUser = visibleMessages[turnStartIndex - 1]?.role === "user";
 
@@ -442,7 +447,7 @@ function buildConversationDisplayItems(
     }
   }
 
-  if (isAssistantTurnInProgress && items.at(-1)?.type === "user") {
+  if (isRunUnsettled && items.at(-1)?.type === "user") {
     items.push({
       type: "activity",
       messages: [],
@@ -497,15 +502,13 @@ function AssistantActivityGroup({
     startTimestamp !== undefined && endTimestamp !== undefined
       ? Math.max(1, Math.round((endTimestamp - startTimestamp) / 1_000))
       : null;
-  const latestTool = messages
-    .flatMap((message) =>
-      message.content.type === "toolGroup" ? message.content.tools : [],
-    )
-    .at(-1);
+  const toolNames = messages.flatMap((message) =>
+    message.content.type === "toolGroup"
+      ? message.content.tools.map((tool) => tool.name)
+      : [],
+  );
   const label = isInProgress
-    ? latestTool
-      ? getInAppAgentToolProgressLabel(latestTool.name)
-      : "Working…"
+    ? getInAppAgentActivityProgressLabel(toolNames)
     : durationSeconds !== null
       ? `Worked for ${formatWorkedDuration(durationSeconds)}`
       : "Activity";
@@ -599,6 +602,9 @@ export type InAppAgentWindowProps = {
   executionUi: InAppAgentWindowExecutionUi;
   hasMoreConversations: boolean;
   isAssistantTurnInProgress: boolean;
+  /** True while the run itself is unfinished. Reveal animation of a finished
+   * turn must not hide the answer. Defaults to `isAssistantTurnInProgress`. */
+  isRunUnsettled?: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isConversationInteractionDisabled: boolean;
@@ -705,6 +711,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     executionUi,
     hasMoreConversations,
     isAssistantTurnInProgress,
+    isRunUnsettled = isAssistantTurnInProgress,
     isHeaderDragHandleEnabled = false,
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
@@ -749,6 +756,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isCancellingRun = executionStop?.status === "stopping";
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
+  const isScrollingToLatestRef = useRef(false);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const previousIsInputDisabledRef = useRef(isComposerDisabled);
@@ -809,7 +817,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     .filter((message): message is InAppAgentWindowMessage => message !== null);
   const displayItems = buildConversationDisplayItems(
     visibleMessages,
-    isAssistantTurnInProgress,
+    isRunUnsettled,
   );
   const hasSettledAssistantReply = displayItems.some(
     (item) => item.type === "assistant" && item.isFinalAnswer,
@@ -862,6 +870,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
   useEffect(() => {
     isAutoScrollAttachedRef.current = true;
+    isScrollingToLatestRef.current = false;
     previousScrollTopRef.current = 0;
 
     scrollViewportToBottom(viewportRef.current);
@@ -1136,6 +1145,21 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 viewport.scrollTop <
                 previousScrollTopRef.current - SCROLL_DIRECTION_TOLERANCE_PX;
 
+              if (isScrollingToLatestRef.current) {
+                if (isNearBottom) {
+                  isScrollingToLatestRef.current = false;
+                  isAutoScrollAttachedRef.current = true;
+                  setIsAtLatest(true);
+                } else if (scrolledUp) {
+                  isScrollingToLatestRef.current = false;
+                  isAutoScrollAttachedRef.current = false;
+                  setIsAtLatest(false);
+                }
+
+                previousScrollTopRef.current = viewport.scrollTop;
+                return;
+              }
+
               if (scrolledUp && !isNearBottom) {
                 isAutoScrollAttachedRef.current = false;
               } else if (isNearBottom) {
@@ -1277,6 +1301,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               className="bg-background absolute bottom-3 left-1/2 z-10 h-8 -translate-x-1/2 rounded-full px-3 shadow-sm"
               onClick={() => {
                 isAutoScrollAttachedRef.current = true;
+                isScrollingToLatestRef.current = true;
                 setIsAtLatest(true);
                 const prefersReducedMotion =
                   typeof window.matchMedia === "function" &&
@@ -1446,7 +1471,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 <Button
                   type="button"
                   size="icon-sm"
-                  className="shrink-0 rounded-full"
+                  className="w-8 shrink-0 rounded-full"
                   aria-label={isCancellingRun ? "Stopping run" : "Stop run"}
                   variant="outline"
                   disabled={isCancellingRun}
@@ -1454,17 +1479,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     executionStop?.onStop();
                   }}
                 >
-                  <Square className="h-3 w-3" />
+                  <Square className="size-3" />
                 </Button>
               ) : (
                 <Button
                   type="submit"
                   size="icon-sm"
-                  className="shrink-0 rounded-full"
+                  className="w-8 shrink-0 rounded-full"
                   aria-label="Send message"
                   disabled={isSubmitDisabled || !input.trim()}
                 >
-                  <SendHorizontal className="h-4 w-4" />
+                  <SendHorizontal className="size-3" />
                 </Button>
               )}
             </div>

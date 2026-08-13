@@ -21,6 +21,7 @@ import {
   type BackgroundExecutionRunView,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
 import { InAppAgentRunStatus } from "@langfuse/shared";
+import { isUnsettledInAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
@@ -131,6 +132,17 @@ export function ControlledInAppAgentWindow(
     isSubmitting ||
     pendingToolApprovals.length > 0 ||
     displayedPendingToolApprovals.length > 0;
+  // Settle from the durable run, not from attach/animation. A finished
+  // attached conversation can still be `isRunning` while the watch connects.
+  // A hydrated in-flight run may have no `execution.run` yet — then `isRunning`
+  // is the only signal that the turn is still open.
+  const isRunUnsettled =
+    isSubmitting ||
+    pendingToolApprovals.length > 0 ||
+    displayedPendingToolApprovals.length > 0 ||
+    (execution.run
+      ? isUnsettledInAppAgentRunStatus(execution.run.status)
+      : isRunning);
   const displayError = selectedConversationIsWriteLocked
     ? ({
         type: "generic",
@@ -177,6 +189,7 @@ export function ControlledInAppAgentWindow(
     <InAppAgentWindow
       error={displayError}
       isAssistantTurnInProgress={isAssistantTurnInProgress}
+      isRunUnsettled={isRunUnsettled}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}

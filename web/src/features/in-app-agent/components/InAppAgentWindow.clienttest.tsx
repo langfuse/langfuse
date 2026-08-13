@@ -466,6 +466,34 @@ describe("InAppAgentWindow scrolling", () => {
     expect(
       screen.queryByRole("button", { name: "Scroll to latest message" }),
     ).not.toBeInTheDocument();
+
+    // Smooth scroll fires intermediate events before the viewport is near the
+    // bottom. Those must not bring Latest back or the control flickers.
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+    expect(
+      screen.queryByRole("button", { name: "Scroll to latest message" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("InAppAgentWindow composer action", () => {
+  it("keeps send and stop on the same fixed button box", () => {
+    const { rerender } = render(windowElement());
+    const send = screen.getByRole("button", { name: "Send message" });
+    expect(send).toHaveClass("h-6", "w-8");
+
+    rerender(
+      windowElement({
+        isAssistantTurnInProgress: true,
+        executionUi: {
+          notice: null,
+          stop: { status: "available", onStop: vi.fn() },
+        },
+      }),
+    );
+    const stop = screen.getByRole("button", { name: "Stop run" });
+    expect(stop).toHaveClass("h-6", "w-8");
   });
 });
 
@@ -559,7 +587,7 @@ describe("InAppAgentWindow activity", () => {
               tools: [
                 {
                   type: "tool",
-                  name: "langfuse_getObservations",
+                  name: "langfuse_getObservation",
                   status: "succeeded",
                   args: "{}",
                 },
@@ -595,7 +623,7 @@ describe("InAppAgentWindow activity", () => {
     );
 
     const headline = screen.getByRole("button", {
-      name: "Browsing observations",
+      name: "Looking at observations",
     });
     expect(headline).toBeVisible();
     expect(headline).toHaveAttribute("aria-expanded", "false");
@@ -609,7 +637,7 @@ describe("InAppAgentWindow activity", () => {
     fireEvent.click(headline);
     expect(headline).toHaveAttribute("aria-expanded", "true");
     expect(screen.getAllByText("Thought")).toHaveLength(2);
-    expect(screen.getByLabelText("getObservations: succeeded")).toBeVisible();
+    expect(screen.getByLabelText("getObservation: succeeded")).toBeVisible();
     expect(screen.getByLabelText("listObservations: running")).toBeVisible();
     expect(screen.queryByText("Calling 1 tool")).not.toBeInTheDocument();
   });
@@ -686,14 +714,75 @@ describe("InAppAgentWindow composer", () => {
     );
 
     expect(
+      screen.queryByText("Let me confirm by inspecting a couple of payloads."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Copy message" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Good response" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toHaveAttribute("placeholder", "Let me know what I can do for you...");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Browsing observations" }),
+    );
+    expect(
       screen.getByText("Let me confirm by inspecting a couple of payloads."),
     ).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Copy message" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps a finished answer visible while the transcript is still revealing", () => {
+    render(
+      windowElement({
+        isAssistantTurnInProgress: true,
+        isRunUnsettled: false,
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "What changed?" },
+          },
+          {
+            id: "assistant-tool",
+            role: "assistant",
+            content: {
+              type: "toolGroup",
+              tools: [
+                {
+                  type: "tool",
+                  name: "langfuse_listObservations",
+                  status: "succeeded",
+                  args: "{}",
+                  result: "{}",
+                },
+              ],
+            },
+          },
+          {
+            id: "assistant-answer",
+            role: "assistant",
+            content: {
+              type: "text",
+              text: "Observation volume stayed flat.",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("Observation volume stayed flat.")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Copy message" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "Message the assistant" }),
-    ).toHaveAttribute("placeholder", "Let me know what I can do for you...");
+    ).toHaveAttribute("placeholder", "Reply...");
   });
 });
 

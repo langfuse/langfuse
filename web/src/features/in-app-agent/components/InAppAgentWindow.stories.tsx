@@ -1078,6 +1078,13 @@ const progressLogSeedMessages: InAppAgentWindowMessage[] = [
       tools: [
         {
           type: "tool",
+          name: "langfuse_getObservation",
+          status: "succeeded",
+          args: JSON.stringify({ observationId: "obs-1" }),
+          result: JSON.stringify({ name: "rerank" }),
+        },
+        {
+          type: "tool",
           name: "langfuse_listObservations",
           status: "running",
           args: JSON.stringify({ limit: 20 }),
@@ -1106,7 +1113,7 @@ export const ProgressLogOpened = meta.story({
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      canvas.getByRole("button", { name: "Browsing observations" }),
+      canvas.getByRole("button", { name: "Looking at observations" }),
     );
     await expect(canvas.getAllByText("Thought")).toHaveLength(2);
     await expect(canvas.getByLabelText("skill: succeeded")).toBeVisible();
@@ -1115,8 +1122,30 @@ export const ProgressLogOpened = meta.story({
       canvas.getByLabelText("getDashboard: succeeded"),
     ).toBeVisible();
     await expect(
+      canvas.getByLabelText("getObservation: succeeded"),
+    ).toBeVisible();
+    await expect(
       canvas.getByLabelText("listObservations: running"),
     ).toBeVisible();
+  },
+});
+
+export const ProgressLogMidTurnText = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      ...progressLogSeedMessages,
+      {
+        id: "progress-mid-turn-text",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The dashboard spike looks like reranking. Checking a few observation payloads next.",
+        },
+      },
+    ],
   },
 });
 

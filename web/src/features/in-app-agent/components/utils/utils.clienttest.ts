@@ -7,6 +7,7 @@ import {
 import {
   extractLangfuseDocsSources,
   getInAppAgentToolDisplayName,
+  getInAppAgentActivityProgressLabel,
   getInAppAgentToolProgressLabel,
   getInAppAgentToolProgressLabelResolution,
   getDrawerMessages,
@@ -91,7 +92,6 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_listPrompts: "Browsing prompts",
   langfuse_listScoreConfigs: "Browsing score configs",
   langfuse_listScores: "Browsing scores",
-  langfuse_proposeRedirect: "Propose Redirect",
   langfuse_updateAnnotationQueueItem: "Updating annotation queue item",
   langfuse_updateDashboard: "Updating dashboard",
   langfuse_updateEvaluationRule: "Updating evaluation rule",
@@ -155,6 +155,40 @@ describe("getInAppAgentToolProgressLabel", () => {
     ["customThing", "Custom Thing"],
   ])("labels %s as %s", (toolName, expected) => {
     expect(getInAppAgentToolProgressLabel(toolName)).toBe(expected);
+  });
+
+  it("keeps one headline for consecutive tools that share a noun", () => {
+    expect(
+      getInAppAgentActivityProgressLabel([
+        "langfuse_getObservation",
+        "langfuse_listObservations",
+      ]),
+    ).toBe("Looking at observations");
+    expect(
+      getInAppAgentActivityProgressLabel(["langfuse_listObservations"]),
+    ).toBe("Browsing observations");
+    expect(
+      getInAppAgentActivityProgressLabel([
+        "langfuseDocs_search",
+        "langfuse_listObservations",
+      ]),
+    ).toBe("Browsing observations");
+    expect(
+      getInAppAgentActivityProgressLabel([
+        "langfuse_getObservationFilterValues",
+        "langfuse_getObservationFilterValues",
+      ]),
+    ).toBe("Looking up observation filters");
+  });
+
+  it("keeps a readable headline for every known tool", () => {
+    const awkward = /Looking at up\b|Propose Redirect/;
+    const labels = KNOWN_IN_APP_AGENT_PROGRESS_TOOLS.flatMap((toolName) => [
+      `${toolName} → ${getInAppAgentActivityProgressLabel([toolName])}`,
+      `${toolName}×2 → ${getInAppAgentActivityProgressLabel([toolName, toolName])}`,
+    ]);
+
+    expect(labels.filter((label) => awkward.test(label))).toEqual([]);
   });
 });
 
@@ -611,7 +645,7 @@ describe("getDrawerMessages", () => {
     ]);
   });
 
-  it("collapses consecutive reasoning messages into one thought block", () => {
+  it("keeps consecutive reasoning messages as separate thought blocks", () => {
     const mappedMessages = getDrawerMessages({
       error: null,
       isRunning: true,
@@ -650,12 +684,30 @@ describe("getDrawerMessages", () => {
         role: "assistant",
         content: {
           type: "reasoning",
-          text: "Checking recent traces before querying metrics.\n\nThe p95 spike lines up with one endpoint.",
+          text: "Checking recent traces before querying metrics.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "reasoning-2",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "The p95 spike lines up with one endpoint.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "reasoning-3",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "",
           isStreaming: true,
         },
       },
     ]);
-    expect(mappedMessages).toHaveLength(2);
+    expect(mappedMessages).toHaveLength(4);
   });
 
   it("marks reasoning complete when a run stops before assistant text arrives", () => {

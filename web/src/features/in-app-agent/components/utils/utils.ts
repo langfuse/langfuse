@@ -68,6 +68,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   getObservationFilterValues: "Looking up observation filters",
   getPromptUnresolved: "Inspecting prompt",
   listDashboardWidgets: "Browsing widgets",
+  proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
   submitFeedback: "Submitting user feedback",
@@ -168,6 +169,74 @@ export function getInAppAgentToolProgressLabelResolution(toolName: string): {
 
 export function getInAppAgentToolProgressLabel(toolName: string): string {
   return getInAppAgentToolProgressLabelResolution(toolName).label;
+}
+
+function getInAppAgentToolProgressNounKey(toolName: string): string | null {
+  if (
+    isInAppAgentDocsToolName(toolName) ||
+    isInAppAgentSkillToolName(toolName)
+  ) {
+    return null;
+  }
+
+  const strippedName = getInAppAgentToolDisplayName(toolName);
+  const [firstWord, ...rest] = splitInAppAgentToolNameWords(strippedName);
+  if (!firstWord || rest.length === 0) {
+    return null;
+  }
+
+  if (!IN_APP_AGENT_TOOL_PROGRESS_VERBS[firstWord.toLowerCase()]) {
+    return null;
+  }
+
+  let noun = rest.map((word) => word.toLowerCase()).join(" ");
+  for (const [from, to] of IN_APP_AGENT_TOOL_PROGRESS_NOUNS) {
+    if (noun === from) {
+      noun = to;
+      break;
+    }
+  }
+
+  return noun.replace(/s\b/g, "");
+}
+
+export function getInAppAgentActivityProgressLabel(
+  toolNames: string[],
+): string {
+  const latestToolName = toolNames.at(-1);
+  if (!latestToolName) {
+    return "Working…";
+  }
+
+  const latestNounKey = getInAppAgentToolProgressNounKey(latestToolName);
+  if (latestNounKey && toolNames.length >= 2) {
+    let streak = 1;
+    for (let index = toolNames.length - 2; index >= 0; index--) {
+      const toolName = toolNames[index];
+      if (
+        !toolName ||
+        getInAppAgentToolProgressNounKey(toolName) !== latestNounKey
+      ) {
+        break;
+      }
+      streak++;
+    }
+
+    if (streak >= 2) {
+      const latestLabel = getInAppAgentToolProgressLabel(latestToolName);
+      if (/^(Inspecting|Browsing|Checking) /.test(latestLabel)) {
+        const noun = latestLabel.replace(
+          /^(Inspecting|Browsing|Checking) /,
+          "",
+        );
+        return noun ? `Looking at ${noun}` : latestLabel;
+      }
+
+      return latestLabel;
+    }
+  }
+
+  return getInAppAgentToolProgressLabel(latestToolName);
 }
 
 const InAppAgentToolRejectionErrorSchema = z.object({
@@ -426,28 +495,6 @@ export function getDrawerMessages({
       // content; a completed empty block has nothing to disclose, so only a
       // still-streaming one is rendered (as its "Thinking..." placeholder).
       if (!message.content.trim() && !isStreaming) {
-        return;
-      }
-
-      const previousMessage = mappedMessages[mappedMessages.length - 1];
-
-      // Hydrated history flattens the text and tool content that separated
-      // thinking phases live, leaving them adjacent; collapse them into one
-      // block, mirroring how consecutive tool calls collapse into one group.
-      if (
-        previousMessage?.role === "assistant" &&
-        previousMessage.content.type === "reasoning"
-      ) {
-        mappedMessages[mappedMessages.length - 1] = {
-          ...previousMessage,
-          content: {
-            ...previousMessage.content,
-            text: [previousMessage.content.text, message.content]
-              .filter((text) => text.trim())
-              .join("\n\n"),
-            isStreaming,
-          },
-        };
         return;
       }
 
