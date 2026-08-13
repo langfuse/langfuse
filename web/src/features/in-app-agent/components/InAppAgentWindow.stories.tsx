@@ -1083,6 +1083,9 @@ export const Error = meta.story({
 /**
  * Every activity state in the row it belongs to, sharing one fixed-width slot
  * so the column stays straight despite the dots being narrower than the icons.
+ *
+ * The trigger badge counts the same rows, so it reads 3 here, not 4: the
+ * running conversation has nothing for the user to act on yet.
  */
 export const ConversationActivity = meta.story({
   args: {
@@ -1094,8 +1097,12 @@ export const ConversationActivity = meta.story({
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
 
+    // Exact name (not the prefix match the activity-free stories use) so the
+    // badge count is asserted on the way in.
     await userEvent.click(
-      canvas.getByRole("button", { name: "Conversation history" }),
+      canvas.getByRole("button", {
+        name: "Conversation history (3 need attention)",
+      }),
     );
     // The dropdown portals out of the canvas.
     await screen.findByText("Recent conversations");
@@ -1303,7 +1310,7 @@ export const LoadingConversation = meta.story({
       canvas.getByRole("button", { name: "Start new conversation" }),
     ).toBeEnabled();
     await expect(
-      canvas.getByRole("button", { name: "Conversation history" }),
+      canvas.getByRole("button", { name: /^Conversation history/ }),
     ).toBeEnabled();
     await expect(
       canvas.getByRole("textbox", { name: "Message the assistant" }),
@@ -1383,7 +1390,7 @@ export const RateLimited = meta.story({
       canvas.getByRole("button", { name: "Start new conversation" }),
     ).toBeEnabled();
     await expect(
-      canvas.getByRole("button", { name: "Conversation history" }),
+      canvas.getByRole("button", { name: /^Conversation history/ }),
     ).toBeEnabled();
   },
 });

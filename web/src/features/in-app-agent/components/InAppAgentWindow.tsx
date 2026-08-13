@@ -437,6 +437,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const [input, setInput] = useState("");
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
+  // Same conversations the launcher badge counts, narrowed to the ones behind
+  // this trigger: the list is the only place to act on them.
+  const historyAttentionCount = [...activityByConversationId.values()].filter(
+    (entry) => entry.needsAttention,
+  ).length;
+  const historyAttentionSuffix =
+    historyAttentionCount > 0
+      ? ` (${historyAttentionCount} ${historyAttentionCount === 1 ? "needs" : "need"} attention)`
+      : "";
   const hasUserMessage = messages.some((message) => message.role === "user");
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
@@ -616,10 +625,24 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-6 shrink-0"
-                    aria-label="Conversation history"
+                    className="relative size-6 shrink-0"
+                    // Count lives on the button name, as on the launcher — a
+                    // nested badge aria-label is ignored once the parent has one.
+                    aria-label={`Conversation history${historyAttentionSuffix}`}
                   >
                     <History className="size-3" />
+                    {/* Launcher badge, scaled to the 24px trigger. Visual only —
+                        accessible name is on the button. */}
+                    {historyAttentionCount > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="bg-primary-accent text-primary-foreground absolute -top-0.5 -right-0.5 flex h-3 min-w-3 items-center justify-center rounded-full px-1 text-[9px] leading-none font-bold"
+                      >
+                        {historyAttentionCount > 99
+                          ? "99+"
+                          : historyAttentionCount}
+                      </span>
+                    )}
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
