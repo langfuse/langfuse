@@ -88,9 +88,10 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   defaultExpanded: ["environment", "name", "isRootObservation", "type"],
 
-  // Top facets by real usage — 60 days of PostHog `filters:applied` on this
-  // table: these ten cover ~94% of sidebar filter applies per project on
-  // average (LFE-15041). The rest folds behind "Show N more".
+  // Top 15 facets by real usage — 60 days of PostHog `filters:applied` on
+  // this table: they cover ~98% of sidebar filter applies per project on
+  // average, ~95% at the 10th percentile (LFE-15041). The rest folds behind
+  // "Show N more".
   commonFacets: [
     "environment",
     "type",
@@ -99,9 +100,14 @@ export const observationEventsFilterConfig: FilterConfig = {
     "name",
     "traceTags",
     "level",
+    "providedModelName",
+    "promptName",
     "metadata",
+    "traceId",
     "sessionId",
     "userId",
+    "latency",
+    "scores_avg",
   ],
 
   migrateFilterState: migrateLegacyRootObservationFilters,
