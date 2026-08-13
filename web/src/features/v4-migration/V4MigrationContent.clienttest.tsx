@@ -784,8 +784,10 @@ describe("V4MigrationDetailsContent", () => {
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
+    // The guidance stays language-agnostic: the upgrade applies to every
+    // Langfuse SDK, so the copy must not read as Python-or-JS-only.
     expect(
-      screen.getByRole("link", { name: "Python or JS SDK" }),
+      screen.getByRole("link", { name: "any Langfuse SDK" }),
     ).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/observability/sdk/overview",

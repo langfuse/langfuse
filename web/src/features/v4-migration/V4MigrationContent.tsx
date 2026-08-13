@@ -88,8 +88,9 @@ const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
 };
 const EXPERIMENT_OTEL_INGESTION_URL =
   "https://langfuse.com/integrations/native/opentelemetry/experiments";
-// The docs ship one combined SDK page; Python and JS have no standalone
-// landing pages to deep-link.
+// The docs ship one combined SDK page, which is also the right target for
+// language-agnostic guidance: the upgrade applies to every Langfuse SDK, not
+// just the two most common ones.
 const SDK_OVERVIEW_URL = "https://langfuse.com/docs/observability/sdk/overview";
 const OTEL_INTEGRATION_URL =
   "https://langfuse.com/integrations/native/opentelemetry";
@@ -560,7 +561,7 @@ export function V4MigrationCustomInstrumentationSection({
       <p className="text-muted-foreground text-sm leading-relaxed">
         Data is arriving through the ingestion API without a Langfuse SDK
         header, so this looks like custom instrumentation or a very old SDK
-        version. Please upgrade to one of our latest{" "}
+        version. Please upgrade to the latest version of{" "}
         <ExternalLink
           href={SDK_OVERVIEW_URL}
           analytics={{
@@ -568,9 +569,9 @@ export function V4MigrationCustomInstrumentationSection({
             link: "sdk_overview_docs",
           }}
         >
-          Python or JS SDK
-        </ExternalLink>{" "}
-        versions, or use the{" "}
+          any Langfuse SDK
+        </ExternalLink>
+        , or use the{" "}
         <ExternalLink
           href={OTEL_INTEGRATION_URL}
           analytics={{
