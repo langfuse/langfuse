@@ -494,6 +494,162 @@ export default function ScoresTable({
       },
     },
     {
+      accessorKey: "timestamp",
+      header: "Timestamp",
+      id: "timestamp",
+      enableHiding: true,
+      enableSorting: true,
+      size: 150,
+      cell: ({ row }) => {
+        const value: ScoresTableRow["timestamp"] = row.getValue("timestamp");
+        return value ? <LocalIsoDate date={value} /> : undefined;
+      },
+    },
+    {
+      accessorKey: "name",
+      header: "Name",
+      id: "name",
+      enableHiding: true,
+      enableSorting: true,
+      size: 150,
+    },
+    {
+      accessorKey: "value",
+      header: "Value",
+      id: "value",
+      enableHiding: true,
+      enableSorting: true,
+      size: 100,
+    },
+    {
+      accessorKey: "dataType",
+      header: "Data Type",
+      id: "dataType",
+      enableHiding: true,
+      enableSorting: true,
+      size: 100,
+    },
+    {
+      accessorKey: "source",
+      header: "Source",
+      id: "source",
+      enableHiding: true,
+      enableSorting: true,
+      size: 100,
+    },
+    {
+      accessorKey: "level",
+      header: "Level",
+      id: "level",
+      enableHiding: true,
+      // Derived client-side from the score's context ids — not a sortable
+      // backend column.
+      enableSorting: false,
+      size: 110,
+      cell: ({ row }) => {
+        // Level tag (LFE-10596): trace- vs observation- (vs session-) level
+        // scores look identical here otherwise.
+        const level: ScoresTableRow["level"] = row.getValue("level");
+        return <ScoreTag level={level} />;
+      },
+    },
+    {
+      accessorKey: "comment",
+      header: "Comment",
+      id: "comment",
+      enableHiding: true,
+      size: 400,
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          singleLine={rowHeight === "s"}
+        />
+      ),
+      cell: ({ row }) => {
+        const value = row.getValue("comment") as ScoresTableRow["comment"];
+        return (
+          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
+        );
+      },
+    },
+    {
+      accessorKey: "environment",
+      header: "Environment",
+      id: "environment",
+      size: 150,
+      enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
+      cell: ({ row }) => {
+        const value = row.getValue("environment") as string | undefined;
+        return value ? (
+          <Badge
+            variant="secondary"
+            className="max-w-fit truncate rounded-sm px-1 font-normal"
+            title={value}
+          >
+            {value}
+          </Badge>
+        ) : null;
+      },
+    },
+    {
+      accessorKey: "traceTags",
+      id: "traceTags",
+      header: "Trace Tags",
+      size: 250,
+      enableHiding: true,
+      defaultHidden: true,
+      loadingCell: <TableTextLoadingCell />,
+      cell: ({ row }) => {
+        if (isBetaEnabled && !scoreMetrics.data)
+          return <TableTextLoadingCell />;
+        const traceTags: string[] | undefined = row.getValue("traceTags");
+        return (
+          traceTags &&
+          traceTags.length > 0 && (
+            <div
+              className={cn(
+                "flex gap-x-2 gap-y-1",
+                rowHeight !== "s" && "flex-wrap",
+              )}
+            >
+              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
+            </div>
+          )
+        );
+      },
+    },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      id: "metadata",
+      size: 400,
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          singleLine={rowHeight === "s"}
+        />
+      ),
+      headerTooltip: {
+        description: "Add metadata to scores to track additional information.",
+        // TODO: docs for metadata on scores
+        href: "https://langfuse.com/docs/observability/features/metadata",
+      },
+      cell: ({ row }) => {
+        const scoreId: ScoresTableRow["id"] = row.getValue("id");
+        return (
+          <ScoresMetadataCell
+            scoreId={scoreId}
+            projectId={projectId}
+            singleLine={rowHeight === "s"}
+          />
+        );
+      },
+      enableHiding: true,
+    },
+    {
       accessorKey: "traceName",
       header: "Trace Name",
       id: "traceName",
@@ -536,24 +692,6 @@ export default function ScoresTable({
       },
     },
     {
-      accessorKey: "executionTraceId",
-      id: "executionTraceId",
-      header: "Execution Trace",
-      enableSorting: false,
-      enableHiding: true,
-      defaultHidden: true,
-      size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("executionTraceId");
-        return typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
-            value={value}
-          />
-        ) : undefined;
-      },
-    },
-    {
       accessorKey: "observationId",
       id: "observationId",
       header: "Observation",
@@ -568,6 +706,24 @@ export default function ScoresTable({
           <TableLink
             path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
             value={observationId}
+          />
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "executionTraceId",
+      id: "executionTraceId",
+      header: "Execution Trace",
+      enableSorting: false,
+      enableHiding: true,
+      defaultHidden: true,
+      size: 100,
+      cell: ({ row }) => {
+        const value = row.getValue("executionTraceId");
+        return typeof value === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
+            value={value}
           />
         ) : undefined;
       },
@@ -590,26 +746,6 @@ export default function ScoresTable({
       },
     },
     {
-      accessorKey: "environment",
-      header: "Environment",
-      id: "environment",
-      size: 150,
-      enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: ({ row }) => {
-        const value = row.getValue("environment") as string | undefined;
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-            title={value}
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
-    {
       accessorKey: "userId",
       header: "User",
       id: "userId",
@@ -619,6 +755,7 @@ export default function ScoresTable({
       },
       enableHiding: true,
       enableSorting: true,
+      defaultHidden: true,
       size: 100,
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
@@ -633,115 +770,6 @@ export default function ScoresTable({
             />
           </>
         ) : undefined;
-      },
-    },
-    {
-      accessorKey: "timestamp",
-      header: "Timestamp",
-      id: "timestamp",
-      enableHiding: true,
-      enableSorting: true,
-      size: 150,
-      cell: ({ row }) => {
-        const value: ScoresTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
-    {
-      accessorKey: "source",
-      header: "Source",
-      id: "source",
-      enableHiding: true,
-      enableSorting: true,
-      size: 100,
-    },
-    {
-      accessorKey: "name",
-      header: "Name",
-      id: "name",
-      enableHiding: true,
-      enableSorting: true,
-      size: 150,
-    },
-    {
-      accessorKey: "level",
-      header: "Level",
-      id: "level",
-      enableHiding: true,
-      // Derived client-side from the score's context ids — not a sortable
-      // backend column.
-      enableSorting: false,
-      size: 110,
-      cell: ({ row }) => {
-        // Level tag (LFE-10596): trace- vs observation- (vs session-) level
-        // scores look identical here otherwise.
-        const level: ScoresTableRow["level"] = row.getValue("level");
-        return <ScoreTag level={level} />;
-      },
-    },
-    {
-      accessorKey: "dataType",
-      header: "Data Type",
-      id: "dataType",
-      enableHiding: true,
-      enableSorting: true,
-      size: 100,
-    },
-    {
-      accessorKey: "value",
-      header: "Value",
-      id: "value",
-      enableHiding: true,
-      enableSorting: true,
-      size: 100,
-    },
-    {
-      accessorKey: "metadata",
-      header: "Metadata",
-      id: "metadata",
-      size: 400,
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      headerTooltip: {
-        description: "Add metadata to scores to track additional information.",
-        // TODO: docs for metadata on scores
-        href: "https://langfuse.com/docs/observability/features/metadata",
-      },
-      cell: ({ row }) => {
-        const scoreId: ScoresTableRow["id"] = row.getValue("id");
-        return (
-          <ScoresMetadataCell
-            scoreId={scoreId}
-            projectId={projectId}
-            singleLine={rowHeight === "s"}
-          />
-        );
-      },
-      enableHiding: true,
-    },
-    {
-      accessorKey: "comment",
-      header: "Comment",
-      id: "comment",
-      enableHiding: true,
-      size: 400,
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      cell: ({ row }) => {
-        const value = row.getValue("comment") as ScoresTableRow["comment"];
-        return (
-          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
-        );
       },
     },
     {
@@ -777,6 +805,7 @@ export default function ScoresTable({
       },
       enableHiding: true,
       enableSorting: false,
+      defaultHidden: true,
       size: 150,
       cell: ({ row }) => {
         const value = row.getValue("jobConfigurationId");
@@ -788,33 +817,6 @@ export default function ScoresTable({
             />
           </>
         ) : undefined;
-      },
-    },
-    {
-      accessorKey: "traceTags",
-      id: "traceTags",
-      header: "Trace Tags",
-      size: 250,
-      enableHiding: true,
-      defaultHidden: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        if (isBetaEnabled && !scoreMetrics.data)
-          return <TableTextLoadingCell />;
-        const traceTags: string[] | undefined = row.getValue("traceTags");
-        return (
-          traceTags &&
-          traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
-            </div>
-          )
-        );
       },
     },
   ];
