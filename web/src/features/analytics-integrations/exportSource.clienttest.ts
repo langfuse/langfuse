@@ -1,7 +1,10 @@
 import {
   AnalyticsIntegrationExportSource,
+  areEnrichedWritesActive,
+  areLegacyWritesActive,
   LEGACY_BLOB_EXPORT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
+  type BlobExportWriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
 
@@ -250,6 +253,114 @@ describe("shouldHideExportSourceSelector", () => {
     expect(options[0].unavailable).toBe(true);
     expect(shouldHideExportSourceSelector(options)).toBe(false);
   });
+});
+
+// The settings pages (blob storage, PostHog, Mixpanel) build their context
+// from the write mode the integration router reports — not from the session's
+// beta flag and not from a frontend preview env var. These cases pin what each
+// write mode must render, identically for all three pages.
+describe("write mode drives the settings-page selector", () => {
+  const WRITE_MODES: BlobExportWriteMode[] = ["legacy", "dual", "events_only"];
+
+  const ctxFor = (
+    writeMode: BlobExportWriteMode,
+    over: Partial<ExportSourceContext> = {},
+  ): ExportSourceContext => ({
+    isCloud: false,
+    enrichedAvailable: areEnrichedWritesActive(writeMode),
+    legacyWritesActive: areLegacyWritesActive(writeMode),
+    ...over,
+  });
+
+  const selectableValues = (ctx: ExportSourceContext) =>
+    getExportSourceOptions(undefined, ctx)
+      .filter((o) => !o.unavailable)
+      .map((o) => o.value);
+
+  const offered: Array<
+    [BlobExportWriteMode, AnalyticsIntegrationExportSource[]]
+  > = [
+    ["legacy", [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS]],
+    [
+      "dual",
+      [
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+        AnalyticsIntegrationExportSource.EVENTS,
+      ],
+    ],
+    ["events_only", [AnalyticsIntegrationExportSource.EVENTS]],
+  ];
+
+  it.each(offered)(
+    "write mode %s offers exactly the sources it still writes",
+    (mode, expected) => {
+      expect(selectableValues(ctxFor(mode))).toEqual(expected);
+    },
+  );
+
+  const defaults: Array<
+    [BlobExportWriteMode, AnalyticsIntegrationExportSource]
+  > = [
+    ["legacy", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS],
+    ["dual", AnalyticsIntegrationExportSource.EVENTS],
+    ["events_only", AnalyticsIntegrationExportSource.EVENTS],
+  ];
+
+  it.each(defaults)(
+    "write mode %s picks %s as the create default",
+    (mode, expected) => {
+      expect(getExportSourceFormValue(undefined, ctxFor(mode))).toBe(expected);
+    },
+  );
+
+  // A source that was legal when it was saved must never silently vanish: the
+  // user has to see why their save is blocked and what to switch to.
+  const blockedPersisted: Array<
+    [BlobExportWriteMode, AnalyticsIntegrationExportSource]
+  > = [
+    ["legacy", AnalyticsIntegrationExportSource.EVENTS],
+    ["legacy", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS],
+    ["events_only", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS],
+    [
+      "events_only",
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+    ],
+  ];
+
+  it.each(blockedPersisted)(
+    "write mode %s keeps a persisted %s visible and greyed out",
+    (mode, persisted) => {
+      const ctx = ctxFor(mode);
+      const options = getExportSourceOptions(persisted, ctx);
+      expect(options.map((o) => o.value)).toContain(persisted);
+      expect(options.find((o) => o.value === persisted)?.unavailable).toBe(
+        true,
+      );
+      // The form keeps the persisted value, so the blocked-save alert has a
+      // selected option to point at.
+      expect(getExportSourceFormValue(persisted, ctx)).toBe(persisted);
+      expect(shouldHideExportSourceSelector(options)).toBe(false);
+    },
+  );
+
+  // No per-user beta gate and no Cloud-specific enriched path remain, so a
+  // pre-cutoff Cloud project renders exactly what self-hosted renders.
+  it.each(WRITE_MODES)(
+    "pre-cutoff Cloud renders the same options as self-hosted on %s",
+    (mode) => {
+      expect(
+        getExportSourceOptions(
+          undefined,
+          ctxFor(mode, {
+            isCloud: true,
+            projectCreatedAt: PROJECT_PRE,
+            integrationCreatedAt: ROW_PRE,
+          }),
+        ),
+      ).toEqual(getExportSourceOptions(undefined, ctxFor(mode)));
+    },
+  );
 });
 
 describe("getExportSourceUnavailableMessage", () => {
