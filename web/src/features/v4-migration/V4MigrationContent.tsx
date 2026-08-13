@@ -922,7 +922,7 @@ export function V4MigrationApisSection({
                   className="text-muted-foreground text-sm whitespace-nowrap"
                   title={`Last seen at ${row.lastSeen}`}
                 >
-                  {numberFormatter(row.count, 0, 2)} calls · last seen{" "}
+                  {numberFormatter(row.count, 0)} calls · last seen{" "}
                   {formatCompactRelativeTime(new Date(row.lastSeen))}
                 </span>
               </div>
