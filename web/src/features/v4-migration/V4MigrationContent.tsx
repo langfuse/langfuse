@@ -71,7 +71,7 @@ import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evalua
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
 // Consumed by the status page deadline copy.
-export const V4_MIGRATION_DEADLINE = "Oct 9";
+export const V4_MIGRATION_DEADLINE = "November 15, 2026";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -1004,7 +1004,7 @@ export function V4MigrationHeaderContent({
               href={V4_TIMELINE_URL}
               analytics={{ section: "header", link: "v4_timeline" }}
             >
-              November 15, 2026
+              {V4_MIGRATION_DEADLINE}
             </ExternalLink>{" "}
             some features may stop working without a v4 upgrade.
           </p>

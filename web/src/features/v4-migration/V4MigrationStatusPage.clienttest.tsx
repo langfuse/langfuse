@@ -68,7 +68,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 }));
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
-  V4_MIGRATION_DEADLINE: "Oct 9",
+  V4_MIGRATION_DEADLINE: "November 15, 2026",
   useCopyMigrationPrompt: () => vi.fn(),
 }));
 
@@ -132,6 +132,14 @@ describe("V4MigrationStatusPage", () => {
 
     expect(screen.queryByText("Migrated")).not.toBeInTheDocument();
     expect(screen.getByText("of 1 projects need action")).toBeInTheDocument();
+  });
+
+  it("uses the November 15, 2026 deadline throughout the FAQ", () => {
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("on November 15, 2026")).toBeInTheDocument();
+    expect(screen.getByText("On November 15, 2026")).toBeInTheDocument();
+    expect(screen.queryByText(/Oct 9/)).not.toBeInTheDocument();
   });
 
   it("only shows the status pill when action is required", () => {
