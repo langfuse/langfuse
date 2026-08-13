@@ -15,6 +15,10 @@ vi.mock("./useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiEnabled: () => flagState.enabled,
 }));
 
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProject: () => ({ project: null, organization: null }),
+}));
+
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => captureMock,
 }));
@@ -60,6 +64,7 @@ describe("V4MigrationPanelProvider", () => {
     expect(result.current.targetProject).toEqual({
       id: "project-id",
       name: "Project",
+      readiness: "action-needed",
     });
     expect(captureMock).toHaveBeenCalledExactlyOnceWith(
       "v4_migration:panel_opened",

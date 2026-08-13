@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
       | "legacy"
       | "otel_realtime"
       | "otel_header_required"
-      | "no_data",
+      | "no_data"
+      | "checking",
     sdkUsageSeries: [],
     upgradeRequiredCount: 0,
     delayedOtelIngestionCount: 0,
@@ -67,7 +68,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 }));
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
-  V4_MIGRATION_DEADLINE: "Oct 9",
+  V4_MIGRATION_DEADLINE: "November 16, 2026",
   useCopyMigrationPrompt: () => vi.fn(),
 }));
 
@@ -90,6 +91,7 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
           experiments: { status: "loaded", result: "not_required" },
           apis: { status: "loaded", count: 0 },
           exports: { status: "loaded", count: 0 },
+          forceV3Experience: false,
         },
       ],
     ]),
@@ -129,8 +131,43 @@ describe("V4MigrationStatusPage", () => {
   it("shows migration readiness to project members", () => {
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Migrated")).toBeInTheDocument();
+    expect(screen.queryByText("Migrated")).not.toBeInTheDocument();
     expect(screen.getByText("of 1 projects need action")).toBeInTheDocument();
+  });
+
+  it("uses the November 16, 2026 deadline throughout the FAQ", () => {
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("on November 16, 2026")).toBeInTheDocument();
+    expect(screen.getByText("On November 16, 2026")).toBeInTheDocument();
+    expect(screen.queryByText(/Oct 9/)).not.toBeInTheDocument();
+  });
+
+  it("only shows the status pill when action is required", () => {
+    const { unmount } = render(<V4MigrationStatusPage />);
+    expect(screen.queryByText("Action needed")).not.toBeInTheDocument();
+    unmount();
+
+    mocks.sdk = {
+      status: "checking",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+    const checking = render(<V4MigrationStatusPage />);
+    expect(
+      screen.queryByText("Checking", { exact: true }),
+    ).not.toBeInTheDocument();
+    checking.unmount();
+
+    mocks.sdk = {
+      status: "legacy",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 1,
+      delayedOtelIngestionCount: 0,
+    };
+    render(<V4MigrationStatusPage />);
+    expect(screen.getByText("Action needed")).toBeInTheDocument();
   });
 
   it("links projects to traces and opens the migration panel", () => {
@@ -145,7 +182,7 @@ describe("V4MigrationStatusPage", () => {
     fireEvent.click(projectLink);
 
     expect(mocks.openForProject).toHaveBeenCalledWith(
-      { id: "project-1", name: "Test project" },
+      { id: "project-1", name: "Test project", readiness: "ready" },
       "status_page_row",
     );
     expect(mocks.capture).toHaveBeenCalledWith(
@@ -164,7 +201,7 @@ describe("V4MigrationStatusPage", () => {
     fireEvent.click(projectRow!);
 
     expect(mocks.openForProject).toHaveBeenCalledWith(
-      { id: "project-1", name: "Test project" },
+      { id: "project-1", name: "Test project", readiness: "ready" },
       "status_page_row",
     );
     expect(mocks.routerPush).toHaveBeenCalledWith("/project/project-1/traces");
@@ -207,7 +244,7 @@ describe("V4MigrationStatusPage", () => {
 
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Migrated")).toBeInTheDocument();
+    expect(screen.queryByText("Migrated")).not.toBeInTheDocument();
     expect(screen.getByText("OTel real-time")).toBeInTheDocument();
     expect(screen.queryByText("Latest")).not.toBeInTheDocument();
   });
@@ -222,7 +259,7 @@ describe("V4MigrationStatusPage", () => {
 
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Migrated")).toBeInTheDocument();
+    expect(screen.queryByText("Migrated")).not.toBeInTheDocument();
     expect(screen.getByText("No data detected")).toBeInTheDocument();
   });
 });
