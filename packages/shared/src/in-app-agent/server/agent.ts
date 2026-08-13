@@ -22,6 +22,10 @@ import type {
   InAppAgentTracingConfig,
 } from "./instrumentation";
 import { createInAppAgentInstrumentation } from "./instrumentation";
+import {
+  parseMcpRateLimitError,
+  withMcpRateLimitWait,
+} from "./mcpRateLimitWait";
 import { getToolFailureMessage } from "./toolErrors";
 import {
   createSandboxTools,
@@ -29,6 +33,7 @@ import {
   filterInAppAgentAvailableLangfuseMcpTools,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
+  hasCallableExecute,
   type CompletedInAppAgentMcpToolCall,
   type InAppAgentToolPolicy,
   withOptionalSilentMcpOutput,
@@ -785,7 +790,31 @@ async function createMastraAdapter(params: {
   });
 
   try {
-    const { toolsets, errors } = await mcpClient.listToolsetsWithErrors();
+    // Discovery costs one `public-api` rate limit point like any other MCP
+    // request, so a busy org can be rate limited before the run has a chance to
+    // call a single tool.
+    const { toolsets, errors } = await withMcpRateLimitWait({
+      signal: params.signal,
+      logContext: {
+        operation: "listToolsets",
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      },
+      fn: async () => {
+        const result = await mcpClient.listToolsetsWithErrors();
+
+        if (
+          result.errors.langfuse &&
+          parseMcpRateLimitError(result.errors.langfuse)
+        ) {
+          throw new Error(
+            `Failed to initialize Langfuse MCP: ${result.errors.langfuse}`,
+          );
+        }
+
+        return result;
+      },
+    });
 
     if (errors.langfuse) {
       throw new Error(`Failed to initialize Langfuse MCP: ${errors.langfuse}`);
@@ -806,13 +835,18 @@ async function createMastraAdapter(params: {
     const tools = withInAppAgentToolApproval(
       {
         ...withOptionalSilentMcpOutput({
-          tools: prefixToolsetTools(
-            "langfuse",
-            filterInAppAgentAvailableLangfuseMcpTools({
-              tools: toolsets.langfuse,
-              policy: params.options.langfuseMcp.toolPolicy,
-            }),
-          ),
+          tools: withLangfuseMcpRateLimitWait({
+            tools: prefixToolsetTools(
+              "langfuse",
+              filterInAppAgentAvailableLangfuseMcpTools({
+                tools: toolsets.langfuse,
+                policy: params.options.langfuseMcp.toolPolicy,
+              }),
+            ),
+            signal: params.signal,
+            runId: params.input.runId,
+            threadId: params.input.threadId,
+          }),
           sandbox: params.options.sandbox,
           onToolCallCompleted: params.options.onMcpToolCallCompleted,
         }),
@@ -853,6 +887,7 @@ async function createMastraAdapter(params: {
       ),
       skills: LANGFUSE_IN_APP_AGENT_SKILLS,
       tools,
+      maxRetries: 2,
       defaultOptions: {
         abortSignal: params.signal,
         maxSteps: MAX_AGENT_STEPS,
@@ -940,6 +975,44 @@ function prefixToolsetTools<TTool>(
       `${serverName}_${toolName}`,
       tool,
     ]),
+  );
+}
+
+function withLangfuseMcpRateLimitWait<TTool>(params: {
+  tools: Record<string, TTool>;
+  signal: AbortSignal;
+  runId: string;
+  threadId: string;
+}): Record<string, TTool> {
+  return Object.fromEntries(
+    Object.entries(params.tools).map(([toolName, tool]) => {
+      if (!hasCallableExecute(tool)) {
+        return [toolName, tool];
+      }
+
+      const execute = tool.execute.bind(tool) as (
+        inputData: unknown,
+        context: unknown,
+      ) => Promise<unknown>;
+
+      return [
+        toolName,
+        {
+          ...tool,
+          execute: (inputData: unknown, context: unknown) =>
+            withMcpRateLimitWait({
+              signal: params.signal,
+              logContext: {
+                operation: "tools/call",
+                toolName,
+                runId: params.runId,
+                threadId: params.threadId,
+              },
+              fn: () => execute(inputData, context),
+            }),
+        } as TTool,
+      ];
+    }),
   );
 }
 
