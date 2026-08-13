@@ -34,6 +34,12 @@ service:
           authorUserId:
             type: optional<string>
             docs: Filter comments by author user id.
+          fromTimestamp:
+            type: optional<nullable<datetime>>
+            docs: Optional ISO 8601 timestamp (inclusive lower bound). Returns comments whose `createdAt` is >= this value.
+          toTimestamp:
+            type: optional<nullable<datetime>>
+            docs: Optional ISO 8601 timestamp (exclusive upper bound). Returns comments whose `createdAt` is < this value.
       response: GetCommentsResponse
     get-by-id:
       docs: Get a comment by id
