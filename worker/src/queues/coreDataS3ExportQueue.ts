@@ -74,6 +74,18 @@ export const mapJobConfigurationToCoreDataRow = ({
   evalTemplateName: evalTemplate?.name ?? null,
 });
 
+type EvaluationRuleCoreDataInput = {
+  sampling: { toNumber: () => number };
+} & Record<string, unknown>;
+
+export const mapEvaluationRuleToCoreDataRow = ({
+  sampling,
+  ...evaluationRule
+}: EvaluationRuleCoreDataInput) => ({
+  ...evaluationRule,
+  sampling: sampling.toNumber(),
+});
+
 type TablePageArgs<TCursor> = {
   lastRow: TCursor | null;
   take: number;
@@ -172,7 +184,7 @@ export const uploadTableCoreDataJsonl = async <TRow>({
 
 // One entry per exported table. The tableName doubles as the S3 object base
 // name — keep names stable, downstream DWH consumers depend on them.
-const coreDataTableExports: Array<
+export const coreDataTableExports: Array<
   (args: { s3Client: StorageService; uploadPrefix: string }) => Promise<void>
 > = [
   (args) =>
@@ -479,6 +491,103 @@ const coreDataTableExports: Array<
             id: true,
             name: true,
             projectId: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "evaluators",
+      // Customer-authored descriptions and block messages are free text and
+      // intentionally excluded from the core-data analytics export.
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.evaluator.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            name: true,
+            type: true,
+            createdByUserId: true,
+            blockedAt: true,
+            blockReason: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "evaluatorVersions",
+      // Evaluator definitions (prompt, code, model params, and output
+      // definitions) may contain customer data. Export metadata and mapping
+      // shape only, matching the legacy job-configuration export.
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.evaluatorVersion.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            evaluatorId: true,
+            version: true,
+            createdByUserId: true,
+            partner: true,
+            model: true,
+            provider: true,
+            vars: true,
+            variableMapping: true,
+            sourceCodeLanguage: true,
+            createdAt: true,
+          },
+        }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "evaluationRules",
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.evaluationRule.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            createdByUserId: true,
+            name: true,
+            status: true,
+            targetObject: true,
+            filter: true,
+            sampling: true,
+            delay: true,
+            timeScope: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      mapRow: mapEvaluationRuleToCoreDataRow,
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "evaluationRuleEvaluatorAssignments",
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.evaluationRuleEvaluatorAssignment.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            evaluationRuleId: true,
+            evaluatorId: true,
+            variableMapping: true,
             createdAt: true,
             updatedAt: true,
           },

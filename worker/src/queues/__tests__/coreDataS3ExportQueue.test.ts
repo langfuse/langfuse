@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { Readable } from "node:stream";
 import { type StorageService } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import {
+  coreDataTableExports,
+  mapEvaluationRuleToCoreDataRow,
   mapJobConfigurationToCoreDataRow,
   mapUserToCoreDataRow,
   uploadTableCoreDataJsonl,
@@ -85,6 +88,76 @@ describe("mapJobConfigurationToCoreDataRow", () => {
       evalTemplateName: null,
       sampling: 1,
     });
+  });
+});
+
+describe("mapEvaluationRuleToCoreDataRow", () => {
+  it("casts sampling to a number", () => {
+    const row = mapEvaluationRuleToCoreDataRow({
+      id: "rule-1",
+      projectId: "project-1",
+      sampling: { toNumber: () => 0.25 },
+    });
+
+    expect(row).toStrictEqual({
+      id: "rule-1",
+      projectId: "project-1",
+      sampling: 0.25,
+    });
+    expect(JSON.stringify(row)).toContain('"sampling":0.25');
+  });
+});
+
+describe("coreDataTableExports", () => {
+  it("includes the evaluator v2 tables", async () => {
+    const delegates = [
+      prisma.project,
+      prisma.user,
+      prisma.organization,
+      prisma.organizationMembership,
+      prisma.projectMembership,
+      prisma.billingMeterBackup,
+      prisma.survey,
+      prisma.blobStorageIntegration,
+      prisma.posthogIntegration,
+      prisma.mixpanelIntegration,
+      prisma.ssoConfig,
+      prisma.verifiedDomain,
+      prisma.prompt,
+      prisma.evaluator,
+      prisma.evaluatorVersion,
+      prisma.evaluationRule,
+      prisma.evaluationRuleEvaluatorAssignment,
+      prisma.jobConfiguration,
+    ];
+    for (const delegate of delegates) {
+      vi.spyOn(delegate, "findMany").mockResolvedValue([]);
+    }
+
+    const uploadedFiles: string[] = [];
+    const s3Client = {
+      uploadFileBuffered: vi.fn(
+        async ({ fileName, data }: { fileName: string; data: Readable }) => {
+          uploadedFiles.push(fileName);
+          await readStream(data);
+        },
+      ),
+    } as unknown as StorageService;
+
+    await Promise.all(
+      coreDataTableExports.map((exportTable) =>
+        exportTable({ s3Client, uploadPrefix: "core/" }),
+      ),
+    );
+
+    expect(uploadedFiles).toEqual(
+      expect.arrayContaining([
+        "core/evaluators.jsonl",
+        "core/evaluatorVersions.jsonl",
+        "core/evaluationRules.jsonl",
+        "core/evaluationRuleEvaluatorAssignments.jsonl",
+      ]),
+    );
   });
 });
 
