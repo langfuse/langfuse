@@ -10,6 +10,8 @@ import {
   getEventsForAnalyticsIntegrations,
   getCurrentSpan,
   validateWebhookURL,
+  whitelistFromEnv,
+  fetchWithSecureRedirects,
 } from "@langfuse/shared/src/server";
 import {
   transformTraceForPostHog,
@@ -77,7 +79,7 @@ type PostHogClientOptions = NonNullable<
 // mode uses /i/v1/analytics/events; feature-flag requests are excluded.
 export const countingFetch =
   (volume: { bytes: number }): PostHogClientOptions["fetch"] =>
-  (url, options) => {
+  async (url, options) => {
     // Extend the existing V0 counter to cover the additional capture mode
     // supported by newer posthog-node releases.
     if (url.endsWith("/batch/") || url.endsWith("/i/v1/analytics/events")) {
@@ -95,7 +97,23 @@ export const countingFetch =
         );
       }
     }
-    return globalThis.fetch(url, options as RequestInit);
+    // Re-resolve and re-validate the destination IP at socket connect time so a
+    // host that validated as public during the pre-check but rebinds to a
+    // private/loopback address at connect cannot bypass the SSRF check
+    // (TOCTOU). Redirect targets are re-validated with the same URL validator.
+    const { response } = await fetchWithSecureRedirects(
+      url,
+      options as RequestInit,
+      {
+        maxRedirects: 3,
+        redirectValidation: {
+          validateUrl: validateWebhookURL,
+          whitelist: whitelistFromEnv(),
+          logContext: "PostHog integration",
+        },
+      },
+    );
+    return response;
   };
 
 const processPostHogStream = async <T>(
