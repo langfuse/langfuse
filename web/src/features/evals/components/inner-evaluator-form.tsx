@@ -94,6 +94,7 @@ import {
   isExperimentTarget,
   isLegacyEvalTarget,
   isTraceTarget,
+  shouldShowLegacyTracePreview,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   useUserFacingTarget,
@@ -1252,7 +1253,12 @@ export const InnerEvaluatorForm = (props: {
                 {/* Preview based on target type */}
                 {previewTableVisible && (
                   <>
-                    {isTraceTarget(form.watch("target")) && (
+                    {/* The traces preview reads the legacy traces table, which
+                        is not the v4 user's experience — never show it there. */}
+                    {shouldShowLegacyTracePreview(
+                      form.watch("target"),
+                      isBetaEnabled,
+                    ) && (
                       <TracesPreview
                         projectId={props.projectId}
                         filterState={watchedFilter}
