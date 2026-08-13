@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type ReactNode } from "react";
 import {
   Body,
   Button,
@@ -14,22 +14,41 @@ import {
   Text,
 } from "@react-email/components";
 
-type BlobStorageExportFailedEmailTemplateProps = {
+/**
+ * IntegrationExportFailedEmailCopy is the per-integration wording for the
+ * shared export-failure email. The three label casings are carried explicitly
+ * rather than derived from one another: no case transform maps "Blob storage"
+ * and "PostHog" to their correct heading and mid-sentence forms.
+ */
+export type IntegrationExportFailedEmailCopy = {
+  /** Sentence-initial, for the subject and preview: "Blob storage export failed for …". */
+  subjectLabel: string;
+  /** Title Case, for the email heading: "Blob Storage Export Disabled". */
+  headingLabel: string;
+  /** Mid-sentence, for body prose and log lines: "The scheduled blob storage export …". */
+  inlineLabel: string;
+  /** Shown when the export was turned off; the remediation is integration specific. */
+  disabledBody: (projectName: string) => ReactNode;
+};
+
+type IntegrationExportFailedEmailTemplateProps = {
+  copy: IntegrationExportFailedEmailCopy;
   projectName: string;
   settingsUrl: string;
-  // When true, the export was turned off after repeated failures and the
-  // customer must fix their config and re-enable it — not a transient failure.
+  // When true, the export was turned off and the customer must fix their
+  // config and re-enable it — not a transient failure.
   disabled?: boolean;
 };
 
-export const BlobStorageExportFailedEmailTemplate = ({
+export const IntegrationExportFailedEmailTemplate = ({
+  copy,
   projectName,
   settingsUrl,
   disabled = false,
-}: BlobStorageExportFailedEmailTemplateProps) => {
+}: IntegrationExportFailedEmailTemplateProps) => {
   const preview = disabled
-    ? `Blob storage export disabled for project "${projectName}"`
-    : `Blob storage export failed for project "${projectName}"`;
+    ? `${copy.subjectLabel} export disabled for project "${projectName}"`
+    : `${copy.subjectLabel} export failed for project "${projectName}"`;
   return (
     <Html>
       <Head />
@@ -50,22 +69,15 @@ export const BlobStorageExportFailedEmailTemplate = ({
             <Section>
               <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
                 {disabled
-                  ? "Blob Storage Export Disabled"
-                  : "Blob Storage Export Failed"}
+                  ? `${copy.headingLabel} Export Disabled`
+                  : `${copy.headingLabel} Export Failed`}
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
                 {disabled ? (
-                  <>
-                    The blob storage export for project &quot;{projectName}
-                    &quot; has been disabled after repeated failures. This
-                    usually means the destination configuration or credentials
-                    are no longer valid. Once you have updated them, simply
-                    re-enable the export in the integration settings and it will
-                    pick up right where it left off.
-                  </>
+                  copy.disabledBody(projectName)
                 ) : (
                   <>
-                    The scheduled blob storage export for project &quot;
+                    The scheduled {copy.inlineLabel} export for project &quot;
                     {projectName}&quot; has failed after multiple attempts. It
                     will be retried automatically at the next scheduled export.
                     If the issue persists, review the integration settings to
@@ -89,7 +101,7 @@ export const BlobStorageExportFailedEmailTemplate = ({
             <Section>
               <Text className="text-[#666666] text-[12px] leading-[24px]">
                 This notification was sent to project admins regarding a{" "}
-                {disabled ? "disabled" : "failed"} blob storage export for
+                {disabled ? "disabled" : "failed"} {copy.inlineLabel} export for
                 project &quot;{projectName}&quot;.
               </Text>
             </Section>
