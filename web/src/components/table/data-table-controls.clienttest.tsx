@@ -947,6 +947,25 @@ describe("DataTableControls facet fold (LFE-15041)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("expand-all expands only the facets on screen while folded", () => {
+    const onExpandedChange = vi.fn();
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={{
+            ...queryFilter(CATALOG, ["environment", "name"]),
+            onExpandedChange,
+          }}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
+    // Folded tail facets must not expand: that would fire their option
+    // loads with no visible effect.
+    expect(onExpandedChange).toHaveBeenCalledWith(["environment", "name"]);
+  });
+
   it("hides the fold control when every tail facet is promoted (nothing left to fold)", () => {
     render(
       <TooltipProvider>
