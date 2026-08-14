@@ -5,7 +5,10 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
-import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
+import {
+  getHasV4Traffic,
+  getProjectMigrationReadiness,
+} from "@/src/features/v4-migration/migrationData";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import { api } from "@/src/utils/api";
 
@@ -42,9 +45,7 @@ export function V4MigrationNavItem() {
   const projectId = project?.id;
   const organizationId = organization?.id;
   const sdkStatus = migrationData.sdk.status;
-  const hasV4Traffic = migrationData.sdk.sdkUsageSeries.some(
-    (series) => series.v4MigrationStatus === "compatible",
-  );
+  const hasV4Traffic = getHasV4Traffic(migrationData);
   const checksSettled =
     sdkStatus !== "checking" &&
     migrationData.experiments.status !== "loading" &&
@@ -67,11 +68,11 @@ export function V4MigrationNavItem() {
       organizationId: organizationId ?? null,
     });
     // Report the settled state so the server records set-once migration
-    // outcomes ("unavailable" means a check errored — nothing to record).
+    // outcomes ("unavailable" means a check errored — nothing to record;
+    // partner-managed projects never reach this effect because forced-v3
+    // disables v4UpgradeUiEnabled).
     if (
-      (readiness === "ready" ||
-        readiness === "action-needed" ||
-        readiness === "partner-managed") &&
+      (readiness === "ready" || readiness === "action-needed") &&
       sdkStatus !== "error"
     ) {
       recordProjectState({ projectId, readiness, sdkStatus, hasV4Traffic });

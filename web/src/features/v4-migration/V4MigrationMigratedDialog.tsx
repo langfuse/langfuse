@@ -12,7 +12,10 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
-import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
+import {
+  getHasV4Traffic,
+  getProjectMigrationReadiness,
+} from "@/src/features/v4-migration/migrationData";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 const DISMISS_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -61,9 +64,7 @@ export function V4MigrationMigratedDialog() {
   const [, setDismissCount] = useState(0);
 
   const readiness = getProjectMigrationReadiness(migrationData);
-  const hasV4Traffic = migrationData.sdk.sdkUsageSeries.some(
-    (series) => series.v4MigrationStatus === "compatible",
-  );
+  const hasV4Traffic = getHasV4Traffic(migrationData);
   const projectId = project?.id;
   // Deliberately independent of the user's current view: the dialog stays
   // until acknowledged, also for users whose UI it already switched.

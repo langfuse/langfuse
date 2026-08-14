@@ -96,6 +96,19 @@ export type ProjectMigrationReadiness =
   | "action-needed"
   | "partner-managed";
 
+// "Has v4 traffic" = at least one series that is already on the new engine:
+// a compatible (current-major) SDK series, or real-time OTel ingestion.
+// Delayed OTel and custom instrumentation stay excluded — they are still
+// action items. Shared by the welcome dialog and the state reporting so the
+// two surfaces cannot disagree.
+export const getHasV4Traffic = (status: ProjectMigrationStatus): boolean =>
+  status.sdk.sdkUsageSeries.some(
+    (series) =>
+      series.v4MigrationStatus === "compatible" ||
+      (series.remediationType === "update_otel_instrumentation" &&
+        series.actionLevel === "none"),
+  );
+
 export const getProjectMigrationReadiness = (
   status: ProjectMigrationStatus,
 ): ProjectMigrationReadiness => {

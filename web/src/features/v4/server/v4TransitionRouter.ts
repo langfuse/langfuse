@@ -994,7 +994,7 @@ export const v4TransitionRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        readiness: z.enum(["ready", "action-needed", "partner-managed"]),
+        readiness: z.enum(["ready", "action-needed"]),
         sdkStatus: z.enum([
           "no_data",
           "unknown",

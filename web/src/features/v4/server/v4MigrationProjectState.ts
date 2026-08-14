@@ -16,10 +16,11 @@ const MIGRATED_EVENT = "v4_migration:project_migrated";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-// The client only reports settled, non-error states; "checking" and "error"
-// snapshots carry no reliable information and never reach this module.
+// The client only reports settled, non-error states; "checking"/"error"
+// snapshots carry no reliable information and "partner-managed" projects
+// never report (forced-v3 disables the reporting surface entirely).
 export type V4MigrationReportedState = {
-  readiness: "ready" | "action-needed" | "partner-managed";
+  readiness: "ready" | "action-needed";
   sdkStatus:
     | "no_data"
     | "unknown"
@@ -74,10 +75,15 @@ export const decideV4MigrationTransitions = (
     previous?.firstActionNeededAt ??
     (reported.readiness === "action-needed" ? now : null);
 
+  // The durable action-needed baseline is firstActionNeededAt, not the
+  // immediately-previous readiness: an idle interlude (action-needed →
+  // ready-via-no-data → traffic returns) must not eat the migrated event.
+  // Requiring v4 traffic keeps projects that merely went idle from counting.
   const migratedNow =
     !previous?.migratedAt &&
-    previous?.readiness === "action-needed" &&
-    reported.readiness === "ready";
+    Boolean(previous?.firstActionNeededAt) &&
+    reported.readiness === "ready" &&
+    reported.hasV4Traffic;
 
   // "Started" = v4 traffic exists while the migration is (or just was) in
   // flight. Always-ready projects have v4 traffic trivially and never fire.

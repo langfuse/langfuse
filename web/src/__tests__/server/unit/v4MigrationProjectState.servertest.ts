@@ -150,6 +150,38 @@ describe("decideV4MigrationTransitions", () => {
     expect(recovery.row.migratedAt).toEqual(EARLIER);
   });
 
+  it("does not count a project that merely went idle as migrated", () => {
+    const decision = decideV4MigrationTransitions(
+      stored(),
+      reported({
+        readiness: "ready",
+        sdkStatus: "no_data",
+        hasV4Traffic: false,
+      }),
+      NOW,
+      REPORTER,
+    );
+
+    expect(decision.events).toEqual([]);
+    expect(decision.row.migratedAt).toBeNull();
+    expect(decision.row.firstActionNeededAt).toEqual(EARLIER);
+  });
+
+  it("emits migrated after an idle interlude once v4 traffic returns", () => {
+    const decision = decideV4MigrationTransitions(
+      stored({ readiness: "ready", sdkStatus: "no_data" }),
+      reported({ readiness: "ready", sdkStatus: "latest", hasV4Traffic: true }),
+      NOW,
+      REPORTER,
+    );
+
+    expect(decision.events).toEqual([
+      "v4_migration:project_migration_started",
+      "v4_migration:project_migrated",
+    ]);
+    expect(decision.row.migratedAt).toEqual(NOW);
+  });
+
   it("never counts an always-ready project as a migration", () => {
     const decision = decideV4MigrationTransitions(
       stored({
