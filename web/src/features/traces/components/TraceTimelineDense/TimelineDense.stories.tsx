@@ -152,6 +152,61 @@ export const NeitherAxisScrolls = meta.story({
   },
 });
 
+export const ScrollPansPinchZooms = meta.story({
+  name: "(Test) Scroll Pans, Pinch Zooms",
+  args: {
+    roots: manySpans(150),
+    box: PHONE,
+    showNames: false,
+    barColor: "neutral",
+    compress: false,
+    showReadout: true,
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rowHeight = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="dense-rowheight"]',
+      )?.textContent ?? "";
+    const rowWindow = () =>
+      canvasElement.querySelector<HTMLElement>('[data-testid="dense-rows"]')
+        ?.textContent ?? "";
+
+    const rect = surface.getBoundingClientRect();
+    const wheel = (init: WheelEventInit) =>
+      surface.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          ...init,
+        }),
+      );
+
+    // Zoom in a little first, so there is somewhere to pan to AND headroom
+    // left below the max row height for the last assertion.
+    wheel({ deltaY: -40, ctrlKey: true });
+    await waitFor(() => expect(rowHeight()).not.toContain("4.0px"));
+    const heightBefore = rowHeight();
+    const windowBefore = rowWindow();
+
+    // A macOS two-finger scroll is a PLAIN wheel. It must pan, never zoom —
+    // this is the whole bug: treating it as zoom made scrolling around resize
+    // the rows.
+    wheel({ deltaY: 30 });
+    await waitFor(() => expect(rowWindow()).not.toBe(windowBefore));
+    await expect(rowHeight()).toBe(heightBefore);
+
+    // A pinch carries ctrlKey, and that zooms.
+    wheel({ deltaY: -40, ctrlKey: true });
+    await waitFor(() => expect(rowHeight()).not.toBe(heightBefore));
+  },
+});
+
 export const DoubleClickFocusesBothAxes = meta.story({
   name: "(Test) Double Click Focuses Both Axes",
   args: {

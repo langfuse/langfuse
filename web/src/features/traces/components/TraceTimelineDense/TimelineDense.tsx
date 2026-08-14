@@ -11,10 +11,12 @@
  *
  * Then it is driven **like a map**, because that is what exploring a dense
  * surface wants:
- *  - Wheel and trackpad pinch zoom BOTH axes about the cursor — the time window
- *    narrows and the rows grow together.
- *  - Drag pans both axes. There are no scrollbars by design: a map has none, and
- *    the viewport clamps to the content so there is nowhere to get lost.
+ *  - Two-finger scroll pans both axes; pinch (and a discrete mouse notch) zooms
+ *    BOTH axes about the cursor, so the time window narrows and the rows grow
+ *    together. Zoom is exponential in a zoom level and deltas accumulate per
+ *    frame, as in mapping libraries — see the rate constants below.
+ *  - Drag pans both axes too. There are no scrollbars by design: a map has none,
+ *    and the viewport clamps to the content so there is nowhere to get lost.
  *  - Double-click an element focuses it — the time window onto its own extent,
  *    the rows at a height a human reads, the element centred.
  *  - What a row shows follows from how tall it has become: the type square grows
@@ -50,6 +52,7 @@ import {
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
+  viewportsEqual,
   clampViewport,
   fitViewport,
   focusViewport,
@@ -85,7 +88,21 @@ const TOOLBAR_HEIGHT = 22;
 const AXIS_HEIGHT = 16;
 const READOUT_HEIGHT = 18;
 const FRAME_BORDER = 1;
-const ZOOM_STEP = 1.3;
+/**
+ * Zoom is exponential in a zoom LEVEL — one level doubles the scale — and input
+ * deltas accumulate into level deltas, which is how every mapping library does
+ * it. The rate has to depend on the input device, and mapping libraries ship two
+ * constants for exactly this reason: macOS sends pinch deltas of only a few
+ * units while a mouse notch is ~100, so one divisor cannot serve both. A single
+ * linear factor per event with a /100 divisor moved ~1% per pinch event, which
+ * is why it felt like a lot of touching to get anywhere.
+ */
+const PINCH_ZOOM_RATE = 1 / 40;
+const WHEEL_ZOOM_RATE = 1 / 160;
+/** A deltaMode-0 event bigger than this is a mouse notch, not a trackpad. */
+const WHEEL_DELTA_THRESHOLD = 40;
+/** Step for the toolbar buttons and the keyboard, in zoom levels. */
+const BUTTON_ZOOM_LEVELS = 0.6;
 const DRAG_THRESHOLD_PX = 3;
 const MAX_BAR_HEIGHT = 18;
 
@@ -211,6 +228,54 @@ export function TimelineDense({
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const gesture = useRef({ down: false, dragging: false, x: 0, y: 0 });
 
+  // The gesture path reads the viewport from a ref, not from render scope: a
+  // trackpad fires many events per frame and each must build on the last, not on
+  // whatever React had rendered when the burst started.
+  const viewportRef = useRef(current);
+  viewportRef.current = current;
+
+  // Deltas accumulate and apply once per animation frame — the other half of
+  // what makes map zoom feel immediate instead of laggy under a burst.
+  const pending = useRef({
+    levels: 0,
+    dxPx: 0,
+    dyPx: 0,
+    xRatio: 0.5,
+    yRatio: 0.5,
+    frame: 0,
+  });
+
+  const flushGesture = useCallback(() => {
+    const queued = pending.current;
+    queued.frame = 0;
+    let next = viewportRef.current;
+    if (queued.levels !== 0) {
+      next = zoomViewport(next, limits, {
+        factor: 2 ** queued.levels,
+        xRatio: queued.xRatio,
+        yRatio: queued.yRatio,
+      });
+    }
+    if (queued.dxPx !== 0 || queued.dyPx !== 0) {
+      next = panViewport(next, limits, {
+        dxPx: queued.dxPx,
+        dyPx: queued.dyPx,
+        boxWidth: laneWidth,
+      });
+    }
+    queued.levels = 0;
+    queued.dxPx = 0;
+    queued.dyPx = 0;
+    if (viewportsEqual(next, viewportRef.current)) return;
+    viewportRef.current = next;
+    setViewport(next);
+  }, [limits, laneWidth]);
+
+  const scheduleGesture = useCallback(() => {
+    if (pending.current.frame) return;
+    pending.current.frame = requestAnimationFrame(flushGesture);
+  }, [flushGesture]);
+
   /**
    * Wheel and trackpad pinch on a non-passive listener, so the page never takes
    * the gesture. Both zoom, like a map: a Mac pinch arrives as wheel + ctrlKey
@@ -222,30 +287,67 @@ export function TimelineDense({
       if (!element) return;
 
       const onWheel = (event: WheelEvent) => {
-        event.preventDefault();
         const rect = element.getBoundingClientRect();
-        if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
-          panBy(-(event.deltaX || event.deltaY), 0);
+        const queued = pending.current;
+        // A macOS pinch is the ONLY wheel event that carries ctrlKey. A
+        // two-finger scroll is a plain wheel, so it must pan — treating it as
+        // zoom is what made scrolling around zoom the rows instead.
+        const pinch = event.ctrlKey || event.metaKey;
+
+        if (pinch) {
+          queued.xRatio =
+            rect.width > 0
+              ? (event.clientX - rect.left - railWidth) /
+                Math.max(rect.width - railWidth, 1)
+              : 0.5;
+          queued.yRatio =
+            rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+          queued.levels += -event.deltaY * PINCH_ZOOM_RATE;
+          event.preventDefault();
+          scheduleGesture();
           return;
         }
-        // Proportional to the delta: a mouse wheel sends few large deltas and a
-        // trackpad many small ones, and both should feel the same.
-        const steps = Math.min(Math.abs(event.deltaY) / 100, 4);
-        const factor = ZOOM_STEP ** steps;
-        const xRatio =
-          rect.width > 0
-            ? (event.clientX - rect.left - railWidth) /
-              Math.max(rect.width - railWidth, 1)
-            : 0.5;
-        const yRatio =
-          rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
-        zoomBy(event.deltaY < 0 ? factor : 1 / factor, xRatio, yRatio);
+
+        // A discrete mouse notch has no pan intent behind it, so it zooms, at
+        // its own much slower rate per unit of delta.
+        const isMouseNotch =
+          event.deltaMode !== 0 ||
+          Math.abs(event.deltaY) >= WHEEL_DELTA_THRESHOLD;
+        if (isMouseNotch && event.deltaX === 0 && !event.shiftKey) {
+          queued.xRatio =
+            rect.width > 0
+              ? (event.clientX - rect.left - railWidth) /
+                Math.max(rect.width - railWidth, 1)
+              : 0.5;
+          queued.yRatio =
+            rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+          queued.levels += -event.deltaY * WHEEL_ZOOM_RATE;
+          event.preventDefault();
+          scheduleGesture();
+          return;
+        }
+
+        // Two-finger scroll: pan both axes. Shift maps a vertical wheel to time.
+        const dxPx = event.shiftKey ? -event.deltaY : -event.deltaX;
+        const dyPx = event.shiftKey ? 0 : -event.deltaY;
+        const wouldMove = panViewport(viewportRef.current, limits, {
+          dxPx,
+          dyPx,
+          boxWidth: laneWidth,
+        });
+        // Only swallow the gesture if it actually moves us; at a clamp the page
+        // keeps its scroll instead of being trapped.
+        if (viewportsEqual(wouldMove, viewportRef.current)) return;
+        event.preventDefault();
+        queued.dxPx += dxPx;
+        queued.dyPx += dyPx;
+        scheduleGesture();
       };
 
       element.addEventListener("wheel", onWheel, { passive: false });
       return () => element.removeEventListener("wheel", onWheel);
     },
-    [panBy, zoomBy, railWidth],
+    [railWidth, limits, laneWidth, scheduleGesture],
   );
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -332,13 +434,13 @@ export function TimelineDense({
       >
         <ToolbarButton
           label="Zoom out"
-          onClick={() => zoomBy(1 / ZOOM_STEP, 0.5, 0.5)}
+          onClick={() => zoomBy(2 ** -BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
           <Minus className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
-          onClick={() => zoomBy(ZOOM_STEP, 0.5, 0.5)}
+          onClick={() => zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
           <Plus className="h-3 w-3" />
         </ToolbarButton>
@@ -353,12 +455,12 @@ export function TimelineDense({
           style={{ fontSize: "10px" }}
           title={
             fitted
-              ? "scroll to zoom · drag to pan · double-click to focus"
+              ? "scroll to pan · pinch to zoom · double-click to focus"
               : `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`
           }
         >
           {fitted
-            ? "scroll to zoom · drag to pan · double-click to focus"
+            ? "scroll to pan · pinch to zoom · double-click to focus"
             : `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`}
         </span>
       </div>
@@ -577,11 +679,13 @@ export function TimelineDense({
           <span>
             {box.width}×{box.height} · lane {laneWidth}
           </span>
-          <span>
+          <span data-testid="dense-rowheight">
             {rowHeight.toFixed(1)}px rows ({presentation})
           </span>
-          <span>
-            showing {Math.round(current.rows.count)}/{prepared.rows.length} rows
+          <span data-testid="dense-rows">
+            rows {current.rows.start.toFixed(1)}–
+            {(current.rows.start + current.rows.count).toFixed(1)} of{" "}
+            {prepared.rows.length}
           </span>
           <span>{result.pxPerMs.toFixed(3)} px/ms</span>
           <span>{fitted ? "fitted" : "zoomed"}</span>

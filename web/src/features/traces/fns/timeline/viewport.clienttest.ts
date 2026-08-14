@@ -10,6 +10,7 @@ import {
   isViewportFitted,
   panViewport,
   rowHeightOf,
+  viewportsEqual,
   visibleRowRange,
   zoomViewport,
   type Viewport,
@@ -178,6 +179,33 @@ describe("viewport", () => {
       startIndex: 0,
       endIndex: -1,
     });
+  });
+
+  it("reports whether a gesture actually moved the window", () => {
+    const fitted = fitViewport(limits);
+    expect(viewportsEqual(fitted, fitViewport(limits))).toBe(true);
+
+    // Panning up at the very top is clamped away, so nothing moved — that is
+    // what lets the surface hand the scroll back to the page instead of eating it.
+    const pinnedTop = panViewport(fitted, limits, {
+      dxPx: 0,
+      dyPx: 200,
+      boxWidth: BOX_WIDTH,
+    });
+    expect(viewportsEqual(pinnedTop, fitted)).toBe(true);
+
+    const zoomed = zoomViewport(fitted, limits, {
+      factor: 2,
+      xRatio: 0.5,
+      yRatio: 0.5,
+    });
+    expect(viewportsEqual(zoomed, fitted)).toBe(false);
+    const moved = panViewport(zoomed, limits, {
+      dxPx: 0,
+      dyPx: -40,
+      boxWidth: BOX_WIDTH,
+    });
+    expect(viewportsEqual(moved, zoomed)).toBe(false);
   });
 
   it("is total on degenerate input", () => {
