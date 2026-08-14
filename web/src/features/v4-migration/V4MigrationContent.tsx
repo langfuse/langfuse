@@ -547,15 +547,15 @@ export function V4MigrationOtelSection({
       defaultOpen={defaultOpen}
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
-        OTel data is arriving through the delayed ingestion path. Set the{" "}
-        <MonoValue>x-langfuse-ingestion-version</MonoValue> header to{" "}
-        <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
-        ingestion.{" "}
+        Your OpenTelemetry data is using delayed ingestion. For real-time
+        ingestion, upgrade your integration or, if you use OpenTelemetry
+        directly, set <MonoValue>x-langfuse-ingestion-version: 4</MonoValue> on
+        your OTLP exporter.{" "}
         <ExternalLink
           href={OTEL_V4_MIGRATION_URL}
           analytics={{ section: "otel", link: "otel_migration_docs" }}
         >
-          OpenTelemetry migration guide
+          Migration guide
         </ExternalLink>
         .
       </p>
@@ -906,27 +906,35 @@ export function V4MigrationApisSection({
             maps each endpoint to its replacement.
           </p>
           <div className="flex flex-col">
-            {usage.map((row) => (
-              <div
-                key={row.endpoint}
-                className="text-muted-foreground flex flex-wrap items-baseline justify-between gap-x-2 py-0.5"
-              >
-                <ExternalLink
-                  href={DEPRECATED_API_MIGRATION_URL}
-                  className="text-sm"
-                  analytics={{ section: "apis", link: "deprecated_api_docs" }}
+            {usage.map((row) => {
+              const roundedCount = Math.max(1, Math.round(row.count));
+
+              return (
+                <div
+                  key={row.endpoint}
+                  className="text-muted-foreground flex flex-wrap items-baseline justify-between gap-x-2 py-0.5"
                 >
-                  {row.endpoint}
-                </ExternalLink>
-                <span
-                  className="text-muted-foreground text-sm whitespace-nowrap"
-                  title={`Last seen at ${row.lastSeen}`}
-                >
-                  {numberFormatter(row.count, 0, 2)} calls · last seen{" "}
-                  {formatCompactRelativeTime(new Date(row.lastSeen))}
-                </span>
-              </div>
-            ))}
+                  <ExternalLink
+                    href={DEPRECATED_API_MIGRATION_URL}
+                    className="text-sm"
+                    analytics={{
+                      section: "apis",
+                      link: "deprecated_api_docs",
+                    }}
+                  >
+                    {row.endpoint}
+                  </ExternalLink>
+                  <span
+                    className="text-muted-foreground text-sm whitespace-nowrap"
+                    title={`Last seen at ${row.lastSeen}`}
+                  >
+                    {numberFormatter(roundedCount, 0)}{" "}
+                    {roundedCount === 1 ? "call" : "calls"} · last seen{" "}
+                    {formatCompactRelativeTime(new Date(row.lastSeen))}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </>
       ) : (
