@@ -4,6 +4,7 @@ import {
   type KeyboardEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -355,9 +356,30 @@ function buildConversationDisplayItems(
   isRunUnsettled: boolean,
 ): ConversationDisplayItem[] {
   const items: ConversationDisplayItem[] = [];
-  const visibleMessages = messages.filter(
-    (message) => message.content.type !== "loading",
-  );
+  // A tool call awaiting approval is hoisted into its own card above the
+  // composer, and the drawer speaks for a turn that has produced nothing yet,
+  // so neither belongs in the transcript.
+  const visibleMessages = messages.flatMap((message) => {
+    if (message.content.type === "loading") {
+      return [];
+    }
+
+    if (message.content.type !== "toolGroup") {
+      return [message];
+    }
+
+    const visibleTools = message.content.tools.filter((tool) => !tool.approval);
+    if (visibleTools.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        ...message,
+        content: { ...message.content, tools: visibleTools },
+      } satisfies InAppAgentWindowMessage,
+    ];
+  });
 
   for (let index = 0; index < visibleMessages.length; ) {
     const message = visibleMessages[index];
@@ -783,32 +805,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       ? message.content.tools.filter((tool) => tool.approval)
       : [],
   );
-  const visibleMessages = messages
-    .map((message) => {
-      if (message.content.type !== "toolGroup") {
-        return message;
-      }
-
-      const visibleTools = message.content.tools.filter(
-        (tool) => !tool.approval,
-      );
-
-      if (visibleTools.length === 0) {
-        return null;
-      }
-
-      return {
-        ...message,
-        content: {
-          ...message.content,
-          tools: visibleTools,
-        },
-      } satisfies InAppAgentWindowMessage;
-    })
-    .filter((message): message is InAppAgentWindowMessage => message !== null);
-  const displayItems = buildConversationDisplayItems(
-    visibleMessages,
-    isRunUnsettled,
+  // Rebuilding every turn on each composer keystroke is wasted work: the
+  // transcript only changes when the messages or the run's settledness do.
+  const displayItems = useMemo(
+    () => buildConversationDisplayItems(messages, isRunUnsettled),
+    [messages, isRunUnsettled],
   );
   const hasSettledAssistantReply = displayItems.some(
     (item) => item.type === "assistant" && item.isFinalAnswer,
