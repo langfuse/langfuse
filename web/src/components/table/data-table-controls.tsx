@@ -297,6 +297,12 @@ export function DataTableControls({
     : null;
   // Search FILTERS, it does not reorder: the settled promoted block and config
   // order still own every position.
+  //
+  // Non-matching facets are HIDDEN, never unmounted. Every facet holds
+  // uncommitted local state — a typed-but-not-added text filter, a metadata
+  // condition mid-build, a "show more" expansion, a debounced numeric draft —
+  // and unmounting throws all of it away with nothing said. Typing in a box
+  // above the list must not be able to do that.
   const visibleFilters = facetSearchMatches
     ? displayedFilters.filter(
         (filter) => facetSearchMatches.has(filter.column) || isPromoted(filter),
@@ -480,12 +486,19 @@ export function DataTableControls({
   // Separator position: the SETTLED promoted block, not the live one — a facet
   // activated mid-session keeps its place below the line until the next settle.
   // Active-only mode has no inactive catalog to divide from, so no separator:
-  // counting every displayed facet keeps the divider out of the render loop's
-  // range, as the live count did before.
+  // counting every displayed facet leaves no facet for the divider to sit
+  // before, as the out-of-range index did before.
   const promotedFacetCount = showOnlyActive
     ? visibleFilters.length
     : visibleFilters.filter((filter) => facetOrder.promoted.has(filter.column))
         .length;
+  // Anchored to the first VISIBLE catalog facet rather than to an index: rows
+  // hidden by a search stay in the list, so an index would count them.
+  const firstCatalogColumn = visibleFilters.find(
+    (filter) => !facetOrder.promoted.has(filter.column),
+  )?.column;
+  const showPromotedSeparator =
+    promotedFacetCount > 0 && firstCatalogColumn !== undefined;
 
   const renderFacet = (filter: UIFilter) => {
     // A column the current surface can't honour blocks the facet whether or
@@ -712,12 +725,15 @@ export function DataTableControls({
         {/* ONE keyed child array — not two .map() slices: React can
             only match keys within the same array, so a facet crossing
             the promoted/rest boundary would REMOUNT (wiping input
-            focus and draft state) instead of moving. */}
-        {visibleFilters.flatMap((filter, index) => {
+            focus and draft state) instead of moving.
+
+            Every facet renders; a search only sets `hidden` on the rows
+            it excludes. The wrapper is always present for the same
+            reason the array is single: swapping the element around a
+            facet would remount it and lose its draft state. */}
+        {displayedFilters.flatMap((filter) => {
           const nodes = [];
-          if (index === promotedFacetCount && promotedFacetCount > 0) {
-            // Clear spatial break between the active/added block and
-            // the inactive rest of the catalog.
+          if (showPromotedSeparator && filter.column === firstCatalogColumn) {
             nodes.push(
               // The one line that means something: the boundary
               // between the active/added block and the catalog.
@@ -728,7 +744,14 @@ export function DataTableControls({
               />,
             );
           }
-          nodes.push(renderFacet(filter));
+          nodes.push(
+            <div
+              key={filter.column}
+              hidden={!visibleColumns.has(filter.column)}
+            >
+              {renderFacet(filter)}
+            </div>,
+          );
           return nodes;
         })}
       </Accordion>

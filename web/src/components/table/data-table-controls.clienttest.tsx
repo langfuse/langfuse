@@ -829,6 +829,9 @@ describe("DataTableControls facet-name search", () => {
       options: ["x", "y"],
       counts: new Map(),
       onChange: () => {},
+      // enables the Select/Text mode tabs, so a text-filter draft can be typed
+      onTextFilterAdd: () => {},
+      onTextFilterRemove: () => {},
     }));
 
   const queryFilter = (filters: UIFilter[]): QueryFilter => ({
@@ -863,17 +866,17 @@ describe("DataTableControls facet-name search", () => {
     render(controls(catalog(["userId"])));
 
     searchFor("token");
-    expect(screen.getByText("Total Tokens")).toBeInTheDocument();
-    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
+    expect(screen.getByText("Total Tokens")).toBeVisible();
+    expect(screen.getByText("Environment")).not.toBeVisible();
     // The column key matches too: the label's space would defeat "userid".
     searchFor("userid");
-    expect(screen.getByText("User ID")).toBeInTheDocument();
-    expect(screen.queryByText("Trace Name")).not.toBeInTheDocument();
+    expect(screen.getByText("User ID")).toBeVisible();
+    expect(screen.getByText("Trace Name")).not.toBeVisible();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Clear filter search" }),
     );
-    expect(screen.getByText("Environment")).toBeInTheDocument();
+    expect(screen.getByText("Environment")).toBeVisible();
     // The selection was never touched — its header summary still reads it.
     expect(screen.getByText("x")).toBeInTheDocument();
   });
@@ -883,8 +886,8 @@ describe("DataTableControls facet-name search", () => {
 
     searchFor("zzz");
     // Pinned by its selection, not by the query.
-    expect(screen.getByText("User ID")).toBeInTheDocument();
-    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
+    expect(screen.getByText("User ID")).toBeVisible();
+    expect(screen.getByText("Environment")).not.toBeVisible();
     expect(
       screen.getByText('No other filters match "zzz"'),
     ).toBeInTheDocument();
@@ -892,6 +895,37 @@ describe("DataTableControls facet-name search", () => {
     // With nothing pinned above it, the same dead end drops the "other".
     rerender(controls(catalog()));
     expect(screen.getByText('No filters match "zzz"')).toBeInTheDocument();
+  });
+
+  it("hides a non-matching facet rather than unmounting it, so an open draft survives", () => {
+    // Facets hold uncommitted local state (a typed-but-not-added text filter, a
+    // metadata condition mid-build, a debounced numeric draft). Dropping them
+    // from the tree while someone types in the search box above would discard
+    // that silently, so the search only hides them.
+    const qf = queryFilter(catalog());
+    qf.expanded = ["environment"];
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+    // Radix Tabs commit on mouse-down; jsdom needs both events.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Text" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Text" }));
+    const draft = screen.getByPlaceholderText("Enter value...");
+    fireEvent.change(draft, { target: { value: "half-typed" } });
+
+    searchFor("token");
+    expect(screen.getByText("Environment")).not.toBeVisible();
+    // Same input node, same value: not remounted, not reset.
+    expect(screen.getByPlaceholderText("Enter value...")).toBe(draft);
+    expect(draft).toHaveValue("half-typed");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear filter search" }),
+    );
+    expect(screen.getByText("Environment")).toBeVisible();
+    expect(draft).toHaveValue("half-typed");
   });
 
   it("does not count typing in the search box as working the facet list", () => {
