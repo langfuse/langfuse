@@ -404,7 +404,11 @@ describe("in-app agent execution", () => {
     renderExecutionUi();
 
     expect(await screen.findByText("Create the prompt")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Working…" }));
+    // The run is parked on this approval, so the drawer says so rather than
+    // narrating the tool it was about to call.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Waiting for your approval…" }),
+    );
     expect(screen.getByText("I need approval.")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", {

@@ -143,6 +143,15 @@ export function ControlledInAppAgentWindow(
     (execution.run
       ? isUnsettledInAppAgentRunStatus(execution.run.status)
       : isRunning);
+  // Both halves are needed. The status alone stays AWAITING_APPROVAL after the
+  // user decides, until the watch reports the resumed run, which would leave the
+  // drawer claiming to wait on someone who already answered. Pending approvals
+  // alone are not enough either: an always-allowed tool carries one and keeps
+  // executing.
+  const isAwaitingApproval =
+    execution.run?.status === InAppAgentRunStatus.AWAITING_APPROVAL &&
+    (pendingToolApprovals.length > 0 ||
+      displayedPendingToolApprovals.length > 0);
   const displayError = selectedConversationIsWriteLocked
     ? ({
         type: "generic",
@@ -190,6 +199,7 @@ export function ControlledInAppAgentWindow(
       error={displayError}
       isAssistantTurnInProgress={isAssistantTurnInProgress}
       isRunUnsettled={isRunUnsettled}
+      isAwaitingApproval={isAwaitingApproval}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}

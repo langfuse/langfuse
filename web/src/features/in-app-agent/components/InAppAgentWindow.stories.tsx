@@ -707,6 +707,7 @@ const meta = preview.meta({
 export const ToolApprovalRequired = meta.story({
   args: {
     isAssistantTurnInProgress: true,
+    isAwaitingApproval: true,
     selectedConversationId: "conversation-1",
     messages: [
       {
@@ -740,6 +741,15 @@ export const ToolApprovalRequired = meta.story({
         },
       },
     ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    // The run has stopped on the approval below, so the drawer must say so
+    // rather than narrate the tool it was about to call.
+    await expect(
+      canvas.getByRole("button", { name: "Waiting for your approval…" }),
+    ).toBeVisible();
   },
 });
 
