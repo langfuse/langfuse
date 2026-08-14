@@ -114,6 +114,9 @@ describe("InAppAgentWindowHost", () => {
   afterEach(() => {
     document.querySelector("[data-overlay-root]")?.remove();
     vi.unstubAllGlobals();
+    // jsdom has no visual viewport, so leaving a stubbed one behind would hand
+    // the next test a phone it never asked for.
+    Reflect.deleteProperty(window, "visualViewport");
   });
 
   it("keeps geometry while open and resets it on close/reopen", () => {
