@@ -20,11 +20,11 @@ should reach Sentry — do not `captureException` (or `console.error`) reflexive
 Run the decision tree, then say in one line what you chose and why (in the plan
 or PR description). The three outcomes:
 
-| The failure is… | Do | Never |
-|---|---|---|
-| an **expected user-facing state** — a missing/forbidden resource, expired session, invalid user input, a malformed URL in user content | render the UX (error page / toast / plain text) | capture — it is the product working as designed |
-| a **transport / offline / infra** failure — fetch failed, a 5xx on a poll, an LB blip | let the UI degrade; the server owns this signal | capture client-side — it is an amplified, lower-fidelity copy of a server truth |
-| **our code failed** — an invariant broke, a parse threw, a worker failed to load | `captureException` a **real `Error`** with an `area` tag via the shared helpers | pass a raw string/object/`Event` |
+| The failure is…                                                                                                                        | Do                                                                              | Never                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| an **expected user-facing state** — a missing/forbidden resource, expired session, invalid user input, a malformed URL in user content | render the UX (error page / toast / plain text)                                 | capture — it is the product working as designed                                 |
+| a **transport / offline / infra** failure — fetch failed, a 5xx on a poll, an LB blip                                                  | let the UI degrade; the server owns this signal                                 | capture client-side — it is an amplified, lower-fidelity copy of a server truth |
+| **our code failed** — an invariant broke, a parse threw, a worker failed to load                                                       | `captureException` a **real `Error`** with an `area` tag via the shared helpers | pass a raw string/object/`Event`                                                |
 
 **`console.error` is a capture API here.** `instrumentation-client.ts` enables
 `captureConsoleIntegration({ levels: ["error"] })`, so **every `console.error`
@@ -41,9 +41,12 @@ properly (below).
     — turns any caught value into a legible `Error` (real `Error`s pass through
     with their stack; everything else is synthesized), tags `area`, and logs via
     `console.warn` so the console integration does not double-capture.
-  - [`reportParserWorkerError(hook, event)`](../../../web/src/hooks/parserWorkerError.ts)
-    — extracts the real fields from a Worker `ErrorEvent` (message/filename/lineno)
-    instead of stringifying it to `[object ErrorEvent]`.
+  - [`reportWorkerLoadError({area, source, event, extra?})`](../../../web/src/utils/reportWorkerLoadError.ts)
+    — extracts the real fields from a Worker `ErrorEvent`
+    (message/filename/lineno/colno) instead of stringifying it to
+    `[object ErrorEvent]`. Every worker's `onerror` reports through this one;
+    [`reportParserWorkerError(hook, event)`](../../../web/src/hooks/parserWorkerError.ts)
+    is the JSON-parser worker's thin wrapper over it.
 - **Filter predicates belong in
   [`web/src/utils/sentryFilters.ts`](../../../web/src/utils/sentryFilters.ts)**
   (documented, unit-tested), called from `beforeSend` in
@@ -59,7 +62,7 @@ properly (below).
   chokepoint every query/mutation error flows through — the place to drop
   expected codes and tag the rest (the seam-classification lever, PR #15243).
 - **Tag `area`, keep the message static.** `captureException(err, { tags: { area },
-  extra })`. Fingerprints group on the message, so put variable IDs in `extra`,
+extra })`. Fingerprints group on the message, so put variable IDs in `extra`,
   never in the message string.
 
 ## The rules (each earned the hard way — cited to workstream PRs)
@@ -77,7 +80,7 @@ properly (below).
 
 2. **Capture a REAL `Error`, never a string / object / `SyntheticEvent` /
    `ErrorEvent`.** Those collapse to opaque `[object Object]` / `[object
-   ErrorEvent]` fingerprints with no stack. ⚠ The 5EX cluster (opaque non-Error
+ErrorEvent]` fingerprints with no stack. ⚠ The 5EX cluster (opaque non-Error
    captures, PR #15175) and the parse-worker `[object ErrorEvent]` family (PR
    #15173) were exactly this. Route unknowns through `captureUnknownError` /
    `reportParserWorkerError`.
@@ -139,8 +142,8 @@ properly (below).
    test does NOT prove the console error is gone. Reproduce it in a browser
    against the running app (Playwright), do an A/B, and confirm the event
    disappears. ⚠ PR #15245 was verified this way — its native `<a>` fired 0
-   where the prior `<Link>` fired the error ×12. Unit tests lock the *contract*; the
-   browser proves the *noise removal*.
+   where the prior `<Link>` fired the error ×12. Unit tests lock the _contract_; the
+   browser proves the _noise removal_.
 
 ## Workflow
 

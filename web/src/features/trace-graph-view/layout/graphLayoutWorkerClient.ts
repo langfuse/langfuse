@@ -2,9 +2,11 @@ import ELKConstructor from "elkjs/lib/elk-api";
 import type { ELK } from "elkjs";
 
 import { reportError } from "@/src/utils/reportError";
+import { reportWorkerLoadError } from "@/src/utils/reportWorkerLoadError";
 
 import { type GraphCanvasData } from "../types";
 import {
+  exceedsMainThreadBudget,
   layoutGraphOnThisThread,
   prepareGraphLayout,
   runGraphLayout,
@@ -61,26 +63,29 @@ function refusedLayout(request: GraphLayoutRequest): GraphLayout {
   };
 }
 
+/**
+ * The no-worker path. Refuse what the main thread cannot afford — no deadline can
+ * apply to synchronous ELK — and otherwise lay out inline.
+ */
+function layoutWithoutWorker(
+  request: GraphLayoutRequest,
+): Promise<GraphLayout> {
+  if (exceedsMainThreadBudget(request)) {
+    return Promise.resolve(refusedLayout(request));
+  }
+  return layoutGraphOnThisThread(request);
+}
+
 function handleWorkerError(event: ErrorEvent) {
   // `onerror` means the worker SCRIPT failed — a stale chunk after a deploy is
   // the dominant cause. (A layout that throws rejects its own promise instead.)
   // Retire the worker and lay out on the main thread: slow beats no graph at all.
   workerUnavailable = true;
-  const details = `${event.message || "unknown"} @ ${event.filename || "?"}:${event.lineno ?? "?"}`;
-  reportError(
-    event.error instanceof Error
-      ? event.error
-      : new Error(`ELK layout worker failed to load: ${details}`),
-    {
-      area: "graph-layout-worker",
-      extra: {
-        message: event.message,
-        filename: event.filename,
-        lineno: event.lineno,
-      },
-      warnMessage: `ELK layout worker failed to load: ${details}`,
-    },
-  );
+  reportWorkerLoadError({
+    area: "graph-layout-worker",
+    source: "ELK layout",
+    event,
+  });
   restartWorker();
 }
 
@@ -148,8 +153,7 @@ function restartWorker() {
   const target = getLayoutWorker();
   for (const entry of carried) {
     if (target) dispatch(entry, target);
-    else
-      layoutGraphOnThisThread(entry.request).then(entry.resolve, entry.reject);
+    else layoutWithoutWorker(entry.request).then(entry.resolve, entry.reject);
   }
 }
 
@@ -197,7 +201,7 @@ export function requestGraphLayout(
   if (prepared.kind === "layout") return Promise.resolve(prepared.layout);
 
   const target = getLayoutWorker();
-  if (!target) return layoutGraphOnThisThread(prepared.request);
+  if (!target) return layoutWithoutWorker(prepared.request);
 
   return new Promise<GraphLayout>((resolve, reject) => {
     const id = String(++requestCounter);

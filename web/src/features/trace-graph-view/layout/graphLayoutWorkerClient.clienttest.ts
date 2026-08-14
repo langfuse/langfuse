@@ -1,4 +1,5 @@
 import { type GraphCanvasData, type GraphNodeData } from "../types";
+import { MAX_MAIN_THREAD_LAYOUT_NODES } from "./elkLayout";
 
 const node = (id: string): GraphNodeData => ({ id, label: id, type: "AGENT" });
 
@@ -153,5 +154,24 @@ describe("requestGraphLayout", () => {
     const layout = await client.requestGraphLayout(graph, {}, "DOWN");
     expect(layout.tooLarge).toBeFalsy();
     expect(layout.nodes).toHaveLength(2);
+  });
+
+  it("refuses a graph the main thread cannot afford when there is no Worker", async () => {
+    // No deadline can apply to synchronous ELK, so the pre-worker counts are the
+    // only protection on that path — refuse instead of freezing the tab.
+    vi.stubGlobal("Worker", undefined);
+    const client = await loadClient();
+    const wide: GraphCanvasData = {
+      nodes: Array.from({ length: MAX_MAIN_THREAD_LAYOUT_NODES + 1 }, (_, i) =>
+        node(`n${i}`),
+      ),
+      edges: [{ from: "n0", to: "n1" }],
+    };
+
+    const started = Date.now();
+    const layout = await client.requestGraphLayout(wide, {}, "DOWN");
+    expect(Date.now() - started).toBeLessThan(1000); // ELK never ran
+    expect(layout.tooLarge).toBe(true);
+    expect(layout.nodeCount).toBe(MAX_MAIN_THREAD_LAYOUT_NODES + 1);
   });
 });

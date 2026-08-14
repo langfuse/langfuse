@@ -118,6 +118,27 @@ export const MAX_GRAPH_LAYOUT_EDGES = 2_000;
 export const MAX_GRAPH_LAYOUT_NODES = 2_500;
 
 /**
+ * Ceiling for a layout that must run on the CALLING thread — no Worker support, or
+ * the worker script failed to load. A wall-clock deadline is structurally
+ * impossible there (synchronous ELK cannot be interrupted), so counts are the only
+ * protection left, and these are deliberately the PRE-worker numbers: that path
+ * behaves exactly as the app did before layout moved off the main thread, RIGHT
+ * exemption included. Without this, the raised ceiling above would let a dense
+ * graph freeze the tab for minutes on the fallback path.
+ */
+export const MAX_MAIN_THREAD_LAYOUT_EDGES = 250;
+export const MAX_MAIN_THREAD_LAYOUT_NODES = 500;
+
+/** True when a request is too big to lay out on the calling thread. */
+export function exceedsMainThreadBudget(request: GraphLayoutRequest): boolean {
+  return (
+    request.direction === "DOWN" &&
+    (request.nodes.length > MAX_MAIN_THREAD_LAYOUT_NODES ||
+      request.edges.length > MAX_MAIN_THREAD_LAYOUT_EDGES)
+  );
+}
+
+/**
  * Distinct, self-loop-free edges keyed by (from, to). The aggregated graph
  * hands ELK the same name-pair edge many times over (measured: ~23k raw → ~1.4k
  * distinct, 16×), so deduping before the layout call is the cheapest single win
@@ -208,7 +229,7 @@ let elkInstance: Promise<ELK> | null = null;
 /**
  * Lazy-load ELK (~1MB) and reuse the instance. Only the main-thread fallback
  * path uses this — the worker imports elkjs directly (see
- * `workers/graph-layout.worker.ts`).
+ * `workers/elk-layout.worker.ts`).
  */
 function getElk(): Promise<ELK> {
   if (!elkInstance) {
