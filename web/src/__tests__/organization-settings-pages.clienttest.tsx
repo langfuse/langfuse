@@ -78,6 +78,10 @@ vi.mock("@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage", () => ({
   OrgAuditLogsSettingsPage: () => null,
 }));
 
+vi.mock("@/src/features/v4-migration/OrgHealthSettingsPage", () => ({
+  OrgHealthSettingsPage: () => null,
+}));
+
 vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
   useHasOrganizationAccess: vi.fn(),
 }));

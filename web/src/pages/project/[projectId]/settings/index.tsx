@@ -24,6 +24,7 @@ import { BatchExportsSettingsPage } from "@/src/features/batch-exports/component
 import { BatchActionsSettingsPage } from "@/src/features/batch-actions/components/BatchActionsSettingsPage";
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
+import { ProjectHealthSettingsPage } from "@/src/features/v4-migration/ProjectHealthSettingsPage";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
 import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
@@ -179,6 +180,12 @@ export const getProjectSettingsPages = ({
     slug: "models",
     cmdKKeywords: ["cost", "token"],
     content: <ModelsSettings projectId={project.id} />,
+  },
+  {
+    title: "Health",
+    slug: "health",
+    cmdKKeywords: ["sdk", "version", "migration", "v4", "instrumentation"],
+    content: <ProjectHealthSettingsPage projectId={project.id} />,
   },
   {
     title: "Protected Prompt Labels",

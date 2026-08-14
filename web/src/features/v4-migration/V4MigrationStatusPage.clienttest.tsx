@@ -152,7 +152,9 @@ describe("V4MigrationStatusPage", () => {
     render(<V4MigrationStatusPage />);
 
     const table = screen.getByRole("table");
-    expect(table).toHaveClass("min-w-[60rem]", "table-auto");
+    // Six columns fit without a forced min width; the scroll container
+    // still guards small viewports.
+    expect(table).toHaveClass("table-auto");
     expect(table.parentElement).toHaveClass("overflow-x-auto");
   });
 

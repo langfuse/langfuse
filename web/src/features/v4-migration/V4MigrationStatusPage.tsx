@@ -31,8 +31,6 @@ import {
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
   getProjectMigrationReadiness,
-  type MigrationActionState,
-  type MigrationCountState,
   type ProjectMigrationReadiness,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
@@ -60,35 +58,6 @@ function FaqLink({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-function AffectedCell({ count }: { count: MigrationCountState }) {
-  if (count.status === "loading") {
-    return <span className="text-foreground-tertiary">Checking…</span>;
-  }
-  if (count.status === "error") {
-    return <span className="text-foreground-tertiary">Unavailable</span>;
-  }
-  if (count.count === 0) {
-    return <span className="text-foreground-tertiary">0</span>;
-  }
-  return <span>{count.count}</span>;
-}
-
-function MigrationActionCell({ state }: { state: MigrationActionState }) {
-  if (state.status === "loading") {
-    return <span className="text-foreground-tertiary">Checking…</span>;
-  }
-  if (state.status === "error") {
-    return <span className="text-foreground-tertiary">Unavailable</span>;
-  }
-  return state.result === "required" ? (
-    <span>Update required</span>
-  ) : state.result === "sdk_usage_inconclusive" ? (
-    <span>Needs review</span>
-  ) : (
-    <span className="text-foreground-tertiary">Up to date</span>
-  );
-}
-
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
   // Forced-v3 projects are managed by their integration partner — link the pill
   // straight to the FAQ instead of showing a migration action state.
@@ -107,6 +76,16 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
     );
   }
 
+  // Only rendered where ready rows are shown (the org Health settings page);
+  // the migration status page filters them out before this.
+  if (readiness === "ready") {
+    return (
+      <span className="bg-light-green text-dark-green inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+        Migrated
+      </span>
+    );
+  }
+
   if (readiness !== "action-needed") return null;
 
   return (
@@ -116,15 +95,38 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
   );
 }
 
-type SortKey =
-  | "name"
-  | "status"
-  | "sdk"
-  | "evals"
-  | "experiments"
-  | "apis"
-  | "exports"
-  | "lastTrace";
+type SortKey = "name" | "status" | "sdk" | "openItems" | "lastTrace";
+
+// One rollup column instead of four mostly-zero "Affected X" columns: a
+// short list of what is actually open, or an em dash.
+const openItemsCount = (status: ProjectMigrationStatus): number =>
+  (status.evals.status === "loaded" ? status.evals.count : 0) +
+  (status.experiments.status === "loaded" &&
+  status.experiments.result === "required"
+    ? 1
+    : 0) +
+  (status.apis.status === "loaded" ? status.apis.count : 0) +
+  (status.exports.status === "loaded" ? status.exports.count : 0);
+
+const openItemsLabel = (status: ProjectMigrationStatus): string => {
+  const parts: string[] = [];
+  if (status.evals.status === "loaded" && status.evals.count > 0)
+    parts.push(
+      `${status.evals.count} eval${status.evals.count === 1 ? "" : "s"}`,
+    );
+  if (
+    status.experiments.status === "loaded" &&
+    status.experiments.result === "required"
+  )
+    parts.push("experiments");
+  if (status.apis.status === "loaded" && status.apis.count > 0)
+    parts.push(`${status.apis.count} API${status.apis.count === 1 ? "" : "s"}`);
+  if (status.exports.status === "loaded" && status.exports.count > 0)
+    parts.push(
+      `${status.exports.count} export${status.exports.count === 1 ? "" : "s"}`,
+    );
+  return parts.length > 0 ? parts.join(", ") : "—";
+};
 type OrderBy = { column: SortKey; order: "ASC" | "DESC" } | null;
 
 // Header styling and none → DESC → ASC → none sort cycle copied from the
@@ -159,14 +161,24 @@ function SortableHead({
   );
 }
 
-function OrgStatusSection({
+export function OrgStatusSection({
   org,
   statusByProjectId,
   lastTraceTimes,
+  hideReadyProjects = true,
+  showOrgHeading = true,
+  rowHref,
 }: {
   org: V4MigrationOrganization;
   statusByProjectId: Map<string, ProjectMigrationStatus>;
   lastTraceTimes: { projectId: string; lastTraceAt: Date }[];
+  /** The migration page is a work list (ready rows drop out); the org Health
+   *  settings page shows the whole fleet. */
+  hideReadyProjects?: boolean;
+  showOrgHeading?: boolean;
+  /** When set, rows navigate here (e.g. the project Health settings page)
+   *  instead of opening the migration panel over the traces view. */
+  rowHref?: (projectId: string) => string;
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -187,6 +199,11 @@ function OrgStatusSection({
     row: { id: string; name: string; status: ProjectMigrationStatus },
     readiness: ProjectMigrationReadiness,
   ) => {
+    if (rowHref) {
+      capture("v4_migration:status_row_clicked");
+      router.push(rowHref(row.id));
+      return;
+    }
     // Forced-v3 projects have no migration panel — just navigate to the project.
     if (!row.status.forceV3Experience) {
       openProjectMigration(row, readiness);
@@ -216,7 +233,7 @@ function OrgStatusSection({
     const status = statusByProjectId.get(project.id);
     if (!status) return [];
     const readiness = getProjectMigrationReadiness(status);
-    if (readiness === "ready") return [];
+    if (hideReadyProjects && readiness === "ready") return [];
     const lastTraceAt = lastTraceTimes?.find(
       (trace) => trace.projectId === project.id,
     )?.lastTraceAt;
@@ -265,18 +282,8 @@ function OrgStatusSection({
                     : row.status.sdk.status === "checking"
                       ? 1
                       : 0;
-      case "evals":
-        return row.status.evals.count;
-      case "experiments":
-        return row.status.experiments.result === "required"
-          ? 2
-          : row.status.experiments.result === "sdk_usage_inconclusive"
-            ? 1
-            : 0;
-      case "apis":
-        return row.status.apis.count;
-      case "exports":
-        return row.status.exports.count;
+      case "openItems":
+        return openItemsCount(row.status);
       case "lastTrace":
         return row.lastTraceSort;
     }
@@ -298,12 +305,14 @@ function OrgStatusSection({
 
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-muted-foreground truncate text-sm" title={org.name}>
-        {org.name}
-      </h3>
+      {showOrgHeading && (
+        <h3 className="text-muted-foreground truncate text-sm" title={org.name}>
+          {org.name}
+        </h3>
+      )}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="min-w-[60rem] table-auto">
+          <Table className="table-auto">
             <TableHeader>
               <TableRow>
                 <SortableHead
@@ -325,26 +334,8 @@ function OrgStatusSection({
                   onSort={handleSort}
                 />
                 <SortableHead
-                  label="Affected Evals"
-                  column="evals"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Experiments"
-                  column="experiments"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected APIs"
-                  column="apis"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Exports"
-                  column="exports"
+                  label="Open items"
+                  column="openItems"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
@@ -354,7 +345,7 @@ function OrgStatusSection({
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
-                <TableHead className="w-24" />
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -368,13 +359,13 @@ function OrgStatusSection({
                   >
                     <TableCell density="comfortable" className="max-w-48">
                       <Link
-                        href={`/project/${row.id}/traces`}
+                        href={rowHref?.(row.id) ?? `/project/${row.id}/traces`}
                         className="block truncate font-bold hover:underline"
                         title={row.name}
                         onClick={(event) => {
                           event.stopPropagation();
                           // Forced-v3 projects have no migration panel.
-                          if (!row.status.forceV3Experience) {
+                          if (!rowHref && !row.status.forceV3Experience) {
                             openProjectMigration(row, readiness);
                           }
                         }}
@@ -424,17 +415,11 @@ function OrgStatusSection({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.evals} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <MigrationActionCell state={row.status.experiments} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.apis} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.exports} />
+                    <TableCell
+                      density="comfortable"
+                      className="text-muted-foreground whitespace-nowrap"
+                    >
+                      {openItemsLabel(row.status)}
                     </TableCell>
                     <TableCell
                       density="comfortable"

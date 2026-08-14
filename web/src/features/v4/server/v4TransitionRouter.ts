@@ -1,9 +1,11 @@
 import { z } from "zod/v4";
 import {
+  authenticatedProcedure,
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { getLatestSdkVersions } from "@/src/features/v4/server/latestSdkVersions";
 import {
   AnalyticsIntegrationExportSource,
   type Prisma,
@@ -862,6 +864,13 @@ const getLegacyApiUsageSummaries = async ({
 };
 
 export const v4TransitionRouter = createTRPCRouter({
+  /**
+   * Latest released SDK versions for the Health page's freshness badges.
+   * Registry-backed and Redis-cached; global data, so no project/org scoping.
+   * Never throws — falls back to pinned constants when registries are down.
+   */
+  latestSdkVersions: authenticatedProcedure.query(() => getLatestSdkVersions()),
+
   forceV3Experience: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(({ input }) => isForceV3ExperienceProject(input.projectId)),

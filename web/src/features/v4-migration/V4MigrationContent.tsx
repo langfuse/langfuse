@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Copy,
   Info,
+  TriangleAlert,
 } from "lucide-react";
 import { env } from "@/src/env.mjs";
 import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
@@ -389,11 +390,21 @@ function SdkUsageSeriesRows({
           >
             {/* Action line: what it is and what to do about it. */}
             <div className="text-muted-foreground flex items-center gap-1.5">
-              <span aria-hidden="true">{needsAction(usage) ? "⚠️" : "✅"}</span>
+              {needsAction(usage) ? (
+                <TriangleAlert
+                  aria-hidden="true"
+                  className="text-dark-yellow h-3.5 w-3.5 shrink-0"
+                />
+              ) : (
+                <Check
+                  aria-hidden="true"
+                  className="text-dark-green h-3.5 w-3.5 shrink-0"
+                />
+              )}
               <MonoValue>{sdkLabel}</MonoValue>
               {suffix(usage)}
             </div>
-            {/* Metadata line, indented under the label (emoji + gap). */}
+            {/* Metadata line, indented under the label (icon + gap). */}
             <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
               {publicKey ? (
                 <span title={usage.publicKey || undefined}>{publicKey}</span>
@@ -1295,10 +1306,15 @@ export function V4MigrationAgentUpgradeSection({
 export function V4MigrationDetailsContent({
   onNavigate,
   projectId: projectIdProp,
+  host = "drawer",
 }: {
   onNavigate?: () => void;
   /** Project the content links point at; falls back to the route project. */
   projectId?: string;
+  /** "page" (Health settings) drops the drawer-only leading separator and
+   *  collapses the agent-upgrade pitch once the project is fully migrated —
+   *  an upgrade CTA is not content for a healthy verify page. */
+  host?: "drawer" | "page";
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -1429,11 +1445,13 @@ export function V4MigrationDetailsContent({
 
   return (
     <>
-      <Separator />
+      {host === "drawer" && <Separator />}
 
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-base font-bold">
-          Action items
+          {/* A heading named "Action items" over a green "everything is up
+              to date" line would be a small hierarchy lie. */}
+          {readiness === "ready" ? "Checks" : "Action items"}
         </div>
         <p className="text-muted-foreground text-sm">
           SDK, instrumentation, experiment, and API checks cover activity from
@@ -1547,9 +1565,12 @@ export function V4MigrationDetailsContent({
         </div>
       </div>
 
-      <Separator />
-
-      <V4MigrationAgentUpgradeSection projectId={projectId} />
+      {!(host === "page" && readiness === "ready") && (
+        <>
+          <Separator />
+          <V4MigrationAgentUpgradeSection projectId={projectId} />
+        </>
+      )}
 
       <Separator />
 
