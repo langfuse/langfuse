@@ -96,10 +96,16 @@ type MovableResizablePanelProps = {
   handle: MovableResizablePanelHandle;
   dragHandleSelector: string;
   ignoreOutsideInteraction?: boolean;
+  /** Title-bar double-click. Starting a drag has to `preventDefault()` the
+   * pointerdown, which suppresses every compat mouse event including
+   * `dblclick`, so a plain `onDoubleClick` on the handle never fires. */
+  onDragHandleDoubleClick?: () => void;
   style?: CSSProperties;
 };
 
 const DEFAULT_BOUNDS_PADDING = 8;
+const DRAG_HANDLE_DOUBLE_CLICK_MAX_DELAY_MS = 500;
+const DRAG_HANDLE_DOUBLE_CLICK_MAX_DISTANCE_PX = 4;
 
 export function useMovableResizablePanelControl({
   boundsPadding = DEFAULT_BOUNDS_PADDING,
@@ -532,12 +538,18 @@ export const MovableResizablePanel = forwardRef<
     dragHandleSelector,
     handle,
     ignoreOutsideInteraction = false,
+    onDragHandleDoubleClick,
     style,
   },
   forwardedRef,
 ) {
   const panelRef = useRef<HTMLDivElement>(null);
   const interactionRef = useRef<Interaction | null>(null);
+  const lastHandlePointerDownRef = useRef<{
+    timeStamp: number;
+    clientX: number;
+    clientY: number;
+  } | null>(null);
   const [draftPanel, setDraftPanel] =
     useState<MovableResizablePanelGeometry | null>(null);
   const renderedPanel = draftPanel ?? handle.getGeometry();
@@ -568,6 +580,33 @@ export const MovableResizablePanel = forwardRef<
 
     event.preventDefault();
     event.stopPropagation();
+
+    const previousPointerDown = lastHandlePointerDownRef.current;
+    // A double *tap* is a zoom/select gesture, never a maximize.
+    const isDoubleClick =
+      event.pointerType !== "touch" &&
+      previousPointerDown !== null &&
+      event.timeStamp - previousPointerDown.timeStamp <=
+        DRAG_HANDLE_DOUBLE_CLICK_MAX_DELAY_MS &&
+      Math.abs(coordinates.clientX - previousPointerDown.clientX) <=
+        DRAG_HANDLE_DOUBLE_CLICK_MAX_DISTANCE_PX &&
+      Math.abs(coordinates.clientY - previousPointerDown.clientY) <=
+        DRAG_HANDLE_DOUBLE_CLICK_MAX_DISTANCE_PX;
+
+    // Consume the pair, so a third click starts counting fresh rather than
+    // firing again.
+    lastHandlePointerDownRef.current = isDoubleClick
+      ? null
+      : {
+          timeStamp: event.timeStamp,
+          clientX: coordinates.clientX,
+          clientY: coordinates.clientY,
+        };
+
+    if (isDoubleClick && onDragHandleDoubleClick) {
+      onDragHandleDoubleClick();
+      return;
+    }
 
     const { position, size } = renderedPanelRef.current;
 
