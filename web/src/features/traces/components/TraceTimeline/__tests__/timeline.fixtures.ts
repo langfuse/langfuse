@@ -6,10 +6,7 @@
 
 import Decimal from "decimal.js";
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
-import {
-  type FlatTimelineItem,
-  type TimelineMetrics,
-} from "@/src/features/traces/components/TraceTimeline/types";
+import { type TimelineRowNode } from "@/src/features/traces/components/TraceTimeline/types";
 
 const BASE_START = new Date("2024-01-01T00:00:00.000Z");
 
@@ -31,21 +28,40 @@ export function makeTreeNode(overrides: Partial<TreeNode> = {}): TreeNode {
   };
 }
 
-export function makeMetrics(
-  overrides: Partial<TimelineMetrics> = {},
-): TimelineMetrics {
-  return { startOffset: 60, itemWidth: 220, latency: 2, ...overrides };
-}
-
-export function makeItem(
-  overrides: Partial<FlatTimelineItem> = {},
-): FlatTimelineItem {
+/**
+ * A row as `layout()` returns it. Geometry is passed in directly rather than
+ * computed so a story can pin the exact placement it wants to show.
+ */
+export function makeRow(
+  overrides: Partial<TimelineRowNode> = {},
+): TimelineRowNode {
+  const node = overrides.node ?? makeTreeNode();
   return {
-    node: overrides.node ?? makeTreeNode(),
+    node,
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    index: 0,
     depth: 0,
     treeLines: [],
     isLastSibling: true,
-    metrics: overrides.metrics ?? makeMetrics(),
+    hasChildren: node.children.length > 0,
+    isCollapsed: false,
+    y: 0,
+    height: 26,
+    x: 60,
+    width: 220,
+    clippedLeft: false,
+    clippedRight: false,
+    offscreen: false,
+    durationMs: 2000,
+    firstTokenX: null,
+    label: "2.00s",
+    labelWidth: 32,
+    labelPlacement: "after",
+    labelX: 286,
+    startMs: 0,
+    endMs: 2000,
     ...overrides,
   };
 }

@@ -62,8 +62,8 @@ export type LayoutNode = {
   children: LayoutNode[];
 };
 
-export type TimelineRow = {
-  node: LayoutNode;
+export type TimelineRow<TNode extends LayoutNode = LayoutNode> = {
+  node: TNode;
   depth: number;
   treeLines: boolean[];
   isLastSibling: boolean;
@@ -73,7 +73,9 @@ export type TimelineRow = {
 
 export type LabelPlacement = "inside" | "after" | "before" | "hidden";
 
-export type PositionedNode = {
+export type PositionedNode<TNode extends LayoutNode = LayoutNode> = {
+  /** The input node, carried through so callers keep their own richer type. */
+  node: TNode;
   id: string;
   name: string;
   type: string;
@@ -115,16 +117,16 @@ export type GapMarker = {
   label: string;
 };
 
-export type PreparedTimeline = {
-  rows: TimelineRow[];
+export type PreparedTimeline<TNode extends LayoutNode = LayoutNode> = {
+  rows: Array<TimelineRow<TNode>>;
   originMs: number;
   durationMs: number;
   /** ms offsets of every non-root span — the compression input */
   spans: Array<[number, number]>;
 };
 
-export type TimelineLayout = {
-  nodes: PositionedNode[];
+export type TimelineLayout<TNode extends LayoutNode = LayoutNode> = {
+  nodes: Array<PositionedNode<TNode>>;
   rowCount: number;
   rowHeight: number;
   contentHeight: number;
@@ -140,8 +142,8 @@ export type TimelineLayout = {
   compression: TimeCompression;
 };
 
-export type LayoutInput = {
-  roots: readonly LayoutNode[];
+export type LayoutInput<TNode extends LayoutNode = LayoutNode> = {
+  roots: readonly TNode[];
   /** measured — there is no fallback constant */
   box: Box;
   density: Density;
@@ -151,7 +153,7 @@ export type LayoutInput = {
   compress: boolean;
   collapsed?: ReadonlySet<string>;
   /** memoized tree walk; recomputed here when absent */
-  prepared?: PreparedTimeline;
+  prepared?: PreparedTimeline<TNode>;
   /** memoized compression; recomputed here when absent */
   compression?: TimeCompression;
   /** position only these rows (the virtualizer's mounted window) */
@@ -204,24 +206,24 @@ export function formatDurationMs(ms: number): string {
  * collect the spans compression may keep. Iterative — deep traces must not
  * blow the stack.
  */
-export function prepareTimeline(
-  roots: readonly LayoutNode[],
+export function prepareTimeline<TNode extends LayoutNode>(
+  roots: readonly TNode[],
   collapsed: ReadonlySet<string> = new Set(),
-): PreparedTimeline {
+): PreparedTimeline<TNode> {
   if (roots.length === 0) {
     return { rows: [], originMs: 0, durationMs: 0, spans: [] };
   }
 
   let originMs = Infinity;
   let latestEndMs = -Infinity;
-  const all: LayoutNode[] = [];
-  const boundsStack: LayoutNode[] = [...roots];
+  const all: TNode[] = [];
+  const boundsStack: TNode[] = [...roots];
   while (boundsStack.length > 0) {
     const node = boundsStack.pop()!;
     all.push(node);
     originMs = Math.min(originMs, startOf(node));
     latestEndMs = Math.max(latestEndMs, endOf(node));
-    for (const child of node.children) boundsStack.push(child);
+    for (const child of node.children) boundsStack.push(child as TNode);
   }
 
   if (!Number.isFinite(originMs) || !Number.isFinite(latestEndMs)) {
@@ -238,9 +240,10 @@ export function prepareTimeline(
     spans.push([startOf(node) - originMs, endOf(node) - originMs]);
   }
 
-  const byStart = (a: LayoutNode, b: LayoutNode) => startOf(a) - startOf(b);
-  const rows: TimelineRow[] = [];
-  const stack: Array<Omit<TimelineRow, "hasChildren" | "isCollapsed">> = [];
+  const byStart = (a: TNode, b: TNode) => startOf(a) - startOf(b);
+  const rows: Array<TimelineRow<TNode>> = [];
+  const stack: Array<Omit<TimelineRow<TNode>, "hasChildren" | "isCollapsed">> =
+    [];
   const sortedRoots = [...roots].sort(byStart);
   for (let i = sortedRoots.length - 1; i >= 0; i--) {
     stack.push({
@@ -258,7 +261,7 @@ export function prepareTimeline(
     rows.push({ ...current, hasChildren, isCollapsed });
 
     if (!hasChildren || isCollapsed) continue;
-    const children = [...current.node.children].sort(byStart);
+    const children = [...(current.node.children as TNode[])].sort(byStart);
     for (let i = children.length - 1; i >= 0; i--) {
       stack.push({
         node: children[i]!,
@@ -274,7 +277,7 @@ export function prepareTimeline(
 
 /** Memoize on `[prepared, box.width, compress]` — not on the view. */
 export function timeCompressionFor(
-  prepared: PreparedTimeline,
+  prepared: PreparedTimeline<LayoutNode>,
   box: Box,
   compress: boolean,
 ): TimeCompression {
@@ -288,7 +291,9 @@ export function timeCompressionFor(
     : identityCompression(prepared.durationMs);
 }
 
-export function layout(input: LayoutInput): TimelineLayout {
+export function layout<TNode extends LayoutNode>(
+  input: LayoutInput<TNode>,
+): TimelineLayout<TNode> {
   const { box, density, measurer } = input;
   const laneWidth = Math.max(Number.isFinite(box.width) ? box.width : 0, 0);
 
@@ -308,7 +313,7 @@ export function layout(input: LayoutInput): TimelineLayout {
     prepared.rows.length - 1,
   );
 
-  const nodes: PositionedNode[] = [];
+  const nodes: Array<PositionedNode<TNode>> = [];
   for (let index = from; index <= to; index++) {
     const row = prepared.rows[index]!;
     nodes.push(
@@ -340,8 +345,8 @@ export function layout(input: LayoutInput): TimelineLayout {
   };
 }
 
-function positionRow(
-  row: TimelineRow,
+function positionRow<TNode extends LayoutNode>(
+  row: TimelineRow<TNode>,
   index: number,
   context: {
     originMs: number;
@@ -352,7 +357,7 @@ function positionRow(
     density: Density;
     measurer: TextMeasurer;
   },
-): PositionedNode {
+): PositionedNode<TNode> {
   const {
     originMs,
     compression,
@@ -401,6 +406,7 @@ function positionRow(
       : transform.toPx(compression.toCompressedMs(firstTokenMs));
 
   return {
+    node,
     id: node.id,
     name: node.name,
     type: node.type ?? "SPAN",

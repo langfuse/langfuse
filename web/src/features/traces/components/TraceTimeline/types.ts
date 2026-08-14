@@ -1,26 +1,19 @@
 /**
  * Timeline-specific types for trace visualization
+ *
+ * Geometry is not here: every coordinate comes from `PositionedNode`, produced
+ * by the pure `layout()` in fns/timeline. These types only describe what the
+ * row components need on top of it.
  */
 
 import type { TreeNode } from "../../types/treeNode";
+import type { PositionedNode, Tick } from "../../fns/timeline/layout";
 import type Decimal from "decimal.js";
 import type { ScoreDomain } from "@langfuse/shared";
 import type { WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
-/**
- * Pre-computed timeline metrics for efficient rendering
- * Calculated once during tree flattening to avoid per-frame calculations
- */
-export interface TimelineMetrics {
-  /** Horizontal offset from trace start (in pixels) */
-  startOffset: number;
-  /** Width of the timeline bar (in pixels) */
-  itemWidth: number;
-  /** Offset for first token time marker (for streaming LLMs, in pixels) */
-  firstTokenTimeOffset?: number;
-  /** Duration in seconds */
-  latency?: number;
-}
+/** A row of the timeline, positioned against the measured lane. */
+export type TimelineRowNode = PositionedNode<TreeNode>;
 
 /**
  * Props for TimelineBar component
@@ -29,8 +22,9 @@ export interface TimelineMetrics {
  * gutter (TimelineGutterRow), not here.
  */
 export interface TimelineBarProps {
-  node: TreeNode;
-  metrics: TimelineMetrics;
+  row: TimelineRowNode;
+  /** Measured width of the chart lane; the cluster may not cross it. */
+  laneWidth: number;
   isSelected: boolean;
   /** Row is hovered (driven by shared state so the whole row highlights). */
   isHovered?: boolean;
@@ -50,25 +44,12 @@ export interface TimelineBarProps {
 }
 
 /**
- * Flattened timeline item for virtualized rendering
- * Extends TreeNode with timeline positioning data and tree structure metadata
- */
-export interface FlatTimelineItem {
-  node: TreeNode;
-  depth: number;
-  treeLines: boolean[];
-  isLastSibling: boolean;
-  // Pre-computed timeline metrics
-  metrics: TimelineMetrics;
-}
-
-/**
  * Props for TimelineGutterRow component
  * Renders the left gutter: tree connectors + icon + name (the depth coordinate).
  * Identity only — time/metrics live on the bar (TimelineBar) in the chart pane.
  */
 export interface TimelineGutterRowProps {
-  item: FlatTimelineItem;
+  row: Pick<TimelineRowNode, "node" | "depth" | "treeLines" | "isLastSibling">;
   isSelected: boolean;
   /** Row is hovered (shared state so the gutter + chart highlight together). */
   isHovered?: boolean;
@@ -87,13 +68,10 @@ export interface TimelineGutterRowProps {
 
 /**
  * Props for TimelineScale component
- * Renders time axis with markers
+ * Renders the time axis from ticks the layout already placed and labelled.
  */
 export interface TimelineScaleProps {
-  /** Total trace duration in seconds */
-  traceDuration: number;
-  /** Width of the timeline scale in pixels */
-  scaleWidth: number;
-  /** Step size between time markers in seconds */
-  stepSize: number;
+  ticks: readonly Tick[];
+  /** Measured width of the chart lane. */
+  laneWidth: number;
 }

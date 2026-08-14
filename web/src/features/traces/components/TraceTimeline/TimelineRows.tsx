@@ -16,14 +16,14 @@ import type Decimal from "decimal.js";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type TreeNode } from "../../types/treeNode";
-import { type FlatTimelineItem } from "./types";
+import { type TimelineRowNode } from "./types";
 import { TimelineGutterRow } from "./TimelineGutterRow";
 import { TimelineBar } from "./TimelineBar";
 import { useIsObservationActive } from "@/src/features/traces/contexts/PlayheadContext";
 import { cn } from "@/src/utils/tailwind";
 
 interface RowShellSharedProps {
-  item: FlatTimelineItem;
+  row: TimelineRowNode;
   /** Virtual row offset/extent — primitives so the memo can bail on scroll. */
   top: number;
   height: number;
@@ -43,7 +43,7 @@ type GutterRowShellProps = RowShellSharedProps & {
 };
 
 function TimelineGutterRowShellComponent({
-  item,
+  row,
   top,
   height,
   isSelected,
@@ -55,7 +55,7 @@ function TimelineGutterRowShellComponent({
   onHover,
   onToggleCollapse,
 }: GutterRowShellProps) {
-  const nodeId = item.node.id;
+  const nodeId = row.node.id;
   // Playhead glow: rows "playing" at the current time light UP (accent tint).
   const isActive = useIsObservationActive(nodeId);
 
@@ -75,11 +75,11 @@ function TimelineGutterRowShellComponent({
       )}
     >
       <TimelineGutterRow
-        item={item}
+        row={row}
         isSelected={isSelected}
         isHovered={isHovered}
         onSelect={() => onSelect(nodeId)}
-        onHover={() => onHover(item.node)}
+        onHover={() => onHover(row.node)}
         onToggleCollapse={() => onToggleCollapse(nodeId)}
         hasChildren={hasChildren}
         isCollapsed={isCollapsed}
@@ -105,7 +105,7 @@ type ChartRowShellProps = RowShellSharedProps & {
 };
 
 function TimelineChartRowShellComponent({
-  item,
+  row,
   top,
   height,
   width,
@@ -123,7 +123,7 @@ function TimelineChartRowShellComponent({
   onSelect,
   onHover,
 }: ChartRowShellProps) {
-  const nodeId = item.node.id;
+  const nodeId = row.node.id;
   const isActive = useIsObservationActive(nodeId);
 
   return (
@@ -150,11 +150,11 @@ function TimelineChartRowShellComponent({
               : "",
       )}
       onClick={() => onSelect(nodeId)}
-      onMouseEnter={() => onHover(item.node)}
+      onMouseEnter={() => onHover(row.node)}
     >
       <TimelineBar
-        node={item.node}
-        metrics={item.metrics}
+        row={row}
+        laneWidth={width}
         isSelected={isSelected}
         isHovered={isHovered}
         showDuration={showDuration}

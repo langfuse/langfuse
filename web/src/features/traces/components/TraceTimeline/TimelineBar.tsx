@@ -5,6 +5,12 @@
  * start offset, followed by a trailing metric label. Identity (badge, name) and
  * hierarchy (tree connectors) live in the gutter (TimelineGutterRow) — not here — so
  * the bar can sit at its true time position without dragging the tree with it.
+ *
+ * Every coordinate arrives already computed from `layout()`, including WHICH SIDE
+ * of the bar the metric cluster goes on. That decision used to belong to CSS
+ * flow, which cannot see the lane's width and so pushed the cluster off-screen
+ * in a narrow lane; the lane no longer scrolls horizontally, so off-screen means
+ * gone. See fns/timeline/layout.ts.
  */
 
 import { type TimelineBarProps } from "./types";
@@ -20,12 +26,13 @@ import { isPresent } from "@langfuse/shared";
 const SUBTREE_DURATION_TITLE =
   "Subtree wall-clock duration (first start → last end)";
 
-// Keep zero/near-zero-duration spans visible as a small marker.
-const MIN_BAR_WIDTH = 4;
+// Room between the bar and a metric cluster sitting outside it.
+const CLUSTER_GAP_PX = 6;
+const CLUSTER_INSET_PX = 4;
 
 export function TimelineBar({
-  node,
-  metrics,
+  row,
+  laneWidth,
   isSelected,
   isHovered,
   showDuration,
@@ -38,15 +45,14 @@ export function TimelineBar({
   commentCount,
   scores,
 }: TimelineBarProps) {
-  const { startOffset, itemWidth, firstTokenTimeOffset, latency } = metrics;
-  const duration = latency ? latency * 1000 : undefined;
+  const node = row.node;
 
   // Own-span basis mirrors SpanContent: fall back to node.latency when there's
   // no endTime (e.g. the synthetic v4 trace-root span) so tree and timeline
   // agree. Wall-clock subtree duration is surfaced only when async descendants
   // outlive this node's own span (LFE-10475).
   const ownDurationMs =
-    duration ?? (node.latency ? node.latency * 1000 : undefined);
+    row.durationMs ?? (node.latency ? node.latency * 1000 : undefined);
   const subtreeWallClockOverflowMs = showDuration
     ? getSubtreeDurationOverflowMs(
         ownDurationMs,
@@ -62,105 +68,111 @@ export function TimelineBar({
       ? "ring-tertiary ring-2"
       : "";
 
-  // Trailing label: rides just after the bar so metrics stay readable no matter
-  // how thin the bar is. Respects the same view toggles as the tree.
-  const label = (
-    <div className="text-muted-foreground flex items-center gap-2 text-xs whitespace-nowrap">
-      {showComments && commentCount ? (
-        <CommentCountIcon count={commentCount} />
-      ) : null}
-      {showDuration && isPresent(ownDurationMs) && (
-        <span
-          className={cn(
-            parentTotalDuration &&
-              colorCodeMetrics &&
-              heatMapTextColor({
-                max: parentTotalDuration,
-                value: ownDurationMs,
-              }),
-          )}
-        >
-          {formatIntervalSeconds(ownDurationMs / 1000)}
-        </span>
-      )}
-      {isPresent(ownDurationMs) && subtreeWallClockOverflowMs != null && (
-        <span title={SUBTREE_DURATION_TITLE}>
-          {"∑ "}
-          {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
-        </span>
-      )}
-      {showCostTokens && node.totalCost && (
-        <span
-          className={cn(
-            parentTotalCost &&
-              colorCodeMetrics &&
-              heatMapTextColor({
-                max: parentTotalCost,
-                value: node.totalCost,
-              }),
-          )}
-        >
-          {usdFormatter(node.totalCost.toNumber())}
-        </span>
-      )}
-      {showScores && scores && scores.length > 0 && (
-        <div className="flex max-h-5 gap-1">
-          <GroupedScoreBadges scores={scores} maxVisible={3} />
-        </div>
-      )}
-    </div>
-  );
+  // Which side the metric cluster lands on is layout()'s call, made against the
+  // measured lane; we only turn it into a position. `hidden` means neither side
+  // had room, so nothing is drawn rather than something drawn off the lane.
+  const clusterStyle =
+    row.labelPlacement === "before"
+      ? {
+          right: `${Math.max(laneWidth - row.x + CLUSTER_GAP_PX, 0)}px`,
+          maxWidth: `${Math.max(row.x - CLUSTER_GAP_PX, 0)}px`,
+        }
+      : row.labelPlacement === "inside"
+        ? {
+            left: `${row.x + CLUSTER_INSET_PX}px`,
+            maxWidth: `${Math.max(row.width - CLUSTER_INSET_PX * 2, 0)}px`,
+          }
+        : {
+            left: `${row.x + row.width + CLUSTER_GAP_PX}px`,
+            maxWidth: `${Math.max(
+              laneWidth - (row.x + row.width + CLUSTER_GAP_PX),
+              0,
+            )}px`,
+          };
 
-  // Split bar for streaming LLMs (first token time): waiting segment + completion.
-  if (firstTokenTimeOffset) {
-    const firstTokenWidth = Math.max(firstTokenTimeOffset - startOffset, 0);
-    const completionWidth = Math.max(
-      itemWidth - firstTokenWidth,
-      MIN_BAR_WIDTH,
+  // Only the duration is measured by layout(); the optional badges ride along
+  // and clip at the lane edge rather than widening the row.
+  const cluster =
+    row.labelPlacement === "hidden" ? null : (
+      <div
+        className="text-muted-foreground absolute top-1/2 flex -translate-y-1/2 items-center gap-2 overflow-hidden text-xs whitespace-nowrap"
+        style={clusterStyle}
+      >
+        {showComments && commentCount ? (
+          <CommentCountIcon count={commentCount} />
+        ) : null}
+        {showDuration && isPresent(ownDurationMs) && (
+          <span
+            className={cn(
+              parentTotalDuration &&
+                colorCodeMetrics &&
+                heatMapTextColor({
+                  max: parentTotalDuration,
+                  value: ownDurationMs,
+                }),
+            )}
+          >
+            {formatIntervalSeconds(ownDurationMs / 1000)}
+          </span>
+        )}
+        {isPresent(ownDurationMs) && subtreeWallClockOverflowMs != null && (
+          <span title={SUBTREE_DURATION_TITLE}>
+            {"∑ "}
+            {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
+          </span>
+        )}
+        {showCostTokens && node.totalCost && (
+          <span
+            className={cn(
+              parentTotalCost &&
+                colorCodeMetrics &&
+                heatMapTextColor({
+                  max: parentTotalCost,
+                  value: node.totalCost,
+                }),
+            )}
+          >
+            {usdFormatter(node.totalCost.toNumber())}
+          </span>
+        )}
+        {showScores && scores && scores.length > 0 && (
+          <div className="flex max-h-5 gap-1">
+            <GroupedScoreBadges scores={scores} maxVisible={3} />
+          </div>
+        )}
+      </div>
     );
 
-    return (
+  // Streaming LLMs (first token time) split the bar: waiting segment, then
+  // completion. firstTokenX is null when the marker falls outside the lane.
+  const firstTokenWidth =
+    row.firstTokenX == null
+      ? null
+      : Math.min(Math.max(row.firstTokenX - row.x, 0), row.width);
+
+  return (
+    <>
       <div
-        className="absolute top-1/2 flex -translate-y-1/2 items-center gap-2"
-        style={{ left: `${startOffset}px` }}
+        className={cn(
+          "border-border bg-muted absolute top-1/2 flex h-4 -translate-y-1/2 overflow-hidden rounded-sm border",
+          // Dashed when in-flight (no measurable duration yet).
+          row.durationMs == null && "border-dashed",
+          // A clipped edge loses its rounding, so the bar reads as continuing.
+          row.clippedLeft && "rounded-l-none",
+          row.clippedRight && "rounded-r-none",
+          ringClass,
+        )}
+        style={{ left: `${row.x}px`, width: `${row.width}px` }}
       >
-        <div
-          className={cn(
-            "border-border flex h-4 overflow-hidden rounded-sm border",
-            // Dashed when in-flight (no width yet), matching the non-streaming bar.
-            itemWidth ? "" : "border-dashed",
-            ringClass,
-          )}
-        >
+        {firstTokenWidth == null ? null : (
           <div
             className="bg-muted h-full border-r border-gray-400 opacity-60"
             style={{ width: `${firstTokenWidth}px` }}
             title="Time to first token"
           />
-          <div
-            className="bg-muted h-full"
-            style={{ width: `${completionWidth}px` }}
-          />
-        </div>
-        {label}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="absolute top-1/2 flex -translate-y-1/2 items-center gap-2"
-      style={{ left: `${startOffset}px` }}
-    >
-      <div
-        className={cn(
-          "border-border bg-muted h-4 rounded-sm border",
-          itemWidth ? "" : "border-dashed",
-          ringClass,
         )}
-        style={{ width: `${Math.max(itemWidth, MIN_BAR_WIDTH)}px` }}
-      />
-      {label}
-    </div>
+      </div>
+      {cluster}
+    </>
   );
 }

@@ -1,12 +1,12 @@
 import preview from "../../../../../.storybook/preview";
 import { TimelineBar } from "./TimelineBar";
-import { makeTreeNode, makeMetrics, cost } from "./__tests__/timeline.fixtures";
+import { makeRow, makeTreeNode, cost } from "./__tests__/timeline.fixtures";
 
 const meta = preview.meta({
   component: TimelineBar,
   args: {
-    node: makeTreeNode(),
-    metrics: makeMetrics(),
+    row: makeRow(),
+    laneWidth: 640,
     isSelected: false,
     showDuration: true,
     showCostTokens: false,
@@ -33,32 +33,42 @@ export const Selected = meta.story({
 
 export const ZeroDuration = meta.story({
   args: {
-    node: makeTreeNode({
-      endTime: new Date("2024-01-01T00:00:00.000Z"),
-      latency: 0,
+    row: makeRow({
+      node: makeTreeNode({
+        endTime: new Date("2024-01-01T00:00:00.000Z"),
+        latency: 0,
+      }),
+      width: 4,
+      durationMs: 0,
+      label: "0.00s",
+      labelX: 70,
     }),
-    metrics: makeMetrics({ itemWidth: 0, latency: 0 }),
   },
 });
 
 export const Streaming = meta.story({
   args: {
-    metrics: makeMetrics({
-      startOffset: 60,
-      itemWidth: 260,
-      firstTokenTimeOffset: 150,
-    }),
+    row: makeRow({ width: 260, firstTokenX: 150, labelX: 326 }),
+  },
+});
+
+/** No room on either side of the bar, so the metric cluster is not drawn. */
+export const LabelHidden = meta.story({
+  args: {
+    row: makeRow({ x: 636, width: 4, labelPlacement: "hidden" }),
   },
 });
 
 export const WithCostAndTokens = meta.story({
   args: {
     showCostTokens: true,
-    node: makeTreeNode({
-      totalCost: cost(0.0021),
-      inputUsage: 320,
-      outputUsage: 140,
-      totalUsage: 460,
+    row: makeRow({
+      node: makeTreeNode({
+        totalCost: cost(0.0021),
+        inputUsage: 320,
+        outputUsage: 140,
+        totalUsage: 460,
+      }),
     }),
   },
 });

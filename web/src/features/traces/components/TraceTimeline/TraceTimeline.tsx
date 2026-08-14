@@ -6,12 +6,15 @@
  *    itself — its content is a one-way translateY projection of the chart's
  *    vertical scroll, so the two panes can't drift; wheeling or touch-dragging
  *    over it drives the chart.
- *  - Chart pane (flex-1): the gantt bars. Owns the only scrollbars (horizontal
- *    and vertical) and is the virtualizer's scroll element.
+ *  - Chart pane (flex-1): the gantt bars. Owns the only (vertical) scrollbar and
+ *    is the virtualizer's scroll element.
  *
- * The time scale sits in an overflow-hidden header strip whose inner is
- * transform-synced to the chart's horizontal scroll, so the scale stays aligned
- * with the bars without a scrollbar of its own.
+ * The chart NEVER scrolls horizontally. Its measured client width is the scale
+ * basis, so the whole trace is fitted into the lane the user actually has, at
+ * any size — every coordinate comes from the pure layout() in fns/timeline,
+ * which clamps bars, labels and ticks inside that lane. The previous design
+ * scaled against a hard-coded 900px canvas and let the container scroll, which
+ * put part of the trace off-screen in any narrower lane.
  *
  * Playback: the engine (RAF loop, transport) lives in the shared playhead
  * store (contexts/playheadStore.ts); the transport buttons live in the
@@ -27,7 +30,6 @@ import {
   useRef,
   useState,
   useLayoutEffect,
-  type RefObject,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
@@ -35,20 +37,18 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
   usePlayhead,
-  usePlayheadStore,
   useShowPlayhead,
 } from "@/src/features/traces/contexts/PlayheadContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
+import { computeSelectionScrollTarget } from "../../fns/timelineCalculations";
 import {
-  calculateStepSize,
-  computeSelectionScrollTarget,
-  REVEAL_LEFT_FRACTION,
-  REVEAL_MARGIN_PX,
-  SCALE_WIDTH,
-} from "../../fns/timelineCalculations";
+  layout as computeTimelineLayout,
+  prepareTimeline,
+} from "../../fns/timeline/layout";
+import { resolveDensity } from "../../fns/timeline/density";
+import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { TimelineScale } from "./TimelineScale";
 import { TimelineChartRowShell, TimelineGutterRowShell } from "./TimelineRows";
 import {
@@ -66,9 +66,11 @@ const GUTTER_WIDTH_DEFAULT = 200;
 const GUTTER_WIDTH_MIN = 160;
 const GUTTER_WIDTH_MAX = 560;
 // Dense waterfall rows (LFE-10539): the 16px bar / 16px name chip sit centered
-// with ~5px of breathing room. Drives both the virtualizer estimate and the
-// rendered row height, so the two never drift.
-const ROW_HEIGHT = 26;
+// with ~5px of breathing room. Resolved once here so the virtualizer estimate
+// and the rendered row height cannot drift. Touch density is Phase 4's job, so
+// this pins the fine-pointer value.
+const DENSITY = resolveDensity({ pointer: "fine" });
+const ROW_HEIGHT = DENSITY.rowHeight;
 
 const EMPTY_SCORES: never[] = [];
 
@@ -99,25 +101,21 @@ function startWindowDrag(onMove: (ev: PointerEvent) => void) {
  */
 function useTimelinePlayhead({
   traceDuration,
-  chartRef,
+  secToX,
+  xToSec,
 }: {
   traceDuration: number;
-  chartRef: RefObject<HTMLDivElement | null>;
+  /** Seconds from the trace origin → px in the chart lane. */
+  secToX: (sec: number) => number;
+  /** px in the chart lane → seconds from the trace origin. */
+  xToSec: (px: number) => number;
 }) {
-  const store = usePlayheadStore();
   const { seekToSec, pause, getPlayheadSec, subscribePosition } = usePlayhead();
   const showPlayhead = useShowPlayhead();
 
   const scaleOuterRef = useRef<HTMLDivElement>(null);
   const playheadLineRef = useRef<HTMLDivElement>(null);
   const playheadHandleRef = useRef<HTMLDivElement>(null);
-
-  // Map a playhead time (seconds from origin) to an x within the gantt content.
-  const secToX = useCallback(
-    (sec: number) =>
-      traceDuration > 0 ? (sec / traceDuration) * SCALE_WIDTH : 0,
-    [traceDuration],
-  );
 
   // Position the line + handle imperatively off the engine's position feed (no
   // re-render). They only exist while showPlayhead; re-subscribe when the
@@ -134,46 +132,23 @@ function useTimelinePlayhead({
         handle.setAttribute("aria-valuenow", sec.toFixed(2));
         handle.setAttribute("aria-valuetext", `${sec.toFixed(2)} seconds`);
       }
-      // Follow the playhead while PLAYING so the sweep never exits the
-      // viewport — but never during manual scrubbing or while paused, so we
-      // don't hijack the user's horizontal scroll. Instant (runs per frame).
-      const chart = chartRef.current;
-      if (chart && store.getState().isPlaying) {
-        const x = secToX(sec);
-        if (
-          x < chart.scrollLeft + REVEAL_MARGIN_PX ||
-          x > chart.scrollLeft + chart.clientWidth - REVEAL_MARGIN_PX
-        ) {
-          chart.scrollLeft = Math.max(
-            0,
-            x - chart.clientWidth * REVEAL_LEFT_FRACTION,
-          );
-        }
-      }
+      // No follow-scroll: the whole trace is fitted into the lane, so the
+      // playhead cannot sweep out of view.
     };
     apply(getPlayheadSec());
     return subscribePosition(apply);
-  }, [
-    showPlayhead,
-    secToX,
-    getPlayheadSec,
-    subscribePosition,
-    chartRef,
-    store,
-  ]);
+  }, [showPlayhead, secToX, getPlayheadSec, subscribePosition]);
 
   // Translate a pointer x on the scale into a seek (places/moves the playhead).
+  // The scale shares the chart lane's coordinate space and neither scrolls, so
+  // the offset from the strip's left edge IS the lane x.
   const seekFromClientX = useCallback(
     (clientX: number) => {
       const outer = scaleOuterRef.current;
       if (!outer || traceDuration <= 0) return;
-      const contentX =
-        clientX -
-        outer.getBoundingClientRect().left +
-        (chartRef.current?.scrollLeft ?? 0);
-      seekToSec((contentX / SCALE_WIDTH) * traceDuration);
+      seekToSec(xToSec(clientX - outer.getBoundingClientRect().left));
     },
-    [traceDuration, seekToSec, chartRef],
+    [traceDuration, seekToSec, xToSec],
   );
 
   const handleScalePointerDown = useCallback(
@@ -232,7 +207,6 @@ export function TraceTimeline() {
     serverScores: scores,
     traceLevelScoreOwnerIds,
     comments,
-    traceStartTime,
     traceDuration,
   } = useTraceData();
   const { collapsedNodes, toggleCollapsed, selectedNodeId, setSelectedNodeId } =
@@ -257,7 +231,6 @@ export function TraceTimeline() {
   // transform projection of it (gutterInnerRef), so the two panes can't drift.
   const gutterInnerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
-  const scaleInnerRef = useRef<HTMLDivElement>(null);
 
   // Hovered row, lifted to shared state so hovering either pane highlights the
   // whole row (caption + chart), which CSS :hover can't do across two panes.
@@ -286,10 +259,6 @@ export function TraceTimeline() {
     [gutterWidth],
   );
 
-  const stepSize = useMemo(() => {
-    return calculateStepSize(traceDuration, SCALE_WIDTH);
-  }, [traceDuration]);
-
   // Cap gutter indentation to the gutter width so extremely deep traces (a
   // reported one chained ~1400 levels) keep names readable instead of
   // clipping into nothing (LFE-10959).
@@ -298,29 +267,16 @@ export function TraceTimeline() {
     GUTTER_VISUAL_DEPTH,
   );
 
-  const flattenedItems = useMemo(() => {
-    return flattenTreeWithTimelineMetrics(
-      roots,
-      collapsedNodes,
-      traceStartTime,
-      traceDuration,
-      SCALE_WIDTH,
-    );
-  }, [roots, collapsedNodes, traceStartTime, traceDuration]);
+  // Tree walk, memoized on the tree + collapsed set: it is the one expensive
+  // part and it must stay out of the resize/render path.
+  const prepared = useMemo(
+    () => prepareTimeline(roots, collapsedNodes),
+    [roots, collapsedNodes],
+  );
 
-  // Width of the chart content (gantt area). Padding leaves room for the
-  // trailing metric label that rides after each bar.
-  const chartContentWidth = useMemo(() => {
-    if (flattenedItems.length === 0) return SCALE_WIDTH;
-
-    const maxEnd = Math.max(
-      ...flattenedItems.map(
-        (item) => item.metrics.startOffset + item.metrics.itemWidth,
-      ),
-    );
-
-    return Math.max(SCALE_WIDTH, maxEnd + 300);
-  }, [flattenedItems]);
+  // Canvas glyph widths, measured once, so layout() can decide whether a
+  // duration label fits inside its bar.
+  const measurer = useMemo(() => createTextMeasurer(), []);
 
   // Virtualizer drives off the chart pane; the gutter mirrors its vertical scroll.
   // overscan is a ROW COUNT (not px): keep it small so a long trace re-renders
@@ -328,10 +284,13 @@ export function TraceTimeline() {
   // px-vs-items mix-up — made big traces stutter). ~16 rows ≈ half a viewport of
   // headroom, enough to avoid blank rows on a normal scroll.
   const rowVirtualizer = useVirtualizer({
-    count: flattenedItems.length,
+    count: prepared.rows.length,
     getScrollElement: () => chartRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 16,
+    // Key by node id: an index-keyed measurement cache and an id-keyed DOM
+    // drift apart the moment a collapse changes what index a row holds.
+    getItemKey: (index) => prepared.rows[index]?.node.id ?? index,
   });
 
   // Scroll the selected row into view whenever the selection changes — so
@@ -347,12 +306,12 @@ export function TraceTimeline() {
       return;
     }
 
-    const index = flattenedItems.findIndex(
-      (item) => item.node.id === selectedNodeId,
+    const index = prepared.rows.findIndex(
+      (row) => row.node.id === selectedNodeId,
     );
     // Keep the scroll PENDING when the row is missing (collapsed subtree,
     // level filter) — the ref stays un-advanced, so this retries when
-    // flattenedItems changes and the row appears.
+    // prepared.rows changes and the row appears.
     if (index === -1) return;
     const chart = chartRef.current;
     if (!chart) return;
@@ -360,32 +319,28 @@ export function TraceTimeline() {
     const isInitial = prevSelectedIdRef.current === undefined;
     prevSelectedIdRef.current = selectedNodeId;
 
-    const { top, left } = computeSelectionScrollTarget({
+    // Vertical only: the whole trace is fitted into the lane, so a selected bar
+    // is never off to the side. Reaching detail is zoom's job (Phase 3).
+    const { top } = computeSelectionScrollTarget({
       index,
       rowHeight: ROW_HEIGHT,
       scrollTop: chart.scrollTop,
-      scrollLeft: chart.scrollLeft,
       clientHeight: chart.clientHeight,
-      clientWidth: chart.clientWidth,
-      barStart: flattenedItems[index]?.metrics.startOffset ?? null,
       isInitial,
     });
 
-    chart.scrollTo({ top, left, behavior: isInitial ? "auto" : "smooth" });
-  }, [selectedNodeId, flattenedItems]);
+    chart.scrollTo({ top, behavior: isInitial ? "auto" : "smooth" });
+  }, [selectedNodeId, prepared]);
 
-  // The chart owns the only vertical scroll. The gutter and the time scale are
-  // one-way projections of it (translateY / translateX) updated in the same
-  // scroll frame — no second scroll container to fight the chart's momentum,
-  // which is what made the two panes drift apart.
+  // The chart owns the only scroll. The gutter is a one-way projection of it
+  // (translateY) updated in the same scroll frame — no second scroll container
+  // to fight the chart's momentum, which is what made the two panes drift
+  // apart. The scale needs no projection: nothing scrolls horizontally.
   const handleChartScroll = useCallback(() => {
     const chart = chartRef.current;
     if (!chart) return;
     if (gutterInnerRef.current) {
       gutterInnerRef.current.style.transform = `translateY(${-chart.scrollTop}px)`;
-    }
-    if (scaleInnerRef.current) {
-      scaleInnerRef.current.style.transform = `translateX(${-chart.scrollLeft}px)`;
     }
   }, []);
 
@@ -488,43 +443,85 @@ export function TraceTimeline() {
   const totalSize = rowVirtualizer.getTotalSize();
   const virtualItems = rowVirtualizer.getVirtualItems();
 
-  const {
-    scaleOuterRef,
-    playheadLineRef,
-    playheadHandleRef,
-    showPlayhead,
-    secToX,
-    getPlayheadSec,
-    handleScalePointerDown,
-    handleHandlePointerDown,
-    handleHandleKeyDown,
-  } = useTimelinePlayhead({ traceDuration, chartRef });
-
-  // Classic scrollbars (Windows/Linux) on the chart pane consume client area
-  // the gutter/scale don't: its horizontal scrollbar eats ~15px of height, its
-  // vertical scrollbar ~15px of width. We reserve the matching amount on the
-  // gutter (bottom) and the scale strip (right) so the three panes share the
-  // same scrollable extent — otherwise mirrored scroll clamps at the bottom and
-  // a right-edge tick floats over the chart's scrollbar. Both are 0 with macOS
-  // overlay bars.
-  const [chartScrollbar, setChartScrollbar] = useState({ x: 0, y: 0 });
+  // THE measurement. The chart pane's own client box is the scale basis, and it
+  // must be the box of the element that SCROLLS: its border and its vertical
+  // scrollbar (~15px on Windows/Linux, 0 with macOS overlay bars) both take
+  // width that an arithmetic guess from the container would miss, and any such
+  // miss is a lane wider than the space available — which is horizontal scroll,
+  // the thing this design removes. `scrollbarWidth` is reported separately so
+  // the scale strip, which has no scrollbar of its own, can reserve the same
+  // gutter and stay aligned with the bars.
+  const [chartBox, setChartBox] = useState({
+    width: 0,
+    height: 0,
+    scrollbarWidth: 0,
+  });
   useLayoutEffect(() => {
     const el = chartRef.current;
     if (!el) return;
     const measure = () => {
-      const x = el.offsetWidth - el.clientWidth;
-      const y = el.offsetHeight - el.clientHeight;
+      const next = {
+        width: el.clientWidth,
+        height: el.clientHeight,
+        scrollbarWidth: el.offsetWidth - el.clientWidth,
+      };
       // Only re-render when the measurement actually changes — the observer
-      // fires on every content resize, but the scrollbar size rarely moves.
-      setChartScrollbar((prev) =>
-        prev.x === x && prev.y === y ? prev : { x, y },
+      // fires on every content resize, but the box rarely moves.
+      setChartBox((prev) =>
+        prev.width === next.width &&
+        prev.height === next.height &&
+        prev.scrollbarWidth === next.scrollbarWidth
+          ? prev
+          : next,
       );
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [chartContentWidth, totalSize, gutterWidth]);
+  }, [totalSize, gutterWidth]);
+
+  // One pure call owns every coordinate on screen, for the mounted rows only.
+  // The view is the whole trace: zoom/pan is Phase 3, and until then
+  // "fit to the measured box" is the only view there is.
+  const chartLayout = computeTimelineLayout({
+    roots,
+    box: { width: chartBox.width, height: chartBox.height },
+    density: DENSITY,
+    measurer,
+    view: null,
+    compress: false,
+    prepared,
+    rowRange: virtualItems.length
+      ? {
+          startIndex: virtualItems[0]!.index,
+          endIndex: virtualItems[virtualItems.length - 1]!.index,
+        }
+      : // Before the virtualizer has measured its scroll element, fill the box.
+        {
+          startIndex: 0,
+          endIndex: Math.ceil(chartBox.height / ROW_HEIGHT) + 1,
+        },
+  });
+
+  // Playhead ↔ lane mapping, in the same space as the bars and the ticks.
+  const { pxPerMs } = chartLayout;
+  const secToX = useCallback((sec: number) => sec * 1000 * pxPerMs, [pxPerMs]);
+  const xToSec = useCallback(
+    (px: number) => (pxPerMs > 0 ? px / pxPerMs / 1000 : 0),
+    [pxPerMs],
+  );
+
+  const {
+    scaleOuterRef,
+    playheadLineRef,
+    playheadHandleRef,
+    showPlayhead,
+    getPlayheadSec,
+    handleScalePointerDown,
+    handleHandlePointerDown,
+    handleHandleKeyDown,
+  } = useTimelinePlayhead({ traceDuration, secToX, xToSec });
 
   // Stable id/node-taking callbacks shared by every row shell (see
   // TimelineRows.tsx — stable references keep the memo boundary effective).
@@ -553,8 +550,10 @@ export function TraceTimeline() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      {/* Header: name label + time scale (transform-synced). Transport controls
-          live in the shared navigation header (see PlaybackControls). */}
+      {/* Header: name label + time scale. The scale shares the chart lane's
+          coordinate space and neither scrolls, so no transform sync is needed —
+          it only reserves the width the chart's scrollbar takes. Transport
+          controls live in the shared navigation header (see PlaybackControls). */}
       <div className="flex shrink-0">
         <div
           className="bg-background text-muted-foreground flex shrink-0 items-center pl-2 text-xs font-bold"
@@ -569,17 +568,12 @@ export function TraceTimeline() {
           ref={scaleOuterRef}
           onPointerDown={handleScalePointerDown}
           className="flex-1 cursor-pointer overflow-hidden select-none"
-          style={{ marginRight: `${chartScrollbar.x}px` }}
+          style={{ marginRight: `${chartBox.scrollbarWidth}px` }}
         >
-          <div
-            ref={scaleInnerRef}
-            className="relative"
-            style={{ width: `${chartContentWidth}px` }}
-          >
+          <div className="relative">
             <TimelineScale
-              traceDuration={traceDuration}
-              scaleWidth={SCALE_WIDTH}
-              stepSize={stepSize}
+              ticks={chartLayout.ticks}
+              laneWidth={chartBox.width}
             />
             {showPlayhead && (
               <div
@@ -629,29 +623,26 @@ export function TraceTimeline() {
           <div
             ref={gutterInnerRef}
             style={{
-              // Match the chart's scrollable extent, including the height its
-              // horizontal scrollbar steals on classic (Windows/Linux) bars, so
-              // the projected rows line up to the very bottom (0 on macOS overlay
-              // bars).
-              height: `${totalSize + chartScrollbar.y}px`,
+              // Match the chart's scrollable extent. The chart no longer scrolls
+              // horizontally, so there is no horizontal scrollbar height to
+              // reserve for any more.
+              height: `${totalSize}px`,
               position: "relative",
               willChange: "transform",
             }}
           >
-            {virtualItems.map((vr) => {
-              const item = flattenedItems[vr.index];
-              if (!item) return null;
-              const nodeId = item.node.id;
+            {chartLayout.nodes.map((row) => {
+              const nodeId = row.node.id;
               return (
                 <TimelineGutterRowShell
                   key={nodeId}
-                  item={item}
-                  top={vr.start}
-                  height={vr.size}
+                  row={row}
+                  top={row.y}
+                  height={row.height}
                   isSelected={selectedNodeId === nodeId}
                   isHovered={hoveredNodeId === nodeId}
-                  hasChildren={item.node.children.length > 0}
-                  isCollapsed={collapsedNodes.has(nodeId)}
+                  hasChildren={row.hasChildren}
+                  isCollapsed={row.isCollapsed}
                   maxVisualDepth={gutterMaxVisualDepth}
                   onSelect={handleSelectNode}
                   onHover={handleHoverNode}
@@ -676,30 +667,30 @@ export function TraceTimeline() {
           />
         </div>
 
-        {/* Chart pane — the only horizontal scrollbar lives here. */}
+        {/* Chart pane — vertical scroll only. overflow-x is hidden rather than
+            auto so a stray sub-pixel can never reintroduce a horizontal
+            scrollbar; the content is exactly the measured lane wide. */}
         <div
           ref={chartRef}
           onScroll={handleChartScroll}
-          className="flex-1 overflow-auto"
+          className="flex-1 overflow-x-hidden overflow-y-auto"
         >
           <div
             style={{
               height: `${totalSize}px`,
-              width: `${chartContentWidth}px`,
+              width: `${chartBox.width}px`,
               position: "relative",
             }}
           >
-            {virtualItems.map((vr) => {
-              const item = flattenedItems[vr.index];
-              if (!item) return null;
-              const nodeId = item.node.id;
+            {chartLayout.nodes.map((row) => {
+              const nodeId = row.node.id;
               return (
                 <TimelineChartRowShell
                   key={nodeId}
-                  item={item}
-                  top={vr.start}
-                  height={vr.size}
-                  width={chartContentWidth}
+                  row={row}
+                  top={row.y}
+                  height={row.height}
+                  width={chartBox.width}
                   isSelected={selectedNodeId === nodeId}
                   isHovered={hoveredNodeId === nodeId}
                   showDuration={showDuration}
