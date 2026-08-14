@@ -75,10 +75,17 @@ jobs:
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-  llm-connections-filter:
+  # Computes which parts of the tree this run's diff touches. The scope
+  # outputs gate job skips on pull_request events ONLY — merge_group, push,
+  # and tag runs always execute the full pipeline, so the merge queue keeps
+  # full coverage of everything that lands on main and a wrong skip on a PR
+  # costs late failure discovery (in the queue), never an untested main.
+  changes:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
-      changed: ${{ steps.filter.outputs.llm_connections }}
+      llm_connections: ${{ steps.filter.outputs.llm_connections }}
+      worker_relevant: ${{ steps.scope.outputs.worker_relevant }}
+      code_relevant: ${{ steps.scope.outputs.code_relevant }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -99,6 +106,36 @@ jobs:
               - 'packages/shared/package.json'
               - 'packages/shared/src/server/llm/**'
               - 'worker/src/__tests__/llmConnections.test.ts'
+      # Separate step because predicate-quantifier applies to every filter in
+      # a step, and llm_connections above needs the default 'some' semantics.
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        id: scope
+        with:
+          # 'every' ANDs the rules per changed file, so each filter reads "at
+          # least one changed file exists OUTSIDE the negated safe set".
+          # Deny-by-default: any path not explicitly negated (root configs,
+          # pnpm-lock.yaml, packages/, worker/, docker-compose*, workflows,
+          # .agents/) counts as relevant, and consumers compare against the
+          # literal string 'false' so a failed job (empty outputs) fails open
+          # into running everything.
+          #
+          # worker_relevant=false: nothing outside web/** and root-level *.md
+          # changed. Safe to skip worker tests/builds because worker never
+          # depends on web (enforced dependency direction). The reverse skip
+          # would be unsound: tests-web boots the worker (turbo run start)
+          # and its servertests await worker queue processing.
+          #
+          # code_relevant=false: only root-level *.md changed. Deliberately
+          # NOT '!**/*.md' — nested .md files can be runtime content (web's
+          # markdown-raw vitest plugin, in-app-agent prompts in shared) and
+          # .agents/**.md is checked by the lint job.
+          predicate-quantifier: "every"
+          filters: |
+            worker_relevant:
+              - '!web/**'
+              - '!*.md'
+            code_relevant:
+              - '!*.md'
 
   lint:
     timeout-minutes: 12
@@ -171,10 +208,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - changes
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). The changes gate skips this job on docs-only PRs;
+    # see the changes job for the fail-open and merge-queue-backstop rules.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.changes.outputs.code_relevant != 'false') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -266,10 +305,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - changes
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). The changes gate skips this job on docs-only PRs;
+    # see the changes job for the fail-open and merge-queue-backstop rules.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.changes.outputs.code_relevant != 'false') }}
     env:
       NODE_ENV: test
     steps:
@@ -302,10 +343,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - changes
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). The changes gate skips this job on docs-only PRs;
+    # see the changes job for the fail-open and merge-queue-backstop rules.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.changes.outputs.code_relevant != 'false') }}
     timeout-minutes: 10
     env:
       NODE_ENV: test
@@ -357,10 +400,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - changes
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). The changes gate skips this job on docs-only PRs;
+    # see the changes job for the fail-open and merge-queue-backstop rules.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.changes.outputs.code_relevant != 'false') }}
     env:
       NODE_ENV: test
     steps:
@@ -400,24 +445,25 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs:
       - pre-job
+      - changes
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). The changes gate skips this job on docs-only PRs;
+    # see the changes job for the fail-open and merge-queue-backstop rules.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.changes.outputs.code_relevant != 'false') }}
     env:
       DOCKER_COMPOSE_FILE: docker-compose.build.yml
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - component: web
-            service: langfuse-web
-            runner: blacksmith-8vcpu-ubuntu-2404
-            health_url: http://localhost:3000/api/public/health
-          - component: worker
-            service: langfuse-worker
-            runner: blacksmith-4vcpu-ubuntu-2404
-            health_url: http://localhost:3030/api/health
+        # The matrix context is unavailable in job-level `if`, so the worker
+        # leg is skipped by omitting it from the matrix instead: web-only
+        # pull requests build only the web image (worker never depends on
+        # web). Any other event — and a failed changes job, whose empty
+        # output keeps the == 'false' comparison false — yields the full
+        # web+worker matrix.
+        include: >-
+          ${{ github.event_name == 'pull_request' && needs.changes.outputs.worker_relevant == 'false' && fromJSON('[{"component":"web","service":"langfuse-web","runner":"blacksmith-8vcpu-ubuntu-2404","health_url":"http://localhost:3000/api/public/health"}]') || fromJSON('[{"component":"web","service":"langfuse-web","runner":"blacksmith-8vcpu-ubuntu-2404","health_url":"http://localhost:3000/api/public/health"},{"component":"worker","service":"langfuse-worker","runner":"blacksmith-4vcpu-ubuntu-2404","health_url":"http://localhost:3030/api/health"}]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -491,10 +537,15 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
+      - changes
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). The changes gate skips this job on docs-only PRs;
+    # see the changes job for the fail-open and merge-queue-backstop rules.
+    # Only code_relevant, never worker_relevant: these tests boot web AND
+    # worker (turbo run start) and await worker queue processing, so every
+    # code change — including worker-only ones — must run them.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.changes.outputs.code_relevant != 'false') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
       NODE_ENV: test
@@ -660,7 +711,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - changes
+    # The changes gate skips this job on docs-only PRs; see the changes job
+    # for the fail-open and merge-queue-backstop rules.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.changes.outputs.code_relevant != 'false') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -699,10 +753,14 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - changes
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). The changes gate skips this job on PRs that only
+    # touch web/** or root docs — worker never depends on web, and
+    # worker_relevant=false subsumes the docs-only case. See the changes job
+    # for the fail-open and merge-queue-backstop rules.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.changes.outputs.worker_relevant != 'false') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
       NODE_ENV: test
@@ -798,8 +856,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-      - llm-connections-filter
-    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
+      - changes
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.changes.outputs.llm_connections == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-worker-llm-connections (node24, pg15)
     env:
       NODE_ENV: test
@@ -879,10 +937,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - changes
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). The changes gate skips this job on docs-only PRs;
+    # see the changes job for the fail-open and merge-queue-backstop rules.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.changes.outputs.code_relevant != 'false') }}
     env:
       NODE_ENV: test
     steps:
@@ -1002,10 +1062,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - changes
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). The changes gate skips this job on docs-only PRs;
+    # see the changes job for the fail-open and merge-queue-backstop rules.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.changes.outputs.code_relevant != 'false') }}
     env:
       NODE_ENV: test
     steps:
