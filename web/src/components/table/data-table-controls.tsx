@@ -253,11 +253,14 @@ export function DataTableControls({
     facetInteractionRef.current,
   );
   facetOrderRef.current = facetOrder;
-  const noteFacetInteraction = (event: React.SyntheticEvent) => {
+  // No event = a programmatic in-list action (Add filter), which is always a
+  // deliberate interaction.
+  const noteFacetInteraction = (event?: React.SyntheticEvent) => {
     // The fold toggle never changes promotion, so it must not arm the
     // attribution token: a dangling token would wrongly hold the order
     // through the next external filter change (search bar, saved view).
     if (
+      event &&
       event.target instanceof Element &&
       event.target.closest("[data-facet-fold-toggle]")
     ) {
