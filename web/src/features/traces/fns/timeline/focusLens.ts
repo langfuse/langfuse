@@ -1,97 +1,29 @@
 /**
- * The vertical half of "visible in one glance".
+ * A focus+context lens over a list of rows — GROUNDWORK, not in use.
  *
- * Fit-to-box solved the time axis: the whole trace is always inside the lane.
- * It did nothing for the OTHER scrollbar — in a narrow, tall layout you still
- * scroll down to see the trace, and at 26px a row the bars are slivers next to
- * their own labels, so the thing reads as a list of numbers rather than a shape.
+ * The idea: rows near the pointer expand to a readable height while the rest
+ * give up their space, so the total never changes and nothing scrolls. Dragging
+ * a finger down the trace moves the lens through it. The maths hold — heights
+ * are weight-normalised, so they sum to exactly the height given at any
+ * magnification, which is the property that keeps it scroll-free.
  *
- * This module inverts the priorities for that case: spend nothing on identity
- * and everything on shape.
+ * It is deliberately NOT wired into the renderer. Hit-testing a fisheye needs
+ * the transform to be invertible: test in distorted space and the lens feeds on
+ * its own output (the row moves out from under the cursor); test in resting
+ * space and the row that expands is not the one under the cursor. Neither is
+ * acceptable, and absolutely-positioned rows are the wrong substrate for the
+ * analytic inverse. This is the starting point for that spike, on a canvas
+ * surface where the inverse is natural.
  *
- * 1. **Row height shrinks to fit.** It resolves DOWN from the measured box and
- *    the row count, floored at a 4px hairline (3px bar + 1px gap). It never
- *    grows past the comfortable height — a short trace in a tall box stays
- *    dense, which is a decision already taken.
- * 2. **What a row can show follows from its height**, not the other way around:
- *    at hairline height there is no text and no name, only a bar and a 2×2
- *    colour square for the type.
- * 3. **A focus lens replaces the text.** Rows near the pointer (or finger)
- *    expand to a readable height while the rest give up their space, so the
- *    total never changes and nothing scrolls. Dragging a finger down the trace
- *    moves the lens through it.
+ * Uniform rows do have an analytic inverse — see `rowIndexAtOffset` in
+ * viewport.ts, which is what the renderer actually uses.
  */
-
-export const COMFORTABLE_ROW_HEIGHT = 26;
-/** 3px of bar, 1px of gap: the smallest row that still reads as a bar. */
-export const HAIRLINE_ROW_HEIGHT = 4;
-/** Below this a row cannot hold text. */
-const COMPACT_TEXT_THRESHOLD = 20;
-/** Below this a row cannot hold the type square and a bar side by side. */
-const HAIRLINE_THRESHOLD = 10;
-
-export type RowPresentation =
-  /** Bar, duration label and name. */
-  | "labelled"
-  /** Bar plus a type square. No text. */
-  | "compact"
-  /** Bar only, with the type square inline. No text, no gap to speak of. */
-  | "hairline";
-
-export type VerticalFit = {
-  rowHeight: number;
-  barHeight: number;
-  presentation: RowPresentation;
-  /** Every row is inside the box: nothing scrolls in either axis. */
-  fitsWithoutScroll: boolean;
-  /** Rows the box could hold at the hairline floor — where no-scroll breaks. */
-  capacityAtFloor: number;
-  /** Rows that do not fit even at the floor; 0 when it fits. */
-  overflowRows: number;
-};
 
 const finite = (value: number, fallback: number) =>
   Number.isFinite(value) ? value : fallback;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
-
-export function resolveVerticalFit(input: {
-  rowCount: number;
-  boxHeight: number;
-}): VerticalFit {
-  const rowCount = Math.max(Math.floor(finite(input.rowCount, 0)), 0);
-  const boxHeight = Math.max(finite(input.boxHeight, 0), 0);
-
-  const perRow =
-    rowCount > 0 && boxHeight > 0 ? Math.floor(boxHeight / rowCount) : 0;
-  const rowHeight =
-    rowCount === 0
-      ? COMFORTABLE_ROW_HEIGHT
-      : clamp(perRow, HAIRLINE_ROW_HEIGHT, COMFORTABLE_ROW_HEIGHT);
-
-  const presentation: RowPresentation =
-    rowHeight >= COMPACT_TEXT_THRESHOLD
-      ? "labelled"
-      : rowHeight >= HAIRLINE_THRESHOLD
-        ? "compact"
-        : "hairline";
-
-  const capacityAtFloor = Math.floor(boxHeight / HAIRLINE_ROW_HEIGHT);
-  const overflowRows = Math.max(rowCount - capacityAtFloor, 0);
-
-  return {
-    rowHeight,
-    barHeight:
-      presentation === "labelled"
-        ? 16
-        : Math.max(1, rowHeight - (presentation === "hairline" ? 1 : 2)),
-    presentation,
-    fitsWithoutScroll: rowCount * rowHeight <= boxHeight,
-    capacityAtFloor,
-    overflowRows,
-  };
-}
 
 export type LensRow = {
   index: number;

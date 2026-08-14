@@ -6,25 +6,27 @@
  * timeline — where a 26px row with a duration label next to a 4px bar reads as
  * a list of numbers instead?
  *
- * The moves, all of them reversals of the comfortable layout:
- *  - No name gutter. A 10px colour rail carries type (and, by indent, roughly
- *    depth); everything else is time.
- *  - Row height shrinks to fit the box, down to a 4px hairline. Nothing scrolls
- *    in either axis until the trace is taller than the box even at 4px.
- *  - No text at hairline density. Hover (or tap) names what you are on in a
- *    tooltip instead, and the row under the pointer lights up.
- *  - The surface owns the zoom gestures: trackpad pinch and wheel narrow the
- *    time window about the cursor, drag pans it, double-click refits. When the
- *    rows fit, a plain wheel zooms — there is no vertical scroll to spend it on.
+ * At rest: no name gutter, a 10px rail carrying type as a small square in the
+ * type's own hue, rows shrunk to fit the box, and no text at all.
+ *
+ * Then it is driven **like a map**, because that is what exploring a dense
+ * surface wants:
+ *  - Wheel and trackpad pinch zoom BOTH axes about the cursor — the time window
+ *    narrows and the rows grow together.
+ *  - Drag pans both axes. There are no scrollbars by design: a map has none, and
+ *    the viewport clamps to the content so there is nowhere to get lost.
+ *  - Double-click an element focuses it — the time window onto its own extent,
+ *    the rows at a height a human reads, the element centred.
+ *  - What a row shows follows from how tall it has become: the type square grows
+ *    around 10px, text returns around 20px. Zooming in makes the timeline grow
+ *    its labels back rather than switching mode.
  *
  * A magnifying lens (rows near the pointer expanding, borrowing space from the
- * rest) is implemented and tested in verticalFit.ts, and is deliberately NOT the
- * default: a fisheye needs an INVERTIBLE transform to hit-test correctly, and
- * absolutely-positioned rows are the wrong substrate for that. See the
- * `LensExperiment` story and the findings doc — it wants its own spike on a
- * canvas/WebGL surface.
+ * rest) is implemented and tested in fns/timeline/focusLens.ts and deliberately
+ * NOT wired up: a fisheye needs an invertible transform to hit-test correctly,
+ * and absolutely-positioned rows are the wrong substrate. That is the next spike.
  *
- * Not production code. See fns/timeline/verticalFit.ts for the pure half.
+ * Not production code.
  */
 
 import {
@@ -33,7 +35,9 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
+import { Maximize2, Minus, Plus } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { type Density } from "../../fns/timeline/density";
 import {
@@ -44,20 +48,20 @@ import {
   type LayoutNode,
 } from "../../fns/timeline/layout";
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
+import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
-  applyFocusLens,
-  resolveVerticalFit,
-  rowIndexAtY,
-} from "../../fns/timeline/verticalFit";
-import {
-  fitView,
-  isFitted,
-  panView,
-  traceSpaceOf,
-  zoomView,
-  type Box,
-  type TimeSpan,
-} from "../../fns/timeline/viewTransform";
+  clampViewport,
+  fitViewport,
+  focusViewport,
+  isViewportFitted,
+  panViewport,
+  presentationForRowHeight,
+  rowHeightOf,
+  rowIndexAtOffset,
+  visibleRowRange,
+  zoomViewport,
+  type Viewport,
+} from "../../fns/timeline/viewport";
 
 /** Reuses ItemBadge's type→hue mapping, so a colour means what it already means. */
 const TYPE_COLOR: Record<string, string> = {
@@ -77,14 +81,13 @@ const FALLBACK_COLOR = "bg-muted-gray";
 const RAIL_WIDTH = 10;
 const RAIL_INDENT = 2;
 const RAIL_MAX_DEPTH = 4;
+const TOOLBAR_HEIGHT = 22;
 const AXIS_HEIGHT = 16;
 const READOUT_HEIGHT = 18;
 const FRAME_BORDER = 1;
-/** How far the lens reaches, in rows, and how much it magnifies the centre. */
-const LENS_RADIUS_ROWS = 10;
-const LENS_MAGNIFICATION = 9;
-const ZOOM_STEP = 1.15;
-const DRAG_THRESHOLD_PX = 4;
+const ZOOM_STEP = 1.3;
+const DRAG_THRESHOLD_PX = 3;
+const MAX_BAR_HEIGHT = 18;
 
 export type TimelineDenseProps = {
   roots: LayoutNode[];
@@ -92,11 +95,6 @@ export type TimelineDenseProps = {
   box: Box;
   /** Names are hidden by default: that is the whole point of this layout. */
   showNames: boolean;
-  /**
-   * EXPERIMENTAL: rows near the pointer magnify, borrowing space from the rest.
-   * Off by default — the hit-test cannot be made exact on this substrate.
-   */
-  lens: boolean;
   /** Colour the bars by type too, or leave them neutral and let the rail carry it. */
   barColor: "neutral" | "type";
   compress: boolean;
@@ -107,226 +105,264 @@ export function TimelineDense({
   roots,
   box,
   showNames,
-  lens,
   barColor,
   compress,
   showReadout,
 }: TimelineDenseProps) {
+  const [viewport, setViewport] = useState<Viewport | null>(null);
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [view, setView] = useState<TimeSpan | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const prepared = useMemo(() => prepareTimeline(roots), [roots]);
   const measurer = useMemo(() => createTextMeasurer(), []);
 
   const railWidth = showNames ? 132 : RAIL_WIDTH;
   const laneWidth = Math.max(box.width - FRAME_BORDER * 2 - railWidth, 0);
-  const viewportHeight = Math.max(
+  const surfaceHeight = Math.max(
     box.height -
       FRAME_BORDER * 2 -
+      TOOLBAR_HEIGHT -
       AXIS_HEIGHT -
       (showReadout ? READOUT_HEIGHT : 0),
     0,
   );
 
-  const fit = resolveVerticalFit({
-    rowCount: prepared.rows.length,
-    boxHeight: viewportHeight,
-  });
-
-  // INTEGER row geometry, deliberately. Distributing the viewport across the
-  // rows gives fractional heights (604/150 = 4.027), and then the browser rounds
-  // each row to device pixels while a hit-test computed from the unrounded model
-  // does not — which lands you on the neighbouring row roughly a third of the
-  // time at a 4px row height. Integral rows make the hit-test exact and the 3px
-  // bars crisp; the few leftover pixels stay empty at the bottom.
-  const contentHeight = prepared.rows.length * fit.rowHeight;
-
-  const restingRows = useMemo(
-    () =>
-      Array.from({ length: prepared.rows.length }, (_, index) => ({
-        index,
-        y: index * fit.rowHeight,
-        height: fit.rowHeight,
-        magnification: 1,
-      })),
-    [prepared.rows.length, fit.rowHeight],
-  );
-
-  const lensRows = useMemo(
-    () =>
-      lens && focusIndex != null
-        ? applyFocusLens({
-            rowCount: prepared.rows.length,
-            totalHeight: contentHeight,
-            focusIndex,
-            radius: LENS_RADIUS_ROWS,
-            magnification: LENS_MAGNIFICATION,
-          })
-        : restingRows,
-    [prepared.rows.length, contentHeight, lens, focusIndex, restingRows],
-  );
-
-  const density: Density = useMemo(
-    () => ({
-      pointer: "fine",
-      rowHeight: fit.rowHeight,
-      barHeight: fit.barHeight,
-      labelFontPx: 11,
-      labelPaddingPx: 4,
-      labelGapPx: 6,
-      minBarWidthPx: fit.presentation === "hairline" ? 2 : 4,
-    }),
-    [fit.rowHeight, fit.barHeight, fit.presentation],
-  );
-
   const chartBox = useMemo(
-    () => ({ width: laneWidth, height: viewportHeight }),
-    [laneWidth, viewportHeight],
+    () => ({ width: laneWidth, height: surfaceHeight }),
+    [laneWidth, surfaceHeight],
   );
   const compression = useMemo(
     () => timeCompressionFor(prepared, chartBox, compress),
     [prepared, chartBox, compress],
   );
 
-  // Horizontal geometry from the same pure layout() production uses; vertical
-  // geometry is this component's own, and layout() knows nothing about it.
+  const limits = useMemo(
+    () => ({
+      traceSpace: traceSpaceOf(compression.compressedDurationMs),
+      rowCount: prepared.rows.length,
+      boxHeight: surfaceHeight,
+    }),
+    [compression.compressedDurationMs, prepared.rows.length, surfaceHeight],
+  );
+
+  // Re-clamped every render, so a resize can never leave the viewport looking
+  // outside the content.
+  const current = useMemo(
+    () => (viewport ? clampViewport(viewport, limits) : fitViewport(limits)),
+    [viewport, limits],
+  );
+  const rowHeight = rowHeightOf(current, surfaceHeight);
+  const presentation = presentationForRowHeight(rowHeight);
+  const fitted = isViewportFitted(current, limits);
+  const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
+
+  const density: Density = useMemo(
+    () => ({
+      pointer: "fine",
+      rowHeight,
+      barHeight: Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1),
+      labelFontPx: 11,
+      labelPaddingPx: 4,
+      labelGapPx: 6,
+      minBarWidthPx: presentation === "hairline" ? 2 : 4,
+    }),
+    [rowHeight, presentation],
+  );
+
+  const rowRange = visibleRowRange(current, prepared.rows.length);
   const result = layout({
     roots,
     box: chartBox,
     density,
     measurer,
-    view,
+    view: current.time,
     compress,
     prepared,
     compression,
+    rowRange,
   });
 
-  const traceSpace = useMemo(
-    () => traceSpaceOf(compression.compressedDurationMs),
-    [compression.compressedDurationMs],
-  );
-  const fitted = isFitted(result.view, traceSpace);
-
   const zoomBy = useCallback(
-    (factor: number, anchorRatio: number) =>
-      setView((current) =>
-        zoomView(current ?? fitView(traceSpace), traceSpace, {
-          factor,
-          anchorRatio,
-        }),
+    (factor: number, xRatio: number, yRatio: number) =>
+      setViewport((from) =>
+        zoomViewport(
+          from ? clampViewport(from, limits) : fitViewport(limits),
+          limits,
+          { factor, xRatio, yRatio },
+        ),
       ),
-    [traceSpace],
+    [limits],
   );
 
   const panBy = useCallback(
-    (deltaPx: number) =>
-      setView((current) => {
-        const from = current ?? fitView(traceSpace);
-        const pxPerMs = laneWidth > 0 ? laneWidth / from.duration : 0;
-        return panView(from, traceSpace, pxPerMs > 0 ? deltaPx / pxPerMs : 0);
-      }),
-    [traceSpace, laneWidth],
+    (dxPx: number, dyPx: number) =>
+      setViewport((from) =>
+        panViewport(
+          from ? clampViewport(from, limits) : fitViewport(limits),
+          limits,
+          { dxPx, dyPx, boxWidth: laneWidth },
+        ),
+      ),
+    [limits, laneWidth],
   );
 
-  const gesture = useRef({ startX: 0, lastX: 0, dragging: false, down: false });
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const gesture = useRef({ down: false, dragging: false, x: 0, y: 0 });
 
   /**
-   * Wheel and trackpad pinch, on a non-passive listener so the page cannot take
-   * the gesture. A Mac pinch arrives as wheel + ctrlKey, so it needs no special
-   * case. When the rows fit there is no vertical scroll to spend a plain wheel
-   * on, so a plain wheel zooms too; when they overflow it scrolls and only
-   * ctrl/⌘ zooms.
+   * Wheel and trackpad pinch on a non-passive listener, so the page never takes
+   * the gesture. Both zoom, like a map: a Mac pinch arrives as wheel + ctrlKey
+   * and needs no special case; shift or a horizontal wheel pans instead.
    */
   const attachSurface = useCallback(
     (element: HTMLDivElement | null) => {
-      scrollRef.current = element;
+      surfaceRef.current = element;
       if (!element) return;
 
       const onWheel = (event: WheelEvent) => {
-        const pinch = event.ctrlKey || event.metaKey;
-        if (!pinch && !fit.fitsWithoutScroll && event.deltaX === 0) return;
-
         event.preventDefault();
         const rect = element.getBoundingClientRect();
-        const anchorRatio =
-          laneWidth > 0
-            ? (event.clientX - rect.left - railWidth) / laneWidth
-            : 0.5;
-        if (Math.abs(event.deltaX) > Math.abs(event.deltaY) && !pinch) {
-          panBy(-event.deltaX);
+        if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+          panBy(-(event.deltaX || event.deltaY), 0);
           return;
         }
         // Proportional to the delta: a mouse wheel sends few large deltas and a
-        // trackpad sends many small ones, and both should feel the same.
+        // trackpad many small ones, and both should feel the same.
         const steps = Math.min(Math.abs(event.deltaY) / 100, 4);
         const factor = ZOOM_STEP ** steps;
-        zoomBy(event.deltaY < 0 ? factor : 1 / factor, anchorRatio);
+        const xRatio =
+          rect.width > 0
+            ? (event.clientX - rect.left - railWidth) /
+              Math.max(rect.width - railWidth, 1)
+            : 0.5;
+        const yRatio =
+          rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+        zoomBy(event.deltaY < 0 ? factor : 1 / factor, xRatio, yRatio);
       };
 
       element.addEventListener("wheel", onWheel, { passive: false });
       return () => element.removeEventListener("wheel", onWheel);
     },
-    [fit.fitsWithoutScroll, laneWidth, railWidth, panBy, zoomBy],
+    [panBy, zoomBy, railWidth],
   );
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     gesture.current = {
-      startX: event.clientX,
-      lastX: event.clientX,
-      dragging: false,
       down: true,
+      dragging: false,
+      x: event.clientX,
+      y: event.clientY,
     };
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top + (scrollRef.current?.scrollTop ?? 0);
-
     const state = gesture.current;
     if (state.down) {
-      if (!state.dragging) {
-        if (Math.abs(event.clientX - state.startX) >= DRAG_THRESHOLD_PX) {
-          state.dragging = true;
-          // Capture only once it is really a drag, so a plain click still lands
-          // on the row rather than on this container.
-          event.currentTarget.setPointerCapture(event.pointerId);
-        }
+      const dx = event.clientX - state.x;
+      const dy = event.clientY - state.y;
+      if (!state.dragging && Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) {
+        state.dragging = true;
+        setDragging(true);
+        // Capture only once it really is a drag, so a click still reaches a row.
+        event.currentTarget.setPointerCapture(event.pointerId);
       }
       if (state.dragging) {
-        panBy(event.clientX - state.lastX);
-        state.lastX = event.clientX;
+        panBy(dx, dy);
+        state.x = event.clientX;
+        state.y = event.clientY;
         return;
       }
     }
 
-    // Rows are uniform without the lens, so this hit-test is exact.
-    setFocusIndex(rowIndexAtY(lensRows, y));
-    setPointer({ x, y: event.clientY - rect.top });
+    const rect = event.currentTarget.getBoundingClientRect();
+    const offsetY = event.clientY - rect.top;
+    setFocusIndex(
+      rowIndexAtOffset(current, offsetY, rowHeight, prepared.rows.length),
+    );
+    setPointer({ x: event.clientX - rect.left, y: offsetY });
   };
 
-  const onPointerUp = () => {
+  const endGesture = useCallback(() => {
     gesture.current.down = false;
     gesture.current.dragging = false;
-  };
+    setDragging(false);
+  }, []);
 
   const clearFocus = useCallback(() => {
     setFocusIndex(null);
     setPointer(null);
-    gesture.current.down = false;
-    gesture.current.dragging = false;
-  }, []);
+    endGesture();
+  }, [endGesture]);
 
-  const focused = focusIndex == null ? null : result.nodes[focusIndex];
+  /** Double-click an element: both axes move to put it on screen, readably. */
+  const focusRow = (index: number) => {
+    const positioned = result.nodes.find((node) => node.index === index);
+    if (!positioned) return;
+    setSelectedIndex(index);
+    const startMs = compression.toCompressedMs(positioned.startMs);
+    setViewport(
+      focusViewport(limits, {
+        rowIndex: index,
+        startMs,
+        durationMs: compression.toCompressedMs(positioned.endMs) - startMs,
+      }),
+    );
+  };
+
+  const focused =
+    focusIndex == null
+      ? null
+      : (result.nodes.find((node) => node.index === focusIndex) ?? null);
+
+  const windowLabel = formatDurationMs(
+    compression.toRealMs(current.time.start + current.time.duration) -
+      compression.toRealMs(current.time.start),
+  );
 
   return (
     <div
       className="bg-background border-border text-foreground flex flex-col overflow-hidden rounded border select-none"
       style={{ width: `${box.width}px`, height: `${box.height}px` }}
     >
+      <div
+        className="border-border flex shrink-0 items-center gap-1 border-b px-1"
+        style={{ height: `${TOOLBAR_HEIGHT}px` }}
+      >
+        <ToolbarButton
+          label="Zoom out"
+          onClick={() => zoomBy(1 / ZOOM_STEP, 0.5, 0.5)}
+        >
+          <Minus className="h-3 w-3" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Zoom in"
+          onClick={() => zoomBy(ZOOM_STEP, 0.5, 0.5)}
+        >
+          <Plus className="h-3 w-3" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Fit whole trace"
+          onClick={() => setViewport(null)}
+        >
+          <Maximize2 className="h-3 w-3" />
+        </ToolbarButton>
+        <span
+          className="text-muted-foreground truncate"
+          style={{ fontSize: "10px" }}
+          title={
+            fitted
+              ? "scroll to zoom · drag to pan · double-click to focus"
+              : `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`
+          }
+        >
+          {fitted
+            ? "scroll to zoom · drag to pan · double-click to focus"
+            : `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`}
+        </span>
+      </div>
+
       <div
         className="border-border relative shrink-0 border-b"
         style={{ height: `${AXIS_HEIGHT}px` }}
@@ -352,28 +388,29 @@ export function TimelineDense({
         </div>
       </div>
 
+      {/* The map surface. No scrollbars: panning is the gesture, and the
+          viewport clamps to the content so there is nowhere to get lost. */}
       <div
         ref={attachSurface}
         className={cn(
-          "relative min-h-0 flex-1 overflow-x-hidden",
-          fit.fitsWithoutScroll ? "overflow-y-hidden" : "overflow-y-auto",
+          "relative min-h-0 flex-1 overflow-hidden",
+          dragging ? "cursor-grabbing" : "cursor-grab",
         )}
-        style={{ touchAction: fit.fitsWithoutScroll ? "none" : "pan-y" }}
+        style={{ touchAction: "none" }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
+        onPointerUp={endGesture}
         onPointerLeave={clearFocus}
         onPointerCancel={clearFocus}
-        onDoubleClick={() => setView(null)}
         data-testid="timeline-dense-surface"
       >
+        {/* The row layer clips its own rows. A row straddling the bottom edge
+            is real and should be drawn, but it must not become overflow on the
+            surface — a map has no scrollable extent. */}
         <div
-          className="relative"
-          style={{ height: `${contentHeight}px` }}
+          className="absolute inset-0 overflow-hidden"
           data-testid="timeline-dense-content"
         >
-          {/* Gridlines behind the rows: at hairline density they are most of
-              what tells you where you are in time. */}
           <div
             className="pointer-events-none absolute inset-y-0"
             style={{ left: `${railWidth}px`, width: `${laneWidth}px` }}
@@ -396,55 +433,49 @@ export function TimelineDense({
           </div>
 
           {result.nodes.map((node) => {
-            const lensRow = lensRows[node.index];
-            if (!lensRow || lensRow.height <= 0) return null;
+            const y = (node.index - current.rows.start) * rowHeight;
+            if (y + rowHeight < 0 || y > surfaceHeight) return null;
             const isFocused = node.index === focusIndex;
             const isSelected = node.index === selectedIndex;
-            // The bar keeps a share of the row so the gap survives magnification.
-            const barHeight = Math.max(
-              Math.min(fit.barHeight, lensRow.height - 1),
-              1,
-            );
-            const showText =
-              showNames || lensRow.height >= 14 || isFocused || isSelected;
             const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
+            const squareSize = Math.max(Math.min(barHeight, 6), 2);
+            const indent =
+              Math.min(node.depth, RAIL_MAX_DEPTH) * RAIL_INDENT + 1;
 
             return (
               <div
                 key={node.id}
                 className={cn(
-                  "absolute inset-x-0 cursor-pointer",
+                  "absolute inset-x-0",
                   // At 4px a tint is not enough to find yourself by, so the
-                  // hovered row takes a full-width accent wash and its bar goes
-                  // solid accent below.
+                  // hovered row takes a full-width accent wash.
                   isSelected && "bg-primary-accent/20",
                   isFocused && !isSelected && "bg-primary-accent/15",
                 )}
-                style={{ top: `${lensRow.y}px`, height: `${lensRow.height}px` }}
+                style={{ top: `${y}px`, height: `${rowHeight}px` }}
                 onClick={() => setSelectedIndex(node.index)}
+                onDoubleClick={() => focusRow(node.index)}
               >
-                {/* Type rail: a 2px-square of the type's own hue, indented by
-                    depth so the column also sketches the hierarchy. */}
                 <div
                   className="absolute inset-y-0 overflow-hidden"
                   style={{ width: `${railWidth}px` }}
                 >
                   <div
-                    className={cn("absolute", typeColor)}
+                    className={cn("absolute rounded-[1px]", typeColor)}
                     style={{
-                      left: `${Math.min(node.depth, RAIL_MAX_DEPTH) * RAIL_INDENT + 1}px`,
-                      top: `${Math.max((lensRow.height - Math.min(barHeight, 4)) / 2, 0)}px`,
-                      width: `${Math.min(barHeight, 4)}px`,
-                      height: `${Math.min(barHeight, 4)}px`,
+                      left: `${indent}px`,
+                      top: `${Math.max((rowHeight - squareSize) / 2, 0)}px`,
+                      width: `${squareSize}px`,
+                      height: `${squareSize}px`,
                     }}
                   />
-                  {showNames ? (
+                  {showNames && presentation !== "hairline" ? (
                     <span
                       className="text-foreground absolute truncate"
                       style={{
-                        left: `${Math.min(node.depth, RAIL_MAX_DEPTH) * RAIL_INDENT + 8}px`,
+                        left: `${indent + 8}px`,
                         right: "2px",
-                        top: `${Math.max((lensRow.height - 12) / 2, 0)}px`,
+                        top: `${Math.max((rowHeight - 12) / 2, 0)}px`,
                         fontSize: "10px",
                       }}
                       title={node.name}
@@ -464,23 +495,23 @@ export function TimelineDense({
                       barColor === "type"
                         ? typeColor
                         : "bg-muted-foreground/60",
-                      isFocused && "ring-primary-accent ring-1",
-                      isSelected && "bg-primary-accent",
+                      (isFocused || isSelected) && "bg-primary-accent",
                     )}
                     style={{
                       left: `${node.x}px`,
                       width: `${node.width}px`,
-                      top: `${Math.max((lensRow.height - barHeight) / 2, 0)}px`,
+                      top: `${Math.max((rowHeight - barHeight) / 2, 0)}px`,
                       height: `${barHeight}px`,
                     }}
                     data-testid="timeline-dense-bar"
                   />
-                  {showText && node.label ? (
+                  {/* Text comes back on its own as the rows grow. */}
+                  {presentation === "labelled" && node.label ? (
                     <span
                       className="text-muted-foreground absolute whitespace-nowrap"
                       style={{
                         left: `${Math.min(node.x + node.width + 4, laneWidth)}px`,
-                        top: `${Math.max((lensRow.height - 12) / 2, 0)}px`,
+                        top: `${Math.max((rowHeight - 12) / 2, 0)}px`,
                         fontSize: "10px",
                       }}
                     >
@@ -493,25 +524,24 @@ export function TimelineDense({
           })}
         </div>
 
-        {/* The tooltip is the text this layout does not spend on rows. It
-            follows the cursor and flips before it can leave the box. */}
-        {focused && pointer ? (
+        {/* The tooltip is the text this layout does not spend on rows. */}
+        {focused && pointer && !dragging ? (
           <div
             className="border-border bg-background text-foreground pointer-events-none absolute z-10 flex max-w-[90%] items-center gap-1 rounded border px-1.5 py-1 shadow-md"
             style={{
               left:
-                pointer.x > laneWidth * 0.55
+                pointer.x > box.width * 0.55
                   ? undefined
                   : `${Math.round(pointer.x + 12)}px`,
               right:
-                pointer.x > laneWidth * 0.55
+                pointer.x > box.width * 0.55
                   ? `${Math.round(Math.max(box.width - pointer.x + 12, 4))}px`
                   : undefined,
               top: `${Math.round(
                 Math.min(
                   Math.max(pointer.y + 12, 2),
-                  Math.max(viewportHeight - 26, 2),
-                ) + (scrollRef.current?.scrollTop ?? 0),
+                  Math.max(surfaceHeight - 26, 2),
+                ),
               )}px`,
               fontSize: "10px",
             }}
@@ -548,17 +578,37 @@ export function TimelineDense({
             {box.width}×{box.height} · lane {laneWidth}
           </span>
           <span>
-            {prepared.rows.length} rows @ {fit.rowHeight}px ({fit.presentation})
+            {rowHeight.toFixed(1)}px rows ({presentation})
           </span>
           <span>
-            {fit.fitsWithoutScroll
-              ? "no scroll"
-              : `scrolls: ${fit.overflowRows} rows over capacity ${fit.capacityAtFloor}`}
+            showing {Math.round(current.rows.count)}/{prepared.rows.length} rows
           </span>
           <span>{result.pxPerMs.toFixed(3)} px/ms</span>
-          <span>{fitted ? "whole trace" : "zoomed — double-click to fit"}</span>
+          <span>{fitted ? "fitted" : "zoomed"}</span>
         </div>
       ) : null}
     </div>
+  );
+}
+
+function ToolbarButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className="hover:bg-muted flex h-4 w-4 shrink-0 items-center justify-center rounded"
+    >
+      {children}
+    </button>
   );
 }

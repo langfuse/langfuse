@@ -1,58 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  COMFORTABLE_ROW_HEIGHT,
-  HAIRLINE_ROW_HEIGHT,
-  applyFocusLens,
-  resolveVerticalFit,
-  rowIndexAtY,
-} from "./verticalFit";
-
-describe("resolveVerticalFit", () => {
-  it("shrinks rows to fit the box and never grows past comfortable", () => {
-    // 3 rows in a tall box stay dense rather than filling the slack.
-    expect(resolveVerticalFit({ rowCount: 3, boxHeight: 600 }).rowHeight).toBe(
-      COMFORTABLE_ROW_HEIGHT,
-    );
-    // 40 rows in 400px: 10px each, so no text but still a type square.
-    const compact = resolveVerticalFit({ rowCount: 40, boxHeight: 400 });
-    expect(compact.rowHeight).toBe(10);
-    expect(compact.presentation).toBe("compact");
-    expect(compact.fitsWithoutScroll).toBe(true);
-    // 120 rows in 600px: 5px each — already past text, still above the floor.
-    const dense = resolveVerticalFit({ rowCount: 120, boxHeight: 600 });
-    expect(dense.rowHeight).toBe(5);
-    expect(dense.presentation).toBe("hairline");
-    // 150 rows in 600px is exactly the floor: bar 3px + 1px gap, still no scroll.
-    const hairline = resolveVerticalFit({ rowCount: 150, boxHeight: 600 });
-    expect(hairline.rowHeight).toBe(HAIRLINE_ROW_HEIGHT);
-    expect(hairline.barHeight).toBe(3);
-    expect(hairline.fitsWithoutScroll).toBe(true);
-  });
-
-  it("reports where no-scroll breaks instead of pretending it holds", () => {
-    // 1401 rows cannot fit a 600px box even at 4px: 150 is the capacity.
-    const overflowing = resolveVerticalFit({ rowCount: 1401, boxHeight: 600 });
-    expect(overflowing.rowHeight).toBe(HAIRLINE_ROW_HEIGHT);
-    expect(overflowing.capacityAtFloor).toBe(150);
-    expect(overflowing.overflowRows).toBe(1251);
-    expect(overflowing.fitsWithoutScroll).toBe(false);
-  });
-
-  it("stays finite and sane on degenerate input", () => {
-    for (const fit of [
-      resolveVerticalFit({ rowCount: 0, boxHeight: 0 }),
-      resolveVerticalFit({ rowCount: 10, boxHeight: 0 }),
-      resolveVerticalFit({ rowCount: NaN, boxHeight: NaN }),
-      resolveVerticalFit({ rowCount: -5, boxHeight: -100 }),
-    ]) {
-      expect(Number.isFinite(fit.rowHeight)).toBe(true);
-      expect(fit.rowHeight).toBeGreaterThanOrEqual(HAIRLINE_ROW_HEIGHT);
-      expect(Number.isFinite(fit.barHeight)).toBe(true);
-      expect(fit.barHeight).toBeGreaterThanOrEqual(1);
-      expect(fit.overflowRows).toBeGreaterThanOrEqual(0);
-    }
-  });
-});
+import { applyFocusLens, rowIndexAtY } from "./focusLens";
 
 describe("applyFocusLens", () => {
   const total = 600;

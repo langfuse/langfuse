@@ -14,10 +14,11 @@ const meta = preview.meta({
 
 /**
  * A phone-shaped box: narrow and tall, which is the case this spike is for.
- * 640px leaves a 604px row viewport — exactly enough for 150 hairline rows, so
- * the "at the floor" story really is at the floor and not one row over it.
+ * 658px leaves exactly 600px of surface once the frame, toolbar, axis and
+ * readout are taken — room for 150 rows at the 4px floor, so the "at the floor"
+ * story really is at the floor.
  */
-const PHONE = { width: 360, height: 640 };
+const PHONE = { width: 360, height: 658 };
 /** The peek panel: narrow and short. */
 const PEEK = { width: 320, height: 300 };
 
@@ -26,7 +27,6 @@ export const FiftySpansOnAPhone = meta.story({
     roots: manySpans(50),
     box: PHONE,
     showNames: false,
-    lens: false,
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -38,20 +38,18 @@ export const OneHundredFiftySpansExactlyAtTheFloor = meta.story({
     roots: manySpans(150),
     box: PHONE,
     showNames: false,
-    lens: false,
     barColor: "neutral",
     compress: false,
     showReadout: true,
   },
 });
 
-/** Past the floor: no-scroll breaks and the readout says so. */
-export const FiveHundredSpansOverflowing = meta.story({
+/** More rows than 4px each can show: the extra are panned to, maps-style. */
+export const FiveHundredSpansPannable = meta.story({
   args: {
     roots: manySpans(500),
     box: PHONE,
     showNames: false,
-    lens: false,
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -63,7 +61,6 @@ export const TypeColouredBars = meta.story({
     roots: manySpans(150),
     box: PHONE,
     showNames: false,
-    lens: false,
     barColor: "type",
     compress: false,
     showReadout: true,
@@ -76,7 +73,6 @@ export const ShortTraceStaysReadable = meta.story({
     roots: threeSpans(),
     box: PHONE,
     showNames: false,
-    lens: false,
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -88,7 +84,6 @@ export const ReporterShapeInAPeek = meta.story({
     roots: reporterTrace(),
     box: PEEK,
     showNames: false,
-    lens: false,
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -101,26 +96,6 @@ export const WithNamesForComparison = meta.story({
     roots: manySpans(150),
     box: PHONE,
     showNames: true,
-    lens: false,
-    barColor: "neutral",
-    compress: false,
-    showReadout: true,
-  },
-});
-
-/**
- * EXPERIMENTAL, and the subject of the next spike: rows near the pointer
- * magnify, borrowing their space from the rest so nothing scrolls. The idea
- * reads well and the maths hold — but the hit-test cannot be exact on this
- * substrate, so the row that expands is not reliably the one under the cursor.
- * It wants an invertible transform on a canvas/WebGL surface.
- */
-export const LensExperiment = meta.story({
-  args: {
-    roots: manySpans(150),
-    box: PHONE,
-    showNames: false,
-    lens: true,
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -132,20 +107,18 @@ export const LongTailCompressed = meta.story({
     roots: longTailTrace(),
     box: PHONE,
     showNames: false,
-    lens: false,
     barColor: "type",
     compress: true,
     showReadout: true,
   },
 });
 
-export const FitsWithoutScrolling = meta.story({
-  name: "(Test) Fits Without Scrolling",
+export const NeitherAxisScrolls = meta.story({
+  name: "(Test) Neither Axis Scrolls",
   args: {
     roots: manySpans(150),
     box: PHONE,
     showNames: false,
-    lens: false,
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -154,12 +127,10 @@ export const FitsWithoutScrolling = meta.story({
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
-    const content = canvasElement.querySelector<HTMLElement>(
-      '[data-testid="timeline-dense-content"]',
-    );
-    if (!surface || !content) throw new Error("dense surface not found");
+    if (!surface) throw new Error("dense surface not found");
 
-    // The whole claim of this spike: neither axis scrolls.
+    // The whole claim of this spike: nothing scrolls in either axis. The surface
+    // is a map — it pans — so there must be no scrollable overflow at all.
     await expect(surface.scrollWidth).toBeLessThanOrEqual(surface.clientWidth);
     await expect(surface.scrollHeight).toBeLessThanOrEqual(
       surface.clientHeight,
@@ -168,15 +139,49 @@ export const FitsWithoutScrolling = meta.story({
     const bars = canvasElement.querySelectorAll<HTMLElement>(
       '[data-testid="timeline-dense-bar"]',
     );
-    // Every row is present, not just the ones a virtualizer mounted.
     await expect(bars.length).toBe(150);
 
     const surfaceRect = surface.getBoundingClientRect();
     for (const bar of bars) {
       const rect = bar.getBoundingClientRect();
       await expect(rect.right).toBeLessThanOrEqual(surfaceRect.right + 0.5);
+      await expect(rect.top).toBeGreaterThanOrEqual(surfaceRect.top - 0.5);
+      await expect(rect.bottom).toBeLessThanOrEqual(surfaceRect.bottom + 0.5);
       await expect(rect.height).toBeGreaterThan(0);
     }
+  },
+});
+
+export const DoubleClickFocusesBothAxes = meta.story({
+  name: "(Test) Double Click Focuses Both Axes",
+  args: {
+    roots: manySpans(150),
+    box: PHONE,
+    showNames: false,
+    barColor: "neutral",
+    compress: false,
+    showReadout: true,
+  },
+  play: async ({ canvasElement }) => {
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+
+    await expect(readout()).toContain("fitted");
+    await expect(readout()).toContain("4.0px rows");
+
+    const row = canvasElement.querySelectorAll<HTMLElement>(
+      '[data-testid="timeline-dense-content"] > div',
+    )[40];
+    if (!row) throw new Error("expected a row to double-click");
+    row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+
+    // Both axes move: the rows reach a readable height AND the time window
+    // narrows onto the element, rather than only zooming the clock.
+    await waitFor(() => expect(readout()).toContain("zoomed"));
+    await expect(readout()).toContain("26.0px rows");
+    await expect(readout()).not.toContain(`showing 150/150`);
   },
 });
 
@@ -186,7 +191,6 @@ export const HoverOpensATooltip = meta.story({
     roots: manySpans(150),
     box: PHONE,
     showNames: false,
-    lens: false,
     barColor: "neutral",
     compress: false,
     showReadout: true,
