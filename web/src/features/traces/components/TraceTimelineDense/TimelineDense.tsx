@@ -61,11 +61,13 @@ import {
   prepareTimeline,
   timeCompressionFor,
   type LayoutNode,
+  type PositionedNode,
 } from "../../fns/timeline/layout";
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
+  interpolateViewport,
   rowCountBounds,
   viewportsEqual,
   clampViewport,
@@ -126,6 +128,13 @@ const MAX_BAR_HEIGHT = 18;
 const NAME_MIN_ROW_HEIGHT = 14;
 /** The chart never shrinks below this to make room for names. */
 const MIN_LANE_WIDTH = 140;
+/**
+ * A focus flies rather than teleports. An instant jump reads as "the bar I
+ * clicked got bigger" — you cannot see that the window moved, especially when
+ * the rows around it were already full width. Maps animate their zoom for the
+ * same reason.
+ */
+const FOCUS_ANIMATION_MS = 320;
 /** Slack around the rail so the peek zone is reachable at 10px wide. */
 const PEEK_MARGIN_PX = 6;
 
@@ -225,14 +234,19 @@ export function TimelineDense({
   // can only open when the rows are tall enough to hold a name: at 4px there is
   // no name to show, and the hover tooltip is what names a row at that density.
   const canShowNames = liveRowHeight >= NAME_MIN_ROW_HEIGHT;
-  const gutterOpen =
-    !canShowNames || override === "collapsed"
+
+  // A COMMITTED open takes real space and re-lays out the chart, because you
+  // asked for it to stay. A PEEK must not: it floats over the timeline instead,
+  // so hovering the edge never shoves the bars sideways while you are reading
+  // them. Same content, different claim on the layout.
+  const committedOpen =
+    canShowNames &&
+    (override === "collapsed"
       ? false
-      : override === "expanded" || peeking
-        ? true
-        : gutterMode === "expanded" ||
-          (gutterMode === "auto" && liveRowHeight >= HUMAN_ROW_HEIGHT - 6);
-  const railWidth = resolveGutterWidth({ open: gutterOpen, contentWidth });
+      : override === "expanded" ||
+        gutterMode === "expanded" ||
+        (gutterMode === "auto" && liveRowHeight >= HUMAN_ROW_HEIGHT - 6));
+  const railWidth = resolveGutterWidth({ open: committedOpen, contentWidth });
   const laneWidth = Math.max(contentWidth - railWidth, 0);
 
   const chartBox = useMemo(
@@ -262,6 +276,12 @@ export function TimelineDense({
   const rowHeight = rowHeightOf(current, surfaceHeight);
   const isOpen = railWidth > RAIL_WIDTH;
   const namesVisible = isOpen;
+  // The overlay is not bound by MIN_LANE_WIDTH: it costs the chart no width.
+  const peekWidth =
+    !isOpen && canShowNames && peeking
+      ? Math.min(Math.max(contentWidth * 0.38, 96), 168)
+      : 0;
+  const gutterWidth = Math.max(railWidth, peekWidth);
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
@@ -294,36 +314,53 @@ export function TimelineDense({
 
   const zoomBy = useCallback(
     (factor: number, xRatio: number, yRatio: number) =>
-      setViewport((from) =>
-        zoomViewport(
-          from ? clampViewport(from, limits) : fitViewport(limits),
-          limits,
+      setViewport((from) => {
+        const { limits: live } = layoutRef.current;
+        return zoomViewport(
+          from ? clampViewport(from, live) : fitViewport(live),
+          live,
           { factor, xRatio, yRatio },
-        ),
-      ),
-    [limits],
+        );
+      }),
+    [],
   );
 
   const panBy = useCallback(
     (dxPx: number, dyPx: number) =>
-      setViewport((from) =>
-        panViewport(
-          from ? clampViewport(from, limits) : fitViewport(limits),
-          limits,
-          { dxPx, dyPx, boxWidth: laneWidth },
-        ),
-      ),
-    [limits, laneWidth],
+      setViewport((from) => {
+        const { limits: live, laneWidth: width } = layoutRef.current;
+        return panViewport(
+          from ? clampViewport(from, live) : fitViewport(live),
+          live,
+          { dxPx, dyPx, boxWidth: width },
+        );
+      }),
+    [],
   );
 
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const gesture = useRef({ down: false, dragging: false, x: 0, y: 0 });
+  const tween = useRef(0);
+
+  const cancelTween = useCallback(() => {
+    if (tween.current) cancelAnimationFrame(tween.current);
+    tween.current = 0;
+  }, []);
 
   // The gesture path reads the viewport from a ref, not from render scope: a
   // trackpad fires many events per frame and each must build on the last, not on
   // whatever React had rendered when the burst started.
   const viewportRef = useRef(current);
   viewportRef.current = current;
+
+  // Layout the gesture handlers read through a ref rather than closing over.
+  // Closing over it made every handler change identity whenever the gutter
+  // opened, which re-ran the surface ref — and its cleanup cancelled an
+  // in-flight focus animation at the exact moment the rows crossed the height
+  // that opens the gutter. It also re-attached the wheel listener on every
+  // layout change, for nothing.
+  const layoutRef = useRef({ limits, laneWidth, railWidth, peekWidth });
+  layoutRef.current = { limits, laneWidth, railWidth, peekWidth };
 
   // Deltas accumulate and apply once per animation frame — the other half of
   // what makes map zoom feel immediate instead of laggy under a burst.
@@ -344,19 +381,20 @@ export function TimelineDense({
   const flushGesture = useCallback(() => {
     const queued = pending.current;
     queued.frame = 0;
+    const { limits: live, laneWidth: width } = layoutRef.current;
     let next = viewportRef.current;
     if (queued.levels !== 0) {
-      next = zoomViewport(next, limits, {
+      next = zoomViewport(next, live, {
         factor: 2 ** queued.levels,
         xRatio: queued.xRatio,
         yRatio: queued.yRatio,
       });
     }
     if (queued.dxPx !== 0 || queued.dyPx !== 0) {
-      next = panViewport(next, limits, {
+      next = panViewport(next, live, {
         dxPx: queued.dxPx,
         dyPx: queued.dyPx,
-        boxWidth: laneWidth,
+        boxWidth: width,
       });
     }
     queued.levels = 0;
@@ -365,15 +403,37 @@ export function TimelineDense({
     if (viewportsEqual(next, viewportRef.current)) return;
     viewportRef.current = next;
     setViewport(next);
-  }, [limits, laneWidth]);
+  }, []);
+
+  /** Ease-in-out, so the flight starts and lands softly. */
+  const flyTo = useCallback(
+    (target: Viewport) => {
+      cancelTween();
+      const from = viewportRef.current;
+      const startedAt = performance.now();
+      const step = (now: number) => {
+        const linear = Math.min((now - startedAt) / FOCUS_ANIMATION_MS, 1);
+        const eased =
+          linear < 0.5 ? 2 * linear * linear : 1 - (-2 * linear + 2) ** 2 / 2;
+        const next = interpolateViewport(from, target, eased);
+        viewportRef.current = next;
+        setViewport(next);
+        tween.current = linear < 1 ? requestAnimationFrame(step) : 0;
+      };
+      tween.current = requestAnimationFrame(step);
+    },
+    [cancelTween],
+  );
 
   const scheduleGesture = useCallback(() => {
     // Any gesture on the chart hands the space back: an expanded gutter is for
-    // looking, and the moment you work in the chart it gets out of the way.
+    // looking, and the moment you work in the chart it gets out of the way. It
+    // also takes over from an animation in flight rather than fighting it.
+    cancelTween();
     releaseOverride();
     if (pending.current.frame) return;
     pending.current.frame = requestAnimationFrame(flushGesture);
-  }, [flushGesture, releaseOverride]);
+  }, [flushGesture, releaseOverride, cancelTween]);
 
   /**
    * Wheel and trackpad pinch on a non-passive listener, so the page never takes
@@ -388,6 +448,7 @@ export function TimelineDense({
       const onWheel = (event: WheelEvent) => {
         const rect = element.getBoundingClientRect();
         const queued = pending.current;
+        const rail = layoutRef.current.railWidth;
         // A macOS pinch is the ONLY wheel event that carries ctrlKey. A
         // two-finger scroll is a plain wheel, so it must pan — treating it as
         // zoom is what made scrolling around zoom the rows instead.
@@ -396,8 +457,8 @@ export function TimelineDense({
         if (pinch) {
           queued.xRatio =
             rect.width > 0
-              ? (event.clientX - rect.left - railWidth) /
-                Math.max(rect.width - railWidth, 1)
+              ? (event.clientX - rect.left - rail) /
+                Math.max(rect.width - rail, 1)
               : 0.5;
           queued.yRatio =
             rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
@@ -415,8 +476,8 @@ export function TimelineDense({
         if (isMouseNotch && event.deltaX === 0 && !event.shiftKey) {
           queued.xRatio =
             rect.width > 0
-              ? (event.clientX - rect.left - railWidth) /
-                Math.max(rect.width - railWidth, 1)
+              ? (event.clientX - rect.left - rail) /
+                Math.max(rect.width - rail, 1)
               : 0.5;
           queued.yRatio =
             rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
@@ -429,11 +490,11 @@ export function TimelineDense({
         // Two-finger scroll: pan both axes. Shift maps a vertical wheel to time.
         const dxPx = event.shiftKey ? -event.deltaY : -event.deltaX;
         const dyPx = event.shiftKey ? 0 : -event.deltaY;
-        const wouldMove = panViewport(viewportRef.current, limits, {
-          dxPx,
-          dyPx,
-          boxWidth: laneWidth,
-        });
+        const wouldMove = panViewport(
+          viewportRef.current,
+          layoutRef.current.limits,
+          { dxPx, dyPx, boxWidth: layoutRef.current.laneWidth },
+        );
         // Only swallow the gesture if it actually moves us; at a clamp the page
         // keeps its scroll instead of being trapped.
         if (viewportsEqual(wouldMove, viewportRef.current)) return;
@@ -444,9 +505,14 @@ export function TimelineDense({
       };
 
       element.addEventListener("wheel", onWheel, { passive: false });
-      return () => element.removeEventListener("wheel", onWheel);
+      return () => {
+        cancelTween();
+        element.removeEventListener("wheel", onWheel);
+      };
     },
-    [railWidth, limits, laneWidth, scheduleGesture],
+    // Stable: everything live is read from layoutRef, so the listener attaches
+    // once and an animation is never cancelled by a re-attach.
+    [scheduleGesture, cancelTween],
   );
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -455,7 +521,7 @@ export function TimelineDense({
       event.clientX - event.currentTarget.getBoundingClientRect().left;
     if (
       (pointer === "coarse" || event.pointerType === "touch") &&
-      offsetX <= railWidth + PEEK_MARGIN_PX
+      offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX
     ) {
       setOverride(isOpen ? "collapsed" : "expanded");
       return;
@@ -495,7 +561,7 @@ export function TimelineDense({
     // Peek is hover-driven on a fine pointer only: a coarse pointer has no
     // hover, so it toggles on tap instead (see onPointerDown).
     if (pointer === "fine" && event.pointerType !== "touch") {
-      setPeeking(offsetX <= railWidth + PEEK_MARGIN_PX);
+      setPeeking(offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX);
     }
 
     setFocusIndex(
@@ -523,7 +589,7 @@ export function TimelineDense({
     if (!positioned) return;
     setSelectedIndex(index);
     const startMs = compression.toCompressedMs(positioned.startMs);
-    setViewport(
+    flyTo(
       focusViewport(limits, {
         rowIndex: index,
         startMs,
@@ -565,7 +631,7 @@ export function TimelineDense({
         </ToolbarButton>
         <ToolbarButton
           label="Fit whole trace"
-          onClick={() => setViewport(null)}
+          onClick={() => flyTo(fitViewport(limits))}
         >
           <Maximize2 className="h-3 w-3" />
         </ToolbarButton>
@@ -670,10 +736,6 @@ export function TimelineDense({
             const isFocused = node.index === focusIndex;
             const isSelected = node.index === selectedIndex;
             const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
-            const squareSize = Math.max(Math.min(barHeight, 6), 2);
-            const indent = namesVisible
-              ? Math.min(node.depth, RAIL_MAX_DEPTH) * GUTTER_INDENT
-              : Math.min(node.depth, RAIL_MAX_DEPTH) * RAIL_INDENT + 1;
 
             return (
               <div
@@ -689,81 +751,13 @@ export function TimelineDense({
                 onClick={() => setSelectedIndex(node.index)}
                 onDoubleClick={() => focusRow(node.index)}
               >
-                <div
-                  className="absolute inset-y-0 overflow-hidden"
-                  style={{ width: `${railWidth}px` }}
-                >
-                  <div
-                    className={cn("absolute rounded-[1px]", typeColor)}
-                    style={{
-                      left: `${indent}px`,
-                      top: `${Math.max((rowHeight - squareSize) / 2, 0)}px`,
-                      width: `${squareSize}px`,
-                      height: `${squareSize}px`,
-                    }}
-                  />
-                  {/* Tree connectors, same visual language as the production
-                      gutter: an ancestor rail per level that still has a sibling
-                      below, then this node's elbow into its own icon. */}
-                  {namesVisible
-                    ? node.treeLines
-                        .slice(0, Math.min(node.depth, RAIL_MAX_DEPTH))
-                        .map((continues, level) =>
-                          continues ? (
-                            <div
-                              key={level}
-                              className="bg-border-contrast absolute inset-y-0 w-px"
-                              style={{ left: `${level * GUTTER_INDENT + 5}px` }}
-                            />
-                          ) : null,
-                        )
-                    : null}
-                  {namesVisible && node.depth > 0 ? (
-                    <>
-                      <div
-                        className={cn(
-                          "bg-border-contrast absolute top-0 w-px",
-                          node.isLastSibling ? "h-1/2" : "bottom-0",
-                        )}
-                        style={{
-                          left: `${(Math.min(node.depth, RAIL_MAX_DEPTH) - 1) * GUTTER_INDENT + 5}px`,
-                        }}
-                      />
-                      <div
-                        className="bg-border-contrast absolute top-1/2 h-px"
-                        style={{
-                          left: `${(Math.min(node.depth, RAIL_MAX_DEPTH) - 1) * GUTTER_INDENT + 5}px`,
-                          width: `${GUTTER_INDENT}px`,
-                        }}
-                      />
-                    </>
-                  ) : null}
-                  {namesVisible ? (
-                    <div
-                      className="absolute flex items-center gap-1 overflow-hidden"
-                      style={{
-                        left: `${indent + 6}px`,
-                        right: "2px",
-                        top: `${Math.max((rowHeight - 16) / 2, 0)}px`,
-                        height: "16px",
-                      }}
-                    >
-                      <span className="shrink-0">
-                        <ItemBadge
-                          type={node.type as LangfuseItemType}
-                          isSmall
-                        />
-                      </span>
-                      <span
-                        className="text-foreground truncate"
-                        style={{ fontSize: "10px" }}
-                        title={node.name}
-                      >
-                        {node.name}
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
+                <GutterContent
+                  node={node}
+                  width={railWidth}
+                  rowHeight={rowHeight}
+                  barHeight={barHeight}
+                  showName={namesVisible}
+                />
 
                 <div
                   className="absolute inset-y-0 overflow-hidden"
@@ -840,8 +834,45 @@ export function TimelineDense({
           })}
         </div>
 
+        {/* Peek: the same gutter content, floating OVER the chart. The bars keep
+            their geometry, so looking at the names never moves what you are
+            looking at. */}
+        {peekWidth > 0 ? (
+          <div
+            className="border-border bg-background/95 absolute inset-y-0 left-0 overflow-hidden border-r backdrop-blur-[2px]"
+            style={{ width: `${peekWidth}px` }}
+            data-testid="timeline-dense-peek"
+          >
+            {result.nodes.map((node) => {
+              const y = (node.index - current.rows.start) * rowHeight;
+              if (y + rowHeight < 0 || y > surfaceHeight) return null;
+              return (
+                <div
+                  key={node.id}
+                  className={cn(
+                    "absolute inset-x-0",
+                    node.index === selectedIndex && "bg-primary-accent/20",
+                    node.index === focusIndex &&
+                      node.index !== selectedIndex &&
+                      "bg-primary-accent/15",
+                  )}
+                  style={{ top: `${y}px`, height: `${rowHeight}px` }}
+                >
+                  <GutterContent
+                    node={node}
+                    width={peekWidth}
+                    rowHeight={rowHeight}
+                    barHeight={barHeight}
+                    showName
+                  />
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
         {/* The tooltip is what names a row when the gutter cannot. */}
-        {focused && pointerPos && !dragging ? (
+        {focused && pointerPos && !dragging && pointerPos.x > gutterWidth ? (
           <div
             className="border-border bg-background text-foreground pointer-events-none absolute z-10 flex max-w-[90%] items-center gap-1 rounded border px-1.5 py-1 shadow-md"
             style={{
@@ -905,6 +936,102 @@ export function TimelineDense({
           <span>{fitted ? "fitted" : "zoomed"}</span>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The left side of one row: type square when closed, and the production gutter's
+ * own vocabulary when open — connector rails, the observation's ItemBadge icon,
+ * its name, indented by depth. Shared by the in-flow rail and the peek overlay so
+ * the two cannot drift apart.
+ */
+function GutterContent({
+  node,
+  width,
+  rowHeight,
+  barHeight,
+  showName,
+}: {
+  node: PositionedNode;
+  width: number;
+  rowHeight: number;
+  barHeight: number;
+  showName: boolean;
+}) {
+  const depth = Math.min(node.depth, RAIL_MAX_DEPTH);
+  const squareSize = Math.max(Math.min(barHeight, 6), 2);
+  const indent = showName ? depth * GUTTER_INDENT : depth * RAIL_INDENT + 1;
+  const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
+
+  return (
+    <div
+      className="absolute inset-y-0 overflow-hidden"
+      style={{ width: `${width}px` }}
+    >
+      {showName
+        ? node.treeLines
+            .slice(0, depth)
+            .map((continues, level) =>
+              continues ? (
+                <div
+                  key={level}
+                  className="bg-border-contrast absolute inset-y-0 w-px"
+                  style={{ left: `${level * GUTTER_INDENT + 5}px` }}
+                />
+              ) : null,
+            )
+        : null}
+      {showName && depth > 0 ? (
+        <>
+          <div
+            className={cn(
+              "bg-border-contrast absolute top-0 w-px",
+              node.isLastSibling ? "h-1/2" : "bottom-0",
+            )}
+            style={{ left: `${(depth - 1) * GUTTER_INDENT + 5}px` }}
+          />
+          <div
+            className="bg-border-contrast absolute top-1/2 h-px"
+            style={{
+              left: `${(depth - 1) * GUTTER_INDENT + 5}px`,
+              width: `${GUTTER_INDENT}px`,
+            }}
+          />
+        </>
+      ) : null}
+      {showName ? (
+        <div
+          className="absolute flex items-center gap-1 overflow-hidden"
+          style={{
+            left: `${indent + 6}px`,
+            right: "2px",
+            top: `${Math.max((rowHeight - 16) / 2, 0)}px`,
+            height: "16px",
+          }}
+        >
+          <span className="shrink-0">
+            <ItemBadge type={node.type as LangfuseItemType} isSmall />
+          </span>
+          <span
+            className="text-foreground truncate"
+            style={{ fontSize: "10px" }}
+            title={node.name}
+          >
+            {node.name}
+          </span>
+        </div>
+      ) : (
+        <div
+          className={cn("absolute rounded-[1px]", typeColor)}
+          style={{
+            left: `${indent}px`,
+            top: `${Math.max((rowHeight - squareSize) / 2, 0)}px`,
+            width: `${squareSize}px`,
+            height: `${squareSize}px`,
+          }}
+        />
+      )}
     </div>
   );
 }

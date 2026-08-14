@@ -11,6 +11,7 @@ import {
   panViewport,
   rowHeightOf,
   viewportsEqual,
+  interpolateViewport,
   visibleRowRange,
   zoomViewport,
   type Viewport,
@@ -227,6 +228,46 @@ describe("viewport", () => {
       boxWidth: BOX_WIDTH,
     });
     expect(viewportsEqual(moved, zoomed)).toBe(false);
+  });
+
+  it("interpolates a focus geometrically on the scales", () => {
+    const from = fitViewport(limits);
+    const to = focusViewport(limits, {
+      rowIndex: 300,
+      startMs: 10_000,
+      durationMs: 400,
+    });
+
+    expect(interpolateViewport(from, to, 0)).toEqual(from);
+    const landed = interpolateViewport(from, to, 1);
+    expect(landed.time.duration).toBeCloseTo(to.time.duration, 3);
+    expect(landed.rows.count).toBeCloseTo(to.rows.count, 3);
+
+    // Halfway is the geometric mean of the two scales, not the arithmetic one —
+    // a linear tween crawls at the wide end and then lurches.
+    const half = interpolateViewport(from, to, 0.5);
+    expect(half.time.duration).toBeCloseTo(
+      Math.sqrt(from.time.duration * to.time.duration),
+      3,
+    );
+    expect(half.rows.count).toBeCloseTo(
+      Math.sqrt(from.rows.count * to.rows.count),
+      3,
+    );
+
+    // Monotone, so the animation never doubles back on itself.
+    let previous = from.time.duration;
+    for (const t of [0.2, 0.4, 0.6, 0.8, 1]) {
+      const step = interpolateViewport(from, to, t).time.duration;
+      expect(step).toBeLessThan(previous);
+      previous = step;
+    }
+
+    for (const t of [NaN, -1, 2]) {
+      const step = interpolateViewport(from, to, t);
+      expect(Number.isFinite(step.time.duration)).toBe(true);
+      expect(Number.isFinite(step.rows.count)).toBe(true);
+    }
   });
 
   it("is total on degenerate input", () => {
