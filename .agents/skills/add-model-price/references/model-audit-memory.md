@@ -12,7 +12,7 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-08-07
+**Audit date:** 2026-08-14
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
 
@@ -27,7 +27,7 @@ All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: di
 | Anthropic | claude-opus-4-5-20251101 | Same as Opus 5 | Yes | Flat 1M context | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-opus-4-1-20250805 | Input $15/MTok, Output $75/MTok, 5m $18.75/MTok, 1h $30/MTok, read $1.50/MTok | Yes | Deprecated — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Still listed as "retired, except on Bedrock and Google Cloud" on the current page. Entry retained, unchanged. |
 | Anthropic | claude-opus-4-20250514 | Input $15/MTok, Output $75/MTok, 5m $18.75/MTok, 1h $30/MTok, read $1.50/MTok | Yes | Retired except Google Cloud — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed present on current page's main table, unchanged. |
-| Anthropic | claude-sonnet-5 | Input $2/MTok, Output $10/MTok (through Aug 31, 2026); 5m $2.50/MTok, 1h $4/MTok, read $0.20/MTok | Yes | Flat 1M context; introductory pricing through Aug 31 2026 | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed. Standard pricing $3/$15 (cache $3.75/$6/$0.30) still scheduled for Sep 1, 2026 — update the file then. |
+| Anthropic | claude-sonnet-5 | Input $2/MTok, Output $10/MTok; 5m $2.50/MTok, 1h $4/MTok, read $0.20/MTok | Yes | Flat 1M context; pricing is now PERMANENT (see comment) | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | **Resolved 2026-08-14: the $2/$10 pricing is now permanent, not introductory.** The official page now states: "The $2/$10 per million input/output token pricing for Claude Sonnet 5, announced at launch as introductory pricing through August 31, 2026, is now the standard price. The previously scheduled increase to $3/$15 per million input/output tokens on September 1, 2026 will not occur." No file change needed (file already holds $2/$10). This closes unresolved finding #1 from the Aug 7 2026 memory — do not re-flag a Sep 1, 2026 price increase in future audits. |
 | Anthropic | claude-sonnet-4-6 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | Flat 1M context | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-sonnet-4-5-20250929 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | No large-context tier (200k hard context-window cap) | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged; the Large Context tier removed on Aug 4 2026 was not reintroduced. |
 | Anthropic | claude-sonnet-4-20250514 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | Retired except Bedrock/Google Cloud — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed present on current page's main table, unchanged. |
@@ -92,36 +92,42 @@ All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: di
 | Google | gemini-3.1-pro-preview | Input $2/$4 MTok (≤200K/>200K), Output $12/$18 | Yes | Large Context (>200K) confirmed | Yes | None | https://ai.google.dev/pricing | Re-confirmed unchanged. |
 | Google | gemini-3-flash-preview | Input $0.50/$1.00 (text/audio), Output $3.00, Cache read $0.05/$0.10 | Yes | No large-context tier | Yes | None | https://ai.google.dev/pricing | Re-confirmed unchanged. |
 | Google | gemini-3-pro-preview | Input $2/$4 MTok (≤200K/>200K), Output $12/$18 | No | Large Context (>200K) set in file | Not applicable | None | https://ai.google.dev/pricing | Still not listed on official AI Studio page this run either; existing prices retained, not re-verified. |
-| Google | gemini-3.6-flash | Input $1.50/MTok, Output $7.50/MTok, Cache read $0.15/MTok | Yes | No large-context tier | Yes | None | https://ai.google.dev/pricing | Re-confirmed unchanged. |
+| Google | gemini-3.6-flash | Input $0.75/MTok, Output $3.75/MTok, Cache read $0.075/MTok (all through Dec 31, 2026; reverts to $1.50/$7.50/$0.15 from Jan 1, 2027) | Yes | No large-context tier | Yes | Updated | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/pricing | **Price cut found 2026-08-14.** Two independent targeted verbatim fetches (both `ai.google.dev/pricing` and `ai.google.dev/gemini-api/docs/pricing`, each explicitly separating Free/Paid columns) confirm Google introduced introductory-style pricing for this model: Paid tier is now $0.75/MTok input, $3.75/MTok output, $0.075/MTok cache read (10% ratio preserved) "through December 31, 2026", stepping up to $1.50/$7.50/$0.15 (the previously-confirmed and still-current file price before this run) "starting January 1, 2027". Since Langfuse's schema has no time-based tiering, the file now holds the current discounted price — **revert to $1.50/$7.50/$0.15 on or after 2027-01-01.** Grounding/web-search-queries price ($14/1,000 requests = 0.014/query) unchanged and confirmed via a dedicated grounding-pricing fetch to apply uniformly across Gemini 3.x models including this one. |
+| Google | gemini-3.7-flash | Input $0.75/MTok, Output $3.75/MTok, Cache read $0.075/MTok (all through Dec 31, 2026; reverts to $1.50/$7.50/$0.15 from Jan 1, 2027) | Yes | No large-context tier | Yes | Added | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/pricing https://ai.google.dev/gemini-api/docs/models | **New model found 2026-08-14.** `gemini-3.7-flash` is confirmed via the official Gemini models page as a "New Stable" GA release, described as "Our latest and most capable Flash model, built for complex coding, agentic workflows, and reliable multi-step execution" — the successor to `gemini-3.6-flash` ("previous-generation Flash model"). It launched at the exact same current promotional price as `gemini-3.6-flash` (see that row) and shares the same Jan 1, 2027 step-up. Added to the pricing file mirroring the `gemini-3.6-flash` key set (input/output/cache-read aliases plus `grounding_queries`/`web_search_queries` at 0.014/query) and to `vertexAIModels`/`googleAIStudioModels` in `types.ts` (not as the first entry). matchPattern: `(?i)^(google(ai)?\/)?(gemini-3.7-flash)$`. |
 | Google | gemini-2.0-flash | Input $0.10/MTok, Output $0.40/MTok | No | Deprecated (shut down June 1, 2026) | Not applicable | None | https://ai.google.dev/pricing | Not re-verified this run; retained for backward compatibility. |
 | Google | gemini-2.0-flash-001 | Same as gemini-2.0-flash | No | Deprecated (shut down June 1, 2026) | Not applicable | None | https://ai.google.dev/pricing | Not re-verified this run; retained for backward compatibility. |
 
-## Unresolved findings (updated 2026-08-07)
+## Unresolved findings (updated 2026-08-14)
 
-1. **claude-sonnet-5 introductory pricing** — Introductory pricing ($2/$10/MTok) expires
-   August 31, 2026. Standard pricing ($3/$15/MTok, cache $3.75/$6/$0.30) takes effect
-   September 1, 2026. The pricing file must be updated before or on that date.
-
-2. **claude-opus-4-1-20250805 retirement** — Deprecated, past its originally stated Aug 5
+1. **claude-opus-4-1-20250805 retirement** — Deprecated, past its originally stated Aug 5
    2026 retirement date but still listed on the official pricing page as "retired, except
    on Bedrock and Google Cloud" this run. File entry retained; no action required, but
    check whether it is fully removed from the official page in the next audit.
 
-3. **AWS Bedrock "Claude 3.5 Sonnet (Public Extended Access)" pricing** — Confirmed real
+2. **AWS Bedrock "Claude 3.5 Sonnet (Public Extended Access)" pricing** — Confirmed real
    in the Aug 4 2026 audit (see provider-sources-and-price-keys.md) but not representable
    in Langfuse's schema because it matches by model-ID string only. No file change should
    be made for this; treat it as a permanent, documented limitation rather than something
-   to re-investigate each run.
+   to re-investigate each run. Not re-checked this run (no `aws.amazon.com` fetch performed).
 
-4. **Legacy Claude 3.x / 3.5 / 3.7 models not on the current pricing page** — Not
+3. **Legacy Claude 3.x / 3.5 / 3.7 models not on the current pricing page** — Not
    re-verified this run (`claude-3.7-sonnet-20250219`, `claude-3.5-sonnet-20241022`,
    `claude-3-5-sonnet-20240620`, `claude-3-opus-20240229`, `claude-3-sonnet-20240229`,
    `claude-3-haiku-20240307`). Existing prices retained. Low priority since these are
    retired/legacy.
 
-5. **gemini-3.1-flash-lite-preview and gemini-3-pro-preview** — Still not separately listed
+4. **gemini-3.1-flash-lite-preview and gemini-3-pro-preview** — Still not separately listed
    on the official AI Studio pricing page. Existing prices retained without fresh
    confirmation. Re-verify if these move from preview to GA or gain their own pricing row.
+
+5. **gemini-3.6-flash / gemini-3.7-flash promotional pricing reverts 2027-01-01** — Both
+   models are confirmed on introductory pricing ($0.75/$3.75/MTok input/output, $0.075/MTok
+   cache read) "through December 31, 2026", stepping up to $1.50/$7.50/$0.15 "starting
+   January 1, 2027". The pricing file currently holds the discounted price (correct for
+   now); update both entries to the higher rate on or after 2027-01-01. This is the same
+   time-based-tiering limitation previously seen with `claude-sonnet-5` — Langfuse's schema
+   cannot express a calendar-date price step, so the file always holds the *currently
+   active* rate, not a future one.
 
 6. **OpenAI "cache writes" is still gpt-5.6-family-only** — As of this audit (re-confirmed
    via the full standard-pricing-table dump), the distinct 1.25x-of-input cache-write
