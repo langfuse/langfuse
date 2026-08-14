@@ -2113,6 +2113,21 @@ export const RedirectStaysActionableAfterMoreThinking = meta.story({
         },
       },
       {
+        // A redirect tool result merges into a preceding text block rather than
+        // arriving standalone whenever there is one to merge into.
+        id: "assistant-ack",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The dashboard shows the same spike.",
+          redirectAction: {
+            type: "redirectAction",
+            label: "Open the latency dashboard",
+            href: "/project/project-1/dashboards/latency",
+          },
+        },
+      },
+      {
         id: "assistant-reasoning-2",
         role: "assistant",
         content: {
@@ -2133,13 +2148,19 @@ export const RedirectStaysActionableAfterMoreThinking = meta.story({
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
 
-    // The drawer stays collapsed, so a redirect parked inside it would be lost.
+    // The drawer stays collapsed, so a redirect parked inside it would be lost,
+    // whether it arrived standalone or merged into a mid-turn text block.
+    const drawer = canvas.getByRole("button", { name: /Worked for/ });
+    await expect(drawer).toHaveAttribute("aria-expanded", "false");
     await expect(
-      canvas.getByRole("button", { name: /Worked for/ }),
-    ).toHaveAttribute("aria-expanded", "false");
-    await expect(
-      canvas.getByRole("button", { name: "Open error traces" }),
+      canvas.getByRole("button", { name: "Open the latency dashboard" }),
     ).toBeVisible();
+
+    // ...and opening the drawer must not offer the same action a second time.
+    await userEvent.click(drawer);
+    await expect(
+      canvas.getAllByRole("button", { name: "Open the latency dashboard" }),
+    ).toHaveLength(1);
   },
 });
 

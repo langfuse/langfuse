@@ -335,7 +335,12 @@ function TextMessageWithActions({
       <MessageCard
         ref={messageCardRef}
         role="assistant"
-        content={content}
+        content={
+          // The turn's redirect belongs to the answer. Leaving it on the block
+          // that happened to carry it would offer the same action twice once
+          // the activity drawer is open.
+          isFinalAnswer ? content : { ...content, redirectAction: undefined }
+        }
         isCompact={isCompact}
       />
       {hasActions ? (

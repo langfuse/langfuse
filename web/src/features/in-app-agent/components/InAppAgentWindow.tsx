@@ -293,6 +293,11 @@ type InAppAgentTextMessage = InAppAgentWindowMessage & {
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
 };
 
+type InAppAgentRedirectActionContent = Extract<
+  InAppAgentMessageContent,
+  { type: "redirectAction" }
+>;
+
 /**
  * Fold a turn's answer blocks into the single bubble the user reads. Each field
  * takes the last block that defined it, except `sources`, which arrive already
@@ -301,6 +306,7 @@ type InAppAgentTextMessage = InAppAgentWindowMessage & {
 function joinAnswerMessages(
   messages: InAppAgentWindowMessage[],
   turnSources: InAppAgentMessageSource[],
+  turnRedirectAction: InAppAgentRedirectActionContent | undefined,
 ): InAppAgentWindowMessage | null {
   const textMessages = messages.filter(
     (message): message is InAppAgentTextMessage =>
@@ -320,20 +326,9 @@ function joinAnswerMessages(
       (found, message) => pick(message) ?? found,
       undefined,
     );
-  const standaloneRedirect = messages.findLast(
-    (
-      message,
-    ): message is InAppAgentWindowMessage & {
-      content: Extract<InAppAgentMessageContent, { type: "redirectAction" }>;
-    } => message.content.type === "redirectAction",
-  );
-
   const runId = lastDefined((message) => message.runId);
   const feedbackMessageId = lastDefined((message) => message.feedbackMessageId);
   const feedback = lastDefined((message) => message.content.feedback);
-  const redirectAction =
-    lastDefined((message) => message.content.redirectAction) ??
-    standaloneRedirect?.content;
 
   return {
     ...lastText,
@@ -347,7 +342,7 @@ function joinAnswerMessages(
         : {}),
       ...(turnSources.length > 0 ? { sources: turnSources } : {}),
       ...(feedback ? { feedback } : {}),
-      ...(redirectAction ? { redirectAction } : {}),
+      ...(turnRedirectAction ? { redirectAction: turnRedirectAction } : {}),
     },
   };
 }
@@ -435,7 +430,26 @@ function buildConversationDisplayItems(
       ),
       (source) => source.url,
     );
-    const joinedAnswer = joinAnswerMessages(answerMessages, turnSources);
+    // A proposed redirect belongs to the turn, not to whichever block carried
+    // it: the tool result is merged into a preceding text message when there is
+    // one and emitted standalone when there is not, and either can land in the
+    // drawer.
+    const turnRedirectAction = turnMessages.reduce<
+      InAppAgentRedirectActionContent | undefined
+    >(
+      (found, turnMessage) =>
+        (turnMessage.content.type === "redirectAction"
+          ? turnMessage.content
+          : turnMessage.content.type === "text"
+            ? turnMessage.content.redirectAction
+            : undefined) ?? found,
+      undefined,
+    );
+    const joinedAnswer = joinAnswerMessages(
+      answerMessages,
+      turnSources,
+      turnRedirectAction,
+    );
     const precedingMessage = visibleMessages[turnStartIndex - 1];
     const followsUser = precedingMessage?.role === "user";
 
@@ -627,10 +641,13 @@ function AssistantActivityGroup({
  */
 function ConversationScroller({
   children,
-  messages,
+  displayItems,
 }: {
   children: ReactNode;
-  messages: InAppAgentWindowMessage[];
+  /** What is actually rendered, so the height can only change with it. Keying
+   * on the raw messages misses a turn that settles without new messages and
+   * reveals its answer. */
+  displayItems: ConversationDisplayItem[];
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   // Sticky intent to follow, which survives scrolling down through the middle
@@ -640,9 +657,9 @@ function ConversationScroller({
   const previousScrollTopRef = useRef(0);
   // The newest user message, rather than the newest message: a turn often
   // appends a placeholder after it, which would mask the send.
-  const lastUserMessageId = messages.findLast(
-    (message) => message.role === "user",
-  )?.id;
+  const lastUserMessageId = displayItems.findLast(
+    (item) => item.type === "user",
+  )?.message.id;
   const [followState, setFollowState] = useState({
     lastUserMessageId,
     isAtLatest: true,
@@ -666,7 +683,7 @@ function ConversationScroller({
     if (isAutoScrollAttachedRef.current) {
       scrollViewportToBottom(viewportRef.current);
     }
-  }, [messages]);
+  }, [displayItems]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -1275,7 +1292,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         </div>
       </header>
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <ConversationScroller key={selectedConversationId} messages={messages}>
+        <ConversationScroller
+          key={selectedConversationId}
+          displayItems={displayItems}
+        >
           <div
             className={cn(
               "flex min-h-full w-full flex-col py-4",
