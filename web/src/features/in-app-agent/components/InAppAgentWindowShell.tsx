@@ -169,13 +169,11 @@ export function InAppAgentWindowShell({
         }}
         dismissible={false}
         forceDirection="bottom"
-        // Vaul's own keyboard dodge is off because it is stateful: it toggles a
-        // "keyboard is open" flag on every large visual-viewport step instead of
-        // reading the direction, so an extra step — iOS reports the closing
-        // keyboard in two — leaves the flag inverted, and the next dismissal is
-        // skipped entirely, stranding the drawer at keyboard height. It also
-        // writes an inline `height`, which over-constrains this box.
-        // `useVisibleViewportAnchoring` above does the same job statelessly.
+        // Vaul's own keyboard dodge is off: it TOGGLES a "keyboard is open" flag
+        // on every large visual-viewport step instead of reading the direction,
+        // so one extra step — iOS reports a closing keyboard in two — inverts it
+        // and the next dismissal is skipped, stranding the drawer at keyboard
+        // height. It also writes an inline `height`, over-constraining this box.
         repositionInputs={false}
       >
         <DrawerContent
