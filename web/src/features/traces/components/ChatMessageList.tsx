@@ -104,10 +104,7 @@ export function ChatMessageList({
       // Only content that ChatMessage renders through MarkdownView shows its
       // media inline; anything falling back to a JSON table still needs the
       // shared strip, so ask the renderer's own predicate.
-      if (
-        typeof content === "string" ||
-        canRenderContentAsMarkdown(content, characterLimit)
-      ) {
+      if (canRenderContentAsMarkdown(content, characterLimit)) {
         getRenderedInlineMediaIds({
           markdown: content,
           audio: message.audio,

@@ -9,12 +9,6 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
   LangfuseMediaView: () => <div data-testid="media-item" />,
 }));
 
-// The markdown limit is fetched via tRPC — stub it so the test needs no
-// tRPC provider.
-vi.mock("@/src/hooks/useMarkdownRenderCharacterLimit", () => ({
-  useMarkdownRenderCharacterLimit: () => 150_000,
-}));
-
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { LARGE_STRING_RENDER_CHAR_LIMIT } from "@/src/components/ui/largeStringGate";
 import { MediaEnabledFields } from "@/src/features/media/validation";
