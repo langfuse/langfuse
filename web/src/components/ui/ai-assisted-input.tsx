@@ -3,13 +3,13 @@ import { Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
+import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
-import styles from "./ai-assisted-input.module.css";
 
 type AIAssistedInputProps = Pick<
   ComponentProps<typeof Input>,
@@ -50,10 +50,12 @@ export function AIAssistedInput({
       {isGenerating ? (
         <span
           aria-hidden="true"
-          className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-sm"
+          className={cn(
+            "pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-sm",
+            textShimmerStyles.textShimmer,
+          )}
         >
-          Generating name
-          <span className={styles.generatingDots} />
+          Generating name…
         </span>
       ) : null}
       {isAvailable ? (

@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { Streamdown } from "streamdown";
 import { Button } from "@/src/components/ui/button";
+import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { stripBasePath } from "@/src/utils/redirect";
 import { cn } from "@/src/utils/tailwind";
@@ -422,7 +423,7 @@ function InAppAgentReasoningBlock({
         <span
           className={cn(
             "min-w-0 flex-1",
-            content.isStreaming && styles.thinkingShimmer,
+            content.isStreaming && textShimmerStyles.textShimmer,
           )}
         >
           {content.isStreaming ? "Thinking" : "Thought"}
