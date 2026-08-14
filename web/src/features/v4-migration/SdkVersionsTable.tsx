@@ -8,10 +8,12 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import {
+  FALLBACK_LATEST_SDK_VERSIONS,
   getSdkFreshness,
   type SdkFreshness,
 } from "@/src/features/v4-migration/latestSdkVersions";
 import { type V4MigrationSdkUsageSeries } from "@/src/features/v4-migration/sdkVersionStatus";
+import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 
@@ -75,6 +77,17 @@ export function SdkVersionsTable({
 }: {
   series: V4MigrationSdkUsageSeries[];
 }) {
+  // Registry-backed latest versions; the pinned fallback keeps freshness
+  // rendering while the query loads (or if it fails — the server also
+  // degrades to the same constants).
+  const { data: latestSdkVersions } =
+    api.v4Transition.latestSdkVersions.useQuery(undefined, {
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    });
+  const latestByCanonicalName =
+    latestSdkVersions ?? FALLBACK_LATEST_SDK_VERSIONS;
+
   if (series.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -132,7 +145,9 @@ export function SdkVersionsTable({
                   <CompatibilityPill series={row} />
                 </TableCell>
                 <TableCell>
-                  <FreshnessPill freshness={getSdkFreshness(row)} />
+                  <FreshnessPill
+                    freshness={getSdkFreshness(row, latestByCanonicalName)}
+                  />
                 </TableCell>
               </TableRow>
             ))}
