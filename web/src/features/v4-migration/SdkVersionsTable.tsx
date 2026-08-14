@@ -7,52 +7,49 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import {
-  getSdkFreshness,
-  type SdkFreshness,
-} from "@/src/features/v4-migration/latestSdkVersions";
+import { getSdkFreshness } from "@/src/features/v4-migration/latestSdkVersions";
 import { type V4MigrationSdkUsageSeries } from "@/src/features/v4-migration/sdkVersionStatus";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { cn } from "@/src/utils/tailwind";
 
 const compactNumber = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
 
-function Pill({
-  tone,
-  children,
-}: {
-  tone: "green" | "yellow" | "muted";
-  children: React.ReactNode;
-}) {
+/**
+ * One Status column, worst verdict wins, and only problems get a filled
+ * pill: yellow is reserved for "act now" (migration blocker), advisory
+ * freshness renders as a quiet outline, healthy rows as plain muted text —
+ * so an all-green table reads calm instead of shouting.
+ */
+function StatusCell({ series }: { series: V4MigrationSdkUsageSeries }) {
+  if (series.v4MigrationStatus === "upgrade_required") {
+    return (
+      <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs whitespace-nowrap">
+        Upgrade required
+      </span>
+    );
+  }
+  if (series.v4MigrationStatus === "unknown") {
+    return (
+      <span className="text-muted-foreground text-xs whitespace-nowrap">
+        Unknown
+      </span>
+    );
+  }
+  const freshness = getSdkFreshness(series);
+  if (freshness === "behind") {
+    return (
+      <span className="border-border text-muted-foreground inline-flex w-fit shrink-0 items-center rounded-full border px-2 py-0.5 text-xs whitespace-nowrap">
+        Compatible · behind latest
+      </span>
+    );
+  }
   return (
-    <span
-      className={cn(
-        "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
-        tone === "green" && "bg-light-green text-dark-green",
-        tone === "yellow" && "bg-light-yellow text-dark-yellow",
-        tone === "muted" && "bg-muted text-muted-foreground",
-      )}
-    >
-      {children}
+    <span className="text-muted-foreground text-xs whitespace-nowrap">
+      {freshness === "current" ? "Compatible · current" : "Compatible"}
     </span>
   );
-}
-
-function CompatibilityPill({ series }: { series: V4MigrationSdkUsageSeries }) {
-  if (series.v4MigrationStatus === "compatible")
-    return <Pill tone="green">Compatible</Pill>;
-  if (series.v4MigrationStatus === "upgrade_required")
-    return <Pill tone="yellow">Upgrade required</Pill>;
-  return <Pill tone="muted">Unknown</Pill>;
-}
-
-function FreshnessPill({ freshness }: { freshness: SdkFreshness }) {
-  if (freshness === "current") return <Pill tone="green">Current</Pill>;
-  if (freshness === "behind") return <Pill tone="yellow">Behind</Pill>;
-  return null;
 }
 
 const seriesKey = (series: V4MigrationSdkUsageSeries) =>
@@ -60,15 +57,19 @@ const seriesKey = (series: V4MigrationSdkUsageSeries) =>
     "|",
   );
 
-const displaySdkName = (series: V4MigrationSdkUsageSeries) =>
-  series.sdkName === "unknown" ? "Unattributed" : series.sdkName;
+// Match the checklist's naming ("Python", "JavaScript") instead of raw
+// ingestion names, so the two sections on the page agree with each other.
+const displaySdkName = (series: V4MigrationSdkUsageSeries) => {
+  if (series.canonicalSdkName === "python") return "Python";
+  if (series.canonicalSdkName === "javascript") return "JavaScript";
+  return series.sdkName === "unknown" ? "Unattributed" : series.sdkName;
+};
 
 /**
  * Per-SDK-version traffic table for the Health page: every (SDK, version,
- * key) series seen in the detection window, with the migration compatibility
- * verdict and, for current-major series, freshness against the latest
- * released version. The verify view: post-migration, this is how a user
- * confirms everything stayed green.
+ * key) series seen in the detection window with one worst-of status verdict.
+ * The verify view: post-migration, this is how a user confirms everything
+ * stayed green.
  */
 export function SdkVersionsTable({
   series,
@@ -97,42 +98,38 @@ export function SdkVersionsTable({
             <TableRow>
               <TableHead>SDK</TableHead>
               <TableHead>Version</TableHead>
-              <TableHead>API key</TableHead>
               <TableHead className="text-right">Events (14d)</TableHead>
               <TableHead>Last seen</TableHead>
-              <TableHead>Compatibility</TableHead>
-              <TableHead>Freshness</TableHead>
+              <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow key={seriesKey(row)}>
-                <TableCell className="font-mono text-xs">
+              // The API key lives in the row tooltip: it disambiguates
+              // duplicate-looking rows without spending a column of
+              // identical truncated prefixes.
+              <TableRow key={seriesKey(row)} title={row.publicKey}>
+                <TableCell density="comfortable" className="text-xs">
                   {displaySdkName(row)}
                 </TableCell>
-                <TableCell className="font-mono text-xs">
+                <TableCell density="comfortable" className="font-mono text-xs">
                   {row.sdkVersion === "unknown" ? "—" : row.sdkVersion}
                 </TableCell>
                 <TableCell
-                  className="text-muted-foreground max-w-[10rem] truncate font-mono text-xs"
-                  title={row.publicKey}
+                  density="comfortable"
+                  className="text-right text-xs tabular-nums"
                 >
-                  {row.publicKey || "—"}
-                </TableCell>
-                <TableCell className="text-right text-xs tabular-nums">
                   {compactNumber.format(row.eventCount)}
                 </TableCell>
                 <TableCell
+                  density="comfortable"
                   className="text-muted-foreground text-xs whitespace-nowrap"
                   title={row.lastSeen}
                 >
                   {formatCompactRelativeTime(new Date(row.lastSeen))}
                 </TableCell>
-                <TableCell>
-                  <CompatibilityPill series={row} />
-                </TableCell>
-                <TableCell>
-                  <FreshnessPill freshness={getSdkFreshness(row)} />
+                <TableCell density="comfortable">
+                  <StatusCell series={row} />
                 </TableCell>
               </TableRow>
             ))}

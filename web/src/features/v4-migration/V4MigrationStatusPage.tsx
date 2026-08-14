@@ -31,8 +31,6 @@ import {
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
   getProjectMigrationReadiness,
-  type MigrationActionState,
-  type MigrationCountState,
   type ProjectMigrationReadiness,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
@@ -57,35 +55,6 @@ function FaqLink({ href, children }: { href: string; children: ReactNode }) {
     >
       {children}
     </a>
-  );
-}
-
-function AffectedCell({ count }: { count: MigrationCountState }) {
-  if (count.status === "loading") {
-    return <span className="text-foreground-tertiary">Checking…</span>;
-  }
-  if (count.status === "error") {
-    return <span className="text-foreground-tertiary">Unavailable</span>;
-  }
-  if (count.count === 0) {
-    return <span className="text-foreground-tertiary">0</span>;
-  }
-  return <span>{count.count}</span>;
-}
-
-function MigrationActionCell({ state }: { state: MigrationActionState }) {
-  if (state.status === "loading") {
-    return <span className="text-foreground-tertiary">Checking…</span>;
-  }
-  if (state.status === "error") {
-    return <span className="text-foreground-tertiary">Unavailable</span>;
-  }
-  return state.result === "required" ? (
-    <span>Update required</span>
-  ) : state.result === "sdk_usage_inconclusive" ? (
-    <span>Needs review</span>
-  ) : (
-    <span className="text-foreground-tertiary">Up to date</span>
   );
 }
 
@@ -126,15 +95,38 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
   );
 }
 
-type SortKey =
-  | "name"
-  | "status"
-  | "sdk"
-  | "evals"
-  | "experiments"
-  | "apis"
-  | "exports"
-  | "lastTrace";
+type SortKey = "name" | "status" | "sdk" | "openItems" | "lastTrace";
+
+// One rollup column instead of four mostly-zero "Affected X" columns: a
+// short list of what is actually open, or an em dash.
+const openItemsCount = (status: ProjectMigrationStatus): number =>
+  (status.evals.status === "loaded" ? status.evals.count : 0) +
+  (status.experiments.status === "loaded" &&
+  status.experiments.result === "required"
+    ? 1
+    : 0) +
+  (status.apis.status === "loaded" ? status.apis.count : 0) +
+  (status.exports.status === "loaded" ? status.exports.count : 0);
+
+const openItemsLabel = (status: ProjectMigrationStatus): string => {
+  const parts: string[] = [];
+  if (status.evals.status === "loaded" && status.evals.count > 0)
+    parts.push(
+      `${status.evals.count} eval${status.evals.count === 1 ? "" : "s"}`,
+    );
+  if (
+    status.experiments.status === "loaded" &&
+    status.experiments.result === "required"
+  )
+    parts.push("experiments");
+  if (status.apis.status === "loaded" && status.apis.count > 0)
+    parts.push(`${status.apis.count} API${status.apis.count === 1 ? "" : "s"}`);
+  if (status.exports.status === "loaded" && status.exports.count > 0)
+    parts.push(
+      `${status.exports.count} export${status.exports.count === 1 ? "" : "s"}`,
+    );
+  return parts.length > 0 ? parts.join(", ") : "—";
+};
 type OrderBy = { column: SortKey; order: "ASC" | "DESC" } | null;
 
 // Header styling and none → DESC → ASC → none sort cycle copied from the
@@ -290,18 +282,8 @@ export function OrgStatusSection({
                     : row.status.sdk.status === "checking"
                       ? 1
                       : 0;
-      case "evals":
-        return row.status.evals.count;
-      case "experiments":
-        return row.status.experiments.result === "required"
-          ? 2
-          : row.status.experiments.result === "sdk_usage_inconclusive"
-            ? 1
-            : 0;
-      case "apis":
-        return row.status.apis.count;
-      case "exports":
-        return row.status.exports.count;
+      case "openItems":
+        return openItemsCount(row.status);
       case "lastTrace":
         return row.lastTraceSort;
     }
@@ -330,7 +312,7 @@ export function OrgStatusSection({
       )}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="min-w-[60rem] table-auto">
+          <Table className="table-auto">
             <TableHeader>
               <TableRow>
                 <SortableHead
@@ -352,26 +334,8 @@ export function OrgStatusSection({
                   onSort={handleSort}
                 />
                 <SortableHead
-                  label="Affected Evals"
-                  column="evals"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Experiments"
-                  column="experiments"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected APIs"
-                  column="apis"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Exports"
-                  column="exports"
+                  label="Open items"
+                  column="openItems"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
@@ -381,7 +345,7 @@ export function OrgStatusSection({
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
-                <TableHead className="w-24" />
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -451,17 +415,11 @@ export function OrgStatusSection({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.evals} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <MigrationActionCell state={row.status.experiments} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.apis} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.exports} />
+                    <TableCell
+                      density="comfortable"
+                      className="text-muted-foreground whitespace-nowrap"
+                    >
+                      {openItemsLabel(row.status)}
                     </TableCell>
                     <TableCell
                       density="comfortable"

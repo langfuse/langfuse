@@ -1,7 +1,7 @@
 import { useSession } from "next-auth/react";
 
 import Header from "@/src/components/layouts/header";
-import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
+import { HealthStatusBanner } from "@/src/features/v4-migration/HealthStatusBanner";
 import { OrgStatusSection } from "@/src/features/v4-migration/V4MigrationStatusPage";
 import {
   useAccountV4MigrationData,
@@ -86,19 +86,21 @@ export function OrgHealthSettingsPage({ orgId }: { orgId: string }) {
       ) : (
         <>
           {allGreen ? (
-            <p className="text-muted-foreground flex items-center gap-2.5 text-sm">
-              <V4MigrationStatusDot variant="done" />
+            <HealthStatusBanner tone="green">
               {org.projects.length === 1
                 ? "The project in this organization is fully v4 compatible."
                 : `All ${org.projects.length} projects are fully v4 compatible.`}
-            </p>
+            </HealthStatusBanner>
           ) : readinessCounts.actionNeeded > 0 ? (
-            <p className="text-muted-foreground flex items-center gap-2.5 text-sm">
-              <V4MigrationStatusDot variant="action" />
+            <HealthStatusBanner tone="yellow">
               {readinessCounts.actionNeeded} of {org.projects.length}{" "}
               {org.projects.length === 1 ? "project" : "projects"}{" "}
-              {readinessCounts.actionNeeded === 1 ? "needs" : "need"} attention.
-            </p>
+              {readinessCounts.actionNeeded === 1 ? "needs" : "need"} attention
+              {readinessCounts.ready > 0
+                ? ` · ${readinessCounts.ready} migrated`
+                : ""}
+              .
+            </HealthStatusBanner>
           ) : null}
           <OrgStatusSection
             org={org}
