@@ -346,7 +346,23 @@ jobs:
         # same reason. `prisma generate` only reads the schema; it needs no DB.
         run: pnpm --filter=shared run db:generate
       - name: Install playwright
-        run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
+        # apt-get (pulled in by --with-deps) occasionally stalls against a
+        # slow/unresponsive mirror and can ride the job's timeout-minutes
+        # instead of failing fast (observed: a 10-minute hang cancelled by
+        # the job timeout). A normal install takes well under a minute, so
+        # bound each attempt and retry instead of trusting the job-level
+        # timeout as the only guard.
+        run: |
+          attempt=1
+          until timeout 120 pnpm --filter=web exec playwright install --with-deps --only-shell chromium; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "Playwright install failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Attempt $attempt failed (possibly a stalled apt mirror), retrying in $((attempt * 15))s..." >&2
+            sleep $((attempt * 15))
+            attempt=$((attempt + 1))
+          done
       - name: run Storybook tests
         run: pnpm --filter web run test-storybook
       - name: build Storybook
@@ -429,6 +445,19 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      # test-docker-build previously built on a fresh local builder every run,
+      # unlike build-docker-image-release which already persists layers via a
+      # Blacksmith-backed builder. Same fix, applied here: cache-key is
+      # namespaced separately from the release cache-keys
+      # (langfuse/${{ image_name }}-${{ platform_tag }}) since this build uses
+      # different args (NEXT_IGNORE_BUILD_ERRORS=true) and only ever targets
+      # amd64. No nofallback here (unlike the release job): a Blacksmith
+      # hiccup should degrade this PR-check build to a slower local builder,
+      # not fail the check.
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
+        with:
+          cache-key: langfuse/test-${{ matrix.component }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Start dependency containers in background
