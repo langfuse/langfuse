@@ -40,15 +40,15 @@ WITH
             ifNull(sp.traceId.:String, lower(hex(arrayStringConcat(arrayMap(x -> char(x), CAST(sp.traceId.data, 'Array(UInt8)')))))) AS trace_id,
             ifNull(sp.spanId.:String, lower(hex(arrayStringConcat(arrayMap(x -> char(x), CAST(sp.spanId.data, 'Array(UInt8)')))))) AS span_id,
             ifNull(sp.parentSpanId.:String, lower(hex(arrayStringConcat(arrayMap(x -> char(x), CAST(sp.parentSpanId.data, 'Array(UInt8)')))))) AS parent_span_id,
-            if(sp.startTimeUnixNano.:String IS NOT NULL, toUInt64OrZero(assumeNotNull(sp.startTimeUnixNano.:String)), ((toUInt64(ifNull(sp.startTimeUnixNano.high.:Int64, 0)) * 4294967296) + toUInt64(bitAnd(ifNull(sp.startTimeUnixNano.low.:Int64, 0), 4294967295)))) AS start_ns,
-            if(sp.endTimeUnixNano.:String IS NOT NULL, toUInt64OrZero(assumeNotNull(sp.endTimeUnixNano.:String)), ((toUInt64(ifNull(sp.endTimeUnixNano.high.:Int64, 0)) * 4294967296) + toUInt64(bitAnd(ifNull(sp.endTimeUnixNano.low.:Int64, 0), 4294967295)))) AS end_ns,
+            if(sp.startTimeUnixNano.:String IS NOT NULL, toUInt64OrZero(assumeNotNull(sp.startTimeUnixNano.:String)), ((toUInt64(ifNull(accurateCastOrNull(sp.startTimeUnixNano.high, 'Int64'), 0)) * 4294967296) + toUInt64(bitAnd(ifNull(accurateCastOrNull(sp.startTimeUnixNano.low, 'Int64'), 0), 4294967295)))) AS start_ns,
+            if(sp.endTimeUnixNano.:String IS NOT NULL, toUInt64OrZero(assumeNotNull(sp.endTimeUnixNano.:String)), ((toUInt64(ifNull(accurateCastOrNull(sp.endTimeUnixNano.high, 'Int64'), 0)) * 4294967296) + toUInt64(bitAnd(ifNull(accurateCastOrNull(sp.endTimeUnixNano.low, 'Int64'), 0), 4294967295)))) AS end_ns,
             ifNull(sp.name.:String, '') AS name,
-            toUInt8(ifNull(sp.kind.:Int64, 0)) AS span_kind,
+            toUInt8(ifNull(accurateCastOrNull(sp.kind, 'Int64'), 0)) AS span_kind,
             ifNull(sp.status.message.:String, '') AS status_message,
             arrayMap(x -> ifNull(x.key.:String, ''), sp.attributes[]) AS attr_keys,
             arrayMap(x -> ifNull(x.value.stringValue.:String, ''), sp.attributes[]) AS attr_vals,
-            arrayMap(x -> multiIf(x.value.intValue.:String IS NOT NULL, toInt64OrZero(assumeNotNull(x.value.intValue.:String)), x.value.intValue.low.:Int64 IS NOT NULL, ((ifNull(x.value.intValue.high.:Int64, 0) * 4294967296) + bitAnd(assumeNotNull(x.value.intValue.low.:Int64), 4294967295)), ifNull(x.value.intValue.:Int64, 0)), sp.attributes[]) AS attr_ivals,
-            arrayMap(x -> ifNull(x.value.doubleValue.:Float64, 0), sp.attributes[]) AS attr_dvals
+            arrayMap(x -> multiIf(x.value.intValue.:String IS NOT NULL, toInt64OrZero(assumeNotNull(x.value.intValue.:String)), accurateCastOrNull(x.value.intValue.low, 'Int64') IS NOT NULL, ((ifNull(accurateCastOrNull(x.value.intValue.high, 'Int64'), 0) * 4294967296) + bitAnd(assumeNotNull(accurateCastOrNull(x.value.intValue.low, 'Int64')), 4294967295)), ifNull(accurateCastOrNull(x.value.intValue, 'Int64'), 0)), sp.attributes[]) AS attr_ivals,
+            arrayMap(x -> ifNull(accurateCastOrNull(x.value.doubleValue, 'Float64'), 0), sp.attributes[]) AS attr_dvals
         FROM spans
     ),
     enriched AS (

@@ -6,7 +6,10 @@
 // Uploads to MinIO under otel-poc/{projectId}/w{window}/{uuid}.json and
 // writes out/manifest.json with per-window byte counts for the harness.
 //
-// Usage: node gen-fixtures.mjs [filesTotal=200] [windows=10]
+// Usage: node gen-fixtures.mjs [filesTotal=200] [windows=10] [hugeFiles=0]
+//   hugeFiles: the first N windows each get one extra file carrying a single
+//   span with ~50 MB of I/O (40 MB input + 10 MB output), media in every
+//   second one — the file-size-skew stress case.
 import { randomUUID, randomBytes, randomInt } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { signedFetch } from "./sigv4.mjs";
@@ -21,6 +24,7 @@ const MINIO = {
 const RUN_PREFIX = `otel-poc-${Date.now().toString(36)}`;
 const FILES_TOTAL = Number(process.argv[2] ?? 200);
 const WINDOWS = Number(process.argv[3] ?? 10);
+const HUGE_FILES = Number(process.argv[4] ?? 0);
 const PROJECTS = ["proj-alpha", "proj-beta", "proj-gamma"];
 const MODELS = ["gpt-4o", "claude-sonnet-5", "gemini-2.5-pro", "llama-3.3-70b"];
 
@@ -30,6 +34,18 @@ function text(bytes) {
   let s = "";
   while (s.length < bytes) s += lorem;
   return s.slice(0, bytes);
+}
+
+// multi-MB payloads: lorem with a random token per chunk, so the content is
+// large without being pathologically compressible
+function bigText(bytes) {
+  const chunks = [];
+  let len = 0;
+  while (len < bytes) {
+    chunks.push(lorem, randomBytes(8).toString("hex"));
+    len += lorem.length + 16;
+  }
+  return chunks.join("").slice(0, bytes);
 }
 
 function bufferJson(hex) {
@@ -44,7 +60,7 @@ function longJson(nanosBigInt) {
   return { low, high, unsigned: true };
 }
 
-function makeSpan({ protoShaped, withMedia, big }) {
+function makeSpan({ protoShaped, withMedia, big, huge }) {
   const traceHex = randomBytes(16).toString("hex");
   const spanHex = randomBytes(8).toString("hex");
   const parentHex = randomBytes(8).toString("hex");
@@ -53,11 +69,20 @@ function makeSpan({ protoShaped, withMedia, big }) {
     BigInt(randomInt(0, 999_999));
   const endNs = startNs + BigInt(randomInt(5, 30_000)) * 1_000_000n;
 
-  const inputBytes = big ? randomInt(50_000, 200_000) : randomInt(500, 5_000);
-  const outputBytes = big ? randomInt(20_000, 80_000) : randomInt(200, 3_000);
+  const inputBytes = huge
+    ? 40_000_000
+    : big
+      ? randomInt(50_000, 200_000)
+      : randomInt(500, 5_000);
+  const outputBytes = huge
+    ? 10_000_000
+    : big
+      ? randomInt(20_000, 80_000)
+      : randomInt(200, 3_000);
+  const gen = huge ? bigText : text;
   let input = JSON.stringify([
-    { role: "system", content: text(Math.floor(inputBytes / 4)) },
-    { role: "user", content: text(inputBytes) },
+    { role: "system", content: gen(Math.floor(inputBytes / 4)) },
+    { role: "user", content: gen(inputBytes) },
   ]);
   if (withMedia) {
     const blob = randomBytes(randomInt(8_000, 40_000)).toString("base64");
@@ -75,7 +100,7 @@ function makeSpan({ protoShaped, withMedia, big }) {
       value: str(MODELS[randomInt(0, MODELS.length)]),
     },
     { key: "langfuse.observation.input", value: str(input) },
-    { key: "langfuse.observation.output", value: str(text(outputBytes)) },
+    { key: "langfuse.observation.output", value: str(gen(outputBytes)) },
     { key: "langfuse.observation.metadata.source", value: str("poc-loadgen") },
     { key: "gen_ai.system", value: str("openai") },
     { key: "gen_ai.operation.name", value: str("chat") },
@@ -189,6 +214,13 @@ function makeResourceSpan({ protoShaped, project }) {
   };
 }
 
+// one trace whose single span carries ~50 MB of I/O — the size-skew case
+function makeHugeResourceSpan({ protoShaped, project, withMedia }) {
+  const rs = makeResourceSpan({ protoShaped, project });
+  rs.scopeSpans[0].spans = [makeSpan({ protoShaped, withMedia, huge: true })];
+  return rs;
+}
+
 async function main() {
   const manifest = {
     prefix: RUN_PREFIX,
@@ -234,11 +266,39 @@ async function main() {
       );
     }
 
+    let hugeNote = "";
+    if (w < HUGE_FILES) {
+      const project = PROJECTS[randomInt(0, PROJECTS.length)];
+      const body = JSON.stringify([
+        makeHugeResourceSpan({
+          protoShaped: Math.random() < 0.7,
+          project,
+          withMedia: w % 2 === 0,
+        }),
+      ]);
+      const key = `${RUN_PREFIX}/${project}/${windowId}/${randomUUID()}.json`;
+      windowBytes += Buffer.byteLength(body);
+      windowFiles += 1;
+      hugeNote = ` (incl. one ~${(Buffer.byteLength(body) / 1e6).toFixed(0)} MB trace)`;
+      puts.push(
+        signedFetch({
+          method: "PUT",
+          endpoint: MINIO.endpoint,
+          path: `/${MINIO.bucket}/${key}`,
+          body,
+          accessKey: MINIO.accessKey,
+          secretKey: MINIO.secretKey,
+        }).then((r) => {
+          if (!r.ok) throw new Error(`PUT ${key} -> ${r.status}`);
+        }),
+      );
+    }
+
     await Promise.all(puts);
     uploaded += windowFiles;
     manifest.windows.push({ windowId, files: windowFiles, bytes: windowBytes });
     console.log(
-      `window ${windowId}: ${windowFiles} files, ${(windowBytes / 1e6).toFixed(1)} MB`,
+      `window ${windowId}: ${windowFiles} files, ${(windowBytes / 1e6).toFixed(1)} MB${hugeNote}`,
     );
   }
 

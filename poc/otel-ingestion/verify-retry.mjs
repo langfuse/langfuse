@@ -28,7 +28,7 @@ async function chq(sql, { json = false } = {}) {
 }
 
 const template = readFileSync(
-  new URL("./sql/transform-v2.sql", import.meta.url),
+  new URL("./engine-ch/sql/transform-v2.sql", import.meta.url),
   "utf8",
 );
 const insertSql = template

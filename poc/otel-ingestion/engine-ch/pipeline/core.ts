@@ -237,12 +237,26 @@ export class Pipeline<S extends Shape> {
 // expressions (stage columns, lambda args) — a real limitation of the sugar.
 export const jsonPath = (e: Expr<"JSON">, ...segs: string[]): Expr<"JSON"> =>
   raw(`${e.sql}.${segs.join(".")}`);
-/** typed leaf read `expr.path.:Type` -> Nullable(Type) */
+/**
+ * Typed leaf read -> Nullable(Type).
+ * String reads stay strict (`.:String`) because they double as encoding
+ * discriminators ("is this the hex-string / decimal-string variant?") —
+ * coercing a Long object or a number into a string would break those
+ * branches. Numeric reads compile to accurateCastOrNull(...) instead: the
+ * strict `.:Int64` / `.:Float64` accessor returns NULL or a value depending
+ * on how the server typed the surrounding array (behavior changed between
+ * ClickHouse 25.12 and 26.2), while the cast depends only on the value.
+ */
 export const jsonTyped = <T extends string>(
   e: Expr<"JSON">,
   path: string,
   t: T,
-): Expr<`Nullable(${T})`> => raw(`${e.sql}${path ? "." + path : ""}.:${t}`);
+): Expr<`Nullable(${T})`> => {
+  const p = `${e.sql}${path ? "." + path : ""}`;
+  return t === "String"
+    ? raw(`${p}.:${t}`)
+    : raw(`accurateCastOrNull(${p}, '${t}')`);
+};
 /** array-of-objects subcolumn `expr.path[]` -> Array(JSON) */
 export const jsonArr = (e: Expr<"JSON">, path: string): Expr<"Array(JSON)"> =>
   raw(`${e.sql}${path ? "." + path : ""}[]`);

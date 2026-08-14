@@ -98,9 +98,13 @@ for (const item of workList) {
     throw new Error(`span ${item.span_id} not found in ${path}`);
 
   // 4. slice at manifest offsets, decode, hash, compare
+  // offsets are BYTES: slice the UTF-8 buffer, not the JS string
+  // (String.slice counts UTF-16 code units and drifts after any non-ASCII)
   const off = Number(item.byte_offset);
   const len = Number(item.byte_length);
-  const slice = value.slice(off, off + len);
+  const slice = Buffer.from(value, "utf8")
+    .subarray(off, off + len)
+    .toString("utf8");
   if (!slice.startsWith("data:"))
     throw new Error(
       `offset ${off} does not hit a data URI (got: ${slice.slice(0, 30)}...)`,
