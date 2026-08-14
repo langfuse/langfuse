@@ -140,6 +140,7 @@ const staticProviders: Provider[] = [
           // The full session callback resolves deployment and rollout
           // availability before applying employee defaults.
           v4BetaEnabled: false,
+          isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
         }),
         canCreateOrganizations: canCreateOrganizations(dbUser.email),
         organizations: [],
@@ -984,6 +985,7 @@ export async function getAuthOptions(signupAttribution?: {
                     featureFlags: parseFlags(dbUser.featureFlags, {
                       email: dbUser.email,
                       v4BetaEnabled,
+                      isLangfuseCloud,
                     }),
                     hasPassword: Boolean(dbUser.password),
                   }

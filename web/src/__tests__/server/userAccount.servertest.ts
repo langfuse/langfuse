@@ -116,6 +116,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
         parseFlags(user.featureFlags, {
           email: user.email,
           v4BetaEnabled: true,
+          isLangfuseCloud: true,
         }).modernSession,
       ).toBe(false);
     },
@@ -132,6 +133,41 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
+
+  it("persists an opt-out when a self-hoster disables the default-on v4 migration UI", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    const { caller, userId } = await createCaller({
+      featureFlags: ["templateFlag"],
+      v4BetaEnabled: true,
+    });
+
+    const result = await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "v4UpgradeUi",
+      enabled: false,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      flag: "v4UpgradeUi",
+      enabled: false,
+    });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { featureFlags: true, email: true },
+    });
+    expect(user.featureFlags).toEqual([
+      "templateFlag",
+      getFeaturePreviewOptOutFlag("v4UpgradeUi"),
+    ]);
+    expect(
+      parseFlags(user.featureFlags, {
+        email: user.email,
+        v4BetaEnabled: true,
+        isLangfuseCloud: false,
+      }).v4UpgradeUi,
+    ).toBe(false);
+  });
 });
 
 async function createCaller({
@@ -140,12 +176,14 @@ async function createCaller({
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
   email,
+  v4BetaEnabled = false,
 }: {
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
   featureFlags?: string[];
   includeProjectInSession?: boolean;
   email?: string;
+  v4BetaEnabled?: boolean;
 } = {}) {
   const id = randomUUID();
   const orgId = `org-${id}`;
@@ -219,6 +257,7 @@ async function createCaller({
         experimentsV4Enabled: false,
       },
       admin: false,
+      v4BetaEnabled,
     },
     environment: {
       enableExperimentalFeatures: false,

@@ -14,6 +14,7 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   getFeaturePreviewOptOutFlag,
   receivesFeaturePreviewsByDefault,
+  featurePreviewDefaultsToEnabled,
 } from "@/src/features/feature-flags/utils";
 import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 
@@ -145,9 +146,21 @@ export const userAccountRouter = createTRPCRouter({
           const featureFlagsWithoutOverride = currentUser.featureFlags.filter(
             (flag) => flag !== input.flag && flag !== optOutFlag,
           );
+          // When a flag would otherwise default back on for this
+          // user/deployment, disabling it must persist an opt-out marker;
+          // otherwise merely dropping it from the array would let the default
+          // flip it on again. Team members receive every preview by default,
+          // and self-hosted v4 deployments receive the migration UI by default.
+          const persistOptOut =
+            receivesFeaturePreviewsByDefault(currentUser.email) ||
+            featurePreviewDefaultsToEnabled(input.flag, {
+              email: currentUser.email,
+              v4BetaEnabled: ctx.session.user.v4BetaEnabled === true,
+              isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+            });
           const nextFeatureFlags = input.enabled
             ? [...featureFlagsWithoutOverride, input.flag]
-            : receivesFeaturePreviewsByDefault(currentUser.email)
+            : persistOptOut
               ? [...featureFlagsWithoutOverride, optOutFlag]
               : featureFlagsWithoutOverride;
           await tx.user.update({
