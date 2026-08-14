@@ -23,7 +23,6 @@ import {
   Loader2,
   ListTree,
   GanttChartSquare,
-  Rows3,
   MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -177,8 +176,7 @@ function TracePanelNavigationHeaderExpanded({
       }
     }, [isBetaEnabled, observations, trace, capture, analyticsDimensions]);
 
-  const activeViewMode: TraceViewMode =
-    viewMode === "timeline" || viewMode === "compact" ? viewMode : "tree";
+  const isTimelineView = viewMode === "timeline";
 
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
@@ -298,17 +296,16 @@ function TracePanelNavigationHeaderExpanded({
           {/* Tree / Timeline segmented switch (labels collapse to icons when
               the panel is narrow — see @container/navheader). */}
           <ViewModeSwitch
-            mode={activeViewMode}
-            onSelect={(next) => {
+            isTimelineView={isTimelineView}
+            onSelect={(timeline) => {
               // Clicking the already-active segment is a no-op — don't count it.
-              if (next !== activeViewMode) {
+              if (timeline !== isTimelineView) {
                 capture("trace_detail:view_mode_switch", {
-                  viewMode: next,
+                  viewMode: timeline ? "timeline" : "tree",
                   ...analyticsDimensions,
                 });
               }
-              // Tree is the default, so it carries no param.
-              setViewMode(next === "tree" ? null : next);
+              setViewMode(timeline ? "timeline" : null);
             }}
           />
           {/* When the detail panel is closed it shows its own collapsed rail
@@ -321,36 +318,29 @@ function TracePanelNavigationHeaderExpanded({
   );
 }
 
-export type TraceViewMode = "tree" | "timeline" | "compact";
-
 function ViewModeSwitch({
-  mode,
+  isTimelineView,
   onSelect,
 }: {
-  mode: TraceViewMode;
-  onSelect: (mode: TraceViewMode) => void;
+  isTimelineView: boolean;
+  onSelect: (timeline: boolean) => void;
 }) {
   return (
     <div className="bg-muted/60 ml-2 inline-flex h-7 shrink-0 items-center rounded-md border p-0.5">
       <ViewModeSegment
-        active={mode === "tree"}
-        onClick={() => onSelect("tree")}
+        active={!isTimelineView}
+        onClick={() => onSelect(false)}
         icon={ListTree}
         label="Tree"
       />
+      {/* One Timeline. What it IS depends on the Compact Timeline feature
+          preview — see TracePanelNavigation — rather than on a third segment
+          the user has to understand. */}
       <ViewModeSegment
-        active={mode === "timeline"}
-        onClick={() => onSelect("timeline")}
+        active={isTimelineView}
+        onClick={() => onSelect(true)}
         icon={GanttChartSquare}
         label="Timeline"
-      />
-      {/* Compact: every row a hairline, the whole trace in the box, zoom and pan
-          like a map. See TraceTimelineCompact. */}
-      <ViewModeSegment
-        active={mode === "compact"}
-        onClick={() => onSelect("compact")}
-        icon={Rows3}
-        label="Compact"
       />
     </div>
   );
