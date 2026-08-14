@@ -865,6 +865,9 @@ export type InAppAgentWindowProps = {
   focusedQuickActions?: readonly InAppAgentQuickAction[];
   quickActionResetKey: string;
   selectedConversationId: string | undefined;
+  /** Titles the window. Null until the server has named the conversation,
+   * which is when the product name and its Beta tag show instead. */
+  selectedConversationTitle: string | null;
 } & InAppAgentWindowCloseButtonProps;
 
 function InAppAgentRateLimitError({
@@ -963,6 +966,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     quickActionResetKey,
     screenContextDescription,
     selectedConversationId,
+    selectedConversationTitle,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
@@ -1002,12 +1006,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       ? ` (${historyAttentionCount} ${historyAttentionCount === 1 ? "needs" : "need"} attention)`
       : "";
   const hasUserMessage = messages.some((message) => message.role === "user");
-  // The window is titled by the conversation once the server has named it; an
-  // unnamed (new) conversation is where the product name and its Beta tag go.
-  const selectedConversationTitle =
-    conversations
-      .find((conversation) => conversation.id === selectedConversationId)
-      ?.title?.trim() || null;
+  const conversationTitle = selectedConversationTitle?.trim() || null;
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
       ? message.content.tools.filter((tool) => tool.approval)
@@ -1125,12 +1124,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         }
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          {selectedConversationTitle ? (
+          {conversationTitle ? (
             <p
               className="min-w-0 truncate text-sm font-bold"
-              title={selectedConversationTitle}
+              title={conversationTitle}
             >
-              {selectedConversationTitle}
+              {conversationTitle}
             </p>
           ) : (
             <>

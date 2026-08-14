@@ -696,6 +696,7 @@ const meta = preview.meta({
     isLoadingMoreConversations: false,
     isAssistantTurnInProgress: false,
     selectedConversationId: undefined,
+    selectedConversationTitle: null,
     onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
     onOpenConversationHistory: fn(),

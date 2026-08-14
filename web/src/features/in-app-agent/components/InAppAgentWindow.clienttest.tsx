@@ -44,6 +44,7 @@ const controlledAgent = vi.hoisted(() => ({
     approveToolCall: vi.fn(),
     rejectToolCall: vi.fn(),
     selectedConversationId: undefined,
+    selectedConversationTitle: null,
     selectedConversationIsWriteLocked: false,
     submit: vi.fn(),
     submitFeedback: vi.fn(),
@@ -108,6 +109,7 @@ function windowElement(
     quickActionResetKey: "/project/project-1/traces",
     screenContextDescription: { type: "trace-list" },
     selectedConversationId: undefined,
+    selectedConversationTitle: null,
     ...overrides,
     showCloseButton: false,
   };
@@ -254,14 +256,8 @@ describe("InAppAgentWindow header", () => {
   it("titles the window by the conversation, and falls back to the product name", () => {
     const { rerender } = render(
       windowElement({
-        conversations: [
-          {
-            id: "conversation-1",
-            title: "  Latency outliers  ",
-            updatedAt: new Date(),
-          },
-        ],
         selectedConversationId: "conversation-1",
+        selectedConversationTitle: "  Latency outliers  ",
       }),
     );
 
@@ -271,10 +267,8 @@ describe("InAppAgentWindow header", () => {
     // An unnamed conversation is where the product name and Beta tag belong.
     rerender(
       windowElement({
-        conversations: [
-          { id: "conversation-1", title: null, updatedAt: new Date() },
-        ],
         selectedConversationId: "conversation-1",
+        selectedConversationTitle: null,
       }),
     );
 
