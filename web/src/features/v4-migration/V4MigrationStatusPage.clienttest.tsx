@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   // Evals are the simplest way to keep the single test project on the table:
   // ready projects are hidden, so most cases need one open action item.
   evalCount: 1,
+  lastTracePending: false,
 }));
 
 vi.mock("next/router", () => ({
@@ -113,10 +114,21 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
 
 vi.mock("@/src/utils/api", () => ({
   api: {
-    organizations: {
-      lastTraceByProject: {
-        useQuery: () => ({ data: [] }),
-      },
+    useQueries: (
+      buildQueries: (router: {
+        organizations: { lastTraceByProject: () => unknown };
+      }) => unknown,
+    ) => {
+      buildQueries({
+        organizations: {
+          lastTraceByProject: vi.fn(),
+        },
+      });
+      return [
+        mocks.lastTracePending
+          ? { data: undefined, isError: false }
+          : { data: [], isError: false },
+      ];
     },
   },
 }));
@@ -133,6 +145,7 @@ describe("V4MigrationStatusPage", () => {
       delayedOtelIngestionCount: 0,
     };
     mocks.evalCount = 1;
+    mocks.lastTracePending = false;
   });
 
   it("keeps the project table readable through horizontal scrolling", () => {
@@ -163,7 +176,7 @@ describe("V4MigrationStatusPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps projects whose checks are still running or failed", () => {
+  it("hides project content until every migration check has finished", () => {
     mocks.evalCount = 0;
     mocks.sdk = {
       status: "checking",
@@ -174,10 +187,26 @@ describe("V4MigrationStatusPage", () => {
 
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Test project")).toBeInTheDocument();
+    expect(screen.queryByText("Test project")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("What's new in v4")).not.toBeInTheDocument();
+    expect(screen.getByText(/Checking project status/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveClass("text-base", "leading-6");
+    expect(screen.getByRole("status")).not.toHaveClass("text-2xl", "font-bold");
     expect(
-      screen.queryByText("All projects are up to date. Nothing to do here."),
+      screen.queryByRole("img", { name: "Langfuse Icon" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("hides project content until last-trace data has finished loading", () => {
+    mocks.lastTracePending = true;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.queryByText("Test project")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("What's new in v4")).not.toBeInTheDocument();
+    expect(screen.getByText(/Checking project status/)).toBeInTheDocument();
   });
 
   it("opens the summary card with a link to the v4 docs", () => {

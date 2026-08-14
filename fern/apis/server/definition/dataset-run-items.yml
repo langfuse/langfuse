@@ -18,7 +18,7 @@ service:
     list:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset run items are replaced by experiment items; use GET /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to> instead."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset run items are replaced by experiment items; use `GET /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to>` instead."
       method: GET
       docs: List dataset run items
       path: /dataset-run-items
