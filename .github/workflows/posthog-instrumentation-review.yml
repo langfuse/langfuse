@@ -22,7 +22,7 @@ jobs:
     name: PostHog instrumentation review
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -70,6 +70,8 @@ jobs:
 
       - name: Run Claude instrumentation review
         id: claude-review
+        timeout-minutes: 15
+        continue-on-error: true
         uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
         env:
           API_TIMEOUT_MS: "300000"
@@ -164,7 +166,9 @@ jobs:
             --json-schema '{"type":"object","additionalProperties":false,"properties":{"verdict":{"type":"string","enum":["no_findings","findings","opted_out"]},"featuresAnalyzed":{"type":"array","items":{"type":"string"}},"featuresSkipped":{"type":"array","items":{"type":"string"}},"introducedGaps":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"userAction":{"type":"string","minLength":1},"question":{"type":"string","minLength":1},"proposedEvent":{"type":"string","minLength":1},"registryEdit":{"type":"string","minLength":1},"proposedProps":{"type":"array","items":{"type":"string"}},"keyDimension":{"type":"string"},"feature":{"type":"string","minLength":1},"confidence":{"type":"string","enum":["high","medium","low"]},"anchor":{"type":"object","additionalProperties":false,"properties":{"file":{"type":"string","minLength":1},"line":{"type":"integer","minimum":1}},"required":["file","line"]},"suggestedCaptureSite":{"type":"object","additionalProperties":false,"properties":{"file":{"type":"string","minLength":1},"symbol":{"type":"string","minLength":1}},"required":["file","symbol"]}},"required":["userAction","question","proposedEvent","registryEdit","proposedProps","keyDimension","feature","confidence","anchor","suggestedCaptureSite"]}},"ruleViolations":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"rule":{"type":"string","enum":["privacy","intent_seam","dedup","key_dimension","coverage","hook_bypass"]},"problem":{"type":"string","minLength":1},"fix":{"type":"string","minLength":1},"suggestion":{"type":"string"},"feature":{"type":"string","minLength":1},"confidence":{"type":"string","enum":["high","medium","low"]},"anchor":{"type":"object","additionalProperties":false,"properties":{"file":{"type":"string","minLength":1},"line":{"type":"integer","minimum":1}},"required":["file","line"]}},"required":["rule","problem","fix","suggestion","feature","confidence","anchor"]}}},"required":["verdict","featuresAnalyzed","featuresSkipped","introducedGaps","ruleViolations"]}'
 
       - name: Post review
+        id: post-review
         if: steps.claude-review.outputs.structured_output != ''
+        continue-on-error: true
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           STRUCTURED_OUTPUT: ${{ steps.claude-review.outputs.structured_output }}
@@ -381,3 +385,15 @@ jobs:
             core.info(
               `Posted ${inline.length} inline comment(s); ${fresh.length - inline.length} finding(s) in the summary body.`,
             );
+
+      - name: Report bot degradation
+        if: steps.claude-review.outcome == 'failure' || steps.post-review.outcome == 'failure'
+        run: |
+          {
+            echo "### ⚠️ PostHog instrumentation review degraded"
+            echo ""
+            echo "- Claude review step: \`${{ steps.claude-review.outcome }}\`"
+            echo "- Post review step: \`${{ steps.post-review.outcome }}\`"
+            echo ""
+            echo "The check stays green on purpose: this bot is advisory and must never block a PR."
+          } >> "$GITHUB_STEP_SUMMARY"
