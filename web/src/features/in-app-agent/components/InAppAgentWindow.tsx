@@ -761,6 +761,12 @@ function ConversationScroller({
       >
         {children}
       </div>
+      {/* The transcript fades into the composer gutter rather than ending on a
+          hard cut. Above the "Latest" pill in DOM order so the pill stays crisp. */}
+      <div
+        aria-hidden="true"
+        className="from-background pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-linear-to-t to-transparent"
+      />
       {!isAtLatest ? (
         <Button
           type="button"
@@ -996,6 +1002,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       ? ` (${historyAttentionCount} ${historyAttentionCount === 1 ? "needs" : "need"} attention)`
       : "";
   const hasUserMessage = messages.some((message) => message.role === "user");
+  // The window is titled by the conversation once the server has named it; an
+  // unnamed (new) conversation is where the product name and its Beta tag go.
+  const selectedConversationTitle =
+    conversations
+      .find((conversation) => conversation.id === selectedConversationId)
+      ?.title?.trim() || null;
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
       ? message.content.tools.filter((tool) => tool.approval)
@@ -1092,16 +1104,47 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         }
         className={cn(
           "bg-card flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
-          isHeaderDragHandleEnabled && "cursor-move touch-none select-none",
+          isHeaderDragHandleEnabled && "cursor-move touch-none",
+          // Double-click toggles, so never let it select the title instead.
+          !isHandheld && "select-none",
         )}
+        onDoubleClick={
+          isHandheld
+            ? undefined
+            : (event) => {
+                // The action cluster owns its own double-clicks.
+                if (
+                  event.target instanceof Element &&
+                  event.target.closest("button")
+                ) {
+                  return;
+                }
+
+                onExpandedChange(!isExpanded);
+              }
+        }
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p className="shrink-0 truncate text-sm font-bold" title="Assistant">
-            Assistant
-          </p>
-          <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
-            Beta
-          </span>
+          {selectedConversationTitle ? (
+            <p
+              className="min-w-0 truncate text-sm font-bold"
+              title={selectedConversationTitle}
+            >
+              {selectedConversationTitle}
+            </p>
+          ) : (
+            <>
+              <p
+                className="shrink-0 truncate text-sm font-bold"
+                title="Assistant"
+              >
+                Assistant
+              </p>
+              <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
+                Beta
+              </span>
+            </>
+          )}
         </div>
         <div
           className="flex shrink-0 items-center gap-0.5"
@@ -1509,16 +1552,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
-        <div
-          className={cn(
-            "p-1.5",
-            isExpanded ? "pt-0" : "bg-card",
-            !isExpanded && hasUserMessage && "border-t",
-          )}
-        >
+        <div className={cn("p-1.5", isExpanded && "pt-0")}>
+          {/* The composer separates from the transcript by elevation, not by a
+              rule: one hairline edge, a lifted surface, and a footer band a
+              step off the input. `overflow-hidden` keeps that band inside the
+              rounded corners. */}
           <form
             className={cn(
-              "border-input bg-background focus-within:ring-muted-foreground relative flex w-full cursor-text flex-col rounded-xl border shadow-xs focus-within:ring-2",
+              "border-border bg-card focus-within:border-border-contrast relative flex w-full cursor-text flex-col overflow-hidden rounded-xl border shadow-sm transition-colors",
               isExpanded && "mx-auto max-w-3xl",
             )}
             onClick={() => {
@@ -1556,9 +1597,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   : "Let me know what I can do for you..."
               }
               rows={1}
-              className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
-            <div className="flex min-h-9 w-full items-center justify-between gap-2 px-2 pb-1.5">
+            <div className="bg-muted flex min-h-9 w-full items-center justify-between gap-2 px-2 py-1.5">
               <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
                 <Info aria-hidden="true" className="size-3 shrink-0" />
                 <span className="truncate" title={screenContextNotice}>

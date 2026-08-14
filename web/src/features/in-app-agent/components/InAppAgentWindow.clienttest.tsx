@@ -250,6 +250,52 @@ describe("InAppAgentWindow conversation history", () => {
   });
 });
 
+describe("InAppAgentWindow header", () => {
+  it("titles the window by the conversation, and falls back to the product name", () => {
+    const { rerender } = render(
+      windowElement({
+        conversations: [
+          {
+            id: "conversation-1",
+            title: "  Latency outliers  ",
+            updatedAt: new Date(),
+          },
+        ],
+        selectedConversationId: "conversation-1",
+      }),
+    );
+
+    expect(screen.getByText("Latency outliers")).toBeInTheDocument();
+    expect(screen.queryByText("Beta")).not.toBeInTheDocument();
+
+    // An unnamed conversation is where the product name and Beta tag belong.
+    rerender(
+      windowElement({
+        conversations: [
+          { id: "conversation-1", title: null, updatedAt: new Date() },
+        ],
+        selectedConversationId: "conversation-1",
+      }),
+    );
+
+    expect(screen.getByText("Assistant")).toBeInTheDocument();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+  });
+
+  it("toggles expanded on a header double-click, but not from its actions", () => {
+    const onExpandedChange = vi.fn();
+    render(windowElement({ onExpandedChange }));
+
+    fireEvent.doubleClick(screen.getByText("Assistant"));
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
+
+    fireEvent.doubleClick(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    );
+    expect(onExpandedChange).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("ControlledInAppAgentWindow composer", () => {
   beforeEach(() => {
     controlledAgent.value.error = null;
