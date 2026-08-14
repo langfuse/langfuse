@@ -276,11 +276,11 @@ _[Langfuse 中的公共示例追踪](https://cloud.langfuse.com/project/cloramnk
 
 ## ⭐️ 星标历史
 
-<a href="https://star-history.com/#langfuse/langfuse&Date">
+<a href="https://star-history.dera.page/#langfuse/langfuse&Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date" />
-    <img alt="星标历史图表" src="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date" style="border-radius: 15px;" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=langfuse/langfuse&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=langfuse/langfuse&type=Date" />
+    <img alt="星标历史图表" src="https://star-history.dera.page/svg?repos=langfuse/langfuse&type=Date" style="border-radius: 15px;" />
   </picture>
 </a>
 
