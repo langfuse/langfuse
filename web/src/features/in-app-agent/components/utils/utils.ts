@@ -97,6 +97,14 @@ const IN_APP_AGENT_TOOL_PROGRESS_NOUNS: Array<[string, string]> = [
   ["prompt unresolved", "prompt"],
 ];
 
+// Verbs that read rather than change something: a run of them is one act of
+// looking, so a streak collapses to "Looking at <noun>".
+const IN_APP_AGENT_TOOL_PROGRESS_LOOKING_VERBS = new Set([
+  "Inspecting",
+  "Browsing",
+  "Checking",
+]);
+
 function splitInAppAgentToolNameWords(toolName: string): string[] {
   return toolName
     .replaceAll("_", " ")
@@ -115,30 +123,45 @@ function isInAppAgentSkillToolName(toolName: string) {
   return /(?:^|[-_])skill(?:$|[-_A-Z])/i.test(strippedName);
 }
 
-function getAutoInAppAgentToolProgressLabel(strippedName: string): string {
+/**
+ * Read a camelCase tool name as an English verb and the thing it acts on, e.g.
+ * `listDashboardWidgets` → `{ verb: "Browsing", noun: "widgets" }`. The single
+ * source for both the auto headline and the streak-collapsing noun, so the two
+ * cannot drift apart. Null when the leading word is not a verb we translate;
+ * `noun` is empty for a bare verb such as `getHealth`'s sibling `bash`.
+ */
+function deriveInAppAgentToolVerbAndNoun(
+  strippedName: string,
+): { verb: string; noun: string } | null {
   const [firstWord, ...rest] = splitInAppAgentToolNameWords(strippedName);
-  if (!firstWord) {
+  const verb = firstWord
+    ? IN_APP_AGENT_TOOL_PROGRESS_VERBS[firstWord.toLowerCase()]
+    : undefined;
+
+  if (!verb) {
+    return null;
+  }
+
+  const noun = rest.map((word) => word.toLowerCase()).join(" ");
+  const substitution = IN_APP_AGENT_TOOL_PROGRESS_NOUNS.find(
+    ([from]) => noun === from,
+  );
+
+  return { verb, noun: substitution?.[1] ?? noun };
+}
+
+function getAutoInAppAgentToolProgressLabel(strippedName: string): string {
+  const derived = deriveInAppAgentToolVerbAndNoun(strippedName);
+  if (derived) {
+    return derived.noun ? `${derived.verb} ${derived.noun}` : derived.verb;
+  }
+
+  const words = splitInAppAgentToolNameWords(strippedName);
+  if (words.length === 0) {
     return strippedName;
   }
 
-  const verb = IN_APP_AGENT_TOOL_PROGRESS_VERBS[firstWord.toLowerCase()];
-  if (verb) {
-    if (rest.length === 0) {
-      return verb;
-    }
-
-    let noun = rest.map((word) => word.toLowerCase()).join(" ");
-    for (const [from, to] of IN_APP_AGENT_TOOL_PROGRESS_NOUNS) {
-      if (noun === from) {
-        noun = to;
-        break;
-      }
-    }
-
-    return `${verb} ${noun}`;
-  }
-
-  return [firstWord, ...rest]
+  return words
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
 }
@@ -171,6 +194,7 @@ export function getInAppAgentToolProgressLabel(toolName: string): string {
   return getInAppAgentToolProgressLabelResolution(toolName).label;
 }
 
+/** Singularised noun two tools must share to count as one act of looking. */
 function getInAppAgentToolProgressNounKey(toolName: string): string | null {
   if (
     isInAppAgentDocsToolName(toolName) ||
@@ -179,25 +203,11 @@ function getInAppAgentToolProgressNounKey(toolName: string): string | null {
     return null;
   }
 
-  const strippedName = getInAppAgentToolDisplayName(toolName);
-  const [firstWord, ...rest] = splitInAppAgentToolNameWords(strippedName);
-  if (!firstWord || rest.length === 0) {
-    return null;
-  }
+  const noun = deriveInAppAgentToolVerbAndNoun(
+    getInAppAgentToolDisplayName(toolName),
+  )?.noun;
 
-  if (!IN_APP_AGENT_TOOL_PROGRESS_VERBS[firstWord.toLowerCase()]) {
-    return null;
-  }
-
-  let noun = rest.map((word) => word.toLowerCase()).join(" ");
-  for (const [from, to] of IN_APP_AGENT_TOOL_PROGRESS_NOUNS) {
-    if (noun === from) {
-      noun = to;
-      break;
-    }
-  }
-
-  return noun.replace(/s\b/g, "");
+  return noun ? noun.replace(/s\b/g, "") : null;
 }
 
 export function getInAppAgentActivityProgressLabel(
@@ -208,35 +218,38 @@ export function getInAppAgentActivityProgressLabel(
     return "Working…";
   }
 
+  const resolution = getInAppAgentToolProgressLabelResolution(latestToolName);
   const latestNounKey = getInAppAgentToolProgressNounKey(latestToolName);
-  if (latestNounKey && toolNames.length >= 2) {
-    let streak = 1;
-    for (let index = toolNames.length - 2; index >= 0; index--) {
-      const toolName = toolNames[index];
-      if (
-        !toolName ||
-        getInAppAgentToolProgressNounKey(toolName) !== latestNounKey
-      ) {
-        break;
-      }
-      streak++;
-    }
-
-    if (streak >= 2) {
-      const latestLabel = getInAppAgentToolProgressLabel(latestToolName);
-      if (/^(Inspecting|Browsing|Checking) /.test(latestLabel)) {
-        const noun = latestLabel.replace(
-          /^(Inspecting|Browsing|Checking) /,
-          "",
-        );
-        return noun ? `Looking at ${noun}` : latestLabel;
-      }
-
-      return latestLabel;
-    }
+  if (!latestNounKey) {
+    return resolution.label;
   }
 
-  return getInAppAgentToolProgressLabel(latestToolName);
+  let streak = 1;
+  for (let index = toolNames.length - 2; index >= 0; index--) {
+    const toolName = toolNames[index];
+    if (
+      !toolName ||
+      getInAppAgentToolProgressNounKey(toolName) !== latestNounKey
+    ) {
+      break;
+    }
+    streak++;
+  }
+
+  // A hand-written override already reads as a sentence, so only the derived
+  // verb-and-noun form collapses.
+  const derived =
+    streak >= 2 && resolution.source === "auto"
+      ? deriveInAppAgentToolVerbAndNoun(
+          getInAppAgentToolDisplayName(latestToolName),
+        )
+      : null;
+
+  return derived &&
+    IN_APP_AGENT_TOOL_PROGRESS_LOOKING_VERBS.has(derived.verb) &&
+    derived.noun
+    ? `Looking at ${derived.noun}`
+    : resolution.label;
 }
 
 const InAppAgentToolRejectionErrorSchema = z.object({
