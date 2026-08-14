@@ -1488,14 +1488,26 @@ export function V4MigrationDetailsContent({
             />
           )}
 
-          {/* The toggle row hides itself when the session cannot toggle v4
-              (legacy/events_only write mode, post-rollout auto-enrollment), so
-              this checklist row must hide on the same condition. Neutral dot:
-              an optional helper, not pending work or a completed check. */}
+          {cleanSummary && (
+            <p className="text-muted-foreground flex items-center gap-2.5 py-2.5 text-sm">
+              <V4MigrationStatusDot variant="done" />
+              {cleanSummary}
+            </p>
+          )}
+
+          <V4MigrationDetectedInstrumentationSection
+            sdk={migrationData.sdk}
+            projectId={evidenceProjectId}
+          />
+
+          {/* Always the last checklist row. Hides itself when the session
+              cannot toggle v4 (legacy/events_only write mode, post-rollout
+              auto-enrollment). Neutral dot + muted text: an optional helper
+              in the settled-summary style, not pending work. */}
           {canToggleV4 && (
             <div className="flex w-full items-center gap-2.5 py-2.5">
               <V4MigrationStatusDot variant="neutral" />
-              <span className="text-foreground flex min-w-0 items-center gap-1.5 text-sm font-bold">
+              <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-sm">
                 Compare traces while you upgrade
                 <HoverCard openDelay={200}>
                   <HoverCardTrigger asChild>
@@ -1528,18 +1540,6 @@ export function V4MigrationDetailsContent({
               <V4PreviewToggleRow projectId={projectId} />
             </div>
           )}
-
-          {cleanSummary && (
-            <p className="text-muted-foreground flex items-center gap-2.5 py-2.5 text-sm">
-              <V4MigrationStatusDot variant="done" />
-              {cleanSummary}
-            </p>
-          )}
-
-          <V4MigrationDetectedInstrumentationSection
-            sdk={migrationData.sdk}
-            projectId={evidenceProjectId}
-          />
         </div>
       </div>
 
