@@ -479,6 +479,24 @@ describe("InAppAgentInstrumentation", () => {
       expectedMessage: "Tool returned an error",
     },
     {
+      // The `isError` marker sits on the envelope and the text is not JSON, so
+      // the unwrapped content carries no marker of its own.
+      name: "isError envelopes wrapping plain text",
+      content: JSON.stringify({
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: "Error fetching docs page markdown: Failed to fetch https://langfuse.com/not-a-real-page.md: 404",
+          },
+        ],
+      }),
+      expectedOutput:
+        "Error fetching docs page markdown: Failed to fetch https://langfuse.com/not-a-real-page.md: 404",
+      expectedMessage:
+        "Error fetching docs page markdown: Failed to fetch https://langfuse.com/not-a-real-page.md: 404",
+    },
+    {
       name: "JSON-encoded approval rejection errors",
       content: "Tool call was not approved by the user.",
       error: JSON.stringify({

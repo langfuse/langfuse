@@ -29,7 +29,7 @@ export function getConversationSnapshotFromEvents(
   let displayState = createInAppAgentDisplayState();
   const deferredToolCallParents = new Map<string, string | undefined>();
 
-  for (const { event, runId } of events) {
+  for (const { event, runId, createdAt } of events) {
     if (event.type === EventType.TOOL_CALL_START) {
       const toolCallId = getEventString(event, "toolCallId");
       if (toolCallId) {
@@ -55,6 +55,7 @@ export function getConversationSnapshotFromEvents(
       displayState = recordInAppAgentMessagesForDisplay(
         displayState,
         accumulator.getMessages(),
+        createdAt.getTime(),
       );
     }
 

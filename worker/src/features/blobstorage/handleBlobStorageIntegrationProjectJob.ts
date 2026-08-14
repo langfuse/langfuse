@@ -1,7 +1,7 @@
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job } from "bullmq";
-import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
   TQueueJobTypes,
@@ -50,6 +50,7 @@ import {
   BLOB_INTEGRATION_DISABLED_METRIC,
   classifyCustomerFault,
 } from "./isCustomerFaultError";
+import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
@@ -1157,13 +1158,6 @@ const removeBlobExportDeprecationNotice = async (params: {
     );
   }
 };
-
-// LFE-14894: the integration can be deleted while a run is in flight; a row
-// write racing that delete throws P2025, which must mark the job obsolete
-// rather than fail it.
-const isRecordNotFoundError = (error: unknown): boolean =>
-  error instanceof Prisma.PrismaClientKnownRequestError &&
-  error.code === "P2025";
 
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
