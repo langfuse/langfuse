@@ -445,15 +445,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      # test-docker-build previously built on a fresh local builder every run,
-      # unlike build-docker-image-release which already persists layers via a
-      # Blacksmith-backed builder. Same fix, applied here: cache-key is
-      # namespaced separately from the release cache-keys
-      # (langfuse/${{ image_name }}-${{ platform_tag }}) since this build uses
-      # different args (NEXT_IGNORE_BUILD_ERRORS=true) and only ever targets
-      # amd64. No nofallback here (unlike the release job): a Blacksmith
-      # hiccup should degrade this PR-check build to a slower local builder,
-      # not fail the check.
       - name: Setup Blacksmith Builder
         uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
         with:
