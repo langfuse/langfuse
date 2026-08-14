@@ -15,7 +15,10 @@ import {
   whitelistFromEnv,
   fetchWithSecureRedirects,
 } from "@langfuse/shared/src/server";
-import { ANALYTICS_INTEGRATION_MAX_REDIRECTS } from "../analyticsIntegrationEgress";
+import {
+  ANALYTICS_INTEGRATION_MAX_REDIRECTS,
+  rethrowIfOutboundValidationFailure,
+} from "../analyticsIntegrationEgress";
 import {
   transformTraceForPostHog,
   transformGenerationForPostHog,
@@ -29,8 +32,6 @@ import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { env, v4WritesToLegacyTables } from "../../env";
-import { UnrecoverableError } from "../../errors/UnrecoverableError";
-import { findOutboundUrlValidationError } from "../../errors/findOutboundUrlValidationError";
 
 // Counter for PostHog integrations auto-disabled after a deterministic
 // customer-config fault, tagged by `reason`. A classifier-regression
@@ -458,18 +459,10 @@ export const handlePostHogIntegrationProjectJob = async (
       // customer fault and disables the integration instead. The integration
       // stays enabled here, so the schedule re-enqueues the project next cycle,
       // which is what lets a fixed endpoint recover on its own.
-      const validationError = findOutboundUrlValidationError(error);
-      if (validationError) {
-        logger.error(
-          `[POSTHOG] Outbound send for project ${projectId} blocked by SSRF protection: ${validationError.message}`,
-          error,
-        );
-        const unrecoverable = new UnrecoverableError(
-          `PostHog integration for project ${projectId} blocked by SSRF protection: ${validationError.message}`,
-        );
-        unrecoverable.cause = error;
-        throw unrecoverable;
-      }
+      rethrowIfOutboundValidationFailure(error, {
+        logSubject: `[POSTHOG] Outbound send for project ${projectId}`,
+        jobSubject: `PostHog integration for project ${projectId}`,
+      });
 
       logger.error(
         `[POSTHOG] Error processing PostHog integration for project ${projectId}`,

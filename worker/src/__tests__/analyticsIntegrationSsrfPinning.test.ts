@@ -131,7 +131,11 @@ vi.mock("../env", () => ({
 
 // Imported after mocks are registered.
 import { handlePostHogIntegrationProjectJob } from "../features/posthog/handlePostHogIntegrationProjectJob";
-import { OutboundUrlValidationError } from "@langfuse/shared/src/server";
+import {
+  OutboundUrlValidationError,
+  RedirectValidationError,
+} from "@langfuse/shared/src/server";
+import { rethrowIfOutboundValidationFailure } from "../features/analyticsIntegrationEgress";
 import { MixpanelClient } from "../features/mixpanel/mixpanelClient";
 import type { MixpanelEvent } from "../features/mixpanel/transformers";
 
@@ -253,5 +257,57 @@ describe("outbound validation classification", () => {
         ),
       ),
     ).toBeDefined();
+  });
+});
+
+describe("terminal outbound failure reporting", () => {
+  // The rejected redirect target is embedded verbatim in the validation error,
+  // so a credentialed Location header would otherwise reach the log line and
+  // BullMQ's persisted failedReason.
+  it("redacts credentials from a rejected redirect target", () => {
+    const error = Object.assign(new TypeError("fetch failed"), {
+      cause: new RedirectValidationError(
+        "Blocked IP address detected: 169.254.169.254",
+        "http://exporter:hunter2@169.254.169.254/",
+        0,
+      ),
+    });
+
+    let thrown: unknown;
+    try {
+      rethrowIfOutboundValidationFailure(error, {
+        logSubject: "Mixpanel outbound send",
+        jobSubject: "Mixpanel export",
+      });
+    } catch (caught) {
+      thrown = caught;
+    }
+
+    expect(isUnrecoverableError(thrown)).toBe(true);
+    const message = (thrown as Error).message;
+    expect(message).not.toContain("hunter2");
+    expect(message).toContain("http://***@169.254.169.254/");
+    // The diagnostic reason must survive redaction, otherwise the operator
+    // cannot tell a blocked IP from a rejected scheme.
+    expect(message).toContain("Blocked IP address detected: 169.254.169.254");
+  });
+
+  it("leaves a credential-free message untouched and stays a no-op for other errors", () => {
+    expect(() =>
+      rethrowIfOutboundValidationFailure(new Error("connection reset"), {
+        logSubject: "Mixpanel outbound send",
+        jobSubject: "Mixpanel export",
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      rethrowIfOutboundValidationFailure(
+        new OutboundUrlValidationError(
+          "blocked-ip",
+          "Blocked IP address detected: 127.0.0.1",
+        ),
+        { logSubject: "Mixpanel outbound send", jobSubject: "Mixpanel export" },
+      ),
+    ).toThrow("Blocked IP address detected: 127.0.0.1");
   });
 });

@@ -6,9 +6,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { gzipSync } from "zlib";
 import { env } from "../../env";
-import { ANALYTICS_INTEGRATION_MAX_REDIRECTS } from "../analyticsIntegrationEgress";
-import { UnrecoverableError } from "../../errors/UnrecoverableError";
-import { findOutboundUrlValidationError } from "../../errors/findOutboundUrlValidationError";
+import {
+  ANALYTICS_INTEGRATION_MAX_REDIRECTS,
+  rethrowIfOutboundValidationFailure,
+} from "../analyticsIntegrationEgress";
 import type { MixpanelEvent } from "./transformers";
 
 type MixpanelClientConfig = {
@@ -179,18 +180,10 @@ export class MixpanelClient {
       // A connect-time SSRF block is a permanent misconfiguration, not a
       // transient failure, so skip the remaining BullMQ attempts for this job
       // rather than re-running the same hopeless send.
-      const validationError = findOutboundUrlValidationError(error);
-      if (validationError) {
-        logger.error(
-          `Mixpanel outbound send blocked by SSRF protection: ${validationError.message}`,
-          error,
-        );
-        const unrecoverable = new UnrecoverableError(
-          `Mixpanel export blocked by SSRF protection: ${validationError.message}`,
-        );
-        unrecoverable.cause = error;
-        throw unrecoverable;
-      }
+      rethrowIfOutboundValidationFailure(error, {
+        logSubject: "Mixpanel outbound send",
+        jobSubject: "Mixpanel export",
+      });
       logger.error("Error sending batch to Mixpanel", error);
       throw error;
     } finally {
