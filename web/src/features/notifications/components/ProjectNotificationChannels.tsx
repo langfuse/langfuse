@@ -36,6 +36,12 @@ const NOTIFIED_EVENTS: {
     description: "Sent when a scheduled blob storage export fails.",
   },
   {
+    value: "posthog-export-failed",
+    title: "PostHog export failed",
+    description:
+      "Sent when a PostHog export is disabled after a configuration error, such as an unreachable host.",
+  },
+  {
     value: "evaluator-blocked",
     title: "Evaluator deactivated",
     description:
