@@ -470,9 +470,6 @@ export const queueRouter = createTRPCRouter({
         projectId: z.string(),
         seenItemIds: z.array(z.string()),
         isBetaEnabled: z.boolean().optional().default(false),
-        status: z
-          .enum(AnnotationQueueStatus)
-          .default(AnnotationQueueStatus.PENDING),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -489,16 +486,12 @@ export const queueRouter = createTRPCRouter({
         where: {
           queueId: input.queueId,
           projectId: input.projectId,
-          status: input.status,
-          ...(input.status === AnnotationQueueStatus.PENDING
-            ? {
-                OR: [
-                  { lockedAt: null },
-                  { lockedAt: { lt: fiveMinutesAgo } },
-                  { lockedByUserId: ctx.session.user.id },
-                ],
-              }
-            : {}),
+          status: AnnotationQueueStatus.PENDING,
+          OR: [
+            { lockedAt: null },
+            { lockedAt: { lt: fiveMinutesAgo } },
+            { lockedByUserId: ctx.session.user.id },
+          ],
           NOT: {
             id: { in: input.seenItemIds },
           },
@@ -508,29 +501,23 @@ export const queueRouter = createTRPCRouter({
         },
       });
 
-      // Expected behavior: no unseen item remains for the requested status.
+      // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen pending items
       if (!item) return null;
 
-      const updatedItem =
-        input.status === AnnotationQueueStatus.PENDING
-          ? await ctx.prisma.annotationQueueItem.update({
-              where: {
-                id: item.id,
-                projectId: input.projectId,
-              },
-              data: {
-                lockedAt: now,
-                lockedByUserId: ctx.session.user.id,
-              },
-            })
-          : item;
+      const updatedItem = await ctx.prisma.annotationQueueItem.update({
+        where: {
+          id: item.id,
+          projectId: input.projectId,
+        },
+        data: {
+          lockedAt: now,
+          lockedByUserId: ctx.session.user.id,
+        },
+      });
 
       const inflatedUpdatedItem = {
         ...updatedItem,
-        lockedByUser:
-          input.status === AnnotationQueueStatus.PENDING
-            ? { name: ctx.session.user.name }
-            : null,
+        lockedByUser: { name: ctx.session.user.name },
       };
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {

@@ -127,8 +127,8 @@ describe("annotationQueueItems trpc", () => {
     });
   });
 
-  describe("completed queue navigation", () => {
-    it("returns unseen completed items in queue order", async () => {
+  describe("navigationById", () => {
+    it("returns adjacent completed queue items in queue order", async () => {
       const setup = await createOrgProjectAndApiKey();
       orgIds.push(setup.org.id);
 
@@ -166,31 +166,30 @@ describe("annotationQueueItems trpc", () => {
       ]);
 
       await expect(
-        caller.annotationQueueItems.unseenPendingItemCountByQueueId({
+        caller.annotationQueueItems.navigationById({
           projectId: setup.project.id,
           queueId: queue.id,
-          seenItemIds: [],
-          status: AnnotationQueueStatus.COMPLETED,
+          itemId: firstItem.id,
         }),
-      ).resolves.toBe(2);
+      ).resolves.toEqual({
+        previousItemId: null,
+        nextItemId: secondItem.id,
+        position: 1,
+        totalItems: 2,
+      });
 
       await expect(
-        caller.annotationQueues.fetchAndLockNext({
+        caller.annotationQueueItems.navigationById({
           projectId: setup.project.id,
           queueId: queue.id,
-          seenItemIds: [],
-          status: AnnotationQueueStatus.COMPLETED,
+          itemId: secondItem.id,
         }),
-      ).resolves.toMatchObject({ id: firstItem.id });
-
-      await expect(
-        caller.annotationQueues.fetchAndLockNext({
-          projectId: setup.project.id,
-          queueId: queue.id,
-          seenItemIds: [firstItem.id],
-          status: AnnotationQueueStatus.COMPLETED,
-        }),
-      ).resolves.toMatchObject({ id: secondItem.id });
+      ).resolves.toEqual({
+        previousItemId: firstItem.id,
+        nextItemId: null,
+        position: 2,
+        totalItems: 2,
+      });
     });
   });
 });
