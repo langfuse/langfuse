@@ -280,10 +280,10 @@ describe("InAppAgentWindow header", () => {
     const onExpandedChange = vi.fn();
     render(windowElement({ onExpandedChange }));
 
-    fireEvent.doubleClick(screen.getByText("Assistant"));
+    fireEvent.dblClick(screen.getByText("Assistant"));
     expect(onExpandedChange).toHaveBeenCalledWith(true);
 
-    fireEvent.doubleClick(
+    fireEvent.dblClick(
       screen.getByRole("button", { name: "Start new conversation" }),
     );
     expect(onExpandedChange).toHaveBeenCalledTimes(1);
