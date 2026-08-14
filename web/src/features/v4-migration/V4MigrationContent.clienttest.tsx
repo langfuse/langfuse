@@ -396,6 +396,11 @@ describe("V4MigrationDetailsContent", () => {
 
     expect(
       screen.getByText(
+        "SDK, instrumentation, experiment, and API checks cover activity from the last 14 days.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
         "Evals, experiments, APIs and integrations are up to date.",
       ),
     ).toBeInTheDocument();
