@@ -98,31 +98,55 @@ describe("parsePlaygroundConfig", () => {
     });
   });
 
-  it("ignores malformed tool definitions", () => {
+  it("loads a name-only tool, since prompt configs may omit the rest", () => {
+    // `parsePromptToolConfig` fills in an empty description and parameters.
     expect(
-      parsePlaygroundConfig({ tools: [{ name: "missing_fields" }] }),
+      parsePlaygroundConfig({ tools: [{ name: "name_only" }] }).tools.map(
+        (t) => t.name,
+      ),
+    ).toEqual(["name_only"]);
+  });
+
+  it("loads no tools at all when the tool set is unusable", () => {
+    // A nameless entry makes the whole set invalid: loading a silently reduced
+    // tool set would be worse than loading none.
+    expect(
+      parsePlaygroundConfig({ tools: [tool, { description: "x" }] }),
     ).toEqual({ tools: [], structuredOutputSchema: null });
   });
 
-  it("keeps valid entries when a sibling is malformed", () => {
-    const config = {
-      tools: [tool, { name: "missing_fields" }],
-      structuredOutputSchema: schema,
-    };
+  it("reads OpenAI-wrapped tools, the shape the prompt config docs use", () => {
+    const parsed = parsePlaygroundConfig({
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        },
+      ],
+    });
 
-    const parsed = parsePlaygroundConfig(config);
-
-    // The one bad tool is skipped, the valid tool and schema survive.
     expect(parsed.tools.map((t) => t.name)).toEqual([tool.name]);
-    expect(parsed.structuredOutputSchema?.name).toBe(schema.name);
+  });
 
-    // A malformed schema must not discard valid tools, and vice versa.
+  it("does not discard tools when the schema is malformed, and vice versa", () => {
+    // A malformed schema must not discard valid tools...
     expect(
       parsePlaygroundConfig({
         tools: [tool],
         structuredOutputSchema: { name: 1 },
       }).tools.map((t) => t.name),
     ).toEqual([tool.name]);
+
+    // ...and an unusable tool set must not discard a valid schema.
+    const parsed = parsePlaygroundConfig({
+      tools: [tool, { name: "missing_fields" }],
+      structuredOutputSchema: schema,
+    });
+    expect(parsed.structuredOutputSchema?.name).toBe(schema.name);
   });
 
   it("reads a hand-written response_format when structuredOutputSchema is absent", () => {

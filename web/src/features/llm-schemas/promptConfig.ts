@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
   LLMJSONSchema,
-  LLMToolDefinitionSchema,
+  parsePromptToolConfig,
   type LLMToolDefinition,
 } from "@langfuse/shared";
 
@@ -62,10 +62,15 @@ const toRecord = (value: unknown): Record<string, unknown> =>
 
 /**
  * Extracts playground tools and structured output schema persisted on a
- * prompt's `config`. Tools and schema are parsed independently and malformed
- * tool entries are skipped, so one bad entry never discards valid siblings.
- * The schema is read from `structuredOutputSchema` first and falls back to the
- * documented `response_format.json_schema`.
+ * prompt's `config`.
+ *
+ * Tools are read with `parsePromptToolConfig`, the same parser prompt
+ * experiments use, so both surfaces agree on what a prompt tool is: it accepts
+ * the flat Langfuse shape and the OpenAI wrapper the prompt config docs use,
+ * and reports an unusable tool set as a whole rather than silently loading a
+ * subset. Tools and schema are parsed independently, so one failing does not
+ * discard the other. The schema is read from `structuredOutputSchema` first and
+ * falls back to the documented `response_format.json_schema`.
  */
 export function parsePlaygroundConfig(config: unknown): {
   tools: PromptConfigTool[];
@@ -73,11 +78,11 @@ export function parsePlaygroundConfig(config: unknown): {
 } {
   const record = toRecord(config);
 
-  const rawTools = Array.isArray(record.tools) ? record.tools : [];
-  const tools = rawTools.flatMap((tool) => {
-    const parsed = LLMToolDefinitionSchema.safeParse(tool);
-    return parsed.success ? [{ ...parsed.data, id: generateId() }] : [];
-  });
+  const toolConfig = parsePromptToolConfig(record);
+  const tools =
+    toolConfig.status === "valid"
+      ? toolConfig.tools.map((tool) => ({ ...tool, id: generateId() }))
+      : [];
 
   const parsedSchema = StructuredOutputConfigSchema.safeParse(
     record.structuredOutputSchema,
