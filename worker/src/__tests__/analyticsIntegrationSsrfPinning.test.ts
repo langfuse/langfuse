@@ -1,12 +1,6 @@
 /**
  * Connect-time SSRF pinning for the PostHog and Mixpanel analytics exporters.
  *
- * Both senders used to validate the configured host once and then send over an
- * unpinned fetch. That is a check-then-use (TOCTOU) gap: a host answering a
- * public IP during validation can rebind to a private/loopback address by the
- * time the socket connects. Egress now runs through the shared
- * connect-time-pinned secure-outbound infra, and a block fails terminally.
- *
  * Both sender tests neutralise the string pre-check (that models "the host
  * validated as public") and point the send at a `localhost` NAME, whose
  * connect-time lookup re-resolves to 127.0.0.1 (that models "it rebinds at
