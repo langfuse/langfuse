@@ -87,6 +87,7 @@ export function ControlledInAppAgentWindow(
     rejectToolCall,
     selectConversation,
     selectedConversationId,
+    selectedConversationTitle,
     selectedConversationIsWriteLocked,
     submit,
     submitFeedback,
@@ -215,6 +216,7 @@ export function ControlledInAppAgentWindow(
       hasMoreConversations={hasMoreConversations}
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
+      selectedConversationTitle={selectedConversationTitle}
       onLoadMoreConversations={loadMoreConversations}
       onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}

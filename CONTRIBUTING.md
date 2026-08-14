@@ -541,7 +541,7 @@ To export the respective `openapi.yml` files which power the online API referenc
 pnpm run openapi:export
 ```
 
-This command also syncs standard OpenAPI `deprecated` flags from the endpoint `availability` metadata in the Fern definitions.
+This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:** …` description notices from the endpoint `availability` metadata in the Fern definitions.
 
 To generate the server SDKs, run:
 
