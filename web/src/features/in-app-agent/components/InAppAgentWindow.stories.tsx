@@ -1,7 +1,11 @@
 import preview from "../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
@@ -22,9 +26,11 @@ import { getDrawerMessages } from "./utils/utils";
 function InAppAgentWindowStoryShell({
   children,
   isExpanded,
+  onExpandedChange,
 }: {
   children: (props: { isHeaderDragHandleEnabled: boolean }) => ReactNode;
   isExpanded: boolean;
+  onExpandedChange: (isExpanded: boolean) => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const floatingPanelHandle = useInAppAgentWindowShellPanelControl({});
@@ -38,6 +44,7 @@ function InAppAgentWindowStoryShell({
       floatingPanelHandle={floatingPanelHandle}
       isExpanded={isExpanded}
       onClose={() => undefined}
+      onExpandedChange={onExpandedChange}
       open
       panelRef={panelRef}
     >
@@ -48,18 +55,22 @@ function InAppAgentWindowStoryShell({
 
 function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
   const [isExpanded, setIsExpanded] = useState(args.isExpanded);
+  const handleExpandedChange = (isExpanded: boolean) => {
+    setIsExpanded(isExpanded);
+    args.onExpandedChange(isExpanded);
+  };
 
   return (
-    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+    <InAppAgentWindowStoryShell
+      isExpanded={isExpanded}
+      onExpandedChange={handleExpandedChange}
+    >
       {({ isHeaderDragHandleEnabled }) => (
         <InAppAgentWindow
           {...args}
           isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
           isExpanded={isExpanded}
-          onExpandedChange={(isExpanded) => {
-            setIsExpanded(isExpanded);
-            args.onExpandedChange(isExpanded);
-          }}
+          onExpandedChange={handleExpandedChange}
         />
       )}
     </InAppAgentWindowStoryShell>
@@ -530,18 +541,23 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     };
   }, []);
 
+  const handleExpandedChange = (isExpanded: boolean) => {
+    setIsExpanded(isExpanded);
+    args.onExpandedChange(isExpanded);
+  };
+
   return (
-    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+    <InAppAgentWindowStoryShell
+      isExpanded={isExpanded}
+      onExpandedChange={handleExpandedChange}
+    >
       {({ isHeaderDragHandleEnabled }) => (
         <InAppAgentWindow
           {...args}
           isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
           isExpanded={isExpanded}
           messages={messages}
-          onExpandedChange={(isExpanded) => {
-            setIsExpanded(isExpanded);
-            args.onExpandedChange(isExpanded);
-          }}
+          onExpandedChange={handleExpandedChange}
           onSubmit={(input) => {
             setMessages((currentMessages) => [
               ...currentMessages,
@@ -684,6 +700,7 @@ const meta = preview.meta({
     isLoadingMoreConversations: false,
     isAssistantTurnInProgress: false,
     selectedConversationId: undefined,
+    selectedConversationTitle: null,
     onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
     onOpenConversationHistory: fn(),
@@ -1389,7 +1406,7 @@ export const Error = meta.story({
   args: {
     error: {
       type: "generic",
-      message: "Assistant is not enabled for this user",
+      message: "Internal sandbox bridge timeout",
     },
     messages: [
       {
@@ -1401,6 +1418,55 @@ export const Error = meta.story({
         },
       },
     ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const alert = canvas.getByRole("alert");
+
+    await expect(alert).toHaveTextContent(IN_APP_AGENT_GENERIC_ERROR_MESSAGE);
+    await expect(alert).not.toHaveTextContent(
+      "Internal sandbox bridge timeout",
+    );
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+    await expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
+  },
+});
+
+export const WriteLocked = meta.story({
+  args: {
+    error: { type: "write_lock" },
+    isConversationInteractionDisabled: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Help me inspect this trace.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const alert = canvas.getByRole("alert");
+
+    await expect(alert).toHaveTextContent(
+      IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+    );
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: /^Conversation history/ }),
+    ).toBeEnabled();
+    await expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
   },
 });
 
@@ -1743,9 +1809,16 @@ export const RefocusAfterSubmit = meta.story({
         },
       },
     ]);
+    const handleExpandedChange = (isExpanded: boolean) => {
+      setIsExpanded(isExpanded);
+      args.onExpandedChange(isExpanded);
+    };
 
     return (
-      <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+      <InAppAgentWindowStoryShell
+        isExpanded={isExpanded}
+        onExpandedChange={handleExpandedChange}
+      >
         {({ isHeaderDragHandleEnabled }) => (
           <InAppAgentWindow
             {...args}
@@ -1755,10 +1828,7 @@ export const RefocusAfterSubmit = meta.story({
               isConversationInteractionDisabled
             }
             messages={messages}
-            onExpandedChange={(isExpanded) => {
-              setIsExpanded(isExpanded);
-              args.onExpandedChange(isExpanded);
-            }}
+            onExpandedChange={handleExpandedChange}
             onSubmit={(input) => {
               setIsConversationInteractionDisabled(true);
               window.setTimeout(() => {
@@ -2371,7 +2441,10 @@ export const SendingReattachesAutoFollow = meta.story({
     const [messages, setMessages] = useState(args.messages);
 
     return (
-      <InAppAgentWindowStoryShell isExpanded={args.isExpanded}>
+      <InAppAgentWindowStoryShell
+        isExpanded={args.isExpanded}
+        onExpandedChange={args.onExpandedChange}
+      >
         {({ isHeaderDragHandleEnabled }) => (
           <InAppAgentWindow
             {...args}

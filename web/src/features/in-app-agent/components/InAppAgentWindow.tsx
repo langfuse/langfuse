@@ -22,6 +22,7 @@ import {
   Plus,
   SendHorizontal,
   Square,
+  TriangleAlert,
   Trash2,
   X,
 } from "lucide-react";
@@ -47,9 +48,11 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import type {
-  InAppAgentMessageFeedbackValue,
-  InAppAgentMessageSource,
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+  type InAppAgentMessageFeedbackValue,
+  type InAppAgentMessageSource,
 } from "@langfuse/shared/in-app-agent";
 import { deduplicateBy } from "@/src/utils/arrays";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
@@ -761,6 +764,12 @@ function ConversationScroller({
       >
         {children}
       </div>
+      {/* The transcript fades into the composer gutter rather than ending on a
+          hard cut. Above the "Latest" pill in DOM order so the pill stays crisp. */}
+      <div
+        aria-hidden="true"
+        className="from-background pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-linear-to-t to-transparent"
+      />
       {!isAtLatest ? (
         <Button
           type="button"
@@ -859,6 +868,9 @@ export type InAppAgentWindowProps = {
   focusedQuickActions?: readonly InAppAgentQuickAction[];
   quickActionResetKey: string;
   selectedConversationId: string | undefined;
+  /** Titles the window. Null until the server has named the conversation,
+   * which is when the product name and its Beta tag show instead. */
+  selectedConversationTitle: string | null;
 } & InAppAgentWindowCloseButtonProps;
 
 function InAppAgentRateLimitError({
@@ -905,22 +917,40 @@ function InAppAgentRateLimitError({
   );
 }
 
-function InAppAgentGenericError({
-  error,
+function InAppAgentIssueNotice({
   isExpanded,
+  variant,
 }: {
-  error: Extract<InAppAgentError, { type: "generic" }>;
   isExpanded: boolean;
+  variant: "error" | "write_lock";
 }) {
+  const isWriteLock = variant === "write_lock";
+
   return (
-    <div
-      role="alert"
-      className={cn(
-        "border-destructive/40 dark:bg-destructive dark:border-destructive-foreground/20 bg-destructive/10 dark:text-destructive-foreground text-destructive rounded-lg border px-2 py-1",
-        isExpanded ? "text-sm" : "text-xs",
-      )}
-    >
-      {error.message}
+    <div className="shrink-0 px-2 pb-2">
+      <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
+        <p
+          role="alert"
+          className={cn(
+            "flex w-full items-center gap-2 rounded-lg border px-2 py-1",
+            isWriteLock
+              ? "border-border bg-muted/60 text-foreground"
+              : "border-destructive/40 bg-destructive/10 text-destructive",
+            isExpanded ? "text-sm" : "text-xs",
+          )}
+        >
+          {isWriteLock ? (
+            <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
+          ) : (
+            <Info aria-hidden="true" className="size-3 shrink-0" />
+          )}
+          <span className="min-w-0 flex-1">
+            {isWriteLock
+              ? IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE
+              : IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -957,6 +987,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     quickActionResetKey,
     screenContextDescription,
     selectedConversationId,
+    selectedConversationTitle,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
@@ -996,6 +1027,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       ? ` (${historyAttentionCount} ${historyAttentionCount === 1 ? "needs" : "need"} attention)`
       : "";
   const hasUserMessage = messages.some((message) => message.role === "user");
+  const conversationTitle = selectedConversationTitle?.trim() || null;
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
       ? message.content.tools.filter((tool) => tool.approval)
@@ -1092,16 +1124,47 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         }
         className={cn(
           "bg-card flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
-          isHeaderDragHandleEnabled && "cursor-move touch-none select-none",
+          isHeaderDragHandleEnabled && "cursor-move touch-none",
+          // Double-click toggles, so never let it select the title instead.
+          !isHandheld && "select-none",
         )}
+        onDoubleClick={
+          isHandheld
+            ? undefined
+            : (event) => {
+                // The action cluster owns its own double-clicks.
+                if (
+                  event.target instanceof Element &&
+                  event.target.closest("button")
+                ) {
+                  return;
+                }
+
+                onExpandedChange(!isExpanded);
+              }
+        }
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p className="shrink-0 truncate text-sm font-bold" title="Assistant">
-            Assistant
-          </p>
-          <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
-            Beta
-          </span>
+          {conversationTitle ? (
+            <p
+              className="min-w-0 truncate text-sm font-bold"
+              title={conversationTitle}
+            >
+              {conversationTitle}
+            </p>
+          ) : (
+            <>
+              <p
+                className="shrink-0 truncate text-sm font-bold"
+                title="Assistant"
+              >
+                Assistant
+              </p>
+              <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
+                Beta
+              </span>
+            </>
+          )}
         </div>
         <div
           className="flex shrink-0 items-center gap-0.5"
@@ -1409,10 +1472,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 );
               })}
             </ol>
-
-            {error?.type === "generic" && (
-              <InAppAgentGenericError error={error} isExpanded={isExpanded} />
-            )}
           </div>
         </ConversationScroller>
         {pendingToolCalls.length > 0 ? (
@@ -1462,6 +1521,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
+        {(error?.type === "generic" || error?.type === "write_lock") && (
+          <InAppAgentIssueNotice
+            isExpanded={isExpanded}
+            variant={error.type === "write_lock" ? "write_lock" : "error"}
+          />
+        )}
         {backgroundHint.isVisible && props.onClose ? (
           <InAppAgentBackgroundHint
             isExpanded={isExpanded}
@@ -1509,16 +1574,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
-        <div
-          className={cn(
-            "p-1.5",
-            isExpanded ? "pt-0" : "bg-card",
-            !isExpanded && hasUserMessage && "border-t",
-          )}
-        >
+        <div className={cn("p-1.5", isExpanded && "pt-0")}>
+          {/* The composer separates from the transcript by elevation, not by a
+              rule: one hairline edge, a lifted surface, and a footer band a
+              step off the input. `overflow-hidden` keeps that band inside the
+              rounded corners. */}
           <form
             className={cn(
-              "border-input bg-background focus-within:ring-muted-foreground relative flex w-full cursor-text flex-col rounded-xl border shadow-xs focus-within:ring-2",
+              "border-border bg-card focus-within:border-border-contrast relative flex w-full cursor-text flex-col overflow-hidden rounded-xl border shadow-sm transition-colors",
               isExpanded && "mx-auto max-w-3xl",
             )}
             onClick={() => {
@@ -1556,9 +1619,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   : "Let me know what I can do for you..."
               }
               rows={1}
-              className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
-            <div className="flex min-h-9 w-full items-center justify-between gap-2 px-2 pb-1.5">
+            <div className="bg-muted flex min-h-9 w-full items-center justify-between gap-2 px-2 py-1.5">
               <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
                 <Info aria-hidden="true" className="size-3 shrink-0" />
                 <span className="truncate" title={screenContextNotice}>
