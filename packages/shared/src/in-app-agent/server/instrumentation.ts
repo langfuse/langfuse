@@ -125,6 +125,7 @@ type OpenLlmStep = {
   inputMessageCount: number;
   completionStartTime?: Date;
   providerFinish?: Record<string, unknown>;
+  providerFinishTime?: Date;
 };
 type ToolExecutionTimes = {
   startTime?: Date;
@@ -368,9 +369,11 @@ export class InAppAgentInstrumentation {
       return;
     }
 
-    this.ensureOpenLlmStep(new Date());
+    const now = new Date();
+    this.ensureOpenLlmStep(now);
     if (this.openLlmStep) {
       this.openLlmStep.providerFinish = event;
+      this.openLlmStep.providerFinishTime = now;
     }
   }
 
@@ -820,7 +823,10 @@ export class InAppAgentInstrumentation {
       getStepFinishReason(eventRecord) ?? getStepFinishReason(providerFinish);
     const model =
       getModelIdFromStepEvent(eventRecord) ?? this.model ?? undefined;
-    const endTime = new Date();
+    // Mastra can delay onStepFinish until after requested tools execute. The
+    // raw provider finish is the actual model boundary and keeps the following
+    // tool's execute() window intact instead of clamping it to zero duration.
+    const endTime = step.providerFinishTime ?? new Date();
     this.lastLlmGenerationEndTime = endTime;
     const id = getInAppAgentLlmCallObservationId(this.runId, step.stepNumber);
     this.lastLlmGeneration = {

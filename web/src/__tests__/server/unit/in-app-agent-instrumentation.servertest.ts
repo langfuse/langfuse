@@ -1358,7 +1358,8 @@ describe("InAppAgentInstrumentation", () => {
     const toolBStart = new Date("2026-01-01T00:00:03.200Z");
     const toolAEnd = new Date("2026-01-01T00:00:03.000Z");
     const toolBEnd = new Date("2026-01-01T00:00:04.000Z");
-    const stepFinish = new Date("2026-01-01T00:00:02.800Z");
+    const providerFinish = new Date("2026-01-01T00:00:02.800Z");
+    const stepFinish = new Date("2026-01-01T00:00:04.200Z");
 
     vi.setSystemTime(stepStart);
     instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
@@ -1410,6 +1411,14 @@ describe("InAppAgentInstrumentation", () => {
         toolCallId: "tool-b",
       },
     ]);
+
+    // The model stream finishes before tool execution, but Mastra only invokes
+    // onStepFinish after the tools have resolved.
+    vi.setSystemTime(providerFinish);
+    instrumentation.recordModelCallFinish({
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      finishReason: { unified: "tool-calls", raw: "tool_use" },
+    });
 
     vi.setSystemTime(toolAStart);
     instrumentation.recordToolExecutionStart("tool-a");
@@ -1466,6 +1475,13 @@ describe("InAppAgentInstrumentation", () => {
       "tool-create",
       "tool-create",
     ]);
+
+    const generationCreate = mocks.handler.langfuse.enqueue.mock.calls.find(
+      ([type]) => type === "generation-create",
+    )?.[1];
+    expect(generationCreate).toEqual(
+      expect.objectContaining({ endTime: providerFinish }),
+    );
 
     const toolCreates = mocks.handler.langfuse.enqueue.mock.calls.filter(
       ([type]) => type === "tool-create",
