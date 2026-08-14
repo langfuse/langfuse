@@ -110,7 +110,7 @@ const ALWAYS_KEEP_PEEK_OPEN_SELECTORS = ['[role="checkbox"]'];
  * - clicking another table row (`[data-row-index]`) switches the peeked item in
  *   place rather than closing (handled by the row's own click handler),
  * - shared selection controls and any table-specific `ignoredSelectors`
- *   (bookmark toggles, etc.) don't close it, and
+ *   (row action buttons, etc.) don't close it, and
  * - regions that opt out via `data-ignore-outside-interaction` (e.g. the in-app
  *   assistant) never trigger a close.
  *
