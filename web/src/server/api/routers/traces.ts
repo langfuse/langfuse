@@ -460,6 +460,29 @@ export const traceRouter = createTRPCRouter({
         })) as ObservationReturnTypeWithMetadata[],
       };
     }),
+  // Full observation set for the legacy trace JSON download: unlike
+  // byIdWithObservationsAndScores (which strips IO to keep the page query
+  // light), this includes input, output, metadata, and tool data so the
+  // download matches what the observation detail panel shows.
+  observationsWithInputOutput: protectedGetTraceProcedure
+    .input(
+      z.object({
+        traceId: z.string(), // used for security check
+        timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
+        fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
+        projectId: z.string(), // used for security check
+      }),
+    )
+    .query(async ({ input }) => {
+      const observations = await getObservationsForTrace({
+        traceId: input.traceId,
+        projectId: input.projectId,
+        timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+        includeIO: true,
+      });
+
+      return observations.map((o) => toDomainWithStringifiedMetadata(o));
+    }),
   deleteMany: protectedProjectProcedure
     .input(
       z

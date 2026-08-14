@@ -692,6 +692,77 @@ describe("traces trpc", () => {
     });
   });
 
+  describe("traces.observationsWithInputOutput", () => {
+    // Regression for https://github.com/langfuse/langfuse/issues/15337: the
+    // legacy trace JSON download serialized the page's observations, which are
+    // fetched with includeIO: false — so every downloaded observation lost its
+    // input, output, and metadata even though the detail panel shows them.
+    it("returns observation input, output, and metadata for the legacy trace download", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+      const observation = createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        start_time: new Date(trace.timestamp).getTime(),
+        input: JSON.stringify({ question: "What is Langfuse?" }),
+        output: JSON.stringify({
+          answer: "An open-source LLM engineering platform",
+        }),
+        metadata: { export_marker: "present" },
+      });
+
+      await createTracesCh([trace]);
+      await createObservationsCh([observation]);
+
+      // ClickHouse insert visibility can lag.
+      let observationsRes: Array<{
+        id: string;
+        input: unknown;
+        output: unknown;
+        metadata: unknown;
+      }> = [];
+      await waitForExpect(async () => {
+        observationsRes = await caller.traces.observationsWithInputOutput({
+          projectId,
+          traceId: trace.id,
+          timestamp: new Date(trace.timestamp),
+        });
+        expect(observationsRes.some((o) => o.id === observation.id)).toBe(true);
+      });
+
+      const downloaded = observationsRes.find((o) => o.id === observation.id);
+      expect(downloaded?.input).toEqual({ question: "What is Langfuse?" });
+      expect(downloaded?.output).toEqual({
+        answer: "An open-source LLM engineering platform",
+      });
+      expect(downloaded?.metadata).toEqual(
+        JSON.stringify({ export_marker: "present" }),
+      );
+    });
+
+    it("rejects access to a trace of another project", async () => {
+      const differentProjectId = randomUUID();
+      const trace = createTrace({
+        project_id: differentProjectId,
+      });
+      const observation = createObservation({
+        project_id: differentProjectId,
+        trace_id: trace.id,
+      });
+
+      await createTracesCh([trace]);
+      await createObservationsCh([observation]);
+
+      await expect(
+        caller.traces.observationsWithInputOutput({
+          projectId,
+          traceId: trace.id,
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+  });
+
   describe("traces.filterOptions", () => {
     it("should include all possible categorical score values from score configs", async () => {
       // Create a trace

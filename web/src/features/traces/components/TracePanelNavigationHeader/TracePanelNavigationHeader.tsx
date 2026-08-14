@@ -36,6 +36,7 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
+import { api } from "@/src/utils/api";
 import {
   TraceSettingsDropdown,
   TraceViewOptionsMenuItems,
@@ -95,6 +96,7 @@ function TracePanelNavigationHeaderExpanded({
   const { roots, trace, observations } = useTraceData();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isBetaEnabled } = useV4Beta();
+  const utils = api.useUtils();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -150,9 +152,31 @@ function TracePanelNavigationHeaderExpanded({
       capture("trace_detail:download_button_click", analyticsDimensions);
       try {
         if (!isBetaEnabled) {
+          // The page's observations are fetched with includeIO: false to keep
+          // page rendering light, so they carry no input/output/metadata. Fetch
+          // the full set so the download matches the observation detail panel;
+          // large traces keep the light set (with a warning), mirroring the
+          // omit-large-fields behavior of the V4 download route.
+          // The download helper serializes whatever set it receives; keep the
+          // variable loose so the light page set and the full fetched set both fit.
+          let downloadObservations: unknown[] = observations;
+          if (
+            observations.length < TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD
+          ) {
+            downloadObservations =
+              await utils.traces.observationsWithInputOutput.fetch({
+                traceId: trace.id,
+                projectId: trace.projectId,
+                timestamp: trace.timestamp,
+              });
+          } else {
+            toast.warning(
+              `Trace download excludes input, output, metadata, toolDefinitions, and toolCalls for traces with ${TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD}+ observations.`,
+            );
+          }
           downloadLegacyTraceAsJson({
             trace,
-            observations,
+            observations: downloadObservations,
           });
           return;
         }
@@ -174,7 +198,14 @@ function TracePanelNavigationHeaderExpanded({
             : "Failed to download trace JSON",
         );
       }
-    }, [isBetaEnabled, observations, trace, capture, analyticsDimensions]);
+    }, [
+      isBetaEnabled,
+      observations,
+      trace,
+      capture,
+      analyticsDimensions,
+      utils,
+    ]);
 
   const isTimelineView = viewMode === "timeline";
 
