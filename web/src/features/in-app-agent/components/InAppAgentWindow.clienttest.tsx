@@ -44,6 +44,7 @@ const controlledAgent = vi.hoisted(() => ({
     approveToolCall: vi.fn(),
     rejectToolCall: vi.fn(),
     selectedConversationId: undefined,
+    selectedConversationTitle: null,
     selectedConversationIsWriteLocked: false,
     submit: vi.fn(),
     submitFeedback: vi.fn(),
@@ -108,6 +109,7 @@ function windowElement(
     quickActionResetKey: "/project/project-1/traces",
     screenContextDescription: { type: "trace-list" },
     selectedConversationId: undefined,
+    selectedConversationTitle: null,
     ...overrides,
     showCloseButton: false,
   };
@@ -247,6 +249,44 @@ describe("InAppAgentWindow conversation history", () => {
         name: "Conversation history (1 needs attention)",
       }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("InAppAgentWindow header", () => {
+  it("titles the window by the conversation, and falls back to the product name", () => {
+    const { rerender } = render(
+      windowElement({
+        selectedConversationId: "conversation-1",
+        selectedConversationTitle: "  Latency outliers  ",
+      }),
+    );
+
+    expect(screen.getByText("Latency outliers")).toBeInTheDocument();
+    expect(screen.queryByText("Beta")).not.toBeInTheDocument();
+
+    // An unnamed conversation is where the product name and Beta tag belong.
+    rerender(
+      windowElement({
+        selectedConversationId: "conversation-1",
+        selectedConversationTitle: null,
+      }),
+    );
+
+    expect(screen.getByText("Assistant")).toBeInTheDocument();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+  });
+
+  it("toggles expanded on a header double-click, but not from its actions", () => {
+    const onExpandedChange = vi.fn();
+    render(windowElement({ onExpandedChange }));
+
+    fireEvent.dblClick(screen.getByText("Assistant"));
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
+
+    fireEvent.dblClick(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    );
+    expect(onExpandedChange).toHaveBeenCalledTimes(1);
   });
 });
 

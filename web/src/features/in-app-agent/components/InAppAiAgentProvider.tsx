@@ -144,6 +144,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   activityByConversationId: new Map(),
   attentionCount: 0,
   selectedConversationId: undefined,
+  selectedConversationTitle: null,
   selectedConversationIsWriteLocked: false,
   loadMoreConversations: () => undefined,
   invalidateConversations: () => undefined,
@@ -205,6 +206,8 @@ type InAppAiAgentContextType = {
   /** Conversations the user still owes a look, for the launcher badge. */
   attentionCount: number;
   selectedConversationId: string | undefined;
+  /** Server-given name of the selected conversation, null until it has one. */
+  selectedConversationTitle: string | null;
   selectedConversationIsWriteLocked: boolean;
   loadMoreConversations: () => void;
   invalidateConversations: () => void;
@@ -452,6 +455,24 @@ function InAppAiAgentProviderInner({
     // conversation behind a closed window has not been read.
     visibleConversationId: open ? selectedConversationId : null,
   });
+
+  // What the window titles itself by. Three sources, because no single one
+  // covers every way a conversation gets selected: the snapshot query is
+  // authoritative and runs for the selected id whatever the list has loaded,
+  // the recent list already holds the title when you pick one out of history,
+  // and the activity poll is the only one warm when a background-run
+  // notification opens a conversation the list has yet to fetch.
+  const selectedConversationTitle =
+    (conversationQuery.data?.conversation.id === selectedConversationId
+      ? conversationQuery.data.conversation.title
+      : null) ??
+    conversations.find(
+      (conversation) => conversation.id === selectedConversationId,
+    )?.title ??
+    (selectedConversationId
+      ? activityByConversationId.get(selectedConversationId)?.title
+      : null) ??
+    null;
 
   const effectivePendingToolApprovals = useMemo(() => {
     return backgroundExecutionView.pendingToolApprovals.map(
@@ -1500,6 +1521,7 @@ function InAppAiAgentProviderInner({
       activityByConversationId,
       attentionCount,
       selectedConversationId: selectedConversationId ?? undefined,
+      selectedConversationTitle,
       selectedConversationIsWriteLocked,
       loadMoreConversations,
       invalidateConversations,
@@ -1524,6 +1546,7 @@ function InAppAiAgentProviderInner({
       isRunning,
       isSelectedConversationHydrating,
       selectedConversationIsWriteLocked,
+      selectedConversationTitle,
       isSubmitting,
       isSelectedConversationNotFound,
       deleteConversation,

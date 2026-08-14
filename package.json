@@ -38,6 +38,7 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "playwright:install": "pnpm --filter web exec playwright install chromium",
+    "openapi:export": "npx fern-api export --api server web/public/generated/api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/sync-deprecations.ts && npx fern-api export --api client web/public/generated/api-client/openapi.yml && npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml",
     "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
     "release": "bash ./scripts/release-preflight.sh && dotenv -e ../.env -- release-it",
