@@ -76,11 +76,29 @@ const adapterEvents = vi.hoisted(() => ({
   }),
 }));
 
+const bedrockMocks = vi.hoisted(() => ({
+  streamParts: [] as unknown[],
+  doGenerate: vi.fn(),
+  doStream: vi.fn(async () => ({
+    stream: new ReadableStream({
+      start(controller) {
+        for (const part of bedrockMocks.streamParts) {
+          controller.enqueue(part);
+        }
+        controller.close();
+      },
+    }),
+  })),
+}));
+
 const instrumentationMocks = vi.hoisted(() => {
   const instrumentation = {
     recordEvents: vi.fn(),
     recordAvailableTools: vi.fn(),
     recordToolCallApproval: vi.fn(),
+    recordToolExecutionStart: vi.fn(),
+    recordToolExecutionEnd: vi.fn(),
+    recordModelCallFinish: vi.fn(),
     recordStepFinish: vi.fn(),
     recordStreamChunk: vi.fn(),
     end: vi.fn(),
@@ -199,7 +217,14 @@ vi.mock("@ag-ui/mastra", () => ({
 }));
 
 vi.mock("ai-sdk-amazon-bedrock-v4", () => ({
-  createAmazonBedrock: vi.fn(() => vi.fn(() => ({}))),
+  createAmazonBedrock: vi.fn(() => (modelId: string) => ({
+    specificationVersion: "v3",
+    provider: "amazon-bedrock",
+    modelId,
+    supportedUrls: {},
+    doGenerate: bedrockMocks.doGenerate,
+    doStream: bedrockMocks.doStream,
+  })),
 }));
 
 vi.mock("@aws-sdk/credential-providers", () => ({
@@ -460,11 +485,97 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
 describe("createAgUiStream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    bedrockMocks.streamParts = [];
     promptMocks.getPrompt.mockResolvedValue({
       name: "in-app-agent-system-prompt",
       version: 2,
       compile: promptMocks.compile,
     });
+  });
+
+  it("forwards Bedrock V3 stream parts and records provider finish usage", async () => {
+    const { createAgUiStream } =
+      await import("@langfuse/shared/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-provider-finish",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "hello",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        } as unknown as Langfuse,
+        useLocalPrompt: false,
+        langfuseTracing: createTestTracingConfig(),
+      },
+    });
+    await readStream(stream);
+
+    const textPart = { type: "text-delta", id: "text-1", delta: "hello" };
+    const finishPart = {
+      type: "finish",
+      usage: {
+        inputTokens: {
+          total: 1_100,
+          noCache: 200,
+          cacheRead: 800,
+          cacheWrite: 100,
+        },
+        outputTokens: { total: 50, text: 50, reasoning: 0 },
+      },
+      finishReason: { unified: "tool-calls", raw: "tool_use" },
+    };
+    bedrockMocks.streamParts = [textPart, finishPart];
+    const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
+      doStream: (options: unknown) => Promise<{
+        stream: ReadableStream<unknown>;
+      }>;
+    };
+
+    const modelResult = await model.doStream({});
+    const forwardedParts: unknown[] = [];
+    for await (const part of modelResult.stream) {
+      forwardedParts.push(part);
+    }
+
+    expect(forwardedParts).toEqual([textPart, finishPart]);
+    expect(
+      instrumentationMocks.instrumentation.recordModelCallFinish,
+    ).toHaveBeenCalledWith(finishPart);
   });
 
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {
@@ -1265,6 +1376,12 @@ describe("createAgUiStream", () => {
       toolCallId: "tool-call-1",
       status: "approved",
     });
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionStart,
+    ).toHaveBeenCalledWith("tool-call-1");
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionEnd,
+    ).toHaveBeenCalledWith("tool-call-1");
 
     expect(adapterEvents.createScoreConfigExecute).toHaveBeenCalledWith(
       {
@@ -1410,11 +1527,18 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        langfuseTracing: createTestTracingConfig(),
       },
     });
     await readStream(stream);
 
     expect(onError).not.toHaveBeenCalled();
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionStart,
+    ).toHaveBeenCalledWith("tool-call-1");
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionEnd,
+    ).toHaveBeenCalledWith("tool-call-1");
     const resumedMessages =
       (
         adapterEvents.inputs[0] as {

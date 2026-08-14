@@ -124,6 +124,7 @@ type OpenLlmStep = {
   startTime: Date;
   inputMessageCount: number;
   completionStartTime?: Date;
+  providerFinish?: Record<string, unknown>;
 };
 type ToolExecutionTimes = {
   startTime?: Date;
@@ -334,6 +335,45 @@ export class InAppAgentInstrumentation {
     this.toolCallApprovals.set(approval.toolCallId, approval.status);
   }
 
+  recordToolExecutionStart(toolCallId: string) {
+    if (this.ended) {
+      return;
+    }
+
+    const times = this.toolExecutionTimes.get(toolCallId) ?? {};
+    times.startTime ??= new Date();
+    this.toolExecutionTimes.set(toolCallId, times);
+  }
+
+  recordToolExecutionEnd(toolCallId: string) {
+    if (this.ended) {
+      return;
+    }
+
+    const times = this.toolExecutionTimes.get(toolCallId) ?? {};
+    times.endTime ??= new Date();
+    this.toolExecutionTimes.set(toolCallId, times);
+  }
+
+  // Bedrock's V3 stream emits exact usage before Mastra executes tools. Keep
+  // it on the open step as a fallback because approval suspension can end the
+  // run without Mastra ever invoking onStepFinish.
+  recordModelCallFinish(event: unknown) {
+    if (!isRecord(event)) {
+      return;
+    }
+
+    if (this.ended) {
+      this.applyLateStepFinishUsage(event);
+      return;
+    }
+
+    this.ensureOpenLlmStep(new Date());
+    if (this.openLlmStep) {
+      this.openLlmStep.providerFinish = event;
+    }
+  }
+
   // Mastra stream chunks: step-start (or first model delta) bookmarks the LLM
   // window; tool-result ends tool execution. Do not treat tool-call chunks as
   // execution start — they fire while the model is still streaming.
@@ -355,10 +395,17 @@ export class InAppAgentInstrumentation {
       // A prior step should have been closed by onStepFinish. If not, emit it
       // as an error so we never silently drop a generation.
       if (this.openLlmStep) {
-        this.emitLlmGeneration(this.openLlmStep, undefined, {
-          level: "ERROR",
-          statusMessage: "LLM step closed by a subsequent step-start",
-        });
+        const providerFinish = this.openLlmStep.providerFinish;
+        this.emitLlmGeneration(
+          this.openLlmStep,
+          undefined,
+          providerFinish
+            ? undefined
+            : {
+                level: "ERROR",
+                statusMessage: "LLM step closed by a subsequent step-start",
+              },
+        );
         this.flushDeferredToolCompletions();
       }
 
@@ -384,7 +431,7 @@ export class InAppAgentInstrumentation {
       }
 
       const times = this.toolExecutionTimes.get(toolCallId) ?? {};
-      times.endTime = now;
+      times.endTime ??= now;
       this.toolExecutionTimes.set(toolCallId, times);
       return;
     }
@@ -765,12 +812,12 @@ export class InAppAgentInstrumentation {
     },
   ) {
     const eventRecord = isRecord(event) ? event : undefined;
-    const usageDetails = getStepUsageDetails(eventRecord?.usage);
+    const providerFinish = step.providerFinish;
+    const usageDetails =
+      getStepUsageDetails(eventRecord?.usage) ??
+      getStepUsageDetails(providerFinish?.usage);
     const finishReason =
-      getStringValue(eventRecord?.finishReason) ??
-      (isRecord(eventRecord?.stepResult)
-        ? getStringValue(eventRecord.stepResult.reason)
-        : undefined);
+      getStepFinishReason(eventRecord) ?? getStepFinishReason(providerFinish);
     const model =
       getModelIdFromStepEvent(eventRecord) ?? this.model ?? undefined;
     const endTime = new Date();
@@ -820,16 +867,16 @@ export class InAppAgentInstrumentation {
     }
 
     const eventRecord = isRecord(event) ? event : undefined;
-    const usageDetails = getStepUsageDetails(eventRecord?.usage);
+    const usageDetails =
+      getStepUsageDetails(eventRecord?.usage) ??
+      getStepUsageDetails(pending.step.providerFinish?.usage);
     if (!usageDetails) {
       return;
     }
 
     const finishReason =
-      getStringValue(eventRecord?.finishReason) ??
-      (isRecord(eventRecord?.stepResult)
-        ? getStringValue(eventRecord.stepResult.reason)
-        : undefined);
+      getStepFinishReason(eventRecord) ??
+      getStepFinishReason(pending.step.providerFinish);
     const model =
       getModelIdFromStepEvent(eventRecord) ?? this.model ?? undefined;
     const output = this.getLlmStepOutput(pending.step, eventRecord);
@@ -1438,19 +1485,38 @@ function getStepUsageDetails(
     return undefined;
   }
 
-  const inputTokens = getFiniteNumber(usage.inputTokens);
-  const outputTokens = getFiniteNumber(usage.outputTokens);
+  const nestedInputTokens = isRecord(usage.inputTokens)
+    ? usage.inputTokens
+    : undefined;
+  const nestedOutputTokens = isRecord(usage.outputTokens)
+    ? usage.outputTokens
+    : undefined;
+  const inputTokens =
+    getFiniteNumber(usage.inputTokens) ??
+    getFiniteNumber(nestedInputTokens?.total);
+  const outputTokens =
+    getFiniteNumber(usage.outputTokens) ??
+    getFiniteNumber(nestedOutputTokens?.total);
   if (inputTokens === undefined && outputTokens === undefined) {
     return undefined;
   }
 
-  const cacheReadTokens = getFiniteNumber(usage.cachedInputTokens) ?? 0;
-  const cacheWriteTokens = getFiniteNumber(usage.cacheCreationInputTokens) ?? 0;
+  const cacheReadTokens =
+    getFiniteNumber(usage.cachedInputTokens) ??
+    getFiniteNumber(nestedInputTokens?.cacheRead) ??
+    0;
+  const cacheWriteTokens =
+    getFiniteNumber(usage.cacheCreationInputTokens) ??
+    getFiniteNumber(nestedInputTokens?.cacheWrite) ??
+    0;
+  const uncachedInputTokens = getFiniteNumber(nestedInputTokens?.noCache);
 
   // Mastra's inputTokens includes cache reads/writes, while Langfuse model
   // prices bill `input` as non-cached input tokens with separate cache keys.
   return {
-    input: Math.max(0, (inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens),
+    input:
+      uncachedInputTokens ??
+      Math.max(0, (inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens),
     output: outputTokens ?? 0,
     cache_read_input_tokens: cacheReadTokens,
     cache_creation_input_tokens: cacheWriteTokens,
@@ -1458,6 +1524,29 @@ function getStepUsageDetails(
       getFiniteNumber(usage.totalTokens) ??
       (inputTokens ?? 0) + (outputTokens ?? 0),
   };
+}
+
+function getStepFinishReason(
+  event: Record<string, unknown> | undefined,
+): string | undefined {
+  if (!event) {
+    return undefined;
+  }
+
+  const finishReason = event.finishReason;
+  if (typeof finishReason === "string") {
+    return finishReason;
+  }
+
+  if (isRecord(finishReason)) {
+    return (
+      getStringValue(finishReason.unified) ?? getStringValue(finishReason.raw)
+    );
+  }
+
+  return isRecord(event.stepResult)
+    ? getStringValue(event.stepResult.reason)
+    : undefined;
 }
 
 function getModelIdFromStepEvent(

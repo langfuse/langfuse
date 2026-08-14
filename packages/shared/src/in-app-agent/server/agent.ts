@@ -238,6 +238,21 @@ export async function createAgUiStream(params: {
         instrumentation.recordStreamChunk?.(chunk);
       }
     : undefined;
+  const onModelCallFinish = instrumentation
+    ? (event: unknown) => {
+        instrumentation.recordModelCallFinish?.(event);
+      }
+    : undefined;
+  const onToolExecutionStart = instrumentation
+    ? (toolCallId: string) => {
+        instrumentation.recordToolExecutionStart?.(toolCallId);
+      }
+    : undefined;
+  const onToolExecutionEnd = instrumentation
+    ? (toolCallId: string) => {
+        instrumentation.recordToolExecutionEnd?.(toolCallId);
+      }
+    : undefined;
 
   let subscription: { unsubscribe: () => void } | undefined;
   let ending = false;
@@ -487,6 +502,9 @@ export async function createAgUiStream(params: {
           instrumentation?.recordAvailableTools?.(tools),
         onStepFinish,
         onChunk,
+        onModelCallFinish,
+        onToolExecutionStart,
+        onToolExecutionEnd,
       })
         .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
@@ -556,6 +574,9 @@ export async function createAgUiStream(params: {
               instructions,
               onStepFinish,
               onChunk,
+              onModelCallFinish,
+              onToolExecutionStart,
+              onToolExecutionEnd,
             });
 
             if (ending || closed || params.signal.aborted) {
@@ -748,6 +769,99 @@ type ExecutableInAppAgentTool = {
   toModelOutput?: (output: unknown) => unknown | PromiseLike<unknown>;
 };
 
+type BedrockLanguageModel = ReturnType<ReturnType<typeof createAmazonBedrock>>;
+
+function withModelCallFinish(
+  model: BedrockLanguageModel,
+  onFinish?: (event: unknown) => void,
+): BedrockLanguageModel {
+  if (!onFinish) {
+    return model;
+  }
+
+  return {
+    specificationVersion: model.specificationVersion,
+    provider: model.provider,
+    modelId: model.modelId,
+    supportedUrls: model.supportedUrls,
+    doGenerate: (options) => model.doGenerate(options),
+    doStream: async (options) => {
+      const result = await model.doStream(options);
+
+      return {
+        ...result,
+        stream: result.stream.pipeThrough(
+          new TransformStream({
+            transform(part, controller) {
+              if (part.type === "finish") {
+                onFinish(part);
+              }
+              controller.enqueue(part);
+            },
+          }),
+        ),
+      };
+    },
+  };
+}
+
+function withToolExecutionTiming<TTool>(params: {
+  tools: Record<string, TTool>;
+  onStart?: (toolCallId: string) => void;
+  onEnd?: (toolCallId: string) => void;
+}): Record<string, TTool> {
+  if (!params.onStart && !params.onEnd) {
+    return params.tools;
+  }
+
+  return Object.fromEntries(
+    Object.entries(params.tools).map(([toolName, tool]) => {
+      if (!hasCallableExecute(tool)) {
+        return [toolName, tool];
+      }
+
+      const execute = tool.execute.bind(tool) as (
+        inputData: unknown,
+        context: unknown,
+      ) => Promise<unknown>;
+
+      return [
+        toolName,
+        {
+          ...tool,
+          execute: async (inputData: unknown, context: unknown) => {
+            const toolCallId = getExecutionToolCallId(context);
+            if (!toolCallId) {
+              return execute(inputData, context);
+            }
+
+            params.onStart?.(toolCallId);
+            try {
+              return await execute(inputData, context);
+            } finally {
+              params.onEnd?.(toolCallId);
+            }
+          },
+        } as TTool,
+      ];
+    }),
+  );
+}
+
+function getExecutionToolCallId(context: unknown): string | undefined {
+  if (typeof context !== "object" || context === null) {
+    return undefined;
+  }
+
+  const agent = "agent" in context ? context.agent : undefined;
+  if (typeof agent !== "object" || agent === null) {
+    return undefined;
+  }
+
+  const toolCallId = "toolCallId" in agent ? agent.toolCallId : undefined;
+  return typeof toolCallId === "string" ? toolCallId : undefined;
+}
+
 async function createMastraAdapter(params: {
   input: AgUiRunAgentInput;
   signal: AbortSignal;
@@ -758,6 +872,9 @@ async function createMastraAdapter(params: {
   onToolsAvailable?: (tools: Record<string, unknown>) => void;
   onStepFinish?: (event: unknown) => void;
   onChunk?: (chunk: unknown) => void;
+  onModelCallFinish?: (event: unknown) => void;
+  onToolExecutionStart?: (toolCallId: string) => void;
+  onToolExecutionEnd?: (toolCallId: string) => void;
 }) {
   const bedrock = createAmazonBedrock({
     ...(params.options.awsBedrock.region
@@ -840,39 +957,43 @@ async function createMastraAdapter(params: {
     // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
     // discovery, then prefix tool names for constructor-based tools so the
     // model sees the same names that later appear in AG-UI tool-call events.
-    const tools = withInAppAgentToolApproval(
-      {
-        ...withOptionalSilentMcpOutput({
-          tools: withLangfuseMcpRateLimitWait({
-            tools: prefixToolsetTools(
-              "langfuse",
-              filterInAppAgentAvailableLangfuseMcpTools({
-                tools: toolsets.langfuse,
-                policy: params.options.langfuseMcp.toolPolicy,
-              }),
-            ),
-            signal: params.signal,
-            runId: params.input.runId,
-            threadId: params.input.threadId,
+    const tools = withToolExecutionTiming({
+      tools: withInAppAgentToolApproval(
+        {
+          ...withOptionalSilentMcpOutput({
+            tools: withLangfuseMcpRateLimitWait({
+              tools: prefixToolsetTools(
+                "langfuse",
+                filterInAppAgentAvailableLangfuseMcpTools({
+                  tools: toolsets.langfuse,
+                  policy: params.options.langfuseMcp.toolPolicy,
+                }),
+              ),
+              signal: params.signal,
+              runId: params.input.runId,
+              threadId: params.input.threadId,
+            }),
+            sandbox: params.options.sandbox,
+            onToolCallCompleted: params.options.onMcpToolCallCompleted,
           }),
-          sandbox: params.options.sandbox,
-          onToolCallCompleted: params.options.onMcpToolCallCompleted,
-        }),
-        ...withOptionalSilentMcpOutput({
-          tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
-          sandbox: params.options.sandbox,
-          onToolCallCompleted: params.options.onMcpToolCallCompleted,
-        }),
-        [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
-          projectId: params.options.redirectAction.projectId,
-          isV4Enabled: params.options.redirectAction.isV4Enabled,
-        }),
-        ...(params.options.sandbox
-          ? createSandboxTools(params.options.sandbox)
-          : {}),
-      },
-      params.options.langfuseMcp.toolPolicy,
-    );
+          ...withOptionalSilentMcpOutput({
+            tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+            sandbox: params.options.sandbox,
+            onToolCallCompleted: params.options.onMcpToolCallCompleted,
+          }),
+          [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
+            projectId: params.options.redirectAction.projectId,
+            isV4Enabled: params.options.redirectAction.isV4Enabled,
+          }),
+          ...(params.options.sandbox
+            ? createSandboxTools(params.options.sandbox)
+            : {}),
+        },
+        params.options.langfuseMcp.toolPolicy,
+      ),
+      onStart: params.onToolExecutionStart,
+      onEnd: params.onToolExecutionEnd,
+    });
     params.onToolsAvailable?.(tools);
 
     const reasoningProviderOptions = getBedrockReasoningProviderOptions(
@@ -885,14 +1006,18 @@ async function createMastraAdapter(params: {
     // instruction channel so the model receives the same higher-priority
     // guidance on resumed runs.
     let developerGuidance: string | undefined;
+    const model = withModelCallFinish(
+      bedrock(
+        params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
+      ),
+      params.onModelCallFinish,
+    );
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
       instructions: () =>
         [params.instructions, developerGuidance].filter(Boolean).join("\n\n"),
-      model: bedrock(
-        params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
-      ),
+      model,
       skills: LANGFUSE_IN_APP_AGENT_SKILLS,
       tools,
       maxRetries: 2,

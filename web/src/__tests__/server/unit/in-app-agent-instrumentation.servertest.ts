@@ -1354,6 +1354,8 @@ describe("InAppAgentInstrumentation", () => {
     const toolCallChunkB = new Date("2026-01-01T00:00:02.000Z");
     const agUiToolAStart = new Date("2026-01-01T00:00:01.500Z");
     const agUiToolBStart = new Date("2026-01-01T00:00:02.500Z");
+    const toolAStart = new Date("2026-01-01T00:00:02.900Z");
+    const toolBStart = new Date("2026-01-01T00:00:03.200Z");
     const toolAEnd = new Date("2026-01-01T00:00:03.000Z");
     const toolBEnd = new Date("2026-01-01T00:00:04.000Z");
     const stepFinish = new Date("2026-01-01T00:00:02.800Z");
@@ -1409,7 +1411,10 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
+    vi.setSystemTime(toolAStart);
+    instrumentation.recordToolExecutionStart("tool-a");
     vi.setSystemTime(toolAEnd);
+    instrumentation.recordToolExecutionEnd("tool-a");
     instrumentation.recordStreamChunk({
       type: "tool-result",
       payload: { toolCallId: "tool-a", toolName: "listObservations" },
@@ -1422,7 +1427,10 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
+    vi.setSystemTime(toolBStart);
+    instrumentation.recordToolExecutionStart("tool-b");
     vi.setSystemTime(toolBEnd);
+    instrumentation.recordToolExecutionEnd("tool-b");
     instrumentation.recordStreamChunk({
       type: "tool-result",
       payload: { toolCallId: "tool-b", toolName: "getTrace" },
@@ -1463,12 +1471,12 @@ describe("InAppAgentInstrumentation", () => {
       ([type]) => type === "tool-create",
     );
     expect(toolCreates).toHaveLength(2);
-    // Clamped to generation end (stepFinish), not earlier AG-UI/chunk times.
+    // Actual execute() timing wins over the delayed AG-UI event timestamps.
     expect(toolCreates[0]?.[1]).toEqual(
       expect.objectContaining({
         id: "tool-a",
         parentObservationId: agentRunObservationId,
-        startTime: stepFinish,
+        startTime: toolAStart,
         endTime: toolAEnd,
       }),
     );
@@ -1476,7 +1484,7 @@ describe("InAppAgentInstrumentation", () => {
       expect.objectContaining({
         id: "tool-b",
         parentObservationId: agentRunObservationId,
-        startTime: stepFinish,
+        startTime: toolBStart,
         endTime: toolBEnd,
       }),
     );
@@ -1614,6 +1622,43 @@ describe("InAppAgentInstrumentation", () => {
       .at(-1)?.[1];
     expect(finalAgentCreate).not.toHaveProperty("usageDetails");
     expect(finalAgentCreate).not.toHaveProperty("model");
+  });
+
+  it("uses provider finish usage when approval ends before step finish", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
+    instrumentation.recordModelCallFinish({
+      usage: {
+        inputTokens: {
+          total: 1_100,
+          noCache: 200,
+          cacheRead: 800,
+          cacheWrite: 100,
+        },
+        outputTokens: { total: 50, text: 50, reasoning: 0 },
+      },
+      finishReason: { unified: "tool-calls", raw: "tool_use" },
+    });
+    instrumentation.end({});
+
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "generation-create",
+      expect.objectContaining({
+        id: getInAppAgentLlmCallObservationId(runId, 1),
+        model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        usageDetails: {
+          input: 200,
+          output: 50,
+          cache_read_input_tokens: 800,
+          cache_creation_input_tokens: 100,
+          total: 1_150,
+        },
+        metadata: expect.objectContaining({
+          finish_reason: "tool-calls",
+        }),
+      }),
+    );
   });
 
   it("ignores step finish events after instrumentation ended", () => {

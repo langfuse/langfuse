@@ -79,7 +79,7 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("approvalDecision"),
-    /** Provenance for debugging only; no code path queries lineage. */
+    /** Immediate parent run used to derive durable approval-chain lineage. */
     parentRunId: z.string(),
     /** Original user-message run whose trace owns the complete approval chain. */
     rootRunId: z.string().optional(),
