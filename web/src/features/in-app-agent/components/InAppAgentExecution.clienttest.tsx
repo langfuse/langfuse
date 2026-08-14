@@ -404,6 +404,11 @@ describe("in-app agent execution", () => {
     renderExecutionUi();
 
     expect(await screen.findByText("Create the prompt")).toBeInTheDocument();
+    // The run is parked on this approval, so the drawer says so rather than
+    // narrating the tool it was about to call.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Waiting for your approval…" }),
+    );
     expect(screen.getByText("I need approval.")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", {
@@ -592,7 +597,9 @@ describe("in-app agent execution", () => {
 
     renderExecutionUi();
 
-    expect(await screen.findByText("Calling 1 tool")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Browsing traces" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps approval cancellation visibly stopping until hydration settles", async () => {
@@ -648,7 +655,7 @@ describe("in-app agent execution", () => {
       ).toHaveBeenCalledOnce();
     });
     expect(screen.getByRole("button", { name: "Stopping run" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Stopping the run…");
+    expect(screen.getByText("Stopping the run…")).toBeVisible();
   });
 
   it("does not observe a cached active run while the assistant is closed", async () => {
@@ -853,9 +860,7 @@ describe("in-app agent execution", () => {
       ).not.toBeInTheDocument();
     });
     expect(screen.getByText(finalText)).toBeVisible();
-    expect(
-      screen.getByText("The assistant is aware of this trace view."),
-    ).toBeVisible();
+    expect(screen.getByText("Current trace view in context")).toBeVisible();
     expect(screen.getByRole("button", { name: "Good response" })).toBeVisible();
   });
 

@@ -715,7 +715,30 @@
   }
 }
 
-/* 
+/* Tailwind's `sr-only` verbatim, plus `top: 0; left: 0`. Without them the box
+   sits at its static position, and since it is absolute, its containing block
+   is the nearest positioned ancestor — usually far outside the scroll container
+   it visually lives in. A scroll container only clips descendants it is a
+   containing block for, so an `sr-only` below the fold escaped the clip and
+   grew the app shell's scrollable overflow, scrolling the whole document.
+   Pinning it to the containing block's origin keeps it inside every box that
+   should clip it. `not-sr-only` still wins: it sets `position: static`, which
+   makes these offsets inert. */
+@utility sr-only {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/*
  * Fix for Vaul drawer blocking text selection
  * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
  * We override this for drawers that set blockTextSelection={false}
