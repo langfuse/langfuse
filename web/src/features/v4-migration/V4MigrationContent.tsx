@@ -1427,6 +1427,10 @@ export function V4MigrationDetailsContent({
         <div className="flex items-center gap-2 text-base font-bold">
           Action items
         </div>
+        <p className="text-muted-foreground text-sm">
+          SDK, instrumentation, experiment, and API checks cover activity from
+          the last {V4_MIGRATION_LOOKBACK_DAYS} days.
+        </p>
         <div>
           <V4MigrationSdkSection
             sdk={migrationData.sdk}
