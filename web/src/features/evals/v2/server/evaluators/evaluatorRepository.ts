@@ -298,6 +298,14 @@ export async function deleteEvaluator(params: {
   projectId: string;
   evaluatorId: string;
 }) {
+  const assignments =
+    await params.prisma.evaluationRuleEvaluatorAssignment.findMany({
+      where: {
+        projectId: params.projectId,
+        evaluatorId: params.evaluatorId,
+      },
+      select: { evaluationRuleId: true },
+    });
   const result = await params.prisma.evaluator.deleteMany({
     where: { id: params.evaluatorId, projectId: params.projectId },
   });
@@ -305,6 +313,7 @@ export async function deleteEvaluator(params: {
     await setRuleStatus({
       prisma: params.prisma,
       projectId: params.projectId,
+      ruleIds: assignments.map((assignment) => assignment.evaluationRuleId),
       enabled: false,
       unassignedOnly: true,
     });

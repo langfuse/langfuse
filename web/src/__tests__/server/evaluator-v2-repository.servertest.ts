@@ -737,8 +737,19 @@ describe("evaluator v2 repository", () => {
 
     it("deletes the evaluator and cascades owned records", async () => {
       const evaluator = await createEvaluator();
-      const { assignmentId } = await createRuleAssignment({
+      const { rule, assignmentId } = await createRuleAssignment({
         evaluatorId: evaluator.id,
+      });
+      const unrelatedRule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: `rule-${randomUUID()}`,
+          status: "ACTIVE",
+          targetObject: "EVENT",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+        },
       });
 
       await expect(
@@ -758,6 +769,18 @@ describe("evaluator v2 repository", () => {
           where: { id: assignmentId },
         }),
       ).resolves.toBeNull();
+      await expect(
+        prisma.evaluationRule.findMany({
+          where: { id: { in: [rule.id, unrelatedRule.id] } },
+          orderBy: { id: "asc" },
+          select: { id: true, status: true },
+        }),
+      ).resolves.toEqual(
+        [
+          { id: rule.id, status: "INACTIVE" },
+          { id: unrelatedRule.id, status: "ACTIVE" },
+        ].sort((left, right) => left.id.localeCompare(right.id)),
+      );
     });
   });
 });
