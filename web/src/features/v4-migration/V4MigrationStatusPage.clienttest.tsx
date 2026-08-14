@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => ({
   // ready projects are hidden, so most cases need one open action item.
   evalCount: 1,
   lastTracePending: false,
+  canToggleV4: true,
+  isBetaEnabled: false,
 }));
 
 vi.mock("next/router", () => ({
@@ -95,6 +97,18 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiEnabled: () => true,
 }));
 
+vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
+  useV4Beta: () => ({
+    canToggleV4: mocks.canToggleV4,
+    isBetaEnabled: mocks.isBetaEnabled,
+  }),
+}));
+
+// The toggle itself is covered where it lives; here we only assert placement.
+vi.mock("@/src/features/events/components/V4SidebarToggle", () => ({
+  V4PreviewToggleRow: () => <div data-testid="v4-preview-toggle-row" />,
+}));
+
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useAccountV4MigrationData: () =>
     new Map([
@@ -146,6 +160,8 @@ describe("V4MigrationStatusPage", () => {
     };
     mocks.evalCount = 1;
     mocks.lastTracePending = false;
+    mocks.canToggleV4 = true;
+    mocks.isBetaEnabled = false;
   });
 
   it("keeps the project table readable through horizontal scrolling", () => {
@@ -230,6 +246,49 @@ describe("V4MigrationStatusPage", () => {
     expect(screen.getByRole("link", { name: "See docs." })).toBeInTheDocument();
     expect(
       screen.queryByText(/some features may stop working/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers v3 users a switch to the latest UI without a sunset note", () => {
+    mocks.isBetaEnabled = false;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.getByText("Switch back to the latest UI (v4)"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("v4-preview-toggle-row")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/legacy v3 UI will be sunset/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns v4 users about the v3 sunset when offering the switch back", () => {
+    mocks.isBetaEnabled = true;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.getByText("Need to switch back to the legacy UI (v3)?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "The features powering the legacy v3 UI will be sunset on November 16, 2026.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("v4-preview-toggle-row")).toBeInTheDocument();
+  });
+
+  it("hides the switch-back section when the session cannot toggle v4", () => {
+    mocks.canToggleV4 = false;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.queryByText("Switch back to the latest UI (v4)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("v4-preview-toggle-row"),
     ).not.toBeInTheDocument();
   });
 
