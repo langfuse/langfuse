@@ -6,6 +6,8 @@ const meta = preview.meta({
   component: InAppAgentMessage,
 });
 
+const storyTimestamp = new Date("2026-08-06T11:49:13.000Z").getTime();
+
 function copySelectedNode(node: Node, document: Document) {
   const range = document.createRange();
   range.selectNodeContents(node);
@@ -32,6 +34,7 @@ export const AssistantText = meta.story({
       type: "text",
       text: "Langfuse tracks traces, observations, scores, and metadata so teams can debug LLM applications.",
     },
+    timestamp: storyTimestamp,
   },
 });
 
@@ -177,6 +180,73 @@ export const AssistantMarkdown = meta.story({
       ].join("\n"),
     },
   },
+});
+
+export const VariantMatrix = meta.story({
+  args: {
+    role: "assistant",
+    content: { type: "text", text: "Assistant response" },
+  },
+  render: () => (
+    <div className="grid max-w-3xl grid-cols-[6rem_1fr] gap-x-4 gap-y-6 p-6">
+      <p className="text-muted-foreground text-xs">User · default</p>
+      <InAppAgentMessage
+        role="user"
+        content={{
+          type: "text",
+          text: "Compare today's traces with yesterday.",
+        }}
+        timestamp={storyTimestamp}
+      />
+      <p className="text-muted-foreground text-xs">User · compact</p>
+      <InAppAgentMessage
+        role="user"
+        isCompact
+        content={{ type: "text", text: "Only show production errors." }}
+        timestamp={storyTimestamp}
+      />
+      <p className="text-muted-foreground text-xs">Assistant · settled</p>
+      <InAppAgentMessage
+        role="assistant"
+        content={{
+          type: "text",
+          text: "The error rate fell by **0.6 percentage points** while trace volume increased.",
+        }}
+        timestamp={storyTimestamp}
+        onSubmitFeedback={fn()}
+      />
+      <p className="text-muted-foreground text-xs">Assistant · streaming</p>
+      <InAppAgentMessage
+        role="assistant"
+        content={{
+          type: "text",
+          text: "I’m comparing the slowest observations against their scores…",
+          isStreaming: true,
+        }}
+        timestamp={storyTimestamp}
+      />
+      <p className="text-muted-foreground text-xs">Assistant · long</p>
+      <InAppAgentMessage
+        role="assistant"
+        content={{
+          type: "text",
+          text: [
+            "The main regression is concentrated in retrieval:",
+            "",
+            "| Step | p95 |",
+            "| --- | ---: |",
+            "| Vector search | 480 ms |",
+            "| Reranking | 3.91 s |",
+            "",
+            "```ts",
+            "const bottleneck = 'document-reranking';",
+            "```",
+          ].join("\n"),
+        }}
+        timestamp={storyTimestamp}
+      />
+    </div>
+  ),
 });
 
 export const CopyMarkdownSelectionInteraction = meta.story({
@@ -433,12 +503,11 @@ export const RedirectActionWithParams = meta.story({
   },
 });
 
-export const LoadingToolCallGroup = meta.story({
+export const RunningToolCallGroup = meta.story({
   args: {
     role: "assistant",
     content: {
       type: "toolGroup",
-      isLoading: true,
       tools: [
         {
           type: "tool",
@@ -565,5 +634,52 @@ export const FeedbackPopoverInteraction = meta.story({
         body.queryByPlaceholderText("Optional feedback comment"),
       ).not.toBeInTheDocument();
     });
+  },
+});
+
+export const CopyMessageInteraction = meta.story({
+  name: "(Test) Copy Whole Message",
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "The **error rate** fell by `0.6 pp`.",
+    },
+    timestamp: storyTimestamp,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.hover(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Copy message" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("button", { name: "Message copied" }),
+      ).toBeVisible(),
+    );
+  },
+});
+
+export const UserTextWithoutActionsInteraction = meta.story({
+  name: "(Test) User Text Without Actions",
+  args: {
+    role: "user",
+    content: {
+      type: "text",
+      text: "How do I find failed traces from the last 24 hours?",
+    },
+    timestamp: storyTimestamp,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    expect(
+      canvas.queryByRole("button", { name: "Copy message" }),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByTestId("in-app-agent-message-actions"),
+    ).not.toBeInTheDocument();
   },
 });

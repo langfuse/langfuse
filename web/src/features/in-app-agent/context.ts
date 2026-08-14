@@ -23,11 +23,11 @@ export type InAppAgentScreenContextDescription =
   | { type: "dataset" }
   | { type: "datasetItem" }
   | { type: "experimentRun" }
-  | { type: "trace-list"; hasAppliedFilters: boolean }
-  | { type: "observations-list"; hasAppliedFilters: boolean }
-  | { type: "sessions-list"; hasAppliedFilters: boolean }
-  | { type: "prompts-list"; hasAppliedFilters: boolean }
-  | { type: "datasets-list"; hasAppliedFilters: boolean };
+  | { type: "trace-list" }
+  | { type: "observations-list" }
+  | { type: "sessions-list" }
+  | { type: "prompts-list" }
+  | { type: "datasets-list" };
 
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
 const QUICK_ACTION_KEY_CONTEXT_DESCRIPTION = "quick_action_key";
@@ -65,9 +65,6 @@ export function getInAppAgentScreenContextDescription(
   const detailId = routeSegments[1];
   const peekId = parsedUrl.searchParams.get("peek");
   const observationId = parsedUrl.searchParams.get("observation");
-  const hasAppliedFilters = ["filter", "search"].some((parameter) =>
-    Boolean(parsedUrl.searchParams.get(parameter)?.trim()),
-  );
 
   if (
     (section === "traces" && observationId && (detailId || peekId)) ||
@@ -81,11 +78,11 @@ export function getInAppAgentScreenContextDescription(
   }
 
   if (section === "traces" && !detailId) {
-    return { type: "trace-list", hasAppliedFilters };
+    return { type: "trace-list" };
   }
 
   if (section === "observations" && !detailId) {
-    return { type: "observations-list", hasAppliedFilters };
+    return { type: "observations-list" };
   }
 
   if (section === "prompts") {
@@ -123,7 +120,7 @@ export function getInAppAgentScreenContextDescription(
     }
 
     if (promptPathSegments.length === 0) {
-      return { type: "prompts-list", hasAppliedFilters };
+      return { type: "prompts-list" };
     }
   }
 
@@ -132,7 +129,7 @@ export function getInAppAgentScreenContextDescription(
   }
 
   if (section === "sessions" && !detailId) {
-    return { type: "sessions-list", hasAppliedFilters };
+    return { type: "sessions-list" };
   }
 
   if (section === "datasets" && detailId) {
@@ -148,7 +145,7 @@ export function getInAppAgentScreenContextDescription(
   }
 
   if (section === "datasets" && !detailId) {
-    return { type: "datasets-list", hasAppliedFilters };
+    return { type: "datasets-list" };
   }
 
   return { type: "page" };
