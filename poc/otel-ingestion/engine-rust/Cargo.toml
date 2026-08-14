@@ -1,0 +1,21 @@
+[package]
+name = "rust-worker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+bytes = "1"
+clickhouse = { version = "0.13", features = ["lz4"] }
+futures = "0.3"
+libc = "0.2"
+object_store = { version = "0.12", features = ["aws"] }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+[profile.release]
+lto = "thin"
