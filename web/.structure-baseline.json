@@ -42,7 +42,6 @@
    "src/components/session/NewDatasetItemFromTrace.tsx: component NewDatasetItemFromTraceId != filename",
    "src/components/session/TraceEventsRow.tsx: 3 components: TraceEventsSkeleton, TraceEventsRow, LazyTraceEventsRow",
    "src/components/session/TraceRow.tsx: component LazyTraceRow != filename",
-   "src/components/star-toggle.tsx: filename not PascalCase; 4 components: StarToggle, StarTraceToggle, StarTraceDetailsToggle, StarSessionToggle",
    "src/components/table/data-table-ai-filters.tsx: filename not PascalCase",
    "src/components/table/data-table-column-visibility-filter.tsx: filename not PascalCase",
    "src/components/table/data-table-controls.tsx: filename not PascalCase; 13 components: ControlsContext, DataTableControlsProvider, DataTableControls, FilterAccordionItem, CategoricalFacet, NumericFacet, StringFacet, KeyValueFacet, NumericKeyValueFacet, BooleanKeyValueFacet, StringKeyValueFacet, FilterValueCheckbox, DataTableControlsSection",

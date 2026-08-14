@@ -52,6 +52,7 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   type TableSelectionStoreLike,
   useTableRowIsSelected,
@@ -61,8 +62,20 @@ import {
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
+  /**
+   * A fetch is in flight while rows are already on screen (refresh, filter,
+   * page, sort). Renders a thin bar above the header instead of blanking the
+   * table: `data.isLoading` stays reserved for a genuine cold load.
+   */
+  isFetching?: boolean;
   pagination?: {
     totalCount: number | null; // null if loading or intentionally unknown
+    /**
+     * The exact count is still in flight while rows are already on screen (its
+     * query re-keys on a filter change one step behind the rows). Renders the
+     * page count as loading rather than as a result.
+     */
+    isTotalCountLoading?: boolean;
     hasNextPage?: boolean;
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
@@ -148,7 +161,7 @@ function isValidCssVariableName({
 const INTERACTIVE_ROW_CLICK_SELECTOR =
   "a, button, input, select, textarea, summary, [role='button'], [role='link']";
 
-export const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
+const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
   if (!(target instanceof Element)) return false;
 
   return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
@@ -198,6 +211,7 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
 export function DataTable<TData extends object, TValue>({
   columns,
   data,
+  isFetching = false,
   pagination,
   rowSelection,
   setRowSelection,
@@ -397,6 +411,11 @@ export function DataTable<TData extends object, TValue>({
     columnVisibility,
   ]);
 
+  // Held for whole sweeps of the bar's animation: a 200ms refetch would
+  // otherwise flash a single frame.
+  // Cycle length matches the sweep, so a held refresh ends on a whole sweep.
+  const refetchBar = useAnimatedBusy(isFetching, REFETCH_SWEEP_MS);
+
   const tableHeaders = shouldRenderGroupHeaders
     ? table.getHeaderGroups()
     : [table.getHeaderGroups().slice(-1)[0]];
@@ -418,6 +437,17 @@ export function DataTable<TData extends object, TValue>({
           className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
           style={{ ...columnSizeVars }}
         >
+          {/* Zero-height so an arriving refetch never shifts the table. Sticky on
+              BOTH axes: this box is only as wide as the visible area, so without
+              `left-0` it scrolls out of view on a table wider than the viewport.
+              Keyed per busy period, not per fetch: one sweep from the left per
+              refresh, and no restart between a refresh's stages. */}
+          <div className="sticky top-0 left-0 z-30 h-0">
+            <TableRefetchBar
+              key={refetchBar.epoch}
+              active={refetchBar.active && !data.isLoading}
+            />
+          </div>
           <Table>
             <TableHeader className="sticky top-0 z-20">
               {tableHeaders.map((headerGroup) => (
@@ -598,7 +628,9 @@ export function DataTable<TData extends object, TValue>({
         <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
-            isLoading={data.isLoading}
+            isLoading={
+              data.isLoading || (pagination.isTotalCountLoading ?? false)
+            }
             paginationOptions={pagination.options}
             hideTotalCount={pagination.hideTotalCount}
             canJumpPages={pagination.canJumpPages}
@@ -612,6 +644,69 @@ export function DataTable<TData extends object, TValue>({
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * One sweep of the refetch bar. The single source of truth for the cycle: it is
+ * handed to the CSS animation as `--table-refetch-cycle` (see
+ * `--animate-table-refetch` in globals.css, which reads it with a fallback), and
+ * to `useAnimatedBusy` so the busy flag is only released on a whole sweep.
+ */
+const REFETCH_SWEEP_MS = 1400;
+
+/**
+ * The thin bar shown while a fetch runs over rows that are already on screen.
+ * Both edges are soft: the sweep is already running when the bar fades in (a
+ * one-shot fade rides on the sweep animation), and on the way out it fades
+ * first and only stops animating once that fade has finished. Mounted once per
+ * busy period — the caller keys it — so the sweep always starts from the left,
+ * and it never leaves an animation running behind an invisible bar.
+ */
+function TableRefetchBar({ active }: { active: boolean }) {
+  // The sweep runs only while the bar is on screen, plus the fade-out it has to
+  // survive. A bar that mounts idle — every table that passes no `isFetching`,
+  // and any table whose first render has nothing in flight — must never start it,
+  // and one that has faded out must stop. But `active` can also turn on within a
+  // single mount (a cold load holds it off until the skeletons go), so this
+  // cannot simply latch on the first render.
+  const [everActive, setEverActive] = useState(active);
+  const [fadedOut, setFadedOut] = useState(false);
+
+  if (active && !everActive) setEverActive(true);
+
+  const paused = !active && (!everActive || fadedOut);
+
+  return (
+    // Clipped track: the highlight sweeps out of view at both ends, and
+    // overflow-hidden keeps that from growing the table's scroll width. The fade
+    // uses an arbitrary transition, not `duration-*` — that utility sets
+    // --tw-duration, which `animate-*` reads as its animation-duration too, and
+    // turned the sweep into a strobe.
+    <div
+      aria-hidden="true"
+      onTransitionEnd={(event) => {
+        if (event.propertyName === "opacity" && !active) setFadedOut(true);
+      }}
+      className={cn(
+        "animate-table-refetch-in absolute inset-x-0 top-0 h-0.5 overflow-hidden [transition:opacity_200ms_ease-out]",
+        active ? "opacity-100" : "opacity-0",
+      )}
+    >
+      {/* Faint track, so the bar reads as one continuous element rather than a
+          highlight flashing in and out of nothing. Its own element: `cn` folds
+          two `bg-*` utilities into one and would drop it. */}
+      <div className="bg-primary-accent/20 absolute inset-0" />
+      <div
+        style={
+          { "--table-refetch-cycle": `${REFETCH_SWEEP_MS}ms` } as CSSProperties
+        }
+        className={cn(
+          "animate-table-refetch from-primary-accent/0 via-primary-accent to-primary-accent/0 absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r",
+          paused && "[animation-play-state:paused]",
+        )}
+      />
+    </div>
   );
 }
 

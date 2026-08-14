@@ -4,6 +4,7 @@ import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/clie
 import { shouldSkipObservationsFinal } from "../../../server/queries/clickhouse-sql/query-options";
 import {
   FilterList,
+  filtersRequireEventsFull,
   type Filter,
 } from "../../../server/queries/clickhouse-sql/clickhouse-filter";
 import { createFilterFromFilterState } from "../../../server/queries/clickhouse-sql/factory";
@@ -1583,10 +1584,23 @@ export class QueryBuilder {
     }
 
     // Create filters: normal WHERE filters + raw WHERE parts (filterSql pruning + exact match)
-    const { whereFilters, whereRawParts } = this.mapFilters(
-      query.filters,
-      view,
-    );
+    let mappedFilters = this.mapFilters(query.filters, view);
+
+    // events_core stores metadata_values truncated to 200 chars (events_core_mv);
+    // truncation-sensitive filters must read events_full or matches beyond the
+    // truncation point are silently dropped. Re-map so filter prefixes follow.
+    if (
+      this.actualTableName(view) === "events_core" &&
+      filtersRequireEventsFull(new FilterList(mappedFilters.whereFilters))
+    ) {
+      view = {
+        ...view,
+        baseCte: view.baseCte.replace("events_core", "events_full"),
+      };
+      mappedFilters = this.mapFilters(query.filters, view);
+    }
+
+    const { whereFilters, whereRawParts } = mappedFilters;
     let filterList = new FilterList(whereFilters);
 
     // Add standard filters (project_id, timestamps)

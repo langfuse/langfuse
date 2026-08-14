@@ -2,21 +2,23 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { InAppAgentWidgetComposer } from "./InAppAgentWidgetComposer";
 
-const openAssistant = vi.fn().mockReturnValue(true);
-const submit = vi.fn().mockResolvedValue(true);
+const agentContext = vi.hoisted(() => ({
+  isAvailable: true,
+  isRunning: false,
+  isSubmitting: false,
+  openAssistant: vi.fn().mockReturnValue(true),
+  submit: vi.fn().mockResolvedValue(true),
+}));
+const { openAssistant, submit } = agentContext;
 
 vi.mock("./InAppAiAgentProvider", () => ({
-  useInAppAiAgent: () => ({
-    isAvailable: true,
-    isRunning: false,
-    isSubmitting: false,
-    openAssistant,
-    submit,
-  }),
+  useInAppAiAgent: () => agentContext,
 }));
 
 describe("InAppAgentWidgetComposer", () => {
   beforeEach(() => {
+    agentContext.isRunning = false;
+    agentContext.isSubmitting = false;
     openAssistant.mockClear().mockReturnValue(true);
     submit.mockClear().mockResolvedValue(true);
   });
@@ -52,6 +54,28 @@ describe("InAppAgentWidgetComposer", () => {
     expect(
       screen.getByRole("button", { name: "Add with Langfuse Assistant" }),
     ).toBeDisabled();
+  });
+
+  it("starts a new widget conversation while the selected conversation is busy", async () => {
+    agentContext.isRunning = true;
+    agentContext.isSubmitting = true;
+    const onSubmitted = vi.fn();
+    render(<InAppAgentWidgetComposer onSubmitted={onSubmitted} />);
+
+    fireEvent.change(screen.getByLabelText("Describe the widget you want"), {
+      target: { value: "Show p95 latency" },
+    });
+    const submitButton = screen.getByRole("button", {
+      name: "Add with Langfuse Assistant",
+    });
+
+    expect(submitButton).toBeEnabled();
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(submit).toHaveBeenCalledOnce();
+    });
+    expect(onSubmitted).toHaveBeenCalledOnce();
   });
 
   it("keeps the picker open and preserves the request when submit does not start", async () => {

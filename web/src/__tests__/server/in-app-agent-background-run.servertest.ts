@@ -21,6 +21,7 @@ import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
 } from "@langfuse/shared/in-app-agent";
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
@@ -244,12 +245,13 @@ describe("in-app agent background runs", () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
-    const { runId } = await caller.startRun({
+    const { conversationId, runId } = await caller.startRun({
       projectId,
       conversationId: conversation.id,
       message: "why did these traces fail?",
       context: [{ description: "current_url", value: "/project/x/traces" }],
     });
+    expect(conversationId).toBe(conversation.id);
 
     const run = await prisma.inAppAgentRun.findFirstOrThrow({
       where: { id: runId, projectId },
@@ -807,8 +809,7 @@ describe("in-app agent background runs", () => {
       }),
     ).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
-      message:
-        "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.",
+      message: IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
     });
 
     await expect(
@@ -1287,5 +1288,55 @@ describe("in-app agent background runs", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     expect(enqueuedJobs).toHaveLength(0);
+  });
+
+  it("lists the newest run per conversation and classifies a dead worker without writing", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.SUCCEEDED,
+        finishedAt: new Date(Date.now() - 10 * 60_000),
+        createdAt: new Date(Date.now() - 10 * 60_000),
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+    const deadRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: new Date(Date.now() - 5 * 60_000),
+        heartbeatAt: new Date(Date.now() - 5 * 60_000),
+        createdAt: new Date(Date.now() - 5 * 60_000),
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+
+    const listed = await caller.listConversations({ projectId, limit: 50 });
+
+    // The newest run wins, and a run whose worker stopped reporting is served
+    // as failed even though nothing has written that verdict yet.
+    expect(
+      listed.conversations.find((row) => row.id === conversation.id)?.latestRun,
+    ).toEqual({
+      id: deadRun.id,
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.WORKER_LOST,
+      cancelRequested: false,
+    });
+
+    const stored = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: deadRun.id, projectId },
+    });
+    expect(stored.status).toBe(InAppAgentRunStatus.RUNNING);
+    expect(stored.finishedAt).toBeNull();
   });
 });

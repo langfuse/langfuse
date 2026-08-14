@@ -15,12 +15,8 @@ service:
     get-many:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. Use GET /api/public/v3/scores instead."
-      docs: |
-        **Deprecated.** Use `GET /api/public/v3/scores` instead. This endpoint
-        is no longer available on Langfuse v4 and later.
-
-        Get a list of scores (supports both trace and session scores)
+        message: "Langfuse v3 is deprecated; this endpoint is not available on Langfuse v4 and later and will be removed on November 16, 2026. Use `GET /api/public/v3/scores` instead."
+      docs: Get a list of scores (supports both trace and session scores)
       method: GET
       path: /v2/scores
       request:
@@ -100,12 +96,8 @@ service:
     get-by-id:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. Use GET /api/public/v3/scores with the id filter instead."
-      docs: |
-        **Deprecated.** Use `GET /api/public/v3/scores` with the `id` filter
-        instead. This endpoint is no longer available on Langfuse v4 and later.
-
-        Get a score (supports both trace and session scores)
+        message: "Langfuse v3 is deprecated; this endpoint is not available on Langfuse v4 and later and will be removed on November 16, 2026. Use `GET /api/public/v3/scores` with the `id` filter instead."
+      docs: Get a score (supports both trace and session scores)
       method: GET
       path: /v2/scores/{scoreId}
       path-parameters:

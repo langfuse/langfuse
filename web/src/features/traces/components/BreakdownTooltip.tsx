@@ -6,7 +6,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { useState } from "react";
 import Decimal from "decimal.js";
-import { getMaxDecimals } from "@/src/features/models/utils";
+import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
 
 interface BreakdownTooltipProps {
