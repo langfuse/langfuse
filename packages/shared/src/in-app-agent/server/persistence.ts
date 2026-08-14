@@ -384,13 +384,18 @@ export function createSandboxToolCallFileAccumulator(
       return;
     }
 
-    const content = getString(event, "content");
     const error = getString(event, "error") ?? null;
+    // Unwrap once and classify the result we would archive, rather than parsing
+    // the raw content here and again on the way into the file.
+    const response = parseSandboxToolCallValue(
+      getString(event, "content"),
+      getSandboxInAppAgentMcpToolResultContent,
+    );
 
     drafts.delete(toolCallId);
     completedToolCallIds.add(toolCallId);
 
-    if (getToolFailureMessage(error, content)) {
+    if (getToolFailureMessage(error, response)) {
       return;
     }
 
@@ -399,10 +404,7 @@ export function createSandboxToolCallFileAccumulator(
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
-          response: parseSandboxToolCallValue(
-            content,
-            getSandboxInAppAgentMcpToolResultContent,
-          ),
+          response,
           error,
         },
         null,
