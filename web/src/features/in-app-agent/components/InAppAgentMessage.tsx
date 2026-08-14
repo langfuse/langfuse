@@ -38,7 +38,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -70,6 +69,7 @@ export type InAppAgentMessageContent =
       type: "text";
       text: string;
       feedback?: InAppAgentMessageFeedback;
+      isStreaming?: boolean;
       redirectAction?: InAppAgentRedirectActionContent;
       sources?: InAppAgentMessageSource[];
     }
@@ -77,7 +77,6 @@ export type InAppAgentMessageContent =
   | {
       type: "toolGroup";
       tools: InAppAgentToolCallContent[];
-      isLoading?: boolean;
     };
 
 const parseAbsoluteUrl = (href: string): URL | null => {
@@ -153,6 +152,10 @@ export type InAppAgentMessageProps = {
   content: InAppAgentMessageContent;
   isCompact?: boolean;
   isFeedbackDisabled?: boolean;
+  /** False for intermediate blocks rendered inside the activity drawer, which
+   * withholds the whole trailing row: copy, feedback, sources and timestamp. */
+  isFinalAnswer?: boolean;
+  timestamp?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -164,6 +167,8 @@ export function InAppAgentMessage({
   content,
   isCompact = false,
   isFeedbackDisabled = false,
+  isFinalAnswer = true,
+  timestamp,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
   if (content.type === "redirectAction") {
@@ -171,26 +176,28 @@ export function InAppAgentMessage({
   }
 
   if (content.type === "toolGroup") {
-    return (
-      <ToolCallGroup
-        tools={content.tools}
-        isLoading={content.isLoading}
-        isCompact={isCompact}
-      />
-    );
+    return <ToolCallGroup tools={content.tools} isCompact={isCompact} />;
   }
 
   if (content.type === "reasoning") {
     return <InAppAgentReasoningBlock content={content} isCompact={isCompact} />;
   }
 
-  if (content.type === "text" && role === "assistant") {
+  if (content.type === "text") {
+    if (role === "user") {
+      return (
+        <MessageCard role={role} content={content} isCompact={isCompact} />
+      );
+    }
+
     return (
-      <AssistantMessageWithFeedback
+      <TextMessageWithActions
         content={content}
         isCompact={isCompact}
         isFeedbackDisabled={isFeedbackDisabled}
         onSubmitFeedback={onSubmitFeedback}
+        isFinalAnswer={isFinalAnswer}
+        timestamp={timestamp}
       />
     );
   }
@@ -215,13 +222,14 @@ const MessageCard = forwardRef<
     <div
       ref={ref}
       className={cn(
-        "max-w-full overflow-hidden wrap-break-word shadow-xs",
-        isCompact
-          ? "rounded-xl px-2.5 py-1 text-[0.775rem]"
-          : "rounded-2xl px-3 py-1.5 text-sm",
+        "max-w-full overflow-hidden wrap-break-word",
+        isCompact ? "text-[0.775rem]" : "text-sm",
         isUser
-          ? "bg-primary text-primary-foreground"
-          : "bg-card text-foreground border-border border",
+          ? cn(
+              "bg-muted text-foreground rounded-2xl",
+              isCompact ? "px-2.5 py-1" : "px-3 py-1.5",
+            )
+          : "text-foreground",
       )}
     >
       {content.type === "loading" ? (
@@ -243,62 +251,144 @@ const MessageCard = forwardRef<
   );
 });
 
-function AssistantMessageWithFeedback({
+function TextMessageWithActions({
   content,
   isCompact,
   isFeedbackDisabled,
   onSubmitFeedback,
+  isFinalAnswer,
+  timestamp,
 }: {
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
+  isFinalAnswer: boolean;
+  timestamp?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
   }) => Promise<void>;
 }) {
-  const [messageCardRef, messageCardSize] = useElementSize<HTMLDivElement>();
+  const messageCardRef = useRef<HTMLDivElement>(null);
+  const { copyRich, isCopied } = useCopyToClipboard({
+    successDuration: 1_500,
+  });
   const sources = content.sources ?? [];
   const hasSources = sources.length > 0;
-  const hasActions = Boolean(onSubmitFeedback || hasSources);
+  const isSettled = !content.isStreaming;
+  const canSubmitFeedback = isSettled && onSubmitFeedback;
+  const hasActions = isSettled && isFinalAnswer;
+  const formattedTimestamp = timestamp
+    ? formatMessageTimestamp(timestamp)
+    : null;
+
+  const handleCopy = () => {
+    const renderedContent = messageCardRef.current?.querySelector(
+      "[data-in-app-agent-message-content]",
+    );
+    const htmlContainer = renderedContent?.cloneNode(true) as
+      | HTMLElement
+      | undefined;
+    htmlContainer
+      ?.querySelectorAll("[data-in-app-agent-code-copy-button]")
+      .forEach((node) => {
+        node.remove();
+      });
+
+    copyRich({
+      text: content.text,
+      html: htmlContainer?.innerHTML ?? content.text,
+    }).catch(() => undefined);
+  };
+
+  const actions = (
+    <>
+      <button
+        type="button"
+        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-md p-1 outline-none focus-visible:ring-2"
+        aria-label={isCopied ? "Message copied" : "Copy message"}
+        title={isCopied ? "Copied" : "Copy message"}
+        onClick={handleCopy}
+      >
+        {isCopied ? (
+          <Check className={cn(isCompact ? "size-3" : "size-3.5")} />
+        ) : (
+          <Copy className={cn(isCompact ? "size-3" : "size-3.5")} />
+        )}
+      </button>
+      {canSubmitFeedback ? (
+        <MessageFeedbackControls
+          feedback={content.feedback}
+          isCompact={isCompact}
+          isFeedbackDisabled={isFeedbackDisabled}
+          onSubmitFeedback={canSubmitFeedback}
+        />
+      ) : null}
+      {hasSources ? (
+        <SourcesPopover sources={sources} isCompact={isCompact} />
+      ) : null}
+    </>
+  );
 
   return (
-    <div className="flex max-w-full flex-col items-start">
+    <div className="group/message flex max-w-full flex-col items-start">
       <MessageCard
         ref={messageCardRef}
         role="assistant"
-        content={content}
+        content={
+          // The turn's redirect belongs to the answer. Leaving it on the block
+          // that happened to carry it would offer the same action twice once
+          // the activity drawer is open.
+          isFinalAnswer ? content : { ...content, redirectAction: undefined }
+        }
         isCompact={isCompact}
       />
       {hasActions ? (
         <div
-          style={
-            messageCardSize?.width
-              ? { width: messageCardSize.width, maxWidth: "100%" }
-              : undefined
-          }
+          data-testid="in-app-agent-message-actions"
           className={cn(
-            "flex max-w-full min-w-50 flex-col items-start overflow-hidden",
-            isCompact ? "mt-1.5" : "mt-2",
+            "flex min-h-6 max-w-full items-center gap-0.5",
+            isCompact ? "mt-0.5" : "mt-1",
           )}
         >
-          <div className="flex w-full min-w-0 items-center gap-1">
-            {onSubmitFeedback ? (
-              <MessageFeedbackControls
-                feedback={content.feedback}
-                isCompact={isCompact}
-                isFeedbackDisabled={isFeedbackDisabled}
-                onSubmitFeedback={onSubmitFeedback}
-              />
-            ) : null}
-            {hasSources ? (
-              <SourcesPopover sources={sources} isCompact={isCompact} />
-            ) : null}
-          </div>
+          <div className="flex items-center gap-0.5">{actions}</div>
+          {formattedTimestamp ? (
+            <time
+              dateTime={formattedTimestamp.iso}
+              title={formattedTimestamp.full}
+              aria-label={`Sent ${formattedTimestamp.full}`}
+              suppressHydrationWarning
+              className="text-muted-foreground ml-1 text-[0.6875rem] opacity-0 transition-opacity group-focus-within/message:opacity-100 group-hover/message:opacity-100"
+            >
+              {formattedTimestamp.short}
+            </time>
+          ) : null}
         </div>
       ) : null}
     </div>
   );
+}
+
+function formatMessageTimestamp(timestamp: number) {
+  const date = new Date(timestamp);
+  const today = new Date();
+  const isToday =
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate();
+
+  return {
+    iso: date.toISOString(),
+    short: new Intl.DateTimeFormat(undefined, {
+      ...(isToday ? {} : { year: "numeric", month: "short", day: "numeric" }),
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date),
+    full: new Intl.DateTimeFormat(undefined, {
+      dateStyle: "full",
+      timeStyle: "medium",
+    }).format(date),
+  };
 }
 
 function InAppAgentReasoningBlock({
@@ -665,51 +755,26 @@ function RedirectActionButton({
 
 function ToolCallGroup({
   tools,
-  isLoading = false,
   isCompact = false,
 }: {
   tools: InAppAgentToolCallContent[];
-  isLoading?: boolean;
   isCompact?: boolean;
 }) {
-  const label = `${isLoading ? "Calling" : "Called"} ${tools.length} ${
-    tools.length === 1 ? "tool" : "tools"
-  }`;
-  const [userToggled, setUserToggled] = useState<boolean | null>(null);
-  const isOpen = userToggled ?? isLoading;
-
   return (
-    <details
-      open={isOpen}
-      onToggle={(event) => {
-        if (event.currentTarget.open !== isOpen) {
-          setUserToggled(event.currentTarget.open);
-        }
-      }}
+    <div
       className={cn(
-        "text-muted-foreground max-w-full",
+        "text-muted-foreground flex max-w-full flex-col gap-0",
         isCompact ? "text-[0.775rem]" : "text-sm",
       )}
     >
-      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-        <span className={cn(isLoading && styles.thinkingShimmer)}>{label}</span>
-        <ChevronDown
-          className={cn(
-            "size-3.5 shrink-0 transition-transform",
-            !isOpen && "-rotate-90",
-          )}
+      {tools.map((tool, index) => (
+        <ToolCallDisclosure
+          key={`${tool.name}-${index}`}
+          tool={tool}
+          isCompact={isCompact}
         />
-      </summary>
-      <div className="mt-0.5 flex flex-col gap-0">
-        {tools.map((tool, index) => (
-          <ToolCallDisclosure
-            key={`${tool.name}-${index}`}
-            tool={tool}
-            isCompact={isCompact}
-          />
-        ))}
-      </div>
-    </details>
+      ))}
+    </div>
   );
 }
 
@@ -721,12 +786,12 @@ function ToolCallDisclosure({
   isCompact: boolean;
 }) {
   const status = tool.status;
-  const displayName = getInAppAgentToolDisplayName(tool.name);
+  const toolName = getInAppAgentToolDisplayName(tool.name);
 
   return (
     <details className="group/tool min-w-0">
       <summary
-        aria-label={`${displayName}: ${status}`}
+        aria-label={`${toolName}: ${status}`}
         className={cn(
           "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
           isCompact && "px-0.5",
@@ -739,9 +804,9 @@ function ToolCallDisclosure({
             status === "failed" && "text-destructive",
             status === "denied" && "text-dark-yellow",
           )}
-          title={displayName}
+          title={toolName}
         >
-          {displayName}
+          {toolName}
         </span>
       </summary>
       <div className={cn("mt-1.5 mb-1 ml-3 px-3", isCompact && "px-2.5")}>
@@ -790,6 +855,7 @@ function MessageText({
   if (role === "user") {
     return (
       <p
+        data-in-app-agent-message-content
         className={cn(
           "whitespace-pre-wrap",
           isCompact ? "leading-4" : "leading-4.5",
@@ -802,6 +868,7 @@ function MessageText({
 
   return (
     <div
+      data-in-app-agent-message-content
       data-compact={isCompact}
       onCopy={(event) => {
         const browserSelection =

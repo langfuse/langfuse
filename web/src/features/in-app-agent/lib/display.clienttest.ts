@@ -1,6 +1,7 @@
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentDisplayState,
+  deserializeInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
   recordInAppAgentMessagesForDisplay,
   recordInAppAgentToolCallForDisplay,
@@ -21,6 +22,64 @@ const assistantToolMessage = {
 } satisfies AgUiMessage;
 
 describe("in-app agent display projection", () => {
+  it("keeps first-observed timestamps for canonical and projected text blocks", () => {
+    const initialMessages = [
+      { id: "user", role: "user", content: "Investigate this" },
+      { id: "assistant", role: "assistant", content: "First answer." },
+    ] satisfies AgUiMessage[];
+    const messagesWithReasoning = [
+      ...initialMessages,
+      {
+        id: "reasoning",
+        role: "reasoning",
+        content: "Another thought.",
+      },
+    ] satisfies AgUiMessage[];
+    const finalMessages = messagesWithReasoning.map((message) =>
+      message.id === "assistant"
+        ? { ...message, content: "First answer. Second answer." }
+        : message,
+    );
+    let displayState = createInAppAgentDisplayState();
+    displayState = recordInAppAgentMessagesForDisplay(
+      displayState,
+      initialMessages,
+      1_000,
+    );
+    displayState = recordInAppAgentMessagesForDisplay(
+      displayState,
+      messagesWithReasoning,
+      2_000,
+    );
+    displayState = recordInAppAgentMessagesForDisplay(
+      displayState,
+      finalMessages,
+      3_000,
+    );
+
+    expect(
+      projectInAppAgentMessagesForDisplay(finalMessages, displayState).map(
+        (message) => ({ id: message.id, timestamp: message.timestamp }),
+      ),
+    ).toEqual([
+      { id: "user", timestamp: 1_000 },
+      { id: "assistant", timestamp: 1_000 },
+      { id: "reasoning", timestamp: 2_000 },
+      { id: "display-text-assistant-1", timestamp: 3_000 },
+    ]);
+  });
+
+  it("still hydrates a payload from the bundle that sent seen ids separately", () => {
+    const { messageTimestamps: _messageTimestamps, ...legacyState } = {
+      ...createInAppAgentDisplayState(),
+      seenMessageIds: ["assistant"],
+    };
+
+    expect(deserializeInAppAgentDisplayState(legacyState)).toEqual(
+      createInAppAgentDisplayState(),
+    );
+  });
+
   it("keeps consecutive tool calls with the same parent together", () => {
     const assistantMessage = {
       id: "assistant-tools",
