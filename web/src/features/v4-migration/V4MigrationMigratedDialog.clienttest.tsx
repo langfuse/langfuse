@@ -7,7 +7,7 @@ import { type ProjectMigrationStatus } from "./migrationData";
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   routerPush: vi.fn(),
-  openWithMode: vi.fn(),
+  setBetaEnabled: vi.fn(),
   isBetaEnabled: false,
   canToggleV4: true,
   migrationData: undefined as unknown as ProjectMigrationStatus,
@@ -36,11 +36,8 @@ vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
   useV4Beta: () => ({
     isBetaEnabled: mocks.isBetaEnabled,
     canToggleV4: mocks.canToggleV4,
+    setBetaEnabled: mocks.setBetaEnabled,
   }),
-}));
-
-vi.mock("@/src/features/support-chat/SupportDrawerProvider", () => ({
-  useSupportDrawer: () => ({ openWithMode: mocks.openWithMode }),
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -89,7 +86,7 @@ describe("V4MigrationMigratedDialog", () => {
     mocks.migrationData = migratedStatus();
   });
 
-  it("shows for a migrated project with v4 traffic and reports shown once", () => {
+  it("shows once for a migrated project and switches the v4 UI on in the background", () => {
     const { rerender } = render(<V4MigrationMigratedDialog />);
 
     expect(screen.getByText("Welcome to Langfuse V4")).toBeInTheDocument();
@@ -99,14 +96,23 @@ describe("V4MigrationMigratedDialog", () => {
         ([name]) => name === "v4_migration:migrated_banner_shown",
       ),
     ).toHaveLength(1);
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:migrated_banner_shown",
+      { projectId: "project-1", surface: "dialog", autoSwitchedV4: true },
+    );
+    expect(mocks.setBetaEnabled).toHaveBeenCalledExactlyOnceWith(true);
   });
 
-  it("hides when the user already has the v4 view on", () => {
+  it("still shows to users already on v4 until acknowledged, without re-switching", () => {
     mocks.isBetaEnabled = true;
     render(<V4MigrationMigratedDialog />);
-    expect(
-      screen.queryByText("Welcome to Langfuse V4"),
-    ).not.toBeInTheDocument();
+
+    expect(screen.getByText("Welcome to Langfuse V4")).toBeInTheDocument();
+    expect(mocks.setBetaEnabled).not.toHaveBeenCalled();
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:migrated_banner_shown",
+      { projectId: "project-1", surface: "dialog", autoSwitchedV4: false },
+    );
   });
 
   it("hides while the project still needs action", () => {
@@ -168,17 +174,5 @@ describe("V4MigrationMigratedDialog", () => {
         "v4-migration-migrated-dialog-dismissed:project-1",
       ),
     ).toBeTruthy();
-  });
-
-  it("support link opens the drawer with the migration topic and keeps the dialog", () => {
-    render(<V4MigrationMigratedDialog />);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Something looks wrong?" }),
-    );
-
-    expect(mocks.openWithMode).toHaveBeenCalledExactlyOnceWith("form", {
-      topic: "V4 Migration",
-    });
-    expect(screen.getByText("Welcome to Langfuse V4")).toBeInTheDocument();
   });
 });

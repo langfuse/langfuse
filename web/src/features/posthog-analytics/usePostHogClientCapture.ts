@@ -355,7 +355,6 @@ export const events = {
     // measure whether the completion moment converts stranded-on-v3 users.
     "migrated_banner_shown",
     "migrated_banner_switch_clicked",
-    "migrated_banner_support_clicked",
     "migrated_banner_status_clicked",
     "migrated_banner_dismissed",
   ],
