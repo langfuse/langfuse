@@ -402,6 +402,30 @@ describe("ControlledInAppAgentWindow composer", () => {
       screen.queryByText("The run failed. Try again."),
     ).not.toBeInTheDocument();
   });
+
+  it("locks the composer when a write-lock rejection arrives before the cached flag", () => {
+    controlledAgent.value.isRunning = false;
+    controlledAgent.value.selectedConversationIsWriteLocked = false;
+    controlledAgent.value.error = { type: "write_lock" };
+
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByText(IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeDisabled();
+  });
 });
 
 describe("ControlledInAppAgentWindow stop", () => {

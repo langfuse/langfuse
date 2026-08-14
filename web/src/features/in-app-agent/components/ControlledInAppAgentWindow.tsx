@@ -107,9 +107,10 @@ export function ControlledInAppAgentWindow(
     shouldFlush: error !== null || isCancellingRun || shouldFlushCancelledRun,
   });
   const windowExecutionUi: InAppAgentWindowExecutionUi = {
-    notice: selectedConversationIsWriteLocked
-      ? null
-      : getBackgroundRunNotice(execution.run),
+    notice:
+      selectedConversationIsWriteLocked || error?.type === "write_lock"
+        ? null
+        : getBackgroundRunNotice(execution.run),
     stop:
       execution.run && isCancellableBackgroundRun(execution.run.status)
         ? {
@@ -123,9 +124,12 @@ export function ControlledInAppAgentWindow(
   };
   // Only a read-only conversation disables the composer outright. An assistant
   // turn -- including one paused on an approval -- blocks submission but leaves
-  // the draft editable.
+  // the draft editable. A server write-lock rejection is treated the same as
+  // the cached flag, so a stale conversation query cannot leave the composer open.
   const isConversationInteractionDisabled =
-    selectedConversationIsWriteLocked || isSelectedConversationHydrating;
+    selectedConversationIsWriteLocked ||
+    isSelectedConversationHydrating ||
+    error?.type === "write_lock";
   const isAssistantTurnInProgress =
     isRunning ||
     isAnimating ||
@@ -201,7 +205,9 @@ export function ControlledInAppAgentWindow(
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
       isSelectedConversationHydrating={isSelectedConversationHydrating}
-      disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
+      disablePendingToolApprovalActions={
+        selectedConversationIsWriteLocked || error?.type === "write_lock"
+      }
       messages={drawerMessages}
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}
