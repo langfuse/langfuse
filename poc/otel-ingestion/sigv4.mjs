@@ -1,4 +1,6 @@
-// Minimal AWS SigV4 signer for MinIO (header auth, path-style). Node stdlib only.
+// Minimal AWS SigV4 signer (header auth, path-style) for MinIO and real S3.
+// Node stdlib only. Real-S3 use: POC_S3_REGION must match the endpoint's
+// region, and POC_S3_SESSION_TOKEN carries STS/SSO temporary credentials.
 import { createHash, createHmac } from "node:crypto";
 
 const sha256hex = (data) => createHash("sha256").update(data).digest("hex");
@@ -6,12 +8,13 @@ const hmac = (key, data) => createHmac("sha256", key).update(data).digest();
 
 export function signedFetch({
   method,
-  endpoint, // e.g. http://127.0.0.1:9090
+  endpoint, // e.g. http://127.0.0.1:9090 or https://s3.eu-west-1.amazonaws.com
   path, // e.g. /langfuse/otel-poc/p1/w0/x.json (URI path, already encoded)
   body = undefined,
   accessKey,
   secretKey,
-  region = "us-east-1",
+  region = process.env.POC_S3_REGION ?? "us-east-1",
+  sessionToken = process.env.POC_S3_SESSION_TOKEN,
 }) {
   const url = new URL(endpoint);
   const now = new Date();
@@ -27,6 +30,7 @@ export function signedFetch({
     "x-amz-content-sha256": payloadHash,
     "x-amz-date": amzDate,
   };
+  if (sessionToken) headers["x-amz-security-token"] = sessionToken;
   const signedHeaderNames = Object.keys(headers).sort();
   const canonicalHeaders = signedHeaderNames
     .map((h) => `${h}:${headers[h]}\n`)

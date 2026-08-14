@@ -324,6 +324,8 @@ struct Config {
     bucket: String,
     access_key: String,
     secret_key: String,
+    s3_region: String,
+    s3_session_token: Option<String>,
     ch_url: String,
     ch_user: String,
     ch_password: String,
@@ -343,6 +345,10 @@ impl Config {
             bucket: env_or("POC_MINIO_BUCKET", "langfuse"),
             access_key: env_or("POC_MINIO_ACCESS_KEY", "minio"),
             secret_key: env_or("POC_MINIO_SECRET_KEY", "miniosecret"),
+            // real-S3 runs: region must match the endpoint's; the token
+            // carries STS/SSO temporary credentials
+            s3_region: env_or("POC_S3_REGION", "us-east-1"),
+            s3_session_token: std::env::var("POC_S3_SESSION_TOKEN").ok(),
             ch_url: env_or("POC_CH_URL", "http://127.0.0.1:8123"),
             ch_user: env_or("POC_CH_USER", "clickhouse"),
             ch_password: env_or("POC_CH_PASSWORD", "clickhouse"),
@@ -369,16 +375,18 @@ impl Config {
 }
 
 fn s3_store(cfg: &Config) -> Result<Arc<dyn ObjectStore>> {
-    let store = AmazonS3Builder::new()
+    let mut builder = AmazonS3Builder::new()
         .with_endpoint(cfg.minio_endpoint.as_str())
         .with_allow_http(true)
         .with_bucket_name(cfg.bucket.as_str())
         .with_access_key_id(cfg.access_key.as_str())
         .with_secret_access_key(cfg.secret_key.as_str())
-        .with_region("us-east-1")
-        .with_virtual_hosted_style_request(false)
-        .build()?;
-    Ok(Arc::new(store))
+        .with_region(cfg.s3_region.as_str())
+        .with_virtual_hosted_style_request(false);
+    if let Some(token) = cfg.s3_session_token.as_deref() {
+        builder = builder.with_token(token);
+    }
+    Ok(Arc::new(builder.build()?))
 }
 
 fn clickhouse_client(cfg: &Config) -> clickhouse::Client {

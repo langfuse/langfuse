@@ -7,7 +7,7 @@ edition = "2021"
 anyhow = "1"
 base64 = "0.22"
 bytes = "1"
-clickhouse = { version = "0.13", features = ["lz4"] }
+clickhouse = { version = "0.13", features = ["lz4", "rustls-tls"] }
 futures = "0.3"
 libc = "0.2"
 object_store = { version = "0.12", features = ["aws"] }

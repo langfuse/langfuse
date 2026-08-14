@@ -191,7 +191,14 @@ async function main() {
         round(sum(query_duration_ms) / 1000, 2) AS wall_s,
         round(sum(ProfileEvents['OSCPUVirtualTimeMicroseconds']) / 1e6, 2) AS cpu_s,
         formatReadableSize(max(memory_usage)) AS peak_mem_per_query,
-        formatReadableSize(sum(read_bytes)) AS read_bytes
+        formatReadableSize(sum(read_bytes)) AS read_bytes,
+        -- S3 API traffic (zero on local MinIO reads via url()): GETs on the
+        -- transform reads, PUTs on part writes, and CopyObject on MOVE
+        -- PARTITION commits — on SharedMergeTree a MOVE physically copies
+        -- every part blob, so this is the publish-step price tag
+        toUInt64(sum(ProfileEvents['S3GetObject'])) AS s3_get,
+        toUInt64(sum(ProfileEvents['S3PutObject'])) AS s3_put,
+        toUInt64(sum(ProfileEvents['S3CopyObject'])) AS s3_copy
      FROM system.query_log
      WHERE log_comment = '${logComment}' AND type = 'QueryFinish'
        AND event_time_microseconds >= fromUnixTimestamp64Milli(${runStarted})`,
