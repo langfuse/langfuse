@@ -8,16 +8,18 @@ import { cn } from "@/src/utils/tailwind";
 export function V4MigrationStatusDot({
   variant,
 }: {
-  variant: "action" | "done";
+  // "neutral" marks optional helpers in the checklist — neither pending
+  // work (amber) nor a completed check (green).
+  variant: "action" | "done" | "neutral";
 }) {
   return (
     <span
       aria-hidden
       className={cn(
         "size-1.75 shrink-0 rounded-full",
-        variant === "action"
-          ? "bg-orange-400 dark:bg-orange-400"
-          : "bg-green-400 dark:bg-green-400",
+        variant === "action" && "bg-orange-400 dark:bg-orange-400",
+        variant === "done" && "bg-green-400 dark:bg-green-400",
+        variant === "neutral" && "bg-gray-400 dark:bg-gray-400",
       )}
     />
   );
@@ -79,8 +81,12 @@ export function V4MigrationBadgeContent({
         <span className="flex items-center">
           {title}
           {description ? (
-            <span className="flex max-w-0 items-center overflow-hidden transition-[max-width] duration-300 ease-out group-hover:max-w-96 group-focus-visible:max-w-96">
-              <span className="whitespace-nowrap">.&nbsp;{description}.</span>
+            // 0fr -> 1fr animates to the intrinsic text width; a max-width cap
+            // would clip any description longer than the magic number (LF-90).
+            <span className="grid grid-cols-[0fr] transition-[grid-template-columns] duration-300 ease-out group-hover:grid-cols-[1fr] group-focus-visible:grid-cols-[1fr]">
+              <span className="min-w-0 overflow-hidden">
+                <span className="whitespace-nowrap">.&nbsp;{description}.</span>
+              </span>
             </span>
           ) : null}
           {showChevron ? (

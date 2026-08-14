@@ -13,6 +13,23 @@ import { createInAppAgentSandbox } from "@langfuse/shared/in-app-agent/server/sa
 import { withOptionalSilentMcpOutput } from "@langfuse/shared/in-app-agent/server/tools";
 import { listObservationsTool } from "@/src/features/mcp/features/observations/tools/listObservations";
 
+// Only presence matters for the tests below: it is what makes
+// withOptionalSilentMcpOutput advertise the `silent` parameter.
+const dummySandbox = {
+  async read() {
+    return null;
+  },
+  async write() {
+    return null;
+  },
+  async edit() {
+    return null;
+  },
+  async bash() {
+    return null;
+  },
+};
+
 describe("in-app agent sandbox", () => {
   it("redacts silent MCP output from persisted conversation display", async () => {
     const silentResult = JSON.stringify({
@@ -318,20 +335,7 @@ describe("in-app agent sandbox", () => {
           execute,
         }),
       },
-      sandbox: {
-        async read() {
-          return null;
-        },
-        async write() {
-          return null;
-        },
-        async edit() {
-          return null;
-        },
-        async bash() {
-          return null;
-        },
-      },
+      sandbox: dummySandbox,
     });
     const tool = tools.search;
 
@@ -374,20 +378,7 @@ describe("in-app agent sandbox", () => {
           }),
         },
       },
-      sandbox: {
-        async read() {
-          return null;
-        },
-        async write() {
-          return null;
-        },
-        async edit() {
-          return null;
-        },
-        async bash() {
-          return null;
-        },
-      },
+      sandbox: dummySandbox,
     });
 
     if (!tools.listObservations.inputSchema) {
@@ -453,5 +444,112 @@ describe("in-app agent sandbox", () => {
     }
 
     expect("silent" in tools.search.inputSchema.shape).toBe(false);
+  });
+
+  it("does not silence an MCP result that reports its own error", async () => {
+    // Verbatim shape of a real failure from the langfuse docs MCP server: the
+    // `isError` marker sits on the envelope and the text is not JSON, so
+    // classifying the unwrapped content alone reads it as a success.
+    const mcpErrorResult = {
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: "Error fetching docs page markdown: Failed to fetch https://langfuse.com/not-a-real-page.md: 404",
+        },
+      ],
+    };
+    const toolCallFiles = createSandboxToolCallFileAccumulator([]);
+    const tools = withOptionalSilentMcpOutput({
+      tools: {
+        search: new Tool({
+          id: "search",
+          description: "Search",
+          inputSchema: z.object({ query: z.string() }),
+          execute: async () => mcpErrorResult,
+        }),
+      },
+      sandbox: dummySandbox,
+      onToolCallCompleted: toolCallFiles.processToolCall,
+    });
+
+    const output = await tools.search.execute?.(
+      { query: "test", silent: true },
+      { agent: { toolCallId: "tool-call-1" } } as never,
+    );
+
+    // Not wrapped, so the model reads the failure inline rather than being
+    // pointed at a tool_calls file that is never written for failures.
+    expect(output).toEqual(mcpErrorResult);
+    expect(tools.search.toModelOutput?.(output)).toEqual(mcpErrorResult);
+    expect(toolCallFiles.getFiles()).toEqual([]);
+  });
+
+  it("rethrows a thrown silent MCP error and writes no sandbox file", async () => {
+    const toolCallFiles = createSandboxToolCallFileAccumulator([]);
+    const tools = withOptionalSilentMcpOutput({
+      tools: {
+        search: new Tool({
+          id: "search",
+          description: "Search",
+          inputSchema: z.object({ query: z.string() }),
+          execute: async () => {
+            throw new Error(
+              "McpError -32602: Validation failed: Required at view",
+            );
+          },
+        }),
+      },
+      sandbox: dummySandbox,
+      onToolCallCompleted: toolCallFiles.processToolCall,
+    });
+
+    // The throw must survive the wrapper: the adapter's tool-error rewrite
+    // feeds it back to the model, and approved-tool failures are classified
+    // from it.
+    await expect(
+      tools.search.execute?.({ query: "test", silent: true }, {
+        agent: { toolCallId: "tool-call-2" },
+      } as never),
+    ).rejects.toThrow("McpError -32602: Validation failed: Required at view");
+    expect(toolCallFiles.getFiles()).toEqual([]);
+  });
+
+  it("does not export failed tool calls into sandbox tool_calls files", () => {
+    const files = getSandboxToolCallFiles([
+      {
+        createdAt: new Date("2026-07-02T12:00:00.000Z"),
+        runId: "run-1",
+        event: {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "tool-call-1",
+          toolCallName: "langfuse_queryMetrics",
+        },
+      },
+      {
+        createdAt: new Date("2026-07-02T12:00:00.100Z"),
+        runId: "run-1",
+        event: {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: "tool-call-1",
+          delta: '{"silent":true}',
+        },
+      },
+      {
+        createdAt: new Date("2026-07-02T12:00:00.200Z"),
+        runId: "run-1",
+        event: {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: "tool-call-1",
+          content: JSON.stringify({
+            error: true,
+            message:
+              "Tool input validation failed for langfuse_queryMetrics. Please fix the following errors and try again:\n- root: must have required property 'view'",
+          }),
+        },
+      },
+    ]);
+
+    expect(files).toEqual([]);
   });
 });

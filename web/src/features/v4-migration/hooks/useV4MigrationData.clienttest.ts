@@ -42,16 +42,23 @@ const loadedQuery = <T>(data: T) => ({
 });
 
 const currentSdkSeries = {
+  source: "ingestion-api-dual-write" as const,
+  ingestionPath: "ingestion_api" as const,
+  deliveryMode: "delayed" as const,
   sdkName: "python",
   sdkVersion: "4.7.0",
   canonicalSdkName: "python" as const,
+  sdkVersionMajor: 4,
+  latestSdkMajor: 4,
+  isValidSdkVersion: true,
   publicKey: "pk-lf-python",
-  count: 1,
+  eventCount: 1,
   firstSeen: "2026-07-23T09:00:00Z",
   lastSeen: "2026-07-23T10:00:00Z",
-  hasDelayedOtelEvents: true,
   attributionStatus: "attributed" as const,
   v4MigrationStatus: "compatible" as const,
+  remediationType: "update_sdk" as const,
+  actionLevel: "none" as const,
 };
 
 describe("account v4 migration data", () => {
@@ -103,11 +110,13 @@ describe("account v4 migration data", () => {
             projectId: "project-1",
             entrypoint: "publicapi: GET /api/public/traces",
             count: 4,
+            lastSeen: "2026-07-23T10:00:00Z",
           },
           {
             projectId: "project-1",
             entrypoint: "publicapi: GET /api/public/sessions",
             count: 2,
+            lastSeen: "2026-07-23T09:30:00Z",
           },
         ]),
       ],
@@ -142,6 +151,7 @@ describe("account v4 migration data", () => {
       },
       apis: { status: "loaded", count: 2 },
       exports: { status: "loaded", count: 1 },
+      forceV3Experience: false,
     });
     expect(mocks.summaryByProject).toHaveBeenCalledWith(
       { orgId: "org-1" },
@@ -155,5 +165,30 @@ describe("account v4 migration data", () => {
       expect.objectContaining({ orgId: "org-1" }),
       expect.objectContaining({ enabled: true }),
     );
+  });
+
+  it("marks projects forced onto the v3 experience as partner-managed", () => {
+    const [integrationResultSet] = mocks.queryResultSets as [
+      [{ data: { projects: Record<string, unknown>[] } }],
+      ...unknown[][],
+    ];
+    integrationResultSet[0].data.projects[0].forceV3Experience = true;
+
+    const { result } = renderHook(() =>
+      useAccountV4MigrationData({
+        organizations: [
+          {
+            id: "org-1",
+            name: "Organization",
+            projects: [{ id: "project-1", name: "Project" }],
+          },
+        ],
+        enabled: true,
+      }),
+    );
+
+    expect(result.current.get("project-1")).toMatchObject({
+      forceV3Experience: true,
+    });
   });
 });
