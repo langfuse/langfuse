@@ -389,7 +389,23 @@ jobs:
         # same reason. `prisma generate` only reads the schema; it needs no DB.
         run: pnpm --filter=shared run db:generate
       - name: Install playwright
-        run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
+        # apt-get (pulled in by --with-deps) occasionally stalls against a
+        # slow/unresponsive mirror and can ride the job's timeout-minutes
+        # instead of failing fast (observed: a 10-minute hang cancelled by
+        # the job timeout). A normal install takes well under a minute, so
+        # bound each attempt and retry instead of trusting the job-level
+        # timeout as the only guard.
+        run: |
+          attempt=1
+          until timeout 120 pnpm --filter=web exec playwright install --with-deps --only-shell chromium; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "Playwright install failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Attempt $attempt failed (possibly a stalled apt mirror), retrying in $((attempt * 15))s..." >&2
+            sleep $((attempt * 15))
+            attempt=$((attempt + 1))
+          done
       - name: run Storybook tests
         run: pnpm --filter web run test-storybook
       - name: build Storybook
@@ -475,6 +491,10 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
+        with:
+          cache-key: langfuse/test-${{ matrix.component }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Start dependency containers in background

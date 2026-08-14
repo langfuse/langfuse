@@ -284,28 +284,21 @@ export function DataTableControls({
   // must never narrow the list behind the user's back.
   const facetSearchQuery = showFacetSearch ? facetSearch.trim() : "";
 
-  // Matching facet columns, or null when not searching. Selected/added facets
-  // stay visible whether or not they match — a query must never hide what is
-  // currently filtering — so the match set is also what tells "nothing matched"
-  // apart from "only the pinned ones are left".
-  const facetSearchMatches = facetSearchQuery
-    ? new Set(
-        displayedFilters
-          .filter((filter) => facetNameRank(filter, facetSearchQuery) !== null)
-          .map((filter) => filter.column),
-      )
-    : null;
-  // Search FILTERS, it does not reorder: the settled promoted block and config
-  // order still own every position.
+  // The name search FILTERS, it does not reorder: the settled promoted block
+  // and config order still own every position. A facet whose name misses the
+  // query goes whether or not it is filtering — what is in force stays on show
+  // above the list (the header's active count, plus the search bar's tokens
+  // where there is one), so the sidebar need not repeat it mid-search.
   //
   // Non-matching facets are HIDDEN, never unmounted. Every facet holds
   // uncommitted local state — a typed-but-not-added text filter, a metadata
   // condition mid-build, a "show more" expansion, a debounced numeric draft —
-  // and unmounting throws all of it away with nothing said. Typing in a box
-  // above the list must not be able to do that.
-  const visibleFilters = facetSearchMatches
+  // and unmounting throws all of it away with nothing said. Now that an ACTIVE
+  // facet can be hidden too, that matters more, not less: hiding is
+  // presentation only and must never touch the filter state.
+  const visibleFilters = facetSearchQuery
     ? displayedFilters.filter(
-        (filter) => facetSearchMatches.has(filter.column) || isPromoted(filter),
+        (filter) => facetNameRank(filter, facetSearchQuery) !== null,
       )
     : displayedFilters;
   const visibleColumns = new Set(visibleFilters.map((filter) => filter.column));
@@ -411,6 +404,8 @@ export function DataTableControls({
 
     const changed = [...became, ...ceased];
     if (changed.length !== 1) return;
+    // A name search may be hiding the target; display:none has no box, so this
+    // simply does nothing rather than scrolling to an invisible row.
     const facetElement = scrollRootRef.current?.querySelector(
       `[data-facet-column="${CSS.escape(changed[0])}"]`,
     );
@@ -756,14 +751,11 @@ export function DataTableControls({
         })}
       </Accordion>
 
-      {/* Nothing in the catalog matched. Says "other" when pinned
-          selections are still listed above, so the message never
-          contradicts the facets on screen. */}
-      {facetSearchMatches?.size === 0 && (
+      {/* Nothing matched — including any facet currently filtering, which the
+          query hides like the rest. */}
+      {facetSearchQuery !== "" && visibleFilters.length === 0 && (
         <p className="text-muted-foreground px-3 pt-6 text-center text-xs break-words">
-          {visibleFilters.length > 0
-            ? `No other filters match "${facetSearchQuery}"`
-            : `No filters match "${facetSearchQuery}"`}
+          {`No filters match "${facetSearchQuery}"`}
         </p>
       )}
 

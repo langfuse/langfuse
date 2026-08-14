@@ -21,6 +21,7 @@ import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
 } from "@langfuse/shared/in-app-agent";
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
@@ -808,8 +809,7 @@ describe("in-app agent background runs", () => {
       }),
     ).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
-      message:
-        "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.",
+      message: IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
     });
 
     await expect(
