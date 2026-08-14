@@ -802,7 +802,6 @@ describe("getDrawerMessages", () => {
         id: "tools-assistant-1",
         content: {
           type: "toolGroup",
-          isLoading: true,
         },
       },
     ]);
@@ -885,7 +884,7 @@ describe("getDrawerMessages", () => {
       },
       {
         id: "tools-assistant-1",
-        content: { type: "toolGroup", isLoading: false },
+        content: { type: "toolGroup" },
       },
       {
         id: "reasoning-2",
@@ -896,7 +895,7 @@ describe("getDrawerMessages", () => {
       },
       {
         id: "tools-assistant-2",
-        content: { type: "toolGroup", isLoading: true },
+        content: { type: "toolGroup" },
       },
     ]);
   });
@@ -962,14 +961,14 @@ describe("getDrawerMessages", () => {
       { id: "user-1" },
       {
         id: "tools-assistant-1",
-        content: { type: "toolGroup", isLoading: true },
+        content: { type: "toolGroup" },
       },
     ]);
     expect(completedMessages).toMatchObject([
       { id: "user-1" },
       {
         id: "tools-assistant-1",
-        content: { type: "toolGroup", isLoading: false },
+        content: { type: "toolGroup" },
       },
     ]);
   });
@@ -1214,7 +1213,6 @@ describe("getDrawerMessages", () => {
         role: "assistant",
         content: {
           type: "toolGroup",
-          isLoading: false,
           tools: [
             {
               type: "tool",

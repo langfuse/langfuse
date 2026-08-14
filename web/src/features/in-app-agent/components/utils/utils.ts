@@ -432,7 +432,6 @@ export function getDrawerMessages({
   const mappedMessages: InAppAgentWindowMessage[] = [];
   let pendingTools: InAppAgentToolCallContent[] = [];
   let pendingToolGroupId: string | null = null;
-  let pendingToolGroupIsLoading = false;
   let pendingSources: InAppAgentMessageSource[] = [];
   const flushPendingTools = () => {
     if (pendingTools.length === 0) {
@@ -445,12 +444,10 @@ export function getDrawerMessages({
       content: {
         type: "toolGroup",
         tools: pendingTools,
-        isLoading: pendingToolGroupIsLoading,
       },
     });
     pendingTools = [];
     pendingToolGroupId = null;
-    pendingToolGroupIsLoading = false;
   };
 
   parsedMessages.forEach((message, index) => {
@@ -614,11 +611,6 @@ export function getDrawerMessages({
           ) ?? [])
         : [];
     const docsSources = extractLangfuseDocsSources(toolContent);
-    const isToolGroupLoading =
-      isRunning &&
-      !error &&
-      message.role === "assistant" &&
-      message.isLoading === true;
 
     if (role === "assistant" && toolContent.length > 0 && !text.trim()) {
       if (docsSources.length > 0) {
@@ -627,7 +619,6 @@ export function getDrawerMessages({
 
       pendingToolGroupId ??= `tools-${message.id}`;
       pendingTools.push(...toolContent);
-      pendingToolGroupIsLoading ||= isToolGroupLoading;
       return;
     }
 
@@ -683,7 +674,6 @@ export function getDrawerMessages({
         content: {
           type: "toolGroup",
           tools: toolContent,
-          isLoading: isToolGroupLoading,
         },
       });
     }

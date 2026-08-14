@@ -503,12 +503,11 @@ export const RedirectActionWithParams = meta.story({
   },
 });
 
-export const LoadingToolCallGroup = meta.story({
+export const RunningToolCallGroup = meta.story({
   args: {
     role: "assistant",
     content: {
       type: "toolGroup",
-      isLoading: true,
       tools: [
         {
           type: "tool",

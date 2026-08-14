@@ -107,7 +107,7 @@ function windowElement(
     onSubmitFeedback: vi.fn(),
     quickActionContext: "observability",
     quickActionResetKey: "/project/project-1/traces",
-    screenContextDescription: { type: "trace-list", hasAppliedFilters: true },
+    screenContextDescription: { type: "trace-list" },
     selectedConversationId: undefined,
     ...overrides,
     showCloseButton: false,

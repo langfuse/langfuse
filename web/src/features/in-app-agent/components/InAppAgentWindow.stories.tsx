@@ -925,10 +925,7 @@ export const GroupedAssistantTurn = meta.story({
   args: {
     isExpanded: true,
     selectedConversationId: "conversation-1",
-    screenContextDescription: {
-      type: "trace-list",
-      hasAppliedFilters: true,
-    },
+    screenContextDescription: { type: "trace-list" },
     messages: [
       {
         id: "grouped-user",
@@ -1189,10 +1186,7 @@ export const MultiBlockAnswer = meta.story({
   args: {
     isExpanded: true,
     selectedConversationId: "conversation-1",
-    screenContextDescription: {
-      type: "trace-list",
-      hasAppliedFilters: true,
-    },
+    screenContextDescription: { type: "trace-list" },
     messages: [
       {
         id: "multiblock-user",

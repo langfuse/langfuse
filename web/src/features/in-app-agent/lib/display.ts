@@ -401,7 +401,9 @@ export function projectInAppAgentMessagesForDisplay(
               return !placement || !messageIds.has(placement.anchorMessageId);
             }),
           }
-        : {
+        : // Reasoning is its own role here and starts most turns, so it carries
+          // the timestamp the "Worked for" duration measures from.
+          {
             ...message,
             timestamp: state.messageTimestamps[message.id],
           };

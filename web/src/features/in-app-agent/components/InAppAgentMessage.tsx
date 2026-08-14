@@ -77,7 +77,6 @@ export type InAppAgentMessageContent =
   | {
       type: "toolGroup";
       tools: InAppAgentToolCallContent[];
-      isLoading?: boolean;
     };
 
 const parseAbsoluteUrl = (href: string): URL | null => {
