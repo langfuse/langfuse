@@ -136,27 +136,41 @@ export const createV4MigrationStateRecorder = ({
   }): Promise<void> => {
     try {
       const timestamp = now();
-      const previous = await prisma.v4MigrationProjectState.findUnique({
+      let previous = await prisma.v4MigrationProjectState.findUnique({
         where: { projectId },
       });
-      const decision = decideV4MigrationTransitions(
+      let decision = decideV4MigrationTransitions(
         previous,
         state,
         timestamp,
         userId,
       );
 
+      let created = false;
       if (!previous) {
         try {
           await prisma.v4MigrationProjectState.create({
             data: { projectId, ...decision.row },
           });
+          created = true;
         } catch {
-          // Lost a concurrent-create race; the winner owns this snapshot and
-          // the next report resolves any transitions.
-          return;
+          // Lost a concurrent-create race. The report must still reconcile
+          // against the winner's row — dropping it could discard the
+          // action-needed baseline that a later ready report needs for the
+          // migrated transition to ever fire.
+          previous = await prisma.v4MigrationProjectState.findUnique({
+            where: { projectId },
+          });
+          if (!previous) return;
+          decision = decideV4MigrationTransitions(
+            previous,
+            state,
+            timestamp,
+            userId,
+          );
         }
-      } else {
+      }
+      if (!created && previous) {
         // Set-once fields are guarded by conditional updateMany so concurrent
         // reports (multiple tabs) cannot double-emit an outcome event.
         for (const field of ["migrationStartedAt", "migratedAt"] as const) {

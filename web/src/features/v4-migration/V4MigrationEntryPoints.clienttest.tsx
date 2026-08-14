@@ -224,7 +224,7 @@ describe("v4_migration:project_state_checked", () => {
     });
   });
 
-  it("holds while any check is still running and fires exactly once per project", () => {
+  it("holds while any check is still running and fires exactly once per settled state", () => {
     mocks.migrationData = migrationStatus({
       evals: { status: "loading", count: 0 },
     });
@@ -237,5 +237,24 @@ describe("v4_migration:project_state_checked", () => {
     rerender(<V4MigrationNavItem />);
 
     expect(stateCheckedCalls()).toHaveLength(1);
+  });
+
+  it("re-reports when the settled state changes within a long-lived mount", () => {
+    mocks.migrationData = migrationStatus({
+      evals: { status: "loaded", count: 2 },
+    });
+    const { rerender } = render(<V4MigrationNavItem />);
+    expect(stateCheckedCalls()).toHaveLength(1);
+    expect(stateCheckedCalls()[0][1]).toMatchObject({
+      readiness: "action-needed",
+    });
+
+    // Background refetch resolves the evals — readiness flips to ready.
+    mocks.migrationData = migrationStatus();
+    rerender(<V4MigrationNavItem />);
+
+    expect(stateCheckedCalls()).toHaveLength(2);
+    expect(stateCheckedCalls()[1][1]).toMatchObject({ readiness: "ready" });
+    expect(mocks.recordProjectState).toHaveBeenCalledTimes(2);
   });
 });

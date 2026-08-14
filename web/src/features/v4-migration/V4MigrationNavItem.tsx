@@ -35,8 +35,10 @@ export function V4MigrationNavItem() {
   // already migrated (the pill renders nothing then), which is what makes
   // "readiness flipped to ready" observable at all. The settled guard mirrors
   // panel_checks_loaded: readiness alone would lock in "unavailable" while a
-  // sibling check is still loading. The ref dedupes to one snapshot per
-  // project per mount, surviving refetch-driven re-settles.
+  // sibling check is still loading. The ref dedupes per project AND settled
+  // state: identical refetch-driven re-settles stay silent, but a state
+  // change in a long-lived tab re-reports so outcomes are not delayed until
+  // the next full mount.
   const projectId = project?.id;
   const organizationId = organization?.id;
   const sdkStatus = migrationData.sdk.status;
@@ -51,11 +53,12 @@ export function V4MigrationNavItem() {
     migrationData.exports.status !== "loading";
   const { mutate: recordProjectState } =
     api.v4Transition.recordProjectState.useMutation();
-  const stateCheckedProjectsRef = useRef(new Set<string>());
+  const stateCheckedRef = useRef(new Set<string>());
   useEffect(() => {
     if (!projectId || !v4UpgradeUiEnabled || !checksSettled) return;
-    if (stateCheckedProjectsRef.current.has(projectId)) return;
-    stateCheckedProjectsRef.current.add(projectId);
+    const stateKey = `${projectId}:${readiness}:${sdkStatus}:${hasV4Traffic}`;
+    if (stateCheckedRef.current.has(stateKey)) return;
+    stateCheckedRef.current.add(stateKey);
     // Tenant ids only (same shape as backend:activity) — never user content.
     capture("v4_migration:project_state_checked", {
       readiness,

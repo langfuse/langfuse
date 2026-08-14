@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  createV4MigrationStateRecorder,
   decideV4MigrationTransitions,
   type V4MigrationReportedState,
 } from "@/src/features/v4/server/v4MigrationProjectState";
@@ -165,5 +166,56 @@ describe("decideV4MigrationTransitions", () => {
     expect(decision.events).toEqual([]);
     expect(decision.row.migratedAt).toBeNull();
     expect(decision.row.migrationStartedAt).toBeNull();
+  });
+});
+
+describe("createV4MigrationStateRecorder", () => {
+  it("reconciles a lost create race instead of dropping the report", async () => {
+    // Winner concurrently created a ready-first-sighting row; the loser's
+    // action-needed report must still land so the baseline is not lost.
+    const winnerRow = {
+      readiness: "ready",
+      sdkStatus: "latest",
+      hasV4Traffic: true,
+      firstActionNeededAt: null,
+      migrationStartedAt: null,
+      migrationStartedByUserId: null,
+      migratedAt: null,
+    };
+    const findUnique = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(winnerRow);
+    const create = vi.fn().mockRejectedValue(new Error("P2002 unique"));
+    const update = vi.fn().mockResolvedValue(winnerRow);
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const prisma = {
+      v4MigrationProjectState: { findUnique, create, update, updateMany },
+    } as never;
+    const capture = vi.fn();
+    const record = createV4MigrationStateRecorder({
+      capture,
+      cloudRegion: "EU",
+      now: () => NOW,
+    });
+
+    await record({
+      prisma,
+      userId: REPORTER,
+      organizationId: "org-1",
+      projectId: "project-1",
+      state: reported(),
+    });
+
+    expect(findUnique).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          readiness: "action-needed",
+          firstActionNeededAt: NOW,
+        }),
+      }),
+    );
+    expect(capture).not.toHaveBeenCalled();
   });
 });
