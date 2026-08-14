@@ -1,4 +1,3 @@
-import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -7,7 +6,6 @@ import {
 } from "@/src/components/table/data-table-controls";
 import {
   TableBadgeLoadingCell,
-  TableIconButtonLoadingCell,
   TableTextLoadingCell,
 } from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
@@ -110,7 +108,6 @@ import TagList from "@/src/features/tag/components/TagList";
 
 export type TracesTableRow = {
   // Shown by default
-  bookmarked: boolean;
   timestamp: Date;
   name: string;
   // i/o and metadata not set explicitly, but fetched from the server from the cell
@@ -352,7 +349,6 @@ export default function TracesTable({
         environmentFilterOptions.data?.map((value) => value.environment) ??
         undefined,
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
-      bookmarked: ["Bookmarked", "Not bookmarked"],
       userId:
         traceFilterOptionsResponse.data?.users?.map((u) => ({
           value: u.value,
@@ -672,35 +668,7 @@ export default function TracesTable({
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
-    ...(hideControls
-      ? []
-      : ([
-          selectActionColumn,
-          {
-            accessorKey: "bookmarked",
-            header: undefined,
-            id: "bookmarked",
-            size: 30,
-            isFixedPosition: true,
-            loadingCell: <TableIconButtonLoadingCell />,
-            cell: ({ row }) => {
-              const bookmarked: TracesTableRow["bookmarked"] =
-                row.getValue("bookmarked");
-              const traceId = row.getValue("id");
-              return typeof traceId === "string" &&
-                typeof bookmarked === "boolean" ? (
-                <StarTraceToggle
-                  tracesFilter={tracesAllQueryFilter}
-                  traceId={traceId}
-                  projectId={projectId}
-                  value={bookmarked}
-                  size="icon-xs"
-                />
-              ) : undefined;
-            },
-            enableSorting,
-          },
-        ] satisfies LangfuseColumnDef<TracesTableRow>[])),
+    ...(hideControls ? [] : [selectActionColumn]),
     {
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -1375,11 +1343,6 @@ export default function TracesTable({
     return {
       itemType: "TRACE" as const,
       detailNavigationKey: detailPageListKeys.traces,
-      peekEventOptions: {
-        // Stable hook (decoupled from the star's state-aware aria-label) so
-        // clicking a row's bookmark toggles it without dismissing the peek.
-        ignoredSelectors: ['[role="checkbox"]', "[data-bookmark-toggle]"],
-      },
       ...peekNavigationProps,
     };
   }, [hideControls, peekNavigationProps]);
@@ -1420,7 +1383,6 @@ export default function TracesTable({
     return traces.isSuccess
       ? (traceRowData?.rows?.map((trace) => {
           return {
-            bookmarked: trace.bookmarked,
             id: trace.id,
             timestamp: trace.timestamp,
             name: trace.name ?? "",

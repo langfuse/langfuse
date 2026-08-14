@@ -20,7 +20,7 @@ function targetWith(
   return el;
 }
 
-const IGNORED = ['[role="checkbox"]', "[data-bookmark-toggle]"];
+const IGNORED = ['[role="checkbox"]', "[aria-label='edit']"];
 
 describe("shouldKeepPeekOpenOnOutsideInteraction", () => {
   afterEach(() => {
@@ -60,7 +60,7 @@ describe("shouldKeepPeekOpenOnOutsideInteraction", () => {
   it("keeps open for a table-configured ignoredSelector", () => {
     expect(
       shouldKeepPeekOpenOnOutsideInteraction(
-        targetWith({ "data-bookmark-toggle": "true" }),
+        targetWith({ "aria-label": "edit" }),
         IGNORED,
       ),
     ).toBe(true);

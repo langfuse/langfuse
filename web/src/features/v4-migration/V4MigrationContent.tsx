@@ -1435,6 +1435,10 @@ export function V4MigrationDetailsContent({
         <div className="flex items-center gap-2 text-base font-bold">
           Action items
         </div>
+        <p className="text-muted-foreground text-sm">
+          SDK, instrumentation, experiment, and API checks cover activity from
+          the last {V4_MIGRATION_LOOKBACK_DAYS} days.
+        </p>
         <div>
           <V4MigrationSdkSection
             sdk={migrationData.sdk}
@@ -1499,52 +1503,53 @@ export function V4MigrationDetailsContent({
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
           />
+
+          {/* Always the last checklist row. Hides itself when the session
+              cannot toggle v4 (legacy/events_only write mode, post-rollout
+              auto-enrollment). Neutral dot + muted text: an optional helper
+              in the settled-summary style, not pending work. */}
+          {canToggleV4 && (
+            <div className="flex w-full items-center gap-2.5 py-2.5">
+              <V4MigrationStatusDot variant="neutral" />
+              <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-sm">
+                Compare traces while you upgrade
+                <HoverCard openDelay={200}>
+                  <HoverCardTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Why compare traces?"
+                      className="shrink-0"
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </HoverCardTrigger>
+                  <HoverCardPortal>
+                    <HoverCardContent className="w-80 text-sm">
+                      The latest SDK no longer sets trace input and output;{" "}
+                      <ExternalLink
+                        href={OBSERVATIONS_DATA_MODEL_URL}
+                        analytics={{
+                          section: "compare_row",
+                          link: "observations_data_model_docs",
+                        }}
+                      >
+                        v4 infers them from observations
+                      </ExternalLink>
+                      .
+                    </HoverCardContent>
+                  </HoverCardPortal>
+                </HoverCard>
+              </span>
+              <span className="flex-1" />
+              <V4PreviewToggleRow projectId={projectId} />
+            </div>
+          )}
         </div>
       </div>
 
       <Separator />
 
       <V4MigrationAgentUpgradeSection projectId={projectId} />
-
-      {/* The toggle row hides itself when the session cannot toggle v4
-          (legacy/events_only write mode, post-rollout auto-enrollment), so the
-          copy describing it must hide on the same condition. */}
-      {canToggleV4 && (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-sm">
-              Compare traces while you upgrade
-              <HoverCard openDelay={200}>
-                <HoverCardTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="Why compare traces?"
-                    className="shrink-0"
-                  >
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                </HoverCardTrigger>
-                <HoverCardPortal>
-                  <HoverCardContent className="w-80 text-sm">
-                    The latest SDK no longer sets trace input and output;{" "}
-                    <ExternalLink
-                      href={OBSERVATIONS_DATA_MODEL_URL}
-                      analytics={{
-                        section: "compare_row",
-                        link: "observations_data_model_docs",
-                      }}
-                    >
-                      v4 infers them from observations
-                    </ExternalLink>
-                    .
-                  </HoverCardContent>
-                </HoverCardPortal>
-              </HoverCard>
-            </p>
-            <V4PreviewToggleRow projectId={projectId} />
-          </div>
-        </>
-      )}
 
       <Separator />
 
