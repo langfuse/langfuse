@@ -29,6 +29,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
+import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import {
   AnalyticsIntegrationExportSource,
   validateExportSource,
@@ -72,12 +73,16 @@ export default function PosthogIntegrationSettings() {
     },
   );
 
+  // A persisted fault outranks active/inactive: it is the state the admin has
+  // to act on, and it is cleared by the next successful sync.
   const status =
     state.isLoading || !hasAccess
       ? undefined
-      : state.data?.config?.enabled
-        ? "active"
-        : "inactive";
+      : state.data?.config?.lastError
+        ? "error"
+        : state.data?.config?.enabled
+          ? "active"
+          : "inactive";
 
   return (
     <ContainerPage
@@ -127,16 +132,8 @@ export default function PosthogIntegrationSettings() {
           </Card>
         </>
       )}
-      {state.data?.config?.enabled && (
-        <>
-          <Header title="Status" className="mt-8" />
-          <p className="text-primary text-sm">
-            Data synced until:{" "}
-            {state.data?.config?.lastSyncAt
-              ? new Date(state.data.config.lastSyncAt).toLocaleString()
-              : "Never (pending)"}
-          </p>
-        </>
+      {state.data?.config && (
+        <PostHogStatusSection config={state.data.config} />
       )}
     </ContainerPage>
   );
