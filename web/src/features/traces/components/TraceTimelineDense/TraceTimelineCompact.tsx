@@ -14,21 +14,15 @@ import { useCallback, useState } from "react";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { detectPointerModality } from "../../fns/timeline/density";
-import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
-import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
 import { TimelineDense } from "./TimelineDense";
 
 export function TraceTimelineCompact() {
-  const { roots } = useTraceData();
-  const { selectedNodeId, setSelectedNodeId } = useSelection();
+  const { roots, nodeMap } = useTraceData();
+  const { selectedNodeId } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
-  const capture = usePostHogClientCapture();
-  const analyticsDimensions = useTraceAnalyticsDimensions();
-  const layout = useDesktopLayoutContextOptional();
-  const mobileLayout = useMobileLayoutContextOptional();
+  const selectNode = useSelectTraceNode("timeline_compact");
 
   const [pointerModality] = useState(detectPointerModality);
   const [box, setBox] = useState<{ width: number; height: number } | null>(
@@ -54,27 +48,14 @@ export function TraceTimelineCompact() {
     return () => observer.disconnect();
   }, []);
 
-  const handleSelect = useCallback(
-    (nodeId: string) => {
-      capture("trace_detail:node_selected", {
-        source: "timeline_compact",
-        ...analyticsDimensions,
-      });
-      setSelectedNodeId(nodeId);
-      // Reopen the detail panel on any select, including re-selecting the same
-      // row — matching the Tree and Timeline views.
-      layout?.expandDetailPanel();
-      mobileLayout?.switchToInfoTab();
-    },
-    [capture, analyticsDimensions, setSelectedNodeId, layout, mobileLayout],
-  );
-
   const handleHoverNode = useCallback(
     (nodeId: string) => {
-      const node = findNode(roots, nodeId);
+      // The map the tree already builds, rather than a walk per hovered row —
+      // and hover changes once per row at 1px rows.
+      const node = nodeMap.get(nodeId);
       if (node) handleHover(node);
     },
-    [roots, handleHover],
+    [nodeMap, handleHover],
   );
 
   return (
@@ -89,24 +70,10 @@ export function TraceTimelineCompact() {
           compress={false}
           showReadout={false}
           selectedId={selectedNodeId}
-          onSelect={handleSelect}
+          onSelect={selectNode}
           onHover={handleHoverNode}
         />
       ) : null}
     </div>
   );
-}
-
-/** Iterative: a deep trace must not blow the stack to find one node. */
-function findNode(
-  roots: ReturnType<typeof useTraceData>["roots"],
-  nodeId: string,
-) {
-  const stack = [...roots];
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-    if (node.id === nodeId) return node;
-    for (const child of node.children) stack.push(child);
-  }
-  return null;
 }

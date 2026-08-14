@@ -2,6 +2,7 @@ import { expect, fn, waitFor } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { TimelineDense } from "./TimelineDense";
 import {
+  deepNesting,
   manySpans,
   reporterTrace,
   threeSpans,
@@ -15,7 +16,7 @@ const meta = preview.meta({
 /**
  * A phone-shaped box: narrow and tall, which is the case this spike is for.
  * 658px leaves exactly 600px of surface once the frame, toolbar, axis and
- * readout are taken — room for 150 rows at the 4px floor, so the "at the floor"
+ * readout are taken — room for 600 rows at the 1px floor, so the "at the floor"
  * story really is at the floor.
  */
 const PHONE = { width: 360, height: 658 };
@@ -44,7 +45,8 @@ export const FiftySpansOnAPhone = meta.story({
   },
 });
 
-export const OneHundredFiftySpansExactlyAtTheFloor = meta.story({
+/** Mid density: 4px a row, the bars still clearly individual things. */
+export const OneHundredFiftySpansOnAPhone = meta.story({
   args: {
     roots: manySpans(150),
     box: PHONE,
@@ -59,14 +61,34 @@ export const OneHundredFiftySpansExactlyAtTheFloor = meta.story({
   },
 });
 
-/** More rows than 4px each can show: the extra are panned to, maps-style. */
-export const FiveHundredSpansPannable = meta.story({
+/**
+ * Exactly at the floor: 600 spans, one device pixel each, the whole trace on
+ * screen with nothing to scroll to. This is the case that argued the floor down
+ * from 4px — at 4px this trace was a window onto a quarter of itself.
+ */
+export const SixHundredSpansAtTheOnePixelFloor = meta.story({
   args: {
-    roots: manySpans(500),
+    roots: manySpans(600),
     box: PHONE,
     gutter: "auto",
     pointer: "fine",
-    barColor: "neutral",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+});
+
+/** Past even the 1px floor: the extra rows are panned to, maps-style. */
+export const ThreeThousandSpansPannable = meta.story({
+  args: {
+    roots: manySpans(3000),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
     compress: false,
     showReadout: true,
     selectedId: null,
@@ -315,9 +337,75 @@ export const ScrollPansPinchZooms = meta.story({
     await waitFor(() => expect(rowWindow()).not.toBe(windowBefore));
     await expect(rowHeight()).toBe(heightBefore);
 
+    // And a FAST flick is the same gesture. A trackpad sends deltas of well over
+    // 100 when you flick, and classifying those as a discrete mouse notch made
+    // them zoom out to the fitted view instead: scrolling down snapped the
+    // timeline back to the top and kept it there.
+    const windowAfterSlow = rowWindow();
+    wheel({ deltaY: 240 });
+    await waitFor(() => expect(rowWindow()).not.toBe(windowAfterSlow));
+    await expect(rowHeight()).toBe(heightBefore);
+    // Line-mode deltas (Firefox, classic wheels) pan too, and by a usable amount.
+    const windowAfterFlick = rowWindow();
+    wheel({ deltaY: 3, deltaMode: 1 });
+    await waitFor(() => expect(rowWindow()).not.toBe(windowAfterFlick));
+    await expect(rowHeight()).toBe(heightBefore);
+
     // A pinch carries ctrlKey, and that zooms.
     wheel({ deltaY: -40, ctrlKey: true });
     await waitFor(() => expect(rowHeight()).not.toBe(heightBefore));
+  },
+});
+
+export const ZoomLandsOnContent = meta.story({
+  name: "(Test) Zoom Lands On Content",
+  args: {
+    // A long tail: the spans are all in a sliver of the wall clock, so zooming
+    // the middle of the box is exactly where the two axes come apart.
+    roots: longTailTrace(),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const bars = () =>
+      canvasElement.querySelectorAll('[data-testid="timeline-dense-bar"]')
+        .length;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+
+    await expect(bars()).toBeGreaterThan(0);
+    const rect = surface.getBoundingClientRect();
+    // Zoom hard, about the middle of the box — the point most likely to be empty.
+    for (let step = 0; step < 6; step++) {
+      surface.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          ctrlKey: true,
+          deltaY: -40,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        }),
+      );
+    }
+    await waitFor(() => expect(readout()).toContain("zoomed"));
+
+    // Zooming in must never end up looking at nothing. The rows and the clock are
+    // only correlated, so the window follows the rows when they part company.
+    await expect(bars()).toBeGreaterThan(0);
   },
 });
 
@@ -420,6 +508,132 @@ export const DoubleClickFocusesBothAxes = meta.story({
     await waitFor(() => expect(readout()).toContain("zoomed"));
     await waitFor(() => expect(readout()).toContain("26.0px rows"));
     await expect(readout()).not.toContain("rows 0.0–150.0 of 150");
+  },
+});
+
+/** Pre-order DFS, the order `prepareTimeline` flattens rows in. */
+const lastRowId = (roots: ReturnType<typeof manySpans>): string => {
+  let last = "";
+  const stack = [...roots].reverse();
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node) break;
+    last = node.id;
+    stack.push(...[...node.children].reverse());
+  }
+  return last;
+};
+
+const DEEP_TRACE = manySpans(3000);
+
+export const ExternalSelectionIsRevealed = meta.story({
+  name: "(Test) External Selection Is Revealed",
+  args: {
+    roots: DEEP_TRACE,
+    // The tree, a search hit or a deep link can select any row at all — here the
+    // very last one, thousands of rows below the window this box can hold.
+    selectedId: lastRowId(DEEP_TRACE),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const rows = () =>
+      canvasElement.querySelector<HTMLElement>('[data-testid="dense-rows"]')
+        ?.textContent ?? "";
+
+    // A highlight you cannot see is not a highlight: the window has to come to
+    // the selection, all the way down at row 2999 of 3000.
+    await waitFor(() => expect(rows()).toContain("of 3000"));
+    const window = /rows ([\d.]+)[–-]([\d.]+)/.exec(rows());
+    if (!window) throw new Error(`no row window in "${rows()}"`);
+    await expect(Number(window[1])).toBeGreaterThan(2_000);
+    // Revealed by PANNING: 600 rows of window before and after, because bringing
+    // a row into view is not a request to change how far in you are looking.
+    await expect(Number(window[2]) - Number(window[1])).toBeCloseTo(600, 1);
+
+    // And the selected row really is drawn, highlighted, inside the box.
+    const selected = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-content"] > div.bg-primary-accent\\/20',
+    );
+    await expect(selected).not.toBeNull();
+    const surface = canvasElement
+      .querySelector('[data-testid="timeline-dense-surface"]')
+      ?.getBoundingClientRect();
+    const row = selected?.getBoundingClientRect();
+    if (!surface || !row) throw new Error("no surface or selected row");
+    await expect(row.top).toBeGreaterThanOrEqual(surface.top - 0.5);
+    await expect(row.bottom).toBeLessThanOrEqual(surface.bottom + 0.5);
+  },
+});
+
+export const DoubleClickSelectsOnce = meta.story({
+  name: "(Test) Double Click Selects Once",
+  args: {
+    roots: manySpans(150),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "neutral",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const row = canvasElement.querySelectorAll<HTMLElement>(
+      '[data-testid="timeline-dense-content"] > div',
+    )[40];
+    if (!row) throw new Error("expected a row to double-click");
+
+    // A double-click delivers two clicks and then dblclick. Selecting is not
+    // free — it captures analytics and reopens the detail panel — so it must
+    // happen exactly once, not three times.
+    for (const detail of [1, 2]) {
+      row.dispatchEvent(new MouseEvent("click", { bubbles: true, detail }));
+    }
+    row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, detail: 2 }));
+
+    await expect(args.onSelect).toHaveBeenCalledTimes(1);
+  },
+});
+
+export const TypeSquareStaysInsideTheRail = meta.story({
+  name: "(Test) Type Square Stays Inside The Rail",
+  args: {
+    roots: deepNesting(12),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const squares = canvasElement.querySelectorAll<HTMLElement>(
+      '[data-testid="timeline-dense-type-square"]',
+    );
+    // A closed rail has exactly one type indicator per row, so it cannot be the
+    // part that gets clipped: at 10px wide, a depth-4 span's square hung most of
+    // the way out of the rail's overflow-hidden box and showed as a sliver.
+    await expect(squares.length).toBeGreaterThan(4);
+    for (const square of squares) {
+      const rail = square.parentElement?.getBoundingClientRect();
+      const box = square.getBoundingClientRect();
+      if (!rail) throw new Error("square without a rail");
+      await expect(box.width).toBeGreaterThanOrEqual(2);
+      await expect(box.left).toBeGreaterThanOrEqual(rail.left - 0.5);
+      await expect(box.right).toBeLessThanOrEqual(rail.right + 0.5);
+    }
   },
 });
 

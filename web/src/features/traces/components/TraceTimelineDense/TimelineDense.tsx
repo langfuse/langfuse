@@ -17,7 +17,7 @@
  *    the rows can hold a name it simply appears, if there is width for it; on a
  *    phone or a peek panel, where there is not, the colour rail becomes the
  *    affordance and a hover or a tap floats the names over the chart.
- *  - Two-finger scroll pans both axes; pinch (and a discrete mouse notch) zooms
+ *  - Any wheel or two-finger scroll pans both axes; pinch and ⌘/ctrl + wheel zoom
  *    BOTH axes about the cursor, so the time window narrows and the rows grow
  *    together. Zoom is exponential in a zoom level and deltas accumulate per
  *    frame, as in mapping libraries — see the rate constants below.
@@ -59,6 +59,7 @@ import {
   formatDurationMs,
   layout,
   prepareTimeline,
+  spanOffsetsOf,
   timeCompressionFor,
   type LayoutNode,
   type PositionedNode,
@@ -67,6 +68,7 @@ import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
+  anchorTimeToRows,
   interpolateViewport,
   rowCountBounds,
   viewportsEqual,
@@ -76,10 +78,12 @@ import {
   isViewportFitted,
   panViewport,
   presentationForRowHeight,
+  revealViewport,
   rowHeightOf,
   rowIndexAtOffset,
   visibleRowRange,
   zoomViewport,
+  type RowExtent,
   type Viewport,
 } from "../../fns/timeline/viewport";
 
@@ -98,9 +102,17 @@ const TYPE_COLOR: Record<string, string> = {
 };
 const FALLBACK_COLOR = "bg-muted-gray";
 
-const RAIL_WIDTH = 10;
 const RAIL_INDENT = 2;
 const RAIL_MAX_DEPTH = 4;
+/** Biggest the closed rail's type square gets, however tall the row is. */
+const RAIL_SQUARE_MAX = 5;
+/**
+ * Wide enough for the deepest indent plus the square, computed rather than
+ * guessed: at 10px the square of a depth-4 span was mostly outside the rail's
+ * overflow-hidden box, so the one type indicator a closed rail has left was
+ * clipped to a sliver exactly on the deeply-nested spans.
+ */
+const RAIL_WIDTH = RAIL_MAX_DEPTH * RAIL_INDENT + RAIL_SQUARE_MAX + 2;
 /** Indent per level once the gutter is open, matching the production gutter. */
 const GUTTER_INDENT = 10;
 const TOOLBAR_HEIGHT = 22;
@@ -117,9 +129,8 @@ const FRAME_BORDER = 1;
  * is why it felt like a lot of touching to get anywhere.
  */
 const PINCH_ZOOM_RATE = 1 / 40;
-const WHEEL_ZOOM_RATE = 1 / 160;
-/** A deltaMode-0 event bigger than this is a mouse notch, not a trackpad. */
-const WHEEL_DELTA_THRESHOLD = 40;
+/** A line, for the browsers that report wheel deltas in lines rather than pixels. */
+const WHEEL_LINE_PX = 16;
 /** Step for the toolbar buttons and the keyboard, in zoom levels. */
 const BUTTON_ZOOM_LEVELS = 0.6;
 const DRAG_THRESHOLD_PX = 3;
@@ -143,8 +154,10 @@ const AUTO_OPEN_MIN_LANE_WIDTH = 280;
  * same reason.
  */
 const FOCUS_ANIMATION_MS = 320;
-/** Slack around the rail so the peek zone is reachable at 10px wide. */
+/** Slack around the rail so the peek zone is reachable at rail width. */
 const PEEK_MARGIN_PX = 6;
+/** A collapsed-gap band narrower than this has no room to name itself. */
+const GAP_LABEL_MIN_WIDTH = 14;
 
 export type TimelineDenseProps = {
   roots: LayoutNode[];
@@ -336,15 +349,32 @@ export function TimelineDense({
     rowRange,
   });
 
+  // What each row occupies on the time axis, in the same compressed space the
+  // window is expressed in — so a zoom can tell "nothing to see here" from "the
+  // thing you were looking at is still here".
+  const extentOf = useCallback(
+    (rowIndex: number): RowExtent | null => {
+      const row = prepared.rows[rowIndex];
+      if (!row) return null;
+      const offsets = spanOffsetsOf(row.node, prepared.originMs);
+      return {
+        startMs: compression.toCompressedMs(offsets.startMs),
+        endMs: compression.toCompressedMs(offsets.endMs),
+      };
+    },
+    [prepared, compression],
+  );
+
   const zoomBy = useCallback(
     (factor: number, xRatio: number, yRatio: number) =>
       setViewport((from) => {
-        const { limits: live } = layoutRef.current;
-        return zoomViewport(
+        const { limits: live, extentOf: extent } = layoutRef.current;
+        const zoomed = zoomViewport(
           from ? clampViewport(from, live) : fitViewport(live),
           live,
           { factor, xRatio, yRatio },
         );
+        return anchorTimeToRows(zoomed, live, extent);
       }),
     [],
   );
@@ -383,8 +413,47 @@ export function TimelineDense({
   // in-flight focus animation at the exact moment the rows crossed the height
   // that opens the gutter. It also re-attached the wheel listener on every
   // layout change, for nothing.
-  const layoutRef = useRef({ limits, laneWidth, railWidth, peekWidth });
-  layoutRef.current = { limits, laneWidth, railWidth, peekWidth };
+  const layoutRef = useRef({
+    limits,
+    laneWidth,
+    railWidth,
+    peekWidth,
+    extentOf,
+  });
+  layoutRef.current = { limits, laneWidth, railWidth, peekWidth, extentOf };
+
+  // Selection is not always ours to place. The tree, a search hit, a deep link
+  // and playback all select rows, and a highlight you cannot see is not a
+  // highlight — on a trace this dense the chosen row is usually outside the
+  // window, and `layout()` does not even emit a node for it. So an EXTERNAL
+  // change reveals its row: pan both axes just far enough, never zoom, because
+  // "look at this one" is not a request to change how far in you are looking.
+  // Adjusting state during render is React's own answer to "a prop changed and
+  // some state must follow" — the superseded render never reaches the screen.
+  // `undefined`, not `selectedId`: mounting with a selection already set IS the
+  // deep-link case, and it has to be revealed like any other.
+  const revealedRef = useRef<string | null | undefined>(undefined);
+  if (selectedId !== revealedRef.current) {
+    revealedRef.current = selectedId;
+    const index = selectedId
+      ? prepared.rows.findIndex((row) => row.node.id === selectedId)
+      : -1;
+    const row = index >= 0 ? prepared.rows[index] : undefined;
+    if (row) {
+      const offsets = spanOffsetsOf(row.node, prepared.originMs);
+      const revealed = revealViewport(current, limits, {
+        rowIndex: index,
+        startMs: compression.toCompressedMs(offsets.startMs),
+        endMs: compression.toCompressedMs(offsets.endMs),
+      });
+      if (!viewportsEqual(revealed, current)) {
+        // A flight in progress was aimed at the old selection.
+        cancelTween();
+        viewportRef.current = revealed;
+        setViewport(revealed);
+      }
+    }
+  }
 
   // Deltas accumulate and apply once per animation frame — the other half of
   // what makes map zoom feel immediate instead of laggy under a burst.
@@ -405,7 +474,11 @@ export function TimelineDense({
   const flushGesture = useCallback(() => {
     const queued = pending.current;
     queued.frame = 0;
-    const { limits: live, laneWidth: width } = layoutRef.current;
+    const {
+      limits: live,
+      laneWidth: width,
+      extentOf: extent,
+    } = layoutRef.current;
     let next = viewportRef.current;
     if (queued.levels !== 0) {
       next = zoomViewport(next, live, {
@@ -413,6 +486,7 @@ export function TimelineDense({
         xRatio: queued.xRatio,
         yRatio: queued.yRatio,
       });
+      next = anchorTimeToRows(next, live, extent);
     }
     if (queued.dxPx !== 0 || queued.dyPx !== 0) {
       next = panViewport(next, live, {
@@ -473,9 +547,19 @@ export function TimelineDense({
         const rect = element.getBoundingClientRect();
         const queued = pending.current;
         const rail = layoutRef.current.railWidth;
-        // A macOS pinch is the ONLY wheel event that carries ctrlKey. A
-        // two-finger scroll is a plain wheel, so it must pan — treating it as
-        // zoom is what made scrolling around zoom the rows instead.
+        // Deltas arrive in pixels, lines or pages depending on the browser and
+        // the device, so normalize before anything reads them: a line-mode wheel
+        // reports 3, and panning 3px per notch reads as stuck.
+        const unit =
+          event.deltaMode === 1
+            ? WHEEL_LINE_PX
+            : event.deltaMode === 2
+              ? Math.max(rect.height, 1)
+              : 1;
+        const deltaX = event.deltaX * unit;
+        const deltaY = event.deltaY * unit;
+        // A macOS pinch is the ONLY wheel event that carries ctrlKey. Holding
+        // ⌘/ctrl is the same intent by hand, and it is how you zoom with a mouse.
         const pinch = event.ctrlKey || event.metaKey;
 
         if (pinch) {
@@ -486,34 +570,22 @@ export function TimelineDense({
               : 0.5;
           queued.yRatio =
             rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
-          queued.levels += -event.deltaY * PINCH_ZOOM_RATE;
+          queued.levels += -deltaY * PINCH_ZOOM_RATE;
           event.preventDefault();
           scheduleGesture();
           return;
         }
 
-        // A discrete mouse notch has no pan intent behind it, so it zooms, at
-        // its own much slower rate per unit of delta.
-        const isMouseNotch =
-          event.deltaMode !== 0 ||
-          Math.abs(event.deltaY) >= WHEEL_DELTA_THRESHOLD;
-        if (isMouseNotch && event.deltaX === 0 && !event.shiftKey) {
-          queued.xRatio =
-            rect.width > 0
-              ? (event.clientX - rect.left - rail) /
-                Math.max(rect.width - rail, 1)
-              : 0.5;
-          queued.yRatio =
-            rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
-          queued.levels += -event.deltaY * WHEEL_ZOOM_RATE;
-          event.preventDefault();
-          scheduleGesture();
-          return;
-        }
-
-        // Two-finger scroll: pan both axes. Shift maps a vertical wheel to time.
-        const dxPx = event.shiftKey ? -event.deltaY : -event.deltaX;
-        const dyPx = event.shiftKey ? 0 : -event.deltaY;
+        // EVERY other wheel pans, whatever the device. Sniffing a "mouse notch"
+        // out of a big delta and zooming on it was wrong twice over: a fast
+        // two-finger flick on a Mac trackpad sends deltas far past any such
+        // threshold, so a quick scroll down zoomed OUT to the fitted view and
+        // the timeline looked like it kept snapping back to the top — and it
+        // swallowed the event either way, so there was no scrolling down at all.
+        // Zoom keeps the gestures that say zoom and nothing else: pinch,
+        // ⌘/ctrl + wheel, the toolbar buttons, double-click to focus.
+        const dxPx = event.shiftKey ? -deltaY : -deltaX;
+        const dyPx = event.shiftKey ? 0 : -deltaY;
         const wouldMove = panViewport(
           viewportRef.current,
           layoutRef.current.limits,
@@ -619,7 +691,10 @@ export function TimelineDense({
     const positioned = result.nodes.find((node) => node.index === index);
     const row = prepared.rows[index];
     if (!positioned || !row) return;
-    onSelect(row.node.id);
+    // The click that opened this double-click already selected the row, and this
+    // flight is about to put it exactly where it should be — so the reveal below
+    // must not also chase it and cancel the animation.
+    revealedRef.current = row.node.id;
     const startMs = compression.toCompressedMs(positioned.startMs);
     flyTo(
       focusViewport(limits, {
@@ -755,13 +830,26 @@ export function TimelineDense({
                 style={{ left: `${tick.x}px` }}
               />
             ))}
+            {/* A collapsed idle gap says how much time it swallowed IN the band,
+                because it cannot say it on hover: the rows are painted over this
+                layer and cover its full width, so a `title` here is never
+                reachable by a pointer. Narrow bands stay silent and leave it to
+                the axis ticks at their edges. */}
             {result.gaps.map((gap) => (
               <div
                 key={`${gap.x}-${gap.durationMs}`}
-                className="bg-muted border-border-contrast absolute inset-y-0 border-x border-dashed"
+                className="bg-muted border-border-contrast absolute inset-y-0 flex items-center justify-center overflow-hidden border-x border-dashed"
                 style={{ left: `${gap.x}px`, width: `${gap.width}px` }}
-                title={`${gap.label} of idle time, collapsed`}
-              />
+              >
+                {gap.width >= GAP_LABEL_MIN_WIDTH ? (
+                  <span
+                    className="text-muted-foreground rotate-90 whitespace-nowrap"
+                    style={{ fontSize: "9px" }}
+                  >
+                    {gap.label} idle
+                  </span>
+                ) : null}
+              </div>
             ))}
           </div>
 
@@ -784,7 +872,14 @@ export function TimelineDense({
                   isFocused && !isSelected && "bg-primary-accent/15",
                 )}
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
-                onClick={() => onSelect(node.id)}
+                // A double-click delivers TWO clicks, and selecting is not free:
+                // it captures an analytics event and reopens the detail panel.
+                // The first click of the pair already selected the row, so the
+                // second one only focuses.
+                onClick={(event) => {
+                  if (event.detail > 1) return;
+                  onSelect(node.id);
+                }}
                 onDoubleClick={() => focusRow(node.index)}
               >
                 <GutterContent
@@ -1004,10 +1099,21 @@ function GutterContent({
   barHeight: number;
   showName: boolean;
 }) {
+  // Nothing to show, so nothing to build: at bird's-eye density the rail has no
+  // width, and a box of invisible squares is one DOM node per row of the trace.
+  if (width <= 0) return null;
+
   const depth = Math.min(node.depth, RAIL_MAX_DEPTH);
-  const squareSize = Math.max(Math.min(barHeight, 6), 2);
-  const indent = showName ? depth * GUTTER_INDENT : depth * RAIL_INDENT + 1;
   const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
+  // The square must end up INSIDE the rail, so its size and its indent are both
+  // bounded by the width it has to live in — not by the row height alone.
+  const squareSize = Math.max(
+    Math.min(barHeight, RAIL_SQUARE_MAX, width - RAIL_INDENT),
+    2,
+  );
+  const indent = showName
+    ? depth * GUTTER_INDENT
+    : Math.min(depth * RAIL_INDENT + 1, Math.max(width - squareSize - 1, 0));
 
   return (
     <div
@@ -1069,6 +1175,7 @@ function GutterContent({
       ) : (
         <div
           className={cn("absolute rounded-[1px]", typeColor)}
+          data-testid="timeline-dense-type-square"
           style={{
             left: `${indent}px`,
             top: `${Math.max((rowHeight - squareSize) / 2, 0)}px`,

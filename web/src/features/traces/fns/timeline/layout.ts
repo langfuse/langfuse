@@ -213,6 +213,19 @@ const hasDuration = (node: LayoutNode) =>
   Boolean(node.endTime) ||
   (node.latency != null && Number.isFinite(node.latency));
 
+/**
+ * A span's offsets from the trace origin, with the same end-time fallbacks the
+ * layout itself applies. Exported so a caller that needs an extent for a row the
+ * layout has not positioned — one outside the visible window — cannot end up
+ * disagreeing with the bar it will eventually draw.
+ */
+export function spanOffsetsOf(
+  node: LayoutNode,
+  originMs: number,
+): { startMs: number; endMs: number } {
+  return { startMs: startOf(node) - originMs, endMs: endOf(node) - originMs };
+}
+
 export function formatDurationMs(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return "0ms";
   if (ms < 1_000) return `${Math.round(ms)}ms`;

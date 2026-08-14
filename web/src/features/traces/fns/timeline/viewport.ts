@@ -19,8 +19,16 @@
 
 import { clampView, type TimeSpan } from "./viewTransform";
 
-/** Rows never render thinner than this, so "everything visible" has a limit. */
-export const MIN_ROW_HEIGHT = 4;
+/**
+ * One device pixel per span — the floor, and it is deliberately literal.
+ *
+ * A 4px floor still made a few thousand spans a scrolling job, which is the one
+ * thing this layout exists to avoid: at 4px you are reading a window, at 1px you
+ * are reading the trace. A 600px-tall box holds 600 rows, so most traces fit
+ * whole and the shape arrives all at once; zoom is then how you get from the
+ * shape to a span, rather than how you find out there is more below.
+ */
+export const MIN_ROW_HEIGHT = 1;
 /** Nor thicker than this, so zooming in cannot end at one giant row. */
 export const MAX_ROW_HEIGHT = 40;
 /** The row height a human reads comfortably — what double-click aims for. */
@@ -230,6 +238,100 @@ export function focusViewport(
       },
       rows: { start: rowIndex + 0.5 - count / 2, count },
     },
+    limits,
+  );
+}
+
+export type RowExtent = { startMs: number; endMs: number };
+
+/**
+ * Slide the clock to where the rows are, when a zoom has landed on empty air.
+ *
+ * The two axes are independent by design — one is time, the other is position in
+ * the tree — and they are only ever CORRELATED, never proportional: a chain of
+ * 600 spans can finish in the first third of a trace whose duration is set by one
+ * long root. Zooming both axes about the same point therefore has a failure mode
+ * with nothing wrong with it and nothing in it: forty rows whose spans all lie
+ * outside the window, drawn as a column of edge carets.
+ *
+ * So after a zoom, if not one visible row has anything inside the window, the
+ * window slides onto the rows that are there. It never resizes — the zoom the
+ * user asked for is the zoom they get — and it does nothing at all whenever there
+ * is something to see, so it cannot fight someone who is looking at a span.
+ */
+export function anchorTimeToRows(
+  viewport: Viewport,
+  limits: ViewportLimits,
+  extentOf: (rowIndex: number) => RowExtent | null,
+): Viewport {
+  const range = visibleRowRange(viewport, limits.rowCount, 0);
+  const windowStart = viewport.time.start;
+  const windowEnd = windowStart + viewport.time.duration;
+  let earliest = Infinity;
+  let latest = -Infinity;
+
+  for (let index = range.startIndex; index <= range.endIndex; index++) {
+    const extent = extentOf(index);
+    if (!extent) continue;
+    // Anything at all inside the window means there is something to look at.
+    if (extent.endMs >= windowStart && extent.startMs <= windowEnd) {
+      return viewport;
+    }
+    earliest = Math.min(earliest, extent.startMs);
+    latest = Math.max(latest, extent.endMs);
+  }
+  if (!Number.isFinite(earliest) || !Number.isFinite(latest)) return viewport;
+
+  const centre = (earliest + latest) / 2;
+  return clampViewport(
+    {
+      time: {
+        start: centre - viewport.time.duration / 2,
+        duration: viewport.time.duration,
+      },
+      rows: viewport.rows,
+    },
+    limits,
+  );
+}
+
+/**
+ * The smallest move that brings a row and its span inside the window —
+ * scrollIntoView for a 2D viewport, and deliberately NOT a focus.
+ *
+ * Selection arrives from everywhere: the tree, a search hit, a deep link, a
+ * playback cursor. All of those owe the user a visible highlight, but none of
+ * them is a request to change how far in you are looking — so the zoom on both
+ * axes is carried through untouched and only the offsets move. A span wider than
+ * the current window is centred, since no offset can contain it.
+ */
+export function revealViewport(
+  viewport: Viewport,
+  limits: ViewportLimits,
+  target: { rowIndex: number; startMs: number; endMs: number },
+): Viewport {
+  const from = clampViewport(viewport, limits);
+  const rowIndex = Math.max(finite(target.rowIndex, 0), 0);
+
+  // Keep a row of context around it where the window is big enough to spare it.
+  const count = from.rows.count;
+  const margin = Math.min(1, Math.max(count - 1, 0) / 2);
+  let rowStart = from.rows.start;
+  if (rowIndex < rowStart + margin) rowStart = rowIndex - margin;
+  else if (rowIndex + 1 > rowStart + count - margin) {
+    rowStart = rowIndex + 1 + margin - count;
+  }
+
+  const duration = from.time.duration;
+  const startMs = finite(target.startMs, 0);
+  const endMs = Math.max(finite(target.endMs, startMs), startMs);
+  let timeStart = from.time.start;
+  if (endMs - startMs >= duration) timeStart = (startMs + endMs - duration) / 2;
+  else if (startMs < timeStart) timeStart = startMs;
+  else if (endMs > timeStart + duration) timeStart = endMs - duration;
+
+  return clampViewport(
+    { time: { start: timeStart, duration }, rows: { start: rowStart, count } },
     limits,
   );
 }
