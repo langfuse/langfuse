@@ -548,7 +548,7 @@ function AssistantActivityGroup({
               role={message.role}
               content={message.content}
               isCompact={isCompact}
-              showActions={false}
+              isFinalAnswer={false}
             />
           ))}
         </div>
@@ -1239,7 +1239,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                           role={item.message.role}
                           content={item.message.content}
                           isCompact={!isExpanded}
-                          showActions={false}
                         />
                       </li>
                     );
@@ -1263,7 +1262,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   }
 
                   const message = item.message;
-                  const showActions = item.isFinalAnswer;
                   const feedbackRunId =
                     message.content.type === "text" && item.isFinalAnswer
                       ? message.runId
@@ -1279,7 +1277,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         content={message.content}
                         isCompact={!isExpanded}
                         isFeedbackDisabled={isConversationInteractionDisabled}
-                        showActions={showActions}
+                        isFinalAnswer={item.isFinalAnswer}
                         timestamp={message.timestamp}
                         onSubmitFeedback={
                           feedbackRunId

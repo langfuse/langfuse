@@ -153,7 +153,9 @@ export type InAppAgentMessageProps = {
   content: InAppAgentMessageContent;
   isCompact?: boolean;
   isFeedbackDisabled?: boolean;
-  showActions?: boolean;
+  /** False for intermediate blocks rendered inside the activity drawer, which
+   * withholds the whole trailing row: copy, feedback, sources and timestamp. */
+  isFinalAnswer?: boolean;
   timestamp?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
@@ -166,7 +168,7 @@ export function InAppAgentMessage({
   content,
   isCompact = false,
   isFeedbackDisabled = false,
-  showActions = true,
+  isFinalAnswer = true,
   timestamp,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
@@ -195,7 +197,7 @@ export function InAppAgentMessage({
         isCompact={isCompact}
         isFeedbackDisabled={isFeedbackDisabled}
         onSubmitFeedback={onSubmitFeedback}
-        showActions={showActions}
+        isFinalAnswer={isFinalAnswer}
         timestamp={timestamp}
       />
     );
@@ -255,13 +257,13 @@ function TextMessageWithActions({
   isCompact,
   isFeedbackDisabled,
   onSubmitFeedback,
-  showActions,
+  isFinalAnswer,
   timestamp,
 }: {
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
-  showActions: boolean;
+  isFinalAnswer: boolean;
   timestamp?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
@@ -276,7 +278,7 @@ function TextMessageWithActions({
   const hasSources = sources.length > 0;
   const isSettled = !content.isStreaming;
   const canSubmitFeedback = isSettled && onSubmitFeedback;
-  const hasActions = isSettled && showActions;
+  const hasActions = isSettled && isFinalAnswer;
   const formattedTimestamp = timestamp
     ? formatMessageTimestamp(timestamp)
     : null;
