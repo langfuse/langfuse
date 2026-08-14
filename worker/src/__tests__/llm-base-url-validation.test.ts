@@ -13,10 +13,6 @@ const originalAllowedIpSegments =
   env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS;
 
 describe("LLM base URL validation", () => {
-  // Stub the dns module object instead of vi.mock("node:dns/promises") so the
-  // stubs apply no matter whether the validator is loaded from source or from
-  // @langfuse/shared's compiled CommonJS output, whose require() vitest's
-  // module mocking does not intercept.
   beforeEach(() => {
     vi.spyOn(dns, "resolve4").mockRejectedValue(new Error("ENOTFOUND"));
     vi.spyOn(dns, "resolve6").mockRejectedValue(new Error("ENODATA"));

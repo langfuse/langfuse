@@ -2,22 +2,14 @@ import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import dns from "node:dns/promises";
 import { validateWebhookURL } from "@langfuse/shared/src/server";
 
-// Every case here asserts a rejection, so DNS never needs to resolve for real.
-// Stubbing the resolver removes a dependency on live network conditions, which
-// made hostnames like a 50-level subdomain or a bare "metadata" label (subject
-// to resolver search-domain suffixing) hang past the test timeout in CI.
-//
-// Stub the dns module object rather than vi.mock("node:dns/promises"): this
-// file reaches validateWebhookURL through @langfuse/shared/src/server, i.e.
-// the package's compiled CommonJS output, whose require() vitest's module
-// mocking does not intercept.
+// Stub the dns module object, not vi.mock("node:dns/promises"): this file loads
+// the validator from @langfuse/shared's compiled output, whose require() vitest
+// does not intercept.
 const dnsError = (code: string, hostname: string) =>
   Object.assign(new Error(`queryA ${code} ${hostname}`), { code });
 
-// Inside a cloud VM a bare "metadata" label resolves to the metadata endpoint
-// via resolver search domains. Modelling that keeps the metadata test asserting
-// the resolved-IP block instead of a DNS failure, and makes every test in this
-// file fail loudly if the stubs ever stop applying.
+// Inside a cloud VM, resolver search domains turn a bare "metadata" label into
+// the metadata endpoint.
 const searchDomainHosts: Record<string, string> = {
   metadata: "169.254.169.254",
 };
@@ -305,9 +297,8 @@ describe("URL Normalization and Edge Cases", () => {
       ];
 
       for (const url of metadataAttempts) {
-        // Blocked on the hostname/literal IP, except "metadata", which is
-        // blocked on the address it resolves to. A DNS failure must not count
-        // as a pass here.
+        // "metadata" is blocked on the IP it resolves to, the rest on the
+        // hostname/literal IP. A DNS failure must not count as a pass.
         await expect(validateWebhookURL(url)).rejects.toThrow(
           /Blocked (hostname|IP address) detected/,
         );

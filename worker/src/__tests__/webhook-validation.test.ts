@@ -7,10 +7,6 @@ const nonexistentDomain = "this-domain-definitely-does-not-exist-12345.com";
 const dnsError = (code: string, hostname: string) =>
   Object.assign(new Error(`queryA ${code} ${hostname}`), { code });
 
-// Stub the dns module object instead of vi.mock("node:dns/promises") so the
-// stubs apply no matter whether the validator is loaded from source or from
-// @langfuse/shared's compiled CommonJS output, whose require() vitest's module
-// mocking does not intercept.
 beforeEach(() => {
   vi.spyOn(dns, "resolve4").mockImplementation(async (hostname: string) => {
     if (hostname === nonexistentDomain) {
