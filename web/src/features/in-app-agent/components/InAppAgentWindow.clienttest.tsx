@@ -606,21 +606,21 @@ describe("InAppAgentWindow activity", () => {
     fireEvent.click(waitingTrigger);
     expect(waitingTrigger).toHaveAttribute("aria-expanded", "true");
 
+    const reasoning = {
+      id: "assistant-reasoning",
+      timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+      role: "assistant" as const,
+      content: {
+        type: "reasoning" as const,
+        text: "I will inspect the recent errors.",
+        isStreaming: false,
+      },
+    };
+
     rerender(
       windowElement({
         isAssistantTurnInProgress: true,
-        messages: [
-          userMessage,
-          {
-            id: "assistant-reasoning",
-            role: "assistant",
-            content: {
-              type: "reasoning",
-              text: "I will inspect the recent errors.",
-              isStreaming: false,
-            },
-          },
-        ],
+        messages: [userMessage, reasoning],
       }),
     );
 
@@ -629,6 +629,29 @@ describe("InAppAgentWindow activity", () => {
     expect(
       screen.queryByRole("button", { name: "There for you in a second…" }),
     ).not.toBeInTheDocument();
+    // The drawer the user opened while waiting is the same drawer now working.
+    expect(workingTrigger).toHaveAttribute("aria-expanded", "true");
+
+    rerender(
+      windowElement({
+        messages: [
+          userMessage,
+          reasoning,
+          {
+            id: "assistant-answer",
+            runId: "run-1",
+            timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+            role: "assistant",
+            content: { type: "text", text: "Two ingestion retries failed." },
+          },
+        ],
+      }),
+    );
+
+    // Settling must not tear the drawer down and collapse it under the user.
+    expect(
+      screen.getByRole("button", { name: "Worked for 51s" }),
+    ).toHaveAttribute("aria-expanded", "true");
   });
 
   it("labels a completed turn with compact minutes and leftover seconds", () => {

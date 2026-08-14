@@ -270,6 +270,10 @@ type ConversationDisplayItem =
     }
   | {
       type: "activity";
+      /** Identifies the turn, not its contents: the drawer must survive both
+       * the first activity arriving and the run settling without remounting,
+       * or an expanded drawer collapses under the user. */
+      key: string;
       messages: InAppAgentWindowMessage[];
       startTimestamp?: number;
       endTimestamp?: number;
@@ -409,11 +413,15 @@ function buildConversationDisplayItems(
       (source) => source.url,
     );
     const joinedAnswer = joinAnswerMessages(answerMessages, turnSources);
-    const followsUser = visibleMessages[turnStartIndex - 1]?.role === "user";
+    const precedingMessage = visibleMessages[turnStartIndex - 1];
+    const followsUser = precedingMessage?.role === "user";
 
     if (activityMessages.length > 0) {
       items.push({
         type: "activity",
+        key: getActivityKey(
+          followsUser ? precedingMessage?.id : turnMessages[0]?.id,
+        ),
         messages: activityMessages,
         startTimestamp: turnMessages.find(
           (turnMessage) => turnMessage.timestamp !== undefined,
@@ -435,9 +443,13 @@ function buildConversationDisplayItems(
     }
   }
 
-  if (isRunUnsettled && items.at(-1)?.type === "user") {
+  const lastItem = items.at(-1);
+  if (isRunUnsettled && lastItem?.type === "user") {
+    // Same key the turn will claim once its first message lands, so the caret
+    // the user may already have opened is not torn down underneath them.
     items.push({
       type: "activity",
+      key: getActivityKey(lastItem.message.id),
       messages: [],
       followsUser: true,
       isInProgress: true,
@@ -445,6 +457,10 @@ function buildConversationDisplayItems(
   }
 
   return items;
+}
+
+function getActivityKey(turnAnchorMessageId: string | undefined) {
+  return `activity-${turnAnchorMessageId ?? "start"}`;
 }
 
 function formatWorkedDuration(totalSeconds: number) {
@@ -484,8 +500,7 @@ function AssistantActivityGroup({
   startTimestamp?: number;
 }) {
   const hasDetails = messages.length > 0;
-  const [userToggled, setUserToggled] = useState<boolean | null>(null);
-  const isOpen = userToggled ?? false;
+  const [isOpen, setIsOpen] = useState(false);
   const durationSeconds =
     startTimestamp !== undefined && endTimestamp !== undefined
       ? Math.max(1, Math.round((endTimestamp - startTimestamp) / 1_000))
@@ -502,10 +517,6 @@ function AssistantActivityGroup({
     : durationSeconds !== null
       ? `Worked for ${formatWorkedDuration(durationSeconds)}`
       : "Activity";
-  const labelClassName = cn(
-    "text-muted-foreground flex w-full items-center gap-1 py-1 text-left",
-    isCompact ? "text-[0.775rem]" : "text-sm",
-  );
 
   return (
     <div className="w-full">
@@ -514,11 +525,11 @@ function AssistantActivityGroup({
         aria-expanded={isOpen}
         aria-label={label}
         className={cn(
-          labelClassName,
-          "focus-visible:ring-ring outline-none focus-visible:ring-2",
+          "text-muted-foreground focus-visible:ring-ring flex w-full items-center gap-1 py-1 text-left outline-none focus-visible:ring-2",
+          isCompact ? "text-[0.775rem]" : "text-sm",
         )}
         onClick={() => {
-          setUserToggled(!isOpen);
+          setIsOpen((open) => !open);
         }}
       >
         <span className={cn(isInProgress && messageStyles.thinkingShimmer)}>
@@ -1237,11 +1248,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   if (item.type === "activity") {
                     return (
                       <li
-                        key={
-                          item.isInProgress
-                            ? "activity-pending"
-                            : `activity-${item.messages[0]?.id ?? "done"}`
-                        }
+                        key={item.key}
                         className={cn("w-full", item.followsUser && "mt-3")}
                       >
                         <AssistantActivityGroup
