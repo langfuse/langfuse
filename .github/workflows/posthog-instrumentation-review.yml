@@ -178,9 +178,10 @@ jobs:
               buildAnchorableLines,
               bullet,
               envelope,
-              parseFingerprints,
               partitionFindings,
               safe,
+              safeSuggestion,
+              seenFingerprintsFrom,
               summaryBullet,
             } = await import(
               `${process.env.GITHUB_WORKSPACE}/scripts/posthog-review/partition-findings.mjs`
@@ -254,7 +255,12 @@ jobs:
                 `Rules: \`${skillPath}\`.`,
               ];
               if (violation.suggestion && !violation.suggestion.includes("```")) {
-                lines.push("", "```suggestion", violation.suggestion, "```");
+                lines.push(
+                  "",
+                  "```suggestion",
+                  safeSuggestion(violation.suggestion),
+                  "```",
+                );
               }
               lines.push(
                 "",
@@ -280,7 +286,8 @@ jobs:
 
             // Fingerprint dedupe: a re-posted finding on a cleared PR would re-block
             // it. Inline comments and review bodies both carry envelopes — the
-            // withheld-finding bullets live in the body — so both are read.
+            // withheld-finding bullets live in the body — so both are read, and
+            // only this job's own `github.token` identity is trusted.
             const [existingComments, existingReviews] = await Promise.all([
               github.paginate(github.rest.pulls.listReviewComments, {
                 owner,
@@ -295,15 +302,12 @@ jobs:
                 per_page: 100,
               }),
             ]);
-            const seen = new Set();
-            for (const record of [...existingComments, ...existingReviews]) {
-              const { fingerprints, unparseable } = parseFingerprints(record.body);
-              for (const fp of fingerprints) seen.add(fp);
-              if (unparseable > 0) {
-                core.warning(
-                  `${unparseable} unparseable envelope(s) on ${record.id}`,
-                );
-              }
+            const { seen, unparseable } = seenFingerprintsFrom(
+              [...existingComments, ...existingReviews],
+              "github-actions[bot]",
+            );
+            if (unparseable > 0) {
+              core.warning(`${unparseable} unparseable envelope(s) on this PR`);
             }
 
             const { findings, fresh, inline, cappedOut, offDiff, lowerConfidence } =

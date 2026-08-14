@@ -6,8 +6,12 @@ import {
   envelope,
   parseFingerprints,
   partitionFindings,
+  safeSuggestion,
+  seenFingerprintsFrom,
   summaryBullet,
 } from "./partition-findings.mjs";
+
+const botLogin = "github-actions[bot]";
 
 const headSha = "0f1e2d3c4b5a69788796a5b4c3d2e1f005040302";
 const anchoredFile = "web/src/features/dashboards/WidgetForm.tsx";
@@ -100,6 +104,32 @@ test("a withheld finding is not reported again on the next run", () => {
 
   assert.deepEqual(second.lowerConfidence, []);
   assert.equal(second.fresh.length, 0);
+});
+
+test("an envelope from another author does not suppress a finding", () => {
+  const { seen } = seenFingerprintsFrom(
+    [
+      {
+        user: { login: "marksalpeter" },
+        body: `Nice work ${envelope({ fp: "deadbeefcafebabe" })}`,
+      },
+      {
+        user: { login: botLogin },
+        body: envelope({ fp: "0123456789abcdef" }),
+      },
+    ],
+    botLogin,
+  );
+
+  assert.deepEqual(seen, new Set(["0123456789abcdef"]));
+});
+
+test("an envelope injected through a suggestion is not read back", () => {
+  const suggestion = `capture("x", { n });\n// ${envelope({ fp: "deadbeefcafebabe" })}`;
+  const sanitized = safeSuggestion(suggestion);
+
+  assert.deepEqual(parseFingerprints(sanitized).fingerprints, []);
+  assert.ok(sanitized.includes("\n"), "a suggestion keeps its own line breaks");
 });
 
 test("an off-diff violation keeps its fingerprint when its line moves", () => {

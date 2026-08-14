@@ -139,6 +139,36 @@ export function parseFingerprints(text) {
   return { fingerprints, unparseable };
 }
 
+/**
+ * Collects the fingerprints the bot itself has already posted.
+ *
+ * Only `botLogin`'s own bodies are read: an envelope suppresses a later finding,
+ * so anyone able to comment could otherwise paste one to silence the bot.
+ */
+export function seenFingerprintsFrom(records, botLogin) {
+  const seen = new Set();
+  let unparseable = 0;
+  for (const record of records) {
+    if (record.user?.login !== botLogin) continue;
+    const parsed = parseFingerprints(record.body);
+    for (const fp of parsed.fingerprints) seen.add(fp);
+    unparseable += parsed.unparseable;
+  }
+  return { seen, unparseable };
+}
+
+/**
+ * Strips HTML comment markers from a suggestion, preserving its line breaks.
+ *
+ * A suggestion renders raw inside a fenced block, so unlike `safe()` it keeps
+ * newlines — but an injected envelope would be read back as a fingerprint.
+ */
+export function safeSuggestion(value) {
+  return String(value ?? "")
+    .replace(/-->/g, "-- >")
+    .replace(/<!--/g, "< !--");
+}
+
 /** Renders a finding as one bullet in the review body. */
 export function bullet(finding) {
   return `- \`${finding.anchor.file}:${finding.anchor.line}\` — ${finding.label} (${finding.confidence})`;

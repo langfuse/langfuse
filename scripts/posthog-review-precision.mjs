@@ -51,7 +51,7 @@ query($owner: String!, $repo: String!, $pageSize: Int!, $threadPageSize: Int!, $
             comments(first: 1) {
               nodes {
                 body
-                author { login }
+                author { __typename login }
               }
             }
           }
@@ -168,7 +168,9 @@ function collectFindings(options) {
 
       for (const thread of pull.reviewThreads.nodes) {
         const comment = thread.comments.nodes[0];
-        if (!comment?.author?.login?.endsWith("[bot]")) continue;
+        // GraphQL reports a bot's login without the `[bot]` suffix REST carries,
+        // so the type is the only reliable check here.
+        if (comment?.author?.__typename !== "Bot") continue;
 
         const match = envelopePattern.exec(comment.body ?? "");
         if (!match) continue;
