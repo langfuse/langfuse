@@ -642,17 +642,18 @@ const sortSdkUsageSeries = (
   );
 
 /**
- * Drops series that aged out of the detection window. Cached blobs may cover
- * a window whose left edge is up to a day older than "now minus 7 days", so
- * aging-out is enforced at read time.
+ * Read-time aging-out rule shared by every cached usage source: cached
+ * entries may cover a window computed hours ago, so entries whose last
+ * activity left the trailing detection window are dropped on read.
  */
+const isWithinDetectionWindow = (lastSeen: string, nowMs: number): boolean =>
+  Date.parse(lastSeen) >= nowMs - DETECTION_WINDOW_MS;
+
 const trimSdkUsageSeries = (
   series: SdkUsageSummaryByProjectSeries[],
   nowMs: number,
 ): SdkUsageSummaryByProjectSeries[] =>
-  series.filter(
-    (entry) => Date.parse(entry.lastSeen) >= nowMs - DETECTION_WINDOW_MS,
-  );
+  series.filter((entry) => isWithinDetectionWindow(entry.lastSeen, nowMs));
 
 const isSdkUsageBlobUsable = (
   blob: SdkUsageCacheBlob | null,
@@ -862,9 +863,9 @@ const getExperimentPostUsageByProject = async ({
   const { windowStart, windowEnd } = getDetectionWindow(nowMs);
   const usageByProject = new Map<string, boolean | "check_failed">();
 
-  const cachedBlobs = isV4TransitionCacheAvailable()
-    ? await readExperimentPostUsageCache(projectIds)
-    : projectIds.map(() => null);
+  // readExperimentPostUsageCache already returns all-null when Redis is
+  // unavailable, which flows into the direct-query fallback below.
+  const cachedBlobs = await readExperimentPostUsageCache(projectIds);
   const missedProjectIds: string[] = [];
   projectIds.forEach((projectId, index) => {
     const blob = cachedBlobs[index];
@@ -1180,15 +1181,11 @@ const queryLegacyApiUsageSummaries = async ({
   );
 };
 
-/**
- * Drops legacy API rows that aged out of the detection window; cached entries
- * may cover a window computed up to 12h ago.
- */
 const trimLegacyApiUsageRows = (
   rows: CachedLegacyApiUsageRow[],
   nowMs: number,
 ): CachedLegacyApiUsageRow[] =>
-  rows.filter((row) => Date.parse(row.lastSeen) >= nowMs - DETECTION_WINDOW_MS);
+  rows.filter((row) => isWithinDetectionWindow(row.lastSeen, nowMs));
 
 /**
  * Deprecated public API usage per project, served from a 12h Redis cache.
@@ -1401,6 +1398,19 @@ export const v4TransitionRouter = createTRPCRouter({
   cachedMigrationActions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      // Forced-v3 projects are partner-managed: the client suppresses every
+      // migration signal, so skip all I/O on this always-mounted hot path.
+      if (isForceV3ExperienceProject(input.projectId)) {
+        return {
+          forceV3Experience: true,
+          sdkActionNeeded: null,
+          experimentsActionNeeded: null,
+          apisActionNeeded: null,
+          evalsActionNeeded: false,
+          exportsActionNeeded: false,
+        };
+      }
+
       const nowMs = Date.now();
       const projectIds = [input.projectId];
 
