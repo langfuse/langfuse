@@ -477,6 +477,64 @@ describe("InAppAgentWindow scrolling", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("reattaches auto-follow when you send from further up the transcript", () => {
+    const messages = [
+      {
+        id: "user-1",
+        role: "user" as const,
+        content: { type: "text" as const, text: "Investigate latency" },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant" as const,
+        content: { type: "text" as const, text: "First finding" },
+      },
+    ];
+    const { container, rerender } = render(windowElement({ messages }));
+    const viewport =
+      container.querySelector<HTMLDivElement>(".overflow-y-auto");
+    if (!viewport) {
+      throw new Error("Expected the assistant message viewport");
+    }
+
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, value: 800, writable: true },
+    });
+    fireEvent.scroll(viewport);
+    viewport.scrollTop = 500;
+    fireEvent.scroll(viewport);
+    expect(
+      screen.getByRole("button", { name: "Scroll to latest message" }),
+    ).toBeInTheDocument();
+
+    // A turn appends a placeholder behind the new user message, so the newest
+    // message is not the one that says the user wants to follow along.
+    rerender(
+      windowElement({
+        isAssistantTurnInProgress: true,
+        messages: [
+          ...messages,
+          {
+            id: "user-2",
+            role: "user",
+            content: { type: "text", text: "And the error rate?" },
+          },
+          {
+            id: "connecting",
+            role: "assistant",
+            content: { type: "loading", label: "Connecting..." },
+          },
+        ],
+      }),
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Scroll to latest message" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("hides Latest when collapsing the activity drawer returns you to the bottom", () => {
     let notifyResize: (() => void) | undefined;
     vi.stubGlobal(

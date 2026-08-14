@@ -2,6 +2,7 @@
 
 import {
   type KeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -579,6 +580,159 @@ function AssistantActivityGroup({
   );
 }
 
+/**
+ * Owns the conversation viewport and everything about following it: whether we
+ * are pinned to the newest message, the `Latest` escape hatch, and the smooth
+ * scroll it starts. Mount this keyed by conversation so switching gives it a
+ * fresh scroll position instead of an effect that resets one.
+ */
+function ConversationScroller({
+  children,
+  messages,
+}: {
+  children: ReactNode;
+  messages: InAppAgentWindowMessage[];
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  // Sticky intent to follow, which survives scrolling down through the middle
+  // of the transcript; `isAtLatest` only says whether the pill is needed.
+  const isAutoScrollAttachedRef = useRef(true);
+  const isScrollingToLatestRef = useRef(false);
+  const previousScrollTopRef = useRef(0);
+  // The newest user message, rather than the newest message: a turn often
+  // appends a placeholder after it, which would mask the send.
+  const lastUserMessageId = messages.findLast(
+    (message) => message.role === "user",
+  )?.id;
+  const [followState, setFollowState] = useState({
+    lastUserMessageId,
+    isAtLatest: true,
+  });
+  // Saying something is a request to follow along again, even from far up.
+  // Derived rather than keyed on a remount, which would take the transcript —
+  // and every drawer the user has opened — down with it.
+  const hasNewUserMessage = followState.lastUserMessageId !== lastUserMessageId;
+  const isAtLatest = hasNewUserMessage || followState.isAtLatest;
+  if (hasNewUserMessage) {
+    isAutoScrollAttachedRef.current = true;
+  }
+  const setIsAtLatest = useCallback(
+    (nextIsAtLatest: boolean) => {
+      setFollowState({ lastUserMessageId, isAtLatest: nextIsAtLatest });
+    },
+    [lastUserMessageId],
+  );
+
+  useEffect(() => {
+    if (isAutoScrollAttachedRef.current) {
+      scrollViewportToBottom(viewportRef.current);
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    // Content can shrink back under the viewport without a scroll event — a
+    // collapsing activity drawer does exactly that.
+    const syncIsAtLatest = () => {
+      if (isScrollingToLatestRef.current) {
+        return;
+      }
+
+      if (isViewportNearBottom(viewport)) {
+        isAutoScrollAttachedRef.current = true;
+        // The raw setter keeps this subscription off `lastUserMessageId`: a
+        // resize says nothing about which send we have caught up with.
+        setFollowState((state) => ({ ...state, isAtLatest: true }));
+      }
+    };
+
+    const observer = new ResizeObserver(syncIsAtLatest);
+    const content = viewport.firstElementChild;
+    if (content) {
+      observer.observe(content);
+    }
+    observer.observe(viewport);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <div className="relative min-h-0 flex-1">
+      <div
+        ref={viewportRef}
+        // `overscroll-contain`: the conversation is the only scroller, so its
+        // rubber-band must not chain out to whatever is behind it.
+        className="h-full overflow-y-auto overscroll-contain"
+        onScroll={(event) => {
+          const viewport = event.currentTarget;
+          const isNearBottom = isViewportNearBottom(viewport);
+          const scrolledUp =
+            viewport.scrollTop <
+            previousScrollTopRef.current - SCROLL_DIRECTION_TOLERANCE_PX;
+
+          // Our own smooth scroll emits a stream of events on the way down;
+          // only arriving, or the user overriding it, ends that.
+          if (isScrollingToLatestRef.current) {
+            if (isNearBottom) {
+              isScrollingToLatestRef.current = false;
+              isAutoScrollAttachedRef.current = true;
+              setIsAtLatest(true);
+            } else if (scrolledUp) {
+              isScrollingToLatestRef.current = false;
+              isAutoScrollAttachedRef.current = false;
+              setIsAtLatest(false);
+            }
+
+            previousScrollTopRef.current = viewport.scrollTop;
+            return;
+          }
+
+          if (scrolledUp && !isNearBottom) {
+            isAutoScrollAttachedRef.current = false;
+          } else if (isNearBottom) {
+            isAutoScrollAttachedRef.current = true;
+          }
+
+          setIsAtLatest(isNearBottom);
+          previousScrollTopRef.current = viewport.scrollTop;
+        }}
+      >
+        {children}
+      </div>
+      {!isAtLatest ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Scroll to latest message"
+          className="bg-background absolute bottom-3 left-1/2 z-10 h-8 -translate-x-1/2 rounded-full px-3 shadow-sm"
+          onClick={() => {
+            isAutoScrollAttachedRef.current = true;
+            isScrollingToLatestRef.current = true;
+            setIsAtLatest(true);
+            const prefersReducedMotion =
+              typeof window.matchMedia === "function" &&
+              window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            scrollViewportToBottom(
+              viewportRef.current,
+              prefersReducedMotion ? "auto" : "smooth",
+            );
+          }}
+        >
+          <ArrowDown className="size-3.5" />
+          Latest
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 export type InAppAgentWindowConversation = {
   id: string;
   title: string | null;
@@ -764,30 +918,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const executionStop = executionUi.stop;
   const canStopRun = executionStop !== null && isAssistantTurnInProgress;
   const isCancellingRun = executionStop?.status === "stopping";
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const isAutoScrollAttachedRef = useRef(true);
-  const isScrollingToLatestRef = useRef(false);
-  const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const previousIsInputDisabledRef = useRef(isComposerDisabled);
   const previousIsAssistantTurnInProgressRef = useRef(
     isAssistantTurnInProgress,
   );
   const [input, setInput] = useState("");
-  const [scrollState, setScrollState] = useState({
-    conversationId: selectedConversationId,
-    isAtLatest: true,
-  });
-  const isAtLatest =
-    scrollState.conversationId === selectedConversationId
-      ? scrollState.isAtLatest
-      : true;
-  const setIsAtLatest = useCallback(
-    (isAtLatest: boolean) => {
-      setScrollState({ conversationId: selectedConversationId, isAtLatest });
-    },
-    [selectedConversationId],
-  );
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
   // Same conversations the launcher badge counts, narrowed to the ones behind
@@ -837,65 +973,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             backgroundHint.show();
           }
 
-          isAutoScrollAttachedRef.current = true;
-          setIsAtLatest(true);
-
           setInput((currentInput) =>
             currentInput.trim() === trimmedContent ? "" : currentInput,
           );
-
-          window.requestAnimationFrame(() => {
-            scrollViewportToBottom(viewportRef.current);
-          });
         }
       })
       .catch(() => undefined);
   };
-
-  useEffect(() => {
-    if (!isAutoScrollAttachedRef.current) {
-      return;
-    }
-
-    scrollViewportToBottom(viewportRef.current);
-  }, [messages]);
-
-  useEffect(() => {
-    isAutoScrollAttachedRef.current = true;
-    isScrollingToLatestRef.current = false;
-    previousScrollTopRef.current = 0;
-
-    scrollViewportToBottom(viewportRef.current);
-  }, [selectedConversationId]);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport || typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const syncIsAtLatest = () => {
-      if (isScrollingToLatestRef.current) {
-        return;
-      }
-
-      if (isViewportNearBottom(viewport)) {
-        isAutoScrollAttachedRef.current = true;
-        setIsAtLatest(true);
-      }
-    };
-
-    const observer = new ResizeObserver(syncIsAtLatest);
-    const content = viewport.firstElementChild;
-    if (content) {
-      observer.observe(content);
-    }
-    observer.observe(viewport);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [selectedConversationId, setIsAtLatest]);
 
   // Update after refs commit so setInputRef can compare the previous disabled state.
   useEffect(() => {
@@ -1148,185 +1232,123 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         </div>
       </header>
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div className="relative min-h-0 flex-1">
+        <ConversationScroller key={selectedConversationId} messages={messages}>
           <div
-            ref={viewportRef}
-            // `overscroll-contain`: the conversation is the only scroller, so its
-            // rubber-band must not chain out to whatever is behind it.
-            className="h-full overflow-y-auto overscroll-contain"
-            onScroll={(event) => {
-              const viewport = event.currentTarget;
-              const isNearBottom = isViewportNearBottom(viewport);
-              const scrolledUp =
-                viewport.scrollTop <
-                previousScrollTopRef.current - SCROLL_DIRECTION_TOLERANCE_PX;
-
-              if (isScrollingToLatestRef.current) {
-                if (isNearBottom) {
-                  isScrollingToLatestRef.current = false;
-                  isAutoScrollAttachedRef.current = true;
-                  setIsAtLatest(true);
-                } else if (scrolledUp) {
-                  isScrollingToLatestRef.current = false;
-                  isAutoScrollAttachedRef.current = false;
-                  setIsAtLatest(false);
-                }
-
-                previousScrollTopRef.current = viewport.scrollTop;
-                return;
-              }
-
-              if (scrolledUp && !isNearBottom) {
-                isAutoScrollAttachedRef.current = false;
-              } else if (isNearBottom) {
-                isAutoScrollAttachedRef.current = true;
-              }
-
-              setIsAtLatest(isNearBottom);
-              previousScrollTopRef.current = viewport.scrollTop;
-            }}
+            className={cn(
+              "flex min-h-full w-full flex-col py-4",
+              isExpanded && "mx-auto max-w-3xl",
+              isExpanded ? "px-0" : "px-3",
+            )}
           >
-            <div
-              className={cn(
-                "flex min-h-full w-full flex-col py-4",
-                isExpanded && "mx-auto max-w-3xl",
-                isExpanded ? "px-0" : "px-3",
-              )}
-            >
-              {/* An empty transcript that is still loading is not an empty
+            {/* An empty transcript that is still loading is not an empty
                   conversation. Offering the welcome screen and its quick actions
                   mid-switch flashes the wrong thing and invites a click that
                   would start a turn in the conversation being left behind. */}
-              {messages.length === 0 &&
-              isSelectedConversationHydrating ? null : messages.length === 0 ? (
-                <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
-                  <div>
-                    <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
-                  </div>
-                  <InAppAgentQuickActionPicker
-                    key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
-                    focusedActions={focusedQuickActions}
-                    initialContext={quickActionContext}
-                    isDisabled={isSubmitDisabled}
-                    onSelectAction={(action, context, position) => {
-                      capture("in_app_agent:quick_action_started", {
-                        quickActionKey: action.id,
-                        quickActionCategory: context,
-                        position,
-                      });
-                      submitInput(action.prompt, {
-                        quickAction: {
-                          key: action.id,
-                          category: context,
-                        },
-                      });
-                    }}
-                  />
+            {messages.length === 0 &&
+            isSelectedConversationHydrating ? null : messages.length === 0 ? (
+              <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
+                <div>
+                  <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
                 </div>
-              ) : null}
+                <InAppAgentQuickActionPicker
+                  key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
+                  focusedActions={focusedQuickActions}
+                  initialContext={quickActionContext}
+                  isDisabled={isSubmitDisabled}
+                  onSelectAction={(action, context, position) => {
+                    capture("in_app_agent:quick_action_started", {
+                      quickActionKey: action.id,
+                      quickActionCategory: context,
+                      position,
+                    });
+                    submitInput(action.prompt, {
+                      quickAction: {
+                        key: action.id,
+                        category: context,
+                      },
+                    });
+                  }}
+                />
+              </div>
+            ) : null}
 
-              <ol className="flex w-full flex-col gap-1 pb-4">
-                {displayItems.map((item) => {
-                  if (item.type === "user") {
-                    return (
-                      <li
-                        key={item.message.id}
-                        className={cn(
-                          "ml-auto w-fit max-w-[92%]",
-                          item.hasPreviousMessage && "mt-3",
-                        )}
-                      >
-                        <InAppAgentMessage
-                          role={item.message.role}
-                          content={item.message.content}
-                          isCompact={!isExpanded}
-                        />
-                      </li>
-                    );
-                  }
-
-                  if (item.type === "activity") {
-                    return (
-                      <li
-                        key={item.key}
-                        className={cn("w-full", item.followsUser && "mt-3")}
-                      >
-                        <AssistantActivityGroup
-                          messages={item.messages}
-                          startTimestamp={item.startTimestamp}
-                          endTimestamp={item.endTimestamp}
-                          isCompact={!isExpanded}
-                          isInProgress={item.isInProgress}
-                        />
-                      </li>
-                    );
-                  }
-
-                  const message = item.message;
-                  const feedbackRunId =
-                    message.content.type === "text" && item.isFinalAnswer
-                      ? message.runId
-                      : undefined;
-
+            <ol className="flex w-full flex-col gap-1 pb-4">
+              {displayItems.map((item) => {
+                if (item.type === "user") {
                   return (
                     <li
-                      key={message.id}
-                      className={cn("w-full", item.followsUser && "mt-3")}
+                      key={item.message.id}
+                      className={cn(
+                        "ml-auto w-fit max-w-[92%]",
+                        item.hasPreviousMessage && "mt-3",
+                      )}
                     >
                       <InAppAgentMessage
-                        role={message.role}
-                        content={message.content}
+                        role={item.message.role}
+                        content={item.message.content}
                         isCompact={!isExpanded}
-                        isFeedbackDisabled={isConversationInteractionDisabled}
-                        isFinalAnswer={item.isFinalAnswer}
-                        timestamp={message.timestamp}
-                        onSubmitFeedback={
-                          feedbackRunId
-                            ? (params) =>
-                                onSubmitFeedback({
-                                  messageId:
-                                    message.feedbackMessageId ?? message.id,
-                                  runId: feedbackRunId,
-                                  ...params,
-                                })
-                            : undefined
-                        }
                       />
                     </li>
                   );
-                })}
-              </ol>
+                }
 
-              {error?.type === "generic" && (
-                <InAppAgentGenericError error={error} isExpanded={isExpanded} />
-              )}
-            </div>
-          </div>
-          {!isAtLatest ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Scroll to latest message"
-              className="bg-background absolute bottom-3 left-1/2 z-10 h-8 -translate-x-1/2 rounded-full px-3 shadow-sm"
-              onClick={() => {
-                isAutoScrollAttachedRef.current = true;
-                isScrollingToLatestRef.current = true;
-                setIsAtLatest(true);
-                const prefersReducedMotion =
-                  typeof window.matchMedia === "function" &&
-                  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-                scrollViewportToBottom(
-                  viewportRef.current,
-                  prefersReducedMotion ? "auto" : "smooth",
+                if (item.type === "activity") {
+                  return (
+                    <li
+                      key={item.key}
+                      className={cn("w-full", item.followsUser && "mt-3")}
+                    >
+                      <AssistantActivityGroup
+                        messages={item.messages}
+                        startTimestamp={item.startTimestamp}
+                        endTimestamp={item.endTimestamp}
+                        isCompact={!isExpanded}
+                        isInProgress={item.isInProgress}
+                      />
+                    </li>
+                  );
+                }
+
+                const message = item.message;
+                const feedbackRunId =
+                  message.content.type === "text" && item.isFinalAnswer
+                    ? message.runId
+                    : undefined;
+
+                return (
+                  <li
+                    key={message.id}
+                    className={cn("w-full", item.followsUser && "mt-3")}
+                  >
+                    <InAppAgentMessage
+                      role={message.role}
+                      content={message.content}
+                      isCompact={!isExpanded}
+                      isFeedbackDisabled={isConversationInteractionDisabled}
+                      isFinalAnswer={item.isFinalAnswer}
+                      timestamp={message.timestamp}
+                      onSubmitFeedback={
+                        feedbackRunId
+                          ? (params) =>
+                              onSubmitFeedback({
+                                messageId:
+                                  message.feedbackMessageId ?? message.id,
+                                runId: feedbackRunId,
+                                ...params,
+                              })
+                          : undefined
+                      }
+                    />
+                  </li>
                 );
-              }}
-            >
-              <ArrowDown className="size-3.5" />
-              Latest
-            </Button>
-          ) : null}
-        </div>
+              })}
+            </ol>
+
+            {error?.type === "generic" && (
+              <InAppAgentGenericError error={error} isExpanded={isExpanded} />
+            )}
+          </div>
+        </ConversationScroller>
         {pendingToolCalls.length > 0 ? (
           <div
             className={cn(
