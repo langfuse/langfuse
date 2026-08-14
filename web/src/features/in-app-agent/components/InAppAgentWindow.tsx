@@ -509,14 +509,46 @@ function formatWorkedDuration(totalSeconds: number) {
   return `${totalSeconds}s`;
 }
 
+function getActivityGroupLabel({
+  durationSeconds,
+  hasDetails,
+  isAwaitingApproval,
+  isInProgress,
+  toolNames,
+}: {
+  durationSeconds: number | null;
+  hasDetails: boolean;
+  isAwaitingApproval: boolean;
+  isInProgress: boolean;
+  toolNames: string[];
+}) {
+  if (!isInProgress) {
+    return durationSeconds === null
+      ? "Activity"
+      : `Worked for ${formatWorkedDuration(durationSeconds)}`;
+  }
+
+  // The run has stopped and owes the user a decision, so it must not keep
+  // narrating the last thing it did.
+  if (isAwaitingApproval) {
+    return "Waiting for your approval…";
+  }
+
+  return hasDetails
+    ? getInAppAgentActivityProgressLabel(toolNames)
+    : "There for you in a second…";
+}
+
 function AssistantActivityGroup({
   endTimestamp,
+  isAwaitingApproval,
   isCompact,
   isInProgress,
   messages,
   startTimestamp,
 }: {
   endTimestamp?: number;
+  isAwaitingApproval: boolean;
   isCompact: boolean;
   isInProgress: boolean;
   messages: InAppAgentWindowMessage[];
@@ -533,13 +565,13 @@ function AssistantActivityGroup({
       ? message.content.tools.map((tool) => tool.name)
       : [],
   );
-  const label = isInProgress
-    ? hasDetails
-      ? getInAppAgentActivityProgressLabel(toolNames)
-      : "There for you in a second…"
-    : durationSeconds !== null
-      ? `Worked for ${formatWorkedDuration(durationSeconds)}`
-      : "Activity";
+  const label = getActivityGroupLabel({
+    durationSeconds,
+    hasDetails,
+    isAwaitingApproval,
+    isInProgress,
+    toolNames,
+  });
 
   return (
     <div className="w-full">
@@ -555,7 +587,14 @@ function AssistantActivityGroup({
           setIsOpen((open) => !open);
         }}
       >
-        <span className={cn(isInProgress && messageStyles.thinkingShimmer)}>
+        {/* Nothing is happening while we wait on the user, so hold the shimmer. */}
+        <span
+          className={cn(
+            isInProgress &&
+              !isAwaitingApproval &&
+              messageStyles.thinkingShimmer,
+          )}
+        >
           {label}
         </span>
         <ChevronRight
@@ -769,6 +808,9 @@ export type InAppAgentWindowProps = {
   /** True while the run itself is unfinished. Reveal animation of a finished
    * turn must not hide the answer. Defaults to `isAssistantTurnInProgress`. */
   isRunUnsettled?: boolean;
+  /** The run has stopped on a tool approval, so the open turn is parked on the
+   * user rather than working. */
+  isAwaitingApproval?: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isConversationInteractionDisabled: boolean;
@@ -876,6 +918,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     hasMoreConversations,
     isAssistantTurnInProgress,
     isRunUnsettled = isAssistantTurnInProgress,
+    isAwaitingApproval = false,
     isHeaderDragHandleEnabled = false,
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
@@ -1304,6 +1347,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         endTimestamp={item.endTimestamp}
                         isCompact={!isExpanded}
                         isInProgress={item.isInProgress}
+                        isAwaitingApproval={
+                          item.isInProgress && isAwaitingApproval
+                        }
                       />
                     </li>
                   );
@@ -1452,7 +1498,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         >
           <form
             className={cn(
-              "border-input bg-background focus-within:ring-primary-accent relative flex w-full cursor-text flex-col rounded-xl border shadow-xs focus-within:ring-2",
+              "border-input bg-background focus-within:ring-muted-foreground relative flex w-full cursor-text flex-col rounded-xl border shadow-xs focus-within:ring-2",
               isExpanded && "mx-auto max-w-3xl",
             )}
             onClick={() => {
