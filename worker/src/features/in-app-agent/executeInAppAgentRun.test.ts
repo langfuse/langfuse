@@ -268,8 +268,8 @@ describe("executeInAppAgentRun", () => {
     scenarioRef.titleInferenceCalls = 0;
   });
 
-  it("does not regenerate the conversation title after an approval continuation", async () => {
-    const { projectId, run } = await seedApprovedContinuation();
+  it("does not regenerate the conversation title after executing a user-message run", async () => {
+    const { projectId, run } = await seedBackgroundRun();
 
     scenarioRef.current = completingScenario;
 
@@ -373,8 +373,6 @@ describe("executeInAppAgentRun", () => {
     expect(finished.claimedAt).not.toBeNull();
     expect(finished.heartbeatAt).not.toBeNull();
     expect(finished.errorCode).toBeNull();
-    expect(scenarioRef.titleInferenceCalls).toBe(1);
-
     // Key was minted and linked during the run, deleted and unlinked after.
     expect(keysDuringRun).toBe(1);
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);

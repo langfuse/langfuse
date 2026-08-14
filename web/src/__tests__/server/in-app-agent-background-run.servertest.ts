@@ -29,6 +29,7 @@ import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 import type * as SharedServerModule from "@langfuse/shared/src/server";
+import type * as PersistenceModule from "@langfuse/shared/in-app-agent/server/persistence";
 
 const enqueuedJobs: Array<{ name: string; payload: unknown; jobId?: string }> =
   [];
@@ -37,6 +38,22 @@ let enqueueShouldFail = false;
 const rateLimitMocks = vi.hoisted(() => ({
   rateLimitRequest: vi.fn(),
 }));
+
+const persistenceMocks = vi.hoisted(() => ({
+  maybeInferAndPersistConversationTitle: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@langfuse/shared/in-app-agent/server/persistence", async () => {
+  const actual = await vi.importActual<typeof PersistenceModule>(
+    "@langfuse/shared/in-app-agent/server/persistence",
+  );
+
+  return {
+    ...actual,
+    maybeInferAndPersistConversationTitle:
+      persistenceMocks.maybeInferAndPersistConversationTitle,
+  };
+});
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual<typeof SharedServerModule>(
@@ -85,6 +102,7 @@ describe("in-app agent background runs", () => {
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
     enqueuedJobs.length = 0;
     enqueueShouldFail = false;
+    persistenceMocks.maybeInferAndPersistConversationTitle.mockClear();
     rateLimitMocks.rateLimitRequest.mockResolvedValue({
       isRateLimited: () => false,
       res: undefined,
@@ -289,6 +307,9 @@ describe("in-app agent background runs", () => {
         }),
       }),
     ]);
+    expect(
+      persistenceMocks.maybeInferAndPersistConversationTitle,
+    ).toHaveBeenCalledOnce();
   });
 
   it("rejects a second submit while a run is active without duplicating anything", async () => {

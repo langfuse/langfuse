@@ -40,7 +40,6 @@ import {
   createInAppAgentToolPolicy,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
-  maybeInferAndPersistConversationTitle,
   parseInAppAgentInterruptEvent,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
@@ -460,21 +459,6 @@ export async function executeInAppAgentRun(params: {
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }
               : { status: InAppAgentRunStatus.SUCCEEDED },
           );
-          if (request.kind === "userMessage") {
-            await maybeInferAndPersistConversationTitle({
-              prisma,
-              projectId,
-              conversationId: conversation.id,
-              userId: run.triggeredByUserId!,
-              aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
-            }).catch((error) =>
-              logger.error("Failed to infer in-app agent conversation title", {
-                error,
-                projectId,
-                runId,
-              }),
-            );
-          }
         },
         onAbort: async () => {
           const reason = abortController.signal.reason as AbortReason;
