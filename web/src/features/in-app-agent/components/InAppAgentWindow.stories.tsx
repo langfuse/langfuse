@@ -1889,6 +1889,8 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
     selectedConversationId: "conversation-1",
     isAssistantTurnInProgress: false,
     onSubmitFeedback: fn(),
+    // Two projected blocks join into one answer, and only the first carries the
+    // persisted id: feedback still has to reach that source message.
     messages: [
       {
         id: "display-text-assistant-1-1",
@@ -1900,6 +1902,15 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
           text: "The errors were caused by malformed JSON payloads.",
         },
       },
+      {
+        id: "display-text-assistant-1-2",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Retrying them after the fix cleared the backlog.",
+        },
+      },
     ],
   },
   play: async ({ args, canvasElement }) => {
@@ -1907,6 +1918,10 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
     const goodResponseButton = await canvas.findByRole("button", {
       name: "Good response",
     });
+
+    await expect(
+      canvas.getAllByRole("button", { name: "Copy message" }),
+    ).toHaveLength(1);
 
     await userEvent.click(goodResponseButton);
     await expect(args.onSubmitFeedback).toHaveBeenCalledWith({
@@ -2055,5 +2070,125 @@ export const ContinuedToolResultRendersOnce = meta.story({
     await expect(
       canvas.queryByText(/Changed by continuation/),
     ).not.toBeInTheDocument();
+  },
+});
+
+export const RedirectStaysActionableAfterMoreThinking = meta.story({
+  name: "(Test) Redirect Stays Actionable After More Thinking",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "Take me to the failing traces." },
+      },
+      {
+        id: "assistant-reasoning-1",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "The error traces view is the right destination.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-redirect",
+        role: "assistant",
+        content: {
+          type: "redirectAction",
+          label: "Open error traces",
+          href: "/project/project-1/traces?level=ERROR",
+        },
+      },
+      {
+        id: "assistant-reasoning-2",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "I should also explain what they will see.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: { type: "text", text: "These are all timeouts." },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    // The drawer stays collapsed, so a redirect parked inside it would be lost.
+    await expect(
+      canvas.getByRole("button", { name: /Worked for/ }),
+    ).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      canvas.getByRole("button", { name: "Open error traces" }),
+    ).toBeVisible();
+  },
+});
+
+export const SourcesReachTheSettledAnswer = meta.story({
+  name: "(Test) Sources Reach The Settled Answer",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "How do I mask trace input?" },
+      },
+      {
+        id: "assistant-ack",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The docs cover masking.",
+          sources: [
+            {
+              title: "Masking",
+              url: "https://langfuse.com/docs/observability/features/masking",
+              faviconUrl: "https://langfuse.com/favicon.ico",
+            },
+          ],
+        },
+      },
+      {
+        id: "assistant-reasoning",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Now I can summarise the masking setup.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: { type: "text", text: "Set a mask function on the SDK." },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    // The citation was earned by an intermediate block that lives in the
+    // collapsed drawer; it has to travel to the answer the user is reading.
+    await userEvent.click(canvas.getByRole("button", { name: "Sources" }));
+    // The popover portals into a layer container outside the canvas.
+    const source = await screen.findByRole("link", { name: /Masking/ });
+    await waitFor(() => expect(source).toBeVisible());
+    await expect(source).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/features/masking",
+    );
   },
 });
