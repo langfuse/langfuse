@@ -89,6 +89,45 @@ export function getExportSourceOptions(
   });
 }
 
+export type ExportSourceFieldState = {
+  options: SelectableExportSourceOption[];
+  showField: boolean;
+  defaultValue: AnalyticsIntegrationExportSource;
+};
+
+// Everything the three export-source fields need, derived only from deployment
+// capability and the project's Cloud cutoff.
+//
+// A stale persisted source normally keeps the selector on screen, because
+// getExportSourceOptions returns it marked unavailable and a lone unavailable
+// option does not count as "no decision to make" — that is what gives the
+// blocked-save alert something to point at.
+//
+// Post-cutoff Cloud is the one case where that does not hold: the field is
+// hidden and EVENTS is pinned unconditionally, so a project whose persisted
+// source is a legacy one has it silently replaced on save with no alert. That
+// contradicts the rule above and is tracked separately rather than changed
+// here, since it is a Cloud behaviour change in its own right.
+export function getExportSourceFieldState(
+  persisted: AnalyticsIntegrationExportSource | null | undefined,
+  ctx: ExportSourceContext,
+): ExportSourceFieldState {
+  const legacyValidation = validateExportSource(
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    ctx,
+  );
+  const isPostCutoffCloud =
+    !legacyValidation.ok && legacyValidation.reason === "cloud-cutoff";
+  const options = getExportSourceOptions(persisted ?? null, ctx);
+  return {
+    options,
+    showField: !isPostCutoffCloud && !shouldHideExportSourceSelector(options),
+    defaultValue: isPostCutoffCloud
+      ? AnalyticsIntegrationExportSource.EVENTS
+      : getExportSourceFormValue(persisted, ctx),
+  };
+}
+
 // Blocked-save alert body per policy reason.
 const EXPORT_SOURCE_UNAVAILABLE_MESSAGES: Record<
   ExportSourceBlockedReason,

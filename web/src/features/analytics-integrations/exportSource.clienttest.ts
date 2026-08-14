@@ -8,6 +8,7 @@ import {
 
 import {
   buildExportSourceContext,
+  getExportSourceFieldState,
   getExportSourceFormValue,
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
@@ -398,6 +399,104 @@ describe("write mode drives the settings-page selector", () => {
           }),
         ),
       ).toEqual(getExportSourceOptions(undefined, ctxFor(mode)));
+    },
+  );
+});
+
+// The three settings pages consume only this composite, so the pieces agreeing
+// individually is not enough: visibility and the create default have to agree
+// with each other. A form mounted on a hidden selector whose default fails
+// validation blocks every save with no field to correct.
+describe("getExportSourceFieldState", () => {
+  const ctxFor = (
+    writeMode: BlobExportWriteMode,
+    over: Partial<
+      Omit<ExportSourceContext, "enrichedAvailable" | "legacyWritesActive">
+    > = {},
+  ): ExportSourceContext =>
+    buildExportSourceContext({ writeMode, isCloud: false, ...over });
+
+  // Whenever the selector is hidden the default must be saveable on its own,
+  // because there is no field left for the user to fix it with.
+  it.each<BlobExportWriteMode>(["legacy", "dual", "events_only"])(
+    "%s: a hidden selector always leaves a selectable default",
+    (mode) => {
+      const ctx = ctxFor(mode);
+      const { showField, defaultValue } = getExportSourceFieldState(
+        undefined,
+        ctx,
+      );
+      if (!showField) {
+        expect(isExportSourceSelectable(defaultValue, ctx)).toBe(true);
+      }
+    },
+  );
+
+  it("dual offers the choice, with the events source defaulted", () => {
+    const { showField, defaultValue, options } = getExportSourceFieldState(
+      undefined,
+      ctxFor("dual"),
+    );
+    expect(showField).toBe(true);
+    expect(options).toHaveLength(3);
+    expect(defaultValue).toBe(AnalyticsIntegrationExportSource.EVENTS);
+  });
+
+  it.each<[BlobExportWriteMode, AnalyticsIntegrationExportSource]>([
+    ["legacy", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS],
+    ["events_only", AnalyticsIntegrationExportSource.EVENTS],
+  ])("%s hides the selector and defaults to %s", (mode, expected) => {
+    const { showField, defaultValue } = getExportSourceFieldState(
+      undefined,
+      ctxFor(mode),
+    );
+    expect(showField).toBe(false);
+    expect(defaultValue).toBe(expected);
+  });
+
+  // A stale persisted source keeps the selector on screen so the blocked-save
+  // alert has something to point at, and keeps the value so the alert names it.
+  it("keeps the selector for a persisted source the deployment can no longer write", () => {
+    const ctx = ctxFor("events_only");
+    const { showField, defaultValue } = getExportSourceFieldState(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      ctx,
+    );
+    expect(showField).toBe(true);
+    expect(defaultValue).toBe(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    );
+    expect(isExportSourceSelectable(defaultValue, ctx)).toBe(false);
+  });
+
+  it("post-cutoff Cloud hides the field and pins the events source", () => {
+    const { showField, defaultValue } = getExportSourceFieldState(
+      undefined,
+      ctxFor("dual", {
+        isCloud: true,
+        projectCreatedAt: PROJECT_POST,
+        integrationCreatedAt: ROW_PRE,
+      }),
+    );
+    expect(showField).toBe(false);
+    expect(defaultValue).toBe(AnalyticsIntegrationExportSource.EVENTS);
+  });
+
+  // Availability is a deployment property, so two members of one project must
+  // never be offered different options for the same shared config row.
+  it.each<BlobExportWriteMode>(["legacy", "dual", "events_only"])(
+    "%s: pre-cutoff Cloud matches self-hosted",
+    (mode) => {
+      expect(
+        getExportSourceFieldState(
+          undefined,
+          ctxFor(mode, {
+            isCloud: true,
+            projectCreatedAt: PROJECT_PRE,
+            integrationCreatedAt: ROW_PRE,
+          }),
+        ),
+      ).toEqual(getExportSourceFieldState(undefined, ctxFor(mode)));
     },
   );
 });
