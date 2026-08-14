@@ -21,7 +21,7 @@ export const sessionFilterConfig: FilterConfig = {
 
   columnDefinitions: sessionsViewCols,
 
-  defaultExpanded: ["environment", "bookmarked"],
+  defaultExpanded: ["environment"],
 
   facets: [
     {
@@ -43,13 +43,6 @@ export const sessionFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "tags",
       label: "Trace Tags",
-    },
-    {
-      type: "boolean" as const,
-      column: "bookmarked",
-      label: "Bookmarked",
-      trueLabel: "Bookmarked",
-      falseLabel: "Not bookmarked",
     },
     {
       type: "numeric" as const,

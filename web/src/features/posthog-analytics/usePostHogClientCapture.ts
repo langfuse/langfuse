@@ -17,13 +17,11 @@ export const events = {
     "pagination_page_size_select",
     "column_visibility_change",
     "column_sorting_header_click",
-    "bookmark_button_click",
     "column_visibility_changed",
   ],
   trace: ["delete_form_open", "delete", "delete_form_submit"],
   trace_detail: [
     "publish_button_click",
-    "bookmark_button_click",
     "observation_tree_collapse",
     "observation_tree_expand",
     "observation_tree_toggle_scores",

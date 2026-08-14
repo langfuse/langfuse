@@ -63,13 +63,6 @@ export const traceFilterConfig: FilterConfig = {
       label: "Release",
     },
     {
-      type: "boolean" as const,
-      column: "bookmarked",
-      label: "Bookmarked",
-      trueLabel: "Bookmarked",
-      falseLabel: "Not bookmarked",
-    },
-    {
       type: "numeric" as const,
       column: "commentCount",
       label: "Comment Count",
