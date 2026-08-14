@@ -8,16 +8,18 @@ import { cn } from "@/src/utils/tailwind";
 export function V4MigrationStatusDot({
   variant,
 }: {
-  variant: "action" | "done";
+  // "neutral" marks optional helpers in the checklist — neither pending
+  // work (amber) nor a completed check (green).
+  variant: "action" | "done" | "neutral";
 }) {
   return (
     <span
       aria-hidden
       className={cn(
         "size-1.75 shrink-0 rounded-full",
-        variant === "action"
-          ? "bg-orange-400 dark:bg-orange-400"
-          : "bg-green-400 dark:bg-green-400",
+        variant === "action" && "bg-orange-400 dark:bg-orange-400",
+        variant === "done" && "bg-green-400 dark:bg-green-400",
+        variant === "neutral" && "bg-gray-400 dark:bg-gray-400",
       )}
     />
   );

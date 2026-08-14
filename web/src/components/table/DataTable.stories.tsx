@@ -29,13 +29,11 @@ import {
   type LevelCount,
 } from "@/src/components/level-counts-display";
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
-import { StarToggle } from "@/src/components/star-toggle";
 import TagList from "@/src/features/tag/components/TagList";
 import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
   TableBadgeLoadingCell,
-  TableIconButtonLoadingCell,
   TableTextLoadingCell,
 } from "@/src/components/table/loading-cells";
 import {
@@ -78,8 +76,6 @@ import {
 //
 // Where a real cell needs heavy runtime context (tRPC/router/peek), we render
 // the standalone visual part with identical DOM/classes:
-//   - bookmark:  real StarToggle (the visual half of StarTraceToggle) + local
-//                state, instead of the tRPC-bound StarTraceToggle.
 //   - tags:      real TagList in the real `flex gap-x-2 gap-y-1` wrapper,
 //                instead of TagPromptPopover/TagManager (same visible children).
 //   - actions:   real DropdownMenu + ghost MoreVertical, with a plain menu item
@@ -127,7 +123,6 @@ const TRACE_TAG_POOL = [
 // identically to production (string `name`, numeric `latency`, Date `timestamp`,
 // Decimal `totalCost`, parsed-object input/output, etc.).
 type TraceRow = {
-  bookmarked: boolean;
   id: string;
   timestamp: Date;
   name: string;
@@ -166,7 +161,6 @@ function makeTraceRow(index: number): TraceRow {
   const inputCost = Number((seeded(index * 2) * 0.18).toFixed(6));
   const outputCost = Number((seeded(index * 6) * 0.22).toFixed(6));
   return {
-    bookmarked: index % 5 === 0,
     id: `trace-${(index + 1).toString().padStart(5, "0")}-${Math.floor(
       seeded(index) * 1e6,
     )
@@ -229,7 +223,7 @@ function loadedTraceData(count = 20): AsyncTableData<TraceRow[]> {
 // -----------------------------------------------------------------------------
 // Traces columns — faithful copy of the real Traces column structure
 // -----------------------------------------------------------------------------
-// Mirrors the visible-by-default Traces columns. The action/bookmark/selection
+// Mirrors the visible-by-default Traces columns. The action/selection
 // cells use the standalone visual components (see FIDELITY GOAL note). The IO
 // cells use the same MemoizedIOTableCell with the same bg classes + the
 // `singleLine = rowHeight === "s"` rule the real table applies.
@@ -266,19 +260,6 @@ function buildTraceColumns(
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
         />
-      ),
-    },
-    {
-      accessorKey: "bookmarked",
-      header: undefined,
-      id: "bookmarked",
-      size: 30,
-      isFixedPosition: true,
-      loadingCell: <TableIconButtonLoadingCell />,
-      // Visual half of StarTraceToggle (StarToggle) with local state, avoiding
-      // the tRPC mutation/project-access while keeping identical DOM/classes.
-      cell: ({ row }) => (
-        <BookmarkCell defaultValue={row.original.bookmarked} />
       ),
     },
     {
@@ -543,20 +524,6 @@ function buildTraceColumns(
       ),
     },
   ];
-}
-
-function BookmarkCell({ defaultValue }: { defaultValue: boolean }) {
-  const [value, setValue] = useState(defaultValue);
-  return (
-    <StarToggle
-      value={value}
-      size="icon-xs"
-      isLoading={false}
-      onClick={async (next) => {
-        setValue(next);
-      }}
-    />
-  );
 }
 
 // -----------------------------------------------------------------------------

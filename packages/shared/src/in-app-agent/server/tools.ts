@@ -36,6 +36,7 @@ import {
   IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "../constants";
+import { getToolFailureMessage } from "./toolErrors";
 
 type InAppAgentMcpToolApproval = "auto" | "approval";
 
@@ -728,8 +729,15 @@ export function withOptionalSilentMcpOutput(params: {
             });
           }
 
+          // Rethrow instead of returning a structured failure: the tool-error
+          // chunk rewrite already feeds the error back as a tool result the
+          // loop continues from, executeApprovedToolCall classifies
+          // approved-tool failures from the throw, and an aborted run must
+          // unwind rather than look like one more failed tool call.
           throw error;
         }
+
+        const failureMessage = getToolFailureMessage(undefined, result);
 
         if (toolCallId) {
           params.onToolCallCompleted?.({
@@ -737,12 +745,15 @@ export function withOptionalSilentMcpOutput(params: {
             toolName,
             request: input,
             response: result,
-            error: null,
+            error: failureMessage ?? null,
             createdAt,
           });
         }
 
-        if (!silent) {
+        // Never silence a failure. A tool that reports its error in the result
+        // (the MCP `isError` convention) would otherwise be collapsed to a
+        // pointer at a tool_calls file that is deliberately not written.
+        if (failureMessage || !silent) {
           return result;
         }
 
