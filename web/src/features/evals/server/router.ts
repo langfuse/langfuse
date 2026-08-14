@@ -520,9 +520,18 @@ export const evalRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "evalJob:read",
       });
+      // Passing in empty arrayOptions is a no-op, so we exclude it
+      const sanitizedFilter = input.filter.filter(
+        (f) =>
+          !(
+            f.type === "arrayOptions" &&
+            f.value.length === 0 &&
+            f.operator !== "any of"
+          ),
+      );
 
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
+        sanitizedFilter,
         evalConfigFilterColumns,
         "job_configurations",
       );

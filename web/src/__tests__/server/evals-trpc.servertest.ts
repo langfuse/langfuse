@@ -352,6 +352,58 @@ describe("evals trpc", () => {
       );
       expect(response.totalCount).toBe(2);
     });
+
+    // A Time Scope filter with no selected values is a reachable UI state
+    // (the facet's operator toggle can be flipped before any checkbox is
+    // checked). It must not crash the query — passing an empty value list
+    // into the Postgres array literal throws (`Prisma.join([])`), so the
+    // router treats an empty-value arrayOptions filter as no filter on that
+    // column. Only "all of"/"none of" can carry an empty value at all — the
+    // arrayOptionsFilter zod schema itself rejects "any of" with an empty
+    // value before this ever runs.
+    it.each(["all of", "none of"] as const)(
+      "does not throw and does not filter on an empty time scope value list ('%s')",
+      async (operator) => {
+        const { project, caller } = await prepare();
+
+        const evaluator = await prisma.jobConfiguration.create({
+          data: {
+            projectId: project.id,
+            jobType: "EVAL",
+            scoreName: "unfiltered-score",
+            filter: [],
+            targetObject: EvalTargetObject.TRACE,
+            variableMapping: [],
+            sampling: 1,
+            delay: 0,
+            status: "ACTIVE",
+            timeScope: ["NEW"],
+          },
+        });
+
+        const response = await caller.evals.allConfigs({
+          projectId: project.id,
+          filter: [
+            {
+              column: "timeScope",
+              type: "arrayOptions",
+              operator,
+              value: [],
+            },
+          ],
+          orderBy: {
+            column: "createdAt",
+            order: "DESC",
+          },
+          limit: 10,
+          page: 0,
+        });
+
+        expect(response.configs.map((config) => config.id)).toEqual([
+          evaluator.id,
+        ]);
+      },
+    );
   });
 
   describe("evals.templateNames", () => {
