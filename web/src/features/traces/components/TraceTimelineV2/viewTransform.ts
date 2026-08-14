@@ -41,7 +41,8 @@ export type ViewTransform = {
 const finite = (value: number, fallback: number) =>
   Number.isFinite(value) ? value : fallback;
 
-const clamp = (value: number, min: number, max: number) =>
+/** Shared with layout(), which clamps bars and labels into the same lane. */
+export const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
 export function traceSpaceOf(durationMs: number): TimeSpan {

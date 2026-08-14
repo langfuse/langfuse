@@ -208,12 +208,19 @@ export function TimelineV2({
     [traceSpace],
   );
 
+  /**
+   * `deltaPx` is how far the CONTENT moves, so the grabbed moment stays under
+   * the pointer: dragging right shows earlier time, which means the window start
+   * goes DOWN. Without the negation the bars slid the opposite way to the finger
+   * — and to the wheel, whose caller negates the scroll delta for the same
+   * reason.
+   */
   const panBy = useCallback(
     (deltaPx: number) =>
       setView((current) => {
         const from = current ?? fitView(traceSpace);
         const pxPerMs = chartWidth > 0 ? chartWidth / from.duration : 0;
-        return panView(from, traceSpace, pxPerMs > 0 ? deltaPx / pxPerMs : 0);
+        return panView(from, traceSpace, pxPerMs > 0 ? -deltaPx / pxPerMs : 0);
       }),
     [traceSpace, chartWidth],
   );
@@ -330,9 +337,19 @@ export function TimelineV2({
   };
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    gesture.current.pointers.delete(event.pointerId);
-    gesture.current.pinchDistance = 0;
-    gesture.current.dragging = false;
+    const state = gesture.current;
+    state.pointers.delete(event.pointerId);
+    state.pinchDistance = 0;
+    state.dragging = false;
+    // Lifting one finger of a pinch does not end the gesture, and startX/lastX
+    // still hold where the OTHER finger went down — so the survivor's next small
+    // move would clear the drag threshold at once and pan by the whole finger
+    // separation. Re-anchor both on the finger that is still there.
+    const survivor = state.pointers.values().next().value;
+    if (survivor !== undefined) {
+      state.startX = survivor;
+      state.lastX = survivor;
+    }
   };
 
   const toggleCollapsed = (id: string) =>
@@ -635,6 +652,10 @@ function GutterCell({
             event.stopPropagation();
             onToggleCollapsed();
           }}
+          // The row zooms to its span on double-click. Collapsing twice in
+          // quick succession is a no-op the user cannot see, so without this the
+          // only visible outcome of an impatient click is the view jumping.
+          onDoubleClick={(event) => event.stopPropagation()}
           className="hover:bg-muted-foreground/10 flex h-4 w-4 shrink-0 items-center justify-center rounded"
         >
           <ChevronRight

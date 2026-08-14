@@ -253,6 +253,114 @@ export const ClickSelectsARow = meta.story({
   },
 });
 
+export const DraggingMovesContentWithThePointer = meta.story({
+  name: "(Test) Dragging Moves Content With The Pointer",
+  args: {
+    roots: reporterTrace(),
+    box: PEEK,
+    pointer: "fine",
+    compress: false,
+    composition: "split",
+    showReadout: true,
+  },
+  play: async ({ canvasElement }) => {
+    const scroll = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-v2-scroll"]',
+    );
+    if (!scroll) throw new Error("timeline scroll not found");
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-v2-readout"]',
+      )?.textContent ?? "";
+    const viewStart = () => {
+      const match = /view (\d+)ms/.exec(readout());
+      if (!match) throw new Error(`no view window in "${readout()}"`);
+      return Number(match[1]);
+    };
+
+    // Zoom into the LAST span to start, so the window has somewhere to go in
+    // both directions — zooming one that starts at the origin leaves the window
+    // pinned to 0 and a leftward drag with nothing to prove.
+    const bars = [
+      ...canvasElement.querySelectorAll<HTMLElement>(
+        '[data-testid="timeline-v2-bar"]',
+      ),
+    ];
+    const target = bars.reduce<HTMLElement | null>(
+      (latest, bar) =>
+        !latest ||
+        bar.getBoundingClientRect().left > latest.getBoundingClientRect().left
+          ? bar
+          : latest,
+      null,
+    );
+    if (!target) throw new Error("expected a bar to double-click");
+    await userEvent.dblClick(target);
+    await waitFor(() => expect(viewStart()).toBeGreaterThan(0));
+
+    const pointer = (type: string, clientX: number, pointerId = 1) =>
+      scroll.dispatchEvent(
+        new PointerEvent(type, { pointerId, clientX, bubbles: true }),
+      );
+
+    // Grab and drag RIGHT: the moment under the cursor has to come with it, which
+    // means the window moves EARLIER. The other sign slides the bars against the
+    // finger, which is the one thing a drag-to-pan must never do.
+    const startedAt = viewStart();
+    pointer("pointerdown", 200);
+    pointer("pointermove", 260);
+    pointer("pointerup", 260);
+    await waitFor(() => expect(viewStart()).toBeLessThan(startedAt));
+
+    const afterDragRight = viewStart();
+    pointer("pointerdown", 260);
+    pointer("pointermove", 200);
+    pointer("pointerup", 200);
+    await waitFor(() => expect(viewStart()).toBeGreaterThan(afterDragRight));
+
+    // Lifting one finger of a two-finger pinch leaves the gesture live. The
+    // survivor's next move must pan from where IT is, not jump by the finger
+    // separation it inherited from the finger that left.
+    const beforeRelease = viewStart();
+    pointer("pointerdown", 100, 1);
+    pointer("pointerdown", 260, 2);
+    pointer("pointerup", 260, 2);
+    // 1px is under the drag threshold, so re-anchored this does nothing at all;
+    // inheriting the departed finger's 260 makes it a 159px pan instead.
+    pointer("pointermove", 101, 1);
+    await expect(viewStart()).toBe(beforeRelease);
+    pointer("pointerup", 101, 1);
+  },
+});
+
+export const DoubleClickingTheChevronDoesNotZoom = meta.story({
+  name: "(Test) Double Clicking The Chevron Does Not Zoom",
+  args: {
+    roots: reporterTrace(),
+    box: PEEK,
+    pointer: "fine",
+    compress: false,
+    composition: "split",
+    showReadout: true,
+  },
+  play: async ({ canvasElement }) => {
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-v2-readout"]',
+      )?.textContent ?? "";
+    const chevron = canvasElement.querySelector<HTMLElement>(
+      'button[aria-label="Collapse"], button[aria-label="Expand"]',
+    );
+    if (!chevron) throw new Error("expected a collapse chevron");
+
+    const before = readout();
+    await userEvent.dblClick(chevron);
+    // Collapsing twice is a no-op you cannot see, so a jumped view would be the
+    // only visible result of an impatient click on the chevron.
+    await expect(readout()).toBe(before);
+  },
+});
+
 export const ZoomsToASpan = meta.story({
   name: "(Test) Zooms To A Span",
   args: {

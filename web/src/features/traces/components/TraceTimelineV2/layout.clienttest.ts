@@ -8,7 +8,7 @@ import {
   type PositionedNode,
   type TimelineLayout,
 } from "./layout";
-import { createTextMeasurerFrom } from "./textMeasurer";
+import { PX_PER_LETTER, createTextMeasurerFrom } from "./textMeasurer";
 import {
   MAX_ZOOM_PRECISION_MS,
   clampView,
@@ -259,6 +259,37 @@ describe("density", () => {
     // A stacked row (name above bar) needs two text lines' worth.
     expect(resolveDensity({ pointer: "fine", lines: 2 }).rowHeight).toBe(38);
     expect(resolveDensity({ pointer: "coarse", lines: 2 }).rowHeight).toBe(44);
+  });
+});
+
+describe("textMeasurer", () => {
+  // Every glyph 10px wide, so a measured width is countable by hand and the
+  // per-letter fallback (6.5) is visible whenever one is used by mistake.
+  const tenPerGlyph = {
+    font: "",
+    measureText: (text: string) => ({ width: text.length * 10 }),
+  } as unknown as CanvasRenderingContext2D;
+
+  it("measures every unit in a compound label, not just the last", () => {
+    const measure = createTextMeasurerFrom(tenPerGlyph).measure;
+
+    // `1m 35s` is six glyphs, so 60 — and it is only 60 if the leading `m` was
+    // measured too. Matching a unit only as the whole remainder of the string
+    // left it on the flat estimate, which is what every label above a minute is.
+    expect(measure("1m 35s")).toBeCloseTo(60, 6);
+    expect(measure("1h 30m")).toBeCloseTo(60, 6);
+    expect(measure("486ms")).toBeCloseTo(50, 6);
+    expect(measure("1.24s")).toBeCloseTo(50, 6);
+    // Longest-first matching, so `min` is one unit rather than `m` plus letters.
+    expect(measure("5min")).toBeCloseTo(40, 6);
+    expect(measure("∑ 1.24s")).toBeCloseTo(70, 6);
+  });
+
+  it("falls back to a flat per-letter width with no canvas", () => {
+    expect(createTextMeasurerFrom(null).measure("1m 35s")).toBeCloseTo(
+      6 * PX_PER_LETTER,
+      6,
+    );
   });
 });
 

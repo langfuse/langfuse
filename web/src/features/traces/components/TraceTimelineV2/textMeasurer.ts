@@ -13,6 +13,23 @@ export const PX_PER_LETTER = 6.5;
 
 const UNITS = ["ns", "ms", "s", "m", "min", "h", "d", "∑"] as const;
 
+/**
+ * Longest first, so "min" is never read as "m" followed by letters — and so a
+ * COMPOUND label measures every unit in it. Matching a unit only when it is the
+ * whole remainder of the string meant `1m 35s` and `1h 05m`, which is what
+ * `formatDurationMs` emits above a minute, measured their leading unit at the
+ * flat per-letter estimate and fed a slightly wrong width to the decision about
+ * which side of a bar the label goes on.
+ */
+const UNITS_LONGEST_FIRST = [...UNITS].sort((a, b) => b.length - a.length);
+
+const unitAt = (text: string, index: number): string | null => {
+  for (const unit of UNITS_LONGEST_FIRST) {
+    if (text.startsWith(unit, index)) return unit;
+  }
+  return null;
+};
+
 export type TextMeasurer = { measure: (text: string) => number };
 
 export function createTextMeasurer(font = "12px ui-sans-serif"): TextMeasurer {
@@ -61,8 +78,12 @@ export function createTextMeasurerFrom(
         width += glyph;
         continue;
       }
-      const unit = units.get(text.slice(i));
-      if (unit !== undefined) return width + unit;
+      const unit = unitAt(text, i);
+      if (unit !== null) {
+        width += units.get(unit) ?? unit.length * PX_PER_LETTER;
+        i += unit.length - 1;
+        continue;
+      }
       width += PX_PER_LETTER;
     }
     return width;

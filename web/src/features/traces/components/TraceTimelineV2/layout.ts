@@ -30,6 +30,7 @@ import {
   type TimeCompression,
 } from "./timeCompression";
 import {
+  clamp,
   clampView,
   createViewTransform,
   fitView,
@@ -164,9 +165,6 @@ const TICK_STEPS_MS = [
   15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 900_000, 1_800_000,
   3_600_000, 7_200_000, 10_800_000, 21_600_000, 43_200_000, 86_400_000,
 ];
-
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(Math.max(value, min), max);
 
 const startOf = (node: LayoutNode) => node.startTime.getTime();
 
