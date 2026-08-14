@@ -624,6 +624,26 @@ describe("handlePostHogIntegrationProjectJob customer-fault auto-disable", () =>
     expect(disableNotifications()).toBe(1);
   });
 
+  // A disallowed protocol or port is as deterministic as a blocked hostname —
+  // no retry can fix `ftp://` or `:8080`. These reach the handler as coded
+  // errors only because validateWebhookURL raises OutboundUrlValidationError
+  // for them; while it threw a bare Error, they were unclassifiable and
+  // retried forever. Real coded-vs-uncoded coverage lives in
+  // webhook-validation.test.ts, since this suite mocks the validator.
+  it.each([
+    ["protocol-not-allowed", "Only HTTP and HTTPS protocols are allowed"],
+    ["port-not-allowed", "Only ports 80 and 443 are allowed"],
+  ] as const)("resolves and auto-disables on %s", async (code, message) => {
+    h.validateWebhookURL.mockRejectedValueOnce(
+      new h.OutboundUrlValidationError(code, message),
+    );
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(writeData().some((data) => data.enabled === false)).toBe(true);
+    expect(disableNotifications()).toBe(1);
+  });
+
   // Load-bearing negative controls: transient/infra faults are NOT customer
   // faults — the handler must rethrow (so BullMQ retries and the monitor
   // fires), leave enabled unchanged, and never notify.

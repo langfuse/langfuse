@@ -14,6 +14,7 @@ export type OutboundUrlValidationErrorCode =
   | "https-required"
   | "invalid-encoding"
   | "invalid-syntax"
+  | "port-not-allowed"
   | "protocol-not-allowed"
   | "url-credentials-not-allowed";
 
