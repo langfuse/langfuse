@@ -2192,3 +2192,203 @@ export const SourcesReachTheSettledAnswer = meta.story({
     );
   },
 });
+
+// Enough turns to overflow the conversation viewport so real scrolling happens.
+const scrollableTranscript: InAppAgentWindowMessage[] = Array.from(
+  { length: 12 },
+  (_, index): InAppAgentWindowMessage => ({
+    id: `scroll-${index}`,
+    role: index % 2 === 0 ? "user" : "assistant",
+    content: {
+      type: "text",
+      text:
+        index % 2 === 0
+          ? `Question ${index / 2 + 1} about the latency regression.`
+          : `Finding ${(index + 1) / 2}: the reranker dominates p95 for this segment, and the effect persists across retries.`,
+    },
+  }),
+);
+
+/**
+ * The scroller is a plain overflow container with no role of its own, and
+ * `overscroll-contain` is what distinguishes it from the composer textarea.
+ */
+function getConversationViewport(canvasElement: HTMLElement) {
+  const viewport = canvasElement.querySelector<HTMLElement>(
+    ".overscroll-contain",
+  );
+
+  if (!viewport) {
+    // `globalThis` because the Error story shadows the constructor here.
+    throw new globalThis.Error("Expected the assistant conversation viewport");
+  }
+
+  return viewport;
+}
+
+// Mirrors AUTO_SCROLL_THRESHOLD_PX in the component.
+function isViewportAtBottom(viewport: HTMLElement) {
+  return (
+    viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 50
+  );
+}
+
+export const LatestReattachesAutoFollow = meta.story({
+  name: "(Test) Latest Reattaches Auto Follow",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: scrollableTranscript,
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const viewport = getConversationViewport(canvasElement);
+    const latest = { name: "Scroll to latest message" };
+
+    // Mounting pins us to the newest message, so there is nothing to catch up to.
+    await waitFor(() => expect(isViewportAtBottom(viewport)).toBe(true));
+    await expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument();
+
+    viewport.scrollTop = 0;
+    await waitFor(() =>
+      expect(canvas.getByRole("button", latest)).toBeVisible(),
+    );
+
+    await userEvent.click(canvas.getByRole("button", latest));
+
+    // The pill hides the moment we start travelling, so the smooth scroll's
+    // intermediate positions cannot make it flicker back in.
+    await expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument();
+    await waitFor(() => expect(isViewportAtBottom(viewport)).toBe(true));
+    await expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument();
+  },
+});
+
+export const LatestHidesWhenTheDrawerCollapses = meta.story({
+  name: "(Test) Latest Hides When The Drawer Collapses",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "What changed yesterday?" },
+      },
+      {
+        id: "assistant-reasoning",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          // Long enough that expanding the drawer overflows the viewport and
+          // collapsing it fits again.
+          text: Array.from(
+            { length: 40 },
+            (_, index) =>
+              `Step ${index + 1}: compare yesterday's dashboard against the trailing week.`,
+          ).join("\n"),
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Yesterday's latency dashboard picked up a reranking spike.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const viewport = getConversationViewport(canvasElement);
+    const latest = { name: "Scroll to latest message" };
+
+    const drawer = canvas.getByRole("button", { name: /Worked for/ });
+    await expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument();
+
+    // Read to the end of the opened drawer, then scroll back up. Going down
+    // first is what makes the scroll position actually change on the way up.
+    await userEvent.click(drawer);
+    await userEvent.click(canvas.getByText("Thought"));
+    viewport.scrollTop = viewport.scrollHeight;
+    await waitFor(() => expect(viewport.scrollTop).toBeGreaterThan(0));
+
+    viewport.scrollTop = 0;
+    await waitFor(() =>
+      expect(canvas.getByRole("button", latest)).toBeVisible(),
+    );
+
+    // Collapsing shrinks the transcript back under the viewport without any
+    // scroll event, so only the resize observer can retire the pill.
+    await userEvent.click(drawer);
+    await waitFor(() =>
+      expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument(),
+    );
+  },
+});
+
+export const SendingReattachesAutoFollow = meta.story({
+  name: "(Test) Sending Reattaches Auto Follow",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: scrollableTranscript,
+  },
+  render: function Render(args) {
+    const [messages, setMessages] = useState(args.messages);
+
+    return (
+      <InAppAgentWindowStoryShell isExpanded={args.isExpanded}>
+        {({ isHeaderDragHandleEnabled }) => (
+          <InAppAgentWindow
+            {...args}
+            isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+            messages={messages}
+            onSubmit={(input) => {
+              // The real provider appends a placeholder behind the user
+              // message, so the newest message is not the one that was sent.
+              setMessages((currentMessages) => [
+                ...currentMessages,
+                {
+                  id: `sent-${currentMessages.length}`,
+                  role: "user",
+                  content: { type: "text", text: input },
+                },
+                {
+                  id: `connecting-${currentMessages.length}`,
+                  role: "assistant",
+                  content: { type: "loading", label: "Connecting..." },
+                },
+              ]);
+              return true;
+            }}
+          />
+        )}
+      </InAppAgentWindowStoryShell>
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const viewport = getConversationViewport(canvasElement);
+    const latest = { name: "Scroll to latest message" };
+
+    viewport.scrollTop = 0;
+    await waitFor(() =>
+      expect(canvas.getByRole("button", latest)).toBeVisible(),
+    );
+
+    await userEvent.type(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      "And the error rate?",
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+
+    // Saying something is a request to follow along again.
+    await waitFor(() =>
+      expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(isViewportAtBottom(viewport)).toBe(true));
+  },
+});
