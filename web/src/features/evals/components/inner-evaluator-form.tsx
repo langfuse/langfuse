@@ -94,6 +94,7 @@ import {
   isExperimentTarget,
   isLegacyEvalTarget,
   isTraceTarget,
+  shouldShowLegacyTracePreview,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   useUserFacingTarget,
@@ -336,6 +337,8 @@ export const InnerEvaluatorForm = (props: {
   hideAdvancedSettings?: boolean;
   hideTargetSelection?: boolean;
   hidePreviewTable?: boolean;
+  hideRootObservationFilter?: boolean;
+  showPreviewTargetBadge?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
@@ -1156,6 +1159,12 @@ export const InnerEvaluatorForm = (props: {
                         // Event evaluators - use observation columns
                         return observationEvalFilterColsWithOptions(
                           observationEvalFilterOptions,
+                        ).filter(
+                          (column) =>
+                            !(
+                              props.hideRootObservationFilter &&
+                              column.id === "isRootObservation"
+                            ),
                         );
                       } else if (isTraceTarget(target)) {
                         return tracesTableColsWithOptions(
@@ -1244,7 +1253,12 @@ export const InnerEvaluatorForm = (props: {
                 {/* Preview based on target type */}
                 {previewTableVisible && (
                   <>
-                    {isTraceTarget(form.watch("target")) && (
+                    {/* The traces preview reads the legacy traces table, which
+                        is not the v4 user's experience — never show it there. */}
+                    {shouldShowLegacyTracePreview(
+                      form.watch("target"),
+                      isBetaEnabled,
+                    ) && (
                       <TracesPreview
                         projectId={props.projectId}
                         filterState={watchedFilter}
@@ -1348,6 +1362,7 @@ export const InnerEvaluatorForm = (props: {
           compatibilityCheckWasPerformed={
             props.evalCapabilities.compatibilityCheckWasPerformed
           }
+          showPreviewTargetBadge={props.showPreviewTargetBadge}
         />
       )}
     </div>

@@ -11,7 +11,7 @@ export const toPricingTierInputs = (
   const priorities = derivePriorities(values.pricingTiers);
 
   return values.pricingTiers.map((tier, tierIndex) => ({
-    name: tier.name.trim(),
+    name: tier.name,
     isDefault: tier.isDefault,
     priority: priorities[tierIndex],
     conditions: tier.conditions.map((condition) => ({
@@ -21,7 +21,7 @@ export const toPricingTierInputs = (
     prices: Object.fromEntries(
       values.usageTypes.flatMap((row) => {
         const price = parsePriceInput(tier.prices[row.key]);
-        return price === null ? [] : [[row.name.trim(), price] as const];
+        return price === null ? [] : [[row.name, price] as const];
       }),
     ),
   }));

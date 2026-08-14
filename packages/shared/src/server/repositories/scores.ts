@@ -963,8 +963,8 @@ export const getScoresGroupedByNameSourceType = async ({
       s.data_type as data_type
     FROM scores s
     ${performDatasetRunItemsJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
-    ${hasEventsFilters ? `ANY JOIN experiment_events e ON s.trace_id = e.trace_id AND s.project_id = e.project_id` : ""}
     WHERE s.project_id = {projectId: String}
+    ${hasEventsFilters ? `AND (s.project_id, s.trace_id) IN (SELECT project_id, trace_id FROM experiment_events)` : ""}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
     ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
     ${toTimestamp ? `AND s.timestamp <= {toTimestamp: DateTime64(3)}` : ""}
@@ -1225,11 +1225,13 @@ export async function getScoresUiTable<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadataFlag?: IncludeHasMetadata;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) {
   const {
     excludeMetadata = false,
     includeHasMetadataFlag = false,
     clickhouseConfigs,
+    preferredClickhouseService,
     ...rest
   } = props;
 
@@ -1273,6 +1275,7 @@ export async function getScoresUiTable<
     excludeMetadata,
     includeHasMetadataFlag,
     clickhouseConfigs,
+    preferredClickhouseService,
     ...rest,
   });
 
@@ -1310,6 +1313,7 @@ const getScoresUiGeneric = async <T>(props: {
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: boolean;
   includeHasMetadataFlag?: boolean;
+  preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<T[]> => {
   const {
     projectId,
@@ -1318,6 +1322,7 @@ const getScoresUiGeneric = async <T>(props: {
     limit,
     offset,
     clickhouseConfigs,
+    preferredClickhouseService,
     excludeMetadata = false,
     includeHasMetadataFlag = false,
   } = props;
@@ -1406,6 +1411,7 @@ const getScoresUiGeneric = async <T>(props: {
     params: input.params,
     tags: input.tags,
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 };
 
@@ -2245,9 +2251,15 @@ export const getDistinctScoreNames = async (
     projectId: string;
     cutoffCreatedAt: Date;
     clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+    preferredClickhouseService?: PreferredClickhouseService;
   } & DistinctScoreNamesTimestampSource,
 ) => {
-  const { projectId, cutoffCreatedAt, clickhouseConfigs } = p;
+  const {
+    projectId,
+    cutoffCreatedAt,
+    clickhouseConfigs,
+    preferredClickhouseService,
+  } = p;
   const startTimeFrom = getDistinctScoreNamesStartTimeFrom(p);
 
   const query = `    SELECT DISTINCT
@@ -2273,6 +2285,7 @@ export const getDistinctScoreNames = async (
     },
     tags: { projectId },
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 
   return rows.map((row) => row.name);

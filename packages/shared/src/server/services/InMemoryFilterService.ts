@@ -327,9 +327,32 @@ export class InMemoryFilterService {
       return false;
     }
 
-    // Type assertion is safe here since we've checked typeof fieldValue === "object" above
-    const objectValue = (fieldValue as Record<string, unknown>)[key];
-    const stringValue = objectValue?.toString() || "";
+    // Type assertion is safe here since we've checked typeof fieldValue === "object" above.
+    // Use hasOwnProperty rather than bracket-access-is-undefined: a key that
+    // collides with an Object.prototype name (e.g. "toString", "constructor")
+    // would otherwise resolve the inherited property instead of undefined,
+    // silently bypassing this guard.
+    const record = fieldValue as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(record, key)) {
+      // The key does not exist on the object. Coalescing this to an empty
+      // string below would make e.g. `contains ""` incorrectly match rows
+      // that never had the key. Mirror the ClickHouse `mapContains` guard
+      // (PR #13369) and require the key to exist for every operator.
+      return false;
+    }
+    const objectValue = record[key];
+    // Mirror the ClickHouse-side representation exactly: ingestion stores a
+    // metadata value as `typeof value === "string" ? value : JSON.stringify(value)`
+    // (see convertRecordValuesToString). `.toString()` diverges from that for
+    // null ("" via `null?.toString()` vs. the stored "null"), arrays ("1,2"
+    // vs. the stored "[1,2]"), and plain objects ("[object Object]" vs. the
+    // stored '{"a":1}').
+    const stringValue =
+      typeof objectValue === "string"
+        ? objectValue
+        : objectValue === undefined
+          ? ""
+          : JSON.stringify(objectValue);
     return this.evaluateStringFilter(stringValue, filterValue, operator);
   }
 

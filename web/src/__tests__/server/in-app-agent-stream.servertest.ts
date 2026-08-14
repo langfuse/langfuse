@@ -1266,10 +1266,7 @@ describe("createAgUiStream", () => {
       status: "approved",
     });
 
-    const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
-    const createScoreConfigTool =
-      getAgentTools(agentConfig)?.langfuse_createScoreConfig;
-    expect(createScoreConfigTool?.execute).toHaveBeenCalledWith(
+    expect(adapterEvents.createScoreConfigExecute).toHaveBeenCalledWith(
       {
         name: "readiness",
         dataType: "NUMERIC",

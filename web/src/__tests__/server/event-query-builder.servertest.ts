@@ -368,26 +368,29 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     },
   );
 
-  it("maps API key filters to the ingestion attribution column", () => {
-    const [filter] = createFilterFromFilterState(
-      [
-        {
-          column: "ingestionApiKey",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["pk-lf-test"],
-        },
-      ],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    );
+  it.each(["pk-lf-test", ""])(
+    "maps API key value %j to the ingestion attribution column",
+    (apiKey) => {
+      const [filter] = createFilterFromFilterState(
+        [
+          {
+            column: "ingestionApiKey",
+            type: "stringOptions",
+            operator: "any of",
+            value: [apiKey],
+          },
+        ],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
 
-    expect(filter).toBeDefined();
-    if (!filter) throw new Error("expected filter");
-    const applied = filter.apply();
-    expect(applied.query).toContain('e."ingestion_api_key" IN');
-    expect(Object.values(applied.params)).toContainEqual(["pk-lf-test"]);
-  });
+      expect(filter).toBeDefined();
+      if (!filter) throw new Error("expected filter");
+      const applied = filter.apply();
+      expect(applied.query).toContain('e."ingestion_api_key" IN');
+      expect(Object.values(applied.params)).toContainEqual([apiKey]);
+    },
+  );
 
   it.each([
     ["ingestionSdkName", 'e."ingestion_sdk_name" IN', "python"],
