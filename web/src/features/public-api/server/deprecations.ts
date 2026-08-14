@@ -5,10 +5,11 @@ import { OBSERVATIONS_API_V2_DOCS_URL } from "./rateLimitUpgradePaths";
 // endpoints. Attach one via the `deprecation` route-config field; the response
 // gets a top-level `_deprecation` key.
 
-// Sunset date for the legacy v3 public API — single source of truth. Set to
-// mid-November 2026; update both constants together if the date moves.
+// Sunset date for the legacy v3 public API — single source of truth. If the
+// date moves, update both constants and every Fern availability message;
+// openapi-deprecations.servertest.ts fails on any drift between the three.
 export const V3_SUNSET_DATE = "2026-11-16";
-const V3_SUNSET_HUMAN = "November 16, 2026";
+export const V3_SUNSET_HUMAN = "November 16, 2026";
 
 // Shared deprecation reason — references the deprecated Langfuse v3 system
 // version (not an API version). Customer-facing wording lives here — edit once.
