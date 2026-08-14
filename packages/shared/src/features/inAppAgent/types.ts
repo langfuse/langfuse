@@ -81,6 +81,8 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     kind: z.literal("approvalDecision"),
     /** Provenance for debugging only; no code path queries lineage. */
     parentRunId: z.string(),
+    /** One-based position in the current user turn's approval continuation chain. */
+    continuationNumber: z.number().int().positive().optional(),
     toolCallId: z.string(),
     approved: z.boolean(),
     /** Inherited sanitized context; defaults for legacy continuation rows. */

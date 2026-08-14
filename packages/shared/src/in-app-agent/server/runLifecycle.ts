@@ -271,6 +271,10 @@ export async function decideToolApproval(params: {
     const parentRequest = InAppAgentRunRequestSchema.safeParse(
       parentRun.request,
     );
+    const continuationNumber =
+      parentRequest.success && parentRequest.data.kind === "approvalDecision"
+        ? (parentRequest.data.continuationNumber ?? 1) + 1
+        : 1;
 
     // Persist the grant in the same transaction as the exactly-once decision CAS.
     if (params.alwaysAllowToolName) {
@@ -325,6 +329,7 @@ export async function decideToolApproval(params: {
         request: {
           kind: "approvalDecision",
           parentRunId: params.parentRunId,
+          continuationNumber,
           toolCallId: params.toolCallId,
           approved: params.approved,
           context: parentRequest.success ? parentRequest.data.context : [],

@@ -615,6 +615,7 @@ describe("in-app agent background runs", () => {
     expect(continuation.request).toMatchObject({
       kind: "approvalDecision",
       parentRunId: parkedRunId,
+      continuationNumber: 1,
       toolCallId: "tool-call-1",
       approved: true,
       context,
@@ -725,6 +726,7 @@ describe("in-app agent background runs", () => {
     expect(rejectedContinuation.request).toMatchObject({
       kind: "approvalDecision",
       parentRunId: approvedContinuationId,
+      continuationNumber: 2,
       toolCallId: "tool-call-2",
       approved: false,
       context,

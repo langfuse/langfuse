@@ -269,6 +269,7 @@ export async function executeInAppAgentRun(params: {
               command: {
                 resume: {
                   approved: request.approved,
+                  continuationNumber: request.continuationNumber ?? 1,
                   approvalRequest,
                 },
               },

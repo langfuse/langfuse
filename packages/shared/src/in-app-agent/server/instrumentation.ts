@@ -7,7 +7,12 @@ import {
   getInAppAgentLlmCallName,
   getInAppAgentLlmCallObservationId,
 } from "../constants";
-import type { AgUiEvent, AgUiMessage, AgUiRunAgentInput } from "../schema";
+import {
+  ResumeForwardedPropsSchema,
+  type AgUiEvent,
+  type AgUiMessage,
+  type AgUiRunAgentInput,
+} from "../schema";
 import { compactTextMessageChunks } from "./eventCompaction";
 import {
   getToolFailureMessage,
@@ -131,6 +136,10 @@ type LastLlmGeneration = {
   step: OpenLlmStep;
   hasUsage: boolean;
 };
+type ApprovalContinuation = {
+  input: string;
+  metadata: Record<string, unknown>;
+};
 
 export function createInAppAgentInstrumentation({
   input,
@@ -170,6 +179,7 @@ export class InAppAgentInstrumentation {
   private readonly rootObservationId: string;
   private readonly agentRunStartTime: Date;
   private agentRunInput: unknown;
+  private readonly approvalContinuation?: ApprovalContinuation;
   private readonly prompt?: InAppAgentPromptMetadata;
   private readonly toolSpans = new Map<string, AgentRunToolSpan>();
   private readonly toolCallApprovals = new Map<
@@ -211,6 +221,7 @@ export class InAppAgentInstrumentation {
     prompt?: InAppAgentPromptMetadata;
     model?: string;
   }) {
+    this.approvalContinuation = getApprovalContinuation(params.input);
     this.metadata = {
       ...params.metadata,
       ...(params.userEmail ? { langfuse_user_email: params.userEmail } : {}),
@@ -224,6 +235,7 @@ export class InAppAgentInstrumentation {
             prompt_version: params.prompt.version,
           }
         : {}),
+      ...this.approvalContinuation?.metadata,
     };
     this.agentRunInput = getAgentRunInput(params.input);
     this.prompt = params.prompt;
@@ -254,9 +266,12 @@ export class InAppAgentInstrumentation {
       name: IN_APP_AGENT_TURN_NAME,
       userId: params.userId,
       sessionId: params.input.threadId,
-      input: this.agentRunInput,
+      input: this.getTraceInput(),
       metadata: this.metadata,
-      tags: ["in-app-agent"],
+      tags: [
+        "in-app-agent",
+        ...(this.approvalContinuation ? ["agent-turn-continuation"] : []),
+      ],
     });
 
     // Create the root observation immediately so tool/generation children
@@ -430,7 +445,7 @@ export class InAppAgentInstrumentation {
       },
     });
     this.trace.update({
-      input: this.agentRunInput,
+      input: this.getTraceInput(),
       output: this.getAgentRunOutput(),
       metadata: { ...this.metadata, error: message },
     });
@@ -456,7 +471,7 @@ export class InAppAgentInstrumentation {
     };
     this.emitRootAgentObservation({ metadata });
     this.trace.update({
-      input: this.agentRunInput,
+      input: this.getTraceInput(),
       output: this.getAgentRunOutput(),
       metadata,
     });
@@ -713,7 +728,7 @@ export class InAppAgentInstrumentation {
       name: IN_APP_AGENT_TURN_NAME,
       startTime: this.agentRunStartTime,
       endTime: new Date(),
-      input: this.agentRunInput,
+      input: this.getTraceInput(),
       output: this.getAgentRunOutput(),
       metadata: params.metadata,
       ...(this.prompt
@@ -834,6 +849,10 @@ export class InAppAgentInstrumentation {
         ...this.agentRunOutputMessages.slice(0, inputMessageCount),
       ],
     };
+  }
+
+  private getTraceInput() {
+    return this.approvalContinuation?.input ?? this.agentRunInput;
   }
 
   private getLlmStepOutput(
@@ -1062,6 +1081,40 @@ export class InAppAgentInstrumentation {
         : {}),
     };
   }
+}
+
+function getApprovalContinuation(
+  input: AgUiRunAgentInput,
+): ApprovalContinuation | undefined {
+  const forwardedProps = ResumeForwardedPropsSchema.safeParse(
+    input.forwardedProps,
+  );
+
+  if (!forwardedProps.success) {
+    return undefined;
+  }
+
+  const {
+    approved,
+    approvalRequest,
+    continuationNumber = 1,
+  } = forwardedProps.data.command.resume;
+  const status = approved ? "approved" : "rejected";
+
+  return {
+    input: `Continuation: User ${status} tool ${approvalRequest.toolName}`,
+    metadata: {
+      continuation_type: "tool_approval",
+      continuation_number: continuationNumber,
+      parent_run_id: approvalRequest.runId,
+      parent_trace_id: getInAppAgentInstrumentationTraceId(
+        approvalRequest.runId,
+      ),
+      approval_status: status,
+      approval_tool_call_id: approvalRequest.toolCallId,
+      approval_tool_name: approvalRequest.toolName,
+    },
+  };
 }
 
 function getAgentRunInput(input: AgUiRunAgentInput): unknown {

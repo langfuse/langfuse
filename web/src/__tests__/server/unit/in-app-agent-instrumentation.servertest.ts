@@ -784,6 +784,119 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
+  it.each([
+    { approved: true, status: "approved" as const },
+    { approved: false, status: "rejected" as const },
+  ])(
+    "records a $status approval continuation without repeating the user input",
+    ({ approved, status }) => {
+      const instrumentation = createInstrumentation({
+        forwardedProps: {
+          command: {
+            resume: {
+              approved,
+              continuationNumber: 2,
+              approvalRequest: {
+                type: "tool_approval_request",
+                toolCallId: "tool-1",
+                toolName: "langfuse_createTextPrompt",
+                args: { name: "FOO" },
+                runId: "parent-run-1",
+              },
+            },
+          },
+        },
+      });
+
+      instrumentation.recordToolCallApproval({
+        toolCallId: "tool-1",
+        status,
+      });
+      instrumentation.recordEvents([
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "tool-1",
+          toolCallName: "langfuse_createTextPrompt",
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: "tool-1",
+          delta: '{"name":"FOO"}',
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: "tool-1",
+        },
+        {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: "tool-1",
+          content: '{"name":"FOO","version":1}',
+        },
+      ]);
+      instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
+      instrumentation.recordStepFinish({
+        usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+      });
+      instrumentation.end({});
+
+      const continuationInput = `Continuation: User ${status} tool langfuse_createTextPrompt`;
+      const continuationMetadata = {
+        continuation_type: "tool_approval",
+        continuation_number: 2,
+        parent_run_id: "parent-run-1",
+        parent_trace_id: getInAppAgentInstrumentationTraceId("parent-run-1"),
+        approval_status: status,
+        approval_tool_call_id: "tool-1",
+        approval_tool_name: "langfuse_createTextPrompt",
+      };
+
+      expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: traceId,
+          name: "agent-turn",
+          sessionId: "conversation-1",
+          input: continuationInput,
+          tags: ["in-app-agent", "agent-turn-continuation"],
+          metadata: expect.objectContaining(continuationMetadata),
+        }),
+      );
+      expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+        "agent-create",
+        expect.objectContaining({
+          id: agentRunObservationId,
+          traceId,
+          name: "agent-turn",
+          input: continuationInput,
+          metadata: expect.objectContaining(continuationMetadata),
+        }),
+      );
+      expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+        "generation-create",
+        expect.objectContaining({
+          input: expect.objectContaining({
+            messages: [
+              { role: "user", content: "hello" },
+              expect.objectContaining({
+                role: "assistant",
+                tool_calls: [
+                  expect.objectContaining({
+                    id: "tool-1",
+                    name: "langfuse_createTextPrompt",
+                  }),
+                ],
+              }),
+              {
+                role: "tool",
+                tool_call_id: "tool-1",
+                content: { name: "FOO", version: 1 },
+              },
+            ],
+          }),
+        }),
+      );
+    },
+  );
+
   it("compacts text message chunks before recording output", () => {
     const instrumentation = createInstrumentation();
 

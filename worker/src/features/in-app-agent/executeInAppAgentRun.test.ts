@@ -6,6 +6,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
+  ResumeForwardedPropsSchema,
 } from "@langfuse/shared/in-app-agent";
 
 vi.hoisted(() => {
@@ -203,6 +204,7 @@ const getInAppAgentApiKeys = (projectId: string) =>
 async function seedApprovedContinuation(opts?: {
   context?: Array<{ description: string; value: string }>;
   alwaysAllowedTools?: string[];
+  continuationNumber?: number;
 }) {
   const seeded = await seedBackgroundRun({
     alwaysAllowedTools: opts?.alwaysAllowedTools,
@@ -236,6 +238,9 @@ async function seedApprovedContinuation(opts?: {
         parentRunId: parentRun.id,
         toolCallId: "tc-1",
         approved: true,
+        ...(opts?.continuationNumber
+          ? { continuationNumber: opts.continuationNumber }
+          : {}),
         ...(opts?.context ? { context: opts.context } : {}),
       },
     },
@@ -253,10 +258,17 @@ describe("executeInAppAgentRun", () => {
       },
       { description: "browser_languages", value: '["de-DE"]' },
     ];
-    const { projectId, run } = await seedApprovedContinuation({ context });
+    const { projectId, run } = await seedApprovedContinuation({
+      context,
+      continuationNumber: 3,
+    });
 
     scenarioRef.current = async ({ input, options }) => {
       expect(input.context).toEqual(context);
+      expect(
+        ResumeForwardedPropsSchema.parse(input.forwardedProps).command.resume
+          .continuationNumber,
+      ).toBe(3);
       await options.onComplete();
       await options.onFinish();
     };

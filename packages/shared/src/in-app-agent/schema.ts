@@ -239,6 +239,7 @@ export const ResumeForwardedPropsSchema = z.object({
   command: z.object({
     resume: z.object({
       approved: z.boolean(),
+      continuationNumber: z.number().int().positive().optional(),
       approvalRequest: InAppAgentToolApprovalRequestSchema,
     }),
   }),
