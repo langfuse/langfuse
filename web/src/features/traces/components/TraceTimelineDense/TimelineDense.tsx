@@ -171,6 +171,14 @@ export type TimelineDenseProps = {
   barColor: "neutral" | "type";
   compress: boolean;
   showReadout: boolean;
+  /**
+   * Selection is CONTROLLED: the trace panel's other views select the same
+   * observation, so this must not keep its own copy. See SelectionContext.
+   */
+  selectedId: string | null;
+  onSelect: (nodeId: string) => void;
+  /** Hover, for prefetching the observation the user is about to open. */
+  onHover?: (nodeId: string) => void;
 };
 
 export type GutterMode = "auto" | "expanded" | "collapsed";
@@ -183,13 +191,15 @@ export function TimelineDense({
   barColor,
   compress,
   showReadout,
+  selectedId,
+  onSelect,
+  onHover,
 }: TimelineDenseProps) {
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [pointerPos, setPointerPos] = useState<{ x: number; y: number } | null>(
     null,
   );
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const prepared = useMemo(() => prepareTimeline(roots), [roots]);
@@ -564,9 +574,16 @@ export function TimelineDense({
       setPeeking(offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX);
     }
 
-    setFocusIndex(
-      rowIndexAtOffset(current, offsetY, rowHeight, prepared.rows.length),
+    const index = rowIndexAtOffset(
+      current,
+      offsetY,
+      rowHeight,
+      prepared.rows.length,
     );
+    if (index !== focusIndex && index != null) {
+      onHover?.(prepared.rows[index]?.node.id ?? "");
+    }
+    setFocusIndex(index);
     setPointerPos({ x: offsetX, y: offsetY });
   };
 
@@ -586,8 +603,9 @@ export function TimelineDense({
   /** Double-click an element: both axes move to put it on screen, readably. */
   const focusRow = (index: number) => {
     const positioned = result.nodes.find((node) => node.index === index);
-    if (!positioned) return;
-    setSelectedIndex(index);
+    const row = prepared.rows[index];
+    if (!positioned || !row) return;
+    onSelect(row.node.id);
     const startMs = compression.toCompressedMs(positioned.startMs);
     flyTo(
       focusViewport(limits, {
@@ -734,7 +752,7 @@ export function TimelineDense({
             if (y + rowHeight < 0 || y > surfaceHeight) return null;
 
             const isFocused = node.index === focusIndex;
-            const isSelected = node.index === selectedIndex;
+            const isSelected = node.id === selectedId;
             const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
 
             return (
@@ -748,7 +766,7 @@ export function TimelineDense({
                   isFocused && !isSelected && "bg-primary-accent/15",
                 )}
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
-                onClick={() => setSelectedIndex(node.index)}
+                onClick={() => onSelect(node.id)}
                 onDoubleClick={() => focusRow(node.index)}
               >
                 <GutterContent
@@ -851,9 +869,9 @@ export function TimelineDense({
                   key={node.id}
                   className={cn(
                     "absolute inset-x-0",
-                    node.index === selectedIndex && "bg-primary-accent/20",
+                    node.id === selectedId && "bg-primary-accent/20",
                     node.index === focusIndex &&
-                      node.index !== selectedIndex &&
+                      node.id !== selectedId &&
                       "bg-primary-accent/15",
                   )}
                   style={{ top: `${y}px`, height: `${rowHeight}px` }}
@@ -874,16 +892,25 @@ export function TimelineDense({
         {/* The tooltip is what names a row when the gutter cannot. */}
         {focused && pointerPos && !dragging && pointerPos.x > gutterWidth ? (
           <div
-            className="border-border bg-background text-foreground pointer-events-none absolute z-10 flex max-w-[90%] items-center gap-1 rounded border px-1.5 py-1 shadow-md"
+            className="border-border bg-background text-foreground pointer-events-none absolute z-10 flex items-center gap-1 overflow-hidden rounded border px-1.5 py-1 shadow-md"
             style={{
               left:
-                pointerPos.x > box.width * 0.55
+                pointerPos.x > contentWidth * 0.55
                   ? undefined
                   : `${Math.round(pointerPos.x + 12)}px`,
               right:
-                pointerPos.x > box.width * 0.55
-                  ? `${Math.round(Math.max(box.width - pointerPos.x + 12, 4))}px`
+                pointerPos.x > contentWidth * 0.55
+                  ? `${Math.round(Math.max(contentWidth - pointerPos.x + 12, 4))}px`
                   : undefined,
+              // Clamped to the space left, not a percentage guess: an unclamped
+              // tooltip poked past the surface and put 5px of scrollWidth on a
+              // box whose whole claim is that nothing scrolls.
+              maxWidth: `${Math.max(
+                pointerPos.x > contentWidth * 0.55
+                  ? pointerPos.x - 16
+                  : contentWidth - pointerPos.x - 16,
+                80,
+              )}px`,
               top: `${Math.round(
                 Math.min(
                   Math.max(pointerPos.y + 12, 2),

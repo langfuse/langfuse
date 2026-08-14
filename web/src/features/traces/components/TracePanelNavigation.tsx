@@ -2,7 +2,7 @@
  * TracePanelNavigation - Pure content component for navigation panel
  *
  * Responsibility:
- * - Decide which navigation view to show (Tree/Timeline/Search)
+ * - Decide which navigation view to show (Tree/Timeline/Compact/Search)
  * - NO layout structure - just returns the content component
  *
  * Hooks:
@@ -20,6 +20,7 @@ import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { TraceTree } from "./TraceTree";
 import { TraceSearchList } from "./TraceSearchList";
 import { TraceTimeline } from "./TraceTimeline/TraceTimeline";
+import { TraceTimelineCompact } from "./TraceTimelineDense/TraceTimelineCompact";
 import { useMemo } from "react";
 
 export function TracePanelNavigation() {
@@ -27,19 +28,21 @@ export function TracePanelNavigation() {
   const [viewMode] = useQueryParam("view", StringParam);
 
   const hasQuery = searchQuery.trim().length > 0;
-  const isTimelineView = viewMode === "timeline";
 
   // Memoize to prevent recreation when deps haven't changed
   const content = useMemo(() => {
-    // Priority: Search > Timeline > Tree
+    // Priority: Search > Compact > Timeline > Tree
     if (hasQuery) {
       return <TraceSearchList />;
     }
-    if (isTimelineView) {
+    if (viewMode === "compact") {
+      return <TraceTimelineCompact />;
+    }
+    if (viewMode === "timeline") {
       return <TraceTimeline />;
     }
     return <TraceTree />;
-  }, [hasQuery, isTimelineView]);
+  }, [hasQuery, viewMode]);
 
   return content;
 }

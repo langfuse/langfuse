@@ -1,4 +1,4 @@
-import { expect, waitFor } from "storybook/test";
+import { expect, fn, waitFor } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { TimelineDense } from "./TimelineDense";
 import {
@@ -38,6 +38,9 @@ export const FiftySpansOnAPhone = meta.story({
     barColor: "neutral",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -50,6 +53,9 @@ export const OneHundredFiftySpansExactlyAtTheFloor = meta.story({
     barColor: "neutral",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -63,6 +69,9 @@ export const FiveHundredSpansPannable = meta.story({
     barColor: "neutral",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -75,6 +84,9 @@ export const TypeColouredBars = meta.story({
     barColor: "type",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -88,6 +100,9 @@ export const ShortTraceStaysReadable = meta.story({
     barColor: "neutral",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -100,6 +115,9 @@ export const ReporterShapeInAPeek = meta.story({
     barColor: "neutral",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -113,6 +131,9 @@ export const NamesExpanded = meta.story({
     barColor: "neutral",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -125,6 +146,9 @@ export const FullWidthDesktop = meta.story({
     barColor: "type",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -142,6 +166,9 @@ export const FullWidthWithNames = meta.story({
     barColor: "type",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -155,6 +182,9 @@ export const FullWidthManySpans = meta.story({
     barColor: "type",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -168,6 +198,9 @@ export const TouchTapToToggle = meta.story({
     barColor: "type",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -180,6 +213,9 @@ export const LongTailCompressed = meta.story({
     barColor: "type",
     compress: true,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
 });
 
@@ -193,6 +229,9 @@ export const NeitherAxisScrolls = meta.story({
     barColor: "neutral",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
   play: async ({ canvasElement }) => {
     const surface = canvasElement.querySelector<HTMLElement>(
@@ -233,6 +272,9 @@ export const ScrollPansPinchZooms = meta.story({
     barColor: "neutral",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
   play: async ({ canvasElement }) => {
     const surface = canvasElement.querySelector<HTMLElement>(
@@ -289,6 +331,9 @@ export const HoverPeeksTheNames = meta.story({
     barColor: "type",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
   play: async ({ canvasElement }) => {
     const surface = canvasElement.querySelector<HTMLElement>(
@@ -350,6 +395,9 @@ export const DoubleClickFocusesBothAxes = meta.story({
     barColor: "neutral",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
   play: async ({ canvasElement }) => {
     const readout = () =>
@@ -385,6 +433,9 @@ export const HoverOpensATooltip = meta.story({
     barColor: "neutral",
     compress: false,
     showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
   },
   play: async ({ canvasElement }) => {
     const surface = canvasElement.querySelector<HTMLElement>(
