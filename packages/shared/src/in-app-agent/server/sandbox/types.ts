@@ -7,6 +7,15 @@ export type InAppAgentSandboxProviderType =
   | "dangerous-docker"
   | "lambda-microvm";
 
+export const IN_APP_AGENT_SANDBOX_SESSION_REPLACEMENT_REASONS = [
+  "not_found",
+  "terminal_state",
+  "resume_race",
+] as const;
+
+export type InAppAgentSandboxSessionReplacementReason =
+  (typeof IN_APP_AGENT_SANDBOX_SESSION_REPLACEMENT_REASONS)[number];
+
 /**
  * Session-bound sandbox execution handle returned by a provider.
  * Implementations close over the backing runtime session so callers only pass
@@ -54,7 +63,11 @@ export type SandboxProvider = {
   ensureSession(params: {
     conversationId: string;
     sessionId?: string | null;
-  }): Promise<{ sessionId: string; sandbox: SandboxSession }>;
+  }): Promise<{
+    sessionId: string;
+    sandbox: SandboxSession;
+    replacementReason?: InAppAgentSandboxSessionReplacementReason;
+  }>;
   /**
    * Persists session state for later reuse and releases any live runtime
    * resources associated with the session.

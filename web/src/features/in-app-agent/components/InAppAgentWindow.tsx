@@ -22,7 +22,6 @@ import {
   Plus,
   SendHorizontal,
   Square,
-  TriangleAlert,
   Trash2,
   X,
 } from "lucide-react";
@@ -50,7 +49,6 @@ import {
 } from "./InAppAgentMessage";
 import {
   IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
-  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
   type InAppAgentMessageFeedbackValue,
   type InAppAgentMessageSource,
 } from "@langfuse/shared/in-app-agent";
@@ -917,37 +915,20 @@ function InAppAgentRateLimitError({
   );
 }
 
-function InAppAgentIssueNotice({
-  isExpanded,
-  variant,
-}: {
-  isExpanded: boolean;
-  variant: "error" | "write_lock";
-}) {
-  const isWriteLock = variant === "write_lock";
-
+function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
   return (
     <div className="shrink-0 px-2 pb-2">
       <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
         <p
           role="alert"
           className={cn(
-            "flex w-full items-center gap-2 rounded-lg border px-2 py-1",
-            isWriteLock
-              ? "border-border bg-muted/60 text-foreground"
-              : "border-destructive/40 bg-destructive/10 text-destructive",
+            "border-destructive/40 bg-destructive/10 text-destructive flex w-full items-center gap-2 rounded-lg border px-2 py-1",
             isExpanded ? "text-sm" : "text-xs",
           )}
         >
-          {isWriteLock ? (
-            <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
-          ) : (
-            <Info aria-hidden="true" className="size-3 shrink-0" />
-          )}
+          <Info aria-hidden="true" className="size-3 shrink-0" />
           <span className="min-w-0 flex-1">
-            {isWriteLock
-              ? IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE
-              : IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
+            {IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
           </span>
         </p>
       </div>
@@ -1521,11 +1502,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
-        {(error?.type === "generic" || error?.type === "write_lock") && (
-          <InAppAgentIssueNotice
-            isExpanded={isExpanded}
-            variant={error.type === "write_lock" ? "write_lock" : "error"}
-          />
+        {error?.type === "generic" && (
+          <InAppAgentIssueNotice isExpanded={isExpanded} />
         )}
         {backgroundHint.isVisible && props.onClose ? (
           <InAppAgentBackgroundHint

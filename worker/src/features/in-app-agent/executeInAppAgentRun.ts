@@ -18,7 +18,6 @@ import {
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   getInAppAgentInstrumentationTraceId,
-  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
   type AgUiEvent,
   type AgUiRunAgentInput,
   type InAppAgentToolApprovalRequest,
@@ -37,7 +36,6 @@ import {
   getInAppAgentPromptClient,
   heartbeatClaimedRun,
   IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
-  isInAppAgentConversationWriteLocked,
   createInAppAgentToolPolicy,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
@@ -218,17 +216,6 @@ export async function executeInAppAgentRun(params: {
       conversationId: conversation.id,
     });
 
-    if (
-      isInAppAgentConversationWriteLocked({
-        conversation,
-        events: conversationEvents,
-      })
-    ) {
-      throw new InAppAgentRunInitError(
-        IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-      );
-    }
-
     // ---- Build the agent input from the run request + persisted history. ----
     const parsedRequest = InAppAgentRunRequestSchema.safeParse(run.request);
 
@@ -322,6 +309,8 @@ export async function executeInAppAgentRun(params: {
       ? await createInAppAgentSandbox({
           conversationId: conversation.id,
           projectId,
+          runId,
+          providerType: sandboxProviderType ?? undefined,
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
           getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),

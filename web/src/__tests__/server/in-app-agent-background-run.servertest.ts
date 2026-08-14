@@ -21,7 +21,6 @@ import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
-  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
 } from "@langfuse/shared/in-app-agent";
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
@@ -768,14 +767,14 @@ describe("in-app agent background runs", () => {
     expect(enqueuedJobs).toEqual([]);
   });
 
-  it("rejects approval continuations for write-locked conversations before mutating", async () => {
+  it("continues an old sandbox conversation after an approval decision", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const parkedRunId = await parkRunForApproval({
       projectId,
       conversationId: conversation.id,
       userId,
-      toolCallId: "write-locked-tool-call",
+      toolCallId: "old-sandbox-tool-call",
     });
 
     await prisma.inAppAgentConversation.update({
@@ -799,17 +798,12 @@ describe("in-app agent background runs", () => {
       },
     });
 
-    await expect(
-      caller.decideToolApproval({
-        projectId,
-        conversationId: conversation.id,
-        runId: parkedRunId,
-        toolCallId: "write-locked-tool-call",
-        approved: true,
-      }),
-    ).rejects.toMatchObject({
-      code: "PRECONDITION_FAILED",
-      message: IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+    const { runId: continuationRunId } = await caller.decideToolApproval({
+      projectId,
+      conversationId: conversation.id,
+      runId: parkedRunId,
+      toolCallId: "old-sandbox-tool-call",
+      approved: true,
     });
 
     await expect(
@@ -817,14 +811,86 @@ describe("in-app agent background runs", () => {
         where: { id: parkedRunId, projectId },
       }),
     ).resolves.toMatchObject({
-      status: InAppAgentRunStatus.AWAITING_APPROVAL,
+      status: InAppAgentRunStatus.SUCCEEDED,
     });
     await expect(
-      prisma.inAppAgentRun.count({
-        where: { projectId, conversationId: conversation.id },
+      prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: continuationRunId, projectId },
       }),
-    ).resolves.toBe(1);
-    expect(enqueuedJobs).toEqual([]);
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.QUEUED,
+      request: expect.objectContaining({
+        kind: "approvalDecision",
+        parentRunId: parkedRunId,
+        toolCallId: "old-sandbox-tool-call",
+        approved: true,
+      }),
+    });
+    expect(enqueuedJobs).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          payload: { projectId, runId: continuationRunId },
+        }),
+      }),
+    ]);
+  });
+
+  it("starts another user turn in an old sandbox conversation", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const priorRunId = createInAppAgentRunId();
+
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: priorRunId,
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.SUCCEEDED,
+        finishedAt: new Date(),
+      },
+    });
+    await prisma.inAppAgentConversation.update({
+      where: {
+        id_projectId: { id: conversation.id, projectId },
+      },
+      data: { createdAt: new Date(Date.now() - 9 * 60 * 60 * 1000) },
+    });
+    await prisma.inAppAgentEvent.create({
+      data: {
+        projectId,
+        conversationId: conversation.id,
+        runId: priorRunId,
+        sequenceNumber: 0,
+        type: EventType.TOOL_CALL_START,
+        event: {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "sandbox-tool-call",
+          toolCallName: "bash",
+        },
+      },
+    });
+
+    const { runId } = await caller.startRun({
+      projectId,
+      conversationId: conversation.id,
+      message: "continue from yesterday",
+    });
+
+    await expect(
+      prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: runId, projectId },
+      }),
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.QUEUED,
+    });
+    expect(enqueuedJobs).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          payload: { projectId, runId },
+        }),
+      }),
+    ]);
   });
 
   it("persists approval expiry before rejecting a late decision", async () => {

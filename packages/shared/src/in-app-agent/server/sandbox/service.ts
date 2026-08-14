@@ -1,8 +1,16 @@
-import type { InAppAgentSandbox, SandboxFile, SandboxProvider } from "./types";
+import type {
+  InAppAgentSandbox,
+  InAppAgentSandboxProviderType,
+  SandboxFile,
+  SandboxProvider,
+} from "./types";
+import { logger, recordIncrement } from "../../../server";
 
 export async function createInAppAgentSandbox(params: {
   conversationId: string;
   projectId: string;
+  runId?: string;
+  providerType?: InAppAgentSandboxProviderType;
   providerSessionId?: string | null;
   provider: SandboxProvider;
   getToolCallFiles: () => Promise<ReadonlyArray<SandboxFile>>;
@@ -36,6 +44,20 @@ export async function createInAppAgentSandbox(params: {
       conversationId: params.conversationId,
       sessionId: sessionIsKnownActive ? sessionId : null,
     });
+
+    if (session.replacementReason) {
+      logger.info("In-app agent sandbox session replaced", {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        runId: params.runId,
+        provider: params.providerType,
+        reason: session.replacementReason,
+      });
+      recordIncrement("langfuse.in_app_agent.sandbox.session_replaced", 1, {
+        provider: params.providerType ?? "unknown",
+        reason: session.replacementReason,
+      });
+    }
 
     await updateSessionState(session.sessionId);
 
