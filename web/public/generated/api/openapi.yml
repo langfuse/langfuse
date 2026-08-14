@@ -1135,7 +1135,15 @@ paths:
       security: *ref_0
   /api/public/dataset-run-items:
     post:
-      description: Create a dataset run item
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, create experiment data via the SDK
+        experiment runner or the OpenTelemetry endpoint at POST
+        /api/public/otel/v1/traces. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Create a dataset run item
       operationId: datasetRunItems_create
       tags:
         - DatasetRunItems
@@ -1181,7 +1189,16 @@ paths:
               $ref: '#/components/schemas/CreateDatasetRunItemRequest'
       deprecated: true
     get:
-      description: List dataset run items
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, dataset run items are replaced by
+        experiment items; use `GET
+        /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to>`
+        instead. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        List dataset run items
       operationId: datasetRunItems_list
       tags:
         - DatasetRunItems
@@ -1390,7 +1407,15 @@ paths:
       security: *ref_0
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
-      description: Get a dataset run and its items
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, dataset runs are replaced by
+        experiments; use GET /api/public/experiments instead. See the [Langfuse
+        v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Get a dataset run and its items
       operationId: datasets_getRun
       tags:
         - Datasets
@@ -1440,7 +1465,14 @@ paths:
       security: *ref_0
       deprecated: true
     delete:
-      description: Delete a dataset run and all its run items. This action is irreversible.
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, dataset runs are replaced by
+        experiments. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Delete a dataset run and all its run items. This action is irreversible.
       operationId: datasets_deleteRun
       tags:
         - Datasets
@@ -1491,7 +1523,15 @@ paths:
       deprecated: true
   /api/public/datasets/{datasetName}/runs:
     get:
-      description: Get dataset runs
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, dataset runs are replaced by
+        experiments; use GET /api/public/experiments instead. See the [Langfuse
+        v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Get dataset runs
       operationId: datasets_getRuns
       tags:
         - Datasets
@@ -1896,6 +1936,14 @@ paths:
   /api/public/ingestion:
     post:
       description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. Send data via the OpenTelemetry endpoint at `POST
+        /api/public/otel/v1/traces` instead, see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). See the
+        [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         **Legacy endpoint for batch ingestion for Langfuse Observability.**
 
 
@@ -1994,6 +2042,12 @@ paths:
   /api/public/metrics:
     get:
       description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. Use `GET /api/public/v2/metrics?query=<urlencoded
+        json query>` instead. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get metrics from the Langfuse project using a query object.
 
 
@@ -2095,7 +2149,15 @@ paths:
       deprecated: true
   /api/public/observations/{observationId}:
     get:
-      description: Get a observation
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. Use `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
+        instead. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Get a observation
       operationId: legacy_observationsV1_get
       tags:
         - LegacyObservationsV1
@@ -2145,6 +2207,13 @@ paths:
   /api/public/observations:
     get:
       description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. Use `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
+        instead. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get a list of observations.
 
 
@@ -5169,7 +5238,13 @@ paths:
                 password:
                   type: string
                   nullable: true
-                  description: Initial password for the user
+                  description: >-
+                    Ignored. Accepted only for compatibility with identity
+                    providers that always send a password on user creation (Okta
+                    sends a placeholder value even when password sync is
+                    disabled). No credential is created for the user;
+                    provisioned users authenticate via SSO or set a password
+                    themselves through the password reset flow.
               required:
                 - userName
                 - name
@@ -5759,9 +5834,13 @@ paths:
               $ref: '#/components/schemas/CreateScoreRequest'
   /api/public/v2/scores:
     get:
-      description: |-
-        **Deprecated.** Use `GET /api/public/v3/scores` instead. This endpoint
-        is no longer available on Langfuse v4 and later.
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint is not
+        available on Langfuse v4 and later and will be removed in a future
+        release. Use `GET /api/public/v3/scores` instead. See the [Langfuse v3
+        to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
 
         Get a list of scores (supports both trace and session scores)
       operationId: scores_get-many
@@ -5985,9 +6064,13 @@ paths:
       deprecated: true
   /api/public/v2/scores/{scoreId}:
     get:
-      description: |-
-        **Deprecated.** Use `GET /api/public/v3/scores` with the `id` filter
-        instead. This endpoint is no longer available on Langfuse v4 and later.
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint is not
+        available on Langfuse v4 and later and will be removed in a future
+        release. Use `GET /api/public/v3/scores` with the `id` filter instead.
+        See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
 
         Get a score (supports both trace and session scores)
       operationId: scores_get-by-id
@@ -6037,6 +6120,14 @@ paths:
   /api/public/sessions:
     get:
       description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, read session data via `GET
+        /api/public/v2/observations?filter=<urlencoded sessionId
+        filter>&fromStartTime=<from>&toStartTime=<to>`. See the [Langfuse v3 to
+        v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get sessions.
 
 
@@ -6137,6 +6228,14 @@ paths:
   /api/public/sessions/{sessionId}:
     get:
       description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, read session data via `GET
+        /api/public/v2/observations?filter=<urlencoded sessionId
+        filter>&fromStartTime=<from>&toStartTime=<to>`. See the [Langfuse v3 to
+        v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get a session.
 
 
@@ -6195,7 +6294,15 @@ paths:
       deprecated: true
   /api/public/traces/{traceId}:
     get:
-      description: Get a specific trace
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, read span and trace data via `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`. See
+        the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Get a specific trace
       operationId: trace_get
       tags:
         - Trace
@@ -6300,7 +6407,15 @@ paths:
       security: *ref_0
   /api/public/traces:
     get:
-      description: Get list of traces
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, read span and trace data via `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`. See
+        the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Get list of traces
       operationId: trace_list
       tags:
         - Trace

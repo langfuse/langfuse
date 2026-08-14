@@ -6,6 +6,7 @@ type FernAvailability =
   | string
   | {
       status?: string;
+      message?: string;
     };
 
 type FernDefinition = {
@@ -27,6 +28,12 @@ type FernDefinition = {
 export type DeprecatedOperation = {
   method: string;
   endpointPath: string;
+  /**
+   * Customer-facing explanation of what to use instead. Rendered as Markdown,
+   * so example calls need backticks or a `<placeholder>` is read as an HTML tag
+   * and disappears from the API reference.
+   */
+  message: string;
 };
 
 function listYamlFiles(directory: string): string[] {
@@ -54,6 +61,13 @@ function isDeprecated(availability: FernAvailability | undefined): boolean {
   );
 }
 
+function readMessage(availability: FernAvailability | undefined): string {
+  const message =
+    typeof availability === "object" ? (availability.message ?? "") : "";
+  // The message is folded into one line of the OpenAPI description.
+  return message.replace(/\s+/g, " ").trim();
+}
+
 export function getFernDeprecatedOperations(
   definitionDirectory: string,
 ): DeprecatedOperation[] {
@@ -69,11 +83,18 @@ export function getFernDeprecatedOperations(
 
     if (!service?.endpoints) return [];
 
-    return Object.values(service.endpoints).flatMap((endpoint) => {
+    return Object.entries(service.endpoints).flatMap(([name, endpoint]) => {
       if (!isDeprecated(endpoint.availability)) return [];
       if (!endpoint.method || endpoint.path === undefined) {
         throw new Error(
           `Deprecated endpoint in ${definitionPath} must define method and path`,
+        );
+      }
+
+      const message = readMessage(endpoint.availability);
+      if (!message) {
+        throw new Error(
+          `Deprecated endpoint "${name}" in ${definitionPath} must define availability.message, which is what API consumers read in the reference`,
         );
       }
 
@@ -86,6 +107,7 @@ export function getFernDeprecatedOperations(
             endpoint["base-path"],
             endpoint.path,
           ),
+          message,
         },
       ];
     });
