@@ -35,9 +35,30 @@ describe("viewport", () => {
     expect(isViewportFitted(fitted, limits)).toBe(true);
 
     // A trace that fits entirely shows every row and still floors at 4px.
-    const small = { ...limits, rowCount: 40 };
-    expect(fitViewport(small).rows.count).toBe(40);
-    expect(rowHeightOf(fitViewport(small), 600)).toBe(15);
+    const forty = { ...limits, rowCount: 40 };
+    expect(fitViewport(forty).rows.count).toBe(40);
+    expect(rowHeightOf(fitViewport(forty), 600)).toBe(15);
+
+    // A SHORT trace must not stretch its rows to fill the box: the window
+    // over-hangs the content instead, so the rows cap at the human height and
+    // the leftover space stays empty. Three rows in 600px are 26px, not 200px.
+    for (const rowCount of [1, 3, 12]) {
+      const short = { ...limits, rowCount };
+      const height = rowHeightOf(fitViewport(short), 600);
+      expect(height).toBeLessThanOrEqual(HUMAN_ROW_HEIGHT + 0.001);
+      expect(height).toBeCloseTo(HUMAN_ROW_HEIGHT, 6);
+      // Nothing to pan to when the whole trace is on screen.
+      expect(fitViewport(short).rows.start).toBe(0);
+    }
+
+    // Zooming in can still take rows past the resting cap, up to the ceiling.
+    const short = { ...limits, rowCount: 3 };
+    const zoomedIn = zoomViewport(fitViewport(short), short, {
+      factor: 100,
+      xRatio: 0.5,
+      yRatio: 0.5,
+    });
+    expect(rowHeightOf(zoomedIn, 600)).toBeCloseTo(MAX_ROW_HEIGHT, 6);
   });
 
   it("zooms both axes about the anchor and holds the content under it", () => {

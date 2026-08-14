@@ -133,7 +133,9 @@ export function TimelineDense({
   const [dragging, setDragging] = useState(false);
 
   const prepared = useMemo(() => prepareTimeline(roots), [roots]);
-  const measurer = useMemo(() => createTextMeasurer(), []);
+  // Rendered at 10px, so measured at 10px: layout() decides which side a label
+  // goes on, and that decision is only as good as the font it measured.
+  const measurer = useMemo(() => createTextMeasurer("10px ui-sans-serif"), []);
 
   const railWidth = showNames ? 132 : RAIL_WIDTH;
   const laneWidth = Math.max(box.width - FRAME_BORDER * 2 - railWidth, 0);
@@ -607,12 +609,23 @@ export function TimelineDense({
                     }}
                     data-testid="timeline-dense-bar"
                   />
-                  {/* Text comes back on its own as the rows grow. */}
-                  {presentation === "labelled" && node.label ? (
+                  {/* Text comes back on its own as the rows grow — and it goes
+                      on whichever side layout() measured room for, rather than
+                      always after the bar, which clipped a full-width bar's
+                      label at the lane edge. */}
+                  {presentation === "labelled" &&
+                  node.label &&
+                  node.labelPlacement !== "hidden" ? (
                     <span
-                      className="text-muted-foreground absolute whitespace-nowrap"
+                      className={cn(
+                        "absolute whitespace-nowrap",
+                        node.labelPlacement === "inside"
+                          ? "text-foreground"
+                          : "text-muted-foreground",
+                      )}
                       style={{
-                        left: `${Math.min(node.x + node.width + 4, laneWidth)}px`,
+                        left: `${node.labelX}px`,
+                        maxWidth: `${Math.max(laneWidth - node.labelX, 0)}px`,
                         top: `${Math.max((rowHeight - 12) / 2, 0)}px`,
                         fontSize: "10px",
                       }}

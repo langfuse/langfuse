@@ -63,14 +63,34 @@ const finite = (value: number, fallback: number) =>
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
-/** Widest and narrowest row windows the height allows, in rows. */
+/**
+ * Widest and narrowest row windows the height allows, in rows.
+ *
+ * The window is allowed to be TALLER THAN THE CONTENT, and that is the load
+ * bearing part: three rows in a 600px box must not become three 200px rows.
+ * Expressing the ceiling as a minimum row count cannot prevent that, because
+ * you cannot show fewer rows than a trace has. Expressing it as a window that
+ * over-hangs the content can — three rows render at the human height and the
+ * remaining space stays empty, which is the standing decision that density must
+ * not grow into a tall box's slack.
+ *
+ * So the resting window is the row count clamped into
+ * `[height / humanHeight, height / minHeight]`:
+ *  - a short trace floors at `height / 26`, so rows cap at ~26px;
+ *  - a long trace ceilings at `height / 4`, so rows never go below the hairline
+ *    and the rest is panned to.
+ */
 function rowCountBounds(limits: ViewportLimits): { min: number; max: number } {
   const rowCount = Math.max(Math.floor(finite(limits.rowCount, 0)), 0);
   const boxHeight = Math.max(finite(limits.boxHeight, 0), 0);
   if (rowCount === 0 || boxHeight === 0) {
     return { min: Math.max(rowCount, 1), max: Math.max(rowCount, 1) };
   }
-  const max = Math.min(rowCount, Math.max(boxHeight / MIN_ROW_HEIGHT, 1));
+  const max = clamp(
+    rowCount,
+    Math.max(boxHeight / HUMAN_ROW_HEIGHT, 1),
+    Math.max(boxHeight / MIN_ROW_HEIGHT, 1),
+  );
   const min = clamp(boxHeight / MAX_ROW_HEIGHT, 1, max);
   return { min, max };
 }
