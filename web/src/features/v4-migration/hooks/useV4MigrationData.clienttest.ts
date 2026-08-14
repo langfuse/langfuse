@@ -165,6 +165,14 @@ describe("account v4 migration data", () => {
       expect.objectContaining({ orgId: "org-1" }),
       expect.objectContaining({ enabled: true }),
     );
+    const sdkRange = mocks.sdkUsageSummaryByProject.mock.calls[0]?.[0];
+    const apiRange = mocks.legacyApiUsageSummaryByProject.mock.calls[0]?.[0];
+    expect(
+      sdkRange.toTimestamp.getTime() - sdkRange.fromTimestamp.getTime(),
+    ).toBe(3 * 24 * 60 * 60 * 1000);
+    expect(
+      apiRange.toTimestamp.getTime() - apiRange.fromTimestamp.getTime(),
+    ).toBe(3 * 24 * 60 * 60 * 1000);
   });
 
   it("marks projects forced onto the v3 experience as partner-managed", () => {

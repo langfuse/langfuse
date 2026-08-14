@@ -1,7 +1,7 @@
 import { type RouterOutputs } from "@/src/utils/api";
 import { type V4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionStatus";
 
-export const V4_MIGRATION_LOOKBACK_DAYS = 14;
+export const V4_MIGRATION_LOOKBACK_DAYS = 3;
 
 const V4_MIGRATION_LOOKBACK_MS =
   V4_MIGRATION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
