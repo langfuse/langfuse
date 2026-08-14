@@ -26,21 +26,86 @@ import { TABLE_AGGREGATION_OPTIONS } from "@langfuse/shared";
 import { rangeFromString } from "@/src/utils/date-range-utils";
 
 const makeSdkUsageSeries = (
-  overrides: Partial<V4MigrationSdkUsageSeries>,
-): V4MigrationSdkUsageSeries => ({
-  sdkName: "python",
-  sdkVersion: "4.7.1",
-  canonicalSdkName: "python",
-  publicKey: "pk-lf-1234567890abcdef",
-  count: 10,
-  eventsCount: 10,
-  firstSeen: "2026-07-20T10:00:00Z",
-  lastSeen: "2026-07-23T10:00:00Z",
-  hasDelayedOtelEvents: null,
-  attributionStatus: "attributed",
-  v4MigrationStatus: "compatible",
-  ...overrides,
-});
+  overrides: Partial<V4MigrationSdkUsageSeries> = {},
+): V4MigrationSdkUsageSeries => {
+  const source = overrides.source ?? "ingestion-api-dual-write";
+  const ingestionPath =
+    overrides.ingestionPath ??
+    (source === "ingestion-api-dual-write" ? "ingestion_api" : "otel");
+  const deliveryMode =
+    overrides.deliveryMode ?? (source === "otel" ? "realtime" : "delayed");
+  const sdkName = overrides.sdkName ?? "python";
+  const sdkVersion = overrides.sdkVersion ?? "4.7.1";
+  const canonicalSdkName =
+    overrides.canonicalSdkName !== undefined
+      ? overrides.canonicalSdkName
+      : sdkName === "python"
+        ? "python"
+        : sdkName === "javascript" || sdkName.startsWith("@langfuse/")
+          ? "javascript"
+          : null;
+  const sdkVersionMajor =
+    overrides.sdkVersionMajor !== undefined
+      ? overrides.sdkVersionMajor
+      : Number(sdkVersion.match(/^v?(\d+)/)?.[1] ?? NaN);
+  const resolvedMajor = Number.isFinite(sdkVersionMajor)
+    ? Number(sdkVersionMajor)
+    : null;
+  const latestMajor =
+    canonicalSdkName === "python"
+      ? 4
+      : canonicalSdkName === "javascript"
+        ? 5
+        : null;
+  const v4MigrationStatus =
+    overrides.v4MigrationStatus ??
+    (canonicalSdkName === null || resolvedMajor === null
+      ? "unknown"
+      : resolvedMajor >= (latestMajor ?? 0)
+        ? "compatible"
+        : "upgrade_required");
+  const remediationType =
+    overrides.remediationType ??
+    (canonicalSdkName !== null
+      ? "update_sdk"
+      : ingestionPath === "otel"
+        ? "update_otel_instrumentation"
+        : "upgrade_instrumentation");
+  const actionLevel =
+    overrides.actionLevel ??
+    (remediationType === "update_sdk"
+      ? v4MigrationStatus === "compatible"
+        ? "none"
+        : "required"
+      : remediationType === "update_otel_instrumentation"
+        ? deliveryMode === "realtime"
+          ? "none"
+          : "required"
+        : "required");
+
+  return {
+    source,
+    ingestionPath,
+    deliveryMode,
+    sdkName,
+    sdkVersion,
+    canonicalSdkName,
+    sdkVersionMajor: resolvedMajor,
+    latestSdkMajor:
+      overrides.latestSdkMajor !== undefined
+        ? overrides.latestSdkMajor
+        : latestMajor,
+    isValidSdkVersion: overrides.isValidSdkVersion ?? resolvedMajor !== null,
+    publicKey: overrides.publicKey ?? "pk-lf-1234567890abcdef",
+    eventCount: overrides.eventCount ?? 10,
+    firstSeen: overrides.firstSeen ?? "2026-07-20T10:00:00Z",
+    lastSeen: overrides.lastSeen ?? "2026-07-23T10:00:00Z",
+    attributionStatus: overrides.attributionStatus ?? "attributed",
+    v4MigrationStatus,
+    remediationType,
+    actionLevel,
+  };
+};
 
 const cleanSdkState = (): V4MigrationSdkState => ({
   status: "latest",
@@ -295,6 +360,32 @@ describe("V4MigrationDetailsContent", () => {
     }
   });
 
+  it("rounds estimated API call counts and keeps positive usage visible", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/traces",
+        count: 56.5,
+        lastSeen: "2026-07-23T10:37:00Z",
+      },
+      {
+        endpoint: "GET /api/public/observations",
+        count: 4.5,
+        lastSeen: "2026-07-22T10:37:00Z",
+      },
+      {
+        endpoint: "GET /api/public/traces/{id}",
+        count: 1 / 3,
+        lastSeen: "2026-07-21T10:37:00Z",
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText(/57 calls · last seen/)).toBeInTheDocument();
+    expect(screen.getByText(/5 calls · last seen/)).toBeInTheDocument();
+    expect(screen.getByText(/1 call · last seen/)).toBeInTheDocument();
+  });
+
   it("collapses clean sections into one up-to-date summary", () => {
     mocks.migrationData.apis = { status: "loaded", count: 0 };
     mocks.migrationData.exports = { status: "loaded", count: 0 };
@@ -402,11 +493,10 @@ describe("V4MigrationDetailsContent", () => {
       sdkUsageSeries: [
         makeSdkUsageSeries({}),
         makeSdkUsageSeries({
+          source: "otel",
           sdkName: "otelcol",
           sdkVersion: "0.98.0",
           canonicalSdkName: null,
-          v4MigrationStatus: "unknown",
-          hasDelayedOtelEvents: false,
         }),
       ],
     };
@@ -417,20 +507,25 @@ describe("V4MigrationDetailsContent", () => {
     expect(
       screen.queryByText("Update OTel Instrumentation"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Detected V4-compatible instrumentation"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
+    expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
+    expect(screen.getByText("· up to date")).toBeInTheDocument();
+    expect(screen.getByText("· real-time")).toBeInTheDocument();
   });
 
-  it("lists every detected SDK series when one needs an upgrade", () => {
+  it("lists only required SDK series in Update SDK and shows compatible ones as detected", () => {
     mocks.migrationData.sdk = {
       status: "legacy",
       sdkUsageSeries: [
         makeSdkUsageSeries({
           sdkVersion: "2.60.3",
-          v4MigrationStatus: "upgrade_required",
         }),
         makeSdkUsageSeries({
           sdkVersion: "4.6.9",
           publicKey: "pk-lf-fedcba0987654321",
-          v4MigrationStatus: "upgrade_recommended",
         }),
       ],
       upgradeRequiredCount: 1,
@@ -444,11 +539,16 @@ describe("V4MigrationDetailsContent", () => {
       within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
     ).toBeInTheDocument();
     expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
-    expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
     expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
+    // Compatible current-major traffic lands in the detected section.
     expect(
-      screen.getByText("· recommended to upgrade to >= 4.7.0"),
+      screen.getByText("Detected V4-compatible instrumentation"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
+    expect(screen.getByText("· up to date")).toBeInTheDocument();
+    expect(
+      screen.queryByText("· recommended to upgrade to >= 4.7.0"),
+    ).not.toBeInTheDocument();
     // The explicit evidence link targets this key + SDK name/version over the
     // detection lookback window, so versions on the same key stay distinct.
     const outdatedRow = screen.getByText("Python 2.60.3").closest("li")!;
@@ -459,6 +559,7 @@ describe("V4MigrationDetailsContent", () => {
       "href",
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef," +
+          "ingestionSource;stringOptions;;any of;ingestion-api-dual-write," +
           "ingestionSdkName;stringOptions;;any of;python," +
           "ingestionSdkVersion;stringOptions;;any of;2.60.3",
       )}&dateRange=14d`,
@@ -475,13 +576,12 @@ describe("V4MigrationDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hides Update SDK when current-major SDKs only need a recommended bump", () => {
+  it("hides Update SDK when every SDK series is already compatible", () => {
     mocks.migrationData.sdk = {
       status: "latest",
       sdkUsageSeries: [
         makeSdkUsageSeries({
           sdkVersion: "4.6.9",
-          v4MigrationStatus: "upgrade_recommended",
         }),
       ],
       upgradeRequiredCount: 0,
@@ -491,11 +591,11 @@ describe("V4MigrationDetailsContent", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
-    expect(screen.queryByText("Python 4.6.9")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("· recommended to upgrade to >= 4.7.0"),
-    ).not.toBeInTheDocument();
     expect(screen.queryByText(/needs an update/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Detected V4-compatible instrumentation"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
   });
 
   it("keeps outdated SDK usage surfaced when a newer version later used the same key", () => {
@@ -507,7 +607,6 @@ describe("V4MigrationDetailsContent", () => {
       sdkUsageSeries: [
         makeSdkUsageSeries({
           sdkVersion: "2.60.3",
-          v4MigrationStatus: "upgrade_required",
           firstSeen: "2026-07-20T09:00:00Z",
           lastSeen: "2026-07-20T10:00:00Z",
         }),
@@ -526,22 +625,24 @@ describe("V4MigrationDetailsContent", () => {
       within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
     ).toBeInTheDocument();
     expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
-    expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
     expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
     expect(screen.queryByText(/upgrade completed/)).not.toBeInTheDocument();
+    // Compatible series are listed under the detected section, not Update SDK.
+    expect(
+      screen.getByText("Detected V4-compatible instrumentation"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
   });
 
   it("renders the key as plain text when an offender has no observation evidence", () => {
-    // A scores-only offender: detection counts score ingestions, but the
-    // events table has nothing for this key — a link would open an empty
-    // table, so the evidence link must stay hidden.
+    // A series with no events_core rows: a link would open an empty table,
+    // so the evidence link must stay hidden.
     mocks.migrationData.sdk = {
       status: "legacy",
       sdkUsageSeries: [
         makeSdkUsageSeries({
           sdkVersion: "2.60.3",
-          v4MigrationStatus: "upgrade_required",
-          eventsCount: 0,
+          eventCount: 0,
         }),
       ],
       upgradeRequiredCount: 1,
@@ -562,11 +663,10 @@ describe("V4MigrationDetailsContent", () => {
       status: "otel_header_required",
       sdkUsageSeries: [
         makeSdkUsageSeries({
-          sdkName: "openlit",
-          sdkVersion: "1.35.4",
+          source: "otel-dual-write",
+          sdkName: "unknown",
+          sdkVersion: "unknown",
           canonicalSdkName: null,
-          v4MigrationStatus: "unknown",
-          hasDelayedOtelEvents: true,
           publicKey: "",
         }),
       ],
@@ -577,6 +677,7 @@ describe("V4MigrationDetailsContent", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     expect(screen.getByText("No API key")).toBeInTheDocument();
+    expect(screen.getByText("Custom instrumentation")).toBeInTheDocument();
     const evidenceLink = screen.getByRole("link", {
       name: "View observations",
     });
@@ -584,8 +685,7 @@ describe("V4MigrationDetailsContent", () => {
       "href",
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;," +
-          "ingestionSdkName;stringOptions;;any of;openlit," +
-          "ingestionSdkVersion;stringOptions;;any of;1.35.4",
+          "ingestionSource;stringOptions;;any of;otel-dual-write",
       )}&dateRange=14d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
@@ -705,25 +805,23 @@ describe("V4MigrationDetailsContent", () => {
     );
   });
 
-  it("shows delayed OTel exporters and hides the clean SDK section", () => {
+  it("shows delayed OTel exporters and moves realtime OTel to Detected", () => {
     mocks.migrationData.sdk = {
       status: "otel_header_required",
       sdkUsageSeries: [
         makeSdkUsageSeries({}),
         makeSdkUsageSeries({
+          source: "otel-dual-write",
           sdkName: "openlit",
           sdkVersion: "1.35.4",
           canonicalSdkName: null,
-          v4MigrationStatus: "unknown",
-          hasDelayedOtelEvents: true,
           publicKey: "pk-lf-aaaa000011112222",
         }),
         makeSdkUsageSeries({
+          source: "otel",
           sdkName: "otelcol",
           sdkVersion: "0.98.0",
           canonicalSdkName: null,
-          v4MigrationStatus: "unknown",
-          hasDelayedOtelEvents: false,
           publicKey: "pk-lf-bbbb333344445555",
         }),
       ],
@@ -739,12 +837,21 @@ describe("V4MigrationDetailsContent", () => {
         screen.getByText("Update OTel Instrumentation").closest("button")!,
       ).getByText("1"),
     ).toBeInTheDocument();
-    expect(screen.getByText(/delayed ingestion path/)).toBeInTheDocument();
+    expect(
+      screen.getByText("x-langfuse-ingestion-version: 4").closest("p"),
+    ).toHaveTextContent(
+      "Your OpenTelemetry data is using delayed ingestion. For real-time ingestion, upgrade your integration or, if you use OpenTelemetry directly, set x-langfuse-ingestion-version: 4 on your OTLP exporter. Migration guide.",
+    );
     expect(screen.getByText("openlit 1.35.4")).toBeInTheDocument();
-    expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
     expect(screen.getByText("· delayed")).toBeInTheDocument();
-    expect(screen.getByText("· real-time")).toBeInTheDocument();
     expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
+    // Compatible SDK + realtime OTel land in the detected section.
+    expect(
+      screen.getByText("Detected V4-compatible instrumentation"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
+    expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
+    expect(screen.getByText("· real-time")).toBeInTheDocument();
   });
 
   it("keeps Update SDK visible for a recognized SDK with an unparsable version", () => {
@@ -753,7 +860,10 @@ describe("V4MigrationDetailsContent", () => {
       sdkUsageSeries: [
         makeSdkUsageSeries({
           sdkVersion: "not-a-version",
+          sdkVersionMajor: null,
+          isValidSdkVersion: false,
           v4MigrationStatus: "unknown",
+          actionLevel: "required",
         }),
       ],
       upgradeRequiredCount: 0,
@@ -813,11 +923,11 @@ describe("V4MigrationDetailsContent", () => {
       status: "unknown",
       sdkUsageSeries: [
         makeSdkUsageSeries({
+          source: "ingestion-api-dual-write",
           sdkName: "unknown",
           sdkVersion: "unknown",
           canonicalSdkName: null,
           attributionStatus: "missing_name_and_version",
-          v4MigrationStatus: "unknown",
         }),
       ],
       upgradeRequiredCount: 0,
@@ -844,7 +954,8 @@ describe("V4MigrationDetailsContent", () => {
     expect(evidenceLink).toHaveAttribute(
       "href",
       `/project/project-1/observations?filter=${encodeURIComponent(
-        "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef",
+        "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef," +
+          "ingestionSource;stringOptions;;any of;ingestion-api-dual-write",
       )}&dateRange=14d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
@@ -874,12 +985,12 @@ describe("V4MigrationDetailsContent", () => {
       status: "unknown",
       sdkUsageSeries: [
         makeSdkUsageSeries({
+          source: "ingestion-api-dual-write",
           sdkName: "unknown",
           sdkVersion: "unknown",
           canonicalSdkName: null,
           publicKey: "",
           attributionStatus: "missing_name_and_version",
-          v4MigrationStatus: "unknown",
         }),
       ],
       upgradeRequiredCount: 0,

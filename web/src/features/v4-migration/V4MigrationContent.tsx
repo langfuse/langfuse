@@ -33,9 +33,9 @@ import { cn } from "@/src/utils/tailwind";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   formatSdkUpgradeRequirement,
-  formatSdkUpgradeRecommendation,
   formatSdkVersion,
   getCustomInstrumentationSectionState,
+  getDetectedInstrumentationSeries,
   getOtelSectionState,
   getSdkSectionState,
   isActionableSdkSeries,
@@ -54,10 +54,7 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import {
-  useProject,
-  useQueryProjectOrOrganization,
-} from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import {
   useEvalUpgradeAssistantPlan,
@@ -139,6 +136,8 @@ function Section({
   children,
   defaultOpen,
   analyticsSection,
+  statusVariant = "action",
+  tone = "default",
 }: {
   title: string;
   /** Number of affected items, shown muted after the title. */
@@ -149,6 +148,10 @@ function Section({
   defaultOpen?: boolean;
   /** Funnel dimension for the section_expanded event (snake_case). */
   analyticsSection: string;
+  statusVariant?: "action" | "done";
+  /** "muted" recesses the trigger to match the settled-checks summary line, so
+   *  a section that needs no action does not read as an action item. */
+  tone?: "default" | "muted";
 }) {
   const capture = usePostHogClientCapture();
   return (
@@ -163,8 +166,15 @@ function Section({
       }}
     >
       <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-2.5 text-left">
-        <V4MigrationStatusDot variant="action" />
-        <span className="text-foreground flex items-center gap-1.5 text-sm font-bold">
+        <V4MigrationStatusDot variant={statusVariant} />
+        <span
+          className={cn(
+            "flex items-center gap-1.5 text-sm",
+            tone === "muted"
+              ? "text-muted-foreground"
+              : "text-foreground font-bold",
+          )}
+        >
           {title}
           {typeof count === "number" && (
             // Same count-badge recipe as the "My Views" table button.
@@ -217,12 +227,11 @@ function ExternalLink({
 }
 
 // Evidence deep-link filter for one SDK usage series: always the exact public
-// key (including the empty value used by raw OTel ingestion), plus the
+// key (including the empty value used by raw OTel ingestion), source, plus the
 // ingestion SDK name/version when the series carries exact values — so two SDK
 // versions on the same key link to distinct result sets.
 // "unknown" is the attribution fallback bucket, not an exact value, so those
-// dimensions fall back to key-only. The delayed-OTel `source` dimension is
-// deliberately not linked either: it is a prefix match, not an exact one.
+// dimensions fall back to key + source.
 function buildSdkUsageEvidenceFilter(usage: V4MigrationSdkUsageSeries): string {
   const filters: FilterState = [
     {
@@ -230,6 +239,12 @@ function buildSdkUsageEvidenceFilter(usage: V4MigrationSdkUsageSeries): string {
       type: "stringOptions",
       operator: "any of",
       value: [usage.publicKey],
+    },
+    {
+      column: "ingestionSource",
+      type: "stringOptions",
+      operator: "any of",
+      value: [usage.source],
     },
   ];
   if (usage.sdkName !== "unknown") {
@@ -320,7 +335,7 @@ function SdkUsageSeriesRows({
   series,
   needsAction,
   suffix,
-  unknownSeriesLabel = "OTLP exporter",
+  unknownSeriesLabel = "Custom instrumentation",
   hideMissingApiKey = false,
   projectId,
   analyticsSection,
@@ -359,7 +374,7 @@ function SdkUsageSeriesRows({
             ? null
             : "No API key";
         const evidenceHref =
-          projectId && usage.eventsCount > 0
+          projectId && usage.eventCount > 0
             ? `/project/${projectId}/observations?filter=${encodeURIComponent(
                 buildSdkUsageEvidenceFilter(usage),
               )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`
@@ -367,7 +382,7 @@ function SdkUsageSeriesRows({
 
         return (
           <li
-            key={`${usage.sdkName}:${usage.sdkVersion}:${usage.publicKey}`}
+            key={`${usage.source}:${usage.sdkName}:${usage.sdkVersion}:${usage.publicKey}`}
             // Message-box style: soft fill + a thicker left edge to group the
             // two lines of one item.
             className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
@@ -390,8 +405,7 @@ function SdkUsageSeriesRows({
               {/* Deep link to the exact evidence: the events table filtered by
                   this public key, plus SDK name and version when attributed,
                   over the detection lookback. An empty public key is an exact
-                  filter value for raw OTel ingestion; scores-only offenders
-                  stay unlinked because their target would be empty. */}
+                  filter value for raw OTel ingestion. */}
               {evidenceHref ? (
                 <>
                   <span aria-hidden="true">·</span>
@@ -442,12 +456,7 @@ export function V4MigrationSdkSection({
   projectId?: string;
 }) {
   const section = getSdkSectionState(sdk);
-  if (
-    section.status === "latest" ||
-    section.status === "recommended" ||
-    section.status === "no_data"
-  )
-    return null;
+  if (section.status === "latest" || section.status === "no_data") return null;
 
   const isTransient =
     section.status === "checking" || section.status === "error";
@@ -500,11 +509,7 @@ export function V4MigrationSdkSection({
         needsAction={isActionableSdkSeries}
         suffix={(usage) =>
           usage.v4MigrationStatus === "upgrade_required" ? (
-            <span>· {formatSdkUpgradeRequirement(usage.canonicalSdkName)}</span>
-          ) : usage.v4MigrationStatus === "upgrade_recommended" ? (
-            <span>
-              · {formatSdkUpgradeRecommendation(usage.canonicalSdkName)}
-            </span>
+            <span>· {formatSdkUpgradeRequirement(usage.latestSdkMajor)}</span>
           ) : usage.v4MigrationStatus === "unknown" ? (
             <span>· version not recognized</span>
           ) : null
@@ -542,15 +547,15 @@ export function V4MigrationOtelSection({
       defaultOpen={defaultOpen}
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
-        OTel data is arriving through the delayed ingestion path. Set the{" "}
-        <MonoValue>x-langfuse-ingestion-version</MonoValue> header to{" "}
-        <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
-        ingestion.{" "}
+        Your OpenTelemetry data is using delayed ingestion. For real-time
+        ingestion, upgrade your integration or, if you use OpenTelemetry
+        directly, set <MonoValue>x-langfuse-ingestion-version: 4</MonoValue> on
+        your OTLP exporter.{" "}
         <ExternalLink
           href={OTEL_V4_MIGRATION_URL}
           analytics={{ section: "otel", link: "otel_migration_docs" }}
         >
-          OpenTelemetry migration guide
+          Migration guide
         </ExternalLink>
         .
       </p>
@@ -558,9 +563,9 @@ export function V4MigrationOtelSection({
         series={section.series}
         projectId={projectId}
         analyticsSection="otel"
-        needsAction={(usage) => usage.hasDelayedOtelEvents === true}
+        needsAction={(usage) => usage.actionLevel === "required"}
         suffix={(usage) =>
-          usage.hasDelayedOtelEvents === true ? (
+          usage.deliveryMode === "delayed" ? (
             <span>· delayed</span>
           ) : (
             <span>· real-time</span>
@@ -631,6 +636,45 @@ export function V4MigrationCustomInstrumentationSection({
         analyticsSection="custom_instrumentation"
         needsAction={() => true}
         suffix={() => null}
+      />
+    </Section>
+  );
+}
+
+export function V4MigrationDetectedInstrumentationSection({
+  sdk,
+  projectId,
+}: {
+  sdk: V4MigrationSdkState;
+  projectId?: string;
+}) {
+  const series = getDetectedInstrumentationSeries(sdk);
+  if (series.length === 0) return null;
+
+  return (
+    <Section
+      title="Detected V4-compatible instrumentation"
+      analyticsSection="detected_instrumentation"
+      count={series.length}
+      statusVariant="done"
+      tone="muted"
+    >
+      <p className="text-muted-foreground text-sm leading-relaxed">
+        These configurations are already on the latest SDK major or use
+        real-time OTel ingestion.
+      </p>
+      <SdkUsageSeriesRows
+        series={series}
+        projectId={projectId}
+        analyticsSection="detected_instrumentation"
+        needsAction={() => false}
+        suffix={(usage) =>
+          usage.remediationType === "update_sdk" ? (
+            <span>· up to date</span>
+          ) : (
+            <span>· real-time</span>
+          )
+        }
       />
     </Section>
   );
@@ -862,27 +906,35 @@ export function V4MigrationApisSection({
             maps each endpoint to its replacement.
           </p>
           <div className="flex flex-col">
-            {usage.map((row) => (
-              <div
-                key={row.endpoint}
-                className="text-muted-foreground flex flex-wrap items-baseline justify-between gap-x-2 py-0.5"
-              >
-                <ExternalLink
-                  href={DEPRECATED_API_MIGRATION_URL}
-                  className="text-sm"
-                  analytics={{ section: "apis", link: "deprecated_api_docs" }}
+            {usage.map((row) => {
+              const roundedCount = Math.max(1, Math.round(row.count));
+
+              return (
+                <div
+                  key={row.endpoint}
+                  className="text-muted-foreground flex flex-wrap items-baseline justify-between gap-x-2 py-0.5"
                 >
-                  {row.endpoint}
-                </ExternalLink>
-                <span
-                  className="text-muted-foreground text-sm whitespace-nowrap"
-                  title={`Last seen at ${row.lastSeen}`}
-                >
-                  {numberFormatter(row.count, 0, 2)} calls · last seen{" "}
-                  {formatCompactRelativeTime(new Date(row.lastSeen))}
-                </span>
-              </div>
-            ))}
+                  <ExternalLink
+                    href={DEPRECATED_API_MIGRATION_URL}
+                    className="text-sm"
+                    analytics={{
+                      section: "apis",
+                      link: "deprecated_api_docs",
+                    }}
+                  >
+                    {row.endpoint}
+                  </ExternalLink>
+                  <span
+                    className="text-muted-foreground text-sm whitespace-nowrap"
+                    title={`Last seen at ${row.lastSeen}`}
+                  >
+                    {numberFormatter(roundedCount, 0)}{" "}
+                    {roundedCount === 1 ? "call" : "calls"} · last seen{" "}
+                    {formatCompactRelativeTime(new Date(row.lastSeen))}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </>
       ) : (
@@ -1256,10 +1308,8 @@ export function V4MigrationDetailsContent({
   const projectId =
     projectIdProp ??
     (typeof routeProjectId === "string" ? routeProjectId : undefined);
-  const { organization } = useProject(projectId ?? null);
   const migrationData = useProjectV4MigrationData({
     projectId,
-    orgId: organization?.id,
     enabled: Boolean(projectId),
   });
   const { canToggleV4, isBetaEnabled } = useV4Beta();
@@ -1357,7 +1407,6 @@ export function V4MigrationDetailsContent({
   const [evalMigrationDialogOpen, setEvalMigrationDialogOpen] = useState(false);
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId,
-    orgId: organization?.id,
     enabled: Boolean(projectId),
   });
   const evalsUrl =
@@ -1445,6 +1494,11 @@ export function V4MigrationDetailsContent({
               {cleanSummary}
             </p>
           )}
+
+          <V4MigrationDetectedInstrumentationSection
+            sdk={migrationData.sdk}
+            projectId={evidenceProjectId}
+          />
         </div>
       </div>
 

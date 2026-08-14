@@ -2,7 +2,7 @@
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { useProject, useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import {
   V4MigrationHeaderContent,
   V4MigrationDetailsContent,
@@ -34,10 +34,8 @@ export const V4MigrationPanel = ({
             : undefined,
       }
     : targetProject;
-  const { organization } = useProject(project?.id ?? null);
   const migrationData = useProjectV4MigrationData({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled: open && Boolean(project?.id),
   });
   const liveReadiness = getProjectMigrationReadiness(migrationData);

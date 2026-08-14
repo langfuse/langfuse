@@ -21,7 +21,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { BotMessageSquare, ChevronDown, Zap } from "lucide-react";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { useQueryProject } from "@/src/features/projects/hooks";
 import {
   useCanUseInAppAgent,
   useInAppAiAgent,
@@ -49,19 +48,16 @@ export default function RemapEvaluatorPage() {
   const evalConfigId = router.query.evaluator as string;
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(projectId);
   const capture = usePostHogClientCapture();
-  const { organization } = useQueryProject();
   const canUseAssistant = useCanUseInAppAgent();
   const { openAssistant, submit } = useInAppAiAgent();
   const sdk = useProjectV4SdkData({
     projectId,
-    orgId: organization?.id,
     enabled: v4UpgradeUiEnabled && Boolean(projectId),
   });
 
   const evalCapabilities = useEvalCapabilities(projectId);
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId,
-    orgId: organization?.id,
     enabled: v4UpgradeUiEnabled && Boolean(projectId),
   });
 
