@@ -2282,6 +2282,28 @@ describe("v4TransitionRouter", () => {
         expect(mockedQueryClickhouse).not.toHaveBeenCalled();
       });
 
+      it("short-circuits partner-managed (forced v3) projects without any I/O", async () => {
+        enableRedisCache();
+        sharedServerMock.isForceV3ExperienceProject.mockReturnValueOnce(true);
+        const prismaMock = mockPrismaForActions();
+        const caller = createCaller(prismaMock);
+
+        await expect(
+          caller.cachedMigrationActions({ projectId }),
+        ).resolves.toEqual({
+          forceV3Experience: true,
+          sdkActionNeeded: null,
+          experimentsActionNeeded: null,
+          apisActionNeeded: null,
+          evalsActionNeeded: false,
+          exportsActionNeeded: false,
+        });
+
+        expect(prismaMock.jobConfiguration.groupBy).not.toHaveBeenCalled();
+        expect(redisMock.mget).not.toHaveBeenCalled();
+        expect(mockedQueryClickhouse).not.toHaveBeenCalled();
+      });
+
       it("returns unknown categories when Redis is unavailable", async () => {
         redisMock.status = "end";
         const caller = createCaller(mockPrismaForActions());
