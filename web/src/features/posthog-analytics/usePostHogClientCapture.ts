@@ -356,6 +356,7 @@ export const events = {
     "migrated_banner_shown",
     "migrated_banner_switch_clicked",
     "migrated_banner_support_clicked",
+    "migrated_banner_status_clicked",
     "migrated_banner_dismissed",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
