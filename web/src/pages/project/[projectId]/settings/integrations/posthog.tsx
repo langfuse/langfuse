@@ -55,6 +55,7 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
+import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import { Info, ExternalLink } from "lucide-react";
 
 export default function PosthogIntegrationSettings() {
@@ -127,16 +128,8 @@ export default function PosthogIntegrationSettings() {
           </Card>
         </>
       )}
-      {state.data?.config?.enabled && (
-        <>
-          <Header title="Status" className="mt-8" />
-          <p className="text-primary text-sm">
-            Data synced until:{" "}
-            {state.data?.config?.lastSyncAt
-              ? new Date(state.data.config.lastSyncAt).toLocaleString()
-              : "Never (pending)"}
-          </p>
-        </>
+      {state.data?.config && (
+        <PostHogStatusSection config={state.data.config} />
       )}
     </ContainerPage>
   );

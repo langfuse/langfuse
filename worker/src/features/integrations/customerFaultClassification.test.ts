@@ -3,10 +3,16 @@ import { OutboundUrlValidationError } from "@langfuse/shared/src/server";
 import {
   classifyCustomerFault,
   isCustomerFaultError,
-} from "./isCustomerFaultError";
+} from "./customerFaultClassification";
 
-// Builds the wrapper the handler actually sees: StorageService.handleStorageError
-// rethrows SDK errors as `new Error("Failed to ...", { cause: sdkError })`.
+// Sole owner of the customer-fault case matrix. Every integration that
+// auto-disables on a deterministic customer-config fault classifies through
+// this module, so new provider codes or reason buckets belong here and nowhere
+// else — the blob storage re-export carries only a forwarding smoke test.
+
+// Builds the wrapper the handlers actually see: StorageService.handleStorageError
+// and the PostHog hostname preflight both rethrow as
+// `new Error(msg, { cause: originalError })`.
 const wrapped = (sdkError: unknown): Error =>
   new Error("Failed to upload file to S3", { cause: sdkError });
 
@@ -39,6 +45,20 @@ const gcsError = (
   Object.assign(err, { code, errors: [{ reason }] });
   return err;
 };
+
+// The deterministic outbound-URL allowlist and its reason buckets, in one place.
+// Both the boolean and the reason-bucket suites below are driven off this table
+// so a new code cannot be added to one and forgotten in the other.
+const OUTBOUND_URL_FAULTS = [
+  ["blocked-ip", "ssrf_blocked_endpoint"],
+  ["blocked-hostname", "ssrf_blocked_endpoint"],
+  ["invalid-syntax", "invalid_endpoint_url"],
+  ["invalid-encoding", "invalid_endpoint_url"],
+  ["https-required", "invalid_endpoint_url"],
+  ["protocol-not-allowed", "invalid_endpoint_url"],
+  ["port-not-allowed", "invalid_endpoint_url"],
+  ["url-credentials-not-allowed", "invalid_endpoint_url"],
+] as const;
 
 describe("isCustomerFaultError", () => {
   describe("customer_fault — S3 / S3-compatible", () => {
@@ -156,16 +176,7 @@ describe("isCustomerFaultError", () => {
   });
 
   describe("customer_fault — outbound-URL / SSRF validation rejection", () => {
-    it.each([
-      "blocked-ip",
-      "blocked-hostname",
-      "invalid-syntax",
-      "invalid-encoding",
-      "https-required",
-      "protocol-not-allowed",
-      "port-not-allowed",
-      "url-credentials-not-allowed",
-    ] as const)(
+    it.each(OUTBOUND_URL_FAULTS.map(([code]) => code))(
       "classifies a %s validation rejection as customer_fault",
       (code) => {
         const err = new OutboundUrlValidationError(code, "blocked");
@@ -223,16 +234,7 @@ describe("isCustomerFaultError", () => {
 });
 
 describe("classifyCustomerFault — disable reason buckets", () => {
-  it.each([
-    ["blocked-ip", "ssrf_blocked_endpoint"],
-    ["blocked-hostname", "ssrf_blocked_endpoint"],
-    ["invalid-syntax", "invalid_endpoint_url"],
-    ["invalid-encoding", "invalid_endpoint_url"],
-    ["https-required", "invalid_endpoint_url"],
-    ["protocol-not-allowed", "invalid_endpoint_url"],
-    ["port-not-allowed", "invalid_endpoint_url"],
-    ["url-credentials-not-allowed", "invalid_endpoint_url"],
-  ] as const)("maps outbound-url %s to %s", (code, reason) => {
+  it.each(OUTBOUND_URL_FAULTS)("maps outbound-url %s to %s", (code, reason) => {
     const err = new OutboundUrlValidationError(code, "blocked");
     expect(classifyCustomerFault(err)).toBe(reason);
     expect(classifyCustomerFault(wrapped(err))).toBe(reason);
@@ -290,5 +292,38 @@ describe("classifyCustomerFault — disable reason buckets", () => {
     const transient = new Error("network EAI_AGAIN");
     Object.assign(transient, { code: "EAI_AGAIN" });
     expect(classifyCustomerFault(wrapped(transient))).toBeUndefined();
+  });
+
+  // The reason bucket doubles as the disable decision (defined => disable), so
+  // every non-disabling input must yield undefined and not merely a falsy
+  // `isCustomerFaultError`. Covers the wrapped and bare-input paths that the
+  // boolean suite above asserts only through isCustomerFaultError.
+  describe("undefined for every non-disabling input", () => {
+    it("returns undefined for a wrapped dns-lookup-failed", () => {
+      const err = new OutboundUrlValidationError(
+        "dns-lookup-failed",
+        "DNS lookup failed for host.example",
+      );
+      expect(classifyCustomerFault(wrapped(err))).toBeUndefined();
+    });
+
+    it("returns undefined for a generic infra error, raw and wrapped", () => {
+      const err = new Error("ClickHouse read failed");
+      expect(classifyCustomerFault(err)).toBeUndefined();
+      expect(classifyCustomerFault(wrapped(err))).toBeUndefined();
+    });
+
+    it("returns undefined for a code-less error sharing a fault message", () => {
+      const err = new Error("Blocked hostname detected");
+      expect(classifyCustomerFault(err)).toBeUndefined();
+      expect(classifyCustomerFault(wrapped(err))).toBeUndefined();
+    });
+
+    it("returns undefined for null, undefined, and non-error inputs", () => {
+      expect(classifyCustomerFault(null)).toBeUndefined();
+      expect(classifyCustomerFault(undefined)).toBeUndefined();
+      expect(classifyCustomerFault("blocked-hostname")).toBeUndefined();
+      expect(classifyCustomerFault(403)).toBeUndefined();
+    });
   });
 });

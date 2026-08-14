@@ -1,18 +1,13 @@
-// True when a caught blob-export error is a deterministic customer-config /
-// credential fault. The handler uses this (after BullMQ exhausts retries) to
-// disable the integration.
+// Classifies a caught integration-export error as a deterministic
+// customer-config / credential fault. Integration handlers use this to decide
+// whether to auto-disable an integration instead of retrying/alerting forever.
+// Each feature owns its own disable metric; only the classification is shared
+// here.
 //
 // Conservative allowlist of stable provider error codes, biased toward false:
 // a false positive disables a working integration, a false negative only keeps
-// retrying. Errors arrive wrapped via `new Error(..., { cause })`
-// (StorageService.handleStorageError), so we walk the cause chain.
-
-// Counter for integrations auto-disabled after a terminal customer fault, tagged
-// by `reason`. Lets a rollout regression (a classifier bug mass-disabling
-// working integrations) show up as a spike in the non-SSRF buckets against a
-// near-zero baseline, separately from expected SSRF/abuse disables.
-export const BLOB_INTEGRATION_DISABLED_METRIC =
-  "langfuse.blobstorage.integration_disabled.count";
+// retrying. Errors arrive wrapped via `new Error(..., { cause })` (e.g.
+// StorageService.handleStorageError), so we walk the cause chain.
 
 // Coarse cause bucket for a disable, for logs/metrics. `ssrf_blocked_endpoint`
 // is the SSRF-guard rejection (endpoint resolves to a blocked host/IP) — the

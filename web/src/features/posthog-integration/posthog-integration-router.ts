@@ -190,6 +190,8 @@ export const posthogIntegrationRouter = createTRPCRouter({
             // undefined → Prisma omits the column → preserves the persisted
             // value on partial updates (LFE-10296).
             exportSource: config.exportSource,
+            // lastError is deliberately left intact so the last fault stays
+            // visible until a successful run clears it.
           },
         });
 

@@ -29,6 +29,7 @@ export const TriggerEventSourceSchema = z.enum([
  */
 export const ProjectNotificationEventTypeSchema = z.enum([
   "blob-export-failed",
+  "posthog-export-failed",
   "evaluator-blocked",
 ]);
 export type ProjectNotificationEventType = z.infer<
