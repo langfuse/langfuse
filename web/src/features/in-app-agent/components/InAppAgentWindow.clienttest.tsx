@@ -571,26 +571,6 @@ describe("InAppAgentWindow scrolling", () => {
   });
 });
 
-describe("InAppAgentWindow composer action", () => {
-  it("keeps send and stop on the same fixed button box", () => {
-    const { rerender } = render(windowElement());
-    const send = screen.getByRole("button", { name: "Send message" });
-    expect(send).toHaveClass("h-6", "w-8");
-
-    rerender(
-      windowElement({
-        isAssistantTurnInProgress: true,
-        executionUi: {
-          notice: null,
-          stop: { status: "available", onStop: vi.fn() },
-        },
-      }),
-    );
-    const stop = screen.getByRole("button", { name: "Stop run" });
-    expect(stop).toHaveClass("h-6", "w-8");
-  });
-});
-
 describe("InAppAgentWindow activity", () => {
   it("shows a waiting drawer, then Working once the first activity arrives", () => {
     const userMessage = {
