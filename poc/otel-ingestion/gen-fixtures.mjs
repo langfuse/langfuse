@@ -21,7 +21,11 @@ const MINIO = {
   secretKey: process.env.POC_MINIO_SECRET_KEY ?? "miniosecret",
 };
 
-const RUN_PREFIX = `otel-poc-${Date.now().toString(36)}`;
+// POC_CORPUS_PARENT nests the corpus under a parent prefix (e.g. "otel/" on
+// the real events bucket, whose lifecycle rule expires that prefix). Both
+// engines locate the project by the otel-poc path SEGMENT, so a parent is
+// invisible to the transform.
+const RUN_PREFIX = `${process.env.POC_CORPUS_PARENT ?? ""}otel-poc-${Date.now().toString(36)}`;
 const FILES_TOTAL = Number(process.argv[2] ?? 200);
 const WINDOWS = Number(process.argv[3] ?? 10);
 const HUGE_FILES = Number(process.argv[4] ?? 0);
