@@ -76,15 +76,16 @@ Always fetch pricing from the provider's official docs before editing.
   models must NOT have a Large Context tier in the pricing file. Models not on this list
   (e.g. Sonnet 4.5, Haiku 4.5) may retain a Large Context tier if it was previously set.
   The Sonnet 4.6 Large Context tier was found and removed during the June 2026 audit.
-- **Claude Sonnet 5 introductory pricing** — The API model ID is `claude-sonnet-5` (no
-  date suffix; pinned snapshot, not an alias). Introductory pricing of $2/$10 per
-  input/output MTok is in effect through August 31, 2026; standard pricing of $3/$15 will
-  apply from September 1, 2026. Cache write 5m = $2.50/MTok, 1h = $4/MTok, read =
-  $0.20/MTok during introductory period. Since the pricing schema cannot express
-  time-based tiers, the file holds the current introductory prices; update to $3/$15 and
-  cache equivalents ($3.75/$6/$0.30) after August 31, 2026. AWS Bedrock ID:
-  `anthropic.claude-sonnet-5`. The model is in the flat long-context list (no Large
-  Context tier). Added to pricing file and `anthropicModels` in July 2026 audit.
+- **Claude Sonnet 5 pricing is now permanent (resolved August 14 2026)** — The API model ID
+  is `claude-sonnet-5` (no date suffix; pinned snapshot, not an alias). Pricing is $2/$10
+  per input/output MTok; cache write 5m = $2.50/MTok, 1h = $4/MTok, read = $0.20/MTok. This
+  was originally announced as introductory pricing through August 31, 2026 with a scheduled
+  increase to $3/$15 on September 1, 2026, but the official pricing page now states that
+  increase "will not occur" and the $2/$10 rate "is now the standard price". No file change
+  was needed (the file already held $2/$10). Do not re-flag a September 1, 2026 price
+  increase for this model in future audits. AWS Bedrock ID: `anthropic.claude-sonnet-5`.
+  The model is in the flat long-context list (no Large Context tier). Added to pricing file
+  and `anthropicModels` in July 2026 audit.
 - **Claude Mythos Preview** — Listed in the Anthropic long-context pricing section and on
   the models page (access is invitation-only via Project Glasswing) but has NO separate
   pricing row in the main model pricing table and NO selectable-model entry in types.ts.
@@ -106,12 +107,40 @@ Always fetch pricing from the provider's official docs before editing.
   Long context prices: sol $10/$1.00/$45, terra $5/$0.50/$22.50, luna $2/$0.20/$9
   per MTok input/cached/output. Added Large Context (>272K) tiers to the pricing file in
   July 2026. The threshold of 272K is unique to this family; most other models use 200K.
-- **Gemini 3.6 Flash (added July 2026)** — `gemini-3.6-flash` appeared on the official AI Studio
-  pricing page in July 2026 at $1.50/MTok input, $7.50/MTok output, cache read $0.15/MTok
-  (10% cache-read ratio). No large-context tier. Added to pricing file and selectable model lists
-  (`vertexAIModels`, `googleAIStudioModels`) in the July 22 2026 audit. Note: despite the higher
-  version number, output price ($7.50) is lower than gemini-3.5-flash ($9.00); this is correct
-  per the official page (improved efficiency at same input price).
+- **Gemini 3.6 Flash (added July 2026; introductory price cut found August 14 2026)** —
+  `gemini-3.6-flash` appeared on the official AI Studio pricing page in July 2026 at
+  $1.50/MTok input, $7.50/MTok output, cache read $0.15/MTok (10% cache-read ratio). No
+  large-context tier. Added to pricing file and selectable model lists (`vertexAIModels`,
+  `googleAIStudioModels`) in the July 22 2026 audit. Note: despite the higher version
+  number, output price ($7.50) is lower than gemini-3.5-flash ($9.00); this is correct per
+  the official page (improved efficiency at same input price). On August 14 2026, two
+  independent targeted verbatim fetches (both `ai.google.dev/pricing` and
+  `ai.google.dev/gemini-api/docs/pricing`, each explicitly separating Free/Paid columns)
+  found Google had introduced introductory pricing for this model: $0.75/MTok input,
+  $3.75/MTok output, $0.075/MTok cache read, explicitly "through December 31, 2026",
+  stepping up to $1.50/$7.50/$0.15 (the original price above) "starting January 1, 2027".
+  The pricing file was updated to the discounted rate; revert to $1.50/$7.50/$0.15 on or
+  after 2027-01-01. Grounding/web-search pricing ($14 per 1,000 requests = 0.014/query,
+  shared free quota across all Gemini 3.x models) is unchanged and confirmed via a
+  dedicated grounding-pricing fetch.
+- **Gemini 3.7 Flash (added August 14 2026)** — `gemini-3.7-flash` is a new GA ("New
+  Stable") release confirmed via `https://ai.google.dev/gemini-api/docs/models`, described
+  as "Our latest and most capable Flash model, built for complex coding, agentic workflows,
+  and reliable multi-step execution" — the direct successor to `gemini-3.6-flash` (now
+  described as the "previous-generation Flash model"). It launched at the exact same
+  current introductory price as `gemini-3.6-flash`: $0.75/MTok input, $3.75/MTok output,
+  $0.075/MTok cache read, "through December 31, 2026", stepping up to $1.50/$7.50/$0.15
+  "starting January 1, 2027" — confirmed via two independent fetches of
+  `ai.google.dev/pricing` and `ai.google.dev/gemini-api/docs/pricing`. Because a single,
+  generically-worded WebFetch prompt about this page range previously mis-summarized both
+  3.6 and 3.7 Flash (and even 3.1 Flash-Lite, a long-GA priced model) as "Free of charge"
+  by picking the Free-tier column instead of Paid, always use a fetch prompt that
+  explicitly asks to separate Free vs. Paid columns for these rows, per the existing
+  Gemini free/paid column-collapse lesson above. No large-context tier. Grounding/web-search
+  pricing ($14 per 1,000 requests) confirmed to apply uniformly to Gemini 3.x models
+  including this one. Added to pricing file (mirroring the `gemini-3.6-flash` key set) and
+  to `vertexAIModels`/`googleAIStudioModels` in `types.ts`, not as the first entry.
+  matchPattern: `(?i)^(google(ai)?\/)?(gemini-3.7-flash)$`.
 - **Gemini 3.5 Flash-Lite (added July 2026; cache pricing corrected August 2026)** —
   `gemini-3.5-flash-lite` appeared on the official AI Studio pricing page in July 2026 at
   $0.30/MTok input, $2.50/MTok output. No large-context tier. The entry was initially added
