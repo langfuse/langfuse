@@ -66,6 +66,8 @@ export const AnnotationQueueItemPage: React.FC<{
   >(null);
   const [seenItemIds, setSeenItemIds] = useState<string[]>([]);
   const [progressIndex, setProgressIndex] = useState(0);
+  const [navigationStatus, setNavigationStatus] =
+    useState<AnnotationQueueStatus>(AnnotationQueueStatus.PENDING);
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -86,11 +88,20 @@ export const AnnotationQueueItemPage: React.FC<{
   useEffect(() => {
     async function fetchNextItem() {
       if (!itemId && !isSingleItem && sessionLoaded) {
-        const nextItem = await fetchAndLockNextMutation.mutateAsync({
+        let nextItem = await fetchAndLockNextMutation.mutateAsync({
           queueId: annotationQueueId,
           projectId,
           seenItemIds,
         });
+        if (!nextItem) {
+          nextItem = await fetchAndLockNextMutation.mutateAsync({
+            queueId: annotationQueueId,
+            projectId,
+            seenItemIds,
+            status: AnnotationQueueStatus.COMPLETED,
+          });
+          setNavigationStatus(AnnotationQueueStatus.COMPLETED);
+        }
         setNextItemData(nextItem);
       }
     }
@@ -99,12 +110,13 @@ export const AnnotationQueueItemPage: React.FC<{
   }, [sessionLoaded]);
   const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
 
-  const unseenPendingItemCount =
+  const unseenItemCount =
     api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
       {
         queueId: annotationQueueId,
         projectId,
         seenItemIds,
+        status: navigationStatus,
       },
       { refetchOnWindowFocus: false },
     );
@@ -122,19 +134,19 @@ export const AnnotationQueueItemPage: React.FC<{
           queueId: annotationQueueId,
           projectId,
           seenItemIds,
+          status: navigationStatus,
         });
         setNextItemData(nextItem);
+        if (!nextItem) return;
       }
 
-      if (progressIndex + 1 < totalItems) {
-        setProgressIndex(Math.max(progressIndex + 1, 0));
-      }
+      setProgressIndex(Math.max(progressIndex + 1, 0));
     },
   });
 
   const totalItems = useMemo(() => {
-    return seenItemIds.length + (unseenPendingItemCount.data ?? 0);
-  }, [unseenPendingItemCount.data, seenItemIds.length]);
+    return seenItemIds.length + (unseenItemCount.data ?? 0);
+  }, [unseenItemCount.data, seenItemIds.length]);
 
   const relevantItem = useMemo(() => {
     if (isSingleItem) return seenItemData.data;
@@ -192,12 +204,20 @@ export const AnnotationQueueItemPage: React.FC<{
         queueId: annotationQueueId,
         projectId,
         seenItemIds,
+        status: navigationStatus,
       });
       setNextItemData(nextItem);
+      if (!nextItem) return;
     }
     setProgressIndex(Math.max(progressIndex + 1, 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progressIndex, seenItemIds, annotationQueueId, projectId]);
+  }, [
+    progressIndex,
+    seenItemIds,
+    annotationQueueId,
+    projectId,
+    navigationStatus,
+  ]);
 
   const handleComplete = useCallback(async () => {
     if (!relevantItem) return;
@@ -359,7 +379,7 @@ export const AnnotationQueueItemPage: React.FC<{
   if (
     (seenItemData.isPending && itemId) ||
     (fetchAndLockNextMutation.isPending && !itemId) ||
-    unseenPendingItemCount.isPending ||
+    unseenItemCount.isPending ||
     objectData.isLoading ||
     (!sessionLoaded && !isSingleItem)
   ) {

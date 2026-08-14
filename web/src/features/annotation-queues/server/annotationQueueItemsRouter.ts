@@ -256,6 +256,9 @@ export const queueItemRouter = createTRPCRouter({
         queueId: z.string(),
         projectId: z.string(),
         seenItemIds: z.array(z.string()),
+        status: z
+          .enum(AnnotationQueueStatus)
+          .default(AnnotationQueueStatus.PENDING),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -269,7 +272,7 @@ export const queueItemRouter = createTRPCRouter({
         where: {
           queueId: input.queueId,
           projectId: input.projectId,
-          status: AnnotationQueueStatus.PENDING,
+          status: input.status,
           id: {
             notIn: input.seenItemIds,
           },
