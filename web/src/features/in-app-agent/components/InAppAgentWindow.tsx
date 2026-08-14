@@ -22,6 +22,7 @@ import {
   Plus,
   SendHorizontal,
   Square,
+  TriangleAlert,
   Trash2,
   X,
 } from "lucide-react";
@@ -918,32 +919,38 @@ function InAppAgentRateLimitError({
 
 function InAppAgentIssueNotice({
   isExpanded,
-  message,
-  onStartNewConversation,
+  variant,
 }: {
   isExpanded: boolean;
-  message: string;
-  onStartNewConversation: () => void;
+  variant: "error" | "write_lock";
 }) {
+  const isWriteLock = variant === "write_lock";
+
   return (
-    <div
-      role="alert"
-      className={cn(
-        "border-dark-yellow bg-light-yellow text-dark-yellow flex w-full items-start gap-2 rounded-lg border px-2 py-1.5",
-        isExpanded ? "text-sm" : "text-xs",
-      )}
-    >
-      <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-      <p className="min-w-0 flex-1">{message}</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="border-dark-yellow text-dark-yellow hover:bg-dark-yellow/10 shrink-0"
-        onClick={onStartNewConversation}
-      >
-        Start new conversation
-      </Button>
+    <div className="shrink-0 px-2 pb-2">
+      <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
+        <p
+          role="alert"
+          className={cn(
+            "flex w-full items-center gap-2 rounded-lg border px-2 py-1",
+            isWriteLock
+              ? "border-border bg-muted/60 text-foreground"
+              : "border-destructive/40 bg-destructive/10 text-destructive",
+            isExpanded ? "text-sm" : "text-xs",
+          )}
+        >
+          {isWriteLock ? (
+            <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
+          ) : (
+            <Info aria-hidden="true" className="size-3 shrink-0" />
+          )}
+          <span className="min-w-0 flex-1">
+            {isWriteLock
+              ? IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE
+              : IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -1465,18 +1472,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 );
               })}
             </ol>
-
-            {(error?.type === "generic" || error?.type === "write_lock") && (
-              <InAppAgentIssueNotice
-                isExpanded={isExpanded}
-                message={
-                  error.type === "write_lock"
-                    ? IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE
-                    : IN_APP_AGENT_GENERIC_ERROR_MESSAGE
-                }
-                onStartNewConversation={onNewConversation}
-              />
-            )}
           </div>
         </ConversationScroller>
         {pendingToolCalls.length > 0 ? (
@@ -1526,6 +1521,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
+        {(error?.type === "generic" || error?.type === "write_lock") && (
+          <InAppAgentIssueNotice
+            isExpanded={isExpanded}
+            variant={error.type === "write_lock" ? "write_lock" : "error"}
+          />
+        )}
         {backgroundHint.isVisible && props.onClose ? (
           <InAppAgentBackgroundHint
             isExpanded={isExpanded}

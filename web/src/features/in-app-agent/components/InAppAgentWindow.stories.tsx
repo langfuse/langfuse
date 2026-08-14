@@ -1419,7 +1419,7 @@ export const Error = meta.story({
       },
     ],
   },
-  play: async ({ args, canvasElement }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const alert = canvas.getByRole("alert");
 
@@ -1430,11 +1430,7 @@ export const Error = meta.story({
     await expect(
       canvas.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeEnabled();
-
-    await userEvent.click(
-      within(alert).getByRole("button", { name: "Start new conversation" }),
-    );
-    await expect(args.onNewConversation).toHaveBeenCalledOnce();
+    await expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
   },
 });
 
@@ -1454,7 +1450,7 @@ export const WriteLocked = meta.story({
       },
     ],
   },
-  play: async ({ args, canvasElement }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const alert = canvas.getByRole("alert");
 
@@ -1467,11 +1463,10 @@ export const WriteLocked = meta.story({
     await expect(
       canvas.getByRole("button", { name: /^Conversation history/ }),
     ).toBeEnabled();
-
-    await userEvent.click(
-      within(alert).getByRole("button", { name: "Start new conversation" }),
-    );
-    await expect(args.onNewConversation).toHaveBeenCalledOnce();
+    await expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
   },
 });
 
