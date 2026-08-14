@@ -116,7 +116,7 @@ export function V4MigrationMigratedDialog() {
       <DialogContent
         aria-label="Welcome to Langfuse V4"
         closeOnInteractionOutside={false}
-        className="[&>div:last-child]:bg-background/80 [&>div:last-child]:rounded-full [&>div:last-child]:p-1.5 [&>div:last-child]:shadow-sm [&>div:last-child]:backdrop-blur-sm"
+        className="[&>div:last-child]:bg-background/80 [&>div:last-child]:rounded-sm [&>div:last-child]:p-1 [&>div:last-child]:shadow-sm [&>div:last-child]:backdrop-blur-sm"
       >
         <DialogBody>
           {/* eslint-disable-next-line @next/next/no-img-element */}
