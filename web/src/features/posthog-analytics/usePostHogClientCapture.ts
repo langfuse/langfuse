@@ -324,6 +324,11 @@ export const events = {
   // action items do they engage with, and which CTA do they use?"
   // panel_opened carries the entry surface; panel_checks_loaded carries the
   // amount of work shown (counts only — never keys or SDK payload values).
+  // project_state_checked answers "did this project actually migrate?": it
+  // snapshots readiness/sdkStatus on app load and carries projectId and
+  // organizationId (tenant ids, same shape as the server-side
+  // backend:activity event — never user content) so migration outcomes can
+  // be joined to the funnel per org.
   v4_migration: [
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
@@ -345,6 +350,7 @@ export const events = {
     "project_keys_copied",
     "evals_manual_upgrade_clicked",
     "walkthrough_video_clicked",
+    "project_state_checked",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only

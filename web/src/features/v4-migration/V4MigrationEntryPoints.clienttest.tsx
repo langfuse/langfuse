@@ -125,3 +125,62 @@ describe("v4 migration entry points", () => {
     }
   });
 });
+
+describe("v4_migration:project_state_checked", () => {
+  const stateCheckedCalls = () =>
+    mocks.capture.mock.calls.filter(
+      ([name]) => name === "v4_migration:project_state_checked",
+    );
+
+  beforeEach(() => {
+    mocks.capture.mockClear();
+    mocks.migrationData = migrationStatus();
+  });
+
+  it("captures the settled state even when the project is migrated and the pill renders nothing", () => {
+    render(<V4MigrationNavItem />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(stateCheckedCalls()).toHaveLength(1);
+    expect(stateCheckedCalls()[0][1]).toEqual({
+      readiness: "ready",
+      sdkStatus: "latest",
+      projectId: "project-1",
+      organizationId: "org-1",
+    });
+  });
+
+  it("captures action-needed with the sdk status once checks settle", () => {
+    mocks.migrationData = migrationStatus({
+      sdk: {
+        status: "legacy",
+        sdkUsageSeries: [],
+        upgradeRequiredCount: 1,
+        delayedOtelIngestionCount: 0,
+      },
+    });
+
+    render(<V4MigrationNavItem />);
+
+    expect(stateCheckedCalls()).toHaveLength(1);
+    expect(stateCheckedCalls()[0][1]).toMatchObject({
+      readiness: "action-needed",
+      sdkStatus: "legacy",
+    });
+  });
+
+  it("holds while any check is still running and fires exactly once per project", () => {
+    mocks.migrationData = migrationStatus({
+      evals: { status: "loading", count: 0 },
+    });
+    const { rerender } = render(<V4MigrationNavItem />);
+
+    expect(stateCheckedCalls()).toHaveLength(0);
+
+    mocks.migrationData = migrationStatus();
+    rerender(<V4MigrationNavItem />);
+    rerender(<V4MigrationNavItem />);
+
+    expect(stateCheckedCalls()).toHaveLength(1);
+  });
+});
