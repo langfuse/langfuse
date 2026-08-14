@@ -88,6 +88,22 @@ describe("Webhook URL Validation", () => {
       ).rejects.toThrow("Only ports 80 and 443 are allowed");
     });
 
+    // Protocol and port rejections must carry an OutboundUrlValidationError
+    // code, not just a message: callers classify deterministic config faults
+    // off the code, so an uncoded rejection is silently unclassifiable and
+    // retries forever instead of disabling the integration.
+    it.each([
+      ["ftp://example.com", "protocol-not-allowed"],
+      ["file:///etc/passwd", "protocol-not-allowed"],
+      ["https://example.com:8080/hook", "port-not-allowed"],
+      ["http://example.com:3000/hook", "port-not-allowed"],
+    ])("should reject %s with a coded error", async (url, code) => {
+      await expect(validateWebhookURL(url)).rejects.toMatchObject({
+        name: "OutboundUrlValidationError",
+        code,
+      });
+    });
+
     it("should allow standard ports", async () => {
       await expect(
         validateWebhookURL("https://httpbin.org:443/post"),
