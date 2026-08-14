@@ -11,6 +11,10 @@ import {
   deprecationNotice,
   stampDeprecations,
 } from "../../../../scripts/openapi/stamp-deprecations";
+import {
+  V3_SUNSET_DATE,
+  V3_SUNSET_HUMAN,
+} from "@/src/features/public-api/server/deprecations";
 
 type OpenApiOperation = {
   deprecated?: boolean;
@@ -116,6 +120,27 @@ describe("OpenAPI deprecations", () => {
         `${method.toUpperCase()} ${endpointPath}`,
       ).toContain(deprecationNotice(message));
     }
+  });
+
+  it("states the runtime sunset date in every Fern deprecation message", () => {
+    for (const { method, endpointPath, message } of getFernDeprecatedOperations(
+      definitionDirectory,
+    )) {
+      expect(message, `${method.toUpperCase()} ${endpointPath}`).toContain(
+        `will be removed on ${V3_SUNSET_HUMAN}.`,
+      );
+    }
+  });
+
+  it("keeps the human-readable sunset date in sync with the machine-readable one", () => {
+    expect(
+      new Date(`${V3_SUNSET_DATE}T00:00:00Z`).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "UTC",
+      }),
+    ).toBe(V3_SUNSET_HUMAN);
   });
 
   it("supports deprecated endpoints at a service base path", () => {
