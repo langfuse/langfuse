@@ -7,6 +7,12 @@ const { copyTextToClipboard } = vi.hoisted(() => ({
 
 vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard }));
 
+// The markdown limit is fetched via tRPC — stub it so the test needs no
+// tRPC provider.
+vi.mock("@/src/hooks/useMarkdownRenderCharacterLimit", () => ({
+  useMarkdownRenderCharacterLimit: () => 150_000,
+}));
+
 // ChatMessage mounts both render paths (one is display:none), so the JSON
 // path's media tag resolves too — stub its project/URL lookups.
 vi.mock("@/src/hooks/useProjectIdFromURL", () => ({ default: () => "p1" }));

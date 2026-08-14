@@ -6,6 +6,7 @@ import {
   getRenderedInlineMediaIds,
 } from "@/src/components/ui/markdown-media.utils";
 import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   ChatMessage,
   type ViewMode,
@@ -88,6 +89,8 @@ export function ChatMessageList({
     [isCollapsed, messagesToRender],
   );
 
+  const characterLimit = useMarkdownRenderCharacterLimit();
+
   const remainingMedia = useMemo(() => {
     if (!shouldRenderMarkdown) {
       return media ?? [];
@@ -101,7 +104,10 @@ export function ChatMessageList({
       // Only content that ChatMessage renders through MarkdownView shows its
       // media inline; anything falling back to a JSON table still needs the
       // shared strip, so ask the renderer's own predicate.
-      if (typeof content === "string" || canRenderContentAsMarkdown(content)) {
+      if (
+        typeof content === "string" ||
+        canRenderContentAsMarkdown(content, characterLimit)
+      ) {
         getRenderedInlineMediaIds({
           markdown: content,
           audio: message.audio,
@@ -118,7 +124,7 @@ export function ChatMessageList({
     });
 
     return filterAlreadyRenderedMedia(media, renderedMediaIds);
-  }, [media, shouldRenderMarkdown, visibleMessages]);
+  }, [media, shouldRenderMarkdown, visibleMessages, characterLimit]);
 
   return (
     <div className="flex max-h-full min-h-0 flex-col gap-2">

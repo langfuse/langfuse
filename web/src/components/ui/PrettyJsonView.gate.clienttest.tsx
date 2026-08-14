@@ -14,6 +14,12 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
+// The markdown limit is fetched via tRPC — stub it so the test needs no
+// tRPC provider.
+vi.mock("@/src/hooks/useMarkdownRenderCharacterLimit", () => ({
+  useMarkdownRenderCharacterLimit: () => 150_000,
+}));
+
 // JSONView is the unvirtualized react18-json-view path we must NOT reach for an
 // over-limit string. Stub only it (keep the module's other exports) so its
 // mounting is observable by test id.
