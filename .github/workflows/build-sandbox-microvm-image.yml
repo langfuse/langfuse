@@ -12,7 +12,7 @@ concurrency:
 jobs:
   build:
     name: Build & Publish (${{ matrix.environment }})
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 60
     environment: ${{ matrix.environment }}
     permissions:

@@ -2,7 +2,6 @@ import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
-import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
@@ -506,13 +505,6 @@ export const SessionPage: React.FC<{
           ],
           actionButtonsLeft: (
             <div className="flex items-center gap-0">
-              <StarSessionToggle
-                key="star"
-                projectId={projectId}
-                sessionId={sessionId}
-                value={session.data?.bookmarked ?? false}
-                size="icon-xs"
-              />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
@@ -597,12 +589,6 @@ export const SessionPage: React.FC<{
           // inline icon toolbar. Session-to-session nav stays desktop-only.
           actionButtonsMenu: (
             <>
-              <StarSessionToggle
-                projectId={projectId}
-                sessionId={sessionId}
-                value={session.data?.bookmarked ?? false}
-                showLabel
-              />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
@@ -1381,13 +1367,6 @@ const LoadedSessionEventsPage: React.FC<{
           ],
           actionButtonsLeft: !isModernSessionEnabled ? (
             <div className="flex items-center gap-0">
-              <StarSessionToggle
-                key="star"
-                projectId={projectId}
-                sessionId={sessionId}
-                value={session.bookmarked}
-                size="icon-xs"
-              />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
@@ -1461,7 +1440,6 @@ const LoadedSessionEventsPage: React.FC<{
                 <ModernSessionHeaderActionsController
                   projectId={projectId}
                   sessionId={sessionId}
-                  bookmarked={session.bookmarked}
                   isPublic={session.public}
                   showCorrections={showCorrections}
                   showInlineToolCalls={showInlineToolCalls}
@@ -1488,12 +1466,6 @@ const LoadedSessionEventsPage: React.FC<{
           // inline icon toolbar. Session-to-session nav stays desktop-only.
           actionButtonsMenu: (
             <>
-              <StarSessionToggle
-                projectId={projectId}
-                sessionId={sessionId}
-                value={session.bookmarked}
-                showLabel
-              />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}

@@ -70,9 +70,6 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({ sessions: { invalidate: vi.fn() } }),
     sessions: {
-      bookmark: {
-        useMutation: () => ({ mutate: vi.fn(), isPending: false }),
-      },
       publish: {
         useMutation: () => ({ mutate: vi.fn(), isPending: false }),
       },
@@ -90,7 +87,6 @@ describe("ModernSessionHeaderActionsController", () => {
       <ModernSessionHeaderActionsController
         projectId="project-id"
         sessionId="session-id"
-        bookmarked={false}
         isPublic={false}
         showCorrections={false}
         showInlineToolCalls={false}
