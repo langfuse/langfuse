@@ -11,11 +11,12 @@
  *
  * Then it is driven **like a map**, because that is what exploring a dense
  * surface wants:
- *  - The left side is adaptive: a bare colour rail by default, opening into a
- *    real name gutter as the rows grow past ~20px, and peekable at any zoom by
- *    hovering it (tapping it on touch). While the rows are too short to hold a
- *    name, peeking shows a type LEGEND instead. Working in the chart hands the
- *    space straight back.
+ *  - The left side is adaptive: a bare colour rail by default, opening into the
+ *    real tree gutter — the observation's own icon and name, indented by depth —
+ *    as the rows grow past ~20px, and peekable earlier by hovering it (tapping it
+ *    on touch). It cannot open below ~14px rows, because there is no name to show
+ *    in a 4px row; the hover tooltip is what names a row at that density.
+ *    Working in the chart hands the space straight back.
  *  - Two-finger scroll pans both axes; pinch (and a discrete mouse notch) zooms
  *    BOTH axes about the cursor, so the time window narrows and the rows grow
  *    together. Zoom is exponential in a zoom level and deltas accumulate per
@@ -98,6 +99,8 @@ const FALLBACK_COLOR = "bg-muted-gray";
 const RAIL_WIDTH = 10;
 const RAIL_INDENT = 2;
 const RAIL_MAX_DEPTH = 4;
+/** Indent per level once the gutter is open, matching the production gutter. */
+const GUTTER_INDENT = 10;
 const TOOLBAR_HEIGHT = 22;
 const AXIS_HEIGHT = 16;
 const READOUT_HEIGHT = 18;
@@ -218,12 +221,12 @@ export function TimelineDense({
   const liveRowHeight =
     liveRowCount > 0 ? surfaceHeight / liveRowCount : HUMAN_ROW_HEIGHT;
 
-  // Rows tall enough to hold a name show names; below that, opening the gutter
-  // shows the type LEGEND instead — at 4px a name is not a name, but "what does
-  // pink mean" is exactly the question the rail raises.
+  // The left side is the key to the lines — the tree gutter, names and all. It
+  // can only open when the rows are tall enough to hold a name: at 4px there is
+  // no name to show, and the hover tooltip is what names a row at that density.
   const canShowNames = liveRowHeight >= NAME_MIN_ROW_HEIGHT;
   const gutterOpen =
-    override === "collapsed"
+    !canShowNames || override === "collapsed"
       ? false
       : override === "expanded" || peeking
         ? true
@@ -258,8 +261,7 @@ export function TimelineDense({
   );
   const rowHeight = rowHeightOf(current, surfaceHeight);
   const isOpen = railWidth > RAIL_WIDTH;
-  const namesVisible = isOpen && canShowNames;
-  const legendVisible = isOpen && !canShowNames;
+  const namesVisible = isOpen;
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
@@ -276,17 +278,6 @@ export function TimelineDense({
     }),
     [rowHeight, presentation, pointer],
   );
-
-  // The legend explains the rail when rows are too short to hold a name: the
-  // types this trace actually contains, each in its own hue.
-  const legendTypes = useMemo(() => {
-    const seen: string[] = [];
-    for (const row of prepared.rows) {
-      const type = row.node.type ?? "SPAN";
-      if (!seen.includes(type)) seen.push(type);
-    }
-    return seen;
-  }, [prepared.rows]);
 
   const rowRange = visibleRowRange(current, prepared.rows.length);
   const result = layout({
@@ -675,12 +666,14 @@ export function TimelineDense({
           {result.nodes.map((node) => {
             const y = (node.index - current.rows.start) * rowHeight;
             if (y + rowHeight < 0 || y > surfaceHeight) return null;
+
             const isFocused = node.index === focusIndex;
             const isSelected = node.index === selectedIndex;
             const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
             const squareSize = Math.max(Math.min(barHeight, 6), 2);
-            const indent =
-              Math.min(node.depth, RAIL_MAX_DEPTH) * RAIL_INDENT + 1;
+            const indent = namesVisible
+              ? Math.min(node.depth, RAIL_MAX_DEPTH) * GUTTER_INDENT
+              : Math.min(node.depth, RAIL_MAX_DEPTH) * RAIL_INDENT + 1;
 
             return (
               <div
@@ -709,6 +702,42 @@ export function TimelineDense({
                       height: `${squareSize}px`,
                     }}
                   />
+                  {/* Tree connectors, same visual language as the production
+                      gutter: an ancestor rail per level that still has a sibling
+                      below, then this node's elbow into its own icon. */}
+                  {namesVisible
+                    ? node.treeLines
+                        .slice(0, Math.min(node.depth, RAIL_MAX_DEPTH))
+                        .map((continues, level) =>
+                          continues ? (
+                            <div
+                              key={level}
+                              className="bg-border-contrast absolute inset-y-0 w-px"
+                              style={{ left: `${level * GUTTER_INDENT + 5}px` }}
+                            />
+                          ) : null,
+                        )
+                    : null}
+                  {namesVisible && node.depth > 0 ? (
+                    <>
+                      <div
+                        className={cn(
+                          "bg-border-contrast absolute top-0 w-px",
+                          node.isLastSibling ? "h-1/2" : "bottom-0",
+                        )}
+                        style={{
+                          left: `${(Math.min(node.depth, RAIL_MAX_DEPTH) - 1) * GUTTER_INDENT + 5}px`,
+                        }}
+                      />
+                      <div
+                        className="bg-border-contrast absolute top-1/2 h-px"
+                        style={{
+                          left: `${(Math.min(node.depth, RAIL_MAX_DEPTH) - 1) * GUTTER_INDENT + 5}px`,
+                          width: `${GUTTER_INDENT}px`,
+                        }}
+                      />
+                    </>
+                  ) : null}
                   {namesVisible ? (
                     <div
                       className="absolute flex items-center gap-1 overflow-hidden"
@@ -740,28 +769,53 @@ export function TimelineDense({
                   className="absolute inset-y-0 overflow-hidden"
                   style={{ left: `${railWidth}px`, width: `${laneWidth}px` }}
                 >
-                  <div
-                    className={cn(
-                      "absolute rounded-[1px]",
-                      barColor === "type"
-                        ? typeColor
-                        : "bg-muted-foreground/60",
-                      (isFocused || isSelected) && "bg-primary-accent",
-                    )}
-                    style={{
-                      left: `${node.x}px`,
-                      width: `${node.width}px`,
-                      top: `${Math.max((rowHeight - barHeight) / 2, 0)}px`,
-                      height: `${barHeight}px`,
-                    }}
-                    data-testid="timeline-dense-bar"
-                  />
+                  {/* A span outside the time window is clamped to the lane edge
+                      by layout(). Drawing it as a bar stacked every out-of-view
+                      span into a column of marks that corresponds to nothing —
+                      so it becomes a caret at the edge it lies beyond, and the
+                      row itself stays for hover and selection. */}
+                  {node.offscreen ? (
+                    <div
+                      className={cn(
+                        "absolute w-[2px] opacity-40",
+                        barColor === "type"
+                          ? typeColor
+                          : "bg-muted-foreground/60",
+                      )}
+                      style={{
+                        left: node.x <= 0 ? "0px" : undefined,
+                        right: node.x <= 0 ? undefined : "0px",
+                        top: `${Math.max((rowHeight - barHeight) / 2, 0)}px`,
+                        height: `${barHeight}px`,
+                      }}
+                      title={`Outside the time window — starts at ${formatDurationMs(node.startMs)}`}
+                      data-testid="timeline-dense-offscreen"
+                    />
+                  ) : (
+                    <div
+                      className={cn(
+                        "absolute rounded-[1px]",
+                        barColor === "type"
+                          ? typeColor
+                          : "bg-muted-foreground/60",
+                        (isFocused || isSelected) && "bg-primary-accent",
+                      )}
+                      style={{
+                        left: `${node.x}px`,
+                        width: `${node.width}px`,
+                        top: `${Math.max((rowHeight - barHeight) / 2, 0)}px`,
+                        height: `${barHeight}px`,
+                      }}
+                      data-testid="timeline-dense-bar"
+                    />
+                  )}
                   {/* Text comes back on its own as the rows grow — and it goes
                       on whichever side layout() measured room for, rather than
                       always after the bar, which clipped a full-width bar's
                       label at the lane edge. */}
                   {presentation === "labelled" &&
                   node.label &&
+                  !node.offscreen &&
                   node.labelPlacement !== "hidden" ? (
                     <span
                       className={cn(
@@ -786,47 +840,8 @@ export function TimelineDense({
           })}
         </div>
 
-        {/* Peeking at hairline density shows the legend rather than names —
-            "what does pink mean" is the question a bare colour rail raises. */}
-        {legendVisible ? (
-          <div
-            className="border-border bg-background/95 absolute inset-y-0 left-0 flex flex-col gap-0.5 overflow-hidden border-r px-1 py-1"
-            style={{ width: `${railWidth}px` }}
-            data-testid="timeline-dense-legend"
-          >
-            <span
-              className="text-muted-foreground shrink-0"
-              style={{ fontSize: "9px" }}
-            >
-              Types in this trace
-            </span>
-            {legendTypes.map((type) => (
-              <div key={type} className="flex shrink-0 items-center gap-1">
-                <span
-                  className={cn(
-                    "h-2 w-2 shrink-0 rounded-[1px]",
-                    TYPE_COLOR[type] ?? FALLBACK_COLOR,
-                  )}
-                />
-                <span
-                  className="text-foreground truncate"
-                  style={{ fontSize: "10px" }}
-                  title={type}
-                >
-                  {type.charAt(0) + type.slice(1).toLowerCase()}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {/* The tooltip is the text this layout does not spend on rows. */}
-        {/* The legend and the row tooltip both want the left side; while you are
-            reading the legend the tooltip stays out of it. */}
-        {focused &&
-        pointerPos &&
-        !dragging &&
-        !(legendVisible && pointerPos.x <= railWidth) ? (
+        {/* The tooltip is what names a row when the gutter cannot. */}
+        {focused && pointerPos && !dragging ? (
           <div
             className="border-border bg-background text-foreground pointer-events-none absolute z-10 flex max-w-[90%] items-center gap-1 rounded border px-1.5 py-1 shadow-md"
             style={{

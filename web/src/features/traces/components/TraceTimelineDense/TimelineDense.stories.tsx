@@ -230,10 +230,10 @@ export const ScrollPansPinchZooms = meta.story({
   },
 });
 
-export const HoverPeeksTheLegend = meta.story({
-  name: "(Test) Hover Peeks The Legend",
+export const HoverPeeksTheNames = meta.story({
+  name: "(Test) Hover Peeks The Names",
   args: {
-    roots: manySpans(150),
+    roots: manySpans(40),
     box: PHONE,
     gutter: "auto",
     pointer: "fine",
@@ -246,8 +246,10 @@ export const HoverPeeksTheLegend = meta.story({
       '[data-testid="timeline-dense-surface"]',
     );
     if (!surface) throw new Error("dense surface not found");
-    const legend = () =>
-      canvasElement.querySelector('[data-testid="timeline-dense-legend"]');
+    const names = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-content"] > div span[title]',
+      ).length;
     const rect = surface.getBoundingClientRect();
     const move = (offsetX: number) =>
       surface.dispatchEvent(
@@ -259,17 +261,15 @@ export const HoverPeeksTheLegend = meta.story({
         }),
       );
 
-    // At hairline density a name is not a name, so peeking the rail explains the
-    // colours instead.
-    await expect(legend()).toBeNull();
+    // 40 rows in this box are 15px — readable, but below where the gutter opens
+    // on its own. Hovering the rail is what peeks at the names.
+    await expect(names()).toBe(0);
     move(4);
-    await waitFor(() => expect(legend()).not.toBeNull());
-    await expect(legend()?.textContent).toContain("Generation");
-    await expect(legend()?.textContent).toContain("Tool");
+    await waitFor(() => expect(names()).toBeGreaterThan(0));
 
     // Moving into the chart hands the space straight back.
     move(rect.width * 0.7);
-    await waitFor(() => expect(legend()).toBeNull());
+    await waitFor(() => expect(names()).toBe(0));
   },
 });
 
