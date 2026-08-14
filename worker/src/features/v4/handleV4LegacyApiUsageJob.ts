@@ -14,13 +14,16 @@ import {
   v4LegacyApiHourBucketKey,
   v4LegacyApiHourBucketSchema,
   v4LegacyApiHourStartIso,
+  v4LegacyApiRollupProjectsSchema,
   v4LegacyApiUsageProjectKey,
   V4_LEGACY_API_DEEP_RESCAN_HOURS,
-  V4_LEGACY_API_DEEP_RESCAN_UTC_HOUR,
+  V4_LEGACY_API_DEEP_RESCAN_INTERVAL_MS,
   V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS,
   V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS,
   V4_LEGACY_API_RESCAN_HOURS,
+  V4_LEGACY_API_ROLLUP_PROJECTS_KEY,
   V4_LEGACY_API_USAGE_CURSOR_KEY,
+  V4_LEGACY_API_USAGE_DEEP_RESCAN_AT_KEY,
   V4_LEGACY_API_USAGE_HEARTBEAT_KEY,
   V4_LEGACY_API_USAGE_LOCK_KEY,
   V4_LEGACY_API_USAGE_WINDOW_MS,
@@ -308,6 +311,24 @@ const mgetInChunks = async (keys: string[]): Promise<(string | null)[]> => {
   return values;
 };
 
+const delInChunks = async (keys: string[]): Promise<void> => {
+  for (let index = 0; index < keys.length; index += CHUNK_SIZE) {
+    await redis!.del(...keys.slice(index, index + CHUNK_SIZE));
+  }
+};
+
+const parseHourBucket = (
+  rawBucket: string | null,
+): V4LegacyApiHourBucket | null => {
+  if (!rawBucket) return null;
+  try {
+    const parsed = v4LegacyApiHourBucketSchema.safeParse(JSON.parse(rawBucket));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+};
+
 export const handleV4LegacyApiUsageJob = async (
   now = new Date(),
 ): Promise<void> => {
@@ -319,7 +340,9 @@ export const handleV4LegacyApiUsageJob = async (
   }
 
   const lock = new RedisLock(V4_LEGACY_API_USAGE_LOCK_KEY, {
-    ttlSeconds: 15 * 60,
+    // Generous TTL: a cold-start scan can take a while, and an expired lock
+    // would let a second replica interleave writes and publish a torn rollup.
+    ttlSeconds: 60 * 60,
     name: "v4-legacy-api-usage",
     // Without Redis there is nowhere to write results, so never run unlocked.
     onUnavailable: "fail",
@@ -330,22 +353,60 @@ export const handleV4LegacyApiUsageJob = async (
     const currentHourStartMs = Math.floor(nowMs / HOUR_MS) * HOUR_MS;
     const coverageStartMs =
       Math.floor((nowMs - V4_LEGACY_API_USAGE_WINDOW_MS) / HOUR_MS) * HOUR_MS;
+    const coverageHourStartsMs = listV4LegacyApiHourStarts(
+      coverageStartMs,
+      currentHourStartMs,
+    );
 
-    const cursorIso = await redis!.get(V4_LEGACY_API_USAGE_CURSOR_KEY);
+    const [cursorIso, deepRescanAtIso, rawPreviousRollupProjects] =
+      await Promise.all([
+        redis!.get(V4_LEGACY_API_USAGE_CURSOR_KEY),
+        redis!.get(V4_LEGACY_API_USAGE_DEEP_RESCAN_AT_KEY),
+        redis!.get(V4_LEGACY_API_ROLLUP_PROJECTS_KEY),
+      ]);
     const cursorMs = cursorIso ? Date.parse(cursorIso) : NaN;
+    const deepRescanAtMs = deepRescanAtIso ? Date.parse(deepRescanAtIso) : NaN;
+    // The deep re-scan is driven by elapsed time since the last one (not a
+    // wall-clock hour), so a missed run only delays it instead of skipping a
+    // whole day.
+    const deepRescanDue =
+      !Number.isFinite(deepRescanAtMs) ||
+      nowMs - deepRescanAtMs >= V4_LEGACY_API_DEEP_RESCAN_INTERVAL_MS;
     const rescanMs =
-      (new Date(currentHourStartMs).getUTCHours() ===
-      V4_LEGACY_API_DEEP_RESCAN_UTC_HOUR
+      (deepRescanDue
         ? V4_LEGACY_API_DEEP_RESCAN_HOURS
         : V4_LEGACY_API_RESCAN_HOURS) * HOUR_MS;
     // Resume from the cursor (self-healing backfill after missed runs) minus
     // the re-scan margin for late query_log flushes; never beyond the window.
-    const scanStartMs = Number.isFinite(cursorMs)
+    const cursorScanStartMs = Number.isFinite(cursorMs)
       ? Math.max(
           coverageStartMs,
           Math.min(cursorMs, currentHourStartMs) - rescanMs,
         )
       : coverageStartMs;
+
+    // Bucket holes (evicted or unparsable entries older than the scan start)
+    // would otherwise silently drop usage from the rollup while the fresh
+    // heartbeat blocks the web fallback; extend the scan to repair them.
+    const existingBucketsByHourMs = new Map<
+      number,
+      V4LegacyApiHourBucket | null
+    >();
+    const rawExistingBuckets = await mgetInChunks(
+      coverageHourStartsMs.map(v4LegacyApiHourBucketKey),
+    );
+    coverageHourStartsMs.forEach((hourStartMs, index) => {
+      existingBucketsByHourMs.set(
+        hourStartMs,
+        parseHourBucket(rawExistingBuckets[index] ?? null),
+      );
+    });
+    const oldestHoleMs = coverageHourStartsMs.find(
+      (hourStartMs) =>
+        hourStartMs < cursorScanStartMs &&
+        existingBucketsByHourMs.get(hourStartMs) == null,
+    );
+    const scanStartMs = oldestHoleMs ?? cursorScanStartMs;
 
     const scannedHourStartsMs = listV4LegacyApiHourStarts(
       scanStartMs,
@@ -355,6 +416,8 @@ export const handleV4LegacyApiUsageJob = async (
       scanStart: v4LegacyApiHourStartIso(scanStartMs),
       hours: scannedHourStartsMs.length,
       coldStart: !Number.isFinite(cursorMs),
+      deepRescan: deepRescanDue,
+      repairedHole: oldestHoleMs !== undefined,
     });
 
     // All services must succeed; on failure the job throws, the cursor stays
@@ -383,26 +446,16 @@ export const handleV4LegacyApiUsageJob = async (
     );
 
     // Rebuild the consumer-facing per-project entries from every bucket in
-    // the trailing window (the just-written ones included).
-    const coverageHourStartsMs = listV4LegacyApiHourStarts(
-      coverageStartMs,
-      currentHourStartMs,
+    // the trailing window: freshly scanned hours plus the pre-read existing
+    // buckets outside the scan range (hole repair above guarantees each
+    // coverage hour is one of the two).
+    const rollup = aggregateV4LegacyApiHourBuckets(
+      coverageHourStartsMs.flatMap((hourStartMs) => {
+        const bucket =
+          buckets.get(hourStartMs) ?? existingBucketsByHourMs.get(hourStartMs);
+        return bucket ? [bucket] : [];
+      }),
     );
-    const rawBuckets = await mgetInChunks(
-      coverageHourStartsMs.map(v4LegacyApiHourBucketKey),
-    );
-    const parsedBuckets = rawBuckets.flatMap((rawBucket) => {
-      if (!rawBucket) return [];
-      try {
-        const parsed = v4LegacyApiHourBucketSchema.safeParse(
-          JSON.parse(rawBucket),
-        );
-        return parsed.success ? [parsed.data] : [];
-      } catch {
-        return [];
-      }
-    });
-    const rollup = aggregateV4LegacyApiHourBuckets(parsedBuckets);
 
     const computedAt = now.toISOString();
     await setexInChunks([
@@ -420,6 +473,37 @@ export const handleV4LegacyApiUsageJob = async (
       })),
     ]);
 
+    // Delete entries for projects that dropped out of the trailing window
+    // since the previous run; otherwise their last written entry would keep
+    // reporting usage for up to the entry TTL.
+    const previousRollupProjects = (() => {
+      try {
+        const parsed = v4LegacyApiRollupProjectsSchema.safeParse(
+          JSON.parse(rawPreviousRollupProjects ?? "null"),
+        );
+        return parsed.success ? parsed.data : null;
+      } catch {
+        return null;
+      }
+    })();
+    await delInChunks([
+      ...(previousRollupProjects?.api ?? [])
+        .filter((projectId) => !rollup.apiRowsByProjectId.has(projectId))
+        .map(v4LegacyApiUsageProjectKey),
+      ...(previousRollupProjects?.experimentPost ?? [])
+        .filter((projectId) => !rollup.experimentPostProjectIds.has(projectId))
+        .map(v4ExperimentPostUsageProjectKey),
+    ]);
+    await redis!.setex(
+      V4_LEGACY_API_ROLLUP_PROJECTS_KEY,
+      V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS,
+      JSON.stringify({
+        version: 1,
+        api: Array.from(rollup.apiRowsByProjectId.keys()),
+        experimentPost: Array.from(rollup.experimentPostProjectIds),
+      }),
+    );
+
     // Cursor and heartbeat move only after a fully successful run. While the
     // heartbeat is fresh, web treats missing per-project entries as "no
     // usage" instead of falling back to ClickHouse.
@@ -428,6 +512,13 @@ export const handleV4LegacyApiUsageJob = async (
       V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS,
       v4LegacyApiHourStartIso(currentHourStartMs),
     );
+    if (deepRescanDue) {
+      await redis!.setex(
+        V4_LEGACY_API_USAGE_DEEP_RESCAN_AT_KEY,
+        V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS,
+        computedAt,
+      );
+    }
     await redis!.setex(
       V4_LEGACY_API_USAGE_HEARTBEAT_KEY,
       V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS,

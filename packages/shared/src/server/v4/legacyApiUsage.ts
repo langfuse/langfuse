@@ -50,10 +50,14 @@ export const V4_LEGACY_API_HEARTBEAT_FRESHNESS_MS = 3 * HOUR_MS;
 
 /** Trailing hours re-scanned every run to absorb late query_log flushes. */
 export const V4_LEGACY_API_RESCAN_HOURS = 3;
-/** Deeper daily re-scan for stragglers beyond the hourly margin. */
+/** Deeper re-scan for stragglers beyond the hourly margin. */
 export const V4_LEGACY_API_DEEP_RESCAN_HOURS = 24;
-/** UTC hour whose run performs the deep re-scan. */
-export const V4_LEGACY_API_DEEP_RESCAN_UTC_HOUR = 3;
+/**
+ * Minimum spacing between deep re-scans. Tracked via a persisted timestamp
+ * (not a wall-clock hour) so a missed run only delays the deep sweep instead
+ * of skipping it for a day.
+ */
+export const V4_LEGACY_API_DEEP_RESCAN_INTERVAL_MS = 24 * HOUR_MS;
 
 export const V4_LEGACY_API_USAGE_CURSOR_KEY =
   "langfuse:v4:legacy-api-usage:cursor:v1";
@@ -61,6 +65,15 @@ export const V4_LEGACY_API_USAGE_HEARTBEAT_KEY =
   "langfuse:v4:legacy-api-usage:heartbeat:v1";
 export const V4_LEGACY_API_USAGE_LOCK_KEY =
   "langfuse:v4:legacy-api-usage:lock:v1";
+export const V4_LEGACY_API_USAGE_DEEP_RESCAN_AT_KEY =
+  "langfuse:v4:legacy-api-usage:deep-rescan-at:v1";
+/**
+ * Project IDs the worker wrote per-project entries for in its last run; the
+ * next run deletes entries for projects that dropped out of the window so
+ * stale usage does not linger for the entry TTL.
+ */
+export const V4_LEGACY_API_ROLLUP_PROJECTS_KEY =
+  "langfuse:v4:legacy-api-usage:rollup-projects:v1";
 
 /** Hour-aligned ISO without milliseconds, e.g. "2026-06-25T13:00:00Z". */
 export const v4LegacyApiHourStartIso = (hourStartMs: number): string =>
@@ -119,6 +132,16 @@ export const v4ExperimentPostUsageBlobSchema = z.object({
 
 export type V4ExperimentPostUsageBlob = z.infer<
   typeof v4ExperimentPostUsageBlobSchema
+>;
+
+export const v4LegacyApiRollupProjectsSchema = z.object({
+  version: z.literal(1),
+  api: z.array(z.string()),
+  experimentPost: z.array(z.string()),
+});
+
+export type V4LegacyApiRollupProjects = z.infer<
+  typeof v4LegacyApiRollupProjectsSchema
 >;
 
 export const isV4LegacyApiHeartbeatFresh = (

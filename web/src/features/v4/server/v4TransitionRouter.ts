@@ -37,9 +37,12 @@ import {
   type CachedSdkUsageSeries,
   type SdkUsageCacheBlob,
 } from "@/src/features/v4/server/v4TransitionCache";
+import { V4_LEGACY_API_USAGE_WINDOW_MS } from "@langfuse/shared/src/server/v4/legacyApiUsage";
 
 const HOUR_MS = 60 * 60 * 1000;
-const DETECTION_WINDOW_MS = 7 * 24 * HOUR_MS;
+// Single source of truth shared with the worker pipeline, whose bucket
+// coverage and TTL sizing must match the window served here.
+const DETECTION_WINDOW_MS = V4_LEGACY_API_USAGE_WINDOW_MS;
 const MAX_DETECTION_RANGE_MS = DETECTION_WINDOW_MS;
 
 /**
