@@ -273,7 +273,7 @@ describe("V4MigrationStatusPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "The features powering the legacy v3 UI will be sunset on November 16, 2026.",
+        /The features powering the legacy v3 UI will be sunset on November 16, 2026\./,
       ),
     ).toBeInTheDocument();
     expect(screen.getByTestId("v4-preview-toggle-row")).toBeInTheDocument();

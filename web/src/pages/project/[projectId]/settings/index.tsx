@@ -268,7 +268,6 @@ export const getProjectSettingsPages = ({
   {
     title: "v4 Migration",
     slug: "v4-migration",
-    cmdKKeywords: ["migration", "upgrade", "v4", "sdk"],
     href: "/v4-migration",
     show: showV4Migration,
   },

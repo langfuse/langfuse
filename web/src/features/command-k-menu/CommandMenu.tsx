@@ -240,7 +240,7 @@ function AccountSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   const accountSettingsPages = useAccountSettingsPages();
 
   const accountSettingsItems = accountSettingsPages
-    .filter((page) => page.show !== false && !("href" in page))
+    .filter((page) => !("href" in page))
     .map((page) => ({
       title: `Account Settings > ${page.title}`,
       url: `/account/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
