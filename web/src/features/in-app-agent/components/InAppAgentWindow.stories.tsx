@@ -22,9 +22,11 @@ import { getDrawerMessages } from "./utils/utils";
 function InAppAgentWindowStoryShell({
   children,
   isExpanded,
+  onExpandedChange,
 }: {
   children: (props: { isHeaderDragHandleEnabled: boolean }) => ReactNode;
   isExpanded: boolean;
+  onExpandedChange: (isExpanded: boolean) => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const floatingPanelHandle = useInAppAgentWindowShellPanelControl({});
@@ -38,6 +40,7 @@ function InAppAgentWindowStoryShell({
       floatingPanelHandle={floatingPanelHandle}
       isExpanded={isExpanded}
       onClose={() => undefined}
+      onExpandedChange={onExpandedChange}
       open
       panelRef={panelRef}
     >
@@ -48,18 +51,22 @@ function InAppAgentWindowStoryShell({
 
 function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
   const [isExpanded, setIsExpanded] = useState(args.isExpanded);
+  const handleExpandedChange = (isExpanded: boolean) => {
+    setIsExpanded(isExpanded);
+    args.onExpandedChange(isExpanded);
+  };
 
   return (
-    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+    <InAppAgentWindowStoryShell
+      isExpanded={isExpanded}
+      onExpandedChange={handleExpandedChange}
+    >
       {({ isHeaderDragHandleEnabled }) => (
         <InAppAgentWindow
           {...args}
           isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
           isExpanded={isExpanded}
-          onExpandedChange={(isExpanded) => {
-            setIsExpanded(isExpanded);
-            args.onExpandedChange(isExpanded);
-          }}
+          onExpandedChange={handleExpandedChange}
         />
       )}
     </InAppAgentWindowStoryShell>
@@ -530,18 +537,23 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     };
   }, []);
 
+  const handleExpandedChange = (isExpanded: boolean) => {
+    setIsExpanded(isExpanded);
+    args.onExpandedChange(isExpanded);
+  };
+
   return (
-    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+    <InAppAgentWindowStoryShell
+      isExpanded={isExpanded}
+      onExpandedChange={handleExpandedChange}
+    >
       {({ isHeaderDragHandleEnabled }) => (
         <InAppAgentWindow
           {...args}
           isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
           isExpanded={isExpanded}
           messages={messages}
-          onExpandedChange={(isExpanded) => {
-            setIsExpanded(isExpanded);
-            args.onExpandedChange(isExpanded);
-          }}
+          onExpandedChange={handleExpandedChange}
           onSubmit={(input) => {
             setMessages((currentMessages) => [
               ...currentMessages,
@@ -684,6 +696,7 @@ const meta = preview.meta({
     isLoadingMoreConversations: false,
     isAssistantTurnInProgress: false,
     selectedConversationId: undefined,
+    selectedConversationTitle: null,
     onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
     onOpenConversationHistory: fn(),
@@ -1743,9 +1756,16 @@ export const RefocusAfterSubmit = meta.story({
         },
       },
     ]);
+    const handleExpandedChange = (isExpanded: boolean) => {
+      setIsExpanded(isExpanded);
+      args.onExpandedChange(isExpanded);
+    };
 
     return (
-      <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+      <InAppAgentWindowStoryShell
+        isExpanded={isExpanded}
+        onExpandedChange={handleExpandedChange}
+      >
         {({ isHeaderDragHandleEnabled }) => (
           <InAppAgentWindow
             {...args}
@@ -1755,10 +1775,7 @@ export const RefocusAfterSubmit = meta.story({
               isConversationInteractionDisabled
             }
             messages={messages}
-            onExpandedChange={(isExpanded) => {
-              setIsExpanded(isExpanded);
-              args.onExpandedChange(isExpanded);
-            }}
+            onExpandedChange={handleExpandedChange}
             onSubmit={(input) => {
               setIsConversationInteractionDisabled(true);
               window.setTimeout(() => {
@@ -2371,7 +2388,10 @@ export const SendingReattachesAutoFollow = meta.story({
     const [messages, setMessages] = useState(args.messages);
 
     return (
-      <InAppAgentWindowStoryShell isExpanded={args.isExpanded}>
+      <InAppAgentWindowStoryShell
+        isExpanded={args.isExpanded}
+        onExpandedChange={args.onExpandedChange}
+      >
         {({ isHeaderDragHandleEnabled }) => (
           <InAppAgentWindow
             {...args}
