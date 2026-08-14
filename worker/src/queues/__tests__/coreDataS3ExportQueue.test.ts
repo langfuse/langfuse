@@ -152,6 +152,7 @@ describe("coreDataTableExports", () => {
 
     expect(uploadedFiles).toEqual(
       expect.arrayContaining([
+        "core/jobConfigurations.jsonl",
         "core/evaluators.jsonl",
         "core/evaluatorVersions.jsonl",
         "core/evaluationRules.jsonl",

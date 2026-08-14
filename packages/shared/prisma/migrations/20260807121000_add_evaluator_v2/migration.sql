@@ -264,7 +264,7 @@ SELECT
   'legacy:' || jc."id", jc."created_at", jc."updated_at", jc."project_id",
   jc."id", g."evaluator_id",
   -- Legacy mappings belong to the rule/evaluator assignment; modern rules inherit the evaluator version default.
-  -- This way users can edit and re-use the `evaluator` in the new UI without breaking the
+  -- This way users can edit and reuse the `evaluator` in the new UI without breaking the
   -- variable mapping
   CASE
     WHEN jc."target_object" IN ('trace', 'dataset') THEN jc."variable_mapping"

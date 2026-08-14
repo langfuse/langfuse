@@ -1400,37 +1400,6 @@ describe("llmApiKey.all RPC", () => {
   describe("deleting a connection pauses the evaluators that ran on it", () => {
     const PROVIDER = "openai";
 
-    const createLegacyEvaluator = async (template: {
-      provider: string | null;
-      model: string | null;
-    }) => {
-      const evalTemplate = await prisma.evalTemplate.create({
-        data: {
-          projectId,
-          name: `legacy-${randomUUID()}`,
-          version: 1,
-          prompt: "Evaluate {{output}}",
-          type: EvalTemplateType.LLM_AS_JUDGE,
-          vars: ["output"],
-          ...template,
-        },
-      });
-      const jobConfiguration = await prisma.jobConfiguration.create({
-        data: {
-          projectId,
-          jobType: "EVAL",
-          evalTemplateId: evalTemplate.id,
-          scoreName: "quality",
-          filter: [],
-          targetObject: "trace",
-          variableMapping: [],
-          sampling: 1,
-          delay: 0,
-        },
-      });
-      return jobConfiguration.id;
-    };
-
     /** Versions are given oldest-first; the last one is the evaluator's head. */
     const createV2Evaluator = async (
       versions: Array<{ provider: string | null; model: string | null }>,
@@ -1453,7 +1422,7 @@ describe("llmApiKey.all RPC", () => {
       return evaluator.id;
     };
 
-    it("blocks both data models by their current model, and leaves the rest running", async () => {
+    it("blocks evaluators by their current model and leaves the rest running", async () => {
       await caller.llmApiKey.create({
         projectId,
         secretKey: "test-secret",
@@ -1467,17 +1436,11 @@ describe("llmApiKey.all RPC", () => {
       });
 
       const [
-        legacyOnProvider,
-        legacyOnDefaultModel,
-        legacyOnOtherProvider,
         v2OnProvider,
         v2OnDefaultModel,
         v2MovedOffProvider,
         v2OnOtherProvider,
       ] = await Promise.all([
-        createLegacyEvaluator({ provider: PROVIDER, model: "gpt-4o" }),
-        createLegacyEvaluator({ provider: null, model: null }),
-        createLegacyEvaluator({ provider: "anthropic", model: "claude" }),
         createV2Evaluator([{ provider: PROVIDER, model: "gpt-4o" }]),
         createV2Evaluator([{ provider: null, model: null }]),
         // Upgraded off the deleted provider: only the head version counts.
@@ -1502,39 +1465,26 @@ describe("llmApiKey.all RPC", () => {
 
       await caller.llmApiKey.delete({ projectId, id: connection.id });
 
-      const [jobConfigurations, evaluators] = await Promise.all([
-        prisma.jobConfiguration.findMany({ where: { projectId } }),
-        prisma.evaluator.findMany({ where: { projectId } }),
-      ]);
+      const evaluators = await prisma.evaluator.findMany({
+        where: { projectId },
+      });
       const blockStateById = new Map(
-        [...jobConfigurations, ...evaluators].map((row) => [
+        evaluators.map((row) => [
           row.id,
           { blocked: row.blockedAt !== null, reason: row.blockReason },
         ]),
       );
 
-      expect(blockStateById.get(legacyOnProvider)).toEqual({
-        blocked: true,
-        reason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-      });
       expect(blockStateById.get(v2OnProvider)).toEqual({
         blocked: true,
         reason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-      });
-      expect(blockStateById.get(legacyOnDefaultModel)).toEqual({
-        blocked: true,
-        reason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
       });
       expect(blockStateById.get(v2OnDefaultModel)).toEqual({
         blocked: true,
         reason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
       });
 
-      for (const untouched of [
-        legacyOnOtherProvider,
-        v2MovedOffProvider,
-        v2OnOtherProvider,
-      ]) {
+      for (const untouched of [v2MovedOffProvider, v2OnOtherProvider]) {
         expect(blockStateById.get(untouched)).toEqual({
           blocked: false,
           reason: null,

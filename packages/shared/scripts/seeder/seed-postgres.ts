@@ -8,6 +8,7 @@ import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
   type JobConfiguration,
+  JobConfigState,
   JobExecutionStatus,
   PrismaClient,
   type Project,
@@ -357,13 +358,79 @@ async function main() {
           evalTemplateId: evalConfig.evalTemplateId,
           projectId: project1.id,
           jobType: evalConfig.jobType as any,
-          status: evalConfig.status as any,
+          status: evalConfig.status as JobConfigState,
           scoreName: evalConfig.scoreName,
           filter: evalConfig.filter,
           variableMapping: evalConfig.variableMapping,
           targetObject: evalConfig.targetObject,
           sampling: evalConfig.sampling,
           delay: evalConfig.delay,
+        },
+        update: {},
+      });
+
+      const evalTemplate = SEED_EVALUATOR_TEMPLATES.find(
+        (template) => template.id === evalConfig.evalTemplateId,
+      );
+      if (!evalTemplate) {
+        throw new Error(
+          `Missing evaluator template ${evalConfig.evalTemplateId}`,
+        );
+      }
+
+      await prisma.evaluator.upsert({
+        where: { id: evalConfig.id },
+        create: {
+          id: evalConfig.id,
+          projectId: project1.id,
+          name: evalConfig.scoreName,
+          type: evalTemplate.type as EvalTemplateType,
+        },
+        update: {},
+      });
+      await prisma.evaluatorVersion.upsert({
+        where: { id: `${evalConfig.id}:${evalTemplate.id}` },
+        create: {
+          id: `${evalConfig.id}:${evalTemplate.id}`,
+          evaluatorId: evalConfig.id,
+          version: evalTemplate.version,
+          prompt: evalTemplate.prompt ?? null,
+          model: evalTemplate.model ?? null,
+          provider: evalTemplate.provider ?? null,
+          modelParams: evalTemplate.modelParams ?? undefined,
+          vars: evalTemplate.vars,
+          variableMapping: evalConfig.variableMapping,
+          outputDefinition: evalTemplate.outputDefinition ?? undefined,
+          sourceCode: evalTemplate.sourceCode ?? null,
+          sourceCodeLanguage:
+            (evalTemplate.sourceCodeLanguage as
+              | EvalTemplateSourceCodeLanguage
+              | undefined) ?? null,
+        },
+        update: {},
+      });
+      await prisma.evaluationRule.upsert({
+        where: { id: evalConfig.id },
+        create: {
+          id: evalConfig.id,
+          projectId: project1.id,
+          name: evalConfig.scoreName,
+          status: evalConfig.status as any,
+          filter: evalConfig.filter,
+          targetObject: evalConfig.targetObject,
+          sampling: evalConfig.sampling,
+          delay: evalConfig.delay,
+        },
+        update: {},
+      });
+      await prisma.evaluationRuleEvaluatorAssignment.upsert({
+        where: { id: `legacy:${evalConfig.id}` },
+        create: {
+          id: `legacy:${evalConfig.id}`,
+          projectId: project1.id,
+          evaluationRuleId: evalConfig.id,
+          evaluatorId: evalConfig.id,
+          variableMapping: evalConfig.variableMapping,
         },
         update: {},
       });

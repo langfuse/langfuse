@@ -78,7 +78,7 @@ vi.mock("@langfuse/shared/src/db", async () => {
   const actual =
     await vi.importActual<typeof PrismaClientModule>("@prisma/client");
   const prisma = {
-    evaluator: { count: vi.fn() },
+    evaluator: { count: vi.fn(), findMany: vi.fn() },
     evaluationRule: {
       count: vi.fn(),
       findFirst: vi.fn(),
@@ -195,6 +195,7 @@ describe("unstable public evaluation-rule service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (prisma.evaluator.count as Mock).mockResolvedValue(1);
+    (prisma.evaluator.findMany as Mock).mockResolvedValue([evaluator]);
     (prisma.evaluationRule.count as Mock).mockResolvedValue(0);
     (findPublicV2EvaluatorInFamilyOrThrow as Mock).mockResolvedValue(evaluator);
     (findPublicV2EvaluationRule as Mock).mockImplementation(

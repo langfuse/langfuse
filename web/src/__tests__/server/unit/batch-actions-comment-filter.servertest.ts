@@ -100,6 +100,9 @@ function prepare({ v4BetaEnabled = false } = {}) {
     jobConfiguration: {
       findMany: vi.fn(async () => [{ id: evaluatorId }]),
     },
+    evaluationRule: {
+      findMany: vi.fn(async () => [{ id: evaluatorId }]),
+    },
     evaluator: {
       findMany: vi.fn(async () => [{ id: evaluatorId }]),
     },

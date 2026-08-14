@@ -56,6 +56,21 @@ export const mapUserToCoreDataRow = ({
   ],
 });
 
+type JobConfigurationCoreDataInput = {
+  evalTemplate: { name: string } | null;
+  sampling: { toNumber: () => number };
+} & Record<string, unknown>;
+
+export const mapJobConfigurationToCoreDataRow = ({
+  evalTemplate,
+  sampling,
+  ...jobConfiguration
+}: JobConfigurationCoreDataInput) => ({
+  ...jobConfiguration,
+  sampling: sampling.toNumber(),
+  evalTemplateName: evalTemplate?.name ?? null,
+});
+
 type EvaluationRuleCoreDataInput = {
   sampling: { toNumber: () => number };
 } & Record<string, unknown>;
@@ -477,6 +492,39 @@ export const coreDataTableExports: Array<
             updatedAt: true,
           },
         }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "jobConfigurations",
+      // Keep this stable for downstream consumers while evaluator v2 exports
+      // are adopted independently.
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.jobConfiguration.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            jobType: true,
+            status: true,
+            blockedAt: true,
+            blockReason: true,
+            evalTemplateId: true,
+            scoreName: true,
+            filter: true,
+            targetObject: true,
+            variableMapping: true,
+            sampling: true,
+            delay: true,
+            timeScope: true,
+            createdAt: true,
+            updatedAt: true,
+            evalTemplate: { select: { name: true } },
+          },
+        }),
+      mapRow: mapJobConfigurationToCoreDataRow,
     }),
   (args) =>
     uploadTableCoreDataJsonl({

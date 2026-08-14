@@ -26,6 +26,17 @@ import { cn } from "@/src/utils/tailwind";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { getRuleNavigationUrl } from "@/src/features/evals/v2/utils/ruleNavigation";
 
+function keepSheetOpenForRelationshipOverlay(
+  event: Event & { preventDefault: () => void },
+) {
+  if (
+    event.target instanceof Element &&
+    event.target.closest('[data-layer="modal"], [data-layer="popover"]')
+  ) {
+    event.preventDefault();
+  }
+}
+
 function RuleCount({ count }: { count: number }) {
   return (
     <span className="bg-muted ml-1 rounded-full px-1.5 py-0.5 text-xs tabular-nums">
@@ -180,7 +191,12 @@ export function EvaluatorRuleRelationshipsSheet({
   return (
     <>
       <Sheet open={open} modal={false} onOpenChange={onOpenChange}>
-        <SheetContent className="flex flex-col gap-5 overflow-y-auto sm:max-w-lg">
+        <SheetContent
+          className="flex flex-col gap-5 overflow-y-auto sm:max-w-lg"
+          onPointerDownOutside={keepSheetOpenForRelationshipOverlay}
+          onInteractOutside={keepSheetOpenForRelationshipOverlay}
+          onFocusOutside={keepSheetOpenForRelationshipOverlay}
+        >
           <SheetHeader>
             <SheetTitle>Rules</SheetTitle>
             <SheetDescription>

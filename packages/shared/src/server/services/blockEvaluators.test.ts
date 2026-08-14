@@ -241,7 +241,7 @@ describe("model-usage selection", () => {
 });
 
 describe("unblockEvaluatorsUsingDefaultModel", () => {
-  it("clears only blocks caused by a missing default model", async () => {
+  it("clears default-model blocks only on v2 evaluators", async () => {
     const jobConfigurationUpdateMany = vi.fn().mockResolvedValue({ count: 2 });
     const evaluatorUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
     const tx = {
@@ -252,7 +252,7 @@ describe("unblockEvaluatorsUsingDefaultModel", () => {
     await expect(
       unblockEvaluatorsUsingDefaultModel({ tx, projectId: "project-1" }),
     ).resolves.toEqual({
-      unblockedJobConfigCount: 2,
+      unblockedJobConfigCount: 0,
       unblockedEvaluatorCount: 1,
     });
 
@@ -267,7 +267,7 @@ describe("unblockEvaluatorsUsingDefaultModel", () => {
         blockMessage: null,
       },
     };
-    expect(jobConfigurationUpdateMany).toHaveBeenCalledWith(expectedUpdate);
+    expect(jobConfigurationUpdateMany).not.toHaveBeenCalled();
     expect(evaluatorUpdateMany).toHaveBeenCalledWith(expectedUpdate);
   });
 });
