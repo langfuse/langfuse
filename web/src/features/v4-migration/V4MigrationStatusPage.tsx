@@ -4,7 +4,6 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { ArrowRight } from "lucide-react";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { Spinner } from "@/src/components/layouts/spinner";
 import { Card } from "@/src/components/ui/card";
 import {
   Table,
@@ -601,7 +600,14 @@ function V4MigrationStatusPageContent() {
   if (isLoading) {
     return (
       <ContainerPage headerProps={{ title: "Migration status" }}>
-        <Spinner message="Checking project status" />
+        <div className="flex min-h-full flex-1 items-center justify-center px-6 py-12">
+          <p
+            className="text-primary text-center text-2xl leading-9 font-bold tracking-tight"
+            role="status"
+          >
+            Checking project status ...
+          </p>
+        </div>
       </ContainerPage>
     );
   }

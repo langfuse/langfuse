@@ -191,6 +191,9 @@ describe("V4MigrationStatusPage", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.queryByText("What's new in v4")).not.toBeInTheDocument();
     expect(screen.getByText(/Checking project status/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Langfuse Icon" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides project content until last-trace data has finished loading", () => {
