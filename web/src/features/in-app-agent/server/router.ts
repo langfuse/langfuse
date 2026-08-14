@@ -38,6 +38,7 @@ import {
   decideBackgroundApproval,
   deleteBackgroundConversation,
   getBackgroundConversationSnapshot,
+  serializeConversationLatestRun,
   startBackgroundRun,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
 
@@ -93,6 +94,10 @@ const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
 const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
+  // Each row carries its newest run summary for the activity poll and badges.
+  // Activity clients request the newest page only (see
+  // IN_APP_AGENT_ACTIVITY_LIST_LIMIT); quieter conversations outside that
+  // window are an accepted attention gap for now.
   listConversations: protectedProjectProcedure
     .input(
       z.object({
@@ -127,15 +132,37 @@ export const inAppAgentRouter = createTRPCRouter({
         },
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take: input.limit + 1,
+        relationLoadStrategy: "join",
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          updatedAt: true,
+          runs: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              errorCode: true,
+              cancelRequestedAt: true,
+              createdAt: true,
+              claimedAt: true,
+              heartbeatAt: true,
+              finishedAt: true,
+            },
+          },
+        },
       });
 
       const page = conversations.slice(0, input.limit);
       const lastConversation = page.at(-1);
 
       return {
-        conversations: page.map((conversation) =>
-          serializeConversation(conversation),
-        ),
+        conversations: page.map((conversation) => ({
+          ...serializeConversation(conversation),
+          latestRun: serializeConversationLatestRun(conversation.runs[0]),
+        })),
         nextCursor:
           conversations.length > input.limit && lastConversation
             ? {

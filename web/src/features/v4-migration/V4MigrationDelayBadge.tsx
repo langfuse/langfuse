@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useRouter } from "next/router";
+import {
+  useV4UpgradeUiEnabled,
+  useV4UpgradeUiFlag,
+} from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
+import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
@@ -15,17 +21,22 @@ import {
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useRouter } from "next/router";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 export function V4MigrationDelayBadge() {
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4UpgradeUiFlagEnabled = useV4UpgradeUiFlag();
   const openMigrationPanel = useOpenV4MigrationPanel();
-  const { project, organization } = useQueryProject();
+  const { project } = useQueryProject();
+  const forceV3 = useForceV3Experience(project?.id);
+  const { isBetaEnabled } = useV4Beta();
   const capture = usePostHogClientCapture();
+
+  // Forced-v3 projects still see the data-delay badge, but it points at the
+  // partner FAQ instead of the migration panel
+  const enabled = v4UpgradeUiFlagEnabled && (!forceV3 || isBetaEnabled);
   const sdk = useProjectV4SdkData({
     projectId: project?.id,
-    orgId: organization?.id,
-    enabled: v4UpgradeUiEnabled && Boolean(project),
+    enabled: enabled && Boolean(project),
   });
 
   // Every delayed ingestion path shows the pill, matching the migration
@@ -45,11 +56,16 @@ export function V4MigrationDelayBadge() {
     customActionable,
   ].filter(Boolean).length;
 
-  if (!v4UpgradeUiEnabled || !project || actionablePaths === 0) {
+  if (!enabled || !project || actionablePaths === 0) {
     return null;
   }
 
   const handleClick = () => {
+    if (forceV3) {
+      capture("v4_migration:delay_badge_clicked", { action: "docs" });
+      window.open(PARTNER_INTEGRATION_FAQ_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
     capture("v4_migration:delay_badge_clicked");
     openMigrationPanel({ id: project.id, name: project.name }, "delay_badge");
   };
@@ -58,18 +74,18 @@ export function V4MigrationDelayBadge() {
   // multiple delayed paths get the generic clause.
   const description =
     actionablePaths > 1
-      ? "Your setup is outdated. Upgrade for real-time data"
+      ? "Upgrade to v4 for real-time data"
       : sdkActionable
-        ? "Your setup is outdated. Update SDK for real-time data"
+        ? "Update your SDK for real-time data"
         : otelActionable
-          ? "Your setup is outdated. Update OTel instrumentation for real-time data"
-          : "Your setup is outdated. Upgrade instrumentation for real-time data";
+          ? "Update your OTel instrumentation for real-time data"
+          : "Upgrade your instrumentation for real-time data";
 
   return (
     <V4MigrationBadgeContent
       onClick={handleClick}
       title="New data in ~15 min"
-      description={description}
+      description={forceV3 ? "Learn more in the docs" : description}
     />
   );
 }
@@ -77,12 +93,11 @@ export function V4MigrationDelayBadge() {
 /** Shared gating for the eval "Action required" badges: v4 upgrade UI flag,
  * project context, and a loaded, non-zero deprecated-eval count. */
 function useEvalUpdateRequiredBadgeState() {
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const { project, organization } = useQueryProject();
+  const { project } = useQueryProject();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const enabled = v4UpgradeUiEnabled && Boolean(project);
   const evalState = useProjectV4EvalData({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled,
   });
 
@@ -92,7 +107,7 @@ function useEvalUpdateRequiredBadgeState() {
     evalState.status === "loaded" &&
     evalState.count > 0;
 
-  return { project, organization, enabled, visible };
+  return { project, enabled, visible };
 }
 
 /** Opens the evaluator migration choices from the v4 migration badge. */
@@ -100,11 +115,9 @@ export function V4MigrationUpdateRequiredBadge() {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
-  const { project, visible, enabled, organization } =
-    useEvalUpdateRequiredBadgeState();
+  const { project, visible, enabled } = useEvalUpdateRequiredBadgeState();
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled,
   });
 

@@ -61,6 +61,7 @@ const migrationStatus = (
   experiments: { status: "loaded", result: "not_required" },
   apis: { status: "loaded", count: 0 },
   exports: { status: "loaded", count: 0 },
+  forceV3Experience: false,
   ...overrides,
 });
 
@@ -101,5 +102,26 @@ describe("v4 migration entry points", () => {
 
     expect(screen.getByText("Update")).toBeInTheDocument();
     expect(screen.getByText("Action required")).toBeInTheDocument();
+  });
+
+  it("hides both entry points while checks are pending or unavailable", () => {
+    for (const status of [
+      migrationStatus({ evals: { status: "loading", count: 0 } }),
+      migrationStatus({ evals: { status: "error", count: 0 } }),
+    ]) {
+      mocks.migrationData = status;
+      const { unmount } = render(
+        <>
+          <V4MigrationProjectChip
+            project={{ id: "project-1", name: "Project 1" }}
+            status={status}
+          />
+          <V4MigrationNavItem />
+        </>,
+      );
+
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+      unmount();
+    }
   });
 });

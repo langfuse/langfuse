@@ -45,6 +45,10 @@ import {
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
+import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import { ConversationActivityIndicator } from "@/src/features/in-app-agent/components/ConversationActivityIndicator";
+import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components/InAppAgentBackgroundHint";
+import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
   type InAppAgentError,
@@ -267,6 +271,8 @@ export type InAppAgentWindowExecutionUi = {
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
+  /** Per-conversation attention state, for the recent-conversation indicators. */
+  activityByConversationId: InAppAgentActivityByConversationId;
   disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   executionUi: InAppAgentWindowExecutionUi;
@@ -371,6 +377,7 @@ function InAppAgentGenericError({
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
+    activityByConversationId,
     conversations,
     disablePendingToolApprovalActions = false,
     error,
@@ -430,6 +437,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const [input, setInput] = useState("");
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
+  // Same conversations the launcher badge counts, narrowed to the ones behind
+  // this trigger: the list is the only place to act on them.
+  const historyAttentionCount = [...activityByConversationId.values()].filter(
+    (entry) => entry.needsAttention,
+  ).length;
+  const historyAttentionSuffix =
+    historyAttentionCount > 0
+      ? ` (${historyAttentionCount} ${historyAttentionCount === 1 ? "needs" : "need"} attention)`
+      : "";
   const hasUserMessage = messages.some((message) => message.role === "user");
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
@@ -460,6 +476,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     })
     .filter((message): message is InAppAgentWindowMessage => message !== null);
 
+  const backgroundHint = useInAppAgentBackgroundHint({
+    isRunActive: isAssistantTurnInProgress,
+  });
+
   const submitInput = (content: string, options?: InAppAgentSubmitOptions) => {
     const trimmedContent = content.trim();
 
@@ -467,9 +487,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       return;
     }
 
+    // Read before the parent appends the message: the hint belongs to the
+    // message that opens a conversation, not to every turn inside it.
+    const startsConversation = !hasUserMessage;
+
     Promise.resolve(onSubmit(trimmedContent, options))
       .then((submitted) => {
         if (submitted) {
+          if (startsConversation) {
+            backgroundHint.show();
+          }
+
           isAutoScrollAttachedRef.current = true;
 
           setInput((currentInput) =>
@@ -597,10 +625,24 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-6 shrink-0"
-                    aria-label="Conversation history"
+                    className="relative size-6 shrink-0"
+                    // Count lives on the button name, as on the launcher — a
+                    // nested badge aria-label is ignored once the parent has one.
+                    aria-label={`Conversation history${historyAttentionSuffix}`}
                   >
                     <History className="size-3" />
+                    {/* Launcher badge, scaled to the 24px trigger. Visual only —
+                        accessible name is on the button. */}
+                    {historyAttentionCount > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="bg-primary-accent text-primary-foreground absolute -top-0.5 -right-0.5 flex h-3 min-w-3 items-center justify-center rounded-full px-1 text-[9px] leading-none font-bold"
+                      >
+                        {historyAttentionCount > 99
+                          ? "99+"
+                          : historyAttentionCount}
+                      </span>
+                    )}
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
@@ -620,6 +662,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 conversations.map((conversation) => {
                   const conversationTitle =
                     conversation.title?.trim() || "Untitled conversation";
+                  const activityState = activityByConversationId.get(
+                    conversation.id,
+                  )?.state;
 
                   return (
                     <DropdownMenuItem
@@ -639,15 +684,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       >
                         {conversationTitle}
                       </span>
+                      {activityState ? (
+                        <ConversationActivityIndicator state={activityState} />
+                      ) : null}
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon-xs"
                         className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
-                        disabled={
-                          isConversationInteractionDisabled ||
-                          isAssistantTurnInProgress
-                        }
+                        // Deleting is always allowed; it cancels whatever the
+                        // conversation was doing rather than refusing.
+                        disabled={isConversationInteractionDisabled}
                         aria-label="Delete conversation"
                         onClick={(event) => {
                           event.preventDefault();
@@ -935,6 +982,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               </p>
             </div>
           </div>
+        ) : null}
+        {backgroundHint.isVisible && props.onClose ? (
+          <InAppAgentBackgroundHint
+            isExpanded={isExpanded}
+            onMinimize={() => {
+              backgroundHint.hide();
+              props.onClose?.();
+            }}
+          />
         ) : null}
         {error?.type === "rate_limit" && (
           <div

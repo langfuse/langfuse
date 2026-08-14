@@ -18,6 +18,16 @@ const providerMocks = vi.hoisted(() => {
   const startRun = vi.fn();
   const cancelRun = vi.fn();
   const decideToolApproval = vi.fn();
+  const activityQuery = {
+    data: undefined as undefined,
+    refetch: vi.fn(() => Promise.resolve({ data: undefined })),
+  };
+  const activityUseQuery = vi.fn(
+    (
+      _input?: { projectId: string; limit: number },
+      _options?: { enabled?: boolean },
+    ) => activityQuery,
+  );
 
   return {
     capture: vi.fn(),
@@ -30,6 +40,8 @@ const providerMocks = vi.hoisted(() => {
       decideToolApproval: { mutateAsync: decideToolApproval },
     },
     getConversation: vi.fn(),
+    activityQuery,
+    activityUseQuery,
     listQuery: {
       data: { pages: [{ conversations: [] }] },
       error: null,
@@ -66,22 +78,22 @@ const providerMocks = vi.hoisted(() => {
     },
     utils: {
       dashboard: {
-        invalidate: vi.fn(),
+        invalidate: vi.fn(() => Promise.resolve()),
       },
       dashboardWidgets: {
-        invalidate: vi.fn(),
+        invalidate: vi.fn(() => Promise.resolve()),
       },
       inAppAgent: {
         getConversation: {
           fetch: vi.fn(),
-          invalidate: vi.fn(),
+          invalidate: vi.fn(() => Promise.resolve()),
         },
         listConversations: {
-          invalidate: vi.fn(),
+          invalidate: vi.fn(() => Promise.resolve()),
         },
       },
       prompts: {
-        invalidate: vi.fn(),
+        invalidate: vi.fn(() => Promise.resolve()),
       },
     },
   };
@@ -94,17 +106,34 @@ vi.mock("next/router", () => ({
   }),
 }));
 
+const sessionMocks = vi.hoisted(() => ({
+  userId: "user-1" as string | undefined,
+  aiFeaturesEnabled: true,
+  isLangfuseCloud: true,
+}));
+
 vi.mock("next-auth/react", () => ({
-  useSession: () => ({ data: { user: { name: "Test User" } } }),
+  useSession: () => ({
+    data: {
+      user: { id: sessionMocks.userId, name: "Test User" },
+    },
+  }),
 }));
 
 vi.mock("@/src/features/entitlements/hooks", () => ({
   useHasEntitlement: () => true,
 }));
 
+vi.mock("@/src/features/organizations/hooks", () => ({
+  useLangfuseCloudRegion: () => ({
+    isLangfuseCloud: sessionMocks.isLangfuseCloud,
+    region: sessionMocks.isLangfuseCloud ? "US" : undefined,
+  }),
+}));
+
 vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
-    organization: { aiFeaturesEnabled: true },
+    organization: { aiFeaturesEnabled: sessionMocks.aiFeaturesEnabled },
   }),
 }));
 
@@ -118,6 +147,11 @@ vi.mock("@/src/utils/api", () => ({
     inAppAgent: {
       listConversations: {
         useInfiniteQuery: () => providerMocks.listQuery,
+        // Bounded activity poll: same procedure, `limit: 50`.
+        useQuery: (
+          input: { projectId: string; limit: number },
+          options?: { enabled?: boolean },
+        ) => providerMocks.activityUseQuery(input, options),
       },
       getConversation: {
         useQuery: (...args: unknown[]) => {
@@ -240,6 +274,12 @@ function queryActivityIndicator() {
 
 describe("in-app agent execution", () => {
   beforeEach(() => {
+    sessionMocks.userId = "user-1";
+    sessionMocks.aiFeaturesEnabled = true;
+    sessionMocks.isLangfuseCloud = true;
+    providerMocks.activityUseQuery.mockImplementation(
+      () => providerMocks.activityQuery,
+    );
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({
@@ -256,6 +296,35 @@ describe("in-app agent execution", () => {
     vi.unstubAllGlobals();
     providerMocks.conversationQuery.data = undefined;
     window.sessionStorage.clear();
+  });
+
+  // Gated more strictly than useCanUseInAppAgent, which ignores the org AI
+  // toggle so the entry points can offer to turn it on. Polling with it off
+  // turns every page load and window focus into a Forbidden toast.
+  it("polls for activity only once AI features are on", () => {
+    sessionMocks.aiFeaturesEnabled = false;
+
+    const offRender = render(
+      <InAppAiAgentProvider defaultOpen={false}>
+        <div />
+      </InAppAiAgentProvider>,
+    );
+
+    expect(providerMocks.activityUseQuery.mock.calls.at(-1)?.[1]?.enabled).toBe(
+      false,
+    );
+    offRender.unmount();
+
+    sessionMocks.aiFeaturesEnabled = true;
+    render(
+      <InAppAiAgentProvider defaultOpen={false}>
+        <div />
+      </InAppAiAgentProvider>,
+    );
+
+    expect(providerMocks.activityUseQuery.mock.calls.at(-1)?.[1]?.enabled).toBe(
+      true,
+    );
   });
 
   it("always allows a persisted background tool for the conversation", async () => {
@@ -986,6 +1055,12 @@ describe("in-app agent execution", () => {
 
 describe("in-app agent concurrent conversations", () => {
   beforeEach(() => {
+    sessionMocks.userId = "user-1";
+    sessionMocks.aiFeaturesEnabled = true;
+    sessionMocks.isLangfuseCloud = true;
+    providerMocks.activityUseQuery.mockImplementation(
+      () => providerMocks.activityQuery,
+    );
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({
@@ -1178,7 +1253,7 @@ describe("in-app agent concurrent conversations", () => {
     expect(screen.getByText("Retry question")).toBeVisible();
     expect(providerMocks.capture).toHaveBeenCalledWith(
       "in_app_agent:new_chat_started",
-      { entryPoint: "chat" },
+      { entryPoint: "chat", hasOtherActiveRun: false },
     );
     expect(
       providerMocks.capture.mock.calls.filter(
