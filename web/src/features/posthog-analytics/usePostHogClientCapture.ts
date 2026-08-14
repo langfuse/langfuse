@@ -17,13 +17,11 @@ export const events = {
     "pagination_page_size_select",
     "column_visibility_change",
     "column_sorting_header_click",
-    "bookmark_button_click",
     "column_visibility_changed",
   ],
   trace: ["delete_form_open", "delete", "delete_form_submit"],
   trace_detail: [
     "publish_button_click",
-    "bookmark_button_click",
     "observation_tree_collapse",
     "observation_tree_expand",
     "observation_tree_toggle_scores",
@@ -325,7 +323,6 @@ export const events = {
   // panel_opened carries the entry surface; panel_checks_loaded carries the
   // amount of work shown (counts only — never keys or SDK payload values).
   v4_migration: [
-    "coding_agent_prompt_viewed",
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
     "project_chip_clicked",
@@ -345,6 +342,7 @@ export const events = {
     "section_link_clicked",
     "project_keys_copied",
     "evals_manual_upgrade_clicked",
+    "walkthrough_video_clicked",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
@@ -356,6 +354,7 @@ export const events = {
     "facet_operator_toggled",
     "active_only_toggled",
     "facet_added",
+    "facet_search",
     "facet_mode_switched",
     "sidebar_toggled",
     "search_submitted",
@@ -366,7 +365,7 @@ export const events = {
   ],
 } as const;
 
-// type that represents all possible event names, e.g. "traces:bookmark"
+// type that represents all possible event names, e.g. "trace:delete"
 type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];

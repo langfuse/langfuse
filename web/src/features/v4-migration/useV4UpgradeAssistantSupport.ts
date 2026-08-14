@@ -55,7 +55,6 @@ export type V4UpgradeAssistantMode =
  */
 export function useEvalUpgradeAssistantPlan(params: {
   projectId: string | undefined;
-  orgId: string | undefined;
   enabled: boolean;
 }) {
   const canUseAssistant = useCanUseInAppAgent();
