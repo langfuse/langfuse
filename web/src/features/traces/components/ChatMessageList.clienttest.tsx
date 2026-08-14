@@ -1,9 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
-// The dedup logic under test lives in ChatMessageList itself; stub the heavy
-// per-message renderer and the media strip so the test observes only which
-// media survive the inline-rendered filter.
+// The dedup under test lives in ChatMessageList; stub the per-message renderer
+// and the media strip to observe only which media survive the filter.
 vi.mock(
   "@/src/features/traces/components/IOPreview/components/ChatMessage",
   () => ({
@@ -43,16 +42,13 @@ const renderList = (content: string) =>
 
 describe("ChatMessageList media dedup", () => {
   it("filters media that the markdown path renders inline", () => {
-    // A lone media reference renders inline through MarkdownView, so the
-    // shared strip must not duplicate it.
     renderList(MEDIA_REF);
 
     expect(screen.queryByTestId("section-media")).not.toBeInTheDocument();
   });
 
   it("keeps media in the strip when over-limit content falls back to JSON", () => {
-    // Over the render character limit, MarkdownJsonView falls back to a JSON
-    // view that does NOT render media inline — so the strip must keep it.
+    // Over the limit, the renderer falls back to a JSON view with no inline media.
     const overLimit = MEDIA_REF.repeat(Math.ceil(150_001 / MEDIA_REF.length));
 
     renderList(overLimit);

@@ -117,17 +117,15 @@ export function estimateMarkdownNestingDepth(content: string): number {
 }
 
 /**
- * Whether `content` should be rendered as plain text rather than parsed as GFM
- * markdown, to avoid stack-overflow crashes on pathologically large or deeply
- * nested payloads. See the module header for the mechanism.
+ * Whether `content` should be rendered as plain text rather than parsed as
+ * GFM markdown, to avoid stack-overflow crashes on pathologically large or
+ * deeply nested payloads (see the module header).
  *
- * `characterLimit` is the configured markdown render character limit (the
- * caller-side input+output+messages gate, see
- * `useMarkdownRenderCharacterLimit`), floored at its 150_000 default so
- * raising the limit also raises this per-string backstop for surfaces that do
- * not apply that gate (e.g. comments). Raising it is safe: flat byte size
- * never overflows the stack (see the module header); the fixed depth check is
- * the overflow guard.
+ * The byte preempt follows `characterLimit` (the configured markdown render
+ * limit, see `useMarkdownRenderCharacterLimit`) floored at its 150_000
+ * default, so raising the limit also raises this backstop for surfaces
+ * without a caller-side gate (e.g. comments). Raising is safe: flat byte size
+ * never overflows; the depth check is the overflow guard.
  */
 export function exceedsMarkdownRenderLimits(
   content: string,

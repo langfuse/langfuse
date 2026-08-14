@@ -6,7 +6,7 @@ import {
   useMarkdownRenderCharacterLimit,
 } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 
-// Created via vi.hoisted so it exists before the hoisted vi.mock factories run.
+// vi.hoisted so it exists before the hoisted vi.mock factories run.
 const { mockMarkdownRenderConfigQuery } = vi.hoisted(() => ({
   mockMarkdownRenderConfigQuery: vi.fn(),
 }));
@@ -21,8 +21,7 @@ vi.mock("@/src/utils/api", () => ({
     },
   },
 }));
-// Distinctive non-default value so the fallback tests fail if the module stops
-// reading env and hardcodes the 150k default instead.
+// Non-default value so the fallback tests fail if the module hardcodes 150k.
 vi.mock("@/src/env.mjs", () => ({
   env: { NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: 42_000 },
 }));

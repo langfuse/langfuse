@@ -500,10 +500,9 @@ export const env = createEnv({
       .default("events_only"),
 
     // Character count above which trace/observation I/O is rendered as plain
-    // text instead of markdown. Read at request time and served to the browser
-    // via the public tRPC router, so prebuilt Docker images can configure it
-    // with a plain runtime env var (unlike its build-time
-    // NEXT_PUBLIC_-prefixed predecessor, which is inlined into the bundle).
+    // text instead of markdown. Served to the browser via the public tRPC
+    // router, so it works as a runtime env var on prebuilt Docker images
+    // (unlike its build-time NEXT_PUBLIC_ predecessor).
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
       .number()
       .int()
@@ -609,9 +608,8 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("true"),
-    // Build-time predecessor of LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT (see
-    // the server section). Kept for source builds/custom images that bake it,
-    // and as the client-side value used until the runtime limit is fetched.
+    // Build-time predecessor of LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT. Kept
+    // as its fallback and as the client value until the runtime limit is fetched.
     NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
       .number()
       .int()
