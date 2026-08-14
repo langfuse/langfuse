@@ -59,6 +59,8 @@ export type TimelineComposition =
   | "icons"
   /** No gutter: names ride on top of the bars. */
   | "overlay"
+  /** No gutter: name above, bar below, both full width. */
+  | "stacked"
   /** Full-width tree or full-width timeline, one at a time. */
   | "modes";
 
@@ -137,8 +139,9 @@ export function TimelineV2({
         box: chartBox,
         pointer: modality,
         rowCount: prepared.rows.length,
+        lines: composition === "stacked" ? 2 : 1,
       }),
-    [chartBox, modality, prepared.rows.length],
+    [chartBox, modality, prepared.rows.length, composition],
   );
   const measurer = useMemo(
     () => createTextMeasurer(`${density.labelFontPx}px ui-sans-serif`),
@@ -432,13 +435,13 @@ export function TimelineV2({
             {result.gaps.map((gap) => (
               <div
                 key={`${gap.x}-${gap.durationMs}`}
-                className="bg-muted/70 border-border absolute inset-y-0 flex items-start justify-center border-x border-dashed"
+                className="bg-muted border-border-contrast absolute inset-y-0 flex items-center justify-center border-x border-dashed"
                 style={{ left: `${gap.x}px`, width: `${gap.width}px` }}
                 title={`${gap.label} of idle time, collapsed`}
               >
                 <span
-                  className="text-muted-foreground mt-0.5"
-                  style={{ fontSize: `${density.labelFontPx - 2}px` }}
+                  className="text-muted-foreground"
+                  style={{ fontSize: `${density.labelFontPx}px` }}
                 >
                   ⋯
                 </span>
@@ -488,7 +491,13 @@ export function TimelineV2({
                     width={chartWidth}
                     barHeight={density.barHeight}
                     fontPx={density.labelFontPx}
-                    withName={composition === "overlay"}
+                    nameMode={
+                      composition === "overlay"
+                        ? "overlay"
+                        : composition === "stacked"
+                          ? "stacked"
+                          : "none"
+                    }
                     isSelected={selectedId === node.id}
                   />
                 ) : null}
@@ -500,7 +509,7 @@ export function TimelineV2({
 
       {showReadout ? (
         <div
-          className="border-border text-muted-foreground flex shrink-0 items-center gap-2 border-t px-1"
+          className="border-border text-muted-foreground flex shrink-0 items-center gap-2 overflow-hidden border-t px-1 whitespace-nowrap"
           style={{ height: `${READOUT_HEIGHT}px`, fontSize: "10px" }}
           data-testid="timeline-v2-readout"
         >
@@ -529,7 +538,7 @@ function resolveGutterWidth(args: {
   mode: "tree" | "timeline";
 }): number {
   const { composition, contentWidth, mode } = args;
-  if (composition === "overlay") return 0;
+  if (composition === "overlay" || composition === "stacked") return 0;
   if (composition === "icons") return Math.min(ICON_GUTTER_WIDTH, contentWidth);
   if (composition === "modes") return mode === "tree" ? contentWidth : 0;
   return Math.round(Math.min(Math.max(contentWidth * 0.4, 96), 280));
@@ -617,14 +626,14 @@ function ChartCell({
   width,
   barHeight,
   fontPx,
-  withName,
+  nameMode,
   isSelected,
 }: {
   node: PositionedNode;
   width: number;
   barHeight: number;
   fontPx: number;
-  withName: boolean;
+  nameMode: "none" | "overlay" | "stacked";
   isSelected: boolean;
 }) {
   return (
@@ -637,7 +646,8 @@ function ChartCell({
         <>
           <div
             className={cn(
-              "bg-muted border-border absolute top-1/2 -translate-y-1/2 border",
+              "bg-muted border-border absolute border",
+              nameMode === "stacked" ? "bottom-1" : "top-1/2 -translate-y-1/2",
               node.durationMs == null && "border-dashed",
               !node.clippedLeft && "rounded-l-sm",
               !node.clippedRight && "rounded-r-sm",
@@ -652,7 +662,12 @@ function ChartCell({
           />
           {node.firstTokenX == null ? null : (
             <div
-              className="bg-border-contrast absolute top-1/2 w-px -translate-y-1/2"
+              className={cn(
+                "bg-border-contrast absolute w-px",
+                nameMode === "stacked"
+                  ? "bottom-1"
+                  : "top-1/2 -translate-y-1/2",
+              )}
               style={{
                 left: `${node.firstTokenX}px`,
                 height: `${barHeight}px`,
@@ -663,7 +678,10 @@ function ChartCell({
           {node.labelPlacement === "hidden" ? null : (
             <span
               className={cn(
-                "absolute top-1/2 -translate-y-1/2 whitespace-nowrap",
+                "absolute whitespace-nowrap",
+                nameMode === "stacked"
+                  ? "bottom-1"
+                  : "top-1/2 -translate-y-1/2",
                 node.labelPlacement === "inside"
                   ? "text-foreground"
                   : "text-muted-foreground",
@@ -679,12 +697,26 @@ function ChartCell({
           )}
         </>
       )}
-      {withName ? (
+      {nameMode === "overlay" ? (
         // Names ride over the bars: a gradient keeps them readable without
         // stealing a column from the chart.
         <span
           className="from-background via-background/90 pointer-events-none absolute top-1/2 left-1 max-w-[70%] -translate-y-1/2 truncate bg-gradient-to-r to-transparent pr-3"
           style={{ fontSize: `${fontPx}px` }}
+          title={node.name}
+        >
+          {node.name}
+        </span>
+      ) : null}
+      {nameMode === "stacked" ? (
+        // Name above, bar below: the chart keeps the full width and the name
+        // keeps its full length, at the cost of a taller row.
+        <span
+          className="text-foreground pointer-events-none absolute top-0 right-1 truncate"
+          style={{
+            left: `${Math.min(node.depth, GUTTER_MAX_DEPTH) * GUTTER_INDENT + 4}px`,
+            fontSize: `${fontPx}px`,
+          }}
           title={node.name}
         >
           {node.name}

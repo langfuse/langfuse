@@ -15,6 +15,7 @@ const COMPOSITIONS: TimelineComposition[] = [
   "split",
   "icons",
   "overlay",
+  "stacked",
   "modes",
 ];
 
@@ -47,6 +48,17 @@ export const NamesOverBars = meta.story({
     pointer: "coarse",
     compress: false,
     composition: "overlay",
+    showReadout: true,
+  },
+});
+
+export const NameAboveBar = meta.story({
+  args: {
+    roots: reporterTrace(),
+    box: PHONE,
+    pointer: "coarse",
+    compress: false,
+    composition: "stacked",
     showReadout: true,
   },
 });

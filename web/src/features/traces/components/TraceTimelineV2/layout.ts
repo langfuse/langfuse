@@ -154,6 +154,8 @@ const EPSILON = 0.5;
 const MAX_TICKS = 64;
 const MIN_TICK_GAP_PX = 56;
 const TICK_LABEL_PADDING_PX = 16;
+/** Matches the renderer's label offset from its tick line. */
+const TICK_LABEL_INSET_PX = 6;
 
 // Nice tick steps in ms. Above a minute they land on time-nice boundaries so
 // hour-scale traces get clean labels instead of "1500s".
@@ -481,24 +483,39 @@ function buildTicks(context: {
   const insideCollapsedGap = (realMs: number) =>
     compression.gaps.some((gap) => realMs > gap.start && realMs < gap.end);
 
+  const fits = (x: number, label: string) =>
+    x >= -EPSILON &&
+    x + TICK_LABEL_INSET_PX + measurer.measure(label) <= laneWidth;
+
+  // The far side of every collapsed gap gets a tick first. Without them a
+  // compressed axis loses every nice-step label into a gap and reads as a
+  // single "0ms" — and the visible jump from 95ms to 18.00s across a 28px band
+  // is what explains the band to the user.
   const ticks: Tick[] = [];
-  let previousX = -Infinity;
+  for (const gap of compression.gaps) {
+    const x = transform.toPx(gap.compressedEnd);
+    const label = formatDurationMs(gap.end);
+    if (fits(x, label)) ticks.push({ realMs: gap.end, x, label });
+  }
+
+  const collides = (x: number) =>
+    ticks.some((tick) => Math.abs(tick.x - x) < minGapPx);
+
   const first = Math.ceil(realStart / step) * step;
   for (let realMs = first; realMs <= realEnd; realMs += step) {
     if (ticks.length >= MAX_TICKS) break;
     if (insideCollapsedGap(realMs)) continue;
     const x = transform.toPx(compression.toCompressedMs(realMs));
-    // Compression makes px spacing non-uniform, so labels are de-overlapped
-    // here rather than assumed from the step. `toPx ∘ toCompressedMs` is
-    // monotonic, so passing the right edge ends the walk.
+    // `toPx ∘ toCompressedMs` is monotonic, so passing the right edge ends the
+    // walk. Compression makes px spacing non-uniform, so labels are
+    // de-overlapped against what is already placed, not assumed from the step.
     if (x > laneWidth + EPSILON) break;
-    if (x < -EPSILON) continue;
-    if (x - previousX < minGapPx) continue;
-    previousX = x;
-    ticks.push({ realMs, x, label: formatDurationMs(realMs) });
+    const label = formatDurationMs(realMs);
+    if (!fits(x, label) || collides(x)) continue;
+    ticks.push({ realMs, x, label });
   }
 
-  return ticks;
+  return ticks.sort((a, b) => a.x - b.x);
 }
 
 function buildGapMarkers(context: {

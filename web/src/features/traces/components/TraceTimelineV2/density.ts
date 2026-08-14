@@ -21,6 +21,8 @@ export type PointerModality = "fine" | "coarse";
 
 export const FINE_ROW_HEIGHT = 26;
 export const COARSE_ROW_HEIGHT = 44;
+/** A row that stacks a name over its bar needs two text lines' worth. */
+export const TWO_LINE_MIN_HEIGHT = 38;
 /** How far rows may grow into a tall box before it stops reading as a list. */
 const MAX_GROWTH = 1.3;
 
@@ -41,9 +43,15 @@ export function resolveDensity(options: {
   box: Box;
   pointer: PointerModality;
   rowCount: number;
+  /** 2 when the row stacks a name above its bar (no name gutter). */
+  lines?: 1 | 2;
 }): Density {
   const { pointer, rowCount } = options;
-  const base = pointer === "coarse" ? COARSE_ROW_HEIGHT : FINE_ROW_HEIGHT;
+  const lines = options.lines ?? 1;
+  const base = Math.max(
+    pointer === "coarse" ? COARSE_ROW_HEIGHT : FINE_ROW_HEIGHT,
+    lines === 2 ? TWO_LINE_MIN_HEIGHT : 0,
+  );
   const height = Number.isFinite(options.box.height) ? options.box.height : 0;
 
   const perRow = rowCount > 0 && height > 0 ? Math.floor(height / rowCount) : 0;
@@ -55,7 +63,7 @@ export function resolveDensity(options: {
   return {
     pointer,
     rowHeight,
-    barHeight: Math.max(8, Math.round(rowHeight * 0.6)),
+    barHeight: Math.max(8, Math.round(rowHeight * (lines === 2 ? 0.35 : 0.6))),
     labelFontPx: pointer === "coarse" ? 13 : 12,
     labelPaddingPx: 4,
     labelGapPx: 6,
