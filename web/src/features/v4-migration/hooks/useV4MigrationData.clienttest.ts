@@ -1,13 +1,17 @@
 import { renderHook } from "@testing-library/react";
 import { vi } from "vitest";
 
-import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
+import {
+  useAccountV4MigrationData,
+  useProjectV4CachedMigrationActions,
+} from "@/src/features/v4-migration/hooks/useV4MigrationData";
 
 const mocks = vi.hoisted(() => ({
   summaryByProject: vi.fn(),
   traceLevelEvalSummaryByProject: vi.fn(),
   legacyApiUsageSummaryByProject: vi.fn(),
   sdkUsageSummaryByProject: vi.fn(),
+  cachedMigrationActionsUseQuery: vi.fn(),
   queryResultSets: [] as unknown[][],
 }));
 
@@ -32,6 +36,12 @@ vi.mock("@/src/utils/api", () => ({
         },
       });
       return mocks.queryResultSets.shift() ?? [];
+    },
+    v4Transition: {
+      cachedMigrationActions: {
+        useQuery: (...args: unknown[]) =>
+          mocks.cachedMigrationActionsUseQuery(...args),
+      },
     },
   },
 }));
@@ -190,5 +200,92 @@ describe("account v4 migration data", () => {
     expect(result.current.get("project-1")).toMatchObject({
       forceV3Experience: true,
     });
+  });
+});
+
+describe("cached migration actions", () => {
+  const cachedActions = (
+    overrides: Partial<{
+      forceV3Experience: boolean;
+      sdkActionNeeded: boolean | null;
+      experimentsActionNeeded: boolean | null;
+      apisActionNeeded: boolean | null;
+      evalsActionNeeded: boolean;
+      exportsActionNeeded: boolean;
+    }> = {},
+  ) => ({
+    forceV3Experience: false,
+    sdkActionNeeded: null,
+    experimentsActionNeeded: null,
+    apisActionNeeded: null,
+    evalsActionNeeded: false,
+    exportsActionNeeded: false,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    mocks.cachedMigrationActionsUseQuery.mockReset();
+  });
+
+  it("reports no action while the query has no data", () => {
+    mocks.cachedMigrationActionsUseQuery.mockReturnValue({ data: undefined });
+
+    const { result } = renderHook(() =>
+      useProjectV4CachedMigrationActions({
+        projectId: "project-1",
+        enabled: true,
+      }),
+    );
+
+    expect(result.current).toEqual({ actionNeeded: false });
+  });
+
+  it("treats unknown categories as no signal instead of action needed", () => {
+    mocks.cachedMigrationActionsUseQuery.mockReturnValue({
+      data: cachedActions(),
+    });
+
+    const { result } = renderHook(() =>
+      useProjectV4CachedMigrationActions({
+        projectId: "project-1",
+        enabled: true,
+      }),
+    );
+
+    expect(result.current).toEqual({ actionNeeded: false });
+  });
+
+  it("needs action when any known category requires it", () => {
+    mocks.cachedMigrationActionsUseQuery.mockReturnValue({
+      data: cachedActions({ sdkActionNeeded: true }),
+    });
+
+    const { result } = renderHook(() =>
+      useProjectV4CachedMigrationActions({
+        projectId: "project-1",
+        enabled: true,
+      }),
+    );
+
+    expect(result.current).toEqual({ actionNeeded: true });
+  });
+
+  it("suppresses the signal for partner-managed (forced v3) projects", () => {
+    mocks.cachedMigrationActionsUseQuery.mockReturnValue({
+      data: cachedActions({
+        forceV3Experience: true,
+        sdkActionNeeded: true,
+        evalsActionNeeded: true,
+      }),
+    });
+
+    const { result } = renderHook(() =>
+      useProjectV4CachedMigrationActions({
+        projectId: "project-1",
+        enabled: true,
+      }),
+    );
+
+    expect(result.current).toEqual({ actionNeeded: false });
   });
 });

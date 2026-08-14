@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   openMigrationPanel: vi.fn(),
   setOpenMobileSidebar: vi.fn(),
   migrationData: undefined as unknown as ProjectMigrationStatus,
+  cachedActionNeeded: false,
 }));
 
 vi.mock("@/src/components/ui/sidebar", () => ({
@@ -38,6 +39,11 @@ vi.mock("@/src/features/projects/hooks", () => ({
 
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useProjectV4MigrationData: () => mocks.migrationData,
+  // The nav item reads the Redis-backed signal only; unknown categories keep
+  // the pill hidden instead of triggering the full usage checks.
+  useProjectV4CachedMigrationActions: () => ({
+    actionNeeded: mocks.cachedActionNeeded,
+  }),
 }));
 
 vi.mock("@/src/features/v4-migration/hooks/useOpenV4MigrationPanel", () => ({
@@ -68,6 +74,7 @@ const migrationStatus = (
 describe("v4 migration entry points", () => {
   beforeEach(() => {
     mocks.migrationData = migrationStatus();
+    mocks.cachedActionNeeded = false;
   });
 
   it("hides the project chip and sidebar item when the project is up to date", () => {
@@ -89,6 +96,7 @@ describe("v4 migration entry points", () => {
     mocks.migrationData = migrationStatus({
       evals: { status: "loaded", count: 1 },
     });
+    mocks.cachedActionNeeded = true;
 
     render(
       <>

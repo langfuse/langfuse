@@ -22,7 +22,41 @@ import {
   type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
-const MAX_DETECTION_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
+import {
+  isV4TransitionCacheAvailable,
+  MIGRATION_INGRESS_EVENT_SOURCES,
+  readExperimentPostUsageCache,
+  readLegacyApiUsageCache,
+  readSdkUsageCache,
+  SDK_USAGE_CACHE_MAX_AGE_MS,
+  writeExperimentPostUsageCache,
+  writeLegacyApiUsageCache,
+  writeSdkUsageCache,
+  type CachedLegacyApiUsageRow,
+  type CachedSdkUsageSeries,
+  type SdkUsageCacheBlob,
+} from "@/src/features/v4/server/v4TransitionCache";
+
+const HOUR_MS = 60 * 60 * 1000;
+const DETECTION_WINDOW_MS = 7 * 24 * HOUR_MS;
+const MAX_DETECTION_RANGE_MS = DETECTION_WINDOW_MS;
+
+/**
+ * Detection windows are computed server-side so cache entries are shared
+ * across requesters and long-lived tabs cannot pin stale ranges. The
+ * client-provided range is validated for contract compatibility but does not
+ * drive the queried window.
+ */
+const getDetectionWindow = (nowMs = Date.now()) => {
+  const hotStart = new Date(Math.floor(nowMs / HOUR_MS) * HOUR_MS);
+  const windowEnd = new Date(hotStart.getTime() + HOUR_MS);
+  return {
+    /** Start of the current hour; cached SDK blobs cover strictly before it. */
+    hotStart,
+    windowEnd,
+    windowStart: new Date(windowEnd.getTime() - DETECTION_WINDOW_MS),
+  };
+};
 
 const legacyIntegrationExportSources =
   new Set<AnalyticsIntegrationExportSource>([
@@ -32,13 +66,6 @@ const legacyIntegrationExportSources =
 
 const TRACE_EVAL_TARGET = "trace";
 const DATASET_EVAL_TARGET = "dataset";
-
-/** Customer-ingress sources. Historical and experiment materializations are excluded. */
-const MIGRATION_INGRESS_EVENT_SOURCES = [
-  "ingestion-api-dual-write",
-  "otel-dual-write",
-  "otel",
-] as const;
 
 type MigrationIngressSource = (typeof MIGRATION_INGRESS_EVENT_SOURCES)[number];
 type MigrationIngestionPath = "otel" | "ingestion_api";
@@ -79,7 +106,7 @@ const projectTimeRangeInputSchema = z
   .refine(
     ({ fromTimestamp, toTimestamp }) =>
       toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_DETECTION_RANGE_MS,
-    { message: "V4 migration ranges cannot exceed 30 days" },
+    { message: "V4 migration ranges cannot exceed 7 days" },
   );
 
 const organizationTimeRangeInputSchema = z
@@ -96,7 +123,7 @@ const organizationTimeRangeInputSchema = z
   .refine(
     ({ fromTimestamp, toTimestamp }) =>
       toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_DETECTION_RANGE_MS,
-    { message: "V4 migration ranges cannot exceed 30 days" },
+    { message: "V4 migration ranges cannot exceed 7 days" },
   );
 
 type LegacyApiUsageSummaryByProjectRow = {
@@ -134,25 +161,7 @@ type SdkUsageSummaryByProjectRow = {
   lastSeen: string;
 };
 
-type SdkUsageSummaryByProjectSeries = {
-  source: MigrationIngressSource;
-  ingestionPath: MigrationIngestionPath;
-  deliveryMode: MigrationDeliveryMode;
-  sdkName: string;
-  sdkVersion: string;
-  canonicalSdkName: "python" | "javascript" | null;
-  sdkVersionMajor: number | null;
-  latestSdkMajor: number | null;
-  isValidSdkVersion: boolean;
-  attributionStatus: IngestionSdkAttributionStatus;
-  publicKey: string;
-  v4MigrationStatus: V4MigrationStatus;
-  remediationType: MigrationRemediationType;
-  actionLevel: MigrationActionLevel;
-  eventCount: number;
-  firstSeen: string;
-  lastSeen: string;
-};
+type SdkUsageSummaryByProjectSeries = CachedSdkUsageSeries;
 
 // Counts stay out of this row on purpose: the client derives every displayed
 // count from sdkUsageSeries in sdkVersionStatus.ts, so duplicating the
@@ -398,26 +407,7 @@ const getTraceLevelEvalSummaries = async ({
   }));
 };
 
-const getSdkUsageSummaries = async ({
-  projectIds,
-  fromTimestamp,
-  toTimestamp,
-}: {
-  projectIds: string[];
-  fromTimestamp: Date;
-  toTimestamp: Date;
-}): Promise<SdkUsageSummaryByProjectResultRow[]> => {
-  if (projectIds.length === 0) return [];
-
-  const systemQueryLogServices = getSystemQueryLogServices({
-    readService: "EventsReadOnly",
-    readUrl:
-      env.CLICKHOUSE_EVENTS_READ_ONLY_URL ?? env.CLICKHOUSE_READ_ONLY_URL,
-  });
-
-  const [rows, datasetRunItemsPostUsageResult] = await Promise.all([
-    queryClickhouse<SdkUsageSummaryByProjectRow>({
-      query: `
+const buildSdkUsageQuery = (endBoundary: "inclusive" | "exclusive") => `
 WITH filtered AS (
   SELECT
     project_id AS projectId,
@@ -430,7 +420,7 @@ WITH filtered AS (
   WHERE
     project_id IN {projectIds: Array(String)}
     AND start_time >= {fromTimestamp: DateTime64(3)}
-    AND start_time <= {toTimestamp: DateTime64(3)}
+    AND start_time ${endBoundary === "inclusive" ? "<=" : "<"} {toTimestamp: DateTime64(3)}
     AND source IN {ingressSources: Array(String)}
     AND NOT startsWith(environment, 'langfuse-')
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
@@ -532,22 +522,286 @@ ORDER BY
   sdkName ASC,
   sdkVersion ASC,
   publicKey ASC
-      `,
-      params: {
-        projectIds,
-        fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
-        toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
-        internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
-        ingressSources: [...MIGRATION_INGRESS_EVENT_SOURCES],
-      },
-      tags: { route: "v4-sdk-usage-summary" },
-      preferredClickhouseService: "EventsReadOnly",
+      `;
+
+const querySdkUsageRows = ({
+  projectIds,
+  fromTimestamp,
+  toTimestamp,
+  endBoundary,
+}: {
+  projectIds: string[];
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  endBoundary: "inclusive" | "exclusive";
+}): Promise<SdkUsageSummaryByProjectRow[]> =>
+  queryClickhouse<SdkUsageSummaryByProjectRow>({
+    query: buildSdkUsageQuery(endBoundary),
+    params: {
+      projectIds,
+      fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
+      toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
+      internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
+      ingressSources: [...MIGRATION_INGRESS_EVENT_SOURCES],
+    },
+    tags: { route: "v4-sdk-usage-summary" },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+const toSdkUsageSeries = (
+  row: SdkUsageSummaryByProjectRow,
+): SdkUsageSummaryByProjectSeries => ({
+  source: row.source,
+  ingestionPath: row.ingestionPath,
+  deliveryMode: row.deliveryMode,
+  sdkName: row.sdkName,
+  sdkVersion: row.sdkVersion,
+  canonicalSdkName: row.canonicalSdkName,
+  sdkVersionMajor:
+    row.sdkVersionMajor === null ? null : Number(row.sdkVersionMajor),
+  latestSdkMajor:
+    row.latestSdkMajor === null ? null : Number(row.latestSdkMajor),
+  isValidSdkVersion: toBoolean(row.isValidSdkVersion),
+  attributionStatus: row.attributionStatus,
+  publicKey: row.publicKey,
+  v4MigrationStatus: row.v4MigrationStatus,
+  remediationType: row.remediationType,
+  actionLevel: row.actionLevel,
+  eventCount: Number(row.eventCount),
+  firstSeen: row.firstSeen,
+  lastSeen: row.lastSeen,
+});
+
+const groupSdkUsageRowsByProject = (
+  rows: SdkUsageSummaryByProjectRow[],
+): Map<string, SdkUsageSummaryByProjectSeries[]> => {
+  const byProject = new Map<string, SdkUsageSummaryByProjectSeries[]>();
+  for (const row of rows) {
+    const projectSeries = byProject.get(row.projectId) ?? [];
+    projectSeries.push(toSdkUsageSeries(row));
+    byProject.set(row.projectId, projectSeries);
+  }
+  return byProject;
+};
+
+const sdkUsageSeriesKey = (series: SdkUsageSummaryByProjectSeries): string =>
+  [series.source, series.sdkName, series.sdkVersion, series.publicKey].join(
+    "\u0000",
+  );
+
+/**
+ * Merges cached historical series with live gap series per series key.
+ * Counts add and seen-ranges union; classification fields come from the live
+ * row when present because they embed rules (e.g. latest SDK major) that may
+ * have changed since the historical entry was cached.
+ */
+const mergeSdkUsageSeries = (
+  historical: SdkUsageSummaryByProjectSeries[],
+  live: SdkUsageSummaryByProjectSeries[],
+): SdkUsageSummaryByProjectSeries[] => {
+  const byKey = new Map<string, SdkUsageSummaryByProjectSeries>();
+  for (const series of historical) {
+    byKey.set(sdkUsageSeriesKey(series), series);
+  }
+  for (const series of live) {
+    const key = sdkUsageSeriesKey(series);
+    const existing = byKey.get(key);
+    byKey.set(
+      key,
+      existing
+        ? {
+            ...series,
+            eventCount: existing.eventCount + series.eventCount,
+            firstSeen:
+              existing.firstSeen < series.firstSeen
+                ? existing.firstSeen
+                : series.firstSeen,
+            lastSeen:
+              existing.lastSeen > series.lastSeen
+                ? existing.lastSeen
+                : series.lastSeen,
+          }
+        : series,
+    );
+  }
+  return Array.from(byKey.values());
+};
+
+/** Matches the SQL ordering within a project: most recently seen first. */
+const sortSdkUsageSeries = (
+  series: SdkUsageSummaryByProjectSeries[],
+): SdkUsageSummaryByProjectSeries[] =>
+  [...series].sort(
+    (left, right) =>
+      right.lastSeen.localeCompare(left.lastSeen) ||
+      left.source.localeCompare(right.source) ||
+      left.sdkName.localeCompare(right.sdkName) ||
+      left.sdkVersion.localeCompare(right.sdkVersion) ||
+      left.publicKey.localeCompare(right.publicKey),
+  );
+
+/**
+ * Drops series that aged out of the detection window. Cached blobs may cover
+ * a window whose left edge is up to a day older than "now minus 7 days", so
+ * aging-out is enforced at read time.
+ */
+const trimSdkUsageSeries = (
+  series: SdkUsageSummaryByProjectSeries[],
+  nowMs: number,
+): SdkUsageSummaryByProjectSeries[] =>
+  series.filter(
+    (entry) => Date.parse(entry.lastSeen) >= nowMs - DETECTION_WINDOW_MS,
+  );
+
+const isSdkUsageBlobUsable = (
+  blob: SdkUsageCacheBlob | null,
+  nowMs: number,
+): blob is SdkUsageCacheBlob => {
+  if (!blob) return false;
+  const blobHotStartMs = Date.parse(blob.hotStart);
+  return (
+    Number.isFinite(blobHotStartMs) &&
+    blobHotStartMs >= nowMs - SDK_USAGE_CACHE_MAX_AGE_MS &&
+    blobHotStartMs <= nowMs
+  );
+};
+
+/**
+ * SDK ingestion series for the trailing detection window, per project.
+ *
+ * Historical data (everything before the current hour) is served from a
+ * per-project Redis blob and only queried from ClickHouse on cache miss.
+ * The remaining gap up to now is always queried live from the indexed
+ * `events_core` table so freshness never depends on the cache: a user who
+ * upgrades their SDK sees the new version within minutes.
+ */
+const getSdkUsageSeriesByProject = async ({
+  projectIds,
+  nowMs,
+}: {
+  projectIds: string[];
+  nowMs: number;
+}): Promise<Map<string, SdkUsageSummaryByProjectSeries[]>> => {
+  const { hotStart, windowEnd, windowStart } = getDetectionWindow(nowMs);
+
+  if (!isV4TransitionCacheAvailable()) {
+    const rows = await querySdkUsageRows({
+      projectIds,
+      fromTimestamp: windowStart,
+      toTimestamp: windowEnd,
+      endBoundary: "inclusive",
+    });
+    const byProject = groupSdkUsageRowsByProject(rows);
+    return new Map(
+      projectIds.map((projectId) => [
+        projectId,
+        sortSdkUsageSeries(
+          trimSdkUsageSeries(byProject.get(projectId) ?? [], nowMs),
+        ),
+      ]),
+    );
+  }
+
+  const cachedBlobs = await readSdkUsageCache(projectIds);
+  const cachedSeriesByProject = new Map<
+    string,
+    SdkUsageSummaryByProjectSeries[]
+  >();
+  const gapStartMsByProject = new Map<string, number>();
+  const missedProjectIds: string[] = [];
+  projectIds.forEach((projectId, index) => {
+    const blob = cachedBlobs[index] ?? null;
+    if (isSdkUsageBlobUsable(blob, nowMs)) {
+      cachedSeriesByProject.set(projectId, blob.series);
+      gapStartMsByProject.set(projectId, Date.parse(blob.hotStart));
+    } else {
+      missedProjectIds.push(projectId);
+      gapStartMsByProject.set(projectId, hotStart.getTime());
+    }
+  });
+
+  // Group the live queries by gap start so every project's uncached slice is
+  // fetched exactly once without overlapping its cached window. Gap starts
+  // are hour-aligned, so this stays a handful of groups at most.
+  const gapProjectIdsByStartMs = new Map<number, string[]>();
+  for (const [projectId, gapStartMs] of gapStartMsByProject) {
+    const group = gapProjectIdsByStartMs.get(gapStartMs) ?? [];
+    group.push(projectId);
+    gapProjectIdsByStartMs.set(gapStartMs, group);
+  }
+
+  const [historicalRows, ...gapRowSets] = await Promise.all([
+    missedProjectIds.length > 0
+      ? querySdkUsageRows({
+          projectIds: missedProjectIds,
+          fromTimestamp: windowStart,
+          toTimestamp: hotStart,
+          endBoundary: "exclusive",
+        })
+      : Promise.resolve([] as SdkUsageSummaryByProjectRow[]),
+    ...Array.from(gapProjectIdsByStartMs.entries()).map(
+      ([gapStartMs, gapProjectIds]) =>
+        querySdkUsageRows({
+          projectIds: gapProjectIds,
+          fromTimestamp: new Date(gapStartMs),
+          toTimestamp: windowEnd,
+          endBoundary: "inclusive",
+        }),
+    ),
+  ]);
+
+  const historicalByProject = groupSdkUsageRowsByProject(historicalRows);
+  const liveByProject = groupSdkUsageRowsByProject(gapRowSets.flat());
+
+  // Empty results are cached too; otherwise idle projects would re-run the
+  // historical query on every request.
+  await writeSdkUsageCache(
+    missedProjectIds.map((projectId) => ({
+      projectId,
+      hotStart,
+      series: historicalByProject.get(projectId) ?? [],
+    })),
+    new Date(nowMs),
+  );
+
+  return new Map(
+    projectIds.map((projectId) => {
+      const historical =
+        cachedSeriesByProject.get(projectId) ??
+        historicalByProject.get(projectId) ??
+        [];
+      const merged = mergeSdkUsageSeries(
+        historical,
+        liveByProject.get(projectId) ?? [],
+      );
+      return [projectId, sortSdkUsageSeries(trimSdkUsageSeries(merged, nowMs))];
     }),
-    querySystemQueryLogAcrossServices({
-      preferredClickhouseServices: systemQueryLogServices,
-      queryService: (preferredClickhouseService) =>
-        queryClickhouse<DatasetRunItemsPostUsageByProjectRow>({
-          query: `
+  );
+};
+
+const queryDatasetRunItemsPostUsage = async ({
+  projectIds,
+  fromTimestamp,
+  toTimestamp,
+}: {
+  projectIds: string[];
+  fromTimestamp: Date;
+  toTimestamp: Date;
+}): Promise<
+  | { status: "success"; rows: DatasetRunItemsPostUsageByProjectRow[] }
+  | { status: "error" }
+> => {
+  const systemQueryLogServices = getSystemQueryLogServices({
+    readService: "EventsReadOnly",
+    readUrl:
+      env.CLICKHOUSE_EVENTS_READ_ONLY_URL ?? env.CLICKHOUSE_READ_ONLY_URL,
+  });
+
+  return querySystemQueryLogAcrossServices({
+    preferredClickhouseServices: systemQueryLogServices,
+    queryService: (preferredClickhouseService) =>
+      queryClickhouse<DatasetRunItemsPostUsageByProjectRow>({
+        query: `
 SELECT
   JSONExtractString(log_comment, 'projectId') AS projectId,
   count() AS count
@@ -565,112 +819,166 @@ WHERE
 GROUP BY projectId
 SETTINGS skip_unavailable_shards = 1
       `,
-          params: {
-            projectIds,
-            fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
-            toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
-          },
-          tags: { route: "v4-experiment-instrumentation-summary" },
-          preferredClickhouseService,
-          clickhouseSettings: { skip_unavailable_shards: 1 },
-        }),
-      failureMessage:
-        "Failed to query dataset-run-items POST usage from ClickHouse service",
-    })
-      .then((serviceRows) => ({
-        status: "success" as const,
-        rows: serviceRows.flat(),
-      }))
-      .catch((error: unknown) => {
-        logger.warn(
-          "Failed to query dataset-run-items POST usage for v4 migration",
-          error,
-        );
-        return {
-          status: "error" as const,
-          rows: [] as DatasetRunItemsPostUsageByProjectRow[],
-        };
+        params: {
+          projectIds,
+          fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
+          toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
+        },
+        tags: { route: "v4-experiment-instrumentation-summary" },
+        preferredClickhouseService,
+        clickhouseSettings: { skip_unavailable_shards: 1 },
       }),
-  ]);
+    failureMessage:
+      "Failed to query dataset-run-items POST usage from ClickHouse service",
+  })
+    .then((serviceRows) => ({
+      status: "success" as const,
+      rows: serviceRows.flat(),
+    }))
+    .catch((error: unknown) => {
+      logger.warn(
+        "Failed to query dataset-run-items POST usage for v4 migration",
+        error,
+      );
+      return { status: "error" as const };
+    });
+};
 
-  const rowsByProjectId = new Map<string, SdkUsageSummaryByProjectRow[]>();
-  for (const row of rows) {
-    const projectRows = rowsByProjectId.get(row.projectId) ?? [];
-    projectRows.push(row);
-    rowsByProjectId.set(row.projectId, projectRows);
+/**
+ * Whether each project called `POST /api/public/dataset-run-items` within the
+ * detection window. Served from a 12h Redis cache because the underlying
+ * `system.query_log` scan is expensive (unindexed JSON filters, multi-service
+ * replica fan-out); only cache misses reach ClickHouse. `"check_failed"`
+ * marks projects whose usage could not be determined.
+ */
+const getExperimentPostUsageByProject = async ({
+  projectIds,
+  nowMs,
+}: {
+  projectIds: string[];
+  nowMs: number;
+}): Promise<Map<string, boolean | "check_failed">> => {
+  const { windowStart, windowEnd } = getDetectionWindow(nowMs);
+  const usageByProject = new Map<string, boolean | "check_failed">();
+
+  const cachedBlobs = isV4TransitionCacheAvailable()
+    ? await readExperimentPostUsageCache(projectIds)
+    : projectIds.map(() => null);
+  const missedProjectIds: string[] = [];
+  projectIds.forEach((projectId, index) => {
+    const blob = cachedBlobs[index];
+    if (blob) {
+      usageByProject.set(projectId, blob.used);
+    } else {
+      missedProjectIds.push(projectId);
+    }
+  });
+  if (missedProjectIds.length === 0) return usageByProject;
+
+  const queryResult = await queryDatasetRunItemsPostUsage({
+    projectIds: missedProjectIds,
+    fromTimestamp: windowStart,
+    toTimestamp: windowEnd,
+  });
+  if (queryResult.status === "error") {
+    missedProjectIds.forEach((projectId) =>
+      usageByProject.set(projectId, "check_failed"),
+    );
+    return usageByProject;
   }
+
   const projectsUsingDatasetRunItemsPost = new Set(
-    datasetRunItemsPostUsageResult.rows
+    queryResult.rows
       .filter((row) => Number(row.count) > 0)
       .map((row) => row.projectId),
   );
+  missedProjectIds.forEach((projectId) =>
+    usageByProject.set(
+      projectId,
+      projectsUsingDatasetRunItemsPost.has(projectId),
+    ),
+  );
+  await writeExperimentPostUsageCache(
+    missedProjectIds.map((projectId) => ({
+      projectId,
+      used: projectsUsingDatasetRunItemsPost.has(projectId),
+    })),
+    new Date(nowMs),
+  );
+  return usageByProject;
+};
 
-  return projectIds.map((projectId) => {
-    const projectRows = (rowsByProjectId.get(projectId) ?? []).map(
-      (row): SdkUsageSummaryByProjectSeries => ({
-        source: row.source,
-        ingestionPath: row.ingestionPath,
-        deliveryMode: row.deliveryMode,
-        sdkName: row.sdkName,
-        sdkVersion: row.sdkVersion,
-        canonicalSdkName: row.canonicalSdkName,
-        sdkVersionMajor:
-          row.sdkVersionMajor === null ? null : Number(row.sdkVersionMajor),
-        latestSdkMajor:
-          row.latestSdkMajor === null ? null : Number(row.latestSdkMajor),
-        isValidSdkVersion: toBoolean(row.isValidSdkVersion),
-        attributionStatus: row.attributionStatus,
-        publicKey: row.publicKey,
-        v4MigrationStatus: row.v4MigrationStatus,
-        remediationType: row.remediationType,
-        actionLevel: row.actionLevel,
-        eventCount: Number(row.eventCount),
-        firstSeen: row.firstSeen,
-        lastSeen: row.lastSeen,
-      }),
-    );
-    const sdkUsageSeries = projectRows;
-    const langfuseSdkUsage = projectRows.filter(
-      (series) => series.canonicalSdkName !== null,
-    );
-    const hasCurrentExperimentInstrumentation =
-      langfuseSdkUsage.length > 0 &&
-      langfuseSdkUsage.every(
-        (series) =>
-          getSdkVersionCapabilityStatus(
-            { language: series.sdkName, version: series.sdkVersion },
-            "experimentLinkDeprecation",
-          ) === "supported",
-      );
-    const hasInconclusiveExperimentSdkUsage = langfuseSdkUsage.some(
-      (series) => {
-        const runnerStatus = getSdkVersionCapabilityStatus(
-          { language: series.sdkName, version: series.sdkVersion },
-          "experimentRunner",
-        );
-        const currentInstrumentationStatus = getSdkVersionCapabilityStatus(
+const deriveExperimentInstrumentationMigration = ({
+  sdkUsageSeries,
+  postUsage,
+}: {
+  sdkUsageSeries: SdkUsageSummaryByProjectSeries[];
+  postUsage: boolean | "check_failed";
+}): SdkUsageSummaryByProjectResultRow["experimentInstrumentationMigration"] => {
+  if (postUsage === "check_failed") {
+    return { status: "check_failed", upgradePath: null };
+  }
+  if (!postUsage) {
+    return { status: "not_required", upgradePath: null };
+  }
+  const langfuseSdkUsage = sdkUsageSeries.filter(
+    (series) => series.canonicalSdkName !== null,
+  );
+  const hasCurrentExperimentInstrumentation =
+    langfuseSdkUsage.length > 0 &&
+    langfuseSdkUsage.every(
+      (series) =>
+        getSdkVersionCapabilityStatus(
           { language: series.sdkName, version: series.sdkVersion },
           "experimentLinkDeprecation",
-        );
-        return (
-          currentInstrumentationStatus === "unknown" ||
-          (runnerStatus !== "unsupported" &&
-            currentInstrumentationStatus !== "supported")
-        );
-      },
+        ) === "supported",
     );
-    const experimentInstrumentationMigration: SdkUsageSummaryByProjectResultRow["experimentInstrumentationMigration"] =
-      datasetRunItemsPostUsageResult.status === "error"
-        ? { status: "check_failed", upgradePath: null }
-        : !projectsUsingDatasetRunItemsPost.has(projectId)
-          ? { status: "not_required", upgradePath: null }
-          : hasCurrentExperimentInstrumentation
-            ? { status: "not_required", upgradePath: null }
-            : hasInconclusiveExperimentSdkUsage
-              ? { status: "sdk_usage_inconclusive", upgradePath: "sdk" }
-              : { status: "required", upgradePath: "api" };
+  const hasInconclusiveExperimentSdkUsage = langfuseSdkUsage.some((series) => {
+    const runnerStatus = getSdkVersionCapabilityStatus(
+      { language: series.sdkName, version: series.sdkVersion },
+      "experimentRunner",
+    );
+    const currentInstrumentationStatus = getSdkVersionCapabilityStatus(
+      { language: series.sdkName, version: series.sdkVersion },
+      "experimentLinkDeprecation",
+    );
+    return (
+      currentInstrumentationStatus === "unknown" ||
+      (runnerStatus !== "unsupported" &&
+        currentInstrumentationStatus !== "supported")
+    );
+  });
+  return hasCurrentExperimentInstrumentation
+    ? { status: "not_required", upgradePath: null }
+    : hasInconclusiveExperimentSdkUsage
+      ? { status: "sdk_usage_inconclusive", upgradePath: "sdk" }
+      : { status: "required", upgradePath: "api" };
+};
 
-    return { projectId, experimentInstrumentationMigration, sdkUsageSeries };
+const getSdkUsageSummaries = async ({
+  projectIds,
+}: {
+  projectIds: string[];
+}): Promise<SdkUsageSummaryByProjectResultRow[]> => {
+  if (projectIds.length === 0) return [];
+
+  const nowMs = Date.now();
+  const [seriesByProject, postUsageByProject] = await Promise.all([
+    getSdkUsageSeriesByProject({ projectIds, nowMs }),
+    getExperimentPostUsageByProject({ projectIds, nowMs }),
+  ]);
+
+  return projectIds.map((projectId) => {
+    const sdkUsageSeries = seriesByProject.get(projectId) ?? [];
+    return {
+      projectId,
+      experimentInstrumentationMigration:
+        deriveExperimentInstrumentationMigration({
+          sdkUsageSeries,
+          postUsage: postUsageByProject.get(projectId) ?? "check_failed",
+        }),
+      sdkUsageSeries,
+    };
   });
 };
 
@@ -788,7 +1096,7 @@ SETTINGS skip_unavailable_shards = 1
   }));
 };
 
-const getLegacyApiUsageSummaries = async ({
+const queryLegacyApiUsageSummaries = async ({
   projectIds,
   fromTimestamp,
   toTimestamp,
@@ -855,6 +1163,93 @@ const getLegacyApiUsageSummaries = async ({
   }
 
   return Array.from(rowsByProjectAndEntrypoint.values()).sort(
+    (left, right) =>
+      left.projectId.localeCompare(right.projectId) ||
+      left.entrypoint.localeCompare(right.entrypoint),
+  );
+};
+
+/**
+ * Drops legacy API rows that aged out of the detection window; cached entries
+ * may cover a window computed up to 12h ago.
+ */
+const trimLegacyApiUsageRows = (
+  rows: CachedLegacyApiUsageRow[],
+  nowMs: number,
+): CachedLegacyApiUsageRow[] =>
+  rows.filter((row) => Date.parse(row.lastSeen) >= nowMs - DETECTION_WINDOW_MS);
+
+/**
+ * Deprecated public API usage per project, served from a 12h Redis cache.
+ * The underlying `system.query_log` scan is the expensive query that
+ * saturated ClickHouse when run per sidebar mount: only cache misses reach
+ * ClickHouse, and the always-mounted sidebar uses `cachedMigrationActions`,
+ * which never falls through to a query at all.
+ */
+const getLegacyApiUsageSummaries = async ({
+  projectIds,
+}: {
+  projectIds: string[];
+}): Promise<LegacyApiUsageSummaryByProjectResultRow[]> => {
+  if (projectIds.length === 0) return [];
+
+  const nowMs = Date.now();
+  const { windowStart, windowEnd } = getDetectionWindow(nowMs);
+
+  if (!isV4TransitionCacheAvailable()) {
+    return queryLegacyApiUsageSummaries({
+      projectIds,
+      fromTimestamp: windowStart,
+      toTimestamp: windowEnd,
+    });
+  }
+
+  const cachedBlobs = await readLegacyApiUsageCache(projectIds);
+  const rows: LegacyApiUsageSummaryByProjectResultRow[] = [];
+  const missedProjectIds: string[] = [];
+  projectIds.forEach((projectId, index) => {
+    const blob = cachedBlobs[index];
+    if (blob) {
+      rows.push(
+        ...trimLegacyApiUsageRows(blob.rows, nowMs).map((row) => ({
+          projectId,
+          ...row,
+        })),
+      );
+    } else {
+      missedProjectIds.push(projectId);
+    }
+  });
+
+  if (missedProjectIds.length > 0) {
+    const freshRows = await queryLegacyApiUsageSummaries({
+      projectIds: missedProjectIds,
+      fromTimestamp: windowStart,
+      toTimestamp: windowEnd,
+    });
+    const freshRowsByProject = new Map<string, CachedLegacyApiUsageRow[]>(
+      missedProjectIds.map((projectId) => [projectId, []]),
+    );
+    for (const row of freshRows) {
+      freshRowsByProject.get(row.projectId)?.push({
+        entrypoint: row.entrypoint,
+        count: row.count,
+        lastSeen: row.lastSeen,
+      });
+    }
+    // Projects without usage get an empty entry so they do not re-run the
+    // expensive scan on every request.
+    await writeLegacyApiUsageCache(
+      missedProjectIds.map((projectId) => ({
+        projectId,
+        rows: freshRowsByProject.get(projectId) ?? [],
+      })),
+      new Date(nowMs),
+    );
+    rows.push(...freshRows);
+  }
+
+  return rows.sort(
     (left, right) =>
       left.projectId.localeCompare(right.projectId) ||
       left.entrypoint.localeCompare(right.entrypoint),
@@ -934,13 +1329,14 @@ export const v4TransitionRouter = createTRPCRouter({
       });
     }),
 
+  // The time-range inputs below are validated for contract compatibility,
+  // but the server computes its own detection window (see
+  // getDetectionWindow) so cache entries are shared across requesters.
   sdkUsageSummary: protectedProjectProcedure
     .input(projectTimeRangeInputSchema)
     .query(async ({ input }) => {
       const [summary] = await getSdkUsageSummaries({
         projectIds: [input.projectId],
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
       });
       return summary!;
     }),
@@ -955,8 +1351,6 @@ export const v4TransitionRouter = createTRPCRouter({
       });
       return getSdkUsageSummaries({
         projectIds: projects.map((project) => project.id),
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
       });
     }),
 
@@ -965,8 +1359,6 @@ export const v4TransitionRouter = createTRPCRouter({
     .query(({ input }) =>
       getLegacyApiUsageSummaries({
         projectIds: [input.projectId],
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
       }),
     ),
 
@@ -980,8 +1372,72 @@ export const v4TransitionRouter = createTRPCRouter({
       });
       return getLegacyApiUsageSummaries({
         projectIds: projects.map((project) => project.id),
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
       });
+    }),
+
+  /**
+   * Migration signal for always-mounted UI (the sidebar "Action required"
+   * pill). Reads only Postgres and Redis; it never queries ClickHouse, so a
+   * cold cache degrades to `null` ("unknown") categories instead of
+   * re-running the expensive usage scans on every sidebar mount.
+   */
+  cachedMigrationActions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const nowMs = Date.now();
+      const projectIds = [input.projectId];
+
+      const [
+        evalSummaries,
+        integrationSummaries,
+        sdkBlobs,
+        postBlobs,
+        apiBlobs,
+      ] = await Promise.all([
+        getTraceLevelEvalSummaries({ prisma: ctx.prisma, projectIds }),
+        getLegacyIntegrationSummaries({ prisma: ctx.prisma, projectIds }),
+        readSdkUsageCache(projectIds),
+        readExperimentPostUsageCache(projectIds),
+        readLegacyApiUsageCache(projectIds),
+      ]);
+
+      const sdkBlob = sdkBlobs[0] ?? null;
+      const cachedSeries = isSdkUsageBlobUsable(sdkBlob, nowMs)
+        ? trimSdkUsageSeries(sdkBlob.series, nowMs)
+        : null;
+      const postBlob = postBlobs[0] ?? null;
+      const apiBlob = apiBlobs[0] ?? null;
+
+      const experimentsActionNeeded =
+        postBlob === null
+          ? null
+          : postBlob.used === false
+            ? false
+            : cachedSeries === null
+              ? null
+              : ["required", "sdk_usage_inconclusive"].includes(
+                  deriveExperimentInstrumentationMigration({
+                    sdkUsageSeries: cachedSeries,
+                    postUsage: true,
+                  }).status,
+                );
+
+      return {
+        forceV3Experience: isForceV3ExperienceProject(input.projectId),
+        // null = unknown: no cached data yet. The pill treats unknown
+        // categories as "no signal" instead of triggering a query.
+        sdkActionNeeded:
+          cachedSeries === null
+            ? null
+            : cachedSeries.some((series) => series.actionLevel === "required"),
+        experimentsActionNeeded,
+        apisActionNeeded:
+          apiBlob === null
+            ? null
+            : trimLegacyApiUsageRows(apiBlob.rows, nowMs).length > 0,
+        evalsActionNeeded: (evalSummaries[0]?.traceLevelEvalCount ?? 0) > 0,
+        exportsActionNeeded:
+          (integrationSummaries[0]?.legacyIntegrationCount ?? 0) > 0,
+      };
     }),
 });
