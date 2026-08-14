@@ -25,6 +25,9 @@ service:
           docs: The unique langfuse identifier of a trace
       response: commons.TraceWithFullDetails
     delete:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release without a replacement. To remove old data automatically, configure [data retention](https://langfuse.com/docs/administration/data-retention)."
       docs: Delete a specific trace
       method: DELETE
       path: /traces/{traceId}
@@ -190,6 +193,9 @@ service:
               - Score filters require a join with the scores table and may impact query performance
       response: Traces
     deleteMultiple:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release without a replacement. To remove old data automatically, configure [data retention](https://langfuse.com/docs/administration/data-retention)."
       docs: Delete multiple traces
       method: DELETE
       path: /traces

@@ -6358,7 +6358,16 @@ paths:
       security: *ref_0
       deprecated: true
     delete:
-      description: Delete a specific trace
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release without a replacement. To remove old data
+        automatically, configure [data
+        retention](https://langfuse.com/docs/administration/data-retention). See
+        the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Delete a specific trace
       operationId: trace_delete
       tags:
         - Trace
@@ -6402,6 +6411,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/traces:
     get:
       description: >-
@@ -6739,7 +6749,16 @@ paths:
       security: *ref_0
       deprecated: true
     delete:
-      description: Delete multiple traces
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release without a replacement. To remove old data
+        automatically, configure [data
+        retention](https://langfuse.com/docs/administration/data-retention). See
+        the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Delete multiple traces
       operationId: trace_deleteMultiple
       tags:
         - Trace
@@ -6791,6 +6810,7 @@ paths:
                   description: List of trace IDs to delete
               required:
                 - traceIds
+      deprecated: true
   /api/public/unstable/dashboard-widgets:
     get:
       description: |-
