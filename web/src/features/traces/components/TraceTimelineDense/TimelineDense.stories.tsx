@@ -26,7 +26,8 @@ export const FiftySpansOnAPhone = meta.story({
   args: {
     roots: manySpans(50),
     box: PHONE,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -37,7 +38,8 @@ export const OneHundredFiftySpansExactlyAtTheFloor = meta.story({
   args: {
     roots: manySpans(150),
     box: PHONE,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -49,7 +51,8 @@ export const FiveHundredSpansPannable = meta.story({
   args: {
     roots: manySpans(500),
     box: PHONE,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -60,7 +63,8 @@ export const TypeColouredBars = meta.story({
   args: {
     roots: manySpans(150),
     box: PHONE,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "type",
     compress: false,
     showReadout: true,
@@ -72,7 +76,8 @@ export const ShortTraceStaysReadable = meta.story({
   args: {
     roots: threeSpans(),
     box: PHONE,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -83,20 +88,35 @@ export const ReporterShapeInAPeek = meta.story({
   args: {
     roots: reporterTrace(),
     box: PEEK,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "neutral",
     compress: false,
     showReadout: true,
   },
 });
 
-/** The comparison that matters: the same trace with the names still on. */
-export const WithNamesForComparison = meta.story({
+/** The gutter forced open: what the left side becomes when there is room. */
+export const NamesExpanded = meta.story({
   args: {
     roots: manySpans(150),
     box: PHONE,
-    showNames: true,
+    gutter: "expanded",
+    pointer: "fine",
     barColor: "neutral",
+    compress: false,
+    showReadout: true,
+  },
+});
+
+/** Touch: no hover, so the rail toggles on tap. */
+export const TouchTapToToggle = meta.story({
+  args: {
+    roots: manySpans(150),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "coarse",
+    barColor: "type",
     compress: false,
     showReadout: true,
   },
@@ -106,7 +126,8 @@ export const LongTailCompressed = meta.story({
   args: {
     roots: longTailTrace(),
     box: PHONE,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "type",
     compress: true,
     showReadout: true,
@@ -118,7 +139,8 @@ export const NeitherAxisScrolls = meta.story({
   args: {
     roots: manySpans(150),
     box: PHONE,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -157,7 +179,8 @@ export const ScrollPansPinchZooms = meta.story({
   args: {
     roots: manySpans(150),
     box: PHONE,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -207,12 +230,56 @@ export const ScrollPansPinchZooms = meta.story({
   },
 });
 
+export const HoverPeeksTheLegend = meta.story({
+  name: "(Test) Hover Peeks The Legend",
+  args: {
+    roots: manySpans(150),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const legend = () =>
+      canvasElement.querySelector('[data-testid="timeline-dense-legend"]');
+    const rect = surface.getBoundingClientRect();
+    const move = (offsetX: number) =>
+      surface.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          pointerType: "mouse",
+          clientX: rect.left + offsetX,
+          clientY: rect.top + 120,
+        }),
+      );
+
+    // At hairline density a name is not a name, so peeking the rail explains the
+    // colours instead.
+    await expect(legend()).toBeNull();
+    move(4);
+    await waitFor(() => expect(legend()).not.toBeNull());
+    await expect(legend()?.textContent).toContain("Generation");
+    await expect(legend()?.textContent).toContain("Tool");
+
+    // Moving into the chart hands the space straight back.
+    move(rect.width * 0.7);
+    await waitFor(() => expect(legend()).toBeNull());
+  },
+});
+
 export const DoubleClickFocusesBothAxes = meta.story({
   name: "(Test) Double Click Focuses Both Axes",
   args: {
     roots: manySpans(150),
     box: PHONE,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "neutral",
     compress: false,
     showReadout: true,
@@ -245,7 +312,8 @@ export const HoverOpensATooltip = meta.story({
   args: {
     roots: manySpans(150),
     box: PHONE,
-    showNames: false,
+    gutter: "auto",
+    pointer: "fine",
     barColor: "neutral",
     compress: false,
     showReadout: true,

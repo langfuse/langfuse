@@ -79,8 +79,15 @@ const clamp = (value: number, min: number, max: number) =>
  *  - a short trace floors at `height / 26`, so rows cap at ~26px;
  *  - a long trace ceilings at `height / 4`, so rows never go below the hairline
  *    and the rest is panned to.
+ *
+ * Exported because the vertical window depends only on the row count and the
+ * height — never on the width. That is what lets a caller resolve row height
+ * BEFORE deciding how wide the name gutter should be, without a cycle.
  */
-function rowCountBounds(limits: ViewportLimits): { min: number; max: number } {
+export function rowCountBounds(limits: {
+  rowCount: number;
+  boxHeight: number;
+}): { min: number; max: number } {
   const rowCount = Math.max(Math.floor(finite(limits.rowCount, 0)), 0);
   const boxHeight = Math.max(finite(limits.boxHeight, 0), 0);
   if (rowCount === 0 || boxHeight === 0) {

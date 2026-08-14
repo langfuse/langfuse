@@ -11,6 +11,11 @@
  *
  * Then it is driven **like a map**, because that is what exploring a dense
  * surface wants:
+ *  - The left side is adaptive: a bare colour rail by default, opening into a
+ *    real name gutter as the rows grow past ~20px, and peekable at any zoom by
+ *    hovering it (tapping it on touch). While the rows are too short to hold a
+ *    name, peeking shows a type LEGEND instead. Working in the chart hands the
+ *    space straight back.
  *  - Two-finger scroll pans both axes; pinch (and a discrete mouse notch) zooms
  *    BOTH axes about the cursor, so the time window narrows and the rows grow
  *    together. Zoom is exponential in a zoom level and deltas accumulate per
@@ -39,9 +44,16 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { Maximize2, Minus, Plus } from "lucide-react";
+import {
+  Maximize2,
+  Minus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+} from "lucide-react";
+import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { cn } from "@/src/utils/tailwind";
-import { type Density } from "../../fns/timeline/density";
+import { type Density, type PointerModality } from "../../fns/timeline/density";
 import {
   formatDurationMs,
   layout,
@@ -52,6 +64,8 @@ import {
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
+  HUMAN_ROW_HEIGHT,
+  rowCountBounds,
   viewportsEqual,
   clampViewport,
   fitViewport,
@@ -105,30 +119,64 @@ const WHEEL_DELTA_THRESHOLD = 40;
 const BUTTON_ZOOM_LEVELS = 0.6;
 const DRAG_THRESHOLD_PX = 3;
 const MAX_BAR_HEIGHT = 18;
+/** Below this a row cannot hold a name, so the gutter stays a rail. */
+const NAME_MIN_ROW_HEIGHT = 14;
+/** The chart never shrinks below this to make room for names. */
+const MIN_LANE_WIDTH = 140;
+/** Slack around the rail so the peek zone is reachable at 10px wide. */
+const PEEK_MARGIN_PX = 6;
+
+/**
+ * How wide the left side is once something has asked for it to open. The chart
+ * keeps priority: if opening would leave the lane below MIN_LANE_WIDTH it stays a
+ * rail, because the timeline is the point of the surface.
+ */
+function resolveGutterWidth(input: {
+  open: boolean;
+  contentWidth: number;
+}): number {
+  if (!input.open) return RAIL_WIDTH;
+  const wanted = Math.min(Math.max(input.contentWidth * 0.38, 96), 168);
+  return input.contentWidth - wanted >= MIN_LANE_WIDTH ? wanted : RAIL_WIDTH;
+}
 
 export type TimelineDenseProps = {
   roots: LayoutNode[];
   /** The measured box. Required — there is no fallback size. */
   box: Box;
-  /** Names are hidden by default: that is the whole point of this layout. */
-  showNames: boolean;
+  /**
+   * Starting gutter mode. `auto` derives it from row height — a hairline row
+   * cannot hold a name, a 26px row can — which is the default and the point of
+   * this layout.
+   */
+  gutter: GutterMode;
+  /**
+   * Input modality. `fine` peeks the gutter on hover; `coarse` has no hover, so
+   * it toggles on a tap of the rail.
+   */
+  pointer: PointerModality;
   /** Colour the bars by type too, or leave them neutral and let the rail carry it. */
   barColor: "neutral" | "type";
   compress: boolean;
   showReadout: boolean;
 };
 
+export type GutterMode = "auto" | "expanded" | "collapsed";
+
 export function TimelineDense({
   roots,
   box,
-  showNames,
+  gutter,
+  pointer,
   barColor,
   compress,
   showReadout,
 }: TimelineDenseProps) {
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
-  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
+  const [pointerPos, setPointerPos] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -137,8 +185,14 @@ export function TimelineDense({
   // goes on, and that decision is only as good as the font it measured.
   const measurer = useMemo(() => createTextMeasurer("10px ui-sans-serif"), []);
 
-  const railWidth = showNames ? 132 : RAIL_WIDTH;
-  const laneWidth = Math.max(box.width - FRAME_BORDER * 2 - railWidth, 0);
+  // A manual override lives until you touch the chart again, which is what
+  // "expand to look, then get out of my way" means in practice.
+  const [override, setOverride] = useState<GutterMode | null>(null);
+  // Desktop peek: hovering the left edge opens it, moving into the chart closes
+  // it again. No click to look, no click to get out of the way.
+  const [peeking, setPeeking] = useState(false);
+  const gutterMode = override ?? gutter;
+  const contentWidth = Math.max(box.width - FRAME_BORDER * 2, 0);
   const surfaceHeight = Math.max(
     box.height -
       FRAME_BORDER * 2 -
@@ -147,6 +201,36 @@ export function TimelineDense({
       (showReadout ? READOUT_HEIGHT : 0),
     0,
   );
+
+  // Resolve the VERTICAL window first. It depends only on the row count and the
+  // height, never on the width, so row height is known before the gutter width
+  // — which is what breaks the cycle (gutter → lane → compression → viewport).
+  // Deciding the gutter from the *resting* row height instead left it a rail
+  // forever, however far you zoomed in.
+  const rowBounds = rowCountBounds({
+    rowCount: prepared.rows.length,
+    boxHeight: surfaceHeight,
+  });
+  const liveRowCount = Math.min(
+    Math.max(viewport?.rows.count ?? rowBounds.max, rowBounds.min),
+    rowBounds.max,
+  );
+  const liveRowHeight =
+    liveRowCount > 0 ? surfaceHeight / liveRowCount : HUMAN_ROW_HEIGHT;
+
+  // Rows tall enough to hold a name show names; below that, opening the gutter
+  // shows the type LEGEND instead — at 4px a name is not a name, but "what does
+  // pink mean" is exactly the question the rail raises.
+  const canShowNames = liveRowHeight >= NAME_MIN_ROW_HEIGHT;
+  const gutterOpen =
+    override === "collapsed"
+      ? false
+      : override === "expanded" || peeking
+        ? true
+        : gutterMode === "expanded" ||
+          (gutterMode === "auto" && liveRowHeight >= HUMAN_ROW_HEIGHT - 6);
+  const railWidth = resolveGutterWidth({ open: gutterOpen, contentWidth });
+  const laneWidth = Math.max(contentWidth - railWidth, 0);
 
   const chartBox = useMemo(
     () => ({ width: laneWidth, height: surfaceHeight }),
@@ -173,13 +257,16 @@ export function TimelineDense({
     [viewport, limits],
   );
   const rowHeight = rowHeightOf(current, surfaceHeight);
+  const isOpen = railWidth > RAIL_WIDTH;
+  const namesVisible = isOpen && canShowNames;
+  const legendVisible = isOpen && !canShowNames;
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
   const density: Density = useMemo(
     () => ({
-      pointer: "fine",
+      pointer,
       rowHeight,
       barHeight: Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1),
       labelFontPx: 11,
@@ -187,8 +274,19 @@ export function TimelineDense({
       labelGapPx: 6,
       minBarWidthPx: presentation === "hairline" ? 2 : 4,
     }),
-    [rowHeight, presentation],
+    [rowHeight, presentation, pointer],
   );
+
+  // The legend explains the rail when rows are too short to hold a name: the
+  // types this trace actually contains, each in its own hue.
+  const legendTypes = useMemo(() => {
+    const seen: string[] = [];
+    for (const row of prepared.rows) {
+      const type = row.node.type ?? "SPAN";
+      if (!seen.includes(type)) seen.push(type);
+    }
+    return seen;
+  }, [prepared.rows]);
 
   const rowRange = visibleRowRange(current, prepared.rows.length);
   const result = layout({
@@ -247,6 +345,11 @@ export function TimelineDense({
     frame: 0,
   });
 
+  const releaseOverride = useCallback(() => {
+    setOverride((held) => (held === "expanded" ? null : held));
+    setPeeking(false);
+  }, []);
+
   const flushGesture = useCallback(() => {
     const queued = pending.current;
     queued.frame = 0;
@@ -274,9 +377,12 @@ export function TimelineDense({
   }, [limits, laneWidth]);
 
   const scheduleGesture = useCallback(() => {
+    // Any gesture on the chart hands the space back: an expanded gutter is for
+    // looking, and the moment you work in the chart it gets out of the way.
+    releaseOverride();
     if (pending.current.frame) return;
     pending.current.frame = requestAnimationFrame(flushGesture);
-  }, [flushGesture]);
+  }, [flushGesture, releaseOverride]);
 
   /**
    * Wheel and trackpad pinch on a non-passive listener, so the page never takes
@@ -353,6 +459,16 @@ export function TimelineDense({
   );
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // Touch has no hover, so a tap on the rail is the toggle.
+    const offsetX =
+      event.clientX - event.currentTarget.getBoundingClientRect().left;
+    if (
+      (pointer === "coarse" || event.pointerType === "touch") &&
+      offsetX <= railWidth + PEEK_MARGIN_PX
+    ) {
+      setOverride(isOpen ? "collapsed" : "expanded");
+      return;
+    }
     gesture.current = {
       down: true,
       dragging: false,
@@ -373,6 +489,7 @@ export function TimelineDense({
         event.currentTarget.setPointerCapture(event.pointerId);
       }
       if (state.dragging) {
+        releaseOverride();
         panBy(dx, dy);
         state.x = event.clientX;
         state.y = event.clientY;
@@ -382,10 +499,18 @@ export function TimelineDense({
 
     const rect = event.currentTarget.getBoundingClientRect();
     const offsetY = event.clientY - rect.top;
+    const offsetX = event.clientX - rect.left;
+
+    // Peek is hover-driven on a fine pointer only: a coarse pointer has no
+    // hover, so it toggles on tap instead (see onPointerDown).
+    if (pointer === "fine" && event.pointerType !== "touch") {
+      setPeeking(offsetX <= railWidth + PEEK_MARGIN_PX);
+    }
+
     setFocusIndex(
       rowIndexAtOffset(current, offsetY, rowHeight, prepared.rows.length),
     );
-    setPointer({ x: event.clientX - rect.left, y: offsetY });
+    setPointerPos({ x: offsetX, y: offsetY });
   };
 
   const endGesture = useCallback(() => {
@@ -396,7 +521,8 @@ export function TimelineDense({
 
   const clearFocus = useCallback(() => {
     setFocusIndex(null);
-    setPointer(null);
+    setPointerPos(null);
+    setPeeking(false);
     endGesture();
   }, [endGesture]);
 
@@ -451,6 +577,16 @@ export function TimelineDense({
           onClick={() => setViewport(null)}
         >
           <Maximize2 className="h-3 w-3" />
+        </ToolbarButton>
+        <ToolbarButton
+          label={isOpen ? "Collapse names" : "Show names"}
+          onClick={() => setOverride(isOpen ? "collapsed" : "expanded")}
+        >
+          {isOpen ? (
+            <PanelLeftClose className="h-3 w-3" />
+          ) : (
+            <PanelLeftOpen className="h-3 w-3" />
+          )}
         </ToolbarButton>
         <span
           className="text-muted-foreground truncate"
@@ -573,19 +709,30 @@ export function TimelineDense({
                       height: `${squareSize}px`,
                     }}
                   />
-                  {showNames && presentation !== "hairline" ? (
-                    <span
-                      className="text-foreground absolute truncate"
+                  {namesVisible ? (
+                    <div
+                      className="absolute flex items-center gap-1 overflow-hidden"
                       style={{
-                        left: `${indent + 8}px`,
+                        left: `${indent + 6}px`,
                         right: "2px",
-                        top: `${Math.max((rowHeight - 12) / 2, 0)}px`,
-                        fontSize: "10px",
+                        top: `${Math.max((rowHeight - 16) / 2, 0)}px`,
+                        height: "16px",
                       }}
-                      title={node.name}
                     >
-                      {node.name}
-                    </span>
+                      <span className="shrink-0">
+                        <ItemBadge
+                          type={node.type as LangfuseItemType}
+                          isSmall
+                        />
+                      </span>
+                      <span
+                        className="text-foreground truncate"
+                        style={{ fontSize: "10px" }}
+                        title={node.name}
+                      >
+                        {node.name}
+                      </span>
+                    </div>
                   ) : null}
                 </div>
 
@@ -639,22 +786,61 @@ export function TimelineDense({
           })}
         </div>
 
+        {/* Peeking at hairline density shows the legend rather than names —
+            "what does pink mean" is the question a bare colour rail raises. */}
+        {legendVisible ? (
+          <div
+            className="border-border bg-background/95 absolute inset-y-0 left-0 flex flex-col gap-0.5 overflow-hidden border-r px-1 py-1"
+            style={{ width: `${railWidth}px` }}
+            data-testid="timeline-dense-legend"
+          >
+            <span
+              className="text-muted-foreground shrink-0"
+              style={{ fontSize: "9px" }}
+            >
+              Types in this trace
+            </span>
+            {legendTypes.map((type) => (
+              <div key={type} className="flex shrink-0 items-center gap-1">
+                <span
+                  className={cn(
+                    "h-2 w-2 shrink-0 rounded-[1px]",
+                    TYPE_COLOR[type] ?? FALLBACK_COLOR,
+                  )}
+                />
+                <span
+                  className="text-foreground truncate"
+                  style={{ fontSize: "10px" }}
+                  title={type}
+                >
+                  {type.charAt(0) + type.slice(1).toLowerCase()}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         {/* The tooltip is the text this layout does not spend on rows. */}
-        {focused && pointer && !dragging ? (
+        {/* The legend and the row tooltip both want the left side; while you are
+            reading the legend the tooltip stays out of it. */}
+        {focused &&
+        pointerPos &&
+        !dragging &&
+        !(legendVisible && pointerPos.x <= railWidth) ? (
           <div
             className="border-border bg-background text-foreground pointer-events-none absolute z-10 flex max-w-[90%] items-center gap-1 rounded border px-1.5 py-1 shadow-md"
             style={{
               left:
-                pointer.x > box.width * 0.55
+                pointerPos.x > box.width * 0.55
                   ? undefined
-                  : `${Math.round(pointer.x + 12)}px`,
+                  : `${Math.round(pointerPos.x + 12)}px`,
               right:
-                pointer.x > box.width * 0.55
-                  ? `${Math.round(Math.max(box.width - pointer.x + 12, 4))}px`
+                pointerPos.x > box.width * 0.55
+                  ? `${Math.round(Math.max(box.width - pointerPos.x + 12, 4))}px`
                   : undefined,
               top: `${Math.round(
                 Math.min(
-                  Math.max(pointer.y + 12, 2),
+                  Math.max(pointerPos.y + 12, 2),
                   Math.max(surfaceHeight - 26, 2),
                 ),
               )}px`,
