@@ -320,7 +320,7 @@ export function createSandboxToolCallFileAccumulator(
     // The MCP wrapper already classified the failure onto `error`, so failures
     // never become sandbox tool_calls files. Marking the id completed above
     // keeps a later replayed event from writing one either.
-    if (toolCall.error) {
+    if (toolCall.error !== null) {
       return;
     }
 

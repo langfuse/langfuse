@@ -335,20 +335,7 @@ describe("in-app agent sandbox", () => {
           execute,
         }),
       },
-      sandbox: {
-        async read() {
-          return null;
-        },
-        async write() {
-          return null;
-        },
-        async edit() {
-          return null;
-        },
-        async bash() {
-          return null;
-        },
-      },
+      sandbox: dummySandbox,
     });
     const tool = tools.search;
 
@@ -391,20 +378,7 @@ describe("in-app agent sandbox", () => {
           }),
         },
       },
-      sandbox: {
-        async read() {
-          return null;
-        },
-        async write() {
-          return null;
-        },
-        async edit() {
-          return null;
-        },
-        async bash() {
-          return null;
-        },
-      },
+      sandbox: dummySandbox,
     });
 
     if (!tools.listObservations.inputSchema) {
@@ -473,12 +447,15 @@ describe("in-app agent sandbox", () => {
   });
 
   it("does not silence an MCP result that reports its own error", async () => {
+    // Verbatim shape of a real failure from the langfuse docs MCP server: the
+    // `isError` marker sits on the envelope and the text is not JSON, so
+    // classifying the unwrapped content alone reads it as a success.
     const mcpErrorResult = {
       isError: true,
       content: [
         {
           type: "text",
-          text: '{"error":true,"message":"view is required"}',
+          text: "Error fetching docs page markdown: Failed to fetch https://langfuse.com/not-a-real-page.md: 404",
         },
       ],
     };
