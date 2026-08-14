@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -55,6 +55,7 @@ const scenarioRef = vi.hoisted(() => ({
   current: undefined as AgentScenario | undefined,
   failApiKeyDelete: false,
   apiKeyDeleteCalls: 0,
+  titleInferenceCalls: 0,
 }));
 
 vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
@@ -66,6 +67,9 @@ vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
   return {
     ...actual,
     IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: 50,
+    maybeInferAndPersistConversationTitle: async () => {
+      scenarioRef.titleInferenceCalls += 1;
+    },
     createAgUiStream: async (params: {
       input: never;
       signal: AbortSignal;
@@ -260,6 +264,20 @@ async function seedApprovedContinuation(opts?: {
 }
 
 describe("executeInAppAgentRun", () => {
+  beforeEach(() => {
+    scenarioRef.titleInferenceCalls = 0;
+  });
+
+  it("does not regenerate the conversation title after an approval continuation", async () => {
+    const { projectId, run } = await seedApprovedContinuation();
+
+    scenarioRef.current = completingScenario;
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    expect(scenarioRef.titleInferenceCalls).toBe(0);
+  });
+
   it("passes persisted continuation context to the agent input", async () => {
     const rootRunId = "root-run-1";
     const traceStartedAt = "2026-08-14T10:00:00.000Z";
@@ -355,6 +373,7 @@ describe("executeInAppAgentRun", () => {
     expect(finished.claimedAt).not.toBeNull();
     expect(finished.heartbeatAt).not.toBeNull();
     expect(finished.errorCode).toBeNull();
+    expect(scenarioRef.titleInferenceCalls).toBe(1);
 
     // Key was minted and linked during the run, deleted and unlinked after.
     expect(keysDuringRun).toBe(1);
