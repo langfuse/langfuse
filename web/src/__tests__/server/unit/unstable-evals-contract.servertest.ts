@@ -4,13 +4,17 @@ import {
   JobConfigState,
 } from "@langfuse/shared";
 import { CODE_EVAL_SOURCE_MAX_BYTES } from "@langfuse/shared/src/server";
-import { EvalTemplateType } from "@langfuse/shared/src/db";
+import { EvalTemplateType, Prisma } from "@langfuse/shared/src/db";
 import {
   toApiEvaluator,
+  toApiV2EvaluationRule,
   toEvaluationRuleInput,
 } from "@/src/features/evals/server/unstable-public-api/adapters";
 import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
-import type { StoredPublicEvaluatorTemplate } from "@/src/features/evals/server/unstable-public-api/types";
+import type {
+  StoredPublicEvaluatorTemplate,
+  StoredPublicV2EvaluationRule,
+} from "@/src/features/evals/server/unstable-public-api/types";
 import {
   GetUnstableEvaluationRulesQuery,
   PatchUnstableEvaluationRuleBody,
@@ -533,6 +537,72 @@ describe("unstable public eval contracts", () => {
 });
 
 describe("unstable public eval adapters", () => {
+  it("returns an empty effective mapping for zero-variable evaluators", () => {
+    const createdAt = new Date("2026-08-14T00:00:00.000Z");
+    const rule = {
+      id: "rule_zero_variables",
+      createdAt,
+      updatedAt: createdAt,
+      projectId: "project_123",
+      createdByUserId: null,
+      name: "Always pass",
+      status: JobConfigState.ACTIVE,
+      targetObject: EvalTargetObject.EVENT,
+      filter: [],
+      sampling: new Prisma.Decimal(1),
+      delay: 0,
+      timeScope: ["NEW"],
+      assignments: [
+        {
+          id: "assignment_zero_variables",
+          createdAt,
+          updatedAt: createdAt,
+          projectId: "project_123",
+          evaluationRuleId: "rule_zero_variables",
+          evaluatorId: "evaluator_zero_variables",
+          variableMapping: null,
+          evaluator: {
+            id: "evaluator_zero_variables",
+            createdAt,
+            updatedAt: createdAt,
+            projectId: "project_123",
+            name: "Always pass",
+            type: EvalTemplateType.LLM_AS_JUDGE,
+            description: null,
+            createdByUserId: null,
+            blockedAt: null,
+            blockReason: null,
+            blockMessage: null,
+            versions: [
+              {
+                id: "version_zero_variables",
+                createdAt,
+                evaluatorId: "evaluator_zero_variables",
+                version: 1,
+                createdByUserId: null,
+                prompt: "Always return a score of 1",
+                partner: null,
+                model: null,
+                provider: null,
+                modelParams: null,
+                vars: [],
+                variableMapping: null,
+                outputDefinition: numericOutputDefinition,
+                sourceCode: null,
+                sourceCodeLanguage: null,
+              },
+            ],
+          },
+        },
+      ],
+    } satisfies StoredPublicV2EvaluationRule;
+
+    expect(toApiV2EvaluationRule(rule)).toMatchObject({
+      mapping: [],
+      evaluators: [{ mapping: null }],
+    });
+  });
+
   it("translates evaluation rule writes into job configuration inputs", () => {
     const writeModel = toEvaluationRuleInput({
       input: {

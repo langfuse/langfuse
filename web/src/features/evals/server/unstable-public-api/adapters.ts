@@ -540,7 +540,8 @@ export function toApiV2EvaluationRule(
       : evaluator.type === EvalTemplateType.CODE
         ? getCodeEvalVariableMapping()
         : (assignment.variableMapping ??
-          evaluator.versions[0]?.variableMapping);
+          evaluator.versions[0]?.variableMapping ??
+          []);
 
   return {
     id: rule.id,
