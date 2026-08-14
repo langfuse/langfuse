@@ -1,5 +1,6 @@
 import preview from "../../../../../.storybook/preview";
 import { TimelineBar } from "./TimelineBar";
+import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { makeRow, makeTreeNode, cost } from "./__tests__/timeline.fixtures";
 
 const meta = preview.meta({
@@ -7,6 +8,7 @@ const meta = preview.meta({
   args: {
     row: makeRow(),
     laneWidth: 640,
+    measurer: createTextMeasurer(),
     isSelected: false,
     showDuration: true,
     showCostTokens: false,

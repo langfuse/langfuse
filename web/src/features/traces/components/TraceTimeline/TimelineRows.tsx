@@ -17,6 +17,7 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type TreeNode } from "../../types/treeNode";
 import { type TimelineRowNode } from "./types";
+import { type TextMeasurer } from "../../fns/timeline/textMeasurer";
 import { TimelineGutterRow } from "./TimelineGutterRow";
 import { TimelineBar } from "./TimelineBar";
 import { useIsObservationActive } from "@/src/features/traces/contexts/PlayheadContext";
@@ -102,6 +103,7 @@ type ChartRowShellProps = RowShellSharedProps & {
   parentTotalDuration?: number;
   commentCount: number;
   nodeScores: WithStringifiedMetadata<ScoreDomain>[];
+  measurer: TextMeasurer;
 };
 
 function TimelineChartRowShellComponent({
@@ -120,6 +122,7 @@ function TimelineChartRowShellComponent({
   parentTotalDuration,
   commentCount,
   nodeScores,
+  measurer,
   onSelect,
   onHover,
 }: ChartRowShellProps) {
@@ -155,6 +158,7 @@ function TimelineChartRowShellComponent({
       <TimelineBar
         row={row}
         laneWidth={width}
+        measurer={measurer}
         isSelected={isSelected}
         isHovered={isHovered}
         showDuration={showDuration}

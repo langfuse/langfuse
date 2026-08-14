@@ -274,9 +274,23 @@ export function TraceTimeline() {
     [roots, collapsedNodes],
   );
 
-  // Canvas glyph widths, measured once, so layout() can decide whether a
-  // duration label fits inside its bar.
-  const measurer = useMemo(() => createTextMeasurer(), []);
+  // Canvas glyph widths so layout() can decide whether a duration label fits
+  // inside its bar — measured in the font the labels ACTUALLY render in, read
+  // off a probe span carrying the label's own classes. Guessing the font gets
+  // the decision wrong: a `12px ui-sans-serif` guess resolves to a different
+  // face than the app's 11.2px system stack and underestimated an axis label by
+  // 5px, which is exactly enough to push it past the lane edge.
+  const [labelFont, setLabelFont] = useState<string | null>(null);
+  const labelProbeRef = useCallback((el: HTMLSpanElement | null) => {
+    if (!el) return;
+    const style = getComputedStyle(el);
+    const font = `${style.fontSize} ${style.fontFamily}`;
+    setLabelFont((prev) => (prev === font ? prev : font));
+  }, []);
+  const measurer = useMemo(
+    () => createTextMeasurer(labelFont ?? undefined),
+    [labelFont],
+  );
 
   // Virtualizer drives off the chart pane; the gutter mirrors its vertical scroll.
   // overscan is a ROW COUNT (not px): keep it small so a long trace re-renders
@@ -571,6 +585,15 @@ export function TraceTimeline() {
           style={{ marginRight: `${chartBox.scrollbarWidth}px` }}
         >
           <div className="relative">
+            {/* Font probe for the text measurer: same classes as a tick label,
+                invisible and out of flow so it costs no layout. */}
+            <span
+              ref={labelProbeRef}
+              aria-hidden
+              className="text-muted-foreground invisible absolute text-xs"
+            >
+              0
+            </span>
             <TimelineScale
               ticks={chartLayout.ticks}
               laneWidth={chartBox.width}
@@ -702,6 +725,7 @@ export function TraceTimeline() {
                   parentTotalDuration={parentTotalDuration}
                   commentCount={comments.get(nodeId) ?? 0}
                   nodeScores={scoresByNodeId.get(nodeId) ?? EMPTY_SCORES}
+                  measurer={measurer}
                   onSelect={handleSelectNode}
                   onHover={handleHoverNode}
                 />

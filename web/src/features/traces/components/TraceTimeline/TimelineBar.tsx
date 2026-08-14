@@ -29,10 +29,14 @@ const SUBTREE_DURATION_TITLE =
 // Room between the bar and a metric cluster sitting outside it.
 const CLUSTER_GAP_PX = 6;
 const CLUSTER_INSET_PX = 4;
+// Icons carry no text to measure, so they get a flat reservation.
+const ICON_WIDTH_PX = 22;
+const SCORE_BADGES_WIDTH_PX = 48;
 
 export function TimelineBar({
   row,
   laneWidth,
+  measurer,
   isSelected,
   isHovered,
   showDuration,
@@ -90,54 +94,95 @@ export function TimelineBar({
             )}px`,
           };
 
-  // Only the duration is measured by layout(); the optional badges ride along
-  // and clip at the lane edge rather than widening the row.
+  // layout() measures the duration; the optional metrics are this component's
+  // own content, so it fits them here with the SAME measurer rather than
+  // letting them clip mid-glyph at the lane edge. Highest priority first: a
+  // duration always beats a cost you cannot finish reading.
+  const budgetPx = Number.parseFloat(clusterStyle.maxWidth);
+  let spentPx = 0;
+  const fitsCluster = (text: string) => {
+    const next = spentPx + measurer.measure(text) + CLUSTER_GAP_PX;
+    if (next > budgetPx) return false;
+    spentPx = next;
+    return true;
+  };
+
+  const durationText =
+    showDuration && isPresent(ownDurationMs)
+      ? formatIntervalSeconds(ownDurationMs / 1000)
+      : null;
+  const subtreeText =
+    isPresent(ownDurationMs) && subtreeWallClockOverflowMs != null
+      ? `∑ ${formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}`
+      : null;
+  const costText =
+    showCostTokens && node.totalCost
+      ? usdFormatter(node.totalCost.toNumber())
+      : null;
+
+  const showDurationText = durationText != null && fitsCluster(durationText);
+  const showSubtreeText = subtreeText != null && fitsCluster(subtreeText);
+  const showCostText = costText != null && fitsCluster(costText);
+  // Icons are unmeasured, so they only ride along when text left room over.
+  const iconBudgetPx = budgetPx - spentPx;
+  const showCommentIcon =
+    showComments && Boolean(commentCount) && iconBudgetPx >= ICON_WIDTH_PX;
+  const showScoreBadges =
+    showScores &&
+    Boolean(scores?.length) &&
+    iconBudgetPx >= SCORE_BADGES_WIDTH_PX;
+
+  // The full text stays reachable on hover when something had to be dropped.
+  const droppedSomething =
+    (durationText != null && !showDurationText) ||
+    (subtreeText != null && !showSubtreeText) ||
+    (costText != null && !showCostText);
+  const clusterTitle = droppedSomething
+    ? [durationText, subtreeText, costText].filter(Boolean).join("  ")
+    : undefined;
+
   const cluster =
     row.labelPlacement === "hidden" ? null : (
       <div
         className="text-muted-foreground absolute top-1/2 flex -translate-y-1/2 items-center gap-2 overflow-hidden text-xs whitespace-nowrap"
         style={clusterStyle}
+        title={clusterTitle}
       >
-        {showComments && commentCount ? (
-          <CommentCountIcon count={commentCount} />
-        ) : null}
-        {showDuration && isPresent(ownDurationMs) && (
+        {showCommentIcon ? <CommentCountIcon count={commentCount!} /> : null}
+        {showDurationText && (
           <span
             className={cn(
               parentTotalDuration &&
                 colorCodeMetrics &&
                 heatMapTextColor({
                   max: parentTotalDuration,
-                  value: ownDurationMs,
+                  value: ownDurationMs!,
                 }),
             )}
           >
-            {formatIntervalSeconds(ownDurationMs / 1000)}
+            {durationText}
           </span>
         )}
-        {isPresent(ownDurationMs) && subtreeWallClockOverflowMs != null && (
-          <span title={SUBTREE_DURATION_TITLE}>
-            {"∑ "}
-            {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
-          </span>
+        {showSubtreeText && (
+          <span title={SUBTREE_DURATION_TITLE}>{subtreeText}</span>
         )}
-        {showCostTokens && node.totalCost && (
+        {showCostText && (
           <span
             className={cn(
               parentTotalCost &&
                 colorCodeMetrics &&
                 heatMapTextColor({
                   max: parentTotalCost,
-                  value: node.totalCost,
+                  value: node.totalCost!,
                 }),
             )}
           >
-            {usdFormatter(node.totalCost.toNumber())}
+            {costText}
           </span>
         )}
-        {showScores && scores && scores.length > 0 && (
+        {showScoreBadges && (
           <div className="flex max-h-5 gap-1">
-            <GroupedScoreBadges scores={scores} maxVisible={3} />
+            <GroupedScoreBadges scores={scores!} maxVisible={3} />
           </div>
         )}
       </div>

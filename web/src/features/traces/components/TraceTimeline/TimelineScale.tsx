@@ -28,8 +28,13 @@ export function TimelineScale({ ticks, laneWidth }: TimelineScaleProps) {
             className="border-border-contrast absolute h-full border-l text-xs"
             style={{ left: `${tick.x}px` }}
           >
+            {/* maxWidth is the structural guarantee: layout() already drops a
+                tick whose label would not fit, but it predicts the width from
+                measured glyphs, and a prediction must not be the only thing
+                keeping the axis inside the box. */}
             <span
-              className="text-muted-foreground absolute left-1 text-xs whitespace-nowrap"
+              className="text-muted-foreground absolute left-1 overflow-hidden text-xs whitespace-nowrap"
+              style={{ maxWidth: `${Math.max(laneWidth - tick.x - 4, 0)}px` }}
               title={tick.label}
             >
               {tick.label}

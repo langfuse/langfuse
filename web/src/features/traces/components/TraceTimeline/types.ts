@@ -8,6 +8,7 @@
 
 import type { TreeNode } from "../../types/treeNode";
 import type { PositionedNode, Tick } from "../../fns/timeline/layout";
+import type { TextMeasurer } from "../../fns/timeline/textMeasurer";
 import type Decimal from "decimal.js";
 import type { ScoreDomain } from "@langfuse/shared";
 import type { WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -25,6 +26,8 @@ export interface TimelineBarProps {
   row: TimelineRowNode;
   /** Measured width of the chart lane; the cluster may not cross it. */
   laneWidth: number;
+  /** Same measurer layout() used, so the bar can fit its own optional badges. */
+  measurer: TextMeasurer;
   isSelected: boolean;
   /** Row is hovered (driven by shared state so the whole row highlights). */
   isHovered?: boolean;
