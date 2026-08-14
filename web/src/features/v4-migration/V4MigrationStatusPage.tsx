@@ -706,7 +706,7 @@ function SwitchBackSection() {
         {isBetaEnabled && (
           <p className="text-muted-foreground text-sm leading-relaxed">
             The features powering the legacy v3 UI will be sunset on{" "}
-            {V4_MIGRATION_DEADLINE}. We strongly recommend switching back to the
+            {V4_MIGRATION_DEADLINE}. We strongly recommend switching to the
             latest UI (v4) before then.
           </p>
         )}
