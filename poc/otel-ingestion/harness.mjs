@@ -5,8 +5,10 @@
 //   rust            engine-rust binary — spawned ONCE for the whole run, so
 //                   the worker is long-running and per-batch process spawn
 //                   (measured at ~50% of worker CPU) is gone           [Path B]
+//   go              engine-go binary — same worker shape as rust, in Go
+//                                                              [Path B spike]
 //
-// Usage: node harness.mjs [--concurrency N] [--engine ch|rust]
+// Usage: node harness.mjs [--concurrency N] [--engine ch|rust|go]
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
@@ -33,11 +35,24 @@ const ENGINE =
   process.argv.indexOf("--engine") > -1
     ? process.argv[process.argv.indexOf("--engine") + 1]
     : (process.env.POC_ENGINE ?? "ch");
-if (!["ch", "rust"].includes(ENGINE))
+if (!["ch", "rust", "go"].includes(ENGINE))
   throw new Error(`unknown engine ${ENGINE}`);
-const RUST_BIN =
-  process.env.POC_RUST_BIN ??
-  new URL("./engine-rust/target/release/rust-worker", import.meta.url).pathname;
+// long-running worker engines: binary + the env var carrying the slot count
+const WORKERS = {
+  rust: {
+    bin:
+      process.env.POC_RUST_BIN ??
+      new URL("./engine-rust/target/release/rust-worker", import.meta.url)
+        .pathname,
+    slotsEnv: "POC_RW_SLOTS",
+  },
+  go: {
+    bin:
+      process.env.POC_GO_BIN ??
+      new URL("./engine-go/go-worker", import.meta.url).pathname,
+    slotsEnv: "POC_GW_SLOTS",
+  },
+};
 
 async function chq(sql, { json = false } = {}) {
   const res = await fetch(`${CH.url}/?database=poc_chlb`, {
@@ -100,10 +115,10 @@ async function runCh(manifest, byWindow) {
 
 // one long-running worker process for the whole run; per-window stat lines
 // stream back as JSON, a final {"summary":...} line carries process totals
-async function runRust(manifest, byWindow) {
+async function runWorker(spec, manifest, byWindow) {
   const windows = manifest.windows.map((w) => w.windowId);
-  const child = spawn(RUST_BIN, [manifest.prefix, ...windows], {
-    env: { ...process.env, POC_RW_SLOTS: String(CONCURRENCY) },
+  const child = spawn(spec.bin, [manifest.prefix, ...windows], {
+    env: { ...process.env, [spec.slotsEnv]: String(CONCURRENCY) },
     stdio: ["ignore", "pipe", "inherit"],
   });
   const results = [];
@@ -128,7 +143,7 @@ async function runRust(manifest, byWindow) {
       );
   }
   const code = await new Promise((resolve) => child.on("close", resolve));
-  if (code !== 0) throw new Error(`rust worker exited with code ${code}`);
+  if (code !== 0) throw new Error(`worker exited with code ${code}`);
   return { results, worker };
 }
 
@@ -143,10 +158,9 @@ async function main() {
     `engine=${ENGINE} windows=${manifest.windows.length} concurrency=${CONCURRENCY} (staging pool slots)`,
   );
   const runStarted = Date.now();
-  const { results, worker } =
-    ENGINE === "rust"
-      ? await runRust(manifest, byWindow)
-      : await runCh(manifest, byWindow);
+  const { results, worker } = WORKERS[ENGINE]
+    ? await runWorker(WORKERS[ENGINE], manifest, byWindow)
+    : await runCh(manifest, byWindow);
   const wallMs = Date.now() - runStarted;
 
   const totMb = results.reduce((a, r) => a + r.mb, 0);
@@ -175,8 +189,11 @@ async function main() {
   // server-side cost of filling staging (Path A: the whole transform;
   // Path B: just receiving the RowBinary INSERTs), this run only
   await chq(`SYSTEM FLUSH LOGS`);
-  const logComment =
-    ENGINE === "rust" ? "poc-chlb-rust-insert" : "poc-chlb-transform-v2";
+  const logComment = {
+    ch: "poc-chlb-transform-v2",
+    rust: "poc-chlb-rust-insert",
+    go: "poc-chlb-go-insert",
+  }[ENGINE];
   const stats = await chq(
     `SELECT
         count() AS queries,
