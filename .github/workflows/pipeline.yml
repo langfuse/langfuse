@@ -101,6 +101,7 @@ jobs:
               - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
+    timeout-minutes: 12
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
