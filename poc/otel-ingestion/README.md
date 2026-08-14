@@ -436,20 +436,43 @@ B's measured control over memory, latency, and cost matters more.
 The evidence is different for each option: Node was assessed but not built;
 Go was implemented against the same harness and benchmarked.
 
-**Node.** A Node-based worker could keep the coordinator in TypeScript and move
-the transform and its working memory into embedded chDB or a native Rust/C++
-module. This avoids putting large payloads on V8's heap, but it does not create
-a third execution engine or a new memory guarantee: Node's own worker limits
+**Node.** Embedding chDB is credible: TypeScript remains the coordinator while
+chDB owns the payload, transforms it on native threads, and writes the result to
+ClickHouse. That keeps the Node event loop light and large payloads outside V8,
+but architecturally it is embedded Path A. A native Rust/C++ add-on would be
+Path B behind an extra Node boundary. In either case, the memory guarantee comes
+from the native engine; Node's worker limits
 [do not cover external memory](https://nodejs.org/api/worker_threads.html#new-workerfilename-options).
-chDB is still Path A running in-process; a native module is still Path B with
-an extra integration layer.
 
-I do not think this is worth spiking now. The first option would mostly test
-different packaging for Path A; the second adds an integration layer around
-work we already built and measured. The Node chDB binding is also
-[still under active development](https://github.com/chdb-io/chdb-node/blob/main/docs/design/layer1-native-binding.md)
-for large streaming workloads. It is worth revisiting if we choose embedded
-Path A, but it is unlikely to change the choice between A and B today.
+A pure Node transform is a poorer fit. In the
+[large-file experiment](EXPERIMENTS.md#size-skew-stress-the-full-story), Rust's
+first parser used 248 MB of transient memory for a 57 MB file. Removing one
+buffered intermediate representation cut that to 105 MB. Node would start with
+the downloaded string and `JSON.parse` object graph, then add normalized events
+and serialized rows. Matching Path B's bound would require custom streaming
+throughout while V8 still controls when intermediate objects are reclaimed.
+
+The current Node workers also regularly see `socket hang up` and `ECONNRESET`
+on both S3 and ClickHouse requests. CPU work blocking the event loop is one
+plausible cause, although remote closes and stale keep-alive sockets produce the
+same errors. Worker threads address the CPU case, but not the memory result: a
+useful implementation would still need an end-to-end byte budget and enough CPU
+headroom to keep the coordinator responsive. At that point it has recreated
+Path B's shape in Node.
+
+We did not benchmark that implementation, so the comparison with Go is an
+inference. Still, Go is the closest measured baseline: it matched Rust's
+throughput, but used roughly twice the CPU and over three times the worker
+memory. A pure Node version carrying the object graph above plus a worker pool
+seems unlikely to beat it materially. Matching Go would not be enough; Go was
+already the weaker option against Rust.
+
+I do not think a pure Node spike is worth doing now. TypeScript familiarity is
+useful, but much of that advantage disappears once we need custom streaming,
+worker orchestration, and memory accounting across workers. That is too little
+upside to accept unproven CPU and memory costs plus a shared process failure
+domain. Embedded chDB remains worth revisiting if we choose Path A; for Path B,
+Rust is the strongest candidate measured here.
 
 **Go.** The Go spike used the same long-running worker shape, lenient field
 semantics, commit protocol, and harness. It reached checksum parity across all
