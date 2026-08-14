@@ -9,6 +9,7 @@ import {
   type ColumnDefinition,
   tracesTableCols,
   observationsTableCols,
+  sessionsViewCols,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
   computeSelectedValues,
@@ -590,6 +591,74 @@ describe("Config Validation of old saved views", () => {
     expect(
       sessionFilterConfig.facets.some((facet) => facet.column === "metadata"),
     ).toBe(false);
+  });
+});
+
+describe("Retired bookmarked filters (traces + sessions)", () => {
+  const bookmarkedFilter: FilterState = [
+    { column: "bookmarked", type: "boolean", operator: "=", value: true },
+  ];
+  const surfaces = [
+    ["traces", traceFilterConfig],
+    ["sessions", sessionFilterConfig],
+    ["sessions (v4)", sessionEventsFilterConfig],
+  ] as const;
+
+  it.each(surfaces)(
+    "drops a deep-linked bookmarked filter on the %s table",
+    (_label, config) => {
+      expect(
+        decodeAndNormalizeFilters(
+          encodeFiltersGeneric(bookmarkedFilter),
+          config.columnDefinitions,
+          config.migrateFilterState,
+        ),
+      ).toEqual([]);
+    },
+  );
+
+  it.each(surfaces)(
+    "drops a saved-view bookmarked filter on the %s table but keeps the rest",
+    (_label, config) => {
+      const savedView: FilterState = [
+        ...bookmarkedFilter,
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ];
+
+      expect(
+        validateFilters(
+          savedView,
+          config.columnDefinitions,
+          config.migrateFilterState,
+        ),
+      ).toEqual([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ]);
+    },
+  );
+
+  it("drops the legacy star display name a pre-ID saved view stored", () => {
+    expect(
+      validateFilters(
+        [{ column: "⭐️", type: "boolean", operator: "=", value: true }],
+        sessionFilterConfig.columnDefinitions,
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps bookmarked in the shared definitions the public API filters on", () => {
+    expect(tracesTableCols.some((col) => col.id === "bookmarked")).toBe(true);
+    expect(sessionsViewCols.some((col) => col.id === "bookmarked")).toBe(true);
   });
 });
 
