@@ -270,6 +270,16 @@ export async function executeInAppAgentRun(params: {
                 resume: {
                   approved: request.approved,
                   continuationNumber: request.continuationNumber ?? 1,
+                  ...(request.rootRunId
+                    ? { rootRunId: request.rootRunId }
+                    : {}),
+                  ...(request.traceStartedAt
+                    ? { traceStartedAt: request.traceStartedAt }
+                    : {}),
+                  ...(request.approvalRequestedAt
+                    ? { approvalRequestedAt: request.approvalRequestedAt }
+                    : {}),
+                  approvalDecidedAt: run.createdAt.toISOString(),
                   approvalRequest,
                 },
               },

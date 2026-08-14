@@ -585,12 +585,14 @@ describe("in-app agent background runs", () => {
       },
       { description: "user_name", value: "Agent User" },
     ];
+    const parkedAt = new Date("2026-08-14T10:00:05.000Z");
     const parkedRunId = await parkRunForApproval({
       projectId,
       conversationId: conversation.id,
       userId,
       toolCallId: "tool-call-1",
       context,
+      parkedAt,
     });
 
     const { runId: continuationRunId } = await caller.decideToolApproval({
@@ -615,6 +617,9 @@ describe("in-app agent background runs", () => {
     expect(continuation.request).toMatchObject({
       kind: "approvalDecision",
       parentRunId: parkedRunId,
+      rootRunId: parkedRunId,
+      traceStartedAt: parkedRun.createdAt.toISOString(),
+      approvalRequestedAt: parkedAt.toISOString(),
       continuationNumber: 1,
       toolCallId: "tool-call-1",
       approved: true,
@@ -682,13 +687,26 @@ describe("in-app agent background runs", () => {
       approved: true,
     });
 
+    const approvedContinuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: approvedContinuationId, projectId },
+    });
+    expect(approvedContinuation.request).toMatchObject({
+      kind: "approvalDecision",
+      parentRunId: initialRunId,
+      rootRunId: initialRunId,
+      traceStartedAt: expect.any(String),
+      approvalRequestedAt: expect.any(String),
+      continuationNumber: 1,
+    });
+
+    const secondParkedAt = new Date("2026-08-14T10:03:00.000Z");
     await prisma.inAppAgentRun.update({
       where: {
         id_projectId: { id: approvedContinuationId, projectId },
       },
       data: {
         status: InAppAgentRunStatus.AWAITING_APPROVAL,
-        finishedAt: new Date(),
+        finishedAt: secondParkedAt,
       },
     });
     await prisma.inAppAgentEvent.create({
@@ -726,6 +744,10 @@ describe("in-app agent background runs", () => {
     expect(rejectedContinuation.request).toMatchObject({
       kind: "approvalDecision",
       parentRunId: approvedContinuationId,
+      rootRunId: initialRunId,
+      traceStartedAt: (approvedContinuation.request as Record<string, unknown>)
+        .traceStartedAt,
+      approvalRequestedAt: secondParkedAt.toISOString(),
       continuationNumber: 2,
       toolCallId: "tool-call-2",
       approved: false,

@@ -219,7 +219,13 @@ export async function decideToolApproval(params: {
         projectId: params.projectId,
         conversationId: params.conversationId,
       },
-      select: { status: true, finishedAt: true, request: true },
+      select: {
+        status: true,
+        finishedAt: true,
+        claimedAt: true,
+        createdAt: true,
+        request: true,
+      },
     });
 
     if (
@@ -275,6 +281,16 @@ export async function decideToolApproval(params: {
       parentRequest.success && parentRequest.data.kind === "approvalDecision"
         ? (parentRequest.data.continuationNumber ?? 1) + 1
         : 1;
+    const rootRunId =
+      parentRequest.success && parentRequest.data.kind === "approvalDecision"
+        ? (parentRequest.data.rootRunId ?? params.parentRunId)
+        : params.parentRunId;
+    const traceStartedAt =
+      parentRequest.success &&
+      parentRequest.data.kind === "approvalDecision" &&
+      parentRequest.data.traceStartedAt
+        ? parentRequest.data.traceStartedAt
+        : (parentRun.claimedAt ?? parentRun.createdAt).toISOString();
 
     // Persist the grant in the same transaction as the exactly-once decision CAS.
     if (params.alwaysAllowToolName) {
@@ -329,6 +345,11 @@ export async function decideToolApproval(params: {
         request: {
           kind: "approvalDecision",
           parentRunId: params.parentRunId,
+          rootRunId,
+          traceStartedAt,
+          ...(parentRun.finishedAt
+            ? { approvalRequestedAt: parentRun.finishedAt.toISOString() }
+            : {}),
           continuationNumber,
           toolCallId: params.toolCallId,
           approved: params.approved,

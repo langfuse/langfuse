@@ -788,14 +788,21 @@ describe("InAppAgentInstrumentation", () => {
     { approved: true, status: "approved" as const },
     { approved: false, status: "rejected" as const },
   ])(
-    "records a $status approval continuation without repeating the user input",
+    "appends a $status approval continuation to the parent trace with a wait span",
     ({ approved, status }) => {
+      const traceStartedAt = "2026-08-14T10:00:00.000Z";
+      const approvalRequestedAt = "2026-08-14T10:00:05.000Z";
+      const approvalDecidedAt = "2026-08-14T10:02:05.000Z";
       const instrumentation = createInstrumentation({
         forwardedProps: {
           command: {
             resume: {
               approved,
               continuationNumber: 2,
+              rootRunId: "root-run-1",
+              traceStartedAt,
+              approvalRequestedAt,
+              approvalDecidedAt,
               approvalRequest: {
                 type: "tool_approval_request",
                 toolCallId: "tool-1",
@@ -839,40 +846,65 @@ describe("InAppAgentInstrumentation", () => {
       });
       instrumentation.end({});
 
-      const continuationInput = `Continuation: User ${status} tool langfuse_createTextPrompt`;
-      const continuationMetadata = {
+      const parentTraceId = getInAppAgentInstrumentationTraceId("root-run-1");
+      const parentObservationId =
+        getInAppAgentInstrumentationObservationId("root-run-1");
+      const approvalMetadata = {
         continuation_type: "tool_approval",
         continuation_number: 2,
         parent_run_id: "parent-run-1",
-        parent_trace_id: getInAppAgentInstrumentationTraceId("parent-run-1"),
+        parent_trace_id: parentTraceId,
         approval_status: status,
         approval_tool_call_id: "tool-1",
         approval_tool_name: "langfuse_createTextPrompt",
+        approval_requested_at: approvalRequestedAt,
+        approval_decided_at: approvalDecidedAt,
       };
 
       expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
         expect.objectContaining({
-          id: traceId,
+          id: parentTraceId,
           name: "agent-turn",
           sessionId: "conversation-1",
-          input: continuationInput,
-          tags: ["in-app-agent", "agent-turn-continuation"],
-          metadata: expect.objectContaining(continuationMetadata),
+          timestamp: new Date(traceStartedAt),
+          input: expectedAgentRunInput,
+          tags: ["in-app-agent"],
+          metadata: expect.objectContaining({
+            approval_continuation_count: 2,
+          }),
         }),
       );
       expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
         "agent-create",
         expect.objectContaining({
-          id: agentRunObservationId,
-          traceId,
+          id: parentObservationId,
+          traceId: parentTraceId,
           name: "agent-turn",
-          input: continuationInput,
-          metadata: expect.objectContaining(continuationMetadata),
+          startTime: new Date(traceStartedAt),
+          input: expectedAgentRunInput,
+          metadata: expect.objectContaining({
+            approval_continuation_count: 2,
+          }),
+        }),
+      );
+      expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+        "span-create",
+        expect.objectContaining({
+          id: `${runId}-approval-wait`,
+          traceId: parentTraceId,
+          parentObservationId,
+          name: "waiting for user approval for tool langfuse_createTextPrompt",
+          startTime: new Date(approvalRequestedAt),
+          endTime: new Date(approvalDecidedAt),
+          output: `User ${status} tool langfuse_createTextPrompt`,
+          metadata: expect.objectContaining(approvalMetadata),
         }),
       );
       expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
         "generation-create",
         expect.objectContaining({
+          traceId: parentTraceId,
+          parentObservationId,
           input: expect.objectContaining({
             messages: [
               { role: "user", content: "hello" },
@@ -894,8 +926,69 @@ describe("InAppAgentInstrumentation", () => {
           }),
         }),
       );
+      expect(mocks.trace.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expectedAgentRunInput,
+          metadata: expect.objectContaining({
+            approval_continuation_count: 2,
+          }),
+        }),
+      );
     },
   );
+
+  it("preserves earlier assistant output when a continuation updates the root trace", () => {
+    const instrumentation = createInstrumentation({
+      messages: [
+        { id: "message-1", role: "user", content: "hello" },
+        {
+          id: "assistant-before-approval",
+          role: "assistant",
+          content: "I need your approval.",
+        },
+      ],
+      forwardedProps: {
+        command: {
+          resume: {
+            approved: true,
+            rootRunId: "root-run-1",
+            traceStartedAt: "2026-08-14T10:00:00.000Z",
+            approvalRequestedAt: "2026-08-14T10:00:05.000Z",
+            approvalDecidedAt: "2026-08-14T10:02:05.000Z",
+            approvalRequest: {
+              type: "tool_approval_request",
+              toolCallId: "tool-1",
+              toolName: "langfuse_createTextPrompt",
+              runId: "parent-run-1",
+            },
+          },
+        },
+      },
+    });
+
+    instrumentation.recordEvents([
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        delta: "The tool completed.",
+      },
+    ]);
+    instrumentation.end({});
+
+    const finalRootObservation = mocks.handler.langfuse.enqueue.mock.calls
+      .filter(([type]) => type === "agent-create")
+      .at(-1)?.[1];
+    expect(finalRootObservation).toEqual(
+      expect.objectContaining({
+        input: expectedAgentRunInput,
+        output: expect.objectContaining({
+          messages: [
+            { role: "assistant", content: "I need your approval." },
+            { role: "assistant", content: "The tool completed." },
+          ],
+        }),
+      }),
+    );
+  });
 
   it("compacts text message chunks before recording output", () => {
     const instrumentation = createInstrumentation();
@@ -1137,12 +1230,24 @@ describe("InAppAgentInstrumentation", () => {
       },
       finishReason: "tool-calls",
       text: "",
+      toolCalls: [
+        {
+          toolCallId: "tool-1",
+          toolName: "listObservations",
+          args: { limit: 10 },
+        },
+      ],
       response: {
         messages: [
           {
             role: "assistant",
             content: "",
             tool_calls: [{ id: "tool-1" }],
+          },
+          {
+            role: "tool",
+            tool_call_id: "tool-1",
+            content: { ok: true },
           },
         ],
       },
@@ -1195,6 +1300,16 @@ describe("InAppAgentInstrumentation", () => {
       }),
     );
     expect(generationCreates[0]?.[1].input.messages).toHaveLength(1);
+    expect(generationCreates[0]?.[1].output).toEqual({
+      text: "",
+      tool_calls: [
+        {
+          toolCallId: "tool-1",
+          toolName: "listObservations",
+          args: { limit: 10 },
+        },
+      ],
+    });
 
     expect(generationCreates[1]?.[1]).toEqual(
       expect.objectContaining({

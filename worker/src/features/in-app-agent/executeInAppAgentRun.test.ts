@@ -205,6 +205,9 @@ async function seedApprovedContinuation(opts?: {
   context?: Array<{ description: string; value: string }>;
   alwaysAllowedTools?: string[];
   continuationNumber?: number;
+  rootRunId?: string;
+  traceStartedAt?: string;
+  approvalRequestedAt?: string;
 }) {
   const seeded = await seedBackgroundRun({
     alwaysAllowedTools: opts?.alwaysAllowedTools,
@@ -236,6 +239,13 @@ async function seedApprovedContinuation(opts?: {
       request: {
         kind: "approvalDecision",
         parentRunId: parentRun.id,
+        ...(opts?.rootRunId ? { rootRunId: opts.rootRunId } : {}),
+        ...(opts?.traceStartedAt
+          ? { traceStartedAt: opts.traceStartedAt }
+          : {}),
+        ...(opts?.approvalRequestedAt
+          ? { approvalRequestedAt: opts.approvalRequestedAt }
+          : {}),
         toolCallId: "tc-1",
         approved: true,
         ...(opts?.continuationNumber
@@ -251,6 +261,9 @@ async function seedApprovedContinuation(opts?: {
 
 describe("executeInAppAgentRun", () => {
   it("passes persisted continuation context to the agent input", async () => {
+    const rootRunId = "root-run-1";
+    const traceStartedAt = "2026-08-14T10:00:00.000Z";
+    const approvalRequestedAt = "2026-08-14T10:00:05.000Z";
     const context = [
       {
         description: "current_url",
@@ -261,14 +274,22 @@ describe("executeInAppAgentRun", () => {
     const { projectId, run } = await seedApprovedContinuation({
       context,
       continuationNumber: 3,
+      rootRunId,
+      traceStartedAt,
+      approvalRequestedAt,
     });
 
     scenarioRef.current = async ({ input, options }) => {
       expect(input.context).toEqual(context);
-      expect(
-        ResumeForwardedPropsSchema.parse(input.forwardedProps).command.resume
-          .continuationNumber,
-      ).toBe(3);
+      const resume = ResumeForwardedPropsSchema.parse(input.forwardedProps)
+        .command.resume;
+      expect(resume).toMatchObject({
+        continuationNumber: 3,
+        rootRunId,
+        traceStartedAt,
+        approvalRequestedAt,
+        approvalDecidedAt: run.createdAt.toISOString(),
+      });
       await options.onComplete();
       await options.onFinish();
     };

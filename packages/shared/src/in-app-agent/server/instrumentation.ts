@@ -137,7 +137,14 @@ type LastLlmGeneration = {
   hasUsage: boolean;
 };
 type ApprovalContinuation = {
-  input: string;
+  status: ToolCallApprovalStatus;
+  continuationNumber: number;
+  rootRunId: string;
+  toolCallId: string;
+  toolName: string;
+  traceStartedAt?: Date;
+  approvalRequestedAt?: Date;
+  approvalDecidedAt?: Date;
   metadata: Record<string, unknown>;
 };
 
@@ -177,6 +184,7 @@ export class InAppAgentInstrumentation {
   private readonly runId: string;
   private readonly traceId: string;
   private readonly rootObservationId: string;
+  private readonly traceStartTime: Date;
   private readonly agentRunStartTime: Date;
   private agentRunInput: unknown;
   private readonly approvalContinuation?: ApprovalContinuation;
@@ -235,17 +243,24 @@ export class InAppAgentInstrumentation {
             prompt_version: params.prompt.version,
           }
         : {}),
-      ...this.approvalContinuation?.metadata,
+      ...(this.approvalContinuation
+        ? {
+            approval_continuation_count:
+              this.approvalContinuation.continuationNumber,
+          }
+        : {}),
     };
     this.agentRunInput = getAgentRunInput(params.input);
     this.prompt = params.prompt;
     this.model = params.model;
     this.runId = params.runId;
-    this.traceId = getInAppAgentInstrumentationTraceId(params.runId);
-    this.rootObservationId = getInAppAgentInstrumentationObservationId(
-      params.runId,
-    );
+    const rootRunId = this.approvalContinuation?.rootRunId ?? params.runId;
+    this.traceId = getInAppAgentInstrumentationTraceId(rootRunId);
+    this.rootObservationId =
+      getInAppAgentInstrumentationObservationId(rootRunId);
     this.agentRunStartTime = new Date();
+    this.traceStartTime =
+      this.approvalContinuation?.traceStartedAt ?? this.agentRunStartTime;
 
     const traceSinkParams = {
       targetProjectId: params.targetProjectId,
@@ -266,18 +281,17 @@ export class InAppAgentInstrumentation {
       name: IN_APP_AGENT_TURN_NAME,
       userId: params.userId,
       sessionId: params.input.threadId,
+      timestamp: this.traceStartTime,
       input: this.getTraceInput(),
       metadata: this.metadata,
-      tags: [
-        "in-app-agent",
-        ...(this.approvalContinuation ? ["agent-turn-continuation"] : []),
-      ],
+      tags: ["in-app-agent"],
     });
 
     // Create the root observation immediately so tool/generation children
     // emitted during the run have a parent that already exists (avoids
     // orphans that attach to the trace as siblings of the late agent).
     this.emitRootAgentObservation({ metadata: this.metadata });
+    this.emitApprovalWaitObservation();
   }
 
   recordEvents(events: AgUiEvent[]) {
@@ -726,7 +740,7 @@ export class InAppAgentInstrumentation {
       id: this.rootObservationId,
       traceId: this.traceId,
       name: IN_APP_AGENT_TURN_NAME,
-      startTime: this.agentRunStartTime,
+      startTime: this.traceStartTime,
       endTime: new Date(),
       input: this.getTraceInput(),
       output: this.getAgentRunOutput(),
@@ -852,18 +866,34 @@ export class InAppAgentInstrumentation {
   }
 
   private getTraceInput() {
-    return this.approvalContinuation?.input ?? this.agentRunInput;
+    if (!this.approvalContinuation || !isRecord(this.agentRunInput)) {
+      return this.agentRunInput;
+    }
+
+    const messages = Array.isArray(this.agentRunInput.messages)
+      ? this.agentRunInput.messages.filter((message) => {
+          if (!isRecord(message)) {
+            return false;
+          }
+
+          return (
+            message.role === "developer" ||
+            message.role === "system" ||
+            message.role === "user"
+          );
+        })
+      : [];
+
+    return {
+      ...this.agentRunInput,
+      messages,
+    };
   }
 
   private getLlmStepOutput(
     step: OpenLlmStep,
     event: Record<string, unknown> | undefined,
   ) {
-    const response = isRecord(event?.response) ? event.response : undefined;
-    if (Array.isArray(response?.messages) && response.messages.length > 0) {
-      return { messages: response.messages };
-    }
-
     const text = typeof event?.text === "string" ? event.text : undefined;
     const toolCalls = Array.isArray(event?.toolCalls)
       ? event.toolCalls
@@ -873,6 +903,11 @@ export class InAppAgentInstrumentation {
         ...(text !== undefined ? { text } : {}),
         ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
       };
+    }
+
+    const response = isRecord(event?.response) ? event.response : undefined;
+    if (Array.isArray(response?.messages) && response.messages.length > 0) {
+      return { messages: response.messages };
     }
 
     const messages = this.agentRunOutputMessages.slice(step.inputMessageCount);
@@ -1069,17 +1104,56 @@ export class InAppAgentInstrumentation {
   }
 
   private getAgentRunOutput() {
-    if (this.agentRunOutputMessages.length === 0) {
+    const priorMessages =
+      this.approvalContinuation && isRecord(this.agentRunInput)
+        ? getPriorAgentRunOutputMessages(this.agentRunInput.messages)
+        : [];
+    const messages = [...priorMessages, ...this.agentRunOutputMessages];
+
+    if (messages.length === 0) {
       return undefined;
     }
 
+    const priorToolCalls = priorMessages.flatMap(
+      (message) => message.tool_calls ?? [],
+    );
+    const toolCalls = [...priorToolCalls, ...this.agentRunToolCalls];
+
     return {
-      messages: this.agentRunOutputMessages,
+      messages,
       ...(this.output ? { text: this.output } : {}),
-      ...(this.agentRunToolCalls.length > 0
-        ? { tool_calls: this.agentRunToolCalls }
-        : {}),
+      ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
     };
+  }
+
+  private emitApprovalWaitObservation() {
+    const continuation = this.approvalContinuation;
+    if (!continuation) {
+      return;
+    }
+
+    const requestedAt =
+      continuation.approvalRequestedAt ??
+      continuation.approvalDecidedAt ??
+      this.agentRunStartTime;
+    const decidedAt = continuation.approvalDecidedAt ?? this.agentRunStartTime;
+    const endTime =
+      decidedAt.getTime() < requestedAt.getTime() ? requestedAt : decidedAt;
+
+    this.enqueueObservation("span-create", {
+      id: `${this.runId}-approval-wait`,
+      traceId: this.traceId,
+      parentObservationId: this.rootObservationId,
+      name: `waiting for user approval for tool ${continuation.toolName}`,
+      startTime: requestedAt,
+      endTime,
+      input: {
+        tool_call_id: continuation.toolCallId,
+        tool_name: continuation.toolName,
+      },
+      output: `User ${continuation.status} tool ${continuation.toolName}`,
+      metadata: continuation.metadata,
+    });
   }
 }
 
@@ -1098,23 +1172,55 @@ function getApprovalContinuation(
     approved,
     approvalRequest,
     continuationNumber = 1,
+    rootRunId = approvalRequest.runId,
+    traceStartedAt,
+    approvalRequestedAt,
+    approvalDecidedAt,
   } = forwardedProps.data.command.resume;
   const status = approved ? "approved" : "rejected";
+  const traceId = getInAppAgentInstrumentationTraceId(rootRunId);
 
   return {
-    input: `Continuation: User ${status} tool ${approvalRequest.toolName}`,
+    status,
+    continuationNumber,
+    rootRunId,
+    toolCallId: approvalRequest.toolCallId,
+    toolName: approvalRequest.toolName,
+    ...(traceStartedAt ? { traceStartedAt: new Date(traceStartedAt) } : {}),
+    ...(approvalRequestedAt
+      ? { approvalRequestedAt: new Date(approvalRequestedAt) }
+      : {}),
+    ...(approvalDecidedAt
+      ? { approvalDecidedAt: new Date(approvalDecidedAt) }
+      : {}),
     metadata: {
       continuation_type: "tool_approval",
       continuation_number: continuationNumber,
       parent_run_id: approvalRequest.runId,
-      parent_trace_id: getInAppAgentInstrumentationTraceId(
-        approvalRequest.runId,
-      ),
+      parent_trace_id: traceId,
       approval_status: status,
       approval_tool_call_id: approvalRequest.toolCallId,
       approval_tool_name: approvalRequest.toolName,
+      ...(approvalRequestedAt
+        ? { approval_requested_at: approvalRequestedAt }
+        : {}),
+      ...(approvalDecidedAt ? { approval_decided_at: approvalDecidedAt } : {}),
     },
   };
+}
+
+function getPriorAgentRunOutputMessages(
+  messages: unknown,
+): AgentRunChatMessage[] {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+
+  return messages.filter(
+    (message): message is AgentRunChatMessage =>
+      isRecord(message) &&
+      (message.role === "assistant" || message.role === "tool"),
+  );
 }
 
 function getAgentRunInput(input: AgUiRunAgentInput): unknown {

@@ -240,6 +240,10 @@ export const ResumeForwardedPropsSchema = z.object({
     resume: z.object({
       approved: z.boolean(),
       continuationNumber: z.number().int().positive().optional(),
+      rootRunId: z.string().min(1).optional(),
+      traceStartedAt: z.iso.datetime({ offset: true }).optional(),
+      approvalRequestedAt: z.iso.datetime({ offset: true }).optional(),
+      approvalDecidedAt: z.iso.datetime({ offset: true }).optional(),
       approvalRequest: InAppAgentToolApprovalRequestSchema,
     }),
   }),
