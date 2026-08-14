@@ -8,14 +8,13 @@ import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrat
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 
 export function V4MigrationNavItem() {
-  const { project, organization } = useQueryProject();
+  const { project } = useQueryProject();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
   const capture = usePostHogClientCapture();
   const migrationData = useProjectV4MigrationData({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled: v4UpgradeUiEnabled && Boolean(project),
   });
 
@@ -30,16 +29,10 @@ export function V4MigrationNavItem() {
     exports: migrationData.exports,
     forceV3Experience: migrationData.forceV3Experience,
   });
-  if (readiness === "ready") {
+  if (readiness !== "action-needed") {
     return null;
   }
-
-  const label =
-    readiness === "checking"
-      ? "Checking"
-      : readiness === "unavailable"
-        ? "Check status"
-        : "Action required";
+  const label = "Action required";
 
   const handleClick = () => {
     capture("sidebar:v4_migration_card_clicked");

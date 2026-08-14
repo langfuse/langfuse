@@ -1,5 +1,4 @@
 import { type RouterOutputs } from "@/src/utils/api";
-import { normalizeLegacyApiEntrypoint } from "@/src/features/v4/utils";
 import { type V4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionStatus";
 
 export const V4_MIGRATION_LOOKBACK_DAYS = 14;
@@ -132,45 +131,6 @@ export const getProjectMigrationReadiness = (
     return "ready";
   }
   return "action-needed";
-};
-
-type LegacyApiUsagePoint =
-  RouterOutputs["v4Transition"]["timeSeriesByEntrypoint"][number];
-
-type LegacyApiUsageSummary = {
-  endpoint: string;
-  count: number;
-  lastSeen: string;
-};
-
-export const aggregateLegacyApiUsage = (
-  rows: LegacyApiUsagePoint[] | undefined,
-): LegacyApiUsageSummary[] => {
-  const usageByEndpoint = new Map<
-    string,
-    { count: number; lastSeen: string }
-  >();
-
-  for (const row of rows ?? []) {
-    const endpoint = normalizeLegacyApiEntrypoint(row.entrypoint);
-    if (!endpoint || row.count <= 0 || !row.lastSeen) continue;
-    const current = usageByEndpoint.get(endpoint);
-    usageByEndpoint.set(endpoint, {
-      count: (current?.count ?? 0) + row.count,
-      lastSeen:
-        current && current.lastSeen > row.lastSeen
-          ? current.lastSeen
-          : row.lastSeen,
-    });
-  }
-
-  return Array.from(usageByEndpoint, ([endpoint, usage]) => ({
-    endpoint,
-    ...usage,
-  })).sort(
-    (left, right) =>
-      right.count - left.count || left.endpoint.localeCompare(right.endpoint),
-  );
 };
 
 type LegacyIntegrationSummary =

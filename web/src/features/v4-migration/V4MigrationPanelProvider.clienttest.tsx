@@ -64,6 +64,7 @@ describe("V4MigrationPanelProvider", () => {
     expect(result.current.targetProject).toEqual({
       id: "project-id",
       name: "Project",
+      readiness: "action-needed",
     });
     expect(captureMock).toHaveBeenCalledExactlyOnceWith(
       "v4_migration:panel_opened",

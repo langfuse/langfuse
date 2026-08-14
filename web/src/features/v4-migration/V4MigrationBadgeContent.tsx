@@ -79,8 +79,12 @@ export function V4MigrationBadgeContent({
         <span className="flex items-center">
           {title}
           {description ? (
-            <span className="flex max-w-0 items-center overflow-hidden transition-[max-width] duration-300 ease-out group-hover:max-w-96 group-focus-visible:max-w-96">
-              <span className="whitespace-nowrap">.&nbsp;{description}.</span>
+            // 0fr -> 1fr animates to the intrinsic text width; a max-width cap
+            // would clip any description longer than the magic number (LF-90).
+            <span className="grid grid-cols-[0fr] transition-[grid-template-columns] duration-300 ease-out group-hover:grid-cols-[1fr] group-focus-visible:grid-cols-[1fr]">
+              <span className="min-w-0 overflow-hidden">
+                <span className="whitespace-nowrap">.&nbsp;{description}.</span>
+              </span>
             </span>
           ) : null}
           {showChevron ? (

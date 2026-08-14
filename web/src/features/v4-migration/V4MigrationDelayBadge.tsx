@@ -26,7 +26,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiFlagEnabled = useV4UpgradeUiFlag();
   const openMigrationPanel = useOpenV4MigrationPanel();
-  const { project, organization } = useQueryProject();
+  const { project } = useQueryProject();
   const forceV3 = useForceV3Experience(project?.id);
   const { isBetaEnabled } = useV4Beta();
   const capture = usePostHogClientCapture();
@@ -36,7 +36,6 @@ export function V4MigrationDelayBadge() {
   const enabled = v4UpgradeUiFlagEnabled && (!forceV3 || isBetaEnabled);
   const sdk = useProjectV4SdkData({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled: enabled && Boolean(project),
   });
 
@@ -75,12 +74,12 @@ export function V4MigrationDelayBadge() {
   // multiple delayed paths get the generic clause.
   const description =
     actionablePaths > 1
-      ? "Your setup is outdated. Upgrade for real-time data"
+      ? "Upgrade to v4 for real-time data"
       : sdkActionable
-        ? "Your setup is outdated. Update SDK for real-time data"
+        ? "Update your SDK for real-time data"
         : otelActionable
-          ? "Your setup is outdated. Update OTel instrumentation for real-time data"
-          : "Your setup is outdated. Upgrade instrumentation for real-time data";
+          ? "Update your OTel instrumentation for real-time data"
+          : "Upgrade your instrumentation for real-time data";
 
   return (
     <V4MigrationBadgeContent
@@ -94,12 +93,11 @@ export function V4MigrationDelayBadge() {
 /** Shared gating for the eval "Action required" badges: v4 upgrade UI flag,
  * project context, and a loaded, non-zero deprecated-eval count. */
 function useEvalUpdateRequiredBadgeState() {
-  const { project, organization } = useQueryProject();
+  const { project } = useQueryProject();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const enabled = v4UpgradeUiEnabled && Boolean(project);
   const evalState = useProjectV4EvalData({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled,
   });
 
@@ -109,7 +107,7 @@ function useEvalUpdateRequiredBadgeState() {
     evalState.status === "loaded" &&
     evalState.count > 0;
 
-  return { project, organization, enabled, visible };
+  return { project, enabled, visible };
 }
 
 /** Opens the evaluator migration choices from the v4 migration badge. */
@@ -117,11 +115,9 @@ export function V4MigrationUpdateRequiredBadge() {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
-  const { project, visible, enabled, organization } =
-    useEvalUpdateRequiredBadgeState();
+  const { project, visible, enabled } = useEvalUpdateRequiredBadgeState();
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId: project?.id,
-    orgId: organization?.id,
     enabled,
   });
 

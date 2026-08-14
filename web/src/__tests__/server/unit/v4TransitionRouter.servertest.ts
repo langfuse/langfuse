@@ -99,6 +99,14 @@ const sharedServerMock = vi.hoisted(() => ({
   },
 }));
 
+const sharedEnvMock = vi.hoisted(() => ({
+  CLICKHOUSE_URL: "https://clickhouse-main.example.com",
+  CLICKHOUSE_READ_ONLY_URL: "https://clickhouse-read.example.com",
+  CLICKHOUSE_EVENTS_READ_ONLY_URL: "https://clickhouse-main.example.com",
+}));
+
+vi.mock("@langfuse/shared/src/env", () => ({ env: sharedEnvMock }));
+
 vi.mock("@langfuse/shared/src/server", async () => {
   const { ROOT_CONTEXT } = await import("@opentelemetry/api");
 
@@ -135,6 +143,119 @@ const mockedQueryClickhouse = vi.mocked(queryClickhouse);
 const projectId = "project-v4-transition";
 const orgId = "org-v4-transition";
 const secondProjectId = "project-v4-transition-second";
+const outsideProjectId = "project-v4-transition-outside";
+
+/** ClickHouse mock row shaped like the SQL-classified sdkUsageSummary output. */
+const mockSdkUsageRow = (overrides: {
+  projectId: string;
+  source?: "ingestion-api-dual-write" | "otel-dual-write" | "otel";
+  ingestionPath?: "ingestion_api" | "otel";
+  deliveryMode?: "delayed" | "realtime";
+  sdkName?: string;
+  sdkVersion?: string;
+  canonicalSdkName?: "python" | "javascript" | null;
+  sdkVersionMajor?: number | string | null;
+  latestSdkMajor?: number | string | null;
+  isValidSdkVersion?: boolean | string | number;
+  attributionStatus?: string;
+  publicKey?: string;
+  v4MigrationStatus?: "compatible" | "upgrade_required" | "unknown";
+  remediationType?:
+    | "update_sdk"
+    | "update_otel_instrumentation"
+    | "upgrade_instrumentation";
+  actionLevel?: "required" | "none";
+  eventCount?: string | number;
+  firstSeen?: string;
+  lastSeen?: string;
+}) => {
+  const source = overrides.source ?? "ingestion-api-dual-write";
+  const ingestionPath =
+    overrides.ingestionPath ??
+    (source === "ingestion-api-dual-write" ? "ingestion_api" : "otel");
+  const deliveryMode =
+    overrides.deliveryMode ?? (source === "otel" ? "realtime" : "delayed");
+  const sdkName = overrides.sdkName ?? "python";
+  const sdkVersion = overrides.sdkVersion ?? "4.7.0";
+  const canonicalSdkName =
+    overrides.canonicalSdkName !== undefined
+      ? overrides.canonicalSdkName
+      : sdkName === "python" || sdkName === "langfuse-python"
+        ? ("python" as const)
+        : sdkName === "javascript" || sdkName.startsWith("@langfuse/")
+          ? ("javascript" as const)
+          : null;
+  const sdkVersionMajor =
+    overrides.sdkVersionMajor !== undefined
+      ? overrides.sdkVersionMajor
+      : Number(sdkVersion.match(/^v?(\d+)/)?.[1] ?? NaN);
+  const resolvedMajor = Number.isFinite(Number(sdkVersionMajor))
+    ? Number(sdkVersionMajor)
+    : null;
+  const latestMajor =
+    canonicalSdkName === "python"
+      ? 4
+      : canonicalSdkName === "javascript"
+        ? 5
+        : null;
+  const v4MigrationStatus =
+    overrides.v4MigrationStatus ??
+    (canonicalSdkName === null || resolvedMajor === null
+      ? "unknown"
+      : resolvedMajor >= (latestMajor ?? 0)
+        ? "compatible"
+        : "upgrade_required");
+  const remediationType =
+    overrides.remediationType ??
+    (canonicalSdkName !== null
+      ? "update_sdk"
+      : ingestionPath === "otel"
+        ? "update_otel_instrumentation"
+        : "upgrade_instrumentation");
+  const actionLevel =
+    overrides.actionLevel ??
+    (remediationType === "update_sdk"
+      ? v4MigrationStatus === "compatible"
+        ? "none"
+        : "required"
+      : remediationType === "update_otel_instrumentation"
+        ? deliveryMode === "realtime"
+          ? "none"
+          : "required"
+        : "required");
+
+  return {
+    projectId: overrides.projectId,
+    source,
+    ingestionPath,
+    deliveryMode,
+    sdkName,
+    sdkVersion,
+    canonicalSdkName,
+    sdkVersionMajor: resolvedMajor,
+    latestSdkMajor:
+      overrides.latestSdkMajor !== undefined
+        ? overrides.latestSdkMajor
+        : latestMajor,
+    isValidSdkVersion: overrides.isValidSdkVersion ?? resolvedMajor !== null,
+    attributionStatus:
+      overrides.attributionStatus ??
+      (sdkName === "unknown" && sdkVersion === "unknown"
+        ? "missing_name_and_version"
+        : sdkName === "unknown"
+          ? "missing_name"
+          : sdkVersion === "unknown"
+            ? "missing_version"
+            : "attributed"),
+    publicKey: overrides.publicKey ?? "pk-lf-python",
+    v4MigrationStatus,
+    remediationType,
+    actionLevel,
+    eventCount: overrides.eventCount ?? "1",
+    firstSeen: overrides.firstSeen ?? "2026-06-24T01:00:00Z",
+    lastSeen: overrides.lastSeen ?? "2026-06-24T02:00:00Z",
+  };
+};
 
 // Mocked Prisma delegates only implement the methods a test exercises, so
 // accept any subset of PrismaClient keys with loosely typed values.
@@ -240,11 +361,30 @@ const session: Session = {
   },
 };
 
+const accessibleProjectsFindManyArgs = {
+  where: {
+    orgId,
+    deletedAt: null,
+    id: { in: [projectId, secondProjectId] },
+  },
+  select: {
+    id: true,
+    name: true,
+  },
+  orderBy: {
+    createdAt: "desc" as const,
+  },
+};
+
 describe("v4TransitionRouter", () => {
   beforeEach(() => {
+    sharedEnvMock.CLICKHOUSE_READ_ONLY_URL =
+      "https://clickhouse-read.example.com";
+    sharedEnvMock.CLICKHOUSE_EVENTS_READ_ONLY_URL =
+      sharedEnvMock.CLICKHOUSE_URL;
     mockedQueryClickhouse.mockResolvedValue([
       {
-        time: "2026-06-24T12:00:00Z",
+        projectId,
         entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: "0.6666666666666666",
         lastSeen: "2026-06-24T12:34:56.789123Z",
@@ -256,51 +396,60 @@ describe("v4TransitionRouter", () => {
     vi.clearAllMocks();
   });
 
-  it("queries legacy public API usage with UTC buckets and route classification", async () => {
+  it("summarizes legacy public API usage for a project with route classification", async () => {
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: "0.6666666666666666",
+          lastSeen: "2026-06-24T12:34:56.789123Z",
+        },
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/datasets/{datasetName}/runs",
+          count: "1",
+          lastSeen: "2026-06-24T14:00:00.000000Z",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: "1.3333333333333335",
+          lastSeen: "2026-06-24T15:00:00.000000Z",
+        },
+      ]);
     const caller = createCaller();
 
-    const rows = await caller.timeSeriesByEntrypoint({
+    const rows = await caller.legacyApiUsageSummary({
       projectId,
       fromTimestamp: new Date("2026-06-24T00:00:00Z"),
       toTimestamp: new Date("2026-06-25T00:00:00Z"),
-      granularity: "auto",
     });
 
-    expect(rows).toHaveLength(25);
-    expect(new Set(rows.map((row) => row.time)).size).toBe(24);
-    expect(rows[0]).toEqual({
-      time: "2026-06-24T00:00:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-    expect(rows[12]).toEqual({
-      time: "2026-06-24T12:00:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-    expect(rows[13]).toEqual({
-      time: "2026-06-24T12:00:00Z",
-      entrypoint: "publicapi: GET /api/public/traces/{id}",
-      count: 0.6666666666666666,
-      lastSeen: "2026-06-24T12:34:56.789123Z",
-    });
-    expect(rows[24]).toEqual({
-      time: "2026-06-24T23:00:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
+    expect(rows).toEqual([
+      {
+        projectId,
+        entrypoint: "publicapi: GET /api/public/datasets/{datasetName}/runs",
+        count: 1,
+        lastSeen: "2026-06-24T14:00:00.000000Z",
+      },
+      {
+        projectId,
+        entrypoint: "publicapi: GET /api/public/traces/{id}",
+        count: 2,
+        lastSeen: "2026-06-24T15:00:00.000000Z",
+      },
+    ]);
 
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(clickhouseQuery?.query).toContain(
       "FROM clusterAllReplicas('test-cluster', 'system.query_log')",
     );
-    expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 1 HOUR, 'UTC') AS bucket_time",
-    );
+    expect(clickhouseQuery?.query).not.toContain("toStartOfInterval");
+    expect(clickhouseQuery?.query).not.toContain("bucket_time");
     expect(clickhouseQuery?.query).toContain(
       "splitByChar('?', JSONExtractString(log_comment, 'route'))[1]",
     );
@@ -321,10 +470,26 @@ describe("v4TransitionRouter", () => {
       "JSONExtractString(log_comment, 'surface') = 'publicapi'",
     );
     expect(clickhouseQuery?.query).toContain(
-      "JSONExtractString(log_comment, 'projectId') = {projectId: String}",
+      "JSONExtractString(log_comment, 'projectId') IN {projectIds: Array(String)}",
     );
+    expect(clickhouseQuery?.query).toContain(
+      "GROUP BY project_id, legacy_route",
+    );
+    expect(clickhouseQuery?.query).not.toContain("hostName()");
+    expect(clickhouseQuery?.params).toMatchObject({
+      projectIds: [projectId],
+    });
+    expect(clickhouseQuery?.tags).toEqual({
+      route: "v4-legacy-api-usage-summary",
+    });
     expect(clickhouseQuery?.clickhouseSettings).toEqual({
       skip_unavailable_shards: 1,
+    });
+    expect(mockedQueryClickhouse.mock.calls[0]?.[0]).toMatchObject({
+      preferredClickhouseService: "ReadOnly",
+    });
+    expect(mockedQueryClickhouse.mock.calls[1]?.[0]).toMatchObject({
+      preferredClickhouseService: "ReadWrite",
     });
 
     [
@@ -346,12 +511,16 @@ describe("v4TransitionRouter", () => {
       "GET /api/public/observations/{id}",
       "GET /api/public/scores/{id}",
       "GET /api/public/v2/scores/{id}",
+      "GET /api/public/datasets/{datasetName}/runs",
       "GET /api/public/datasets/{datasetName}/runs/{runName}",
     ].forEach((route) => expect(clickhouseQuery?.query).toContain(route));
     expect(clickhouseQuery?.query).toContain(
+      "match(route_path, '^GET /api/public/datasets/[^/?#]+/runs$'), 'GET /api/public/datasets/{datasetName}/runs'",
+    );
+    expect(clickhouseQuery?.query).toContain(
       "match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1",
     );
-
+    expect(clickhouseQuery?.query).not.toContain("DELETE /api/public/datasets");
     expect(clickhouseQuery?.query).toContain(
       "'GET /api/public/traces',\n        'GET /api/public/observations',\n        'GET /api/public/scores',\n        'GET /api/public/v2/scores',\n        'GET /api/public/metrics/daily',\n        'GET /api/public/dataset-run-items'\n      ), 2",
     );
@@ -363,275 +532,203 @@ describe("v4TransitionRouter", () => {
     );
   });
 
-  it("fills daily buckets for a 30 day timeline", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        time: "2026-06-10T00:00:00Z",
-        entrypoint: "publicapi: GET /api/public/traces",
-        count: "42",
-        lastSeen: "2026-06-10T17:42:00Z",
-      },
-    ]);
-
-    const caller = v4TransitionRouter.createCaller(
-      createInnerTRPCContext({ session, headers: {} }),
-    );
-
-    const rows = await caller.timeSeriesByEntrypoint({
-      projectId,
-      fromTimestamp: new Date("2026-05-26T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
-      granularity: "auto",
-    });
-
-    expect(rows).toHaveLength(31);
-    expect(new Set(rows.map((row) => row.time)).size).toBe(30);
-    expect(rows[0]).toEqual({
-      time: "2026-05-26T00:00:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-    expect(rows[15]).toEqual({
-      time: "2026-06-10T00:00:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-    expect(rows[16]).toEqual({
-      time: "2026-06-10T00:00:00Z",
-      entrypoint: "publicapi: GET /api/public/traces",
-      count: 42,
-      lastSeen: "2026-06-10T17:42:00Z",
-    });
-    expect(rows[30]).toEqual({
-      time: "2026-06-24T00:00:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-
-    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 1 DAY, 'UTC') AS bucket_time",
-    );
-  });
-
-  it("fills 2 minute buckets for a 1 hour timeline", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        time: "2026-06-24T00:20:00Z",
-        entrypoint: "publicapi: GET /api/public/traces",
-        count: "8",
-        lastSeen: "2026-06-24T00:21:30Z",
-      },
-    ]);
-
-    const caller = createCaller();
-
-    const rows = await caller.timeSeriesByEntrypoint({
-      projectId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-24T01:00:00Z"),
-      granularity: "auto",
-    });
-
-    expect(rows).toHaveLength(31);
-    expect(new Set(rows.map((row) => row.time)).size).toBe(30);
-    expect(rows[0]).toEqual({
-      time: "2026-06-24T00:00:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-    expect(rows[10]).toEqual({
-      time: "2026-06-24T00:20:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-    expect(rows[11]).toEqual({
-      time: "2026-06-24T00:20:00Z",
-      entrypoint: "publicapi: GET /api/public/traces",
-      count: 8,
-      lastSeen: "2026-06-24T00:21:30Z",
-    });
-    expect(rows[30]).toEqual({
-      time: "2026-06-24T00:58:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-
-    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 2 MINUTE, 'UTC') AS bucket_time",
-    );
-  });
-
-  it("fills 2 minute buckets for a 45 minute timeline", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        time: "2026-06-24T00:16:00Z",
-        entrypoint: "publicapi: GET /api/public/traces",
-        count: "8",
-        lastSeen: "2026-06-24T00:17:45Z",
-      },
-    ]);
-
-    const caller = createCaller();
-
-    const rows = await caller.timeSeriesByEntrypoint({
-      projectId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-24T00:45:00Z"),
-      granularity: "auto",
-    });
-
-    expect(rows).toHaveLength(24);
-    expect(new Set(rows.map((row) => row.time)).size).toBe(23);
-    expect(rows[0]).toEqual({
-      time: "2026-06-24T00:00:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-    expect(rows[8]).toEqual({
-      time: "2026-06-24T00:16:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-    expect(rows[9]).toEqual({
-      time: "2026-06-24T00:16:00Z",
-      entrypoint: "publicapi: GET /api/public/traces",
-      count: 8,
-      lastSeen: "2026-06-24T00:17:45Z",
-    });
-    expect(rows[23]).toEqual({
-      time: "2026-06-24T00:44:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-
-    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 2 MINUTE, 'UTC') AS bucket_time",
-    );
-  });
-
-  it("fills 5 minute buckets for a 3 hour timeline", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        time: "2026-06-24T01:00:00Z",
-        entrypoint: "publicapi: GET /api/public/traces",
-        count: "12",
-        lastSeen: "2026-06-24T01:04:59Z",
-      },
-    ]);
-
-    const caller = createCaller();
-
-    const rows = await caller.timeSeriesByEntrypoint({
-      projectId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-24T03:00:00Z"),
-      granularity: "auto",
-    });
-
-    expect(rows).toHaveLength(37);
-    expect(new Set(rows.map((row) => row.time)).size).toBe(36);
-    expect(rows[0]).toEqual({
-      time: "2026-06-24T00:00:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-    expect(rows[12]).toEqual({
-      time: "2026-06-24T01:00:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-    expect(rows[13]).toEqual({
-      time: "2026-06-24T01:00:00Z",
-      entrypoint: "publicapi: GET /api/public/traces",
-      count: 12,
-      lastSeen: "2026-06-24T01:04:59Z",
-    });
-    expect(rows[36]).toEqual({
-      time: "2026-06-24T02:55:00Z",
-      entrypoint: "",
-      count: 0,
-      lastSeen: null,
-    });
-
-    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 5 MINUTE, 'UTC') AS bucket_time",
-    );
-  });
-
-  it("uses hour buckets for a 7 day timeline", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([]);
-
-    const caller = createCaller();
-
-    const rows = await caller.timeSeriesByEntrypoint({
-      projectId,
-      fromTimestamp: new Date("2026-06-18T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
-      granularity: "auto",
-    });
-
-    expect(rows).toEqual([]);
-
-    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 1 HOUR, 'UTC') AS bucket_time",
-    );
-  });
-
   it("rejects ranges over 30 days", async () => {
     const caller = createCaller();
 
     await expect(
-      caller.timeSeriesByEntrypoint({
+      caller.legacyApiUsageSummary({
         projectId,
         fromTimestamp: new Date("2026-05-25T00:00:00Z"),
         toTimestamp: new Date("2026-06-25T00:00:00Z"),
-        granularity: "auto",
       }),
     ).rejects.toThrow("30 days");
 
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
   });
 
+  it("queries the main service once when no separate read replica is configured", async () => {
+    sharedEnvMock.CLICKHOUSE_READ_ONLY_URL = sharedEnvMock.CLICKHOUSE_URL;
+    const caller = createCaller();
+
+    await caller.legacyApiUsageSummary({
+      projectId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+    expect(mockedQueryClickhouse).toHaveBeenCalledWith(
+      expect.objectContaining({ preferredClickhouseService: "ReadWrite" }),
+    );
+  });
+
+  it("returns legacy API usage when one ClickHouse service is unavailable", async () => {
+    mockedQueryClickhouse
+      .mockRejectedValueOnce(new Error("read replica unavailable"))
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: "1",
+          lastSeen: "2026-06-24T15:00:00.000000Z",
+        },
+      ]);
+    const caller = createCaller();
+
+    await expect(
+      caller.legacyApiUsageSummary({
+        projectId,
+        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+        toTimestamp: new Date("2026-06-25T00:00:00Z"),
+      }),
+    ).resolves.toEqual([
+      {
+        projectId,
+        entrypoint: "publicapi: GET /api/public/traces/{id}",
+        count: 1,
+        lastSeen: "2026-06-24T15:00:00.000000Z",
+      },
+    ]);
+
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not double-count identical results from two ClickHouse services", async () => {
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: "2",
+          lastSeen: "2026-06-24T14:00:00.000000Z",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: "2",
+          lastSeen: "2026-06-24T14:00:00.000000Z",
+        },
+      ]);
+    const caller = createCaller();
+
+    await expect(
+      caller.legacyApiUsageSummary({
+        projectId,
+        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+        toTimestamp: new Date("2026-06-25T00:00:00Z"),
+      }),
+    ).resolves.toEqual([
+      {
+        projectId,
+        entrypoint: "publicapi: GET /api/public/traces/{id}",
+        count: 2,
+        lastSeen: "2026-06-24T14:00:00.000000Z",
+      },
+    ]);
+  });
+
+  it("queries SDK usage for only the authorized project", async () => {
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        mockSdkUsageRow({
+          projectId,
+          sdkName: "python",
+          sdkVersion: "4.7.0",
+          publicKey: "pk-lf-python",
+          eventCount: "2",
+          firstSeen: "2026-06-24T01:00:00Z",
+          lastSeen: "2026-06-24T02:00:00Z",
+        }),
+      ])
+      .mockResolvedValueOnce([]);
+    const caller = createCaller();
+
+    const summary = await caller.sdkUsageSummary({
+      projectId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(summary).toMatchObject({
+      projectId,
+      sdkUsageSeries: [
+        {
+          source: "ingestion-api-dual-write",
+          ingestionPath: "ingestion_api",
+          deliveryMode: "delayed",
+          sdkName: "python",
+          sdkVersion: "4.7.0",
+          eventCount: 2,
+          v4MigrationStatus: "compatible",
+          remediationType: "update_sdk",
+          actionLevel: "none",
+        },
+      ],
+    });
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
+    expect(mockedQueryClickhouse.mock.calls[0]?.[0].params).toMatchObject({
+      projectIds: [projectId],
+    });
+    expect(mockedQueryClickhouse.mock.calls[1]?.[0].params).toMatchObject({
+      projectIds: [projectId],
+    });
+  });
+
+  it("rejects project summaries outside the caller session", async () => {
+    const caller = createCaller();
+    const range = {
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    };
+
+    await expect(
+      caller.sdkUsageSummary({ projectId: outsideProjectId, ...range }),
+    ).rejects.toThrow("User is not a member of this project");
+    await expect(
+      caller.legacyApiUsageSummary({
+        projectId: outsideProjectId,
+        ...range,
+      }),
+    ).rejects.toThrow("User is not a member of this project");
+    expect(mockedQueryClickhouse).not.toHaveBeenCalled();
+  });
+
   it("summarizes legacy integrations", async () => {
     const mockPrisma = {
       posthogIntegration: {
-        findUnique: vi.fn().mockResolvedValue({
-          enabled: true,
-          exportSource: "TRACES_OBSERVATIONS",
-        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            projectId,
+            enabled: true,
+            exportSource: "TRACES_OBSERVATIONS",
+          },
+        ]),
       },
       mixpanelIntegration: {
-        findUnique: vi.fn().mockResolvedValue({
-          enabled: true,
-          exportSource: "EVENTS",
-        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            projectId,
+            enabled: true,
+            exportSource: "EVENTS",
+          },
+        ]),
       },
       blobStorageIntegration: {
-        findUnique: vi.fn().mockResolvedValue({
-          enabled: true,
-          exportSource: "TRACES_OBSERVATIONS_EVENTS",
-        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            projectId,
+            enabled: true,
+            exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          },
+        ]),
       },
     };
     const caller = createCaller(mockPrisma);
 
     await expect(caller.summary({ projectId })).resolves.toEqual({
+      projectId,
       legacyIntegrationCount: 2,
       legacyIntegrations: {
         posthog: true,
@@ -640,127 +737,99 @@ describe("v4TransitionRouter", () => {
       },
     });
 
-    expect(mockPrisma.posthogIntegration.findUnique).toHaveBeenCalledWith({
-      where: { projectId },
-      select: { enabled: true, exportSource: true },
+    expect(mockPrisma.posthogIntegration.findMany).toHaveBeenCalledWith({
+      where: { projectId: { in: [projectId] } },
+      select: { projectId: true, enabled: true, exportSource: true },
     });
-    expect(mockPrisma.mixpanelIntegration.findUnique).toHaveBeenCalledWith({
-      where: { projectId },
-      select: { enabled: true, exportSource: true },
+    expect(mockPrisma.mixpanelIntegration.findMany).toHaveBeenCalledWith({
+      where: { projectId: { in: [projectId] } },
+      select: { projectId: true, enabled: true, exportSource: true },
     });
-    expect(mockPrisma.blobStorageIntegration.findUnique).toHaveBeenCalledWith({
-      where: { projectId },
-      select: { enabled: true, exportSource: true },
+    expect(mockPrisma.blobStorageIntegration.findMany).toHaveBeenCalledWith({
+      where: { projectId: { in: [projectId] } },
+      select: { projectId: true, enabled: true, exportSource: true },
     });
   });
 
   it("summarizes trace-level evals", async () => {
     const mockPrisma = {
       jobConfiguration: {
-        findMany: vi.fn().mockResolvedValue([
-          { targetObject: "dataset", variableMapping: [] },
+        groupBy: vi.fn().mockResolvedValue([
           {
-            targetObject: "trace",
-            variableMapping: [
-              {
-                templateVariable: "input",
-                langfuseObject: "generation",
-                objectName: "my-generation",
-                selectedColumnId: "input",
-              },
-            ],
-          },
-          {
-            targetObject: "trace",
-            variableMapping: [
-              {
-                templateVariable: "input",
-                langfuseObject: "trace",
-                selectedColumnId: "input",
-              },
-            ],
+            projectId,
+            _count: { _all: 3 },
           },
         ]),
       },
     };
     const caller = createCaller(mockPrisma);
 
-    // The third config maps from the trace itself, so the set is not fully
-    // assistant-migratable.
     await expect(caller.traceLevelEvalSummary({ projectId })).resolves.toEqual({
+      projectId,
       traceLevelEvalCount: 3,
-      allAssistantMigratable: false,
     });
 
-    expect(mockPrisma.jobConfiguration.findMany).toHaveBeenCalledWith({
+    expect(mockPrisma.jobConfiguration.groupBy).toHaveBeenCalledWith({
+      by: ["projectId"],
       where: {
-        projectId,
+        projectId: { in: [projectId] },
         jobType: "EVAL",
         targetObject: { in: ["trace", "dataset"] },
         status: "ACTIVE",
         timeScope: { has: "NEW" },
       },
-      select: { targetObject: true, variableMapping: true },
+      _count: { _all: true },
     });
   });
 
-  it("marks evals as assistant-migratable when all are dataset targets or single-observation mappings", async () => {
+  it("returns zero evals when no active configs exist", async () => {
     const mockPrisma = {
       jobConfiguration: {
-        findMany: vi.fn().mockResolvedValue([
-          { targetObject: "dataset", variableMapping: [] },
-          {
-            targetObject: "trace",
-            variableMapping: [
-              {
-                templateVariable: "input",
-                langfuseObject: "generation",
-                objectName: "my-generation",
-                selectedColumnId: "input",
-              },
-              {
-                templateVariable: "output",
-                langfuseObject: "generation",
-                objectName: "my-generation",
-                selectedColumnId: "output",
-              },
-            ],
-          },
-        ]),
+        groupBy: vi.fn().mockResolvedValue([]),
       },
     };
     const caller = createCaller(mockPrisma);
 
     await expect(caller.traceLevelEvalSummary({ projectId })).resolves.toEqual({
-      traceLevelEvalCount: 2,
-      allAssistantMigratable: true,
+      projectId,
+      traceLevelEvalCount: 0,
     });
   });
 
   it("does not count disabled legacy integrations", async () => {
     const mockPrisma = {
       posthogIntegration: {
-        findUnique: vi.fn().mockResolvedValue({
-          enabled: false,
-          exportSource: "TRACES_OBSERVATIONS",
-        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            projectId,
+            enabled: false,
+            exportSource: "TRACES_OBSERVATIONS",
+          },
+        ]),
       },
       mixpanelIntegration: {
-        findUnique: vi.fn().mockResolvedValue({
-          enabled: true,
-          exportSource: "TRACES_OBSERVATIONS_EVENTS",
-        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            projectId,
+            enabled: true,
+            exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          },
+        ]),
       },
       blobStorageIntegration: {
-        findUnique: vi.fn().mockResolvedValue({
-          enabled: false,
-          exportSource: "TRACES_OBSERVATIONS_EVENTS",
-        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            projectId,
+            enabled: false,
+            exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          },
+        ]),
       },
     };
     const caller = createCaller(mockPrisma);
 
     await expect(caller.summary({ projectId })).resolves.toEqual({
+      projectId,
       legacyIntegrationCount: 1,
       legacyIntegrations: {
         posthog: false,
@@ -840,28 +909,18 @@ describe("v4TransitionRouter", () => {
       ],
     });
 
-    expect(mockPrisma.project.findMany).toHaveBeenCalledWith({
-      where: {
-        orgId,
-        deletedAt: null,
-        id: { in: [projectId, secondProjectId] },
-      },
-      select: {
-        id: true,
-        name: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
+      accessibleProjectsFindManyArgs,
+    );
   });
 
   it("summarizes trace-level evals by active organization project", async () => {
     const mockPrisma = {
       project: {
-        findMany: vi
-          .fn()
-          .mockResolvedValue([{ id: projectId }, { id: secondProjectId }]),
+        findMany: vi.fn().mockResolvedValue([
+          { id: projectId, name: "V4 Transition Project" },
+          { id: secondProjectId, name: "Second Project" },
+        ]),
       },
       jobConfiguration: {
         groupBy: vi.fn().mockResolvedValue([
@@ -887,16 +946,9 @@ describe("v4TransitionRouter", () => {
       },
     ]);
 
-    expect(mockPrisma.project.findMany).toHaveBeenCalledWith({
-      where: {
-        orgId,
-        deletedAt: null,
-        id: { in: [projectId, secondProjectId] },
-      },
-      select: {
-        id: true,
-      },
-    });
+    expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
+      accessibleProjectsFindManyArgs,
+    );
     expect(mockPrisma.jobConfiguration.groupBy).toHaveBeenCalledWith({
       by: ["projectId"],
       where: {
@@ -1028,13 +1080,13 @@ describe("v4TransitionRouter", () => {
     async (role) => {
       const mockPrisma = {
         posthogIntegration: {
-          findUnique: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn().mockResolvedValue([]),
         },
         mixpanelIntegration: {
-          findUnique: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn().mockResolvedValue([]),
         },
         blobStorageIntegration: {
-          findUnique: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn().mockResolvedValue([]),
         },
       };
 
@@ -1044,6 +1096,7 @@ describe("v4TransitionRouter", () => {
       );
 
       await expect(caller.summary({ projectId })).resolves.toEqual({
+        projectId,
         legacyIntegrationCount: 0,
         legacyIntegrations: {
           posthog: false,
@@ -1057,90 +1110,79 @@ describe("v4TransitionRouter", () => {
   it("summarizes outdated SDK usage series by organization project", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "3.9.0",
           publicKey: "pk-lf-python",
-          count: "8",
-          eventsCount: "8",
+          eventCount: "8",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T02:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "4.14.1",
           publicKey: "pk-lf-python",
-          count: "13",
-          eventsCount: "13",
+          eventCount: "13",
           firstSeen: "2026-06-24T03:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "4.6.9",
           publicKey: "pk-lf-pre-v4-python",
-          count: "5",
-          eventsCount: "0",
+          eventCount: "5",
           firstSeen: "2026-06-24T12:00:00Z",
           lastSeen: "2026-06-24T13:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "4.7.0",
           publicKey: "pk-lf-current-python",
-          count: "6",
-          eventsCount: "6",
+          eventCount: "6",
           firstSeen: "2026-06-24T13:30:00Z",
           lastSeen: "2026-06-24T14:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId: secondProjectId,
           sdkName: "@langfuse/tracing",
           sdkVersion: "5.3.9",
           publicKey: "pk-lf-old-js",
-          count: "5",
-          eventsCount: "5",
+          eventCount: "5",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId: secondProjectId,
+          source: "otel",
           sdkName: "unknown",
           sdkVersion: "unknown",
           publicKey: "pk-lf-otel",
-          count: "3",
-          eventsCount: "3",
+          eventCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "0",
-        },
-        {
+        }),
+        mockSdkUsageRow({
           projectId: secondProjectId,
+          source: "otel-dual-write",
           sdkName: "custom-otel-writer",
           sdkVersion: "1.2.3",
           publicKey: "pk-lf-custom-otel",
-          count: "2",
-          eventsCount: "2",
+          eventCount: "2",
           firstSeen: "2026-06-24T02:00:00Z",
           lastSeen: "2026-06-24T03:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
+        }),
       ])
       .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const mockPrisma = {
       project: {
-        findMany: vi
-          .fn()
-          .mockResolvedValue([{ id: projectId }, { id: secondProjectId }]),
+        findMany: vi.fn().mockResolvedValue([
+          { id: projectId, name: "V4 Transition Project" },
+          { id: secondProjectId, name: "Second Project" },
+        ]),
       },
     };
     const caller = createCaller(mockPrisma);
@@ -1160,56 +1202,81 @@ describe("v4TransitionRouter", () => {
         },
         sdkUsageSeries: [
           {
+            source: "ingestion-api-dual-write",
+            ingestionPath: "ingestion_api",
+            deliveryMode: "delayed",
             sdkName: "python",
             sdkVersion: "3.9.0",
             canonicalSdkName: "python",
+            sdkVersionMajor: 3,
+            latestSdkMajor: 4,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-python",
-            count: 8,
-            eventsCount: 8,
+            eventCount: 8,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T02:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
+            remediationType: "update_sdk",
+            actionLevel: "required",
           },
           {
+            source: "ingestion-api-dual-write",
+            ingestionPath: "ingestion_api",
+            deliveryMode: "delayed",
             sdkName: "python",
             sdkVersion: "4.14.1",
             canonicalSdkName: "python",
+            sdkVersionMajor: 4,
+            latestSdkMajor: 4,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-python",
-            count: 13,
-            eventsCount: 13,
+            eventCount: 13,
             firstSeen: "2026-06-24T03:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "compatible",
+            remediationType: "update_sdk",
+            actionLevel: "none",
           },
           {
+            source: "ingestion-api-dual-write",
+            ingestionPath: "ingestion_api",
+            deliveryMode: "delayed",
             sdkName: "python",
             sdkVersion: "4.6.9",
             canonicalSdkName: "python",
+            sdkVersionMajor: 4,
+            latestSdkMajor: 4,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-pre-v4-python",
-            count: 5,
-            eventsCount: 0,
+            eventCount: 5,
             firstSeen: "2026-06-24T12:00:00Z",
             lastSeen: "2026-06-24T13:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
-            v4MigrationStatus: "upgrade_required",
+            // Latest-major semantics: current major is compatible (no minor advice).
+            v4MigrationStatus: "compatible",
+            remediationType: "update_sdk",
+            actionLevel: "none",
           },
           {
+            source: "ingestion-api-dual-write",
+            ingestionPath: "ingestion_api",
+            deliveryMode: "delayed",
             sdkName: "python",
             sdkVersion: "4.7.0",
             canonicalSdkName: "python",
+            sdkVersionMajor: 4,
+            latestSdkMajor: 4,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-current-python",
-            count: 6,
-            eventsCount: 6,
+            eventCount: 6,
             firstSeen: "2026-06-24T13:30:00Z",
             lastSeen: "2026-06-24T14:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "compatible",
+            remediationType: "update_sdk",
+            actionLevel: "none",
           },
         ],
       },
@@ -1221,95 +1288,100 @@ describe("v4TransitionRouter", () => {
         },
         sdkUsageSeries: [
           {
+            source: "ingestion-api-dual-write",
+            ingestionPath: "ingestion_api",
+            deliveryMode: "delayed",
             sdkName: "@langfuse/tracing",
             sdkVersion: "5.3.9",
             canonicalSdkName: "javascript",
+            sdkVersionMajor: 5,
+            latestSdkMajor: 5,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-old-js",
-            count: 5,
-            eventsCount: 5,
+            eventCount: 5,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
-            v4MigrationStatus: "upgrade_required",
+            v4MigrationStatus: "compatible",
+            remediationType: "update_sdk",
+            actionLevel: "none",
           },
           {
+            source: "otel",
+            ingestionPath: "otel",
+            deliveryMode: "realtime",
             sdkName: "unknown",
             sdkVersion: "unknown",
             canonicalSdkName: null,
+            sdkVersionMajor: null,
+            latestSdkMajor: null,
+            isValidSdkVersion: false,
             publicKey: "pk-lf-otel",
-            count: 3,
-            eventsCount: 3,
+            eventCount: 3,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
-            hasDelayedOtelEvents: false,
             attributionStatus: "missing_name_and_version",
             v4MigrationStatus: "unknown",
+            remediationType: "update_otel_instrumentation",
+            actionLevel: "none",
           },
           {
+            source: "otel-dual-write",
+            ingestionPath: "otel",
+            deliveryMode: "delayed",
             sdkName: "custom-otel-writer",
             sdkVersion: "1.2.3",
             canonicalSdkName: null,
+            sdkVersionMajor: 1,
+            latestSdkMajor: null,
+            isValidSdkVersion: true,
             publicKey: "pk-lf-custom-otel",
-            count: 2,
-            eventsCount: 2,
+            eventCount: 2,
             firstSeen: "2026-06-24T02:00:00Z",
             lastSeen: "2026-06-24T03:00:00Z",
-            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "unknown",
+            remediationType: "update_otel_instrumentation",
+            actionLevel: "required",
           },
         ],
       },
     ]);
 
-    expect(mockPrisma.project.findMany).toHaveBeenCalledWith({
-      where: {
-        orgId,
-        deletedAt: null,
-        id: { in: [projectId, secondProjectId] },
-      },
-      select: {
-        id: true,
-      },
-    });
+    expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
+      accessibleProjectsFindManyArgs,
+    );
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
     const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(usageQuery?.query).toContain("FROM events_core");
-    expect(usageQuery?.query).toContain("UNION ALL");
-    expect(usageQuery?.query).toContain("FROM scores FINAL");
-    const [eventsQuery, scoresQuery] = usageQuery?.query.split("UNION ALL") ?? [
-      "",
-      "",
-    ];
-    expect(eventsQuery).not.toContain("execution_trace_id IS NULL");
-    expect(scoresQuery).toContain("execution_trace_id IS NULL");
+    expect(usageQuery?.query).not.toContain("WITH selected");
+    expect(usageQuery?.query).not.toContain("FROM selected");
+    expect(usageQuery?.query).not.toContain("UNION ALL");
+    expect(usageQuery?.query).not.toContain("FROM scores");
+    expect(usageQuery?.query).toContain(
+      "source IN {ingressSources: Array(String)}",
+    );
     expect(usageQuery?.query).not.toContain("system.columns");
     expect(
       usageQuery?.query.match(/project_id IN \{projectIds: Array\(String\)\}/g),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(usageQuery?.query).toContain(
-      "GROUP BY project_id, sdk_name, sdk_version, public_key",
+      "GROUP BY projectId, source, sdkName, sdkVersion, publicKey",
     );
     expect(usageQuery?.query).toContain(
-      "if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents",
+      "if(source = 'otel', 'realtime', 'delayed') AS deliveryMode",
     );
-    expect(usageQuery?.query.match(/AS event_time/g)).toHaveLength(2);
+    expect(usageQuery?.query).not.toContain("hasDelayedOtelEvents");
     expect(usageQuery?.query).toContain(
-      "formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen",
+      "formatDateTime(firstSeenAt, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen",
     );
     expect(usageQuery?.query).toContain(
-      "formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen",
+      "formatDateTime(lastSeenAt, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen",
     );
     expect(usageQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
     );
-    const [eventsUsageQuery, scoresUsageQuery] =
-      usageQuery?.query.split("UNION ALL") ?? [];
-    expect(eventsUsageQuery).toContain(
-      "AND NOT startsWith(environment, 'langfuse-')",
-    );
-    expect(scoresUsageQuery).toContain(
+    expect(usageQuery?.query).toContain(
       "AND NOT startsWith(environment, 'langfuse-')",
     );
     expect(usageQuery?.query).not.toContain("toDate(start_time)");
@@ -1318,9 +1390,10 @@ describe("v4TransitionRouter", () => {
       projectIds: [projectId, secondProjectId],
       fromTimestamp: "2026-06-24 00:00:00.000",
       toTimestamp: "2026-06-25 00:00:00.000",
+      ingressSources: ["ingestion-api-dual-write", "otel-dual-write", "otel"],
     });
     expect(usageQuery?.tags).toEqual({
-      route: "v4-org-sdk-usage-summary",
+      route: "v4-sdk-usage-summary",
     });
 
     const experimentUsageQuery = mockedQueryClickhouse.mock.calls[1]?.[0];
@@ -1333,29 +1406,205 @@ describe("v4TransitionRouter", () => {
     expect(experimentUsageQuery?.query).toContain(
       "event_date >= toDate({fromTimestamp: DateTime64(3)})",
     );
+    expect(experimentUsageQuery?.query).not.toContain("hostName()");
     expect(experimentUsageQuery?.params).toMatchObject({
       projectIds: [projectId, secondProjectId],
       fromTimestamp: "2026-06-24 00:00:00.000",
       toTimestamp: "2026-06-25 00:00:00.000",
     });
     expect(experimentUsageQuery?.tags).toEqual({
-      route: "v4-org-experiment-instrumentation-summary",
+      route: "v4-experiment-instrumentation-summary",
+    });
+  });
+
+  it("finds dataset-run-items POST usage when only the main service has it", async () => {
+    sharedEnvMock.CLICKHOUSE_EVENTS_READ_ONLY_URL =
+      "https://clickhouse-events-read.example.com";
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        mockSdkUsageRow({
+          projectId,
+          source: "otel",
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+        }),
+      ])
+      .mockRejectedValueOnce(new Error("events read replica unavailable"))
+      .mockResolvedValueOnce([{ projectId, count: "1" }]);
+    const caller = createCaller({
+      project: {
+        findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
+      },
+    });
+
+    const [summary] = await caller.sdkUsageSummaryByProject({
+      orgId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(summary?.experimentInstrumentationMigration).toEqual({
+      status: "required",
+      upgradePath: "api",
+    });
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(3);
+    expect(mockedQueryClickhouse.mock.calls[1]?.[0]).toMatchObject({
+      preferredClickhouseService: "EventsReadOnly",
+    });
+    expect(mockedQueryClickhouse.mock.calls[2]?.[0]).toMatchObject({
+      preferredClickhouseService: "ReadWrite",
+    });
+  });
+
+  it("summarizes SDK usage for a single project with exactly that projectId", async () => {
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        mockSdkUsageRow({
+          projectId,
+          sdkName: "python",
+          sdkVersion: "4.7.0",
+          publicKey: "pk-lf-python",
+          eventCount: "6",
+          firstSeen: "2026-06-24T13:30:00Z",
+          lastSeen: "2026-06-24T14:00:00Z",
+        }),
+      ])
+      .mockResolvedValueOnce([]);
+
+    const caller = createCaller();
+
+    const summary = await caller.sdkUsageSummary({
+      projectId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(summary).toMatchObject({
+      projectId,
+      experimentInstrumentationMigration: {
+        status: "not_required",
+        upgradePath: null,
+      },
+      sdkUsageSeries: [
+        {
+          sdkName: "python",
+          sdkVersion: "4.7.0",
+          v4MigrationStatus: "compatible",
+          remediationType: "update_sdk",
+          actionLevel: "none",
+          eventCount: 6,
+        },
+      ],
+    });
+
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
+    expect(mockedQueryClickhouse.mock.calls[0]?.[0]?.params).toMatchObject({
+      projectIds: [projectId],
+    });
+    expect(mockedQueryClickhouse.mock.calls[1]?.[0]?.params).toMatchObject({
+      projectIds: [projectId],
+    });
+    expect(mockedQueryClickhouse.mock.calls[0]?.[0]?.tags).toEqual({
+      route: "v4-sdk-usage-summary",
+    });
+    expect(mockedQueryClickhouse.mock.calls[1]?.[0]?.tags).toEqual({
+      route: "v4-experiment-instrumentation-summary",
+    });
+  });
+
+  it("keeps source-specific series and consumes SQL-owned classification", async () => {
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          source: "otel-dual-write",
+          ingestionPath: "otel",
+          deliveryMode: "delayed",
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          canonicalSdkName: null,
+          sdkVersionMajor: null,
+          isValidSdkVersion: false,
+          attributionStatus: "missing_name_and_version",
+          publicKey: "pk-lf-shared",
+          v4MigrationStatus: "unknown",
+          remediationType: "update_otel_instrumentation",
+          actionLevel: "required",
+          eventCount: "3",
+          firstSeen: "2026-06-24T01:00:00Z",
+          lastSeen: "2026-06-24T02:00:00Z",
+        },
+        {
+          projectId,
+          source: "ingestion-api-dual-write",
+          ingestionPath: "ingestion_api",
+          deliveryMode: "delayed",
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          canonicalSdkName: null,
+          sdkVersionMajor: null,
+          isValidSdkVersion: false,
+          attributionStatus: "missing_name_and_version",
+          publicKey: "pk-lf-shared",
+          v4MigrationStatus: "unknown",
+          remediationType: "upgrade_instrumentation",
+          actionLevel: "required",
+          eventCount: "2",
+          firstSeen: "2026-06-24T03:00:00Z",
+          lastSeen: "2026-06-24T04:00:00Z",
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const caller = createCaller();
+
+    const summary = await caller.sdkUsageSummary({
+      projectId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(summary.sdkUsageSeries).toEqual([
+      expect.objectContaining({
+        source: "otel-dual-write",
+        remediationType: "update_otel_instrumentation",
+        eventCount: 3,
+      }),
+      expect.objectContaining({
+        source: "ingestion-api-dual-write",
+        remediationType: "upgrade_instrumentation",
+        eventCount: 2,
+      }),
+    ]);
+
+    const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
+    expect(usageQuery?.query).toContain(
+      "GROUP BY projectId, source, sdkName, sdkVersion, publicKey",
+    );
+    expect(usageQuery?.query).toContain(
+      "source IN {ingressSources: Array(String)}",
+    );
+    expect(usageQuery?.query).toContain(
+      "if(source = 'otel', 'realtime', 'delayed') AS deliveryMode",
+    );
+    expect(usageQuery?.query).not.toContain("hasDelayedOtelEvents");
+    expect(usageQuery?.params).toMatchObject({
+      ingressSources: ["ingestion-api-dual-write", "otel-dual-write", "otel"],
     });
   });
 
   it("requires removing dataset-run-items POST usage for native OTel instrumentation", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
+          source: "otel",
           sdkName: "unknown",
           sdkVersion: "unknown",
           publicKey: "pk-lf-otel",
-          count: "3",
+          eventCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "0",
-        },
+        }),
       ])
       .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const caller = createCaller({
@@ -1382,16 +1631,15 @@ describe("v4TransitionRouter", () => {
   it("preserves SDK usage when the experiment instrumentation check fails", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "3.9.0",
           publicKey: "pk-lf-python",
-          count: "3",
+          eventCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
+        }),
       ])
       .mockRejectedValueOnce(new Error("query_log unavailable"));
     const caller = createCaller({
@@ -1417,6 +1665,8 @@ describe("v4TransitionRouter", () => {
           sdkName: "python",
           sdkVersion: "3.9.0",
           v4MigrationStatus: "upgrade_required",
+          remediationType: "update_sdk",
+          actionLevel: "required",
         },
       ],
     });
@@ -1425,16 +1675,15 @@ describe("v4TransitionRouter", () => {
   it("requires an API upgrade when POST usage predates the experiment runner", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "3.3.5",
           publicKey: "pk-lf-python",
-          count: "3",
+          eventCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
+        }),
       ])
       .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const caller = createCaller({
@@ -1458,16 +1707,15 @@ describe("v4TransitionRouter", () => {
   it("does not require an upgrade for current experiment instrumentation", async () => {
     mockedQueryClickhouse
       .mockResolvedValueOnce([
-        {
+        mockSdkUsageRow({
           projectId,
           sdkName: "python",
           sdkVersion: "4.0.0",
           publicKey: "pk-lf-python",
-          count: "3",
+          eventCount: "3",
           firstSeen: "2026-06-24T01:00:00Z",
           lastSeen: "2026-06-24T04:00:00Z",
-          hasDelayedOtelEvents: "1",
-        },
+        }),
       ])
       .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const caller = createCaller({
@@ -1489,23 +1737,41 @@ describe("v4TransitionRouter", () => {
   });
 
   it("summarizes legacy public API usage by organization project", async () => {
-    mockedQueryClickhouse.mockResolvedValue([
-      {
-        projectId,
-        entrypoint: "publicapi: GET /api/public/traces/{id}",
-        count: "0.6666666666666666",
-      },
-      {
-        projectId: secondProjectId,
-        entrypoint: "publicapi: GET /api/public/metrics",
-        count: 3,
-      },
-    ]);
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: "0.6666666666666666",
+          lastSeen: "2026-06-24T12:34:56.789123Z",
+        },
+        {
+          projectId: secondProjectId,
+          entrypoint: "publicapi: GET /api/public/metrics",
+          count: 3,
+          lastSeen: "2026-06-24T15:00:00.000000Z",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: "0.3333333333333334",
+          lastSeen: "2026-06-24T14:00:00.000000Z",
+        },
+        {
+          projectId: secondProjectId,
+          entrypoint: "publicapi: GET /api/public/metrics",
+          count: 2,
+          lastSeen: "2026-06-24T16:00:00.000000Z",
+        },
+      ]);
     const mockPrisma = {
       project: {
-        findMany: vi
-          .fn()
-          .mockResolvedValue([{ id: projectId }, { id: secondProjectId }]),
+        findMany: vi.fn().mockResolvedValue([
+          { id: projectId, name: "V4 Transition Project" },
+          { id: secondProjectId, name: "Second Project" },
+        ]),
       },
     };
     const caller = createCaller(mockPrisma);
@@ -1520,16 +1786,21 @@ describe("v4TransitionRouter", () => {
       {
         projectId,
         entrypoint: "publicapi: GET /api/public/traces/{id}",
-        count: 0.6666666666666666,
+        count: 1,
+        lastSeen: "2026-06-24T14:00:00.000000Z",
       },
       {
         projectId: secondProjectId,
         entrypoint: "publicapi: GET /api/public/metrics",
-        count: 3,
+        count: 5,
+        lastSeen: "2026-06-24T16:00:00.000000Z",
       },
     ]);
 
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
+      accessibleProjectsFindManyArgs,
+    );
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(clickhouseQuery?.query).not.toContain("toStartOfInterval");
     expect(clickhouseQuery?.query).not.toContain("bucket_time");
@@ -1541,13 +1812,22 @@ describe("v4TransitionRouter", () => {
     );
     expect(clickhouseQuery?.query).toContain("project_id AS projectId");
     expect(clickhouseQuery?.query).toContain(
+      "formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen",
+    );
+    expect(clickhouseQuery?.query).toContain(
       "GROUP BY project_id, legacy_route",
     );
     expect(clickhouseQuery?.params).toMatchObject({
       projectIds: [projectId, secondProjectId],
     });
     expect(clickhouseQuery?.tags).toEqual({
-      route: "v4-org-legacy-api-usage-summary",
+      route: "v4-legacy-api-usage-summary",
+    });
+    expect(mockedQueryClickhouse.mock.calls[0]?.[0]).toMatchObject({
+      preferredClickhouseService: "ReadOnly",
+    });
+    expect(mockedQueryClickhouse.mock.calls[1]?.[0]).toMatchObject({
+      preferredClickhouseService: "ReadWrite",
     });
   });
 });
