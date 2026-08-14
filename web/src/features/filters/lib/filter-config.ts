@@ -77,6 +77,14 @@ export interface FilterConfig {
   columnDefinitions: ColumnDefinition[];
   defaultExpanded?: string[];
   defaultSidebarCollapsed?: boolean;
+  /**
+   * The facets most sessions actually use (curated from PostHog
+   * `filters:applied` data). When set, the sidebar shows only
+   * these by default and folds the rest behind a "Show N more" control.
+   * A facet with an active filter is always shown regardless of this list.
+   * Unset = every facet stays visible (tables that haven't opted in).
+   */
+  commonFacets?: string[];
   facets: Facet[];
   /** Runs after display-name normalization and before filter validation. */
   migrateFilterState?: FilterStateMigration;
@@ -102,6 +110,9 @@ export function omitFilterFacets(
   return {
     ...config,
     defaultExpanded: config.defaultExpanded?.filter(
+      (column) => !omittedColumnSet.has(column),
+    ),
+    commonFacets: config.commonFacets?.filter(
       (column) => !omittedColumnSet.has(column),
     ),
     facets: config.facets.filter(
