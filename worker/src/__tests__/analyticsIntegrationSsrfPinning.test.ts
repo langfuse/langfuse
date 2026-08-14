@@ -260,12 +260,43 @@ describe("outbound validation classification", () => {
   });
 });
 
+/**
+ * Everything a structured logger or tracer can pull off a thrown error: its
+ * enumerable own fields (winston copies those into the JSON log line), its
+ * message, its stack, and the same again for each `cause` a chain-walking
+ * reporter follows. A credential must appear in none of them.
+ */
+function serializableSurface(error: unknown): string {
+  const parts: string[] = [];
+  let current: any = error;
+  for (let depth = 0; depth < 6 && current; depth++) {
+    parts.push(JSON.stringify({ ...current }));
+    if (typeof current.message === "string") parts.push(current.message);
+    if (typeof current.stack === "string") parts.push(current.stack);
+    current = current.cause;
+  }
+  return parts.join("\n");
+}
+
+function captureRethrow(error: unknown): unknown {
+  try {
+    rethrowIfOutboundValidationFailure(error, {
+      logSubject: "Mixpanel outbound send",
+      jobSubject: "Mixpanel export",
+    });
+  } catch (caught) {
+    return caught;
+  }
+  return undefined;
+}
+
 describe("terminal outbound failure reporting", () => {
-  // The rejected redirect target is embedded verbatim in the validation error,
-  // so a credentialed Location header would otherwise reach the log line and
+  // The rejected redirect target is embedded verbatim in the validation error —
+  // in its message, its stack, and its enumerable `redirectUrl` field — so a
+  // credentialed Location header would otherwise reach the log line and
   // BullMQ's persisted failedReason.
-  it("redacts credentials from a rejected redirect target", () => {
-    const error = Object.assign(new TypeError("fetch failed"), {
+  const credentialedRedirect = () =>
+    Object.assign(new TypeError("fetch failed"), {
       cause: new RedirectValidationError(
         "Blocked IP address detected: 169.254.169.254",
         "http://exporter:hunter2@169.254.169.254/",
@@ -273,15 +304,8 @@ describe("terminal outbound failure reporting", () => {
       ),
     });
 
-    let thrown: unknown;
-    try {
-      rethrowIfOutboundValidationFailure(error, {
-        logSubject: "Mixpanel outbound send",
-        jobSubject: "Mixpanel export",
-      });
-    } catch (caught) {
-      thrown = caught;
-    }
+  it("redacts credentials from a rejected redirect target", () => {
+    const thrown = captureRethrow(credentialedRedirect());
 
     expect(isUnrecoverableError(thrown)).toBe(true);
     const message = (thrown as Error).message;
@@ -290,6 +314,29 @@ describe("terminal outbound failure reporting", () => {
     // The diagnostic reason must survive redaction, otherwise the operator
     // cannot tell a blocked IP from a rejected scheme.
     expect(message).toContain("Blocked IP address detected: 169.254.169.254");
+  });
+
+  it("keeps credentials out of every field a logger or tracer can serialize", () => {
+    const thrown = captureRethrow(credentialedRedirect());
+
+    // Redacting only the message is not enough: the queue's generic `failed`
+    // handler passes the whole error to the logger and to traceException, so a
+    // raw error retained as an enumerable `cause` leaks the URL anyway.
+    expect(serializableSurface(thrown)).not.toContain("hunter2");
+    expect(serializableSurface(thrown)).not.toContain(
+      "exporter:hunter2@169.254.169.254",
+    );
+    // Non-vacuous: the redacted reason really is reachable on that surface.
+    expect(serializableSurface(thrown)).toContain(
+      "Blocked IP address detected: 169.254.169.254",
+    );
+  });
+
+  it("does not expose the retained cause as an enumerable field", () => {
+    const thrown = captureRethrow(credentialedRedirect());
+
+    expect((thrown as Error).cause).toBeDefined();
+    expect(Object.keys(thrown as object)).not.toContain("cause");
   });
 
   it("leaves a credential-free message untouched and stays a no-op for other errors", () => {

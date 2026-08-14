@@ -12,11 +12,10 @@ import {
   validateWebhookURL,
   recordIncrement,
   dispatchProjectNotification,
-  whitelistFromEnv,
   fetchWithSecureRedirects,
 } from "@langfuse/shared/src/server";
 import {
-  ANALYTICS_INTEGRATION_MAX_REDIRECTS,
+  buildAnalyticsRedirectOptions,
   rethrowIfOutboundValidationFailure,
 } from "../analyticsIntegrationEgress";
 import {
@@ -119,14 +118,7 @@ export const countingFetch =
     const { response } = await fetchWithSecureRedirects(
       url,
       options as RequestInit,
-      {
-        maxRedirects: ANALYTICS_INTEGRATION_MAX_REDIRECTS,
-        redirectValidation: {
-          validateUrl: validateWebhookURL,
-          whitelist: whitelistFromEnv(),
-          logContext: "PostHog integration",
-        },
-      },
+      buildAnalyticsRedirectOptions("PostHog integration"),
     );
     return response;
   };

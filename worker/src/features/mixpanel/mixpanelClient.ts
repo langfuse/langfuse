@@ -1,13 +1,8 @@
-import {
-  logger,
-  fetchWithSecureRedirects,
-  validateWebhookURL,
-  whitelistFromEnv,
-} from "@langfuse/shared/src/server";
+import { logger, fetchWithSecureRedirects } from "@langfuse/shared/src/server";
 import { gzipSync } from "zlib";
 import { env } from "../../env";
 import {
-  ANALYTICS_INTEGRATION_MAX_REDIRECTS,
+  buildAnalyticsRedirectOptions,
   rethrowIfOutboundValidationFailure,
 } from "../analyticsIntegrationEgress";
 import type { MixpanelEvent } from "./transformers";
@@ -115,14 +110,7 @@ export class MixpanelClient {
           body: compressedBody as unknown as BodyInit,
           signal: abortController.signal,
         },
-        {
-          maxRedirects: ANALYTICS_INTEGRATION_MAX_REDIRECTS,
-          redirectValidation: {
-            validateUrl: validateWebhookURL,
-            whitelist: whitelistFromEnv(),
-            logContext: "Mixpanel integration",
-          },
-        },
+        buildAnalyticsRedirectOptions("Mixpanel integration"),
       );
 
       if (!response.ok) {
