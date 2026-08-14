@@ -19,7 +19,11 @@ export const SESSION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
 export const sessionFilterConfig: FilterConfig = {
   tableName: "sessions",
 
-  columnDefinitions: sessionsViewCols,
+  // Bookmarking is gone from the UI, so the sidebar no longer knows the
+  // column: a `bookmarked` filter left in a saved view or an old deep link is
+  // dropped rather than silently narrowing the rows nobody can widen again.
+  // The shared definition stays for the public API.
+  columnDefinitions: sessionsViewCols.filter((col) => col.id !== "bookmarked"),
 
   defaultExpanded: ["environment"],
 
@@ -142,7 +146,9 @@ const sessionMetadataFacet: Facet = {
 
 export const sessionEventsFilterConfig: FilterConfig = {
   ...sessionFilterConfig,
-  columnDefinitions: sessionsEventsViewCols,
+  columnDefinitions: sessionsEventsViewCols.filter(
+    (col) => col.id !== "bookmarked",
+  ),
   facets: sessionFilterConfig.facets.flatMap((facet) =>
     facet.column === "tags" ? [facet, sessionMetadataFacet] : [facet],
   ),
