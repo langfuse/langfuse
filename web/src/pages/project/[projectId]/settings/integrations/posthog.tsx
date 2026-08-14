@@ -53,7 +53,7 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
@@ -129,11 +129,7 @@ export default function PosthogIntegrationSettings() {
           <Card className="p-3">
             <PostHogLogo className="text-foreground mb-4 w-36" />
             {!state.data || !project ? (
-              <div className="space-y-3">
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-9 w-full" />
-              </div>
+              <IntegrationSettingsSkeleton />
             ) : (
               <PostHogIntegrationSettings
                 // Draft lifetime = entity identity, so background refetches
@@ -142,7 +138,7 @@ export default function PosthogIntegrationSettings() {
                 state={state.data.config ?? undefined}
                 projectId={projectId}
                 writeMode={state.data.writeMode}
-                projectCreatedAt={new Date(project.createdAt)}
+                projectCreatedAt={project.createdAt}
               />
             )}
           </Card>
@@ -164,7 +160,9 @@ const PostHogIntegrationSettings = ({
   state?: NonNullable<RouterOutput["posthogIntegration"]["get"]["config"]>;
   projectId: string;
   writeMode: BlobExportWriteMode;
-  projectCreatedAt: Date;
+  // Raw ISO string, not a Date: a Date built in the parent's JSX would be a new
+  // reference on every render and would defeat the memo below.
+  projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
   const { isBetaEnabled } = useV4Beta();
@@ -174,7 +172,7 @@ const PostHogIntegrationSettings = ({
       buildExportSourceContext({
         writeMode,
         isCloud: isLangfuseCloud,
-        projectCreatedAt,
+        projectCreatedAt: new Date(projectCreatedAt),
       }),
     [writeMode, isLangfuseCloud, projectCreatedAt],
   );

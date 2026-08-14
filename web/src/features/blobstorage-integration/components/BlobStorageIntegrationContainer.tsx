@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -27,12 +27,10 @@ import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integrati
 export const BlobStorageIntegrationContainer = ({
   config,
   projectId,
-  isLoading,
   writeMode,
 }: {
   config: Partial<BlobStorageIntegration> | null;
   projectId: string;
-  isLoading: boolean;
   writeMode: BlobExportWriteMode;
 }) => {
   const capture = usePostHogClientCapture();
@@ -90,15 +88,10 @@ export const BlobStorageIntegrationContainer = ({
   });
 
   // The form is never mounted before its inputs resolve, so there is no
-  // mid-flight reset to protect a draft from.
-  if (isLoading || !project) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-full" />
-      </div>
-    );
+  // mid-flight reset to protect a draft from. The page already gates on the
+  // integration query; only the separate project query can still be pending.
+  if (!project) {
+    return <IntegrationSettingsSkeleton />;
   }
 
   const handleSubmit = (values: BlobStorageIntegrationFormSchema) => {
