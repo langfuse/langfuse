@@ -7,8 +7,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { getSdkFreshness } from "@/src/features/v4-migration/latestSdkVersions";
+import {
+  FALLBACK_LATEST_SDK_VERSIONS,
+  getSdkFreshness,
+} from "@/src/features/v4-migration/latestSdkVersions";
 import { type V4MigrationSdkUsageSeries } from "@/src/features/v4-migration/sdkVersionStatus";
+import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 
 const compactNumber = new Intl.NumberFormat("en-US", {
@@ -22,7 +26,13 @@ const compactNumber = new Intl.NumberFormat("en-US", {
  * freshness renders as a quiet outline, healthy rows as plain muted text —
  * so an all-green table reads calm instead of shouting.
  */
-function StatusCell({ series }: { series: V4MigrationSdkUsageSeries }) {
+function StatusCell({
+  series,
+  latestByCanonicalName,
+}: {
+  series: V4MigrationSdkUsageSeries;
+  latestByCanonicalName: typeof FALLBACK_LATEST_SDK_VERSIONS;
+}) {
   if (series.v4MigrationStatus === "upgrade_required") {
     return (
       <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs whitespace-nowrap">
@@ -37,7 +47,7 @@ function StatusCell({ series }: { series: V4MigrationSdkUsageSeries }) {
       </span>
     );
   }
-  const freshness = getSdkFreshness(series);
+  const freshness = getSdkFreshness(series, latestByCanonicalName);
   if (freshness === "behind") {
     return (
       <span className="border-border text-muted-foreground inline-flex w-fit shrink-0 items-center rounded-full border px-2 py-0.5 text-xs whitespace-nowrap">
@@ -76,6 +86,17 @@ export function SdkVersionsTable({
 }: {
   series: V4MigrationSdkUsageSeries[];
 }) {
+  // Registry-backed latest versions; the pinned fallback keeps freshness
+  // rendering while the query loads (or if it fails — the server also
+  // degrades to the same constants).
+  const { data: latestSdkVersions } =
+    api.v4Transition.latestSdkVersions.useQuery(undefined, {
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    });
+  const latestByCanonicalName =
+    latestSdkVersions ?? FALLBACK_LATEST_SDK_VERSIONS;
+
   if (series.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -129,7 +150,10 @@ export function SdkVersionsTable({
                   {formatCompactRelativeTime(new Date(row.lastSeen))}
                 </TableCell>
                 <TableCell density="comfortable">
-                  <StatusCell series={row} />
+                  <StatusCell
+                    series={row}
+                    latestByCanonicalName={latestByCanonicalName}
+                  />
                 </TableCell>
               </TableRow>
             ))}

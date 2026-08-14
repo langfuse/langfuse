@@ -1,14 +1,16 @@
 // Latest released Langfuse SDK versions, for the Health page's freshness
 // ("Behind") badges.
 //
-// TODO(health-pages): OPEN QUESTION — these are hardcoded as of 2026-08-14 and
-// rot as SDKs release. Before this ships, replace with a server-side registry
-// lookup (npm for @langfuse/tracing, PyPI for langfuse) cached ~24h in Redis
-// with these values as fallback. Tracked in the PR description.
-const LATEST_SDK_VERSION_BY_CANONICAL_NAME: Record<
-  "python" | "javascript",
-  string
-> = {
+// The live values come from the `v4Transition.latestSdkVersions` tRPC query
+// (registry lookup cached in Redis, see
+// web/src/features/v4/server/latestSdkVersions.ts). These constants are the
+// fallback used while that query loads and when the registries are
+// unreachable.
+
+export type LatestSdkVersions = Record<"python" | "javascript", string>;
+
+/** Latest released SDK versions as of 2026-08-14. Fallback only. */
+export const FALLBACK_LATEST_SDK_VERSIONS: LatestSdkVersions = {
   python: "4.14.4",
   javascript: "5.10.0",
 };
@@ -35,12 +37,15 @@ const compareVersions = (a: number[], b: number[]): number => {
  * the compatibility badge's job, and comparing a v3 JS SDK against
  * @langfuse/tracing 5.x would be misleading.
  */
-export const getSdkFreshness = (series: {
-  canonicalSdkName: "python" | "javascript" | null;
-  sdkVersion: string;
-  sdkVersionMajor: number | null;
-  latestSdkMajor: number | null;
-}): SdkFreshness => {
+export const getSdkFreshness = (
+  series: {
+    canonicalSdkName: "python" | "javascript" | null;
+    sdkVersion: string;
+    sdkVersionMajor: number | null;
+    latestSdkMajor: number | null;
+  },
+  latestByCanonicalName: LatestSdkVersions,
+): SdkFreshness => {
   if (
     !series.canonicalSdkName ||
     series.sdkVersionMajor === null ||
@@ -49,9 +54,7 @@ export const getSdkFreshness = (series: {
   ) {
     return "unknown";
   }
-  const latest = parseVersion(
-    LATEST_SDK_VERSION_BY_CANONICAL_NAME[series.canonicalSdkName],
-  );
+  const latest = parseVersion(latestByCanonicalName[series.canonicalSdkName]);
   const current = parseVersion(series.sdkVersion);
   if (!latest || !current) return "unknown";
   return compareVersions(current, latest) >= 0 ? "current" : "behind";
