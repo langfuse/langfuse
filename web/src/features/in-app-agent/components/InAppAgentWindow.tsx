@@ -47,9 +47,11 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import type {
-  InAppAgentMessageFeedbackValue,
-  InAppAgentMessageSource,
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+  type InAppAgentMessageFeedbackValue,
+  type InAppAgentMessageSource,
 } from "@langfuse/shared/in-app-agent";
 import { deduplicateBy } from "@/src/utils/arrays";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
@@ -914,22 +916,34 @@ function InAppAgentRateLimitError({
   );
 }
 
-function InAppAgentGenericError({
-  error,
+function InAppAgentIssueNotice({
   isExpanded,
+  message,
+  onStartNewConversation,
 }: {
-  error: Extract<InAppAgentError, { type: "generic" }>;
   isExpanded: boolean;
+  message: string;
+  onStartNewConversation: () => void;
 }) {
   return (
     <div
       role="alert"
       className={cn(
-        "border-destructive/40 dark:bg-destructive dark:border-destructive-foreground/20 bg-destructive/10 dark:text-destructive-foreground text-destructive rounded-lg border px-2 py-1",
+        "border-dark-yellow bg-light-yellow text-dark-yellow flex w-full items-start gap-2 rounded-lg border px-2 py-1.5",
         isExpanded ? "text-sm" : "text-xs",
       )}
     >
-      {error.message}
+      <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+      <p className="min-w-0 flex-1">{message}</p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="border-dark-yellow text-dark-yellow hover:bg-dark-yellow/10 shrink-0"
+        onClick={onStartNewConversation}
+      >
+        Start new conversation
+      </Button>
     </div>
   );
 }
@@ -1452,8 +1466,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               })}
             </ol>
 
-            {error?.type === "generic" && (
-              <InAppAgentGenericError error={error} isExpanded={isExpanded} />
+            {(error?.type === "generic" || error?.type === "write_lock") && (
+              <InAppAgentIssueNotice
+                isExpanded={isExpanded}
+                message={
+                  error.type === "write_lock"
+                    ? IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE
+                    : IN_APP_AGENT_GENERIC_ERROR_MESSAGE
+                }
+                onStartNewConversation={onNewConversation}
+              />
             )}
           </div>
         </ConversationScroller>

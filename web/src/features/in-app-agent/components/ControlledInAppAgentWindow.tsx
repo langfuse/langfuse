@@ -23,9 +23,6 @@ import {
 import { InAppAgentRunStatus } from "@langfuse/shared";
 import { isUnsettledInAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
-
 function getBackgroundRunNotice(
   run: BackgroundExecutionRunView | null,
 ): string | null {
@@ -110,7 +107,9 @@ export function ControlledInAppAgentWindow(
     shouldFlush: error !== null || isCancellingRun || shouldFlushCancelledRun,
   });
   const windowExecutionUi: InAppAgentWindowExecutionUi = {
-    notice: getBackgroundRunNotice(execution.run),
+    notice: selectedConversationIsWriteLocked
+      ? null
+      : getBackgroundRunNotice(execution.run),
     stop:
       execution.run && isCancellableBackgroundRun(execution.run.status)
         ? {
@@ -154,10 +153,7 @@ export function ControlledInAppAgentWindow(
     (pendingToolApprovals.length > 0 ||
       displayedPendingToolApprovals.length > 0);
   const displayError = selectedConversationIsWriteLocked
-    ? ({
-        type: "generic",
-        message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-      } as const)
+    ? ({ type: "write_lock" } as const)
     : error;
   const screenContextDescription = useMemo(
     () => getInAppAgentScreenContextDescription(router.asPath),

@@ -19,6 +19,7 @@ import {
 
 export type InAppAgentError =
   | { type: "generic"; message: string }
+  | { type: "write_lock" }
   | { type: "rate_limit"; retryAt: number };
 
 const InAppAiAgentMessageSchema = AgUiMessageSchema.and(

@@ -18,6 +18,7 @@ import {
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   getInAppAgentInstrumentationTraceId,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
   type AgUiEvent,
   type AgUiRunAgentInput,
   type InAppAgentToolApprovalRequest,
@@ -224,7 +225,7 @@ export async function executeInAppAgentRun(params: {
       })
     ) {
       throw new InAppAgentRunInitError(
-        "Conversation is write-locked (sandbox session expired)",
+        IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
       );
     }
 
