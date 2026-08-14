@@ -104,20 +104,19 @@ root`). First lesson: netem's default 1000-packet queue DROPS under
     (per-connection scaling) would not; TLS and throttling are also
     unsimulated. → B hides latency better and far more consistently;
     connection-count tuning needs the real cloud run.
-25. **Go spike, same worker shape** (`engine-go/`, ~1.6k lines incl. tests) —
+25. **Go spike, same worker shape** (`engine-go/`, ~1.8k lines incl. tests) —
     to test whether the Path B verdict is about Rust or about owning a
     worker. Same architecture (one process per run, LIST once, byte-budget
     semaphore, download/CPU decoupling via goroutines+channels, streaming
     columnar INSERT through ch-go `OnInput`, single-writer MOVE), same
-    lenient leaf semantics. Checksum parity on all 38 columns and 25/25
-    media offsets verified on the FIRST integration run — the spec was the
-    Rust source, and porting it was mechanical. First cut used stdlib
-    `encoding/json` with `UnmarshalJSON` shape-peeking: worker CPU 3.36 s vs
-    Rust 0.42 s; pprof showed ~half of it in `checkValid`/`skip`/
+    lenient leaf semantics. It reached checksum parity on all 38 columns and
+    verified 25/25 media offsets, using the Rust source as the behavior spec.
+    The first cut used stdlib `encoding/json` with `UnmarshalJSON`
+    shape-peeking: worker CPU 3.36 s vs Rust 0.42 s; pprof showed ~half of it
+    in `checkValid`/`skip`/
     `stateInString` — every nested `UnmarshalJSON` re-validates its subtree,
-    the same disease as serde's untagged Content buffering, paid in CPU
-    instead of RAM. → Works, parity is cheap to keep; stdlib JSON is the
-    wrong tool for nested leniency.
+    repeating work in CPU rather than buffering it in RAM. → The worker
+    works, but stdlib JSON is the wrong tool for nested leniency.
 26. **encoding/json/v2 port** (the `go-json-experiment` module, i.e. the
     experimental stdlib v2) — `UnmarshalJSONFrom(*jsontext.Decoder)` +
     `PeekKind()` is a true single-pass streaming visitor: the serde-visitor
@@ -125,13 +124,29 @@ root`). First lesson: netem's default 1000-packet queue DROPS under
     `Visitor` impl. Worker CPU 3.36 → 1.00 s (median of 5), wall 652 MB/s —
     ties Rust's 631 on this corpus; total CPU 1.38 s vs Rust 0.73 s.
     Remaining gap decomposed by pprof: Go's NFA `regexp` on base64 runs
-    ~21–31% (Rust's lazy DFA makes this ~free), GC+scheduler syscalls most
-    of the rest; JSON itself is down to ~5%. RSS 300 vs 88 MiB is GC
+    ~21–31% (the equivalent Rust regex was not a material profile
+    contributor), GC+scheduler syscalls most of the rest; JSON itself is down
+    to ~5%. RSS 300 vs 88 MiB is GC
     headroom: `GOMEMLIMIT=128MiB` (env-only knob) pulls it to ~230–270 MiB
     at ~40% extra worker CPU — the input-byte semaphore stays the real cap,
-    identical in shape to Rust's. → Go can own this worker: parity held,
-    2× Rust's total CPU, one dependency swap away from stdlib; the residual
-    costs are the runtime and `regexp`, not the architecture.
+    identical in shape to Rust's. → Go can own this worker: parity held and
+    throughput matched Rust, but total CPU was ~2× and the faster parser
+    depended on the experimental jsonv2 module. The remaining profile was in
+    the runtime and `regexp`, not the worker architecture.
+27. **The call on the Go spike** — weighed the benchmark against the source
+    and ongoing maintenance. Go's lenient wire model was shorter
+    (`otel.go` 310 lines vs `otel.rs` 426), but its ClickHouse row mapping was
+    226 lines vs 53 in Rust because the Go client had no equivalent derive.
+    The Go worker also carried explicit release plumbing on abort paths where
+    Rust uses ownership and `Drop`. Reducing the mapping would require codegen
+    or a different client API rather than routine cleanup. Throughput was
+    adequate, but CPU and RSS were higher, with the remaining profile in
+    GC/scheduler work and NFA regexp. Keeping it would also turn every
+    transform change into a three-way parity recertification. → Removed from
+    HEAD and preserved in history
+    (`git log -- poc/otel-ingestion/engine-go` finds it). The lasting result is
+    a measured fallback: Go achieved parity and comparable throughput, with
+    quantified CPU, memory, dependency, and maintenance costs.
 
 ## Key findings (measured)
 

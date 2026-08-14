@@ -5,10 +5,8 @@
 //   rust            engine-rust binary — spawned ONCE for the whole run, so
 //                   the worker is long-running and per-batch process spawn
 //                   (measured at ~50% of worker CPU) is gone           [Path B]
-//   go              engine-go binary — same worker shape as rust, in Go
-//                                                              [Path B spike]
 //
-// Usage: node harness.mjs [--concurrency N] [--engine ch|rust|go]
+// Usage: node harness.mjs [--concurrency N] [--engine ch|rust]
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
@@ -35,7 +33,7 @@ const ENGINE =
   process.argv.indexOf("--engine") > -1
     ? process.argv[process.argv.indexOf("--engine") + 1]
     : (process.env.POC_ENGINE ?? "ch");
-if (!["ch", "rust", "go"].includes(ENGINE))
+if (!["ch", "rust"].includes(ENGINE))
   throw new Error(`unknown engine ${ENGINE}`);
 // long-running worker engines: binary + the env var carrying the slot count
 const WORKERS = {
@@ -45,12 +43,6 @@ const WORKERS = {
       new URL("./engine-rust/target/release/rust-worker", import.meta.url)
         .pathname,
     slotsEnv: "POC_RW_SLOTS",
-  },
-  go: {
-    bin:
-      process.env.POC_GO_BIN ??
-      new URL("./engine-go/go-worker", import.meta.url).pathname,
-    slotsEnv: "POC_GW_SLOTS",
   },
 };
 
@@ -192,7 +184,6 @@ async function main() {
   const logComment = {
     ch: "poc-chlb-transform-v2",
     rust: "poc-chlb-rust-insert",
-    go: "poc-chlb-go-insert",
   }[ENGINE];
   const stats = await chq(
     `SELECT

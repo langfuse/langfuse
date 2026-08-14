@@ -22,7 +22,7 @@ deduplication tokens or their limited retention window.
 
 ```
 # shared driver + verifiers (engine-agnostic)
-EXPERIMENTS.md        24-entry experiment log, findings, and deep dives
+EXPERIMENTS.md        27-entry experiment log, findings, and deep dives
 harness.mjs           run driver (--engine ch|rust): schedules commit batches, prints summary
 bench.mjs             alternating multi-run comparison -> median [min..max] table
 checksum.mjs          per-column cityHash64 sums: proves Path A output ≡ Path B output
@@ -398,10 +398,10 @@ was modest: the typed pipeline compiler made Path A safe and testable, and
 both transforms required comparable effort. **Runtime control** was the
 meaningful difference:
 
-- **Memory limits:** Path B needed an afternoon of ordinary code to add a
-  process-wide byte budget. In Path A, the equivalent problem is inside the
-  engine: we measured 2.46 GiB peaks that no setting could control, and the
-  actual fix depends on a future ClickHouse release.
+- **Memory limits:** Path B implements a process-wide byte budget in the
+  worker. In Path A, the equivalent problem is inside the engine: we measured
+  2.46 GiB peaks that no setting could control, and the general fix depends on
+  a future ClickHouse release.
 - **Sharing setup costs across batches:** In Path B, making the process
   long-running reused its initialized state and connections without making
   commit batches larger. ClickHouse analyzes each Path A INSERT independently,
@@ -410,11 +410,11 @@ meaningful difference:
   uploader with the worker's S3 download cache. On a cache hit, transformation
   and media extraction can share the same raw-object download instead of
   issuing a second `GET`, further reducing S3 costs.
-- **Fixability:** We fixed every worker-side issue found by this PoC on the
-  same day, including malformed input handling, large-file memory spikes,
-  parser buffering, and streaming writes. Our checksums verified that the fixes
-  preserved the output. We control that work directly; fixes for engine-level
-  Path A issues depend on the ClickHouse roadmap.
+- **Fixability:** We fixed the worker-side issues found by this PoC, including
+  malformed input handling, large-file memory spikes, parser buffering, and
+  streaming writes. Our checksums verified that the fixes preserved the
+  output. We control that work directly; fixes for engine-level Path A issues
+  depend on the ClickHouse roadmap.
 - **Upstream leverage and risk:** That dependency cuts both ways. Path A can
   inherit engine fixes and performance improvements without us implementing
   them; the 4.5× cheaper analyzer in 26.6 is the positive case. It can also
@@ -430,6 +430,60 @@ maintaining a Rust version of the transform alongside the generated SQL;
 checksums reduce that divergence risk for Path B but do not remove the
 maintenance cost. I think those are useful operational properties, but Path
 B's measured control over memory, latency, and cost matters more.
+
+## Why not Node or Go?
+
+The evidence is different for each option: Node was assessed but not built;
+Go was implemented against the same harness and benchmarked.
+
+**Node.** A Node-based worker could keep the coordinator in TypeScript and move
+the transform and its working memory into embedded chDB or a native Rust/C++
+module. This avoids putting large payloads on V8's heap, but it does not create
+a third execution engine or a new memory guarantee: Node's own worker limits
+[do not cover external memory](https://nodejs.org/api/worker_threads.html#new-workerfilename-options).
+chDB is still Path A running in-process; a native module is still Path B with
+an extra integration layer.
+
+I do not think this is worth spiking now. The first option would mostly test
+different packaging for Path A; the second adds an integration layer around
+work we already built and measured. The Node chDB binding is also
+[still under active development](https://github.com/chdb-io/chdb-node/blob/main/docs/design/layer1-native-binding.md)
+for large streaming workloads. It is worth revisiting if we choose embedded
+Path A, but it is unlikely to change the choice between A and B today.
+
+**Go.** The Go spike used the same long-running worker shape, lenient field
+semantics, commit protocol, and harness. It reached checksum parity across all
+38 columns and verified all 25 sampled media offsets.
+
+Median results from five alternating runs on the standard corpus:
+
+|                       | Go       | Rust     |
+| --------------------- | -------- | -------- |
+| throughput            | 652 MB/s | 631 MB/s |
+| total CPU             | 1.38 s   | 0.73 s   |
+| worker RSS            | 300 MiB  | 88 MiB   |
+
+Go matched Rust's throughput, but used roughly twice the total CPU and more
+worker memory. After replacing `encoding/json` with the experimental json/v2
+implementation from `github.com/go-json-experiment/json`, Go worker CPU fell
+from 3.36 s to 1.00 s. In the final profile, JSON parsing was about 5%; base64
+regex scans accounted for 21–31%, with GC and scheduler work behind most of
+the remaining gap.
+
+The source comparison was mixed. Go's lenient JSON model was shorter, but its
+ClickHouse row mapping was 226 lines versus 53 in Rust because the Go client
+had no equivalent to Rust's row derive. Go also carried an explicit release
+function with each memory reservation, while Rust releases the reservation
+automatically when its owner is dropped. Those differences matter as the row
+schema grows and if the media uploader starts sharing cached downloads with
+the transform.
+
+Go is a viable fallback, but the measured CPU and memory cost, the experimental
+JSON dependency, and the cost of maintaining a third transform implementation
+did not justify keeping it. The spike was removed from the working tree but
+remains in Git history (`git log -- poc/otel-ingestion/engine-go`). Entries
+25–27 in [EXPERIMENTS.md](EXPERIMENTS.md) contain the implementation and
+profiling details.
 
 ## Swapping to Cloud
 
@@ -459,6 +513,6 @@ Span `events[]`, `links`, tools, and cost enrichment are not mapped.
 the corpus prefix once per run; in the real system, the ledger would provide
 the exact object keys.
 
-[EXPERIMENTS.md](EXPERIMENTS.md) contains the remaining detail: the 24-entry
+[EXPERIMENTS.md](EXPERIMENTS.md) contains the remaining detail:
 experiment log, measured findings, CPU decomposition, version matrix, stress
 profiling, DSL deep dive, and v1 appendix.
