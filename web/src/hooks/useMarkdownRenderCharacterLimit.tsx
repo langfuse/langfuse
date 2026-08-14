@@ -22,6 +22,13 @@ export function MarkdownRenderCharacterLimitProvider({
 }) {
   const config = api.public.markdownRenderConfig.useQuery(undefined, {
     staleTime: Infinity,
+    // Failure is harmless (the build-time fallback applies), so settle after
+    // the initial attempt instead of retrying on every window focus — same
+    // guard as the other app-shell config queries (see checkUpdate).
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    throwOnError: false,
   });
 
   return (
