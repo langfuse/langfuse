@@ -155,6 +155,11 @@ jobs:
       # by every AGENTS.md are resolved.
       - name: agent guidance paths resolve
         run: pnpm run agents:check
+      # `fern export` drops `availability`, so the deprecation flags in the
+      # exported specs are stamped on afterwards. Catch a re-export that was
+      # committed without that step, which would silently drop them again.
+      - name: exported API specs carry current deprecations
+        run: pnpm run api:patch-deprecations -- --check
       - name: Load default env
         run: |
           cp .env.dev.example .env

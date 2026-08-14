@@ -538,10 +538,45 @@ We maintain the API specifications manually to guarantee a high degree of unders
 To export the respective `openapi.yml` files which power the online API reference, run:
 
 ```sh
+pnpm run api:export
+```
+
+This exports all three specs and then stamps endpoint deprecations onto them:
+
+```sh
 npx fern-api export --api server web/public/generated/api/openapi.yml
 npx fern-api export --api client web/public/generated/api-client/openapi.yml
 npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml
+pnpm run api:patch-deprecations
 ```
+
+`fern export` drops the `availability` blocks from the Fern definitions, so an
+endpoint marked `availability: status: deprecated` would otherwise reach the API
+reference looking perfectly current. `pnpm run api:patch-deprecations` reads
+`availability` back out of `fern/apis/**` and writes the standard OpenAPI
+`deprecated: true` flag plus a `**Deprecated:** …` notice at the top of the
+operation description, which is what the reference renderer understands. It is
+idempotent, so re-running it is harmless, and CI runs
+`pnpm run api:patch-deprecations -- --check` to catch a re-export that was
+committed without it.
+
+Deprecations belong in the Fern definition, never in the exported spec:
+
+```yaml
+endpoints:
+  list:
+    availability:
+      status: deprecated
+      message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. Use `GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>` instead."
+    method: GET
+    path: /traces
+```
+
+The `message` is rendered as Markdown, so wrap example calls in backticks —
+otherwise a `<placeholder>` is parsed as an HTML tag and disappears from the
+rendered page. Only endpoint-level `availability` reaches the reference; the
+script reports any it had to skip. A `deprecated` endpoint without a `message`
+fails the export.
 
 To generate the server SDKs, run:
 

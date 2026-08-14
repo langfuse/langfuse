@@ -105,6 +105,9 @@ importers:
       turbo:
         specifier: 2.10.5
         version: 2.10.5
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
 
   ee:
     dependencies:

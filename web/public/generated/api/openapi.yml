@@ -1135,7 +1135,15 @@ paths:
       security: *ref_0
   /api/public/dataset-run-items:
     post:
-      description: Create a dataset run item
+      deprecated: true
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, create experiment data via the SDK
+        experiment runner or the OpenTelemetry endpoint at POST
+        /api/public/otel/v1/traces.
+
+
+        Create a dataset run item
       operationId: datasetRunItems_create
       tags:
         - DatasetRunItems
@@ -1180,7 +1188,16 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateDatasetRunItemRequest'
     get:
-      description: List dataset run items
+      deprecated: true
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, dataset run items are replaced by
+        experiment items; use `GET
+        /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to>`
+        instead.
+
+
+        List dataset run items
       operationId: datasetRunItems_list
       tags:
         - DatasetRunItems
@@ -1388,7 +1405,14 @@ paths:
       security: *ref_0
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
-      description: Get a dataset run and its items
+      deprecated: true
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, dataset runs are replaced by
+        experiments; use GET /api/public/experiments instead.
+
+
+        Get a dataset run and its items
       operationId: datasets_getRun
       tags:
         - Datasets
@@ -1437,7 +1461,14 @@ paths:
               schema: {}
       security: *ref_0
     delete:
-      description: Delete a dataset run and all its run items. This action is irreversible.
+      deprecated: true
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, dataset runs are replaced by
+        experiments.
+
+
+        Delete a dataset run and all its run items. This action is irreversible.
       operationId: datasets_deleteRun
       tags:
         - Datasets
@@ -1487,7 +1518,14 @@ paths:
       security: *ref_0
   /api/public/datasets/{datasetName}/runs:
     get:
-      description: Get dataset runs
+      deprecated: true
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, dataset runs are replaced by
+        experiments; use GET /api/public/experiments instead.
+
+
+        Get dataset runs
       operationId: datasets_getRuns
       tags:
         - Datasets
@@ -1890,7 +1928,14 @@ paths:
           description: ''
   /api/public/ingestion:
     post:
+      deprecated: true
       description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. Send data via the OpenTelemetry endpoint at POST
+        /api/public/otel/v1/traces instead. Learn more:
+        https://langfuse.com/integrations/native/opentelemetry
+
+
         **Legacy endpoint for batch ingestion for Langfuse Observability.**
 
 
@@ -1987,7 +2032,13 @@ paths:
                 - batch
   /api/public/metrics:
     get:
+      deprecated: true
       description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. Use `GET /api/public/v2/metrics?query=<urlencoded
+        json query>` instead.
+
+
         Get metrics from the Langfuse project using a query object.
 
 
@@ -2088,7 +2139,15 @@ paths:
       security: *ref_0
   /api/public/observations/{observationId}:
     get:
-      description: Get a observation
+      deprecated: true
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. Use `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
+        instead.
+
+
+        Get a observation
       operationId: legacy_observationsV1_get
       tags:
         - LegacyObservationsV1
@@ -2136,7 +2195,14 @@ paths:
       security: *ref_0
   /api/public/observations:
     get:
+      deprecated: true
       description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. Use `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
+        instead.
+
+
         Get a list of observations.
 
 
@@ -5160,7 +5226,13 @@ paths:
                 password:
                   type: string
                   nullable: true
-                  description: Initial password for the user
+                  description: >-
+                    Ignored. Accepted only for compatibility with identity
+                    providers that always send a password on user creation (Okta
+                    sends a placeholder value even when password sync is
+                    disabled). No credential is created for the user;
+                    provisioned users authenticate via SSO or set a password
+                    themselves through the password reset flow.
               required:
                 - userName
                 - name
@@ -5750,7 +5822,10 @@ paths:
               $ref: '#/components/schemas/CreateScoreRequest'
   /api/public/v2/scores:
     get:
+      deprecated: true
       description: |-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed in a future release. Use GET /api/public/v3/scores instead.
+
         **Deprecated.** Use `GET /api/public/v3/scores` instead. This endpoint
         is no longer available on Langfuse v4 and later.
 
@@ -5975,7 +6050,10 @@ paths:
       security: *ref_0
   /api/public/v2/scores/{scoreId}:
     get:
+      deprecated: true
       description: |-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed in a future release. Use GET /api/public/v3/scores with the id filter instead.
+
         **Deprecated.** Use `GET /api/public/v3/scores` with the `id` filter
         instead. This endpoint is no longer available on Langfuse v4 and later.
 
@@ -6025,7 +6103,14 @@ paths:
       security: *ref_0
   /api/public/sessions:
     get:
+      deprecated: true
       description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, read session data via `GET
+        /api/public/v2/observations?filter=<urlencoded sessionId
+        filter>&fromStartTime=<from>&toStartTime=<to>`.
+
+
         Get sessions.
 
 
@@ -6124,7 +6209,14 @@ paths:
       security: *ref_0
   /api/public/sessions/{sessionId}:
     get:
+      deprecated: true
       description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, read session data via `GET
+        /api/public/v2/observations?filter=<urlencoded sessionId
+        filter>&fromStartTime=<from>&toStartTime=<to>`.
+
+
         Get a session.
 
 
@@ -6182,7 +6274,14 @@ paths:
       security: *ref_0
   /api/public/traces/{traceId}:
     get:
-      description: Get a specific trace
+      deprecated: true
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, read span and trace data via `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
+
+
+        Get a specific trace
       operationId: trace_get
       tags:
         - Trace
@@ -6286,7 +6385,14 @@ paths:
       security: *ref_0
   /api/public/traces:
     get:
-      description: Get list of traces
+      deprecated: true
+      description: >-
+        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
+        in a future release. In Langfuse v4, read span and trace data via `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
+
+
+        Get list of traces
       operationId: trace_list
       tags:
         - Trace

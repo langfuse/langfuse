@@ -21,6 +21,8 @@
     "db:seed:examples": "turbo run db:seed:examples",
     "nuke": "bash ./scripts/nuke.sh",
     "scan:client-bundle": "node scripts/scan-client-bundle.mjs web/.next/static",
+    "api:export": "npx fern-api export --api server web/public/generated/api/openapi.yml && npx fern-api export --api client web/public/generated/api-client/openapi.yml && npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml && pnpm run api:patch-deprecations",
+    "api:patch-deprecations": "node scripts/patch-openapi-deprecations.mjs",
     "seed": "pnpm --filter=shared run seed:scenario",
     "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
@@ -55,7 +57,8 @@
     "prettier": "^3.8.3",
     "release-it": "^20.2.0",
     "ts7": "npm:typescript@^7.0.2",
-    "turbo": "2.10.5"
+    "turbo": "2.10.5",
+    "yaml": "^2.9.0"
   },
   "release-it": {
     "git": {

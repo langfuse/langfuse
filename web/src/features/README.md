@@ -21,7 +21,8 @@ Testing
 API Reference
 
 - Add to `fern` including `docs` attributes
-- Export with `npx fern-api export --api server web/public/generated/api/openapi.yml` and `npx fern-api export --api client web/public/generated/api-client/openapi.yml`, then commit the changes to the API reference
+- Mark a retiring endpoint with `availability: { status: deprecated, message: … }` in its Fern definition; the message is what API consumers read in the reference, so say what to use instead
+- Export with `pnpm run api:export`, then commit the changes to the API reference. That runs the three `npx fern-api export` commands and then `pnpm run api:patch-deprecations`, which stamps the OpenAPI `deprecated` flag and deprecation notices that `fern export` drops (see [CONTRIBUTING.md](../../../CONTRIBUTING.md#updating-the-openapi-specs--fern-sdks))
 
 SDKs
 
