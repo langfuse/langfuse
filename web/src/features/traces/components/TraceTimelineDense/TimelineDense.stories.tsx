@@ -357,6 +357,38 @@ export const ScrollPansPinchZooms = meta.story({
   },
 });
 
+export const LabelsStayReadableOnBars = meta.story({
+  name: "(Test) Labels Stay Readable On Bars",
+  args: {
+    roots: threeSpans(),
+    box: DESKTOP,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const labels = [
+      ...canvasElement.querySelectorAll<HTMLElement>(
+        '[data-testid="timeline-dense-duration"][data-placement="inside"]',
+      ),
+    ];
+    // A wide box makes the bars wide enough to hold their own labels, which is
+    // the case that has to be legible: the type palette runs from pastels to
+    // 600s, so no single text colour works on all of it.
+    await expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      const background = getComputedStyle(label).backgroundColor;
+      await expect(background).not.toBe("transparent");
+      await expect(background).not.toMatch(/rgba\(0, 0, 0, 0\)/);
+    }
+  },
+});
+
 export const ZoomLandsOnContent = meta.story({
   name: "(Test) Zoom Lands On Content",
   args: {

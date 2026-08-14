@@ -944,11 +944,18 @@ export function TimelineDense({
                   node.labelPlacement !== "hidden" ? (
                     <span
                       className={cn(
-                        "absolute whitespace-nowrap",
+                        "absolute overflow-hidden whitespace-nowrap",
+                        // A label drawn ON the bar has to contrast with the BAR,
+                        // not with the page — and it cannot pick one colour that
+                        // does, because the type palette runs from pastels to
+                        // 600s. So it brings its own ground: foreground on
+                        // background is legible over any hue, in either theme.
                         node.labelPlacement === "inside"
-                          ? "text-foreground"
+                          ? "bg-background/85 text-foreground rounded-[2px] px-0.5"
                           : "text-muted-foreground",
                       )}
+                      data-testid="timeline-dense-duration"
+                      data-placement={node.labelPlacement}
                       style={{
                         left: `${node.labelX}px`,
                         maxWidth: `${Math.max(laneWidth - node.labelX, 0)}px`,
