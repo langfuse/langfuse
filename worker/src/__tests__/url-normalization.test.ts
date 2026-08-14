@@ -1,5 +1,50 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+
+// These tests only assert on rejections, so DNS never needs to resolve
+// successfully. Mocking it removes a dependency on live network conditions,
+// which made hostnames like a 50-level subdomain or a bare "metadata" label
+// (subject to resolver search-domain suffixing) slow and flaky in CI.
+const { resolve4Mock, resolve6Mock, lookupMock } = vi.hoisted(() => ({
+  resolve4Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
+  resolve6Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
+  lookupMock:
+    vi.fn<
+      (
+        hostname: string,
+        options: { all: true },
+      ) => Promise<Array<{ address: string; family: 4 | 6 }>>
+    >(),
+}));
+
+vi.mock("node:dns/promises", () => ({
+  default: {
+    resolve4: resolve4Mock,
+    resolve6: resolve6Mock,
+    lookup: lookupMock,
+  },
+  resolve4: resolve4Mock,
+  resolve6: resolve6Mock,
+  lookup: lookupMock,
+}));
+
 import { validateWebhookURL } from "@langfuse/shared/src/server";
+
+const dnsError = (code: string, hostname: string) =>
+  Object.assign(new Error(`queryA ${code} ${hostname}`), { code });
+
+beforeEach(() => {
+  vi.clearAllMocks();
+
+  resolve4Mock.mockImplementation(async (hostname: string) => {
+    throw dnsError("ENOTFOUND", hostname);
+  });
+  resolve6Mock.mockImplementation(async (hostname: string) => {
+    throw dnsError("ENOTFOUND", hostname);
+  });
+  lookupMock.mockImplementation(async (hostname: string) => {
+    throw dnsError("ENOTFOUND", hostname);
+  });
+});
 
 describe("URL Normalization and Edge Cases", () => {
   describe("URL encoding bypass attempts", () => {
@@ -214,7 +259,7 @@ describe("URL Normalization and Edge Cases", () => {
       await expect(
         validateWebhookURL(`https://${manySubdomains}/webhook`),
       ).rejects.toThrow(/DNS lookup failed/);
-    }, 10000);
+    });
 
     it("should handle empty hostname", async () => {
       // This URL is parsed as hostname="webhook" by URL constructor
