@@ -170,10 +170,19 @@ jobs:
           STRUCTURED_OUTPUT: ${{ steps.claude-review.outputs.structured_output }}
         with:
           script: |
-            const crypto = require("node:crypto");
+            const {
+              buildAnchorableLines,
+              bullet,
+              envelope,
+              parseFingerprints,
+              partitionFindings,
+              safe,
+              summaryBullet,
+            } = await import(
+              `${process.env.GITHUB_WORKSPACE}/scripts/posthog-review/partition-findings.mjs`
+            );
 
             const maxInlineComments = 3;
-            const envelopeMarker = "posthog-review:v1";
             const skillPath = ".agents/skills/posthog-instrumentation/SKILL.md";
             const registryPath =
               "web/src/features/posthog-analytics/usePostHogClientCapture.ts";
@@ -185,25 +194,6 @@ jobs:
 
             const output = JSON.parse(process.env.STRUCTURED_OUTPUT);
             const optedOut = output.verdict === "opted_out";
-
-            // Strip sequences that would terminate the machine envelope or our own
-            // fenced blocks early.
-            const safe = (value) =>
-              String(value ?? "")
-                .replace(/-->/g, "-- >")
-                .replace(/```/g, "'''")
-                .replace(/\r?\n/g, " ")
-                .trim();
-
-            const fingerprint = (path, symbol, event) =>
-              crypto
-                .createHash("sha1")
-                .update(`${path}|${symbol}|${event}`)
-                .digest("hex")
-                .slice(0, 16);
-
-            const envelope = (fields) =>
-              `<!-- ${envelopeMarker} ${JSON.stringify(fields)} -->`;
 
             const gapBody = (gap) => {
               const props = (gap.proposedProps ?? []).map(safe);
@@ -276,110 +266,49 @@ jobs:
               return lines.join("\n");
             };
 
-            // Anchor pre-flight: only lines present on the RIGHT side of a diff hunk
-            // are valid review-comment anchors, and one bad anchor rejects the whole
-            // review. The line text doubles as a rebase-stable fingerprint input.
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner,
               repo,
               pull_number: pullNumber,
               per_page: 100,
             });
-            const anchorableLines = new Map();
-            for (const file of files) {
-              if (!file.patch) continue;
-              const lines = new Map();
-              let cursor = 0;
-              for (const patchLine of file.patch.split("\n")) {
-                const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(patchLine);
-                if (hunk) {
-                  cursor = Number(hunk[1]);
-                  continue;
-                }
-                if (patchLine.startsWith("+") || patchLine.startsWith(" ")) {
-                  lines.set(cursor, patchLine.slice(1).trim());
-                  cursor += 1;
-                } else if (patchLine.startsWith("\\")) {
-                  continue;
-                }
-              }
-              anchorableLines.set(file.filename, lines);
-            }
+            const anchorableLines = buildAnchorableLines(files);
 
-            // A rule violation has no capture site to key on, so it keys on the text
-            // of the anchored line: unique per line, and it travels with the code
-            // across a rebase the way a line number does not.
-            const anchorText = (anchor) =>
-              anchorableLines.get(anchor.file)?.get(anchor.line) ?? `line:${anchor.line}`;
-
-            const findings = [
-              ...(optedOut ? [] : (output.introducedGaps ?? [])).map((gap) => ({
-                cls: "gap",
-                confidence: gap.confidence,
-                anchor: gap.anchor,
-                label: `\`${safe(gap.proposedEvent)}\` — ${safe(gap.userAction)}`,
-                fp: fingerprint(
-                  gap.suggestedCaptureSite.file,
-                  gap.suggestedCaptureSite.symbol,
-                  gap.proposedEvent,
-                ),
-                render: gapBody,
-                source: gap,
-              })),
-              ...(output.ruleViolations ?? []).map((violation) => ({
-                cls: "rule",
-                confidence: violation.confidence,
-                anchor: violation.anchor,
-                label: `\`${violation.rule}\` — ${safe(violation.problem)}`,
-                fp: fingerprint(
-                  violation.anchor.file,
-                  violation.rule,
-                  anchorText(violation.anchor),
-                ),
-                render: violationBody,
-                source: violation,
-              })),
-            ].map((finding) => ({
-              ...finding,
-              source: { ...finding.source, fp: finding.fp },
-            }));
-
-            // Fingerprint dedupe: a re-posted finding on a cleared PR would re-block it.
-            const existing = await github.paginate(
-              github.rest.pulls.listReviewComments,
-              { owner, repo, pull_number: pullNumber, per_page: 100 },
-            );
+            // Fingerprint dedupe: a re-posted finding on a cleared PR would re-block
+            // it. Inline comments and review bodies both carry envelopes — the
+            // withheld-finding bullets live in the body — so both are read.
+            const [existingComments, existingReviews] = await Promise.all([
+              github.paginate(github.rest.pulls.listReviewComments, {
+                owner,
+                repo,
+                pull_number: pullNumber,
+                per_page: 100,
+              }),
+              github.paginate(github.rest.pulls.listReviews, {
+                owner,
+                repo,
+                pull_number: pullNumber,
+                per_page: 100,
+              }),
+            ]);
             const seen = new Set();
-            for (const comment of existing) {
-              const match = new RegExp(
-                `<!-- ${envelopeMarker} (\\{.*?\\}) -->`,
-                "s",
-              ).exec(comment.body ?? "");
-              if (!match) continue;
-              try {
-                const parsed = JSON.parse(match[1]);
-                if (parsed.fp) seen.add(parsed.fp);
-              } catch {
-                core.warning(`Unparseable envelope on comment ${comment.id}`);
+            for (const record of [...existingComments, ...existingReviews]) {
+              const { fingerprints, unparseable } = parseFingerprints(record.body);
+              for (const fp of fingerprints) seen.add(fp);
+              if (unparseable > 0) {
+                core.warning(
+                  `${unparseable} unparseable envelope(s) on ${record.id}`,
+                );
               }
             }
 
-            const fresh = findings.filter((finding) => !seen.has(finding.fp));
-            const anchorable = (finding) =>
-              anchorableLines.get(finding.anchor.file)?.has(finding.anchor.line) ??
-              false;
-
-            const inlineCandidates = fresh.filter(
-              (finding) => finding.confidence === "high" && anchorable(finding),
-            );
-            const inline = inlineCandidates.slice(0, maxInlineComments);
-            const offDiff = fresh.filter(
-              (finding) => finding.confidence === "high" && !anchorable(finding),
-            );
-            const lowerConfidence = fresh.filter(
-              (finding) => finding.confidence !== "high",
-            );
-            const cappedOut = inlineCandidates.slice(maxInlineComments);
+            const { findings, fresh, inline, cappedOut, offDiff, lowerConfidence } =
+              partitionFindings({
+                output,
+                anchorableLines,
+                seenFingerprints: seen,
+                maxInlineComments,
+              });
 
             if (fresh.length === 0) {
               core.info(
@@ -388,8 +317,9 @@ jobs:
               return;
             }
 
-            const bullet = (finding) =>
-              `- \`${finding.anchor.file}:${finding.anchor.line}\` — ${finding.label} (${finding.confidence})`;
+            // Withheld findings are never posted inline, so their bullet is the only
+            // place their fingerprint can be persisted for the next run's dedupe.
+            const withheldBullet = (finding) => summaryBullet(finding, headSha);
 
             const body = [`## PostHog instrumentation review`, ""];
             if (optedOut) {
@@ -411,21 +341,21 @@ jobs:
               body.push(
                 "",
                 `### Withheld by the ${maxInlineComments}-comment cap (${cappedOut.length})`,
-                ...cappedOut.map(bullet),
+                ...cappedOut.map(withheldBullet),
               );
             }
             if (offDiff.length > 0) {
               body.push(
                 "",
                 `### Anchors outside this diff (${offDiff.length})`,
-                ...offDiff.map(bullet),
+                ...offDiff.map(withheldBullet),
               );
             }
             if (lowerConfidence.length > 0) {
               body.push(
                 "",
                 `### Lower confidence (${lowerConfidence.length})`,
-                ...lowerConfidence.map(bullet),
+                ...lowerConfidence.map(withheldBullet),
               );
             }
             body.push("", `Rules: \`${skillPath}\`.`);
@@ -441,7 +371,10 @@ jobs:
                 path: finding.anchor.file,
                 line: finding.anchor.line,
                 side: "RIGHT",
-                body: finding.render(finding.source),
+                body:
+                  finding.cls === "gap"
+                    ? gapBody(finding.source)
+                    : violationBody(finding.source),
               })),
             });
 
