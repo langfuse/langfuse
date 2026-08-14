@@ -69,16 +69,15 @@ describe("in-app agent display projection", () => {
     ]);
   });
 
-  it("defaults timestamp metadata for older serialized display state", () => {
-    const state = createInAppAgentDisplayState();
+  it("still hydrates a payload from the bundle that sent seen ids separately", () => {
     const { messageTimestamps: _messageTimestamps, ...legacyState } = {
-      ...state,
-      seenMessageIds: [...state.seenMessageIds],
+      ...createInAppAgentDisplayState(),
+      seenMessageIds: ["assistant"],
     };
 
-    expect(
-      deserializeInAppAgentDisplayState(legacyState).messageTimestamps,
-    ).toEqual({});
+    expect(deserializeInAppAgentDisplayState(legacyState)).toEqual(
+      createInAppAgentDisplayState(),
+    );
   });
 
   it("keeps consecutive tool calls with the same parent together", () => {
