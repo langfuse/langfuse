@@ -1,49 +1,45 @@
-import { beforeEach, describe, it, expect, vi } from "vitest";
-
-// These tests only assert on rejections, so DNS never needs to resolve
-// successfully. Mocking it removes a dependency on live network conditions,
-// which made hostnames like a 50-level subdomain or a bare "metadata" label
-// (subject to resolver search-domain suffixing) slow and flaky in CI.
-const { resolve4Mock, resolve6Mock, lookupMock } = vi.hoisted(() => ({
-  resolve4Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
-  resolve6Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
-  lookupMock:
-    vi.fn<
-      (
-        hostname: string,
-        options: { all: true },
-      ) => Promise<Array<{ address: string; family: 4 | 6 }>>
-    >(),
-}));
-
-vi.mock("node:dns/promises", () => ({
-  default: {
-    resolve4: resolve4Mock,
-    resolve6: resolve6Mock,
-    lookup: lookupMock,
-  },
-  resolve4: resolve4Mock,
-  resolve6: resolve6Mock,
-  lookup: lookupMock,
-}));
-
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import dns from "node:dns/promises";
 import { validateWebhookURL } from "@langfuse/shared/src/server";
 
+// Every case here asserts a rejection, so DNS never needs to resolve for real.
+// Stubbing the resolver removes a dependency on live network conditions, which
+// made hostnames like a 50-level subdomain or a bare "metadata" label (subject
+// to resolver search-domain suffixing) hang past the test timeout in CI.
+//
+// Stub the dns module object rather than vi.mock("node:dns/promises"): this
+// file reaches validateWebhookURL through @langfuse/shared/src/server, i.e.
+// the package's compiled CommonJS output, whose require() vitest's module
+// mocking does not intercept.
 const dnsError = (code: string, hostname: string) =>
   Object.assign(new Error(`queryA ${code} ${hostname}`), { code });
 
-beforeEach(() => {
-  vi.clearAllMocks();
+// Inside a cloud VM a bare "metadata" label resolves to the metadata endpoint
+// via resolver search domains. Modelling that keeps the metadata test asserting
+// the resolved-IP block instead of a DNS failure, and makes every test in this
+// file fail loudly if the stubs ever stop applying.
+const searchDomainHosts: Record<string, string> = {
+  metadata: "169.254.169.254",
+};
 
-  resolve4Mock.mockImplementation(async (hostname: string) => {
-    throw dnsError("ENOTFOUND", hostname);
+beforeEach(() => {
+  vi.spyOn(dns, "resolve4").mockImplementation(async (hostname: string) => {
+    const ip = searchDomainHosts[hostname];
+    if (!ip) throw dnsError("ENOTFOUND", hostname);
+    return [ip];
   });
-  resolve6Mock.mockImplementation(async (hostname: string) => {
-    throw dnsError("ENOTFOUND", hostname);
+  vi.spyOn(dns, "resolve6").mockImplementation(async (hostname: string) => {
+    throw dnsError("ENODATA", hostname);
   });
-  lookupMock.mockImplementation(async (hostname: string) => {
-    throw dnsError("ENOTFOUND", hostname);
+  vi.spyOn(dns, "lookup").mockImplementation(async (hostname: string) => {
+    const ip = searchDomainHosts[hostname];
+    if (!ip) throw dnsError("ENOTFOUND", hostname);
+    return [{ address: ip, family: 4 }];
   });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("URL Normalization and Edge Cases", () => {
@@ -309,8 +305,11 @@ describe("URL Normalization and Edge Cases", () => {
       ];
 
       for (const url of metadataAttempts) {
+        // Blocked on the hostname/literal IP, except "metadata", which is
+        // blocked on the address it resolves to. A DNS failure must not count
+        // as a pass here.
         await expect(validateWebhookURL(url)).rejects.toThrow(
-          /Blocked|DNS lookup failed/,
+          /Blocked (hostname|IP address) detected/,
         );
       }
     });

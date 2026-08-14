@@ -1,28 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const { resolve4Mock, resolve6Mock, lookupMock } = vi.hoisted(() => ({
-  resolve4Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
-  resolve6Mock: vi.fn<(hostname: string) => Promise<string[]>>(),
-  lookupMock:
-    vi.fn<
-      (
-        hostname: string,
-        options: { all: true },
-      ) => Promise<Array<{ address: string; family: 4 | 6 }>>
-    >(),
-}));
-
-vi.mock("node:dns/promises", () => ({
-  default: {
-    resolve4: resolve4Mock,
-    resolve6: resolve6Mock,
-    lookup: lookupMock,
-  },
-  resolve4: resolve4Mock,
-  resolve6: resolve6Mock,
-  lookup: lookupMock,
-}));
-
+import dns from "node:dns/promises";
 import {
   validateLlmConnectionBaseURL,
   type LlmBaseUrlValidationWhitelist,
@@ -36,15 +13,18 @@ const originalAllowedIpSegments =
   env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS;
 
 describe("LLM base URL validation", () => {
+  // Stub the dns module object instead of vi.mock("node:dns/promises") so the
+  // stubs apply no matter whether the validator is loaded from source or from
+  // @langfuse/shared's compiled CommonJS output, whose require() vitest's
+  // module mocking does not intercept.
   beforeEach(() => {
-    vi.clearAllMocks();
-
-    resolve4Mock.mockRejectedValue(new Error("ENOTFOUND"));
-    resolve6Mock.mockRejectedValue(new Error("ENODATA"));
-    lookupMock.mockRejectedValue(new Error("ENOTFOUND"));
+    vi.spyOn(dns, "resolve4").mockRejectedValue(new Error("ENOTFOUND"));
+    vi.spyOn(dns, "resolve6").mockRejectedValue(new Error("ENODATA"));
+    vi.spyOn(dns, "lookup").mockRejectedValue(new Error("ENOTFOUND"));
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (env as any).LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST =
       originalAllowedHosts;
@@ -83,15 +63,17 @@ describe("LLM base URL validation", () => {
 
   it("should reject hostnames that resolve to blocked IPs through local lookup", async () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    lookupMock.mockResolvedValue([{ address: "127.0.0.1", family: 4 }]);
+    vi.spyOn(dns, "lookup").mockResolvedValue([
+      { address: "127.0.0.1", family: 4 },
+    ]);
 
     await expect(validateLlmConnectionBaseURL("http://vm/v1")).rejects.toThrow(
       "Blocked IP address detected",
     );
 
-    expect(resolve4Mock).toHaveBeenCalledWith("vm");
-    expect(resolve6Mock).toHaveBeenCalledWith("vm");
-    expect(lookupMock).toHaveBeenCalledWith("vm", { all: true });
+    expect(dns.resolve4).toHaveBeenCalledWith("vm");
+    expect(dns.resolve6).toHaveBeenCalledWith("vm");
+    expect(dns.lookup).toHaveBeenCalledWith("vm", { all: true });
   });
 
   it("should allow explicitly allowlisted localhost hosts for self-hosted instances", async () => {
