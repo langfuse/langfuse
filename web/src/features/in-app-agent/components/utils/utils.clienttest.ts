@@ -1,5 +1,8 @@
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+} from "@langfuse/shared/in-app-agent";
 import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
   IN_APP_AGENT_SANDBOX_TOOL_NAMES,
@@ -240,6 +243,15 @@ describe("getInAppAgentError", () => {
       type: "generic",
       message: "Assistant connection failed",
     });
+  });
+
+  it("maps a write-lock rejection to the write-lock notice", () => {
+    expect(
+      getInAppAgentError(
+        { message: IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE },
+        now,
+      ),
+    ).toEqual({ type: "write_lock" });
   });
 
   it("does not classify malformed embedded JSON as a rate limit", () => {
