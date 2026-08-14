@@ -9,7 +9,18 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   openMigrationPanel: vi.fn(),
   setOpenMobileSidebar: vi.fn(),
+  recordProjectState: vi.fn(),
   migrationData: undefined as unknown as ProjectMigrationStatus,
+}));
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    v4Transition: {
+      recordProjectState: {
+        useMutation: () => ({ mutate: mocks.recordProjectState }),
+      },
+    },
+  },
 }));
 
 vi.mock("@/src/components/ui/sidebar", () => ({
@@ -134,6 +145,7 @@ describe("v4_migration:project_state_checked", () => {
 
   beforeEach(() => {
     mocks.capture.mockClear();
+    mocks.recordProjectState.mockClear();
     mocks.migrationData = migrationStatus();
   });
 
@@ -148,6 +160,49 @@ describe("v4_migration:project_state_checked", () => {
       projectId: "project-1",
       organizationId: "org-1",
     });
+    expect(mocks.recordProjectState).toHaveBeenCalledExactlyOnceWith({
+      projectId: "project-1",
+      readiness: "ready",
+      sdkStatus: "latest",
+      hasV4Traffic: false,
+    });
+  });
+
+  it("reports v4 traffic to the server when a compatible series exists", () => {
+    mocks.migrationData = migrationStatus({
+      sdk: {
+        status: "legacy",
+        sdkUsageSeries: [
+          { v4MigrationStatus: "compatible" },
+          { v4MigrationStatus: "upgrade_required" },
+        ] as unknown as ProjectMigrationStatus["sdk"]["sdkUsageSeries"],
+        upgradeRequiredCount: 1,
+        delayedOtelIngestionCount: 0,
+      },
+    });
+
+    render(<V4MigrationNavItem />);
+
+    expect(mocks.recordProjectState).toHaveBeenCalledExactlyOnceWith({
+      projectId: "project-1",
+      readiness: "action-needed",
+      sdkStatus: "legacy",
+      hasV4Traffic: true,
+    });
+  });
+
+  it("skips the server report when a check errored (readiness unavailable)", () => {
+    mocks.migrationData = migrationStatus({
+      evals: { status: "error", count: 0 },
+    });
+
+    render(<V4MigrationNavItem />);
+
+    expect(stateCheckedCalls()).toHaveLength(1);
+    expect(stateCheckedCalls()[0][1]).toMatchObject({
+      readiness: "unavailable",
+    });
+    expect(mocks.recordProjectState).not.toHaveBeenCalled();
   });
 
   it("captures action-needed with the sdk status once checks settle", () => {

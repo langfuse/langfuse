@@ -7,6 +7,7 @@ import { useQueryProject } from "@/src/features/projects/hooks";
 import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
+import { api } from "@/src/utils/api";
 
 export function V4MigrationNavItem() {
   const { project, organization } = useQueryProject();
@@ -39,12 +40,17 @@ export function V4MigrationNavItem() {
   const projectId = project?.id;
   const organizationId = organization?.id;
   const sdkStatus = migrationData.sdk.status;
+  const hasV4Traffic = migrationData.sdk.sdkUsageSeries.some(
+    (series) => series.v4MigrationStatus === "compatible",
+  );
   const checksSettled =
     sdkStatus !== "checking" &&
     migrationData.experiments.status !== "loading" &&
     migrationData.evals.status !== "loading" &&
     migrationData.apis.status !== "loading" &&
     migrationData.exports.status !== "loading";
+  const { mutate: recordProjectState } =
+    api.v4Transition.recordProjectState.useMutation();
   const stateCheckedProjectsRef = useRef(new Set<string>());
   useEffect(() => {
     if (!projectId || !v4UpgradeUiEnabled || !checksSettled) return;
@@ -57,6 +63,16 @@ export function V4MigrationNavItem() {
       projectId,
       organizationId: organizationId ?? null,
     });
+    // Report the settled state so the server records set-once migration
+    // outcomes ("unavailable" means a check errored — nothing to record).
+    if (
+      (readiness === "ready" ||
+        readiness === "action-needed" ||
+        readiness === "partner-managed") &&
+      sdkStatus !== "error"
+    ) {
+      recordProjectState({ projectId, readiness, sdkStatus, hasV4Traffic });
+    }
   }, [
     projectId,
     organizationId,
@@ -64,7 +80,9 @@ export function V4MigrationNavItem() {
     checksSettled,
     readiness,
     sdkStatus,
+    hasV4Traffic,
     capture,
+    recordProjectState,
   ]);
 
   if (!v4UpgradeUiEnabled || !project) {
