@@ -10,9 +10,14 @@
  * which is what keeps it reviewable in Storybook across every size and shape.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import {
+  useActiveObservationIds,
+  usePlayhead,
+  useShowPlayhead,
+} from "@/src/features/traces/contexts/PlayheadContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { detectPointerModality } from "../../fns/timeline/density";
@@ -23,6 +28,23 @@ export function TraceTimelineCompact() {
   const { selectedNodeId } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
+
+  // Playback: the transport lives in the navigation header and drives the shared
+  // engine, so this view owes the two things you WATCH — a line that sweeps and
+  // the rows lighting up as it passes them. Both are handed to the renderer,
+  // which stays context-free so Storybook can still mount it anywhere.
+  const { seekToSec, getPlayheadSec, subscribePosition } = usePlayhead();
+  const showPlayhead = useShowPlayhead();
+  const activeIds = useActiveObservationIds();
+  const playhead = useMemo(
+    () => ({
+      visible: showPlayhead,
+      getSec: getPlayheadSec,
+      subscribe: subscribePosition,
+      onSeek: seekToSec,
+    }),
+    [showPlayhead, getPlayheadSec, subscribePosition, seekToSec],
+  );
 
   const [pointerModality] = useState(detectPointerModality);
   const [box, setBox] = useState<{ width: number; height: number } | null>(
@@ -72,6 +94,8 @@ export function TraceTimelineCompact() {
           selectedId={selectedNodeId}
           onSelect={selectNode}
           onHover={handleHoverNode}
+          activeIds={activeIds}
+          playhead={playhead}
         />
       ) : null}
     </div>

@@ -604,6 +604,139 @@ export const ExternalSelectionIsRevealed = meta.story({
   },
 });
 
+export const TooltipFollowsTheContent = meta.story({
+  name: "(Test) Tooltip Follows The Content",
+  args: {
+    roots: DEEP_TRACE,
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const tooltip = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-tooltip"]',
+      )?.textContent ?? "";
+
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + rect.width * 0.6,
+        clientY: rect.top + 300,
+      }),
+    );
+    await waitFor(() => expect(tooltip()).not.toBe(""));
+    const named = tooltip();
+
+    // Scrolling moves the rows under a pointer that has not moved. The tooltip
+    // names whatever is under the pointer NOW — holding the row that used to be
+    // there is how it ends up describing something else entirely.
+    surface.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        deltaY: 240,
+        clientX: rect.left + rect.width * 0.6,
+        clientY: rect.top + 300,
+      }),
+    );
+    await waitFor(() => expect(tooltip()).not.toBe(named));
+    await expect(tooltip()).not.toBe("");
+  },
+});
+
+/** A playhead a story can drive by hand, standing in for the shared engine. */
+function makeFakePlayhead() {
+  let sec = 0;
+  const listeners = new Set<(next: number) => void>();
+  return {
+    onSeek: fn(),
+    playhead: {
+      visible: true,
+      getSec: () => sec,
+      subscribe: (listener: (next: number) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      onSeek: (next: number) => PLAYBACK.onSeek(next),
+    },
+    tick(next: number) {
+      sec = next;
+      for (const listener of listeners) listener(next);
+    },
+  };
+}
+const PLAYBACK = makeFakePlayhead();
+
+export const PlaybackSweepsAndGlows = meta.story({
+  name: "(Test) Playback Sweeps And Glows",
+  args: {
+    roots: manySpans(150),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+    // The root span of manySpans covers the whole trace, so it is "playing"
+    // throughout — the simplest thing a glow can be asserted against.
+    activeIds: new Set(["n0"]),
+    playhead: PLAYBACK.playhead,
+  },
+  play: async ({ canvasElement }) => {
+    const line = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-playhead"]',
+    );
+    if (!line) throw new Error("no playhead line");
+
+    // It starts at the origin and is moved by the position feed, not by a
+    // re-render: 600 rows must not re-render to move a 2px line.
+    await expect(line.style.transform).toBe("translateX(0px)");
+    PLAYBACK.tick(12);
+    await waitFor(() =>
+      expect(line.style.transform).not.toBe("translateX(0px)"),
+    );
+
+    // The rows the playhead is over glow up — never the others dimming down.
+    const glowing = canvasElement.querySelectorAll(
+      '[data-testid="timeline-dense-content"] > div.bg-primary\\/20',
+    );
+    await expect(glowing.length).toBe(1);
+
+    // And the axis is the scrub track: press it to place the playhead.
+    const axis = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-axis"]',
+    );
+    if (!axis) throw new Error("no axis");
+    const axisRect = axis.getBoundingClientRect();
+    axis.setPointerCapture = () => undefined;
+    axis.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        bubbles: true,
+        pointerId: 1,
+        clientX: axisRect.left + axisRect.width / 2,
+        clientY: axisRect.top + 8,
+      }),
+    );
+    await expect(PLAYBACK.onSeek).toHaveBeenCalled();
+  },
+});
+
 export const DoubleClickSelectsOnce = meta.story({
   name: "(Test) Double Click Selects Once",
   args: {
