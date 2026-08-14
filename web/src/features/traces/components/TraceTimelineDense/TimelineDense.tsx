@@ -21,8 +21,10 @@
  *    BOTH axes about the cursor, so the time window narrows and the rows grow
  *    together. Zoom is exponential in a zoom level and deltas accumulate per
  *    frame, as in mapping libraries — see the rate constants below.
- *  - Drag pans both axes too. There are no scrollbars by design: a map has none,
- *    and the viewport clamps to the content so there is nowhere to get lost.
+ *  - Drag pans both axes too, and SHIFT-drag draws a box to zoom into — the one
+ *    gesture where the user has stated the window on both axes, so it goes
+ *    straight there. There are no scrollbars by design: a map has none, and the
+ *    viewport clamps to the content so there is nowhere to get lost.
  *  - Double-click an element focuses it — the time window onto its own extent,
  *    the rows at a height a human reads, the element centred.
  *  - What a row shows follows from how tall it has become: the type square grows
@@ -82,6 +84,7 @@ import {
   rowHeightOf,
   rowIndexAtOffset,
   visibleRowRange,
+  zoomToBox,
   zoomViewport,
   type RowExtent,
   type Viewport,
@@ -158,6 +161,13 @@ const FOCUS_ANIMATION_MS = 320;
 const PEEK_MARGIN_PX = 6;
 /** A collapsed-gap band narrower than this has no room to name itself. */
 const GAP_LABEL_MIN_WIDTH = 14;
+/** Below this in both axes a shift-drag was a stray click, not a box. */
+const MARQUEE_MIN_PX = 6;
+
+type MarqueeBox = {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+};
 
 export type TimelineDenseProps = {
   roots: LayoutNode[];
@@ -230,6 +240,18 @@ export function TimelineDense({
     null,
   );
   const [dragging, setDragging] = useState(false);
+  /**
+   * Shift-drag box, in surface coordinates, while it is being drawn. The REF is
+   * the authority and the state is only for drawing it: a gesture that read the
+   * box back out of render scope would depend on React having re-rendered
+   * between pointerdown and pointerup, which nothing guarantees.
+   */
+  const marqueeRef = useRef<MarqueeBox | null>(null);
+  const [marquee, setMarquee] = useState<MarqueeBox | null>(null);
+  const setMarqueeBox = (next: MarqueeBox | null) => {
+    marqueeRef.current = next;
+    setMarquee(next);
+  };
 
   const prepared = useMemo(() => prepareTimeline(roots), [roots]);
   // Rendered at 10px, so measured at 10px: layout() decides which side a label
@@ -663,6 +685,21 @@ export function TimelineDense({
       setOverride(isOpen ? "collapsed" : "expanded");
       return;
     }
+    // Shift+drag draws a box to zoom into, which is the one gesture where the
+    // user states the window on BOTH axes — so it goes straight there rather
+    // than picking a level for them. Plain drag keeps panning; a map's primary
+    // gesture should not need a modifier.
+    if (event.shiftKey) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const point = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setMarqueeBox({ from: point, to: point });
+      return;
+    }
+
     gesture.current = {
       down: true,
       dragging: false,
@@ -672,6 +709,16 @@ export function TimelineDense({
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drawing = marqueeRef.current;
+    if (drawing) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setMarqueeBox({
+        from: drawing.from,
+        to: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+      });
+      return;
+    }
+
     const state = gesture.current;
     if (state.down) {
       const dx = event.clientX - state.x;
@@ -713,6 +760,27 @@ export function TimelineDense({
       onHover?.(hoveredId);
     }
     setPointerPos({ x: offsetX, y: offsetY });
+  };
+
+  /** Release of a shift-drag: fly to the box, if it is big enough to mean one. */
+  const commitMarquee = () => {
+    const box = marqueeRef.current;
+    if (!box) return;
+    setMarqueeBox(null);
+    const width = Math.abs(box.to.x - box.from.x);
+    const height = Math.abs(box.to.y - box.from.y);
+    // A stray shift-click is not a zoom to a pinhole.
+    if (width < MARQUEE_MIN_PX && height < MARQUEE_MIN_PX) return;
+    const lane = Math.max(laneWidth, 1);
+    const tall = Math.max(surfaceHeight, 1);
+    flyTo(
+      zoomToBox(current, limits, {
+        xStartRatio: (box.from.x - railWidth) / lane,
+        xEndRatio: (box.to.x - railWidth) / lane,
+        yStartRatio: box.from.y / tall,
+        yEndRatio: box.to.y / tall,
+      }),
+    );
   };
 
   const endGesture = useCallback(() => {
@@ -850,12 +918,12 @@ export function TimelineDense({
           style={{ fontSize: "10px" }}
           title={
             fitted
-              ? "scroll to pan · pinch to zoom · double-click to focus"
+              ? "scroll to pan · pinch to zoom · shift-drag a box · double-click to focus"
               : `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`
           }
         >
           {fitted
-            ? "scroll to pan · pinch to zoom · double-click to focus"
+            ? "scroll to pan · pinch to zoom · shift-drag a box · double-click to focus"
             : `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`}
         </span>
       </div>
@@ -904,9 +972,16 @@ export function TimelineDense({
         style={{ touchAction: "none" }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={endGesture}
+        onPointerUp={(event) => {
+          commitMarquee();
+          endGesture();
+          event.currentTarget.releasePointerCapture?.(event.pointerId);
+        }}
         onPointerLeave={clearFocus}
-        onPointerCancel={clearFocus}
+        onPointerCancel={() => {
+          setMarqueeBox(null);
+          clearFocus();
+        }}
         data-testid="timeline-dense-surface"
       >
         {/* The row layer clips its own rows. A row straddling the bottom edge
@@ -1071,6 +1146,21 @@ export function TimelineDense({
               </div>
             );
           })}
+
+          {/* The box being drawn. Shown over everything so it reads as a
+              selection rather than as part of the chart. */}
+          {marquee ? (
+            <div
+              className="border-primary bg-primary/10 pointer-events-none absolute border border-dashed"
+              style={{
+                left: `${Math.min(marquee.from.x, marquee.to.x)}px`,
+                top: `${Math.min(marquee.from.y, marquee.to.y)}px`,
+                width: `${Math.abs(marquee.to.x - marquee.from.x)}px`,
+                height: `${Math.abs(marquee.to.y - marquee.from.y)}px`,
+              }}
+              data-testid="timeline-dense-marquee"
+            />
+          ) : null}
 
           {/* The playhead sweeps in the lane, clipped by it, and is positioned
               imperatively off the position feed — 600 rows must not re-render to

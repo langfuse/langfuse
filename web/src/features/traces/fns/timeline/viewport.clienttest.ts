@@ -15,6 +15,7 @@ import {
   viewportsEqual,
   interpolateViewport,
   visibleRowRange,
+  zoomToBox,
   zoomViewport,
   type Viewport,
 } from "./viewport";
@@ -226,6 +227,60 @@ describe("viewport", () => {
     );
     // No extents at all (an empty or unknown trace) leaves it untouched.
     expect(anchorTimeToRows(zoomed, limits, () => null)).toEqual(zoomed);
+  });
+
+  it("zooms to a drawn box on both axes", () => {
+    const fitted = fitViewport(limits);
+    // The right half of the width, the second quarter of the height.
+    const boxed = zoomToBox(fitted, limits, {
+      xStartRatio: 0.5,
+      xEndRatio: 1,
+      yStartRatio: 0.25,
+      yEndRatio: 0.5,
+    });
+    expect(boxed.time.start).toBeCloseTo(12_000, 6);
+    expect(boxed.time.duration).toBeCloseTo(12_000, 6);
+    expect(boxed.rows.start).toBeCloseTo(150, 6);
+    expect(boxed.rows.count).toBeCloseTo(150, 6);
+
+    // Drawn right-to-left and bottom-to-top is the same box.
+    expect(
+      zoomToBox(fitted, limits, {
+        xStartRatio: 1,
+        xEndRatio: 0.5,
+        yStartRatio: 0.5,
+        yEndRatio: 0.25,
+      }),
+    ).toEqual(boxed);
+
+    // A flat box keeps that axis rather than asking for an infinite zoom.
+    const flat = zoomToBox(fitted, limits, {
+      xStartRatio: 0.5,
+      xEndRatio: 0.5,
+      yStartRatio: 0.25,
+      yEndRatio: 0.5,
+    });
+    expect(flat.time.duration).toBeCloseTo(fitted.time.duration, 6);
+    expect(flat.rows.count).toBeCloseTo(150, 6);
+
+    // And a pinhole box still cannot take the rows past the height ceiling.
+    const tiny = zoomToBox(fitted, limits, {
+      xStartRatio: 0.5,
+      xEndRatio: 0.5001,
+      yStartRatio: 0.5,
+      yEndRatio: 0.5001,
+    });
+    expect(rowHeightOf(tiny, limits.boxHeight)).toBeCloseTo(MAX_ROW_HEIGHT, 6);
+    expect(Number.isFinite(tiny.time.start)).toBe(true);
+
+    for (const degenerate of [
+      { xStartRatio: NaN, xEndRatio: NaN, yStartRatio: NaN, yEndRatio: NaN },
+      { xStartRatio: -3, xEndRatio: 9, yStartRatio: -1, yEndRatio: 4 },
+    ]) {
+      const result = zoomToBox(fitted, limits, degenerate);
+      expect(Number.isFinite(result.time.start)).toBe(true);
+      expect(Number.isFinite(result.rows.count)).toBe(true);
+    }
   });
 
   it("reveals a row without changing the zoom", () => {

@@ -604,6 +604,78 @@ export const ExternalSelectionIsRevealed = meta.story({
   },
 });
 
+export const ShiftDragZoomsToABox = meta.story({
+  name: "(Test) Shift Drag Zooms To A Box",
+  args: {
+    roots: manySpans(3000),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>('[data-testid="dense-rows"]')
+        ?.textContent ?? "";
+    const marquee = () =>
+      canvasElement.querySelector('[data-testid="timeline-dense-marquee"]');
+
+    const rect = surface.getBoundingClientRect();
+    const at = (fx: number, fy: number) => ({
+      clientX: rect.left + rect.width * fx,
+      clientY: rect.top + rect.height * fy,
+    });
+    const send = (type: string, point: ReturnType<typeof at>, shift = true) =>
+      surface.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          shiftKey: shift,
+          ...point,
+        }),
+      );
+
+    const before = readout();
+    send("pointerdown", at(0.3, 0.3));
+    send("pointermove", at(0.7, 0.5));
+    // The box is visible while you draw it — a zoom you cannot aim is a guess.
+    await waitFor(() => expect(marquee()).not.toBeNull());
+    send("pointerup", at(0.7, 0.5));
+
+    // Releasing flies to exactly that region: a fifth of the rows, and the rows
+    // grow to match. Both axes come from the box, nothing is inferred.
+    await waitFor(() => expect(marquee()).toBeNull());
+    await waitFor(() => expect(readout()).not.toBe(before));
+    // It FLIES there, so this is the landing rather than the first frame.
+    const rowSpan = () => {
+      const window = /rows ([\d.]+)[–-]([\d.]+)/.exec(readout());
+      if (!window) throw new Error(`no row window in "${readout()}"`);
+      return Number(window[2]) - Number(window[1]);
+    };
+    await waitFor(() => expect(rowSpan()).toBeCloseTo(120, 0));
+
+    // A stray shift-click is not a zoom to a pinhole.
+    const settled = readout();
+    send("pointerdown", at(0.5, 0.5));
+    send("pointermove", at(0.502, 0.502));
+    send("pointerup", at(0.502, 0.502));
+    await expect(readout()).toBe(settled);
+  },
+});
+
 export const TooltipFollowsTheContent = meta.story({
   name: "(Test) Tooltip Follows The Content",
   args: {
