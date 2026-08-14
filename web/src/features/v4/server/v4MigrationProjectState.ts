@@ -37,6 +37,7 @@ type StoredState = Pick<
   | "hasV4Traffic"
   | "firstActionNeededAt"
   | "migrationStartedAt"
+  | "migrationStartedByUserId"
   | "migratedAt"
 >;
 
@@ -47,6 +48,7 @@ export type V4MigrationTransitionDecision = {
     hasV4Traffic: boolean;
     firstActionNeededAt: Date | null;
     migrationStartedAt: Date | null;
+    migrationStartedByUserId: string | null;
     migratedAt: Date | null;
   };
   events: Array<typeof MIGRATION_STARTED_EVENT | typeof MIGRATED_EVENT>;
@@ -56,12 +58,15 @@ export type V4MigrationTransitionDecision = {
  * Pure transition rules. `previous === null` means first sighting: it sets a
  * baseline and only "migration started" may fire (v4 traffic is directly
  * observable), while "migrated" needs a recorded action-needed baseline so
- * always-ready projects never count as migrations.
+ * always-ready projects never count as migrations. `reportingUserId`
+ * attributes the started-transition to whoever's session first reported it —
+ * the best available proxy for who performed the migration.
  */
 export const decideV4MigrationTransitions = (
   previous: StoredState | null,
   reported: V4MigrationReportedState,
   now: Date,
+  reportingUserId: string,
 ): V4MigrationTransitionDecision => {
   const events: V4MigrationTransitionDecision["events"] = [];
 
@@ -93,6 +98,9 @@ export const decideV4MigrationTransitions = (
       migrationStartedAt: startedNow
         ? now
         : (previous?.migrationStartedAt ?? null),
+      migrationStartedByUserId: startedNow
+        ? reportingUserId
+        : (previous?.migrationStartedByUserId ?? null),
       migratedAt: migratedNow ? now : (previous?.migratedAt ?? null),
     },
     events,
@@ -131,7 +139,12 @@ export const createV4MigrationStateRecorder = ({
       const previous = await prisma.v4MigrationProjectState.findUnique({
         where: { projectId },
       });
-      const decision = decideV4MigrationTransitions(previous, state, timestamp);
+      const decision = decideV4MigrationTransitions(
+        previous,
+        state,
+        timestamp,
+        userId,
+      );
 
       if (!previous) {
         try {
@@ -151,7 +164,15 @@ export const createV4MigrationStateRecorder = ({
           if (value && !previous[field]) {
             const { count } = await prisma.v4MigrationProjectState.updateMany({
               where: { projectId, [field]: null },
-              data: { [field]: value },
+              data: {
+                [field]: value,
+                ...(field === "migrationStartedAt"
+                  ? {
+                      migrationStartedByUserId:
+                        decision.row.migrationStartedByUserId,
+                    }
+                  : {}),
+              },
             });
             if (count !== 1) {
               decision.events = decision.events.filter(

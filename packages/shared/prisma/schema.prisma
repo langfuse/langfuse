@@ -1145,6 +1145,11 @@ model V4MigrationProjectState {
   hasV4Traffic        Boolean   @map("has_v4_traffic")
   firstActionNeededAt DateTime? @map("first_action_needed_at")
   migrationStartedAt  DateTime? @map("migration_started_at")
+  // Which user's session first reported the started-transition — the best
+  // available proxy for who performed the migration (round-2 audience
+  // narrowing of the welcome dialog). Plain id, no FK: attribution must
+  // survive the user leaving the org.
+  migrationStartedByUserId String? @map("migration_started_by_user_id")
   migratedAt          DateTime? @map("migrated_at")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at")

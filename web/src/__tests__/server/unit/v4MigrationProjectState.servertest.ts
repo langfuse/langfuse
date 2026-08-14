@@ -6,6 +6,7 @@ import {
 } from "@/src/features/v4/server/v4MigrationProjectState";
 
 const NOW = new Date("2026-08-14T12:00:00.000Z");
+const REPORTER = "user-reporter";
 const EARLIER = new Date("2026-08-01T12:00:00.000Z");
 
 const reported = (
@@ -25,6 +26,7 @@ const stored = (
   hasV4Traffic: false,
   firstActionNeededAt: EARLIER,
   migrationStartedAt: null,
+  migrationStartedByUserId: null,
   migratedAt: null,
   ...overrides,
 });
@@ -35,6 +37,7 @@ describe("decideV4MigrationTransitions", () => {
       null,
       reported({ readiness: "ready", sdkStatus: "latest", hasV4Traffic: true }),
       NOW,
+      REPORTER,
     );
 
     expect(decision.events).toEqual([]);
@@ -44,7 +47,12 @@ describe("decideV4MigrationTransitions", () => {
   });
 
   it("stamps firstActionNeededAt on a first action-needed sighting without v4 traffic", () => {
-    const decision = decideV4MigrationTransitions(null, reported(), NOW);
+    const decision = decideV4MigrationTransitions(
+      null,
+      reported(),
+      NOW,
+      REPORTER,
+    );
 
     expect(decision.events).toEqual([]);
     expect(decision.row.firstActionNeededAt).toEqual(NOW);
@@ -56,6 +64,7 @@ describe("decideV4MigrationTransitions", () => {
       null,
       reported({ hasV4Traffic: true }),
       NOW,
+      REPORTER,
     );
 
     expect(decision.events).toEqual(["v4_migration:project_migration_started"]);
@@ -68,10 +77,12 @@ describe("decideV4MigrationTransitions", () => {
       stored(),
       reported({ hasV4Traffic: true }),
       NOW,
+      REPORTER,
     );
 
     expect(decision.events).toEqual(["v4_migration:project_migration_started"]);
     expect(decision.row.migrationStartedAt).toEqual(NOW);
+    expect(decision.row.migrationStartedByUserId).toBe(REPORTER);
     expect(decision.row.firstActionNeededAt).toEqual(EARLIER);
   });
 
@@ -80,6 +91,7 @@ describe("decideV4MigrationTransitions", () => {
       stored(),
       reported({ readiness: "ready", sdkStatus: "latest", hasV4Traffic: true }),
       NOW,
+      REPORTER,
     );
 
     expect(decision.events).toEqual([
@@ -90,15 +102,21 @@ describe("decideV4MigrationTransitions", () => {
     expect(decision.row.migratedAt).toEqual(NOW);
   });
 
-  it("emits only migrated when started was already recorded", () => {
+  it("emits only migrated when started was already recorded, preserving attribution", () => {
     const decision = decideV4MigrationTransitions(
-      stored({ migrationStartedAt: EARLIER, hasV4Traffic: true }),
+      stored({
+        migrationStartedAt: EARLIER,
+        migrationStartedByUserId: "user-original",
+        hasV4Traffic: true,
+      }),
       reported({ readiness: "ready", sdkStatus: "latest", hasV4Traffic: true }),
       NOW,
+      REPORTER,
     );
 
     expect(decision.events).toEqual(["v4_migration:project_migrated"]);
     expect(decision.row.migrationStartedAt).toEqual(EARLIER);
+    expect(decision.row.migrationStartedByUserId).toBe("user-original");
     expect(decision.row.migratedAt).toEqual(NOW);
   });
 
@@ -115,6 +133,7 @@ describe("decideV4MigrationTransitions", () => {
       migrated,
       reported({ sdkStatus: "legacy", hasV4Traffic: true }),
       NOW,
+      REPORTER,
     );
     expect(regression.events).toEqual([]);
     expect(regression.row.readiness).toBe("action-needed");
@@ -124,6 +143,7 @@ describe("decideV4MigrationTransitions", () => {
       { ...migrated, readiness: "action-needed" },
       reported({ readiness: "ready", sdkStatus: "latest", hasV4Traffic: true }),
       NOW,
+      REPORTER,
     );
     expect(recovery.events).toEqual([]);
     expect(recovery.row.migratedAt).toEqual(EARLIER);
@@ -139,6 +159,7 @@ describe("decideV4MigrationTransitions", () => {
       }),
       reported({ readiness: "ready", sdkStatus: "latest", hasV4Traffic: true }),
       NOW,
+      REPORTER,
     );
 
     expect(decision.events).toEqual([]);

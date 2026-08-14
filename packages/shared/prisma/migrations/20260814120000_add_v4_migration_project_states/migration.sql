@@ -6,6 +6,7 @@ CREATE TABLE "v4_migration_project_states" (
     "has_v4_traffic" BOOLEAN NOT NULL,
     "first_action_needed_at" TIMESTAMP(3),
     "migration_started_at" TIMESTAMP(3),
+    "migration_started_by_user_id" TEXT,
     "migrated_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
