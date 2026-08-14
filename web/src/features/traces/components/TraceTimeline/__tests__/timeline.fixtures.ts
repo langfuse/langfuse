@@ -6,7 +6,10 @@
 
 import Decimal from "decimal.js";
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
-import { type TimelineRowNode } from "@/src/features/traces/components/TraceTimeline/types";
+import {
+  type TimelineBarProps,
+  type TimelineRowNode,
+} from "@/src/features/traces/components/TraceTimeline/types";
 
 const BASE_START = new Date("2024-01-01T00:00:00.000Z");
 
@@ -67,3 +70,34 @@ export function makeRow(
 }
 
 export const cost = (value: number) => new Decimal(value);
+
+/** A numeric score, as the timeline receives them: metadata already stringified. */
+export function score(
+  name: string,
+  value: number,
+): NonNullable<TimelineBarProps["scores"]>[number] {
+  return {
+    id: `score-${name}`,
+    projectId: "project",
+    environment: "default",
+    name,
+    value,
+    stringValue: null,
+    dataType: "NUMERIC",
+    source: "API",
+    authorUserId: null,
+    comment: null,
+    metadata: null,
+    configId: null,
+    queueId: null,
+    executionTraceId: null,
+    createdAt: BASE_START,
+    updatedAt: BASE_START,
+    timestamp: BASE_START,
+    traceId: "trace",
+    sessionId: null,
+    datasetRunId: null,
+    observationId: "node",
+    longStringValue: "",
+  };
+}

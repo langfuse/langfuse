@@ -43,6 +43,7 @@ import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHan
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { computeSelectionScrollTarget } from "../../fns/timelineCalculations";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import {
   layout as computeTimelineLayout,
   prepareTimeline,
@@ -73,6 +74,10 @@ const DENSITY = resolveDensity({ pointer: "fine" });
 const ROW_HEIGHT = DENSITY.rowHeight;
 
 const EMPTY_SCORES: never[] = [];
+
+/** The timeline's own duration copy, and therefore what layout() measures. */
+const formatRowDuration = (durationMs: number) =>
+  formatIntervalSeconds(durationMs / 1000);
 
 /**
  * Wire a window-level drag gesture: move events flow to `onMove` until
@@ -498,25 +503,46 @@ export function TraceTimeline() {
   // One pure call owns every coordinate on screen, for the mounted rows only.
   // The view is the whole trace: zoom/pan is Phase 3, and until then
   // "fit to the measured box" is the only view there is.
-  const chartLayout = computeTimelineLayout({
-    roots,
-    box: { width: chartBox.width, height: chartBox.height },
-    density: DENSITY,
-    measurer,
-    view: null,
-    compress: false,
-    prepared,
-    rowRange: virtualItems.length
-      ? {
-          startIndex: virtualItems[0]!.index,
-          endIndex: virtualItems[virtualItems.length - 1]!.index,
-        }
-      : // Before the virtualizer has measured its scroll element, fill the box.
-        {
-          startIndex: 0,
-          endIndex: Math.ceil(chartBox.height / ROW_HEIGHT) + 1,
-        },
-  });
+  //
+  // Memoized because it allocates a fresh PositionedNode per mounted row, and
+  // the row shells are React.memo precisely so a hover or a selection re-renders
+  // the two rows that changed. Recomputing this on every render handed all of
+  // them a new `row` object and re-rendered every one, which is the memo
+  // boundary TimelineRows.tsx documents doing nothing at all.
+  // Keyed on the two indices rather than on the items array, so the range is
+  // only a new object when the mounted window really moved.
+  const firstIndex = virtualItems.length ? virtualItems[0]!.index : -1;
+  const lastIndex = virtualItems.length
+    ? virtualItems[virtualItems.length - 1]!.index
+    : -1;
+  const rowRange = useMemo(
+    () =>
+      firstIndex < 0
+        ? // Before the virtualizer has measured its scroll element, fill the box.
+          {
+            startIndex: 0,
+            endIndex: Math.ceil(chartBox.height / ROW_HEIGHT) + 1,
+          }
+        : { startIndex: firstIndex, endIndex: lastIndex },
+    [firstIndex, lastIndex, chartBox.height],
+  );
+  const chartLayout = useMemo(
+    () =>
+      computeTimelineLayout({
+        roots,
+        box: { width: chartBox.width, height: chartBox.height },
+        density: DENSITY,
+        measurer,
+        view: null,
+        compress: false,
+        prepared,
+        rowRange,
+        // The bar renders `label`, so the layout has to measure the string the
+        // bar will draw — see the formatLabel contract in fns/timeline/layout.ts.
+        formatLabel: formatRowDuration,
+      }),
+    [roots, chartBox.width, chartBox.height, measurer, prepared, rowRange],
+  );
 
   // Playhead ↔ lane mapping, in the same space as the bars and the ticks.
   const { pxPerMs } = chartLayout;

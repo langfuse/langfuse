@@ -158,6 +158,14 @@ export type LayoutInput<TNode extends LayoutNode = LayoutNode> = {
   compression?: TimeCompression;
   /** position only these rows (the virtualizer's mounted window) */
   rowRange?: { startIndex: number; endIndex: number };
+  /**
+   * How a row's duration reads. The layout MEASURES the text it places, so the
+   * caller that RENDERS the text has to be the one that formats it: a caller
+   * drawing `1h 05m 00s` where the layout measured `1h 05m` picks the side from
+   * the wrong width, and then its own fit check drops a label that would have
+   * fitted on the other one. Callers render `label`.
+   */
+  formatLabel?: (durationMs: number) => string;
 };
 
 const EPSILON = 0.5;
@@ -325,6 +333,7 @@ export function layout<TNode extends LayoutNode>(
         rowHeight,
         density,
         measurer,
+        formatLabel: input.formatLabel ?? formatDurationMs,
       }),
     );
   }
@@ -356,6 +365,7 @@ function positionRow<TNode extends LayoutNode>(
     rowHeight: number;
     density: Density;
     measurer: TextMeasurer;
+    formatLabel: (durationMs: number) => string;
   },
 ): PositionedNode<TNode> {
   const {
@@ -366,6 +376,7 @@ function positionRow<TNode extends LayoutNode>(
     rowHeight,
     density,
     measurer,
+    formatLabel,
   } = context;
   const node = row.node;
 
@@ -386,7 +397,7 @@ function positionRow<TNode extends LayoutNode>(
   const x = clamp(clamp(left, 0, laneWidth), 0, Math.max(laneWidth - width, 0));
 
   const durationMs = hasDuration(node) ? endMs - startMs : null;
-  const label = durationMs == null ? "" : formatDurationMs(durationMs);
+  const label = durationMs == null ? "" : formatLabel(durationMs);
   const labelWidth = label ? measurer.measure(label) : 0;
   const { labelPlacement, labelX } = placeLabel({
     label,

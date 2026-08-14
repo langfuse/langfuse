@@ -100,17 +100,19 @@ export function TimelineBar({
   // duration always beats a cost you cannot finish reading.
   const budgetPx = Number.parseFloat(clusterStyle.maxWidth);
   let spentPx = 0;
-  const fitsCluster = (text: string) => {
-    const next = spentPx + measurer.measure(text) + CLUSTER_GAP_PX;
+  /** Admit a piece of the cluster, or refuse it — and charge it if admitted. */
+  const fitsWidth = (widthPx: number) => {
+    const next = spentPx + widthPx + CLUSTER_GAP_PX;
     if (next > budgetPx) return false;
     spentPx = next;
     return true;
   };
+  const fitsCluster = (text: string) => fitsWidth(measurer.measure(text));
 
-  const durationText =
-    showDuration && isPresent(ownDurationMs)
-      ? formatIntervalSeconds(ownDurationMs / 1000)
-      : null;
+  // The layout measured this exact string, which is why the bar renders it
+  // rather than formatting the duration a second time: two formatters disagree
+  // above an hour, and the side layout() chose was chosen for the shorter one.
+  const durationText = showDuration && row.label ? row.label : null;
   const subtreeText =
     isPresent(ownDurationMs) && subtreeWallClockOverflowMs != null
       ? `∑ ${formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}`
@@ -120,17 +122,23 @@ export function TimelineBar({
       ? usdFormatter(node.totalCost.toNumber())
       : null;
 
-  const showDurationText = durationText != null && fitsCluster(durationText);
+  // `hidden` is layout()'s verdict on the DURATION LABEL — neither side of the
+  // bar had room for it, or there is no duration to show yet. It is not a verdict
+  // on the icons, which are much narrower and may well fit.
+  const showDurationText =
+    durationText != null &&
+    row.labelPlacement !== "hidden" &&
+    fitsCluster(durationText);
   const showSubtreeText = subtreeText != null && fitsCluster(subtreeText);
   const showCostText = costText != null && fitsCluster(costText);
-  // Icons are unmeasured, so they only ride along when text left room over.
-  const iconBudgetPx = budgetPx - spentPx;
+  // Icons carry no text to measure, so they get a flat reservation — charged
+  // through the SAME running budget. Checking both against one leftover let a
+  // comment icon and score badges each be admitted on the same 48px, and their
+  // combined width then clipped the badges inside the cluster's overflow box.
   const showCommentIcon =
-    showComments && Boolean(commentCount) && iconBudgetPx >= ICON_WIDTH_PX;
+    showComments && Boolean(commentCount) && fitsWidth(ICON_WIDTH_PX);
   const showScoreBadges =
-    showScores &&
-    Boolean(scores?.length) &&
-    iconBudgetPx >= SCORE_BADGES_WIDTH_PX;
+    showScores && Boolean(scores?.length) && fitsWidth(SCORE_BADGES_WIDTH_PX);
 
   // The full text stays reachable on hover when something had to be dropped.
   const droppedSomething =
@@ -141,8 +149,16 @@ export function TimelineBar({
     ? [durationText, subtreeText, costText].filter(Boolean).join("  ")
     : undefined;
 
+  // Draw the cluster when it has something in it. Gating it on the duration
+  // label's placement hid the comment icon, the cost and the scores of every
+  // in-flight span — which never has a duration label — however much room the
+  // lane had for them.
   const cluster =
-    row.labelPlacement === "hidden" ? null : (
+    !showDurationText &&
+    !showSubtreeText &&
+    !showCostText &&
+    !showCommentIcon &&
+    !showScoreBadges ? null : (
       <div
         className="text-muted-foreground absolute top-1/2 flex -translate-y-1/2 items-center gap-2 overflow-hidden text-xs whitespace-nowrap"
         style={clusterStyle}
