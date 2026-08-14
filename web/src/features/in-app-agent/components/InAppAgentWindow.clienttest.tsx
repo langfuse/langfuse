@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -474,6 +475,99 @@ describe("InAppAgentWindow scrolling", () => {
     expect(
       screen.queryByRole("button", { name: "Scroll to latest message" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("hides Latest when collapsing the activity drawer returns you to the bottom", () => {
+    let notifyResize: (() => void) | undefined;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          notifyResize = () => {
+            callback([], this);
+          };
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+
+    const { container } = render(
+      windowElement({
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "What changed yesterday?" },
+          },
+          {
+            id: "assistant-reasoning",
+            timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "I will inspect the dashboards.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-tool",
+            role: "assistant",
+            content: { type: "toolGroup", tools: [] },
+          },
+          {
+            id: "assistant-answer",
+            timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+            role: "assistant",
+            content: {
+              type: "text",
+              text: "Yesterday's latency dashboard picked up a reranking spike.",
+            },
+          },
+        ],
+      }),
+    );
+    const viewport =
+      container.querySelector<HTMLDivElement>(".overflow-y-auto");
+    if (!viewport) {
+      throw new Error("Expected the assistant message viewport");
+    }
+
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, writable: true, value: 220 },
+      scrollTop: { configurable: true, writable: true, value: 20 },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Worked for/ }));
+    Object.defineProperty(viewport, "scrollHeight", {
+      configurable: true,
+      writable: true,
+      value: 1_000,
+    });
+    fireEvent.scroll(viewport);
+    expect(
+      screen.getByRole("button", { name: "Scroll to latest message" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Worked for/ }));
+    Object.defineProperty(viewport, "scrollHeight", {
+      configurable: true,
+      writable: true,
+      value: 220,
+    });
+    expect(
+      screen.getByRole("button", { name: "Scroll to latest message" }),
+    ).toBeInTheDocument();
+
+    act(() => {
+      notifyResize?.();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Scroll to latest message" }),
+    ).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 });
 

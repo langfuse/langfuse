@@ -75,6 +75,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
+function isViewportNearBottom(viewport: HTMLElement) {
+  return (
+    viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <=
+    AUTO_SCROLL_THRESHOLD_PX
+  );
+}
+
 function scrollViewportToBottom(
   viewport: HTMLDivElement | null,
   behavior: ScrollBehavior = "auto",
@@ -766,9 +773,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     scrollState.conversationId === selectedConversationId
       ? scrollState.isAtLatest
       : true;
-  const setIsAtLatest = (isAtLatest: boolean) => {
-    setScrollState({ conversationId: selectedConversationId, isAtLatest });
-  };
+  const setIsAtLatest = useCallback(
+    (isAtLatest: boolean) => {
+      setScrollState({ conversationId: selectedConversationId, isAtLatest });
+    },
+    [selectedConversationId],
+  );
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
   // Same conversations the launcher badge counts, narrowed to the ones behind
@@ -869,6 +879,35 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
     scrollViewportToBottom(viewportRef.current);
   }, [selectedConversationId]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const syncIsAtLatest = () => {
+      if (isScrollingToLatestRef.current) {
+        return;
+      }
+
+      if (isViewportNearBottom(viewport)) {
+        isAutoScrollAttachedRef.current = true;
+        setIsAtLatest(true);
+      }
+    };
+
+    const observer = new ResizeObserver(syncIsAtLatest);
+    const content = viewport.firstElementChild;
+    if (content) {
+      observer.observe(content);
+    }
+    observer.observe(viewport);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [selectedConversationId, setIsAtLatest]);
 
   // Update after refs commit so setInputRef can compare the previous disabled state.
   useEffect(() => {
@@ -1129,12 +1168,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             className="h-full overflow-y-auto overscroll-contain"
             onScroll={(event) => {
               const viewport = event.currentTarget;
-              const distanceFromBottom =
-                viewport.scrollHeight -
-                viewport.scrollTop -
-                viewport.clientHeight;
-              const isNearBottom =
-                distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
+              const isNearBottom = isViewportNearBottom(viewport);
               const scrolledUp =
                 viewport.scrollTop <
                 previousScrollTopRef.current - SCROLL_DIRECTION_TOLERANCE_PX;
