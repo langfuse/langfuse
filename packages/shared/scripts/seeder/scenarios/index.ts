@@ -1,3 +1,4 @@
+import { agentGraphScenario } from "./agent-graph";
 import { agentTimelineScenario } from "./agent-timeline";
 import { annotationQueueScenario } from "./annotation-queue";
 import { customModelsScenario } from "./custom-models";
@@ -17,6 +18,7 @@ import { ScenarioDefinition } from "./types";
 export const scenarios: Record<string, ScenarioDefinition> = {
   "trace-tree": traceTreeScenario,
   "agent-timeline": agentTimelineScenario,
+  "agent-graph": agentGraphScenario,
   "deep-chain": deepChainScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
