@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { expect, userEvent, waitFor } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
-import { TimelineV2 } from "./TimelineV2";
+import { TimelineV2, type TimelineV2Props } from "./TimelineV2";
 import {
   TIMELINE_SHAPES,
   allInstantaneous,
@@ -330,6 +331,56 @@ export const DraggingMovesContentWithThePointer = meta.story({
     pointer("pointermove", 101, 1);
     await expect(viewStart()).toBe(beforeRelease);
     pointer("pointerup", 101, 1);
+  },
+});
+
+/** Compression under the user's thumb, so a story can change it mid-zoom. */
+function WithCompressionToggle(props: TimelineV2Props) {
+  const [compress, setCompress] = useState(props.compress);
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <button type="button" onClick={() => setCompress((on) => !on)}>
+        toggle compression
+      </button>
+      <TimelineV2 {...props} compress={compress} />
+    </div>
+  );
+}
+
+export const CompressionChangeDropsTheView = meta.story({
+  name: "(Test) Compression Change Drops The View",
+  args: {
+    roots: longTailTrace(),
+    box: PEEK,
+    pointer: "fine",
+    compress: true,
+    composition: "split",
+    showReadout: true,
+  },
+  render: (args) => <WithCompressionToggle {...args} />,
+  play: async ({ canvasElement }) => {
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-v2-readout"]',
+      )?.textContent ?? "";
+
+    const bars = canvasElement.querySelectorAll<HTMLElement>(
+      '[data-testid="timeline-v2-bar"]',
+    );
+    const target = bars[bars.length - 1];
+    if (!target) throw new Error("expected a bar to double-click");
+    // Zoom onto the last span, so the window starts well after the origin.
+    await expect(readout()).toContain("view 0ms–");
+    await userEvent.dblClick(target);
+    await waitFor(() => expect(readout()).not.toContain("view 0ms–"));
+
+    // A zoomed window is expressed in COMPRESSED ms. Turning compression off
+    // replaces the space those numbers live in, so keeping them would draw an
+    // unrelated window instead of an obviously broken one.
+    const toggle = canvasElement.querySelector("button");
+    if (!toggle) throw new Error("expected the compression toggle");
+    await userEvent.click(toggle);
+    await waitFor(() => expect(readout()).toContain("view 0ms–"));
   },
 });
 

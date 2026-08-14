@@ -109,6 +109,23 @@ export function TimelineV2({
     [roots, collapsed],
   );
 
+  // The view is a window in COMPRESSED ms, so it only means anything relative to
+  // the compression that produced it. Switch trace or switch compression off and
+  // the stored numbers quietly address somewhere else — layout() clamps them into
+  // the new space and draws an unrelated window rather than an obviously broken
+  // one. So the window is dropped when the space it belongs to is replaced;
+  // fitted is the only view that means the same thing in every space. Collapsing
+  // a node and resizing the box are deliberately NOT that: they change which rows
+  // there are and how many pixels a ms gets, not what a ms means.
+  const spaceRef = useRef({ roots, compress });
+  if (
+    spaceRef.current.roots !== roots ||
+    spaceRef.current.compress !== compress
+  ) {
+    spaceRef.current = { roots, compress };
+    if (view !== null) setView(null);
+  }
+
   // The scroll viewport's own client box, not an arithmetic guess at it. The
   // guess was wrong by the frame border and again by the scrollbar — two
   // constants the math would never have seen, which is the whole failure mode
