@@ -313,3 +313,41 @@ describe("legacy traces compatibility when routed through v2", () => {
     },
   );
 });
+
+describe("queryBuilder DateTime64 parameter encoding", () => {
+  it("encodes epoch fromTimestamp without ClickHouse-rejected numeric 0", async () => {
+    const query = {
+      view: "traces",
+      dimensions: [],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "1970-01-01T00:00:00.000Z",
+      toTimestamp: "2026-08-14T21:30:00.000Z",
+      orderBy: null,
+    } as QueryType;
+
+    const { query: compiledQuery, parameters } = await new QueryBuilder(
+      undefined,
+      "v2",
+    ).build(query, "test-project", true);
+
+    expect(compiledQuery).toContain("DateTime64(3)");
+
+    const dateTimeParams = Object.entries(parameters).filter(
+      ([key]) =>
+        key.startsWith("dateTimeFilter") ||
+        key.startsWith("subFrom") ||
+        key.startsWith("subTo"),
+    );
+
+    expect(dateTimeParams.length).toBeGreaterThan(0);
+    for (const [, value] of dateTimeParams) {
+      // ClickHouse rejects numeric 0 for DateTime64(3) query parameters.
+      expect(value).not.toBe(0);
+      expect(typeof value).toBe("string");
+    }
+    expect(Object.values(parameters)).toContain("1970-01-01 00:00:00.000");
+    expect(Object.values(parameters)).toContain("2026-08-14 21:30:00.000");
+  });
+});

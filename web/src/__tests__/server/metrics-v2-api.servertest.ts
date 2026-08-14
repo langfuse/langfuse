@@ -231,6 +231,36 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       expect(Array.isArray(response.body.data)).toBe(true);
     });
 
+    it("should accept Unix epoch fromTimestamp without ClickHouse DateTime64 parse errors", async () => {
+      // Regression: ClickHouse rejects DateTime64(3) query parameter value 0,
+      // which is Date#getTime() for 1970-01-01T00:00:00.000Z. Clients often use
+      // epoch as an open-ended lower bound; the API must return 200, not 500.
+      const query = {
+        view: "observations",
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+            type: "string",
+          },
+        ],
+        fromTimestamp: "1970-01-01T00:00:00.000Z",
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+
     it("should support latency metrics with microsecond to millisecond conversion", async () => {
       const query = {
         view: "observations",

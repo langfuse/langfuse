@@ -1681,8 +1681,12 @@ export class QueryBuilder {
         fromClause +=
           ` AND (${baseTable}.${column} IN (${subquery})` +
           ` OR NOT EXISTS (${subquery} LIMIT 1))`;
-        parameters[fromP] = new Date(query.fromTimestamp).getTime();
-        parameters[toP] = new Date(query.toTimestamp).getTime();
+        parameters[fromP] = convertDateToClickhouseDateTime(
+          new Date(query.fromTimestamp),
+        );
+        parameters[toP] = convertDateToClickhouseDateTime(
+          new Date(query.toTimestamp),
+        );
         parameters[projP] = projectId;
       }
     }
