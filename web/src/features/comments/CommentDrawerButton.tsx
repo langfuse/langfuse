@@ -1,5 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import Header from "@/src/components/layouts/header";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   Drawer,
@@ -191,11 +192,7 @@ export function CommentDrawerButton({
               }
             />
             <span className={isMenu ? "text-sm" : undefined}>Add comment</span>
-            {!!count ? (
-              <span className="bg-primary/50 text-primary-foreground flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
-                {count > 99 ? "99+" : count}
-              </span>
-            ) : null}
+            {!!count ? <ActionButtonCountBadge count={count} /> : null}
           </div>
         </Button>
       </DrawerTrigger>

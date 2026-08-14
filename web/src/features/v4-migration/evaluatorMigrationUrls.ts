@@ -5,13 +5,19 @@ const DEPRECATED_EVALUATOR_FILTERS: FilterState = [
     column: "status",
     type: "stringOptions",
     operator: "any of",
-    value: ["ACTIVE"],
+    value: ["ACTIVE", "PAUSED"],
   },
   {
     column: "target",
     type: "stringOptions",
     operator: "any of",
     value: ["trace", "dataset"],
+  },
+  {
+    column: "timeScope",
+    type: "arrayOptions",
+    operator: "any of",
+    value: ["NEW"],
   },
 ];
 

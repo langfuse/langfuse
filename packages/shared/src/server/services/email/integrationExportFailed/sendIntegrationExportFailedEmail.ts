@@ -3,9 +3,12 @@ import { createMailTransport } from "../transport";
 import { z } from "zod";
 import { sanitizeEmailSubject } from "../../../../utils/zod";
 import { logger } from "../../../logger";
-import { BlobStorageExportFailedEmailTemplate } from "./BlobStorageExportFailedEmailTemplate";
+import {
+  IntegrationExportFailedEmailTemplate,
+  type IntegrationExportFailedEmailCopy,
+} from "./IntegrationExportFailedEmailTemplate";
 
-export type SendBlobStorageExportFailedEmailParams = {
+export type SendIntegrationExportFailedEmailParams = {
   env: Partial<
     Record<
       | "EMAIL_FROM_ADDRESS"
@@ -18,21 +21,24 @@ export type SendBlobStorageExportFailedEmailParams = {
   projectName: string;
   settingsUrl: string;
   receiverEmails: string[];
-  // When true, the export was disabled after repeated failures (needs the
-  // customer to fix config and re-enable) rather than a transient failure.
+  // When true, the export was disabled and needs the customer to fix their
+  // config and re-enable it, rather than a transient failure.
   disabled?: boolean;
 };
 
-export const sendBlobStorageExportFailedEmail = async ({
-  env,
-  projectName,
-  settingsUrl,
-  receiverEmails,
-  disabled = false,
-}: SendBlobStorageExportFailedEmailParams) => {
+export const sendIntegrationExportFailedEmail = async (
+  copy: IntegrationExportFailedEmailCopy,
+  {
+    env,
+    projectName,
+    settingsUrl,
+    receiverEmails,
+    disabled = false,
+  }: SendIntegrationExportFailedEmailParams,
+) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
-      "Missing environment variables for sending blob storage export failed email.",
+      `Missing environment variables for sending ${copy.inlineLabel} export failed email.`,
     );
     return;
   }
@@ -45,10 +51,11 @@ export const sendBlobStorageExportFailedEmail = async ({
     const mailer = createMailTransport(env.SMTP_CONNECTION_URL);
     const safeProjectName = sanitizeEmailSubject(projectName);
     const subject = disabled
-      ? `Blob storage export disabled for "${safeProjectName}" – action required`
-      : `Blob storage export failed for "${safeProjectName}"`;
+      ? `${copy.subjectLabel} export disabled for "${safeProjectName}" – action required`
+      : `${copy.subjectLabel} export failed for "${safeProjectName}"`;
     const html = await render(
-      BlobStorageExportFailedEmailTemplate({
+      IntegrationExportFailedEmailTemplate({
+        copy,
         projectName: safeProjectName,
         settingsUrl,
         disabled,
@@ -81,6 +88,9 @@ export const sendBlobStorageExportFailedEmail = async ({
 
     await mailer.sendMail(mailOptions);
   } catch (error) {
-    logger.error("Failed to send blob storage export failed email", error);
+    logger.error(
+      `Failed to send ${copy.inlineLabel} export failed email`,
+      error,
+    );
   }
 };

@@ -37,7 +37,7 @@ concurrency:
 name: Deploy to ECS
 jobs:
   affected-services:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.affected-services.outputs.result }}
     steps:
@@ -67,7 +67,7 @@ jobs:
             console.log('Services', `${process.env.services}` ?? 'n/a');
 
   affected-environments:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     outputs:
       environments: ${{ steps.affected-environments.outputs.result }}
     steps:
@@ -120,7 +120,7 @@ jobs:
   notify-slack-on-failure:
     needs: [affected-services, affected-environments, ecs-deploy]
     if: failure()
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
