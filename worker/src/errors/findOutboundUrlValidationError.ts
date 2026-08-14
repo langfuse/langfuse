@@ -10,6 +10,8 @@
  * `@langfuse/shared/src/server` barrel without `importOriginal`, and a
  * classifier that throws would destroy the very error it is meant to describe.
  */
+import { DNS_LOOKUP_FAILED_MESSAGE_PREFIX } from "@langfuse/shared/src/server";
+
 const OUTBOUND_VALIDATION_ERROR_NAMES = new Set([
   "OutboundUrlValidationError",
   "RedirectValidationError",
@@ -18,10 +20,11 @@ const OUTBOUND_VALIDATION_ERROR_NAMES = new Set([
 // A resolver hiccup is not a policy block: the host may be legitimate and the
 // next attempt may succeed, so it must stay retryable. RedirectValidationError
 // re-wraps the inner failure by message only — no code, no cause — so a DNS
-// failure on a redirect hop is recognisable only by its message text.
+// failure on a redirect hop is recognisable only by its message text. The
+// substring is imported from the throw site so the two stay in sync.
 const isTransientDnsFailure = (error: Error): boolean =>
   (error as { code?: unknown }).code === "dns-lookup-failed" ||
-  error.message.includes("DNS lookup failed for");
+  error.message.includes(DNS_LOOKUP_FAILED_MESSAGE_PREFIX);
 
 /**
  * The validation error, but only when the block is permanent. Returns undefined
