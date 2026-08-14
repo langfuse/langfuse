@@ -804,8 +804,7 @@ paths:
         - name: objectType
           in: query
           description: >-
-            Filter comments by object type (trace, observation, session,
-            prompt).
+            Filter comments by object type (trace, observation, session, prompt).
           required: false
           schema:
             type: string
@@ -1089,8 +1088,7 @@ paths:
       security: *ref_0
     delete:
       description: >-
-        Delete a dataset item and all its run items. This action is
-        irreversible.
+        Delete a dataset item and all its run items. This action is irreversible.
       operationId: datasetItems_delete
       tags:
         - DatasetItems
@@ -4523,8 +4521,7 @@ paths:
       security: *ref_0
     post:
       description: >-
-        Create a new API key for a project (requires organization-scoped API
-        key)
+        Create a new API key for a project (requires organization-scoped API key)
       operationId: projects_createApiKey
       tags:
         - Projects
@@ -7909,8 +7906,7 @@ paths:
         - name: evaluationRuleId
           in: path
           description: >-
-            Evaluation rule identifier returned by the evaluation rule
-            endpoints.
+            Evaluation rule identifier returned by the evaluation rule endpoints.
           required: true
           schema:
             type: string
@@ -9945,8 +9941,7 @@ components:
           type: number
           format: double
           description: >-
-            The numeric value of the score. Equals 1 for "True" and 0 for
-            "False"
+            The numeric value of the score. Equals 1 for "True" and 0 for "False"
         stringValue:
           type: string
           description: >-
@@ -10132,8 +10127,7 @@ components:
           type: number
           format: double
           description: >-
-            The numeric value of the score. Equals 1 for "True" and 0 for
-            "False"
+            The numeric value of the score. Equals 1 for "True" and 0 for "False"
         stringValue:
           type: string
           description: >-
@@ -14521,8 +14515,7 @@ components:
         model:
           type: string
           description: >-
-            Model identifier exposed by the provider, for example
-            `gpt-4.1-mini`.
+            Model identifier exposed by the provider, for example `gpt-4.1-mini`.
       required:
         - provider
         - model
@@ -16598,8 +16591,7 @@ components:
         id:
           type: string
           description: >-
-            Identifier of the exact evaluator version currently used by the
-            rule.
+            Identifier of the exact evaluator version currently used by the rule.
         name:
           type: string
           description: Evaluator family name.

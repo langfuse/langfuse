@@ -213,6 +213,19 @@ describe("OpenAPI deprecations", () => {
     );
   });
 
+  it("keeps a literal description literal instead of folding it", () => {
+    const literal = SPEC.replace("description: >-", "description: |-");
+    const stamped = stampDeprecations(
+      literal,
+      operations([["get", "/api/public/sessions", MESSAGE]]),
+    );
+
+    expect(stamped).toContain("      description: |-\n");
+    expect(
+      parseSpec(stamped).paths["/api/public/sessions"].get.description,
+    ).toContain(deprecationNotice(MESSAGE));
+  });
+
   it("is idempotent across repeated runs", () => {
     const deprecated = operations([
       ["get", "/api/public/traces", MESSAGE],
