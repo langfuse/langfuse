@@ -32,10 +32,9 @@ export const posthogIntegrationRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
-      // Data capability for legacy sources (see export-source-policy.ts).
-      const legacyWritesActive = areLegacyWritesActive(
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      );
+      // The client derives export-source availability from this via the
+      // shared policy helpers (see export-source-policy.ts).
+      const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
       try {
         const dbConfig = await ctx.prisma.posthogIntegration.findFirst({
           where: {
@@ -44,7 +43,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
         });
 
         if (!dbConfig) {
-          return { config: null, legacyWritesActive };
+          return { config: null, writeMode };
         }
 
         const { encryptedPosthogApiKey, exportSource, ...config } = dbConfig;
@@ -58,7 +57,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
               decrypt(encryptedPosthogApiKey),
             ),
           },
-          legacyWritesActive,
+          writeMode,
         };
       } catch (e) {
         console.error("posthog integration get", e);

@@ -35,11 +35,13 @@ import {
 import {
   AnalyticsIntegrationExportSource,
   validateExportSource,
+  type BlobExportWriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
+  buildExportSourceContext,
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
@@ -125,7 +127,7 @@ export default function MixpanelIntegrationSettings() {
               state={state.data?.config ?? undefined}
               projectId={projectId}
               isLoading={state.isLoading}
-              legacyWritesActive={state.data?.legacyWritesActive ?? true}
+              writeMode={state.data?.writeMode ?? "legacy"}
             />
           </Card>
         </>
@@ -149,31 +151,29 @@ const MixpanelIntegrationSettingsForm = ({
   state,
   projectId,
   isLoading,
-  legacyWritesActive,
+  writeMode,
 }: {
   state?: NonNullable<RouterOutput["mixpanelIntegration"]["get"]["config"]>;
   projectId: string;
   isLoading: boolean;
-  legacyWritesActive: boolean;
+  writeMode: BlobExportWriteMode;
 }) => {
   const capture = usePostHogClientCapture();
   const { isBetaEnabled } = useV4Beta();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { project } = useQueryProject();
 
-  // Policy context; EVENTS is always accepted by this router, hence
-  // enrichedAvailable: true (see export-source-policy.ts).
   const projectCreatedAt = project?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
-    () => ({
-      isCloud: isLangfuseCloud,
-      enrichedAvailable: true,
-      legacyWritesActive,
-      projectCreatedAt: projectCreatedAt
-        ? new Date(projectCreatedAt)
-        : undefined,
-    }),
-    [isLangfuseCloud, legacyWritesActive, projectCreatedAt],
+    () =>
+      buildExportSourceContext({
+        writeMode,
+        isCloud: isLangfuseCloud,
+        projectCreatedAt: projectCreatedAt
+          ? new Date(projectCreatedAt)
+          : undefined,
+      }),
+    [writeMode, isLangfuseCloud, projectCreatedAt],
   );
   const legacyValidation = validateExportSource(
     AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
@@ -225,7 +225,7 @@ const MixpanelIntegrationSettingsForm = ({
   const defaultExportSource = isPostCutoffCloud
     ? AnalyticsIntegrationExportSource.EVENTS
     : (state?.exportSource ??
-      (isBetaEnabled || !legacyWritesActive
+      (isBetaEnabled || !exportSourceCtx.legacyWritesActive
         ? AnalyticsIntegrationExportSource.EVENTS
         : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS));
 

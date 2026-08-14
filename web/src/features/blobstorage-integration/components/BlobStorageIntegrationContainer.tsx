@@ -6,12 +6,11 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import {
-  areEnrichedWritesActive,
-  areLegacyWritesActive,
   type BlobExportWriteMode,
   type BlobStorageIntegration,
   type ExportSourceContext,
 } from "@langfuse/shared";
+import { buildExportSourceContext } from "@/src/features/analytics-integrations/exportSource";
 import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -45,17 +44,17 @@ export const BlobStorageIntegrationContainer = ({
   const projectCreatedAt = project?.createdAt;
   const integrationCreatedAt = config?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
-    () => ({
-      isCloud: isLangfuseCloud,
-      enrichedAvailable: areEnrichedWritesActive(writeMode),
-      legacyWritesActive: areLegacyWritesActive(writeMode),
-      projectCreatedAt: projectCreatedAt
-        ? new Date(projectCreatedAt)
-        : undefined,
-      integrationCreatedAt: integrationCreatedAt
-        ? new Date(integrationCreatedAt)
-        : null,
-    }),
+    () =>
+      buildExportSourceContext({
+        writeMode,
+        isCloud: isLangfuseCloud,
+        projectCreatedAt: projectCreatedAt
+          ? new Date(projectCreatedAt)
+          : undefined,
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
+      }),
     [isLangfuseCloud, writeMode, projectCreatedAt, integrationCreatedAt],
   );
 

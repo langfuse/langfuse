@@ -1,8 +1,11 @@
 import {
   AnalyticsIntegrationExportSource,
+  areEnrichedWritesActive,
+  areLegacyWritesActive,
   EXPORT_SOURCE_OPTIONS,
   getAvailableExportSources,
   validateExportSource,
+  type BlobExportWriteMode,
   type ExportSourceBlockedReason,
   type ExportSourceContext,
   type ExportSourceOption,
@@ -11,6 +14,28 @@ import {
 // UI adapters over the export-source policy, shared by the blob-storage,
 // PostHog, and Mixpanel settings forms. Policy and rationale live in
 // packages/shared/.../export-source-policy.ts.
+
+// The write mode is server-only, so every settings page receives it from its
+// tRPC get response and derives both capabilities here.
+export function buildExportSourceContext({
+  writeMode,
+  isCloud,
+  projectCreatedAt,
+  integrationCreatedAt,
+}: {
+  writeMode: BlobExportWriteMode;
+  isCloud: boolean;
+  projectCreatedAt?: Date;
+  integrationCreatedAt?: Date | null;
+}): ExportSourceContext {
+  return {
+    isCloud,
+    enrichedAvailable: areEnrichedWritesActive(writeMode),
+    legacyWritesActive: areLegacyWritesActive(writeMode),
+    projectCreatedAt,
+    integrationCreatedAt,
+  };
+}
 
 export function isExportSourceSelectable(
   source: AnalyticsIntegrationExportSource,
