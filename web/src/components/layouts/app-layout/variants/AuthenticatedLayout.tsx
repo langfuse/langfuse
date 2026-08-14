@@ -23,6 +23,7 @@ import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
 import { TopBannerProvider } from "@/src/features/top-banner";
 import { VersionUpdateBanner } from "@/src/features/version-update";
+import { V4MigrationMigratedBanner } from "@/src/features/v4-migration/V4MigrationMigratedBanner";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
@@ -253,6 +254,7 @@ export function AuthenticatedLayout({
               <PaymentBanner />
               <PreviewDeploymentBanner />
               <VersionUpdateBanner />
+              <V4MigrationMigratedBanner />
               <div className="pt-banner-offset flex min-h-0 flex-1">
                 <ConnectedAppSidebar
                   navItems={navigation.mainNavigation}

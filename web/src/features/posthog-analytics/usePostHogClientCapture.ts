@@ -351,6 +351,12 @@ export const events = {
     "evals_manual_upgrade_clicked",
     "walkthrough_video_clicked",
     "project_state_checked",
+    // Migrated banner (top-of-page, per-user): shown/switch/support/dismiss
+    // measure whether the completion moment converts stranded-on-v3 users.
+    "migrated_banner_shown",
+    "migrated_banner_switch_clicked",
+    "migrated_banner_support_clicked",
+    "migrated_banner_dismissed",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
