@@ -73,7 +73,10 @@ export const traceToEvent = (
     updated_at: toMicros(trace.updated_at) ?? Date.now() * 1000,
     event_ts: toMicros(trace.event_ts) ?? Date.now() * 1000,
     event_bytes: utf8Bytes(trace.input) + utf8Bytes(trace.output),
-    source: "API",
+    // Mirrored v3+v4 rows are dual-write by definition; this source value is
+    // what production dual-write ingestion stamps, and the v4 migration panel
+    // only counts dual-write/otel sources (MIGRATION_INGRESS_EVENT_SOURCES).
+    source: "ingestion-api-dual-write",
   });
 };
 
@@ -135,6 +138,6 @@ export const observationToEvent = (
     updated_at: toMicros(observation.updated_at) ?? Date.now() * 1000,
     event_ts: toMicros(observation.event_ts) ?? Date.now() * 1000,
     event_bytes: utf8Bytes(observation.input) + utf8Bytes(observation.output),
-    source: "API",
+    source: "ingestion-api-dual-write",
   });
 };

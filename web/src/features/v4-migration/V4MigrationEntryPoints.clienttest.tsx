@@ -9,7 +9,18 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   openMigrationPanel: vi.fn(),
   setOpenMobileSidebar: vi.fn(),
+  recordProjectState: vi.fn(),
   migrationData: undefined as unknown as ProjectMigrationStatus,
+}));
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    v4Transition: {
+      recordProjectState: {
+        useMutation: () => ({ mutate: mocks.recordProjectState }),
+      },
+    },
+  },
 }));
 
 vi.mock("@/src/components/ui/sidebar", () => ({
@@ -123,5 +134,127 @@ describe("v4 migration entry points", () => {
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
       unmount();
     }
+  });
+});
+
+describe("v4_migration:project_state_checked", () => {
+  const stateCheckedCalls = () =>
+    mocks.capture.mock.calls.filter(
+      ([name]) => name === "v4_migration:project_state_checked",
+    );
+
+  beforeEach(() => {
+    mocks.capture.mockClear();
+    mocks.recordProjectState.mockClear();
+    mocks.migrationData = migrationStatus();
+  });
+
+  it("captures the settled state even when the project is migrated and the pill renders nothing", () => {
+    render(<V4MigrationNavItem />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(stateCheckedCalls()).toHaveLength(1);
+    expect(stateCheckedCalls()[0][1]).toEqual({
+      readiness: "ready",
+      sdkStatus: "latest",
+      projectId: "project-1",
+      organizationId: "org-1",
+    });
+    expect(mocks.recordProjectState).toHaveBeenCalledExactlyOnceWith({
+      projectId: "project-1",
+      readiness: "ready",
+      sdkStatus: "latest",
+      hasV4Traffic: false,
+    });
+  });
+
+  it("reports v4 traffic to the server when a compatible series exists", () => {
+    mocks.migrationData = migrationStatus({
+      sdk: {
+        status: "legacy",
+        sdkUsageSeries: [
+          { v4MigrationStatus: "compatible" },
+          { v4MigrationStatus: "upgrade_required" },
+        ] as unknown as ProjectMigrationStatus["sdk"]["sdkUsageSeries"],
+        upgradeRequiredCount: 1,
+        delayedOtelIngestionCount: 0,
+      },
+    });
+
+    render(<V4MigrationNavItem />);
+
+    expect(mocks.recordProjectState).toHaveBeenCalledExactlyOnceWith({
+      projectId: "project-1",
+      readiness: "action-needed",
+      sdkStatus: "legacy",
+      hasV4Traffic: true,
+    });
+  });
+
+  it("skips the server report when a check errored (readiness unavailable)", () => {
+    mocks.migrationData = migrationStatus({
+      evals: { status: "error", count: 0 },
+    });
+
+    render(<V4MigrationNavItem />);
+
+    expect(stateCheckedCalls()).toHaveLength(1);
+    expect(stateCheckedCalls()[0][1]).toMatchObject({
+      readiness: "unavailable",
+    });
+    expect(mocks.recordProjectState).not.toHaveBeenCalled();
+  });
+
+  it("captures action-needed with the sdk status once checks settle", () => {
+    mocks.migrationData = migrationStatus({
+      sdk: {
+        status: "legacy",
+        sdkUsageSeries: [],
+        upgradeRequiredCount: 1,
+        delayedOtelIngestionCount: 0,
+      },
+    });
+
+    render(<V4MigrationNavItem />);
+
+    expect(stateCheckedCalls()).toHaveLength(1);
+    expect(stateCheckedCalls()[0][1]).toMatchObject({
+      readiness: "action-needed",
+      sdkStatus: "legacy",
+    });
+  });
+
+  it("holds while any check is still running and fires exactly once per settled state", () => {
+    mocks.migrationData = migrationStatus({
+      evals: { status: "loading", count: 0 },
+    });
+    const { rerender } = render(<V4MigrationNavItem />);
+
+    expect(stateCheckedCalls()).toHaveLength(0);
+
+    mocks.migrationData = migrationStatus();
+    rerender(<V4MigrationNavItem />);
+    rerender(<V4MigrationNavItem />);
+
+    expect(stateCheckedCalls()).toHaveLength(1);
+  });
+
+  it("re-reports when the settled state changes within a long-lived mount", () => {
+    mocks.migrationData = migrationStatus({
+      evals: { status: "loaded", count: 2 },
+    });
+    const { rerender } = render(<V4MigrationNavItem />);
+    expect(stateCheckedCalls()).toHaveLength(1);
+    expect(stateCheckedCalls()[0][1]).toMatchObject({
+      readiness: "action-needed",
+    });
+
+    // Background refetch resolves the evals — readiness flips to ready.
+    mocks.migrationData = migrationStatus();
+    rerender(<V4MigrationNavItem />);
+
+    expect(stateCheckedCalls()).toHaveLength(2);
+    expect(stateCheckedCalls()[1][1]).toMatchObject({ readiness: "ready" });
+    expect(mocks.recordProjectState).toHaveBeenCalledTimes(2);
   });
 });

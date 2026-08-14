@@ -22,6 +22,7 @@ import {
   type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { recordV4MigrationProjectState } from "@/src/features/v4/server/v4MigrationProjectState";
 const MAX_DETECTION_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 const legacyIntegrationExportSources =
@@ -982,6 +983,40 @@ export const v4TransitionRouter = createTRPCRouter({
         projectIds: projects.map((project) => project.id),
         fromTimestamp: input.fromTimestamp,
         toTimestamp: input.toTimestamp,
+      });
+    }),
+
+  // The client assembles readiness from the queries above; it reports the
+  // settled result here so migration outcomes ("started", "migrated") are
+  // detected server-side with set-once semantics — see
+  // v4MigrationProjectState.ts.
+  recordProjectState: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        readiness: z.enum(["ready", "action-needed"]),
+        sdkStatus: z.enum([
+          "no_data",
+          "unknown",
+          "otel_realtime",
+          "otel_header_required",
+          "legacy",
+          "latest",
+        ]),
+        hasV4Traffic: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      await recordV4MigrationProjectState({
+        prisma: ctx.prisma,
+        userId: ctx.session.user.id,
+        organizationId: ctx.session.orgId,
+        projectId: input.projectId,
+        state: {
+          readiness: input.readiness,
+          sdkStatus: input.sdkStatus,
+          hasV4Traffic: input.hasV4Traffic,
+        },
       });
     }),
 });
