@@ -104,6 +104,7 @@ export * from "./redis/batchExport";
 export * from "./redis/batchActionQueue";
 export * from "./redis/ingestionQueue";
 export * from "./redis/postHogIntegrationQueue";
+export * from "./redis/v4LegacyApiUsageQueue";
 export * from "./redis/postHogIntegrationProcessingQueue";
 export * from "./redis/mixpanelIntegrationQueue";
 export * from "./redis/mixpanelIntegrationProcessingQueue";

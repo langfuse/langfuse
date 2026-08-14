@@ -16,6 +16,7 @@ vi.mock("@/src/server/auth", () => ({
 const redisMock = vi.hoisted(() => ({
   status: "end" as string,
   disconnect: vi.fn(),
+  get: vi.fn(),
   mget: vi.fn(),
   setex: vi.fn(),
 }));
@@ -396,11 +397,15 @@ const WINDOW_START_CLICKHOUSE = "2026-06-18 01:00:00.000";
 const sdkUsageCacheKey = `langfuse:v4:sdk-usage:v1:${projectId}`;
 const legacyApiUsageCacheKey = `langfuse:v4:legacy-api-usage:v1:${projectId}`;
 const experimentPostUsageCacheKey = `langfuse:v4:experiment-post-usage:v1:${projectId}`;
+const legacyApiUsageHeartbeatKey = "langfuse:v4:legacy-api-usage:heartbeat:v1";
 
-/** In-memory Redis fake: mget/setex against a Map, status "ready". */
+/** In-memory Redis fake: get/mget/setex against a Map, status "ready". */
 const enableRedisCache = (initialEntries: Record<string, string> = {}) => {
   const store = new Map<string, string>(Object.entries(initialEntries));
   redisMock.status = "ready";
+  redisMock.get.mockImplementation(
+    async (key: string) => store.get(key) ?? null,
+  );
   redisMock.mget.mockImplementation(async (keys: string[]) =>
     keys.map((key) => store.get(key) ?? null),
   );
@@ -2221,6 +2226,75 @@ describe("v4TransitionRouter", () => {
       expect(
         writesByKey.get(`langfuse:v4:legacy-api-usage:v1:${secondProjectId}`),
       ).toMatchObject({ ttl: 12 * 60 * 60, value: { rows: [] } });
+    });
+
+    describe("worker pipeline heartbeat", () => {
+      it("treats missing entries as no usage while the heartbeat is fresh", async () => {
+        enableRedisCache({
+          // Worker ran 30 minutes ago; it only writes entries for projects
+          // WITH usage, so absence is authoritative.
+          [legacyApiUsageHeartbeatKey]: "2026-06-25T00:00:00.000Z",
+          [sdkUsageCacheKey]: sdkUsageBlob([cachedSdkSeries()]),
+        });
+        mockedQueryClickhouse.mockResolvedValue([]);
+        const caller = createCaller();
+
+        await expect(
+          caller.legacyApiUsageSummary({
+            projectId,
+            fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+            toTimestamp: new Date("2026-06-25T00:00:00Z"),
+          }),
+        ).resolves.toEqual([]);
+        expect(mockedQueryClickhouse).not.toHaveBeenCalled();
+        // The request path must not shadow the worker's entries either.
+        expect(redisMock.setex).not.toHaveBeenCalled();
+
+        const summary = await caller.sdkUsageSummary({
+          projectId,
+          fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+          toTimestamp: new Date("2026-06-25T00:00:00Z"),
+        });
+        expect(summary.experimentInstrumentationMigration).toEqual({
+          status: "not_required",
+          upgradePath: null,
+        });
+        // Only the SDK live-gap query on events_core; no query_log scan.
+        expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+        expect(mockedQueryClickhouse.mock.calls[0]?.[0].query).toContain(
+          "FROM events_core",
+        );
+      });
+
+      it("falls back to querying when the heartbeat is stale", async () => {
+        enableRedisCache({
+          // 4h old: past the 3h freshness horizon.
+          [legacyApiUsageHeartbeatKey]: "2026-06-24T20:30:00.000Z",
+        });
+        mockedQueryClickhouse.mockResolvedValue([
+          {
+            projectId,
+            entrypoint: "publicapi: GET /api/public/traces",
+            count: "4",
+            lastSeen: "2026-06-24T12:00:00.000000Z",
+          },
+        ]);
+        const caller = createCaller();
+
+        const rows = await caller.legacyApiUsageSummary({
+          projectId,
+          fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+          toTimestamp: new Date("2026-06-25T00:00:00Z"),
+        });
+
+        expect(rows).toHaveLength(1);
+        expect(mockedQueryClickhouse).toHaveBeenCalled();
+        expect(
+          redisMock.setex.mock.calls.some(
+            ([key]) => key === legacyApiUsageCacheKey,
+          ),
+        ).toBe(true);
+      });
     });
 
     describe("cachedMigrationActions", () => {

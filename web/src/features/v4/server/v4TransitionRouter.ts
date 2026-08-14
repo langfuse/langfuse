@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 import {
+  isLegacyApiUsagePipelineFresh,
   isV4TransitionCacheAvailable,
   MIGRATION_INGRESS_EVENT_SOURCES,
   readExperimentPostUsageCache,
@@ -875,6 +876,16 @@ const getExperimentPostUsageByProject = async ({
   });
   if (missedProjectIds.length === 0) return usageByProject;
 
+  // While the worker-maintained pipeline is fresh, a missing entry
+  // authoritatively means "no usage": the worker only writes entries for
+  // projects with POST usage, and the fallback scan must not run.
+  if (await isLegacyApiUsagePipelineFresh(nowMs)) {
+    missedProjectIds.forEach((projectId) =>
+      usageByProject.set(projectId, false),
+    );
+    return usageByProject;
+  }
+
   const queryResult = await queryDatasetRunItemsPostUsage({
     projectIds: missedProjectIds,
     fromTimestamp: windowStart,
@@ -1221,7 +1232,13 @@ const getLegacyApiUsageSummaries = async ({
     }
   });
 
-  if (missedProjectIds.length > 0) {
+  // While the worker-maintained pipeline is fresh, a missing entry
+  // authoritatively means "no usage" and the expensive fallback scan is
+  // skipped entirely.
+  if (
+    missedProjectIds.length > 0 &&
+    !(await isLegacyApiUsagePipelineFresh(nowMs))
+  ) {
     const freshRows = await queryLegacyApiUsageSummaries({
       projectIds: missedProjectIds,
       fromTimestamp: windowStart,

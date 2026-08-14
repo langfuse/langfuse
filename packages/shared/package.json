@@ -47,6 +47,10 @@
       "import": "./dist/src/server/ee/ingestionMasking/index.js",
       "require": "./dist/src/server/ee/ingestionMasking/index.js"
     },
+    "./src/server/v4/legacyApiUsage": {
+      "import": "./dist/src/server/v4/legacyApiUsage.js",
+      "require": "./dist/src/server/v4/legacyApiUsage.js"
+    },
     "./query": {
       "import": "./dist/src/features/query/index.js",
       "require": "./dist/src/features/query/index.js"

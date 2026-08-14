@@ -66,7 +66,10 @@
   processor.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
-  `@langfuse/shared/src/server/ee/ingestionMasking`, and
+  `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/server/v4/legacyApiUsage` (pure keys, schemas, and
+  aggregation for the worker-maintained v4 legacy API usage pipeline; Redis
+  and ClickHouse I/O stay with the worker producer and web consumer), and
   `@langfuse/shared/src/utils/chatml`.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel

@@ -1,5 +1,17 @@
 import { z } from "zod/v4";
 import { logger, redis } from "@langfuse/shared/src/server";
+import {
+  isV4LegacyApiHeartbeatFresh,
+  v4ExperimentPostUsageBlobSchema,
+  v4ExperimentPostUsageProjectKey,
+  v4LegacyApiUsageBlobSchema,
+  v4LegacyApiUsageProjectKey,
+  V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS,
+  V4_LEGACY_API_USAGE_HEARTBEAT_KEY,
+  type V4ExperimentPostUsageBlob,
+  type V4LegacyApiUsageBlob,
+  type V4LegacyApiUsageRow,
+} from "@langfuse/shared/src/server/v4/legacyApiUsage";
 
 /**
  * Redis caching for the v4 transition usage checks.
@@ -39,8 +51,14 @@ export const SDK_USAGE_CACHE_TTL_SECONDS = 24 * 60 * 60;
  * detection window and the cache would save nothing.
  */
 export const SDK_USAGE_CACHE_MAX_AGE_MS = 25 * 60 * 60 * 1000;
-export const LEGACY_API_CACHE_TTL_SECONDS = 12 * 60 * 60;
-export const EXPERIMENT_POST_CACHE_TTL_SECONDS = 12 * 60 * 60;
+// Legacy API and experiment POST entries share the pipeline contract owned
+// by @langfuse/shared/src/server/v4/legacyApiUsage: the worker refreshes the
+// same keys hourly, and this request-path fallback only fills them while the
+// pipeline heartbeat is stale.
+export const LEGACY_API_CACHE_TTL_SECONDS =
+  V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS;
+export const EXPERIMENT_POST_CACHE_TTL_SECONDS =
+  V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS;
 
 const sdkUsageSeriesSchema = z.object({
   source: z.enum(MIGRATION_INGRESS_EVENT_SOURCES),
@@ -83,38 +101,14 @@ const sdkUsageBlobSchema = z.object({
 
 export type SdkUsageCacheBlob = z.infer<typeof sdkUsageBlobSchema>;
 
-const legacyApiUsageRowSchema = z.object({
-  entrypoint: z.string(),
-  count: z.number(),
-  lastSeen: z.string(),
-});
-
-export type CachedLegacyApiUsageRow = z.infer<typeof legacyApiUsageRowSchema>;
-
-const legacyApiUsageBlobSchema = z.object({
-  version: z.literal(1),
-  computedAt: z.string(),
-  rows: z.array(legacyApiUsageRowSchema),
-});
-
-export type LegacyApiUsageCacheBlob = z.infer<typeof legacyApiUsageBlobSchema>;
-
-const experimentPostUsageBlobSchema = z.object({
-  version: z.literal(1),
-  computedAt: z.string(),
-  used: z.boolean(),
-});
-
-export type ExperimentPostUsageCacheBlob = z.infer<
-  typeof experimentPostUsageBlobSchema
->;
+export type CachedLegacyApiUsageRow = V4LegacyApiUsageRow;
+export type LegacyApiUsageCacheBlob = V4LegacyApiUsageBlob;
+export type ExperimentPostUsageCacheBlob = V4ExperimentPostUsageBlob;
 
 const sdkUsageKey = (projectId: string) =>
   `langfuse:v4:sdk-usage:v1:${projectId}`;
-const legacyApiUsageKey = (projectId: string) =>
-  `langfuse:v4:legacy-api-usage:v1:${projectId}`;
-const experimentPostUsageKey = (projectId: string) =>
-  `langfuse:v4:experiment-post-usage:v1:${projectId}`;
+const legacyApiUsageKey = v4LegacyApiUsageProjectKey;
+const experimentPostUsageKey = v4ExperimentPostUsageProjectKey;
 
 export const isV4TransitionCacheAvailable = (): boolean =>
   redis != null && redis.status !== "end" && redis.status !== "close";
@@ -187,7 +181,26 @@ export const writeSdkUsageCache = (
 export const readLegacyApiUsageCache = (
   projectIds: string[],
 ): Promise<(LegacyApiUsageCacheBlob | null)[]> =>
-  readBlobs(projectIds.map(legacyApiUsageKey), legacyApiUsageBlobSchema);
+  readBlobs(projectIds.map(legacyApiUsageKey), v4LegacyApiUsageBlobSchema);
+
+/**
+ * Whether the worker-maintained legacy API usage pipeline ran recently. While
+ * true, a missing per-project cache entry authoritatively means "no usage"
+ * and the request path must not fall back to the expensive
+ * `system.query_log` scan.
+ */
+export const isLegacyApiUsagePipelineFresh = async (
+  nowMs: number,
+): Promise<boolean> => {
+  if (!isV4TransitionCacheAvailable()) return false;
+  try {
+    const heartbeatIso = await redis!.get(V4_LEGACY_API_USAGE_HEARTBEAT_KEY);
+    return isV4LegacyApiHeartbeatFresh(heartbeatIso, nowMs);
+  } catch (error) {
+    logger.warn("Failed to read v4 legacy API usage heartbeat", { error });
+    return false;
+  }
+};
 
 export const writeLegacyApiUsageCache = (
   entries: { projectId: string; rows: CachedLegacyApiUsageRow[] }[],
@@ -210,7 +223,7 @@ export const readExperimentPostUsageCache = (
 ): Promise<(ExperimentPostUsageCacheBlob | null)[]> =>
   readBlobs(
     projectIds.map(experimentPostUsageKey),
-    experimentPostUsageBlobSchema,
+    v4ExperimentPostUsageBlobSchema,
   );
 
 export const writeExperimentPostUsageCache = (
