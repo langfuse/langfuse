@@ -84,6 +84,8 @@ const GUTTER_INDENT = 10;
 const GUTTER_MAX_DEPTH = 6;
 const ICON_GUTTER_WIDTH = 46;
 const ZOOM_STEP = 1.6;
+/** Movement before a press becomes a pan rather than a click. */
+const DRAG_THRESHOLD_PX = 4;
 
 export function TimelineV2({
   roots,
@@ -136,12 +138,10 @@ export function TimelineV2({
   const density = useMemo(
     () =>
       resolveDensity({
-        box: chartBox,
         pointer: modality,
-        rowCount: prepared.rows.length,
         lines: composition === "stacked" ? 2 : 1,
       }),
-    [chartBox, modality, prepared.rows.length, composition],
+    [modality, composition],
   );
   const measurer = useMemo(
     () => createTextMeasurer(`${density.labelFontPx}px ui-sans-serif`),
@@ -270,18 +270,32 @@ export function TimelineV2({
 
   const gesture = useRef<{
     pointers: Map<number, number>;
+    startX: number;
     lastX: number;
     pinchDistance: number;
-  }>({ pointers: new Map(), lastX: 0, pinchDistance: 0 });
+    dragging: boolean;
+  }>({
+    pointers: new Map(),
+    startX: 0,
+    lastX: 0,
+    pinchDistance: 0,
+    dragging: false,
+  });
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     gesture.current.pointers.set(event.pointerId, event.clientX);
+    gesture.current.startX = event.clientX;
     gesture.current.lastX = event.clientX;
+    gesture.current.dragging = false;
     if (gesture.current.pointers.size === 2) {
       const [a, b] = [...gesture.current.pointers.values()];
       gesture.current.pinchDistance = Math.abs((a ?? 0) - (b ?? 0));
     }
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // Deliberately NOT capturing here. Pointer capture retargets the derived
+    // `click` to the capture element, so capturing on pointerdown means a plain
+    // click lands on this scroll container and no row is ever selected.
+    // Capture is taken on the first move past DRAG_THRESHOLD_PX instead, which
+    // also gives us "a drag does not select" for free.
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -304,6 +318,13 @@ export function TimelineV2({
       return;
     }
 
+    if (!state.dragging) {
+      if (Math.abs(event.clientX - state.startX) < DRAG_THRESHOLD_PX) return;
+      state.dragging = true;
+      // Now that this really is a drag, capture so it survives leaving the box.
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
     panBy(event.clientX - state.lastX);
     state.lastX = event.clientX;
   };
@@ -311,6 +332,7 @@ export function TimelineV2({
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     gesture.current.pointers.delete(event.pointerId);
     gesture.current.pinchDistance = 0;
+    gesture.current.dragging = false;
   };
 
   const toggleCollapsed = (id: string) =>
@@ -469,19 +491,34 @@ export function TimelineV2({
               <div
                 key={node.id}
                 className={cn(
-                  "hover:bg-muted/40 absolute inset-x-0 flex cursor-default items-center",
-                  selectedId === node.id && "bg-muted/60",
+                  // select-none: the whole row is a click target (select, and
+                  // double-click to fit), so dragging over it must not select
+                  // the names and duration labels it is made of.
+                  // `group` so hovering anywhere in the row recolours its bar.
+                  // transition-COLORS only — a bare `transition` would also ease
+                  // left/width and make zoom lag a frame behind the gesture.
+                  "group absolute inset-x-0 flex cursor-pointer items-center transition-colors duration-150 select-none",
+                  // Selected takes an accent tint rather than a deeper neutral:
+                  // the bars are bg-muted, so a neutral selected row swallows
+                  // them. Hover is the neutral one.
+                  selectedId === node.id
+                    ? "bg-primary-accent/10"
+                    : "hover:bg-muted",
                 )}
                 style={{ top: `${node.y}px`, height: `${node.height}px` }}
                 onClick={() => setSelectedId(node.id)}
                 onDoubleClick={() => zoomToNode(node)}
               >
+                {selectedId === node.id ? (
+                  <div className="bg-primary-accent absolute inset-y-0 left-0 w-0.5" />
+                ) : null}
                 {showGutter ? (
                   <GutterCell
                     node={node}
                     width={gutterWidth}
                     compact={composition === "icons"}
                     fontPx={density.labelFontPx}
+                    isSelected={selectedId === node.id}
                     onToggleCollapsed={() => toggleCollapsed(node.id)}
                   />
                 ) : null}
@@ -571,12 +608,14 @@ function GutterCell({
   width,
   compact,
   fontPx,
+  isSelected,
   onToggleCollapsed,
 }: {
   node: PositionedNode;
   width: number;
   compact: boolean;
   fontPx: number;
+  isSelected: boolean;
   onToggleCollapsed: () => void;
 }) {
   // Depth indentation is capped so a 20-level trace still leaves room for names.
@@ -610,7 +649,7 @@ function GutterCell({
       </span>
       {compact ? null : (
         <span
-          className="truncate"
+          className={cn("truncate", isSelected && "font-bold")}
           style={{ fontSize: `${fontPx}px` }}
           title={node.name}
         >
@@ -646,12 +685,16 @@ function ChartCell({
         <>
           <div
             className={cn(
-              "bg-muted border-border absolute border",
+              "absolute border transition-colors duration-150",
               nameMode === "stacked" ? "bottom-1" : "top-1/2 -translate-y-1/2",
               node.durationMs == null && "border-dashed",
               !node.clippedLeft && "rounded-l-sm",
               !node.clippedRight && "rounded-r-sm",
-              isSelected && "ring-primary-accent ring-2",
+              // The bar itself takes the focus colour on row hover, and a
+              // stronger fill plus a ring when the row is the selected one.
+              isSelected
+                ? "bg-primary-accent/40 border-primary-accent ring-primary-accent ring-2"
+                : "bg-muted border-border group-hover:bg-primary-accent/25 group-hover:border-primary-accent/40",
             )}
             style={{
               left: `${node.x}px`,

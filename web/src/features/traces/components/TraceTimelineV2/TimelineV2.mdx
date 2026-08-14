@@ -77,9 +77,16 @@ worth remembering for Phase 2:
 **Recommendation: `stacked` for `pointer: coarse` / narrow boxes, `split`
 above ~480px.** It is the only take that keeps all three of identity, duration
 and position, and it costs only row height — which touch density was already
-spending (44px). Note this made `density` two-dimensional in a way the plan did
-not anticipate: `resolveDensity` now takes `lines: 1 | 2`, because a row that
-stacks a name over a bar needs two text lines' worth of height.
+spending (44px). Note this moved `density`'s second axis somewhere the plan did
+not anticipate: `resolveDensity` takes `lines: 1 | 2`, because a row that stacks
+a name over a bar needs two text lines' worth of height.
+
+**Density is not a function of box height.** The first revision grew rows into
+the slack of a tall box (a 3-row trace got 34px rows in a 420px box); review
+rejected it on sight — density is the whole point of the parent ticket, so the
+box decides how many rows are visible, never how tall they are. Row height
+resolves from modality and lines-per-row only: 26px fine, 44px coarse, 38px
+stacked.
 
 **Does this need a designer?** For the _choice_, no — `stacked` is clearly
 ahead. For the _finish_, yes: row separation, what a selected row looks like,

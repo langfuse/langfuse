@@ -44,9 +44,7 @@ function run(
   return layout({
     roots,
     box,
-    density:
-      options.density ??
-      resolveDensity({ box, pointer: "fine", rowCount: prepared.rows.length }),
+    density: options.density ?? resolveDensity({ pointer: "fine" }),
     measurer,
     view: options.view ?? null,
     compress: options.compress ?? false,
@@ -253,26 +251,14 @@ describe("view transform", () => {
 });
 
 describe("density", () => {
-  it("resolves from the box height and the pointer modality", () => {
-    const box = { width: 320, height: 600 };
-
-    expect(
-      resolveDensity({ box, pointer: "fine", rowCount: 100 }).rowHeight,
-    ).toBe(26);
-    expect(
-      resolveDensity({ box, pointer: "coarse", rowCount: 100 }).rowHeight,
-    ).toBe(44);
-    // A short trace grows into a tall box, but only so far.
-    expect(
-      resolveDensity({ box, pointer: "fine", rowCount: 1 }).rowHeight,
-    ).toBe(34);
-    expect(
-      resolveDensity({
-        box: { width: 320, height: 0 },
-        pointer: "fine",
-        rowCount: 0,
-      }).rowHeight,
-    ).toBe(26);
+  it("resolves from the pointer modality and lines per row", () => {
+    // Never a function of box height: a short trace in a tall box keeps
+    // Finder-row density rather than growing into the slack.
+    expect(resolveDensity({ pointer: "fine" }).rowHeight).toBe(26);
+    expect(resolveDensity({ pointer: "coarse" }).rowHeight).toBe(44);
+    // A stacked row (name above bar) needs two text lines' worth.
+    expect(resolveDensity({ pointer: "fine", lines: 2 }).rowHeight).toBe(38);
+    expect(resolveDensity({ pointer: "coarse", lines: 2 }).rowHeight).toBe(44);
   });
 });
 

@@ -1,21 +1,19 @@
 /**
  * Density is a resolved value, not a constant.
  *
- * It is a function of the measured box AND the input modality, and the two pull
- * in opposite directions:
+ * It resolves from the input modality and how many text lines a row must hold:
  *
  * - `pointer: fine` (mouse) wants Finder-row density — a span as tall as a file
  *   in a file listing, ~26px.
  * - `pointer: coarse` (touch) wants ≥44px, because zoom-and-tap instead of
  *   hover makes the tap target load-bearing rather than cosmetic.
  *
- * Rows stay uniform height — vertical virtualization depends on it. Only the
- * *value* is resolved: a short trace in a tall box grows its rows into the slack
- * (capped, so it stays a list and not a chart), and a long trace floors at the
- * modality's minimum and scrolls.
+ * Deliberately NOT a function of box height. An earlier revision grew rows into
+ * the slack of a tall box (a 3-row trace got 34px rows in a 420px box); review
+ * rejected it — density is the point, so the box decides how many rows are
+ * visible, never how tall they are. Rows also stay uniform height, because
+ * vertical virtualization depends on it.
  */
-
-import type { Box } from "./viewTransform";
 
 export type PointerModality = "fine" | "coarse";
 
@@ -23,8 +21,6 @@ export const FINE_ROW_HEIGHT = 26;
 export const COARSE_ROW_HEIGHT = 44;
 /** A row that stacks a name over its bar needs two text lines' worth. */
 export const TWO_LINE_MIN_HEIGHT = 38;
-/** How far rows may grow into a tall box before it stops reading as a list. */
-const MAX_GROWTH = 1.3;
 
 export type Density = {
   pointer: PointerModality;
@@ -40,24 +36,15 @@ export type Density = {
 };
 
 export function resolveDensity(options: {
-  box: Box;
   pointer: PointerModality;
-  rowCount: number;
   /** 2 when the row stacks a name above its bar (no name gutter). */
   lines?: 1 | 2;
 }): Density {
-  const { pointer, rowCount } = options;
+  const { pointer } = options;
   const lines = options.lines ?? 1;
-  const base = Math.max(
+  const rowHeight = Math.max(
     pointer === "coarse" ? COARSE_ROW_HEIGHT : FINE_ROW_HEIGHT,
     lines === 2 ? TWO_LINE_MIN_HEIGHT : 0,
-  );
-  const height = Number.isFinite(options.box.height) ? options.box.height : 0;
-
-  const perRow = rowCount > 0 && height > 0 ? Math.floor(height / rowCount) : 0;
-  const rowHeight = Math.min(
-    Math.max(perRow, base),
-    Math.round(base * MAX_GROWTH),
   );
 
   return {

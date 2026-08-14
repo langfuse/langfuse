@@ -204,6 +204,55 @@ export const FitsTheBox = meta.story({
   },
 });
 
+export const ClickSelectsARow = meta.story({
+  name: "(Test) Click Selects A Row",
+  args: {
+    roots: reporterTrace(),
+    box: PEEK,
+    pointer: "fine",
+    compress: false,
+    composition: "split",
+    showReadout: true,
+  },
+  play: async ({ canvasElement }) => {
+    const scroll = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-v2-scroll"]',
+    );
+    const row = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-v2-content"] > div',
+    );
+    if (!scroll || !row) throw new Error("timeline row not found");
+
+    // Pointer capture retargets the derived click to the capture element, so
+    // capturing on pointerdown silently kills row selection. userEvent's
+    // synthetic events ignore capture and cannot see that, so assert the
+    // handler's contract directly: a press that does not move must not capture.
+    const captured: number[] = [];
+    scroll.setPointerCapture = (pointerId: number) => {
+      captured.push(pointerId);
+    };
+    const press = (type: string, clientX: number) =>
+      scroll.dispatchEvent(
+        new PointerEvent(type, { pointerId: 1, clientX, bubbles: true }),
+      );
+
+    press("pointerdown", 100);
+    press("pointermove", 102);
+    press("pointerup", 102);
+    await expect(captured).toHaveLength(0);
+
+    press("pointerdown", 100);
+    press("pointermove", 160);
+    await expect(captured).toHaveLength(1);
+    press("pointerup", 160);
+
+    await userEvent.click(row);
+    await waitFor(() =>
+      expect(row.className).toContain("bg-primary-accent/10"),
+    );
+  },
+});
+
 export const ZoomsToASpan = meta.story({
   name: "(Test) Zooms To A Span",
   args: {
