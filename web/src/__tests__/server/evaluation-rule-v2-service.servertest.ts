@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EvalTargetObject } from "@langfuse/shared";
 import type * as SharedServer from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   afterAll,
@@ -62,6 +62,9 @@ afterAll(async () => {
 function createEvaluator(
   targetProjectId = projectId,
   name = `evaluator-${randomUUID()}`,
+  variableMapping: unknown = [
+    { templateVariable: "output", selectedColumnId: "output" },
+  ],
 ) {
   return prisma.evaluator.create({
     data: {
@@ -73,8 +76,38 @@ function createEvaluator(
           version: 1,
           prompt: "Judge {{output}}",
           vars: ["output"],
+          variableMapping: variableMapping as Prisma.InputJsonValue,
+        },
+      },
+    },
+  });
+}
+
+function createLegacyRule(
+  evaluatorId: string,
+  target: string = EvalTargetObject.TRACE,
+) {
+  return prisma.evaluationRule.create({
+    data: {
+      projectId,
+      name: `legacy-rule-${randomUUID()}`,
+      status: "ACTIVE",
+      targetObject: target,
+      filter: [],
+      sampling: 1,
+      delay: 0,
+      timeScope: ["NEW"],
+      assignments: {
+        create: {
+          projectId,
+          evaluatorId,
           variableMapping: [
-            { templateVariable: "output", selectedColumnId: "output" },
+            {
+              templateVariable: "output",
+              langfuseObject:
+                target === EvalTargetObject.TRACE ? "trace" : "dataset_item",
+              selectedColumnId: "output",
+            },
           ],
         },
       },
@@ -141,6 +174,38 @@ describe("RuleService", () => {
         ],
         totalItems: 1,
       });
+    });
+
+    it("filters rules by target objects", async () => {
+      const evaluator = await createEvaluator();
+      const service = createService();
+      const eventRule = await service.create(createInput(evaluator.id), null);
+      const experimentRule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Modern experiment rule",
+          status: "ACTIVE",
+          targetObject: EvalTargetObject.EXPERIMENT,
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+        },
+      });
+      await createLegacyRule(evaluator.id, EvalTargetObject.TRACE);
+      await createLegacyRule(evaluator.id, EvalTargetObject.DATASET);
+
+      const result = await service.list({
+        projectId,
+        page: 1,
+        limit: 50,
+        targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      });
+
+      expect(new Set(result.rules.map(({ id }) => id))).toEqual(
+        new Set([eventRule.id, experimentRule.id]),
+      );
+      expect(result.totalItems).toBe(2);
     });
   });
 
@@ -715,6 +780,209 @@ describe("RuleService", () => {
           evaluatorId: "missing-evaluator",
         }),
       ).rejects.toThrow("Assignment not found");
+    });
+  });
+
+  describe("legacy rule write guards", () => {
+    it.each([EvalTargetObject.TRACE, EvalTargetObject.DATASET])(
+      "allows deactivating a %s rule but rejects assignments and reactivation",
+      async (targetObject) => {
+        const [assignedEvaluator, otherEvaluator] = await Promise.all([
+          createEvaluator(),
+          createEvaluator(),
+        ]);
+        const legacyRule = await createLegacyRule(
+          assignedEvaluator.id,
+          targetObject,
+        );
+        const service = createService();
+
+        await expect(
+          service.attach({
+            projectId,
+            ruleId: legacyRule.id,
+            assignment: {
+              evaluatorId: otherEvaluator.id,
+              variableMapping: null,
+            },
+          }),
+        ).rejects.toThrow(
+          "Evaluator assignments on legacy evaluation rules are read-only",
+        );
+        await expect(
+          service.detach({
+            projectId,
+            ruleId: legacyRule.id,
+            evaluatorId: assignedEvaluator.id,
+          }),
+        ).rejects.toThrow(
+          "Evaluator assignments on legacy evaluation rules are read-only",
+        );
+        await expect(
+          service.update({
+            projectId,
+            ruleId: legacyRule.id,
+            evaluatorMappings: [
+              { evaluatorId: otherEvaluator.id, variableMapping: null },
+            ],
+          }),
+        ).rejects.toThrow(
+          "Evaluator assignments on legacy evaluation rules are read-only",
+        );
+        await expect(
+          service.update({
+            projectId,
+            ruleId: legacyRule.id,
+            name: "Changed legacy rule",
+          }),
+        ).rejects.toThrow(
+          "Legacy evaluation rules can only be deactivated or deleted",
+        );
+        await service.setEnabled({
+          projectId,
+          ruleId: legacyRule.id,
+          enabled: false,
+        });
+        await prisma.evaluationRule.update({
+          where: { id: legacyRule.id },
+          data: { status: "ACTIVE" },
+        });
+        await service.update({
+          projectId,
+          ruleId: legacyRule.id,
+          enabled: false,
+        });
+        await prisma.evaluationRule.update({
+          where: { id: legacyRule.id },
+          data: { status: "ACTIVE" },
+        });
+        await service.setManyEnabled({
+          projectId,
+          ruleIds: [legacyRule.id],
+          enabled: false,
+        });
+
+        await expect(
+          service.setEnabled({
+            projectId,
+            ruleId: legacyRule.id,
+            enabled: true,
+          }),
+        ).rejects.toThrow("Legacy evaluation rules cannot be re-enabled");
+        await expect(
+          service.setManyEnabled({
+            projectId,
+            ruleIds: [legacyRule.id],
+            enabled: true,
+          }),
+        ).rejects.toThrow("Legacy evaluation rules cannot be re-enabled");
+
+        await expect(
+          prisma.evaluationRule.findUniqueOrThrow({
+            where: { id: legacyRule.id },
+            include: { assignments: true },
+          }),
+        ).resolves.toMatchObject({
+          status: "INACTIVE",
+          assignments: [{ evaluatorId: assignedEvaluator.id }],
+        });
+      },
+    );
+
+    it("allows deleting a legacy rule without deleting its evaluator", async () => {
+      const evaluator = await createEvaluator();
+      const legacyRule = await createLegacyRule(evaluator.id);
+
+      await createService().delete(projectId, legacyRule.id);
+
+      await expect(
+        prisma.evaluationRule.findUnique({ where: { id: legacyRule.id } }),
+      ).resolves.toBeNull();
+      await expect(
+        prisma.evaluator.findUnique({ where: { id: evaluator.id } }),
+      ).resolves.toMatchObject({ id: evaluator.id });
+    });
+  });
+
+  describe("legacy evaluator mapping normalization", () => {
+    const legacyMapping = [
+      {
+        templateVariable: "output",
+        langfuseObject: "trace",
+        objectName: null,
+        selectedColumnId: "output",
+        jsonSelector: "nested.value",
+      },
+    ];
+    const clearedMapping = [
+      {
+        templateVariable: "output",
+        selectedColumnId: "",
+        jsonSelector: null,
+      },
+    ];
+
+    it("persists a cleared override when creating a modern rule", async () => {
+      const evaluator = await createEvaluator(
+        projectId,
+        undefined,
+        legacyMapping,
+      );
+
+      const rule = await createService().create(
+        createInput(evaluator.id),
+        null,
+      );
+
+      expect(rule.assignments[0]?.variableMapping).toEqual(clearedMapping);
+      await expect(
+        prisma.evaluationRuleEvaluatorAssignment.findFirstOrThrow({
+          where: { evaluationRuleId: rule.id, evaluatorId: evaluator.id },
+        }),
+      ).resolves.toMatchObject({ variableMapping: clearedMapping });
+    });
+
+    it("persists a cleared override when attaching to a modern rule", async () => {
+      const evaluator = await createEvaluator(
+        projectId,
+        undefined,
+        legacyMapping,
+      );
+      const rule = await createService().create(createInput(), null);
+
+      const updated = await createService().attach({
+        projectId,
+        ruleId: rule.id,
+        assignment: { evaluatorId: evaluator.id, variableMapping: null },
+      });
+
+      expect(updated.assignments[0]?.variableMapping).toEqual(clearedMapping);
+    });
+
+    it("persists a cleared override when replacing modern rule assignments", async () => {
+      const [initialEvaluator, legacyEvaluator] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(projectId, undefined, legacyMapping),
+      ]);
+      const rule = await createService().create(
+        createInput(initialEvaluator.id),
+        null,
+      );
+
+      const updated = await createService().update({
+        projectId,
+        ruleId: rule.id,
+        evaluatorMappings: [
+          { evaluatorId: legacyEvaluator.id, variableMapping: null },
+        ],
+      });
+
+      expect(updated.assignments).toMatchObject([
+        {
+          evaluatorId: legacyEvaluator.id,
+          variableMapping: clearedMapping,
+        },
+      ]);
     });
   });
 

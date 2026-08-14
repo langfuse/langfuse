@@ -73,7 +73,7 @@ export const runEvaluationRouter = createTRPCRouter({
                 where: { id: { in: requestedEvaluatorIds }, projectId },
                 select: { id: true },
               })
-            : await ctx.prisma.jobConfiguration.findMany({
+            : await ctx.prisma.evaluationRule.findMany({
                 where: {
                   id: {
                     in: requestedEvaluatorIds,

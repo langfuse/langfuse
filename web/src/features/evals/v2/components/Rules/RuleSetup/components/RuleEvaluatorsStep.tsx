@@ -162,7 +162,7 @@ export function RuleEvaluatorsStep({
                       evaluatorId: evaluator.id,
                       evaluatorName: evaluator.name,
                       defaultVariableMapping: evaluator.defaultVariableMapping,
-                      variableMapping: null,
+                      variableMapping: evaluator.initialVariableMapping,
                     });
                     setPickerOpen(false);
                   }}

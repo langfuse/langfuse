@@ -182,7 +182,7 @@ export function EvaluatorSetupPage(
         title: "Evaluator deleted",
         description: "The evaluator and all of its versions were deleted.",
       });
-      await router.push(`/project/${projectId}/evals/v2`);
+      await router.push(`/project/${projectId}/evals`);
     },
   });
   const testEvaluator = api.evalsV2.test.useMutation({
@@ -234,7 +234,7 @@ export function EvaluatorSetupPage(
   };
 
   const close = async () => {
-    await router.push(`/project/${projectId}/evals/v2`);
+    await router.push(`/project/${projectId}/evals`);
   };
   const requestClose = () => {
     const currentSnapshot = getCurrentSnapshot();
@@ -261,7 +261,7 @@ export function EvaluatorSetupPage(
           description: "Your evaluator changes are saved.",
         });
         initialSnapshot.current = getCurrentSnapshot(state);
-        await router.push(`/project/${projectId}/evals/v2/${evaluator.id}`);
+        await router.push(`/project/${projectId}/evals/${evaluator.id}`);
         return;
       }
 
@@ -336,7 +336,7 @@ export function EvaluatorSetupPage(
       headerProps={{
         title: initialEvaluator ? "Configure evaluator" : "New evaluator",
         breadcrumb: [
-          { name: "Evaluators", href: `/project/${projectId}/evals/v2` },
+          { name: "Evaluators", href: `/project/${projectId}/evals` },
         ],
         actionButtonsRight: initialEvaluator ? (
           <div className="flex gap-2">
@@ -345,9 +345,9 @@ export function EvaluatorSetupPage(
               evaluatorId={initialEvaluator.id}
               evaluatorName={initialEvaluator.name}
               evaluatorType={initialEvaluator.type}
-              evaluatorDefaultVariableMapping={observationVariableMappingList
-                .catch([])
-                .parse(initialEvaluator.definition.variableMapping)}
+              evaluatorDefaultVariableMapping={
+                initialEvaluator.definition.variableMapping
+              }
             />
             <Button
               type="button"
@@ -496,7 +496,7 @@ export function EvaluatorSetupPage(
           evaluator={savedEvaluator}
           onFinish={async () => {
             await router.push(
-              `/project/${projectId}/evals/v2/${savedEvaluator.id}`,
+              `/project/${projectId}/evals/${savedEvaluator.id}`,
             );
           }}
         />

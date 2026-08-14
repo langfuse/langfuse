@@ -68,7 +68,7 @@ export function CreateRuleDialogContent({
               evaluatorId: initialEvaluator.id,
               evaluatorName: initialEvaluator.name,
               defaultVariableMapping: initialEvaluator.defaultVariableMapping,
-              variableMapping: null,
+              variableMapping: initialEvaluator.initialVariableMapping,
             },
           ]
         : [],

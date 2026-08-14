@@ -33,6 +33,11 @@ export const ListRulesSchema = z.object({
   limit: paginationLimitZod.optional().default(50),
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
+  targetObjects: z
+    .array(z.enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT]))
+    .min(1)
+    .max(2)
+    .optional(),
 });
 
 export const CreateRuleSchema = RuleMetadataSchema.extend({

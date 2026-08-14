@@ -1,5 +1,6 @@
 import {
   EvalTemplateType,
+  EvalTargetObject,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -53,7 +54,13 @@ export function EvaluatorSavedDialogContainer({
     // `enabled` in the input filters to active rules — this dialog attaches and
     // runs immediately, so an inactive rule would not evaluate anything. The
     // second `enabled` is react-query's own gate on the request.
-    { projectId, page: 1, limit: 100, enabled: true },
+    {
+      projectId,
+      page: 1,
+      limit: 100,
+      enabled: true,
+      targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+    },
     { enabled: dialogPhase === "saved" },
   );
   const availableRules = rules.data?.rules ?? [];
@@ -257,7 +264,7 @@ export function EvaluatorSavedDialogContainer({
           finish().catch(() => undefined);
         }
       }}
-      initialEvaluator={evaluator}
+      initialEvaluator={{ ...evaluator, initialVariableMapping: null }}
       initialFilter={
         evaluator.sampleFilter.length ? evaluator.sampleFilter : undefined
       }

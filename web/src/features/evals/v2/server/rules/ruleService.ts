@@ -37,6 +37,8 @@ import type {
 import * as evaluatorRepository from "../evaluators/evaluatorRepository";
 import { assertActiveRuleLimitNotExceeded } from "./ruleErrors";
 import * as repository from "./ruleRepository";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 
 export type RuleAuditEvent = {
   action: "create" | "update" | "delete";
@@ -186,7 +188,7 @@ export class RuleService {
         projectId: input.projectId,
         additionalActiveRules: input.enabled ? 1 : 0,
       });
-      await this.assertEvaluatorsBelongToProject({
+      const evaluatorAssignments = await this.prepareModernAssignments({
         prisma,
         projectId: input.projectId,
         assignments: input.evaluatorAssignments,
@@ -195,6 +197,7 @@ export class RuleService {
         prisma,
         input: {
           ...input,
+          evaluatorAssignments,
           targetObject:
             normalized.targetObject as CreateRuleInput["targetObject"],
           filter,
@@ -222,6 +225,7 @@ export class RuleService {
         input.projectId,
         input.ruleId,
       );
+      this.assertLegacyRuleUpdateAllowed(current.targetObject, input);
       const currentTargetObject = current.targetObject as EvalTargetObject;
       const currentFilter = current.filter as FilterState;
       // Whether a rule targets experiments is derived from its filter, so an
@@ -254,7 +258,8 @@ export class RuleService {
             : 0,
       });
       if (input.evaluatorMappings) {
-        await this.assertEvaluatorsBelongToProject({
+        this.assertLegacyRuleAssignmentsWritable(current.targetObject);
+        input.evaluatorMappings = await this.prepareModernAssignments({
           prisma,
           projectId: input.projectId,
           assignments: input.evaluatorMappings,
@@ -305,6 +310,7 @@ export class RuleService {
         params.projectId,
         params.ruleId,
       );
+      this.assertLegacyRuleCanBeEnabled(current.targetObject, params.enabled);
       await assertActiveRuleLimitNotExceeded({
         prisma,
         projectId: params.projectId,
@@ -381,6 +387,18 @@ export class RuleService {
         prisma,
         input: selection,
       });
+      const legacyRuleCount = await prisma.evaluationRule.count({
+        where: {
+          projectId: input.projectId,
+          id: { in: ids },
+          targetObject: {
+            in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
+          },
+        },
+      });
+      if (legacyRuleCount > 0) {
+        this.assertLegacyRuleCanBeEnabled("trace", input.enabled);
+      }
       if (input.enabled) {
         // Only rules that are not already active consume a new slot.
         const newlyActivated = await prisma.evaluationRule.count({
@@ -421,13 +439,22 @@ export class RuleService {
     assignment: RuleAssignmentInput;
   }) {
     await this.prisma.$transaction(async (prisma) => {
-      await this.requireRule(prisma, params.projectId, params.ruleId);
-      await this.assertEvaluatorsBelongToProject({
+      const rule = await this.requireRule(
+        prisma,
+        params.projectId,
+        params.ruleId,
+      );
+      this.assertLegacyRuleAssignmentsWritable(rule.targetObject);
+      const [assignment] = await this.prepareModernAssignments({
         prisma,
         projectId: params.projectId,
         assignments: [params.assignment],
       });
-      await repository.attachEvaluator({ prisma, ...params });
+      await repository.attachEvaluator({
+        prisma,
+        ...params,
+        assignment: assignment!,
+      });
     });
     await invalidateProjectEvalConfigCaches(params.projectId);
     const rule = await this.get(params.projectId, params.ruleId);
@@ -445,7 +472,12 @@ export class RuleService {
     evaluatorId: string;
   }) {
     const deleted = await this.prisma.$transaction(async (prisma) => {
-      await this.requireRule(prisma, params.projectId, params.ruleId);
+      const rule = await this.requireRule(
+        prisma,
+        params.projectId,
+        params.ruleId,
+      );
+      this.assertLegacyRuleAssignmentsWritable(rule.targetObject);
       return repository.detachEvaluator({ prisma, ...params });
     });
     if (!deleted) throw new LangfuseNotFoundError("Assignment not found");
@@ -491,7 +523,44 @@ export class RuleService {
     }
   }
 
-  private async assertEvaluatorsBelongToProject(params: {
+  private assertLegacyRuleCanBeEnabled(targetObject: string, enabled: boolean) {
+    if (enabled && isLegacyEvalTarget(targetObject)) {
+      throw new InvalidRequestError(
+        "Legacy evaluation rules cannot be re-enabled",
+      );
+    }
+  }
+
+  private assertLegacyRuleUpdateAllowed(
+    targetObject: string,
+    input: RuleServiceUpdateInput,
+  ) {
+    if (!isLegacyEvalTarget(targetObject)) return;
+    if (input.evaluatorMappings !== undefined) {
+      this.assertLegacyRuleAssignmentsWritable(targetObject);
+    }
+    if (
+      input.enabled !== false ||
+      input.name !== undefined ||
+      input.filter !== undefined ||
+      input.sampling !== undefined ||
+      input.targetObject !== undefined
+    ) {
+      throw new InvalidRequestError(
+        "Legacy evaluation rules can only be deactivated or deleted",
+      );
+    }
+  }
+
+  private assertLegacyRuleAssignmentsWritable(targetObject: string) {
+    if (isLegacyEvalTarget(targetObject)) {
+      throw new InvalidRequestError(
+        "Evaluator assignments on legacy evaluation rules are read-only",
+      );
+    }
+  }
+
+  private async prepareModernAssignments(params: {
     prisma: Prisma.TransactionClient;
     projectId: string;
     assignments: RuleAssignmentInput[];
@@ -499,14 +568,28 @@ export class RuleService {
     const evaluatorIds = params.assignments.map(
       ({ evaluatorId }) => evaluatorId,
     );
-    const count = await evaluatorRepository.countProjectEvaluators({
+    const evaluators = await evaluatorRepository.findEvaluatorsByIds({
       prisma: params.prisma,
       projectId: params.projectId,
       evaluatorIds,
     });
-    if (count !== evaluatorIds.length) {
+    if (evaluators.length !== evaluatorIds.length) {
       throw new LangfuseNotFoundError("Evaluator not found");
     }
+    const evaluatorById = new Map(
+      evaluators.map((evaluator) => [evaluator.id, evaluator]),
+    );
+    return params.assignments.map((assignment) => {
+      if (assignment.variableMapping !== null) return assignment;
+      const evaluator = evaluatorById.get(assignment.evaluatorId)!;
+      const prepared = prepareModernRuleVariableMapping(
+        evaluator.versions[0]?.variableMapping,
+      );
+      return {
+        ...assignment,
+        variableMapping: prepared.initialVariableMapping,
+      };
+    });
   }
 }
 

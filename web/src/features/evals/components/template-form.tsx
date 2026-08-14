@@ -411,7 +411,6 @@ export const InnerEvalTemplateForm = (props: {
       return {
         intent: "clone" as const,
         cloneSourceId: props.cloneSourceId,
-        retargetUsingJobConfigs: false,
       };
     }
 

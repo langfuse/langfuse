@@ -287,33 +287,38 @@ export const handleBatchActionJob = async (
     const { projectId, query, targetObject, configId, cutoffCreatedAt } =
       batchActionEvent;
 
-    const config = await prisma.jobConfiguration.findUnique({
+    const ruleConfig = await prisma.evaluationRule.findUnique({
       where: {
         id: configId,
         projectId: projectId,
       },
       select: {
         delay: true,
-        evalTemplate: {
+        assignments: {
+          take: 1,
           select: {
-            type: true,
+            evaluator: { select: { type: true } },
           },
         },
       },
     });
 
-    if (!config) {
+    if (!ruleConfig) {
       logger.error(
         `Eval config ${configId} not found for project ${projectId}`,
       );
       return;
     }
 
-    if (config.evalTemplate?.type !== EvalTemplateType.LLM_AS_JUDGE) {
-      logger.info(`Skipping legacy eval-create for non-LLM eval template`, {
+    if (
+      ruleConfig.assignments.length !== 1 ||
+      ruleConfig.assignments[0]?.evaluator.type !==
+        EvalTemplateType.LLM_AS_JUDGE
+    ) {
+      logger.info(`Skipping historical eval-create for non-LLM evaluator`, {
         projectId,
         configId,
-        evalTemplateType: config.evalTemplate?.type ?? null,
+        evaluatorType: ruleConfig.assignments[0]?.evaluator.type ?? null,
       });
       return;
     }
@@ -388,7 +393,7 @@ export const handleBatchActionJob = async (
             timestamp: new Date(),
             name: QueueJobs.CreateEvalJob as const,
           },
-          { delay: config.delay },
+          { delay: ruleConfig.delay },
         );
         count++;
       } else {
@@ -530,37 +535,37 @@ export const handleBatchActionJob = async (
           ],
         }));
       } else {
-        const rawEvaluators = await prisma.jobConfiguration.findMany({
+        const rawEvaluators = await prisma.evaluationRule.findMany({
           where: {
             id: { in: selectedEvaluatorIds },
             projectId,
-            evalTemplateId: { not: null },
-            // Preserve the selected evaluators as-is. Executability is checked
-            // later when each scheduling attempt runs.
           },
-          select: {
-            id: true,
-            projectId: true,
-            evalTemplateId: true,
-            evalTemplate: { select: { type: true } },
-            scoreName: true,
-            targetObject: true,
-            variableMapping: true,
-            status: true,
-            blockedAt: true,
+          include: {
+            assignments: {
+              include: {
+                evaluator: {
+                  include: {
+                    versions: {
+                      orderBy: { version: "desc" },
+                      take: 1,
+                    },
+                  },
+                },
+              },
+            },
           },
         });
 
-        evaluatorLabels = rawEvaluators.map(({ scoreName }) => scoreName);
+        evaluatorLabels = rawEvaluators.map(({ name }) => name);
         // For batch evaluation the user's table-level selection determines
         // which observations to evaluate, so every config matches every row.
         // The experiment target still has to keep its root-span constraint,
         // which the canonical representation expresses as a filter.
-        evaluators = rawEvaluators.map((e) => ({
-          ...e,
-          evalTemplate: e.evalTemplate!,
+        evaluators = rawEvaluators.map((rule) => ({
+          ...rule,
+          ruleId: rule.id,
           ...normalizeEvaluationRuleTarget({
-            targetObject: e.targetObject as
+            targetObject: rule.targetObject as
               | typeof EvalTargetObject.EVENT
               | typeof EvalTargetObject.EXPERIMENT,
             filter: [],

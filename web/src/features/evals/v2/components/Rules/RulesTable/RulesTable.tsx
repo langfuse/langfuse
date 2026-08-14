@@ -1,10 +1,11 @@
-import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { useMemo, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { ExternalLink, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DataTable } from "@/src/components/table/data-table";
+import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
@@ -16,6 +17,7 @@ import { ActivationConfirmationDialog } from "@/src/features/evals/v2/components
 import { EditRuleDialog } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/EditRuleDialog";
 import { RulesOverviewSelectionBar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesOverviewSelectionBar/RulesOverviewSelectionBar";
 import { RuleActiveSwitchCell } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RuleActiveSwitchCell/RuleActiveSwitchCell";
+import { RuleNameCell } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RuleNameCell/RuleNameCell";
 import { RulesTableToolbar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesTableToolbar/RulesTableToolbar";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
@@ -35,18 +37,12 @@ import {
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-
-function ruleExecutionsUrl(projectId: string, ruleId: string) {
-  const filter: FilterState = [
-    {
-      column: "ruleId",
-      type: "stringOptions",
-      operator: "any of",
-      value: [ruleId],
-    },
-  ];
-  return `/project/${encodeURIComponent(projectId)}/traces?filter=${encodeURIComponent(encodeFiltersGeneric(filter))}`;
-}
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import {
+  getRuleNavigationAction,
+  getRuleNavigationUrl,
+} from "@/src/features/evals/v2/utils/ruleNavigation";
+import { ruleExecutionsUrl } from "@/src/features/evals/v2/fns/rules/ruleExecutionsUrl";
 
 function RelativeDate({ date }: { date: Date }) {
   return (
@@ -152,6 +148,15 @@ export function RulesTable({
     "rule",
     withDefault(StringParam, null),
   );
+  const legacyPeekNavigation = usePeekNavigation();
+  const legacyPeekConfig = useMemo(
+    () => ({
+      itemType: "RUNNING_EVALUATOR" as const,
+      detailNavigationKey: "evals",
+      ...legacyPeekNavigation,
+    }),
+    [legacyPeekNavigation],
+  );
   const rules = api.evalsV2.rules.list.useQuery({
     projectId,
     ...pagination,
@@ -197,11 +202,10 @@ export function RulesTable({
         header: "Name",
         size: 260,
         isFixedPosition: true,
-        cell: ({ row }) => (
-          <span className="block truncate font-bold" title={row.original.name}>
-            {row.original.name}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const legacy = isLegacyEvalTarget(row.original.targetObject);
+          return <RuleNameCell name={row.original.name} legacy={legacy} />;
+        },
       },
       {
         accessorKey: "enabled",
@@ -273,7 +277,12 @@ export function RulesTable({
         header: "Filters",
         size: 340,
         enableHiding: true,
-        cell: ({ row }) => <RuleFiltersCell filter={row.original.filter} />,
+        cell: ({ row }) =>
+          isLegacyEvalTarget(row.original.targetObject) ? (
+            <span className="text-muted-foreground">Not available</span>
+          ) : (
+            <RuleFiltersCell filter={row.original.filter} />
+          ),
       },
       {
         accessorKey: "sampling",
@@ -444,7 +453,33 @@ export function RulesTable({
           },
         }}
         noResultsMessage="No evaluation rules yet."
-        onRowClick={(rule) => setEditRuleId(rule.id)}
+        onRowClick={(rule) => {
+          const navigationAction = getRuleNavigationAction(rule);
+          if (navigationAction === "remap") {
+            router.push(
+              getRuleNavigationUrl({
+                projectId,
+                ruleId: rule.id,
+                targetObject: rule.targetObject,
+                enabled: rule.enabled,
+              }),
+            );
+            return;
+          }
+
+          if (navigationAction === "peek") {
+            setEditRuleId(null);
+            legacyPeekNavigation.openPeek(rule.id, rule);
+            return;
+          }
+
+          setEditRuleId(rule.id);
+        }}
+      />
+      <TablePeekViewEvaluatorConfigDetail
+        {...legacyPeekConfig}
+        projectId={projectId}
+        readOnly
       />
       <RulesOverviewSelectionBar
         projectId={projectId}
@@ -477,7 +512,7 @@ export function RulesTable({
         <EditRuleDialog
           projectId={projectId}
           ruleId={editRuleId}
-          canEdit={hasWriteAccess}
+          hasWriteAccess={hasWriteAccess}
           onOpenChange={(open) => !open && setEditRuleId(null)}
         />
       ) : null}

@@ -184,6 +184,59 @@ type CreateEvalJobsParams = {
     }
 );
 
+type TraceRule = Prisma.EvaluationRuleGetPayload<{
+  include: {
+    assignments: {
+      include: { evaluator: { include: { versions: true } } };
+    };
+  };
+}>;
+
+type TraceEvalConfig = JobConfiguration & {
+  evaluatorId: string;
+  evaluationRuleId: string;
+};
+
+function toTraceEvalConfig(rule: TraceRule): TraceEvalConfig | null {
+  // TRACE/DATASET are legacy-target rules and intentionally retain the old
+  // one-rule/one-evaluator contract. Multi-assignment rules belong to the
+  // modern EVENT/EXPERIMENT flow and must not be flattened ambiguously here.
+  if (rule.assignments.length !== 1) return null;
+  const assignment = rule.assignments[0];
+  const evaluator = assignment.evaluator;
+  const version = evaluator.versions[0];
+  if (
+    !version ||
+    evaluator.blockedAt ||
+    evaluator.type !== EvalTemplateType.LLM_AS_JUDGE
+  ) {
+    return null;
+  }
+
+  return {
+    id: rule.id,
+    createdAt: rule.createdAt,
+    updatedAt: rule.updatedAt,
+    projectId: rule.projectId,
+    jobType: "EVAL",
+    status: rule.status,
+    blockedAt: null,
+    blockReason: null,
+    blockMessage: null,
+    evalTemplateId: version.id,
+    scoreName: evaluator.name,
+    filter: rule.filter,
+    targetObject: rule.targetObject,
+    variableMapping:
+      assignment.variableMapping ?? version.variableMapping ?? [],
+    sampling: rule.sampling,
+    delay: rule.delay,
+    timeScope: rule.timeScope,
+    evaluatorId: evaluator.id,
+    evaluationRuleId: rule.id,
+  };
+}
+
 export const createEvalJobs = async ({
   event,
   sourceEventType,
@@ -195,13 +248,12 @@ export const createEvalJobs = async ({
     span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
   }
 
-  // Fetch all configs for a given project. Those may be dataset or trace configs.
-  const configs = await prisma.jobConfiguration.findMany({
+  // TRACE/DATASET rules are stored in the evaluator v2 model. The executor
+  // still consumes a config-shaped projection.
+  const rules = await prisma.evaluationRule.findMany({
     where: {
-      jobType: "EVAL",
       projectId: event.projectId,
       status: "ACTIVE",
-      blockedAt: null,
       targetObject: {
         in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
       },
@@ -212,8 +264,23 @@ export const createEvalJobs = async ({
         ? { timeScope: { has: enforcedJobTimeScope } }
         : {}),
     },
+    include: {
+      assignments: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          evaluator: {
+            include: {
+              versions: { orderBy: { version: "desc" }, take: 1 },
+            },
+          },
+        },
+      },
+    },
   });
-
+  const configs = rules.flatMap((rule) => {
+    const config = toTraceEvalConfig(rule);
+    return config ? [config] : [];
+  });
   if (configs.length === 0) {
     logger.debug(
       "No active evaluation jobs found for project",
@@ -696,6 +763,12 @@ export const createEvalJobs = async ({
             projectId: event.projectId,
             jobExecutionId: jobExecutionId,
             delay: config.delay,
+            ...(config.evaluatorId
+              ? {
+                  evaluatorId: config.evaluatorId,
+                  evaluationRuleId: config.evaluationRuleId,
+                }
+              : {}),
           },
           retryBaggage: {
             originalJobTimestamp: new Date(),
@@ -1099,6 +1172,9 @@ export async function executeLLMAsJudgeEvaluation(
   > & {
     environment: string;
     deps?: EvalExecutionDeps;
+    evaluationRuleId?: string;
+    assignmentId?: string;
+    evaluatorVersionId?: string;
   },
 ): Promise<void> {
   const deps = params.deps ?? createProductionEvalExecutionDeps();
@@ -1106,6 +1182,14 @@ export async function executeLLMAsJudgeEvaluation(
     type: "JOB",
     jobExecutionId: params.jobExecutionId,
     jobConfigurationId: params.job.jobConfigurationId,
+    ...(params.evaluatorId
+      ? {
+          evaluationRuleId: params.evaluationRuleId,
+          assignmentId: params.assignmentId,
+          evaluatorId: params.evaluatorId,
+          evaluatorVersionId: params.evaluatorVersionId,
+        }
+      : {}),
     targetTraceId: params.job.jobInputTraceId,
     targetObservationId: params.job.jobInputObservationId,
     targetDatasetItemId: params.job.jobInputDatasetItemId,
@@ -1124,6 +1208,144 @@ export async function executeLLMAsJudgeEvaluation(
     environment: params.environment,
     deps,
     result,
+  });
+}
+
+const traceEvaluatorInclude = {
+  versions: { orderBy: { version: "desc" as const }, take: 1 },
+} satisfies Prisma.EvaluatorInclude;
+
+async function resolveLegacyTraceExecution(params: {
+  projectId: string;
+  job: JobExecution;
+}) {
+  const config = await prisma.jobConfiguration.findFirst({
+    where: {
+      id: params.job.jobConfigurationId,
+      projectId: params.projectId,
+    },
+  });
+  if (!config?.evalTemplateId) {
+    throw new UnrecoverableError(
+      `Job configuration or template not found for job ${params.job.id}`,
+    );
+  }
+  const template = await prisma.evalTemplate.findFirst({
+    where: {
+      id: config.evalTemplateId,
+      type: EvalTemplateType.LLM_AS_JUDGE,
+      OR: [{ projectId: params.projectId }, { projectId: null }],
+    },
+  });
+  if (!template) {
+    throw new UnrecoverableError(
+      `Evaluation template ${config.evalTemplateId} not found`,
+    );
+  }
+  return { type: "legacy" as const, config, template };
+}
+
+async function resolveTraceExecution(params: {
+  event: z.infer<typeof EvalExecutionEvent>;
+  job: JobExecution;
+}) {
+  const { event, job } = params;
+  if (!event.evaluatorId) {
+    return resolveLegacyTraceExecution({ projectId: event.projectId, job });
+  }
+  if (!event.evaluationRuleId) {
+    return { type: "cancelled" as const, reason: "rule-identity-missing" };
+  }
+
+  const assignment = await prisma.evaluationRuleEvaluatorAssignment.findFirst({
+    where: {
+      projectId: event.projectId,
+      evaluationRuleId: event.evaluationRuleId,
+      evaluatorId: event.evaluatorId,
+      evaluator: {
+        projectId: event.projectId,
+        type: EvalTemplateType.LLM_AS_JUDGE,
+      },
+    },
+    include: {
+      evaluationRule: true,
+      evaluator: { include: traceEvaluatorInclude },
+    },
+  });
+  if (!assignment) {
+    return { type: "cancelled" as const, reason: "assignment-unavailable" };
+  }
+  const { evaluationRule: rule, evaluator } = assignment;
+  if (rule.status !== JobConfigState.ACTIVE || evaluator.blockedAt) {
+    return { type: "cancelled" as const, reason: "rule-not-executable" };
+  }
+  const version = evaluator.versions[0];
+  if (!version?.prompt || !version.outputDefinition) {
+    return { type: "cancelled" as const, reason: "version-unavailable" };
+  }
+
+  const config = {
+    id: rule.id,
+    createdAt: rule.createdAt,
+    updatedAt: rule.updatedAt,
+    projectId: rule.projectId,
+    jobType: "EVAL",
+    status: rule.status,
+    blockedAt: null,
+    blockReason: null,
+    blockMessage: null,
+    evalTemplateId: version.id,
+    scoreName: evaluator.name,
+    filter: rule.filter,
+    targetObject: rule.targetObject,
+    variableMapping:
+      assignment.variableMapping ?? version.variableMapping ?? [],
+    sampling: rule.sampling,
+    delay: rule.delay,
+    timeScope: rule.timeScope,
+  } as JobConfiguration;
+  const template = {
+    id: version.id,
+    createdAt: version.createdAt,
+    updatedAt: version.createdAt,
+    projectId: evaluator.projectId,
+    name: evaluator.name,
+    version: version.version,
+    prompt: version.prompt,
+    type: evaluator.type,
+    partner: version.partner,
+    model: version.model,
+    provider: version.provider,
+    modelParams: version.modelParams,
+    vars: version.vars,
+    outputDefinition: version.outputDefinition,
+    sourceCode: null,
+    sourceCodeLanguage: null,
+  } as EvalTemplateLlmAsAJudge;
+  return {
+    type: "v2" as const,
+    config,
+    template,
+    evaluationRuleId: rule.id,
+    assignmentId: assignment.id,
+    evaluatorId: evaluator.id,
+    evaluatorVersionId: version.id,
+  };
+}
+
+async function cancelTraceExecution(
+  job: JobExecution,
+  projectId: string,
+  reason: string,
+) {
+  logger.debug("Cancelling trace evaluation job", {
+    jobExecutionId: job.id,
+    projectId,
+    reason,
+  });
+  await prisma.jobExecution.update({
+    where: { id: job.id, projectId },
+    data: { status: JobExecutionStatus.CANCELLED, endTime: new Date() },
   });
 }
 
@@ -1166,19 +1388,12 @@ export const evaluate = async ({
     return;
   }
 
-  // Fetch config to get variable mapping
-  const config = await prisma.jobConfiguration.findFirst({
-    where: {
-      id: job.jobConfigurationId,
-      projectId: event.projectId,
-    },
-  });
-
-  if (!config || !config.evalTemplateId) {
-    throw new UnrecoverableError(
-      `Job configuration or template not found for job ${job.id}`,
-    );
+  const resolved = await resolveTraceExecution({ event, job });
+  if (resolved.type === "cancelled") {
+    await cancelTraceExecution(job, event.projectId, resolved.reason);
+    return;
   }
+  const { config, template } = resolved;
 
   if (!isEvalRuleExecutable(config)) {
     logger.debug(
@@ -1195,21 +1410,6 @@ export const evaluate = async ({
       },
     });
     return;
-  }
-
-  // Fetch template to get variable names
-  const template = await prisma.evalTemplate.findFirst({
-    where: {
-      id: config.evalTemplateId,
-      type: EvalTemplateType.LLM_AS_JUDGE,
-      OR: [{ projectId: event.projectId }, { projectId: null }],
-    },
-  });
-
-  if (!template) {
-    throw new UnrecoverableError(
-      `Evaluation template ${config.evalTemplateId} not found`,
-    );
   }
 
   // Extract variables from tracing data
@@ -1275,6 +1475,14 @@ export const evaluate = async ({
     template: template as EvalTemplateLlmAsAJudge,
     extractedVariables,
     environment,
+    ...(resolved.type === "v2"
+      ? {
+          evaluationRuleId: resolved.evaluationRuleId,
+          assignmentId: resolved.assignmentId,
+          evaluatorId: resolved.evaluatorId,
+          evaluatorVersionId: resolved.evaluatorVersionId,
+        }
+      : {}),
   });
 };
 

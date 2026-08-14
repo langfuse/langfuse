@@ -7,11 +7,11 @@ export const getEvalsV2Tabs = (projectId: string) => [
   {
     value: EVALS_V2_TABS.EVALUATORS,
     label: "Evaluators",
-    href: `/project/${projectId}/evals/v2`,
+    href: `/project/${projectId}/evals`,
   },
   {
     value: EVALS_V2_TABS.RULES,
     label: "Rules",
-    href: `/project/${projectId}/evals/v2/rules`,
+    href: `/project/${projectId}/evals/rules`,
   },
 ];

@@ -127,7 +127,11 @@ export function useFilteredNavigation(
   // This is O(n) - we map directly over filteredRoutes instead of re-iterating ROUTES
   return useMemo(() => {
     const mapRouteToNavigationItem = (route: Route): NavigationItem => {
-      const url = route.pathname
+      const pathname =
+        route.legacyPathname && session?.user?.v4BetaEnabled !== true
+          ? route.legacyPathname
+          : route.pathname;
+      const url = pathname
         .replace("[projectId]", routerProjectId ?? "")
         .replace("[organizationId]", routerOrganizationId ?? "");
 
@@ -139,7 +143,12 @@ export function useFilteredNavigation(
       return {
         ...route,
         url,
-        isActive: isPathActive(route.pathname, router.pathname),
+        isActive:
+          isPathActive(route.pathname, router.pathname) ||
+          Boolean(
+            route.legacyPathname &&
+            isPathActive(route.legacyPathname, router.pathname),
+          ),
         items: items && items.length > 0 ? items : undefined,
       };
     };
@@ -166,5 +175,11 @@ export function useFilteredNavigation(
         ...secondaryNavigation.flattened,
       ],
     };
-  }, [filteredRoutes, routerProjectId, routerOrganizationId, router.pathname]);
+  }, [
+    filteredRoutes,
+    routerProjectId,
+    routerOrganizationId,
+    router.pathname,
+    session?.user?.v4BetaEnabled,
+  ]);
 }

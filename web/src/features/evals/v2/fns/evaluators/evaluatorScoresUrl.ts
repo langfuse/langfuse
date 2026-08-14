@@ -46,6 +46,12 @@ export function evaluatorExecutionsUrl(
       operator: "any of",
       value: [environment],
     },
+    {
+      column: "isRootObservation",
+      type: "boolean",
+      operator: "=",
+      value: true,
+    },
   ];
   return `/project/${encodeURIComponent(projectId)}/traces?filter=${encodeURIComponent(encodeFiltersGeneric(filter))}`;
 }

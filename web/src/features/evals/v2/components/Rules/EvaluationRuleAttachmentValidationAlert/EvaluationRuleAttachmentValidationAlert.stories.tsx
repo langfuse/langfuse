@@ -11,6 +11,6 @@ export const Default = meta.story({
   args: {
     message: "Two variables need a mapping before this evaluator can run.",
     onDismiss: fn(),
-    reviewHref: "/project/example/evals/v2/example",
+    reviewHref: "/project/example/evals/example",
   },
 });

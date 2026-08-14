@@ -54,7 +54,7 @@ export function ExperimentEvaluatorSelectorContent({
           <InputCommandSeparator alwaysRender />
           <InputCommandGroup forceMount>
             <InputCommandItem
-              onSelect={() => router.push(`/project/${projectId}/evals/v2`)}
+              onSelect={() => router.push(`/project/${projectId}/evals`)}
             >
               Manage evaluators
               <ExternalLink className="ml-auto h-4 w-4" />

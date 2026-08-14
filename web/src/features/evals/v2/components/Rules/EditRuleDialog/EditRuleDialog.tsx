@@ -1,5 +1,5 @@
-import { observationVariableMappingList } from "@langfuse/shared";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import {
   Dialog,
@@ -11,19 +11,25 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditRuleDialogContent } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/components/EditRuleDialogContent/EditRuleDialogContent";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { api } from "@/src/utils/api";
+import {
+  getRuleNavigationAction,
+  getRuleNavigationUrl,
+} from "@/src/features/evals/v2/utils/ruleNavigation";
 
 export function EditRuleDialog({
   projectId,
   ruleId,
-  canEdit,
+  hasWriteAccess,
   onOpenChange,
 }: {
   projectId: string;
   ruleId: string;
-  canEdit: boolean;
+  hasWriteAccess: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const router = useRouter();
   const rule = api.evalsV2.rules.get.useQuery({ projectId, ruleId });
   const [evaluatorSearch, setEvaluatorSearch] = useState("");
   const [evaluatorSearchQuery, setEvaluatorSearchQuery] = useState("");
@@ -42,11 +48,45 @@ export function EditRuleDialog({
       id: evaluator.id,
       name: evaluator.name,
       type: evaluator.type,
-      defaultVariableMapping: observationVariableMappingList
-        .catch([])
-        .parse(evaluator.latestVersion?.variableMapping),
+      ...prepareModernRuleVariableMapping(
+        evaluator.latestVersion?.variableMapping,
+      ),
     }),
   );
+  const navigationAction = rule.data
+    ? getRuleNavigationAction(rule.data)
+    : null;
+  const navigationUrl = rule.data
+    ? getRuleNavigationUrl({
+        projectId,
+        ruleId,
+        targetObject: rule.data.targetObject,
+        enabled: rule.data.enabled,
+      })
+    : null;
+
+  // Bookmarked `?rule=` links bypass table click routing. Once the rule loads,
+  // synchronize the external router before any legacy data reaches the modern editor.
+  useEffect(() => {
+    if (!navigationAction || navigationAction === "edit") return;
+
+    if (navigationAction === "remap" && navigationUrl) {
+      router.replace(navigationUrl);
+      return;
+    }
+
+    const { rule: _rule, ...query } = router.query;
+    router.replace(
+      {
+        pathname: router.pathname,
+        query: { ...query, peek: ruleId },
+      },
+      undefined,
+      { shallow: true },
+    );
+  }, [navigationAction, navigationUrl, router, ruleId]);
+
+  if (navigationAction && navigationAction !== "edit") return null;
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -69,7 +109,7 @@ export function EditRuleDialog({
               setEvaluatorSearch(value);
               debouncedEvaluatorSearch(value);
             }}
-            canEdit={canEdit}
+            hasWriteAccess={hasWriteAccess}
             onClose={() => onOpenChange(false)}
           />
         )}

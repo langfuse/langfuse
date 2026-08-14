@@ -1,12 +1,9 @@
-import {
-  type EvalTargetObject,
-  observationVariableMappingList,
-  type FilterState,
-} from "@langfuse/shared";
+import { type EvalTargetObject, type FilterState } from "@langfuse/shared";
 import { useState } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { CreateRuleDialogContent } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/CreateRuleDialogContent/CreateRuleDialogContent";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { api } from "@/src/utils/api";
 
 export function CreateRuleDialog({
@@ -44,9 +41,9 @@ export function CreateRuleDialog({
       id: evaluator.id,
       name: evaluator.name,
       type: evaluator.type,
-      defaultVariableMapping: observationVariableMappingList
-        .catch([])
-        .parse(evaluator.latestVersion?.variableMapping),
+      ...prepareModernRuleVariableMapping(
+        evaluator.latestVersion?.variableMapping,
+      ),
     }),
   );
   const initialEvaluatorFromOptions = options.find(

@@ -53,6 +53,7 @@ function ruleWhere(params: {
   projectId: string;
   search?: string;
   enabled?: boolean;
+  targetObjects?: EvalTargetObject[];
 }) {
   return {
     projectId: params.projectId,
@@ -66,6 +67,9 @@ function ruleWhere(params: {
             ? JobConfigState.ACTIVE
             : JobConfigState.INACTIVE,
         }),
+    ...(params.targetObjects === undefined
+      ? {}
+      : { targetObject: { in: params.targetObjects } }),
   };
 }
 
@@ -187,6 +191,11 @@ export async function deleteRule(params: {
   projectId: string;
   ruleId: string;
 }) {
+  // Executions carry no foreign key to the rule, so they have to go explicitly
+  // or they keep showing up in the eval log of a deleted rule.
+  await params.prisma.jobExecution.deleteMany({
+    where: { projectId: params.projectId, jobConfigurationId: params.ruleId },
+  });
   const result = await params.prisma.evaluationRule.deleteMany({
     where: { id: params.ruleId, projectId: params.projectId },
   });
@@ -331,6 +340,7 @@ export async function listRulesForEvaluator(params: {
             id: true,
             name: true,
             status: true,
+            targetObject: true,
             filter: true,
             sampling: true,
           },
@@ -345,6 +355,7 @@ export async function listRulesForEvaluator(params: {
         id: evaluationRule.id,
         name: evaluationRule.name,
         enabled: evaluationRule.status === JobConfigState.ACTIVE,
+        targetObject: evaluationRule.targetObject,
         filter: evaluationRule.filter as FilterState,
         sampling: evaluationRule.sampling.toNumber(),
       },

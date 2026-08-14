@@ -1,7 +1,4 @@
-import {
-  EvalTemplateType,
-  type ObservationVariableMapping,
-} from "@langfuse/shared";
+import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
 import { Link2, ListTree, Plus, Unlink } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState } from "react";
@@ -26,6 +23,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
+import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
+import { getRuleNavigationUrl } from "@/src/features/evals/v2/utils/ruleNavigation";
 
 function RuleCount({ count }: { count: number }) {
   return (
@@ -62,7 +61,7 @@ export function EvaluatorRuleRelationships({
   evaluatorId: string;
   evaluatorName: string;
   evaluatorType: EvalTemplateType;
-  evaluatorDefaultVariableMapping: ObservationVariableMapping[];
+  evaluatorDefaultVariableMapping: unknown;
 }) {
   const [open, setOpen] = useState(false);
   const assignments = api.evalsV2.rules.listRulesForEvaluator.useQuery({
@@ -104,12 +103,15 @@ export function EvaluatorRuleRelationshipsSheet({
   evaluatorId: string;
   evaluatorName: string;
   evaluatorType: EvalTemplateType;
-  evaluatorDefaultVariableMapping: ObservationVariableMapping[];
+  evaluatorDefaultVariableMapping: unknown;
   source: "evaluator_detail" | "evaluator_overview";
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
+  const preparedEvaluatorMapping = prepareModernRuleVariableMapping(
+    evaluatorDefaultVariableMapping,
+  );
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -133,6 +135,7 @@ export function EvaluatorRuleRelationshipsSheet({
       page: 1,
       limit: 100,
       search: ruleSearchQuery.trim() || undefined,
+      targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
     },
     { enabled: open && pickerOpen },
   );
@@ -207,7 +210,12 @@ export function EvaluatorRuleRelationshipsSheet({
                         title={evaluationRule.name}
                         onClick={() =>
                           router.push(
-                            `/project/${projectId}/evals/v2/rules?rule=${encodeURIComponent(evaluationRule.id)}`,
+                            getRuleNavigationUrl({
+                              projectId,
+                              ruleId: evaluationRule.id,
+                              targetObject: evaluationRule.targetObject,
+                              enabled: evaluationRule.enabled,
+                            }),
                           )
                         }
                       >
@@ -299,7 +307,8 @@ export function EvaluatorRuleRelationshipsSheet({
                           projectId,
                           ruleId: rule.id,
                           evaluatorId,
-                          variableMapping: null,
+                          variableMapping:
+                            preparedEvaluatorMapping.initialVariableMapping,
                         });
                       },
                     })
@@ -354,7 +363,7 @@ export function EvaluatorRuleRelationshipsSheet({
             id: evaluatorId,
             name: evaluatorName,
             type: evaluatorType,
-            defaultVariableMapping: evaluatorDefaultVariableMapping,
+            ...preparedEvaluatorMapping,
           }}
           onOpenChange={setCreateOpen}
         />

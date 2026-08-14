@@ -134,6 +134,11 @@ export const EvalExecutionEvent = z.object({
   projectId: z.string(),
   jobExecutionId: z.string(),
   delay: z.number().nullish(),
+  // Evaluator v2 identity is carried by newly scheduled trace/dataset jobs.
+  // Jobs queued before the migration omit it and are resolved through the
+  // legacy job-configuration fallback in the worker.
+  evaluatorId: z.string().optional(),
+  evaluationRuleId: z.string().optional(),
 });
 
 // Observation-based eval execution payload shared by LLM-as-judge and code eval queues.

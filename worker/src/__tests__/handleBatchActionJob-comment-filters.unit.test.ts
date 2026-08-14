@@ -17,13 +17,13 @@ const mocks = vi.hoisted(() => {
     getEventsStreamForDataset: vi.fn(emptyStream),
     getEventsStreamForEval: vi.fn(emptyStream),
     getObservationStream: vi.fn(emptyStream),
-    findEvaluators: vi.fn(),
+    findEvaluationRules: vi.fn(),
   };
 });
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
-    jobConfiguration: { findMany: mocks.findEvaluators },
+    evaluationRule: { findMany: mocks.findEvaluationRules },
     batchAction: { update: vi.fn().mockResolvedValue(undefined) },
   },
 }));
@@ -114,9 +114,12 @@ describe("event batch-action comment filter wiring", () => {
       hasNoMatches: false,
       matchingIds: ["observation-1"],
     });
-    mocks.findEvaluators.mockResolvedValue([
+    mocks.findEvaluationRules.mockResolvedValue([
       {
-        evalTemplate: { type: "LLM_AS_JUDGE" },
+        id: "rule-1",
+        name: "Evaluator",
+        targetObject: "EVENT",
+        assignments: [],
       },
     ]);
   });

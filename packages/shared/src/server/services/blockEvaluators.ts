@@ -160,45 +160,31 @@ export const EMPTY_EVALUATOR_BLOCK: EvaluatorBlockResult = {
 };
 
 /**
- * Applies one block reason to both data models with the same message and claim
- * semantics. Callers select the rows because the two schemas express "uses
- * this model" differently.
+ * Applies one block reason to evaluator v2 rows.
  */
 async function blockForReasonInTx(params: {
   tx: Prisma.TransactionClient;
   projectId: string;
-  evalTemplateIds: string[];
   evaluatorIds: string[];
   blockReason: EvaluatorBlockReason;
   blockedAt?: Date;
 }): Promise<EvaluatorBlockResult> {
   const { tx, projectId, evaluatorIds, blockReason, blockedAt } = params;
   const blockMessage = getEvaluatorBlockMetadata(blockReason).message;
-  const [{ blockedJobConfigIds }, { blockedEvaluatorIds }] = await Promise.all([
-    blockEvaluatorConfigsInTx({
-      tx,
-      projectId,
-      where: { evalTemplateId: { in: params.evalTemplateIds } },
-      blockReason,
-      blockMessage,
-      blockedAt,
-    }),
-    blockEvaluatorsInTx({
-      tx,
-      projectId,
-      evaluatorIds,
-      blockReason,
-      blockMessage,
-      blockedAt,
-    }),
-  ]);
+  const { blockedEvaluatorIds } = await blockEvaluatorsInTx({
+    tx,
+    projectId,
+    evaluatorIds,
+    blockReason,
+    blockMessage,
+    blockedAt,
+  });
 
-  return { blockedJobConfigIds, blockedEvaluatorIds };
+  return { blockedJobConfigIds: [], blockedEvaluatorIds };
 }
 
 /**
- * Legacy evaluators are `eval_templates` + `job_configurations`; evaluator v2
- * ones are `evaluators` + `evaluator_versions`. Only the *current* evaluator
+ * Only the *current* evaluator
  * version matters, because that is what a rule executes — older versions are
  * history. Prisma cannot express "the latest related row matches", so the
  * candidates are narrowed in SQL and the head version is compared here; the
@@ -241,23 +227,13 @@ async function findEvaluatorIdsWithCurrentVersion(params: {
  * the configurations using them do.
  */
 export async function findDefaultModelEvalTemplateIds({
-  tx,
-  projectId,
+  tx: _tx,
+  projectId: _projectId,
 }: {
   tx: Prisma.TransactionClient;
   projectId: string;
 }): Promise<string[]> {
-  const evalTemplates = await tx.evalTemplate.findMany({
-    where: {
-      OR: [{ projectId }, { projectId: null }],
-      provider: null,
-      model: null,
-      type: EvalTemplateType.LLM_AS_JUDGE,
-    },
-    select: { id: true },
-  });
-
-  return evalTemplates.map((template) => template.id);
+  return [];
 }
 
 /**
@@ -269,22 +245,15 @@ export async function blockEvaluatorsUsingProvider(params: {
   provider: string;
 }): Promise<EvaluatorBlockResult> {
   const { tx, projectId, provider } = params;
-  const [evalTemplates, evaluatorIds] = await Promise.all([
-    tx.evalTemplate.findMany({
-      where: { OR: [{ projectId }, { projectId: null }], provider },
-      select: { id: true },
-    }),
-    findEvaluatorIdsWithCurrentVersion({
-      tx,
-      projectId,
-      matches: (version) => version.provider === provider,
-    }),
-  ]);
+  const evaluatorIds = await findEvaluatorIdsWithCurrentVersion({
+    tx,
+    projectId,
+    matches: (version) => version.provider === provider,
+  });
 
   return blockForReasonInTx({
     tx,
     projectId,
-    evalTemplateIds: evalTemplates.map((template) => template.id),
     evaluatorIds,
     blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
   });
@@ -299,19 +268,15 @@ export async function blockEvaluatorsUsingDefaultModel(params: {
   projectId: string;
 }): Promise<EvaluatorBlockResult> {
   const { tx, projectId } = params;
-  const [evalTemplateIds, evaluatorIds] = await Promise.all([
-    findDefaultModelEvalTemplateIds({ tx, projectId }),
-    findEvaluatorIdsWithCurrentVersion({
-      tx,
-      projectId,
-      matches: (version) => version.provider === null && version.model === null,
-    }),
-  ]);
+  const evaluatorIds = await findEvaluatorIdsWithCurrentVersion({
+    tx,
+    projectId,
+    matches: (version) => version.provider === null && version.model === null,
+  });
 
   return blockForReasonInTx({
     tx,
     projectId,
-    evalTemplateIds,
     evaluatorIds,
     blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
   });
@@ -337,13 +302,10 @@ export async function unblockEvaluatorsUsingDefaultModel(params: {
     blockReason: null,
     blockMessage: null,
   };
-  const [jobConfigs, evaluators] = await Promise.all([
-    params.tx.jobConfiguration.updateMany({ where, data }),
-    params.tx.evaluator.updateMany({ where, data }),
-  ]);
+  const evaluators = await params.tx.evaluator.updateMany({ where, data });
 
   return {
-    unblockedJobConfigCount: jobConfigs.count,
+    unblockedJobConfigCount: 0,
     unblockedEvaluatorCount: evaluators.count,
   };
 }
@@ -498,86 +460,12 @@ type NotifyBlockedEvaluatorsParams = {
   blockReason: EvaluatorBlockReason;
 };
 
-export async function notifyBlockedEvaluatorConfigs({
-  projectId,
-  blockedIds: blockedJobConfigIds,
-  blockReason,
-}: NotifyBlockedEvaluatorsParams): Promise<void> {
-  if (blockedJobConfigIds.length === 0) {
-    return;
-  }
-
-  const blockMessage = getEvaluatorBlockMetadata(blockReason).message;
-
-  const project = await prisma.project.findUnique({
-    where: {
-      id: projectId,
-    },
-    select: {
-      name: true,
-    },
-  });
-
-  if (!project) {
-    logger.warn(
-      `[EVALUATOR BLOCK] Project ${projectId} not found. Skipping notifications.`,
-    );
-    return;
-  }
-
-  const blockedConfigs = await prisma.jobConfiguration.findMany({
-    where: {
-      projectId,
-      id: {
-        in: blockedJobConfigIds,
-      },
-    },
-    select: {
-      id: true,
-      scoreName: true,
-      evalTemplate: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-  });
-
-  if (blockedConfigs.length === 0) {
-    return;
-  }
-
-  // Route to configured notification channels and admin emails, one
-  // notification per blocked config. The `blockedAt: null` claim upstream
-  // already deduped, so no extra throttle is needed.
-  await Promise.allSettled(
-    blockedConfigs.map((config) => {
-      const evaluatorName = config.evalTemplate?.name ?? config.scoreName;
-      const resolutionPath = getEvaluatorBlockResolutionPath({
-        projectId,
-        blockReason,
-        templateId: config.evalTemplate?.id,
-      });
-      return dispatchProjectNotification({
-        projectId,
-        event: {
-          eventType: "evaluator-blocked",
-          severity: "ALERT",
-          projectId,
-          resourceId: config.id,
-          resourceName: evaluatorName,
-          message: blockMessage,
-          url: env.NEXTAUTH_URL
-            ? `${env.NEXTAUTH_URL}${resolutionPath}`
-            : undefined,
-          projectName: project.name,
-          blockReason,
-          evalTemplateId: config.evalTemplate?.id,
-        },
-      });
-    }),
-  );
+export async function notifyBlockedEvaluatorConfigs(
+  _params: NotifyBlockedEvaluatorsParams,
+): Promise<void> {
+  // Legacy job-configuration notifications are retained only for worker
+  // fallback calls. New evaluator writes and notifications use evaluator v2.
+  return undefined;
 }
 
 export async function notifyBlockedEvaluators({

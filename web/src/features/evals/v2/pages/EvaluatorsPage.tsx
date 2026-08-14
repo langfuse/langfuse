@@ -1,8 +1,5 @@
 import { formatDistanceToNowStrict } from "date-fns";
-import {
-  observationVariableMappingList,
-  ZodModelConfig,
-} from "@langfuse/shared";
+import { ZodModelConfig } from "@langfuse/shared";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
 import { type ComponentProps, useMemo, useState } from "react";
@@ -398,7 +395,7 @@ export default function EvaluatorsPage() {
               }
               onManageRules={() => setAttachEvaluatorId(row.original.id)}
               onEdit={() =>
-                router.push(`/project/${projectId}/evals/v2/${row.original.id}`)
+                router.push(`/project/${projectId}/evals/${row.original.id}`)
               }
               onDelete={() => setDeleteIds([row.original.id])}
             />
@@ -560,7 +557,7 @@ export default function EvaluatorsPage() {
               onColumnOrderChange={setColumnOrder}
               rowHeight={rowHeight}
               onRowClick={(row) =>
-                router.push(`/project/${projectId}/evals/v2/${row.id}`)
+                router.push(`/project/${projectId}/evals/${row.id}`)
               }
               noResultsMessage="No evaluators found."
             />
@@ -605,13 +602,13 @@ export default function EvaluatorsPage() {
         onSelectTemplate={(template) => {
           router.push(
             template.source === "managed"
-              ? `/project/${projectId}/evals/v2/new?template=${encodeURIComponent(template.key)}`
-              : `/project/${projectId}/evals/v2/new?evaluatorId=${encodeURIComponent(template.id)}`,
+              ? `/project/${projectId}/evals/new?template=${encodeURIComponent(template.key)}`
+              : `/project/${projectId}/evals/new?evaluatorId=${encodeURIComponent(template.id)}`,
           );
         }}
         onCreateFromScratch={(type) => {
           router.push(
-            `/project/${projectId}/evals/v2/new?type=${encodeURIComponent(type)}`,
+            `/project/${projectId}/evals/new?type=${encodeURIComponent(type)}`,
           );
         }}
       />
@@ -621,9 +618,9 @@ export default function EvaluatorsPage() {
           evaluatorId={selectedRuleEvaluator.id}
           evaluatorName={selectedRuleEvaluator.name}
           evaluatorType={selectedRuleEvaluator.type}
-          evaluatorDefaultVariableMapping={observationVariableMappingList
-            .catch([])
-            .parse(selectedRuleEvaluator.versions[0]?.variableMapping)}
+          evaluatorDefaultVariableMapping={
+            selectedRuleEvaluator.versions[0]?.variableMapping
+          }
           source="evaluator_overview"
           open
           onOpenChange={(open) => {

@@ -235,7 +235,7 @@ type V4TransitionPrisma = Pick<
   | "posthogIntegration"
   | "mixpanelIntegration"
   | "blobStorageIntegration"
-  | "jobConfiguration"
+  | "evaluationRule"
 >;
 
 const getAccessibleOrganizationProjects = async ({
@@ -322,11 +322,10 @@ const getTraceLevelEvalSummaries = async ({
 }): Promise<TraceLevelEvalSummaryResultRow[]> => {
   if (projectIds.length === 0) return [];
 
-  const counts = await prisma.jobConfiguration.groupBy({
+  const counts = await prisma.evaluationRule.groupBy({
     by: ["projectId"],
     where: {
       projectId: { in: projectIds },
-      jobType: "EVAL",
       targetObject: { in: [TRACE_EVAL_TARGET, DATASET_EVAL_TARGET] },
       status: "ACTIVE",
       timeScope: { has: "NEW" },

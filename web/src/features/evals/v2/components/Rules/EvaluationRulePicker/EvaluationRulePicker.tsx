@@ -64,7 +64,11 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
   return (
     <Popover open={resolvedOpen} onOpenChange={changeOpen}>
       {children(resolvedOpen)}
-      <PopoverContent align={align} className="w-96 p-0">
+      <PopoverContent
+        align={align}
+        className="w-96 p-0"
+        onWheel={(event) => event.stopPropagation()}
+      >
         <Command shouldFilter={onSearchChange === undefined}>
           <CommandInput
             placeholder="Find a rule..."

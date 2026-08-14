@@ -10,6 +10,7 @@ import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleD
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
+import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -24,7 +25,7 @@ export function EditRuleDialogContent({
   evaluatorOptions,
   evaluatorSearch,
   onEvaluatorSearchChange,
-  canEdit,
+  hasWriteAccess,
   onClose,
 }: {
   projectId: string;
@@ -32,7 +33,7 @@ export function EditRuleDialogContent({
   evaluatorOptions: RuleEvaluatorOption[];
   evaluatorSearch: string;
   onEvaluatorSearchChange: (search: string) => void;
-  canEdit: boolean;
+  hasWriteAccess: boolean;
   onClose: () => void;
 }) {
   const capture = usePostHogClientCapture();
@@ -42,19 +43,22 @@ export function EditRuleDialogContent({
       name: rule.name,
       filter: singleFilter.array().catch([]).parse(rule.filter),
       sampling: rule.sampling,
-      assignments: rule.assignments.map((assignment) => ({
-        evaluatorId: assignment.evaluator.id,
-        evaluatorName: assignment.evaluator.name,
-        defaultVariableMapping: observationVariableMappingList
-          .catch([])
-          .parse(assignment.evaluator.latestVersion?.variableMapping),
-        variableMapping:
-          assignment.variableMapping == null
-            ? null
-            : observationVariableMappingList
-                .catch([])
-                .parse(assignment.variableMapping),
-      })),
+      assignments: rule.assignments.map((assignment) => {
+        const preparedDefault = prepareModernRuleVariableMapping(
+          assignment.evaluator.latestVersion?.variableMapping,
+        );
+        return {
+          evaluatorId: assignment.evaluator.id,
+          evaluatorName: assignment.evaluator.name,
+          defaultVariableMapping: preparedDefault.defaultVariableMapping,
+          variableMapping:
+            assignment.variableMapping == null
+              ? preparedDefault.initialVariableMapping
+              : observationVariableMappingList
+                  .catch([])
+                  .parse(assignment.variableMapping),
+        };
+      }),
     }),
   );
   const activation = useActivationConfirmation({ projectId });
@@ -172,22 +176,24 @@ export function EditRuleDialogContent({
   return (
     <>
       <DialogBody>
-        <RuleSetup
-          projectId={projectId}
-          evaluatorOptions={evaluatorOptions}
-          evaluatorSearch={evaluatorSearch}
-          onEvaluatorSearchChange={onEvaluatorSearchChange}
-          store={ruleSetupStore}
-          nameAIAssistance={{ state: "unavailable" }}
-          onNameStepOpenChange={() => undefined}
-        />
+        <fieldset disabled={!hasWriteAccess} className="contents">
+          <RuleSetup
+            projectId={projectId}
+            evaluatorOptions={evaluatorOptions}
+            evaluatorSearch={evaluatorSearch}
+            onEvaluatorSearchChange={onEvaluatorSearchChange}
+            store={ruleSetupStore}
+            nameAIAssistance={{ state: "unavailable" }}
+            onNameStepOpenChange={() => undefined}
+          />
+        </fieldset>
       </DialogBody>
       <RuleDialogFooter
         ruleSetupStore={ruleSetupStore}
         activationPending={activation.estimate.status === "estimating"}
         mutationPending={update.isPending}
         isEditing
-        canEdit={canEdit}
+        canEdit={hasWriteAccess}
         onCancel={onClose}
         onSave={() => requestSave().catch(() => undefined)}
       />

@@ -1,7 +1,7 @@
-import { observationVariableMappingList } from "@langfuse/shared";
 import { useMemo, useState } from "react";
 
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { api } from "@/src/utils/api";
 
@@ -29,9 +29,9 @@ export function useExperimentV2EvaluatorSelection({
         id: evaluator.id,
         name: evaluator.name,
         type: evaluator.type,
-        defaultVariableMapping: observationVariableMappingList
-          .catch([])
-          .parse(evaluator.latestVersion?.variableMapping),
+        ...prepareModernRuleVariableMapping(
+          evaluator.latestVersion?.variableMapping,
+        ),
       })),
     [evaluatorOptions.data],
   );

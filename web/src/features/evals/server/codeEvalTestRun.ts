@@ -1,24 +1,19 @@
-import { randomUUID } from "node:crypto";
 import {
-  createUnknownSdkIngestionAttribution,
-  eventTypes,
   applyCommentFilters,
+  buildEvalExecutionMetadata,
   createW3CTraceId,
   extractObservationVariables,
   getEventsStreamForEval,
-  processEventBatch,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
+  writeInternalTraceViaOtelIngestion,
   type CodeEvalUserVisibleError,
   type DispatchResult,
-  type InternalTraceWriteInput,
 } from "@langfuse/shared/src/server";
 
 import {
-  LangfuseInternalTraceEnvironment,
   observationForEvalSchema,
   type EvalTargetObject,
-  type EvalTemplateCodeBased,
   type FilterCondition,
   type ObservationForEval,
   type ObservationVariableMapping,
@@ -31,6 +26,7 @@ import {
   isExperimentTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { isCodeEvalSourceCodeLanguageSupported } from "@/src/features/evals/server/isCodeEvalEnabled";
+import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
 
 type CodeEvalTestRunDispatchError = Omit<CodeEvalUserVisibleError, "retryable">;
 
@@ -186,15 +182,48 @@ async function runCodeEvalTestForObservation(params: {
   scoreName: string;
   observation: ObservationForEval;
 }): Promise<CodeEvalTestRunResult> {
-  const codeTemplate = (await params.prisma.evalTemplate.findFirst({
-    where: {
-      id: params.evalTemplateId,
-      type: EvalTemplateType.CODE,
-      sourceCode: { not: null },
-      sourceCodeLanguage: { not: null },
-      OR: [{ projectId: params.projectId }, { projectId: null }],
-    },
-  })) as EvalTemplateCodeBased | null;
+  const managedKey = params.evalTemplateId.startsWith("managed:")
+    ? params.evalTemplateId.slice("managed:".length)
+    : null;
+  const managedTemplate = managedKey
+    ? MANAGED_TEMPLATES_CATALOG.templates.find(
+        (template) =>
+          template.key === managedKey &&
+          template.evaluator.type === EvalTemplateType.CODE,
+      )
+    : null;
+  const storedVersion = managedTemplate
+    ? null
+    : await params.prisma.evaluatorVersion.findFirst({
+        where: {
+          id: params.evalTemplateId,
+          evaluator: {
+            projectId: params.projectId,
+            type: EvalTemplateType.CODE,
+          },
+          sourceCode: { not: null },
+          sourceCodeLanguage: { not: null },
+        },
+        include: { evaluator: true },
+      });
+  const codeTemplate =
+    managedTemplate?.evaluator.type === EvalTemplateType.CODE
+      ? {
+          id: params.evalTemplateId,
+          name: managedTemplate.name,
+          version: 1,
+          sourceCode: managedTemplate.evaluator.source,
+          sourceCodeLanguage: managedTemplate.evaluator.language,
+        }
+      : storedVersion?.sourceCode && storedVersion.sourceCodeLanguage
+        ? {
+            id: storedVersion.evaluator.id,
+            name: storedVersion.evaluator.name,
+            version: storedVersion.version,
+            sourceCode: storedVersion.sourceCode,
+            sourceCodeLanguage: storedVersion.sourceCodeLanguage,
+          }
+        : null;
 
   if (!codeTemplate) {
     throw new CodeEvalTestRunSetupError(
@@ -215,8 +244,8 @@ async function runCodeEvalTestForObservation(params: {
     evaluator: codeTemplate,
     version: codeTemplate,
     evaluatorMetadata: {
-      eval_template_id: codeTemplate.id,
-      eval_template_version: codeTemplate.version,
+      evaluator_id: codeTemplate.id,
+      evaluator_version: codeTemplate.version,
     },
   });
 }
@@ -263,10 +292,14 @@ async function runCodeEvalTestForObservationWithEvaluator(params: {
     dispatcher_name: dispatcher.name,
     code_eval_runtime: params.version.sourceCodeLanguage,
     ...params.evaluatorMetadata,
+    ...buildEvalExecutionMetadata({
+      type: "TEST",
+      evaluatorId: params.evaluator.id,
+      targetTraceId: params.observation.trace_id,
+      targetObservationId: params.observation.span_id,
+    }),
     score_name: params.scoreName,
     target_object: params.target,
-    target_trace_id: params.observation.trace_id,
-    target_observation_id: params.observation.span_id,
   };
 
   const dispatchOutcome = await runCodeBasedEvaluationDispatch({
@@ -281,7 +314,7 @@ async function runCodeEvalTestForObservationWithEvaluator(params: {
     hasExperimentContext: Boolean(params.observation.experiment_id),
     traceName,
     metadata: executionMetadata,
-    writeTrace: writeTraceViaIngestion,
+    writeTrace: writeInternalTraceViaOtelIngestion,
   });
 
   if (dispatchOutcome.success) {
@@ -347,80 +380,4 @@ async function getObservationForEvalByFilter(params: {
   }
 
   return null;
-}
-
-async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
-  const rootEventInput =
-    trace.eventInputs.find(
-      (eventInput) => eventInput.spanId === trace.rootSpanId,
-    ) ?? trace.eventInputs[0];
-
-  if (!rootEventInput) return;
-
-  const timestamp = new Date().toISOString();
-  const traceEvent = {
-    id: randomUUID(),
-    type: eventTypes.TRACE_CREATE,
-    timestamp,
-    body: {
-      id: rootEventInput.traceId,
-      timestamp: rootEventInput.startTimeISO,
-      name: rootEventInput.traceName ?? rootEventInput.name,
-      environment: getInternalEvalEnvironment(rootEventInput.environment),
-      input: rootEventInput.input,
-      output: rootEventInput.output,
-      metadata: rootEventInput.metadata,
-      release: rootEventInput.release,
-      version: rootEventInput.version,
-      public: rootEventInput.public,
-      tags: rootEventInput.tags,
-      sessionId: rootEventInput.sessionId,
-      userId: rootEventInput.userId,
-    },
-  };
-
-  const spanEvents = trace.eventInputs.map((eventInput) => ({
-    id: randomUUID(),
-    type: eventTypes.SPAN_CREATE,
-    timestamp,
-    body: {
-      id: eventInput.spanId,
-      traceId: eventInput.traceId,
-      name: eventInput.name,
-      environment: getInternalEvalEnvironment(eventInput.environment),
-      startTime: eventInput.startTimeISO,
-      endTime: eventInput.endTimeISO,
-      input: eventInput.input,
-      output: eventInput.output,
-      metadata: eventInput.metadata,
-      level: eventInput.level,
-      statusMessage: eventInput.statusMessage,
-      parentObservationId: eventInput.parentSpanId,
-      version: eventInput.version,
-    },
-  }));
-
-  const auth = {
-    validKey: true,
-    scope: {
-      projectId: rootEventInput.projectId,
-      accessLevel: "project",
-    },
-  } satisfies Parameters<typeof processEventBatch>[1];
-
-  const result = await processEventBatch([traceEvent, ...spanEvents], auth, {
-    delay: 0,
-    isLangfuseInternal: true,
-    attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
-  });
-
-  if (result.errors.length > 0) {
-    throw new Error(result.errors[0]?.error ?? "Failed to write trace");
-  }
-}
-
-function getInternalEvalEnvironment(environment: string | undefined) {
-  return environment === LangfuseInternalTraceEnvironment.CodeEval
-    ? LangfuseInternalTraceEnvironment.CodeEval
-    : LangfuseInternalTraceEnvironment.LLMJudge;
 }

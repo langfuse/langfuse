@@ -136,10 +136,10 @@ FROM "job_configurations" jc
 WHERE jc."job_type" = 'EVAL'
 ON CONFLICT ("id") DO NOTHING;
 
--- Job configurations that agree on project, template *and* variable mapping describe the very
--- same evaluator, so they share one. Configurations that differ in any of the three keep their
--- own evaluator: the mapping is part of the evaluator definition, so a different mapping is a
--- different evaluator.
+-- Job configurations that agree on project, template, variable mapping *and* score name describe
+-- the very same evaluator, so they share one. Configurations that differ in any of the four keep
+-- their own evaluator: the mapping is part of the evaluator definition, while the evaluator name
+-- determines the score name written by the worker.
 --
 -- The evaluator ID is the lowest job configuration ID in the group. That makes the group's
 -- representative the row where `job_configuration_id = evaluator_id`, and it keeps evaluator IDs
@@ -148,7 +148,8 @@ CREATE TEMP TABLE "evaluator_group_map" ON COMMIT DROP AS
 SELECT
   jc."id" AS "job_configuration_id",
   min(jc."id") OVER (
-    PARTITION BY jc."project_id", jc."eval_template_id", jc."variable_mapping"
+    PARTITION BY
+      jc."project_id", jc."eval_template_id", jc."variable_mapping", jc."score_name"
   ) AS "evaluator_id"
 FROM "job_configurations" jc
 WHERE jc."job_type" = 'EVAL'
@@ -167,7 +168,7 @@ SELECT
   max(jc."updated_at"),
   -- constant within the group, it is part of the grouping key
   jc."project_id",
-  -- score names may differ across a group; the representative's wins
+  -- constant within the group, it is part of the grouping key
   (array_agg(jc."score_name" ORDER BY jc."id"))[1],
   -- constant within the group, the template ID is part of the grouping key
   current_template."type",
@@ -261,7 +262,14 @@ INSERT INTO "evaluation_rule_evaluator_assignments" (
 )
 SELECT
   'legacy:' || jc."id", jc."created_at", jc."updated_at", jc."project_id",
-  jc."id", g."evaluator_id", NULL
+  jc."id", g."evaluator_id",
+  -- Legacy mappings belong to the rule/evaluator assignment; modern rules inherit the evaluator version default.
+  -- This way users can edit and re-use the `evaluator` in the new UI without breaking the
+  -- variable mapping
+  CASE
+    WHEN jc."target_object" IN ('trace', 'dataset') THEN jc."variable_mapping"
+    ELSE NULL
+  END
 FROM "job_configurations" jc
 JOIN "evaluator_group_map" g
   ON g."job_configuration_id" = jc."id"

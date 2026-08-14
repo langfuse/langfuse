@@ -266,7 +266,7 @@ async function seedFixture(legacyPrisma: PrismaClient) {
         evalTemplateId: "quality-v1",
         scoreName: "Old quality score",
         filter: [],
-        targetObject: "observation",
+        targetObject: "trace",
         variableMapping: { input: "output" },
         sampling: 0.5,
         delay: 1000,
@@ -298,7 +298,7 @@ async function seedFixture(legacyPrisma: PrismaClient) {
         evalTemplateId: "managed-used-v1",
         scoreName: "Managed score second",
         filter: [],
-        targetObject: "observation",
+        targetObject: "dataset",
         variableMapping: { output: "input" },
         sampling: 1,
         delay: 0,
@@ -321,9 +321,8 @@ async function seedFixture(legacyPrisma: PrismaClient) {
         timeScope: ["NEW"],
       },
       {
-        // same project, template and mapping as `rule-managed`, so both share one evaluator.
-        // Its later `updatedAt` and its block state must win on the merged evaluator, while the
-        // representative (`rule-managed`, the lowest ID) supplies the name.
+        // same project, template and mapping as `rule-managed`, but a different score name, so it
+        // must keep its own evaluator and block state.
         id: "rule-managed-duplicate",
         createdAt: new Date("2025-04-05T03:00:00Z"),
         updatedAt: new Date("2025-04-05T04:00:00Z"),
@@ -368,7 +367,7 @@ async function seedFixture(legacyPrisma: PrismaClient) {
         jobType: JobType.EVAL,
         status: JobConfigState.ACTIVE,
         evalTemplateId: "quality-v2",
-        scoreName: "Key order B",
+        scoreName: "Key order A",
         filter: [],
         targetObject: "observation",
         variableMapping: { output: "output", input: "input" },
@@ -727,6 +726,28 @@ if (existingDatabaseUrl) {
 
       expect(Number(missing?.count)).toBe(0);
     });
+
+    it("stores assignment mappings only for legacy-target rules", async () => {
+      const [mismatched] = await prisma.$queryRaw<Array<{ count: bigint }>>`
+        SELECT count(*)::bigint AS count
+        FROM job_configurations jc
+        JOIN evaluation_rule_evaluator_assignments a
+          ON a.evaluation_rule_id = jc.id
+        WHERE jc.job_type = 'EVAL'
+          AND (
+            (
+              jc.target_object IN ('trace', 'dataset')
+              AND a.variable_mapping IS DISTINCT FROM jc.variable_mapping
+            )
+            OR (
+              jc.target_object NOT IN ('trace', 'dataset')
+              AND a.variable_mapping IS NOT NULL
+            )
+          )
+      `;
+
+      expect(Number(mismatched?.count)).toBe(0);
+    });
   });
 } else {
   describe("checked-in edge-case fixture", () => {
@@ -762,7 +783,7 @@ if (existingDatabaseUrl) {
           id: "rule-key-order-b",
           projectId: "project-a",
           createdByUserId: null,
-          name: "Key order B",
+          name: "Key order A",
           status: "ACTIVE",
         },
         {
@@ -835,9 +856,10 @@ if (existingDatabaseUrl) {
         },
       });
 
-      // nine job configurations reference a template but only seven evaluators come out of them:
-      // `rule-managed-duplicate` folds into `rule-managed` and `rule-key-order-b` into
-      // `rule-key-order-a`. `unattached-v2` is the eighth, from the template family no rule uses.
+      // Nine job configurations reference a template but only eight evaluators come out of them:
+      // `rule-key-order-b` folds into `rule-key-order-a`. Despite sharing a template and mapping,
+      // `rule-managed-duplicate` stays separate because its score name differs. `unattached-v2`
+      // is the ninth evaluator, from the template family no rule uses.
       expect(evaluators).toEqual([
         {
           id: "rule-current",
@@ -868,8 +890,6 @@ if (existingDatabaseUrl) {
           blockMessage: null,
         },
         {
-          // merged from rule-managed and rule-managed-duplicate. The block state comes from the
-          // duplicate because it was blocked later, the name from the representative.
           id: "rule-managed",
           projectId: "project-a",
           createdByUserId: null,
@@ -877,6 +897,20 @@ if (existingDatabaseUrl) {
           type: "LLM_AS_JUDGE",
           description: null,
           createdAt: new Date("2025-04-05T00:00:00Z"),
+          updatedAt: new Date("2025-04-05T00:00:00Z"),
+          blockedAt: null,
+          blockReason: null,
+          blockMessage: null,
+        },
+        {
+          // Same project, template and mapping as rule-managed, but a different score name.
+          id: "rule-managed-duplicate",
+          projectId: "project-a",
+          createdByUserId: null,
+          name: "Managed score duplicate",
+          type: "LLM_AS_JUDGE",
+          description: null,
+          createdAt: new Date("2025-04-05T03:00:00Z"),
           updatedAt: new Date("2025-04-05T04:00:00Z"),
           blockedAt: new Date("2025-04-08"),
           blockReason: "EVAL_MODEL_UNAVAILABLE",
@@ -1025,6 +1059,19 @@ if (existingDatabaseUrl) {
           sourceCodeLanguage: "TYPESCRIPT",
         },
         {
+          id: "rule-managed-duplicate:managed-used-v1",
+          evaluatorId: "rule-managed-duplicate",
+          version: 1,
+          createdByUserId: null,
+          prompt: "managed",
+          vars: ["output"],
+          modelParams: null,
+          outputDefinition: null,
+          variableMapping: { output: "output" },
+          sourceCode: null,
+          sourceCodeLanguage: null,
+        },
+        {
           id: "rule-managed:managed-used-v1",
           evaluatorId: "rule-managed",
           version: 1,
@@ -1131,7 +1178,7 @@ if (existingDatabaseUrl) {
           },
         });
 
-      // one assignment per rule; the two merged pairs point at their shared evaluator
+      // One assignment per rule; only the same-score key-order pair shares an evaluator.
       expect(assignments).toEqual([
         {
           id: "legacy:rule-current",
@@ -1165,7 +1212,7 @@ if (existingDatabaseUrl) {
           id: "legacy:rule-managed-duplicate",
           projectId: "project-a",
           evaluationRuleId: "rule-managed-duplicate",
-          evaluatorId: "rule-managed",
+          evaluatorId: "rule-managed-duplicate",
           variableMapping: null,
         },
         {
@@ -1180,14 +1227,14 @@ if (existingDatabaseUrl) {
           projectId: "project-a",
           evaluationRuleId: "rule-managed-second",
           evaluatorId: "rule-managed-second",
-          variableMapping: null,
+          variableMapping: { output: "input" },
         },
         {
           id: "legacy:rule-old",
           projectId: "project-a",
           evaluationRuleId: "rule-old",
           evaluatorId: "rule-old",
-          variableMapping: null,
+          variableMapping: { input: "output" },
         },
         {
           id: "legacy:rule-other-project",

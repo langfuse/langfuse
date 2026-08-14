@@ -27,6 +27,7 @@ export type RuleEvaluatorOption = {
   name: string;
   type: EvalTemplateType;
   defaultVariableMapping: ObservationVariableMapping[];
+  initialVariableMapping: ObservationVariableMapping[] | null;
 };
 
 export type ActivationConfirmationRequest = {

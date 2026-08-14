@@ -1,7 +1,10 @@
 import { decodeFiltersGeneric } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
-import { buildDeprecatedEvaluatorsUrl } from "./evaluatorMigrationUrls";
+import {
+  buildDeprecatedEvaluatorsUrl,
+  buildModernEvaluatorsUrl,
+} from "./evaluatorMigrationUrls";
 
 describe("buildDeprecatedEvaluatorsUrl", () => {
   it("shows actionable active and paused legacy evaluators", () => {
@@ -10,7 +13,7 @@ describe("buildDeprecatedEvaluatorsUrl", () => {
       "https://langfuse.local",
     );
 
-    expect(url.pathname).toBe("/project/project-1/evals");
+    expect(url.pathname).toBe("/project/project-1/evals/legacy");
     expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
       {
         column: "status",
@@ -31,5 +34,13 @@ describe("buildDeprecatedEvaluatorsUrl", () => {
         value: ["NEW"],
       },
     ]);
+  });
+});
+
+describe("buildModernEvaluatorsUrl", () => {
+  it("uses the default evaluator route", () => {
+    expect(buildModernEvaluatorsUrl("project-1")).toBe(
+      "/project/project-1/evals",
+    );
   });
 });
