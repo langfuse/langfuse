@@ -102,19 +102,12 @@ export function ChatMessageList({
       const content = message.content;
 
       // Only content that ChatMessage renders through MarkdownView shows its
-      // media inline; anything falling back to a JSON table still needs the
-      // shared strip, so ask the renderer's own predicate.
+      // media (and audio) inline; anything falling back to a JSON table
+      // renders neither, so the shared strip keeps everything — ask the
+      // renderer's own predicate.
       if (canRenderContentAsMarkdown(content, characterLimit)) {
         getRenderedInlineMediaIds({
           markdown: content,
-          audio: message.audio,
-        }).forEach((mediaId) => renderedMediaIds.add(mediaId));
-        return;
-      }
-
-      if (message.audio) {
-        getRenderedInlineMediaIds({
-          markdown: "",
           audio: message.audio,
         }).forEach((mediaId) => renderedMediaIds.add(mediaId));
       }

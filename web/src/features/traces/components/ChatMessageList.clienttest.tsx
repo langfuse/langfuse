@@ -66,4 +66,37 @@ describe("ChatMessageList media dedup", () => {
       "media-1",
     );
   });
+
+  it("keeps audio media in the strip when its message falls back to JSON", () => {
+    // The JSON fallback for non-renderable content shows neither the content's
+    // media nor the message audio inline.
+    render(
+      <ChatMessageList
+        messages={[
+          {
+            role: "assistant",
+            content: "x".repeat(TEST_LIMIT + 1),
+            audio: {
+              data: {
+                id: "media-audio-1",
+                type: "audio/wav",
+                source: "base64",
+                referenceString:
+                  "@@@langfuseMedia:type=audio/wav|id=media-audio-1|source=base64@@@",
+              },
+            },
+          } as unknown as ChatMlMessage,
+        ]}
+        shouldRenderMarkdown={true}
+        media={[{ mediaId: "media-audio-1" } as MediaReturnType]}
+        currentView="pretty"
+        messageToToolCallNumbers={new Map()}
+      />,
+    );
+
+    expect(screen.getByTestId("section-media")).toHaveAttribute(
+      "data-media-ids",
+      "media-audio-1",
+    );
+  });
 });
