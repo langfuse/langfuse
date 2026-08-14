@@ -14,6 +14,7 @@ import {
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
+import type { InAppAgentError } from "./utils/utils";
 
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
@@ -21,7 +22,7 @@ const controlledAgent = vi.hoisted(() => ({
     conversations: [] as Array<{ id: string; title: string | null }>,
     activityByConversationId: new Map<string, { state: string }>(),
     attentionCount: 0,
-    error: null,
+    error: null as InAppAgentError | null,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
     isRunning: true,
