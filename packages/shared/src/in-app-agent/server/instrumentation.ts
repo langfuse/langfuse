@@ -100,8 +100,8 @@ type ObservationBody = {
   output?: unknown;
   model?: string;
   usageDetails?: Record<string, number>;
-  level?: "ERROR";
-  statusMessage?: string;
+  level?: "DEFAULT" | "ERROR";
+  statusMessage?: string | null;
   metadata?: Record<string, unknown>;
   promptName?: string;
   promptVersion?: number;
@@ -895,6 +895,8 @@ export class InAppAgentInstrumentation {
       startTime: pending.step.startTime,
       endTime: this.lastLlmGenerationEndTime ?? new Date(),
       usageDetails,
+      level: "DEFAULT",
+      statusMessage: null,
       ...(model ? { model } : {}),
       ...(output !== undefined ? { output } : {}),
       metadata: {
@@ -1017,17 +1019,9 @@ export class InAppAgentInstrumentation {
       this.toolSpans.delete(toolCallId);
     }
 
-    if (forceClose) {
-      for (const [toolCallId, tool] of this.deferredToolCompletions.entries()) {
-        this.createToolObservation(toolCallId, tool, {
-          metadata,
-          statusMessage,
-        });
-      }
-      this.deferredToolCompletions.clear();
-    } else {
-      this.flushDeferredToolCompletions();
-    }
+    // endOpenLlmStep() has already drained completed tools before this method
+    // runs; keep the unconditional flush to preserve that lifecycle invariant.
+    this.flushDeferredToolCompletions();
   }
 
   private ensureOpenLlmStep(now: Date) {

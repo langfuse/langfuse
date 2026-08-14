@@ -1736,6 +1736,38 @@ describe("InAppAgentInstrumentation", () => {
       ),
     ).toHaveLength(1);
   });
+
+  it("clears a provisional generation error when a late step finish reports usage", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
+    instrumentation.end({ aborted: true });
+
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "generation-create",
+      expect.objectContaining({
+        id: getInAppAgentLlmCallObservationId(runId, 1),
+        level: "ERROR",
+        statusMessage: "aborted",
+      }),
+    );
+
+    instrumentation.recordStepFinish({
+      usage: { inputTokens: 200, outputTokens: 40, totalTokens: 240 },
+      finishReason: "stop",
+      text: "Done",
+    });
+
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "generation-update",
+      expect.objectContaining({
+        id: getInAppAgentLlmCallObservationId(runId, 1),
+        level: "DEFAULT",
+        statusMessage: null,
+        output: expect.objectContaining({ text: "Done" }),
+      }),
+    );
+  });
 });
 
 function createInstrumentation(
