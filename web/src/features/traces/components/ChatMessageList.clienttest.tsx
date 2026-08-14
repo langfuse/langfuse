@@ -25,6 +25,12 @@ import { ChatMessageList } from "@/src/features/traces/components/ChatMessageLis
 import { type ChatMlMessage } from "@/src/features/traces/fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media/validation";
 
+// Pin the limit so the test does not depend on the ambient .env value.
+const { TEST_LIMIT } = vi.hoisted(() => ({ TEST_LIMIT: 1_000 }));
+vi.mock("@/src/hooks/useMarkdownRenderCharacterLimit", () => ({
+  useMarkdownRenderCharacterLimit: () => TEST_LIMIT,
+}));
+
 const MEDIA_REF = "@@@langfuseMedia:type=image/png|id=media-1|source=base64@@@";
 
 const media = [{ mediaId: "media-1" } as MediaReturnType];
@@ -49,7 +55,9 @@ describe("ChatMessageList media dedup", () => {
 
   it("keeps media in the strip when over-limit content falls back to JSON", () => {
     // Over the limit, the renderer falls back to a JSON view with no inline media.
-    const overLimit = MEDIA_REF.repeat(Math.ceil(150_001 / MEDIA_REF.length));
+    const overLimit = MEDIA_REF.repeat(
+      Math.ceil((TEST_LIMIT + 1) / MEDIA_REF.length),
+    );
 
     renderList(overLimit);
 
