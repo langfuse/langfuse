@@ -6,9 +6,14 @@ import {
 } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import type { ProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { useQueryProject } from "@/src/features/projects/hooks";
 
-export type V4MigrationTargetProject = { id: string; name: string };
+export type V4MigrationTargetProject = {
+  id: string;
+  name: string;
+  readiness?: ProjectMigrationReadiness;
+};
 
 /** Which surface opened the panel; the funnel's entry dimension. */
 export type V4MigrationPanelOpenSource =
@@ -62,7 +67,13 @@ export function V4MigrationPanelProvider({
     if (!v4UpgradeUiEnabled) return;
     if (!open || project.id !== targetProject?.id)
       capture("v4_migration:panel_opened", { source });
-    setTargetProject(project);
+    // Entry points that only appear for actionable projects may omit readiness.
+    // Normalize them here so a later route change can distinguish that known
+    // state from an unrelated project whose readiness has not been loaded.
+    setTargetProject({
+      ...project,
+      readiness: project.readiness ?? "action-needed",
+    });
     setRequestedOpen(true);
   };
 
