@@ -234,18 +234,23 @@ export function useTableViewManager({
       return;
     }
 
+    // Resolve the default before restoring session state so a stored default
+    // can use replace semantics.
+    if (isDefaultLoading) return;
+
     // Priority 1: Session storage (from a previous visit to this table)
     if (
       storedViewId &&
       (!isSystemPresetId(storedViewId) || allowBackendSystemPresets)
     ) {
-      setSelectedViewId(storedViewId);
+      setSelectedViewId(
+        storedViewId,
+        storedViewId === defaultViewId ? "replaceIn" : undefined,
+      );
       return;
     }
 
-    // Priority 2: Default view (wait for query to resolve)
-    if (isDefaultLoading) return;
-
+    // Priority 2: Default view
     if (defaultViewId) {
       if (isSystemPresetId(defaultViewId) && !allowBackendSystemPresets) {
         handleSetViewId(null, { updateType: "replaceIn" });

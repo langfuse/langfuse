@@ -282,6 +282,59 @@ describe("view-state URL writes and browser history (LFE-10715)", () => {
     });
   });
 
+  it("restores a session-stored resolved default without pushing", async () => {
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    });
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "Session-stored resolved default",
+        tableName: TableViewPresetTableName.Traces,
+        orderBy: null,
+        filters: TEST_FILTERS,
+        columnOrder: [],
+        columnVisibility: {},
+        searchQuery: "",
+      },
+      error: null,
+      isSuccess: true,
+      isError: false,
+    });
+
+    const { rerender } = render(
+      <ViewManagerHarness tableName={TableViewPresetTableName.Traces} />,
+    );
+
+    expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    expect(urlParamWrites.filter((write) => write.key === "viewId")).toEqual(
+      [],
+    );
+
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "project" },
+      isLoading: false,
+    });
+    rerender(
+      <ViewManagerHarness tableName={TableViewPresetTableName.Traces} />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("view-1");
+      expect(screen.getByTestId("applied-filter-count").textContent).toBe("1");
+    });
+
+    const viewIdWrites = urlParamWrites.filter(
+      (write) => write.key === "viewId",
+    );
+    expect(viewIdWrites.length).toBeGreaterThan(1);
+    for (const write of viewIdWrites) {
+      expect(write.updateType).toBe("replaceIn");
+    }
+  });
+
   it("forwards a replaceIn updateType through handleSetViewId", async () => {
     render(<ViewManagerHarness tableName={TableViewPresetTableName.Traces} />);
 
