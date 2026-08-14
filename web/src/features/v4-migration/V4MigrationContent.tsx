@@ -1488,6 +1488,47 @@ export function V4MigrationDetailsContent({
             />
           )}
 
+          {/* The toggle row hides itself when the session cannot toggle v4
+              (legacy/events_only write mode, post-rollout auto-enrollment), so
+              this checklist row must hide on the same condition. Neutral dot:
+              an optional helper, not pending work or a completed check. */}
+          {canToggleV4 && (
+            <div className="flex w-full items-center gap-2.5 py-2.5">
+              <V4MigrationStatusDot variant="neutral" />
+              <span className="text-foreground flex min-w-0 items-center gap-1.5 text-sm font-bold">
+                Compare traces while you upgrade
+                <HoverCard openDelay={200}>
+                  <HoverCardTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Why compare traces?"
+                      className="shrink-0"
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </HoverCardTrigger>
+                  <HoverCardPortal>
+                    <HoverCardContent className="w-80 text-sm">
+                      The latest SDK no longer sets trace input and output;{" "}
+                      <ExternalLink
+                        href={OBSERVATIONS_DATA_MODEL_URL}
+                        analytics={{
+                          section: "compare_row",
+                          link: "observations_data_model_docs",
+                        }}
+                      >
+                        v4 infers them from observations
+                      </ExternalLink>
+                      .
+                    </HoverCardContent>
+                  </HoverCardPortal>
+                </HoverCard>
+              </span>
+              <span className="flex-1" />
+              <V4PreviewToggleRow projectId={projectId} />
+            </div>
+          )}
+
           {cleanSummary && (
             <p className="text-muted-foreground flex items-center gap-2.5 py-2.5 text-sm">
               <V4MigrationStatusDot variant="done" />
@@ -1505,46 +1546,6 @@ export function V4MigrationDetailsContent({
       <Separator />
 
       <V4MigrationAgentUpgradeSection projectId={projectId} />
-
-      {/* The toggle row hides itself when the session cannot toggle v4
-          (legacy/events_only write mode, post-rollout auto-enrollment), so the
-          copy describing it must hide on the same condition. */}
-      {canToggleV4 && (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-sm">
-              Compare traces while you upgrade
-              <HoverCard openDelay={200}>
-                <HoverCardTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="Why compare traces?"
-                    className="shrink-0"
-                  >
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                </HoverCardTrigger>
-                <HoverCardPortal>
-                  <HoverCardContent className="w-80 text-sm">
-                    The latest SDK no longer sets trace input and output;{" "}
-                    <ExternalLink
-                      href={OBSERVATIONS_DATA_MODEL_URL}
-                      analytics={{
-                        section: "compare_row",
-                        link: "observations_data_model_docs",
-                      }}
-                    >
-                      v4 infers them from observations
-                    </ExternalLink>
-                    .
-                  </HoverCardContent>
-                </HoverCardPortal>
-              </HoverCard>
-            </p>
-            <V4PreviewToggleRow projectId={projectId} />
-          </div>
-        </>
-      )}
 
       <Separator />
 
