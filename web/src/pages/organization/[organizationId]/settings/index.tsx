@@ -12,6 +12,7 @@ import { BillingSettings } from "@/src/ee/features/billing/components/BillingSet
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
+import { OrgHealthSettingsPage } from "@/src/features/v4-migration/OrgHealthSettingsPage";
 import { isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
@@ -158,6 +159,12 @@ export const getOrganizationSettingsPages = ({
     ],
     content: <SSOSettings orgId={organization.id} />,
     show: isLangfuseCloud,
+  },
+  {
+    title: "Health",
+    slug: "health",
+    cmdKKeywords: ["sdk", "version", "migration", "v4", "instrumentation"],
+    content: <OrgHealthSettingsPage orgId={organization.id} />,
   },
   {
     title: "Projects",

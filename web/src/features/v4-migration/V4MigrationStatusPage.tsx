@@ -107,6 +107,16 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
     );
   }
 
+  // Only rendered where ready rows are shown (the org Health settings page);
+  // the migration status page filters them out before this.
+  if (readiness === "ready") {
+    return (
+      <span className="bg-light-green text-dark-green inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+        Migrated
+      </span>
+    );
+  }
+
   if (readiness !== "action-needed") return null;
 
   return (
@@ -159,14 +169,24 @@ function SortableHead({
   );
 }
 
-function OrgStatusSection({
+export function OrgStatusSection({
   org,
   statusByProjectId,
   lastTraceTimes,
+  hideReadyProjects = true,
+  showOrgHeading = true,
+  rowHref,
 }: {
   org: V4MigrationOrganization;
   statusByProjectId: Map<string, ProjectMigrationStatus>;
   lastTraceTimes: { projectId: string; lastTraceAt: Date }[];
+  /** The migration page is a work list (ready rows drop out); the org Health
+   *  settings page shows the whole fleet. */
+  hideReadyProjects?: boolean;
+  showOrgHeading?: boolean;
+  /** When set, rows navigate here (e.g. the project Health settings page)
+   *  instead of opening the migration panel over the traces view. */
+  rowHref?: (projectId: string) => string;
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -187,6 +207,11 @@ function OrgStatusSection({
     row: { id: string; name: string; status: ProjectMigrationStatus },
     readiness: ProjectMigrationReadiness,
   ) => {
+    if (rowHref) {
+      capture("v4_migration:status_row_clicked");
+      router.push(rowHref(row.id));
+      return;
+    }
     // Forced-v3 projects have no migration panel — just navigate to the project.
     if (!row.status.forceV3Experience) {
       openProjectMigration(row, readiness);
@@ -216,7 +241,7 @@ function OrgStatusSection({
     const status = statusByProjectId.get(project.id);
     if (!status) return [];
     const readiness = getProjectMigrationReadiness(status);
-    if (readiness === "ready") return [];
+    if (hideReadyProjects && readiness === "ready") return [];
     const lastTraceAt = lastTraceTimes?.find(
       (trace) => trace.projectId === project.id,
     )?.lastTraceAt;
@@ -298,9 +323,11 @@ function OrgStatusSection({
 
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-muted-foreground truncate text-sm" title={org.name}>
-        {org.name}
-      </h3>
+      {showOrgHeading && (
+        <h3 className="text-muted-foreground truncate text-sm" title={org.name}>
+          {org.name}
+        </h3>
+      )}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <Table className="min-w-[60rem] table-auto">
@@ -368,13 +395,13 @@ function OrgStatusSection({
                   >
                     <TableCell density="comfortable" className="max-w-48">
                       <Link
-                        href={`/project/${row.id}/traces`}
+                        href={rowHref?.(row.id) ?? `/project/${row.id}/traces`}
                         className="block truncate font-bold hover:underline"
                         title={row.name}
                         onClick={(event) => {
                           event.stopPropagation();
                           // Forced-v3 projects have no migration panel.
-                          if (!row.status.forceV3Experience) {
+                          if (!rowHref && !row.status.forceV3Experience) {
                             openProjectMigration(row, readiness);
                           }
                         }}
