@@ -1128,4 +1128,112 @@ describe("InAppAgentWindow message actions", () => {
       });
     });
   });
+
+  it("keeps a proposed redirect actionable when more thinking follows it", () => {
+    render(
+      windowElement({
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "Take me to the failing traces." },
+          },
+          {
+            id: "assistant-reasoning-1",
+            timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "The error traces view is the right destination.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-redirect",
+            role: "assistant",
+            content: {
+              type: "redirectAction",
+              label: "Open error traces",
+              href: "/project/project-1/traces?level=ERROR",
+            },
+          },
+          {
+            id: "assistant-reasoning-2",
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "I should also explain what they will see.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-answer",
+            runId: "run-1",
+            timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+            role: "assistant",
+            content: { type: "text", text: "These are all timeouts." },
+          },
+        ],
+      }),
+    );
+
+    // The drawer stays collapsed, so a redirect parked in it would be lost.
+    expect(screen.getByRole("button", { name: /Worked for/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(
+      screen.getByRole("button", { name: "Open error traces" }),
+    ).toBeVisible();
+  });
+
+  it("surfaces sources cited before the last thought on the settled answer", () => {
+    render(
+      windowElement({
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "How do I mask trace input?" },
+          },
+          {
+            id: "assistant-ack",
+            timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+            role: "assistant",
+            content: {
+              type: "text",
+              text: "The docs cover masking.",
+              sources: [
+                {
+                  title: "Masking",
+                  url: "https://langfuse.com/docs/observability/features/masking",
+                  faviconUrl: "https://langfuse.com/favicon.ico",
+                },
+              ],
+            },
+          },
+          {
+            id: "assistant-reasoning",
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "Now I can summarise the masking setup.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-answer",
+            runId: "run-1",
+            timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+            role: "assistant",
+            content: { type: "text", text: "Set a mask function on the SDK." },
+          },
+        ],
+      }),
+    );
+
+    // The citation was earned by an intermediate block that lives in the
+    // collapsed drawer; it has to travel to the answer the user is reading.
+    expect(screen.getByRole("button", { name: "Sources" })).toBeVisible();
+  });
 });

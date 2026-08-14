@@ -45,7 +45,11 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-agent";
+import type {
+  InAppAgentMessageFeedbackValue,
+  InAppAgentMessageSource,
+} from "@langfuse/shared/in-app-agent";
+import { deduplicateBy } from "@/src/utils/arrays";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import { ConversationActivityIndicator } from "@/src/features/in-app-agent/components/ConversationActivityIndicator";
@@ -279,85 +283,63 @@ type ConversationDisplayItem =
       isFinalAnswer: boolean;
     };
 
+type InAppAgentTextMessage = InAppAgentWindowMessage & {
+  content: Extract<InAppAgentMessageContent, { type: "text" }>;
+};
+
+/**
+ * Fold a turn's answer blocks into the single bubble the user reads. Each field
+ * takes the last block that defined it, except `sources`, which arrive already
+ * unioned across the whole turn so a citation earned mid-turn is not lost.
+ */
 function joinAnswerMessages(
   messages: InAppAgentWindowMessage[],
+  turnSources: InAppAgentMessageSource[],
 ): InAppAgentWindowMessage | null {
-  if (messages.length === 0) {
-    return null;
-  }
-
-  if (messages.length === 1) {
-    return messages[0] ?? null;
-  }
-
   const textMessages = messages.filter(
-    (
-      message,
-    ): message is InAppAgentWindowMessage & {
-      content: Extract<InAppAgentMessageContent, { type: "text" }>;
-    } => message.content.type === "text",
+    (message): message is InAppAgentTextMessage =>
+      message.content.type === "text",
   );
+  const lastText = textMessages.at(-1);
 
-  if (textMessages.length === 0) {
-    return messages.at(-1) ?? null;
-  }
-
-  const lastText = textMessages[textMessages.length - 1];
+  // A turn can end on a bare redirect with no text to attach it to.
   if (!lastText) {
     return messages.at(-1) ?? null;
   }
 
-  let redirectAction = lastText.content.redirectAction;
-  let sources = lastText.content.sources;
-  let feedback = lastText.content.feedback;
-  let runId = lastText.runId;
-  let feedbackMessageId = lastText.feedbackMessageId;
-  let isStreaming = false;
+  const lastDefined = <T,>(
+    pick: (message: InAppAgentTextMessage) => T | undefined,
+  ): T | undefined =>
+    textMessages.reduce<T | undefined>(
+      (found, message) => pick(message) ?? found,
+      undefined,
+    );
+  const standaloneRedirect = messages.findLast(
+    (
+      message,
+    ): message is InAppAgentWindowMessage & {
+      content: Extract<InAppAgentMessageContent, { type: "redirectAction" }>;
+    } => message.content.type === "redirectAction",
+  );
 
-  for (let index = textMessages.length - 1; index >= 0; index--) {
-    const message = textMessages[index];
-    if (!message) {
-      continue;
-    }
-
-    if (message.content.isStreaming) {
-      isStreaming = true;
-    }
-    if (!redirectAction && message.content.redirectAction) {
-      redirectAction = message.content.redirectAction;
-    }
-    if (!sources && message.content.sources) {
-      sources = message.content.sources;
-    }
-    if (!feedback && message.content.feedback) {
-      feedback = message.content.feedback;
-    }
-    if (!runId && message.runId) {
-      runId = message.runId;
-    }
-    if (!feedbackMessageId && message.feedbackMessageId) {
-      feedbackMessageId = message.feedbackMessageId;
-    }
-  }
-
-  if (!redirectAction) {
-    const standaloneRedirect = [...messages]
-      .reverse()
-      .find((message) => message.content.type === "redirectAction");
-    if (standaloneRedirect?.content.type === "redirectAction") {
-      redirectAction = standaloneRedirect.content;
-    }
-  }
+  const runId = lastDefined((message) => message.runId);
+  const feedbackMessageId = lastDefined((message) => message.feedbackMessageId);
+  const feedback = lastDefined((message) => message.content.feedback);
+  const redirectAction =
+    lastDefined((message) => message.content.redirectAction) ??
+    standaloneRedirect?.content;
 
   return {
     ...lastText,
-    runId,
+    ...(runId ? { runId } : {}),
     ...(feedbackMessageId ? { feedbackMessageId } : {}),
     content: {
       type: "text",
       text: textMessages.map((message) => message.content.text).join("\n\n"),
-      ...(isStreaming ? { isStreaming: true } : {}),
-      ...(sources ? { sources } : {}),
+      ...(textMessages.some((message) => message.content.isStreaming)
+        ? { isStreaming: true }
+        : {}),
+      ...(turnSources.length > 0 ? { sources: turnSources } : {}),
       ...(feedback ? { feedback } : {}),
       ...(redirectAction ? { redirectAction } : {}),
     },
@@ -402,37 +384,31 @@ function buildConversationDisplayItems(
     const lastReasoningIndex = turnMessages.findLastIndex(
       (turnMessage) => turnMessage.content.type === "reasoning",
     );
-    const activityMessages = turnMessages.filter((turnMessage, turnIndex) => {
-      if (
-        turnMessage.content.type === "toolGroup" ||
-        turnMessage.content.type === "reasoning"
-      ) {
-        return true;
-      }
-
-      if (turnMessage.content.type !== "text") {
-        return false;
-      }
-
-      if (isInProgress) {
-        return true;
-      }
-
-      return lastReasoningIndex !== -1 && turnIndex < lastReasoningIndex;
-    });
-    const answerMessages = isInProgress
-      ? []
-      : turnMessages.filter((turnMessage, turnIndex) => {
-          if (
-            turnMessage.content.type !== "text" &&
-            turnMessage.content.type !== "redirectAction"
-          ) {
-            return false;
-          }
-
-          return lastReasoningIndex === -1 || turnIndex > lastReasoningIndex;
-        });
-    const joinedAnswer = joinAnswerMessages(answerMessages);
+    // Trailing text is the answer; text before the turn's last thought is still
+    // work. A proposed redirect is always actionable, so it never stays behind
+    // in the drawer. Declared once, with the activity bucket as its exact
+    // complement, so no message can fall out of both.
+    const isAnswerPart = (
+      turnMessage: InAppAgentWindowMessage,
+      turnIndex: number,
+    ) =>
+      !isInProgress &&
+      (turnMessage.content.type === "redirectAction" ||
+        (turnMessage.content.type === "text" &&
+          turnIndex > lastReasoningIndex));
+    const answerMessages = turnMessages.filter(isAnswerPart);
+    const activityMessages = turnMessages.filter(
+      (turnMessage, turnIndex) => !isAnswerPart(turnMessage, turnIndex),
+    );
+    const turnSources = deduplicateBy(
+      turnMessages.flatMap((turnMessage) =>
+        turnMessage.content.type === "text"
+          ? (turnMessage.content.sources ?? [])
+          : [],
+      ),
+      (source) => source.url,
+    );
+    const joinedAnswer = joinAnswerMessages(answerMessages, turnSources);
     const followsUser = visibleMessages[turnStartIndex - 1]?.role === "user";
 
     if (activityMessages.length > 0) {
