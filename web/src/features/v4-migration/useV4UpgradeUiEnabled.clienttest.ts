@@ -35,7 +35,12 @@ describe("useV4UpgradeUiEnabled", () => {
   });
 
   it("maps the database flag into the session flag shape", () => {
-    const context = { email: undefined, v4BetaEnabled: false };
+    const context = {
+      email: undefined,
+      v4BetaEnabled: false,
+      isLangfuseCloud: false,
+      v4WriteMode: "legacy" as const,
+    };
     expect(parseFlags(["v4UpgradeUi"], context).v4UpgradeUi).toBe(true);
     expect(parseFlags([], context).v4UpgradeUi).toBe(false);
   });

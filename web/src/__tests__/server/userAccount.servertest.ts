@@ -116,6 +116,8 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
         parseFlags(user.featureFlags, {
           email: user.email,
           v4BetaEnabled: true,
+          isLangfuseCloud: true,
+          v4WriteMode: "events_only",
         }).modernSession,
       ).toBe(false);
     },
@@ -131,6 +133,62 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it.each(["events_only", "dual"] as const)(
+    "persists an opt-out when a self-hoster disables the v4 migration UI on %s",
+    async (writeMode) => {
+      const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = writeMode;
+
+      try {
+        const { caller, userId } = await createCaller({
+          featureFlags: ["templateFlag"],
+        });
+
+        await caller.userAccount.setFeaturePreviewEnabled({
+          flag: "v4UpgradeUi",
+          enabled: false,
+        });
+
+        const user = await prisma.user.findUniqueOrThrow({
+          where: { id: userId },
+          select: { featureFlags: true },
+        });
+        expect(user.featureFlags).toEqual([
+          "templateFlag",
+          getFeaturePreviewOptOutFlag("v4UpgradeUi"),
+        ]);
+      } finally {
+        (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+      }
+    },
+  );
+
+  it("does not persist an opt-out when a self-hoster on legacy disables the v4 migration UI", async () => {
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+
+    try {
+      const { caller, userId } = await createCaller({
+        featureFlags: ["templateFlag", "v4UpgradeUi"],
+      });
+
+      await caller.userAccount.setFeaturePreviewEnabled({
+        flag: "v4UpgradeUi",
+        enabled: false,
+      });
+
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { featureFlags: true },
+      });
+      expect(user.featureFlags).toEqual(["templateFlag"]);
+    } finally {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    }
   });
 });
 
