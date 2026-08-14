@@ -48,6 +48,11 @@ afterEach(async () => {
 
 const h = vi.hoisted(() => {
   const posthogIntegrationUpdate = vi.fn();
+  // The atomic disable claim (enabled true->false) the PostHog handler makes
+  // once it classifies the fault as the customer's.
+  const posthogIntegrationUpdateMany = vi.fn(async () => ({ count: 1 }));
+  const recordIncrement = vi.fn();
+  const dispatchProjectNotification = vi.fn(async () => {});
   // Only scores yields, so the first flush attempts the blocked send and the
   // handler stops — bounding runtime.
   const oneRow = () =>
@@ -65,7 +70,16 @@ const h = vi.hoisted(() => {
     project: { name: "Test Project", createdAt: new Date("2023-01-01") },
   });
   const db = { integration: integration() as Record<string, unknown> };
-  return { posthogIntegrationUpdate, oneRow, noRows, integration, db };
+  return {
+    posthogIntegrationUpdate,
+    posthogIntegrationUpdateMany,
+    recordIncrement,
+    dispatchProjectNotification,
+    oneRow,
+    noRows,
+    integration,
+    db,
+  };
 });
 
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -73,6 +87,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
     posthogIntegration: {
       findFirst: vi.fn(async () => h.db.integration),
       update: h.posthogIntegrationUpdate,
+      updateMany: h.posthogIntegrationUpdateMany,
     },
   },
 }));
@@ -86,7 +101,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     ...actual,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     getCurrentSpan: vi.fn(() => undefined),
-    recordIncrement: vi.fn(),
+    recordIncrement: h.recordIncrement,
+    dispatchProjectNotification: h.dispatchProjectNotification,
     validateWebhookURL: vi.fn(async () => {}),
     getTracesForAnalyticsIntegrations: vi.fn(() => h.noRows()),
     getGenerationsForAnalyticsIntegrations: vi.fn(() => h.noRows()),
@@ -130,7 +146,10 @@ vi.mock("../env", () => ({
 }));
 
 // Imported after mocks are registered.
-import { handlePostHogIntegrationProjectJob } from "../features/posthog/handlePostHogIntegrationProjectJob";
+import {
+  handlePostHogIntegrationProjectJob,
+  POSTHOG_INTEGRATION_DISABLED_METRIC,
+} from "../features/posthog/handlePostHogIntegrationProjectJob";
 import {
   OutboundUrlValidationError,
   RedirectValidationError,
@@ -159,10 +178,18 @@ function causeChainIncludes(error: unknown, needle: string): boolean {
 describe("PostHog integration project job — SSRF connect-time pinning", () => {
   beforeEach(() => {
     h.posthogIntegrationUpdate.mockClear();
+    h.posthogIntegrationUpdateMany.mockClear();
+    h.recordIncrement.mockClear();
+    h.dispatchProjectNotification.mockClear();
     h.db.integration = h.integration();
   });
 
-  it("rejects a validated host that connects to a blocked IP, before egress and terminally", async () => {
+  // A blocked resolved IP is a customer-config fault, so the handler's shared
+  // classifier owns the terminal decision: disable the integration, notify, and
+  // RESOLVE. What this test adds over the classifier's own suite is the source
+  // of the fault — a host that PASSED the string pre-check and only failed when
+  // the socket resolved, which is reachable solely through connect-time pinning.
+  it("blocks a validated host that resolves to a blocked IP before egress, and disables the integration", async () => {
     let requestCount = 0;
     const { nameUrl } = await startLoopbackServer(() => {
       requestCount++;
@@ -177,15 +204,20 @@ describe("PostHog integration project job — SSRF connect-time pinning", () => 
     }
 
     expect(requestCount).toBe(0);
-    expect(thrown).toBeDefined();
-    expect(isUnrecoverableError(thrown)).toBe(true);
-    // The terminal error must be caused BY the SSRF block; otherwise any
-    // UnrecoverableError raised before the first socket write would satisfy the
-    // assertions above and the test would go vacuous.
-    expect(causeChainIncludes(thrown, "Blocked IP address detected")).toBe(
-      true,
+    expect(thrown).toBeUndefined();
+
+    // Non-vacuous: only an OutboundUrlValidationError carrying `blocked-ip` (or
+    // `blocked-hostname`) produces this reason, and the pre-check is stubbed to
+    // pass, so the tag can only have come from the connect-time lookup.
+    expect(h.recordIncrement).toHaveBeenCalledWith(
+      POSTHOG_INTEGRATION_DISABLED_METRIC,
+      1,
+      { reason: "ssrf_blocked_endpoint" },
     );
-    expect(h.posthogIntegrationUpdate).not.toHaveBeenCalled();
+    expect(h.posthogIntegrationUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { enabled: false } }),
+    );
+    expect(h.dispatchProjectNotification).toHaveBeenCalled();
   }, 40_000);
 });
 
