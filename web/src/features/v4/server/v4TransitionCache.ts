@@ -109,12 +109,15 @@ export type ExperimentPostUsageCacheBlob = z.infer<
   typeof experimentPostUsageBlobSchema
 >;
 
+// v2: entries derived from the 14-day detection window. The version segment
+// exists so window/semantics changes invalidate old entries instead of being
+// silently served under new semantics.
 const sdkUsageKey = (projectId: string) =>
-  `langfuse:v4:sdk-usage:v1:${projectId}`;
+  `langfuse:v4:sdk-usage:v2:${projectId}`;
 const legacyApiUsageKey = (projectId: string) =>
-  `langfuse:v4:legacy-api-usage:v1:${projectId}`;
+  `langfuse:v4:legacy-api-usage:v2:${projectId}`;
 const experimentPostUsageKey = (projectId: string) =>
-  `langfuse:v4:experiment-post-usage:v1:${projectId}`;
+  `langfuse:v4:experiment-post-usage:v2:${projectId}`;
 
 export const isV4TransitionCacheAvailable = (): boolean =>
   redis != null && redis.status !== "end" && redis.status !== "close";

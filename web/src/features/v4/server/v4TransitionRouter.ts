@@ -38,7 +38,7 @@ import {
 } from "@/src/features/v4/server/v4TransitionCache";
 
 const HOUR_MS = 60 * 60 * 1000;
-const DETECTION_WINDOW_MS = 7 * 24 * HOUR_MS;
+const DETECTION_WINDOW_MS = 14 * 24 * HOUR_MS;
 const MAX_DETECTION_RANGE_MS = DETECTION_WINDOW_MS;
 
 /**
@@ -106,7 +106,7 @@ const projectTimeRangeInputSchema = z
   .refine(
     ({ fromTimestamp, toTimestamp }) =>
       toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_DETECTION_RANGE_MS,
-    { message: "V4 migration ranges cannot exceed 7 days" },
+    { message: "V4 migration ranges cannot exceed 14 days" },
   );
 
 const organizationTimeRangeInputSchema = z
@@ -123,7 +123,7 @@ const organizationTimeRangeInputSchema = z
   .refine(
     ({ fromTimestamp, toTimestamp }) =>
       toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_DETECTION_RANGE_MS,
-    { message: "V4 migration ranges cannot exceed 7 days" },
+    { message: "V4 migration ranges cannot exceed 14 days" },
   );
 
 type LegacyApiUsageSummaryByProjectRow = {

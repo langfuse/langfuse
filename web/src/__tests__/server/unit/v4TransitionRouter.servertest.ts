@@ -391,11 +391,11 @@ const TEST_NOW = new Date("2026-06-25T00:30:00Z");
 const HOT_START_ISO = "2026-06-25T00:00:00.000Z";
 const HOT_START_CLICKHOUSE = "2026-06-25 00:00:00.000";
 const WINDOW_END_CLICKHOUSE = "2026-06-25 01:00:00.000";
-const WINDOW_START_CLICKHOUSE = "2026-06-18 01:00:00.000";
+const WINDOW_START_CLICKHOUSE = "2026-06-11 01:00:00.000";
 
-const sdkUsageCacheKey = `langfuse:v4:sdk-usage:v1:${projectId}`;
-const legacyApiUsageCacheKey = `langfuse:v4:legacy-api-usage:v1:${projectId}`;
-const experimentPostUsageCacheKey = `langfuse:v4:experiment-post-usage:v1:${projectId}`;
+const sdkUsageCacheKey = `langfuse:v4:sdk-usage:v2:${projectId}`;
+const legacyApiUsageCacheKey = `langfuse:v4:legacy-api-usage:v2:${projectId}`;
+const experimentPostUsageCacheKey = `langfuse:v4:experiment-post-usage:v2:${projectId}`;
 
 /** In-memory Redis fake: mget/setex against a Map, status "ready". */
 const enableRedisCache = (initialEntries: Record<string, string> = {}) => {
@@ -573,24 +573,23 @@ describe("v4TransitionRouter", () => {
     );
   });
 
-  it("rejects ranges over 7 days", async () => {
+  it("rejects ranges over 14 days", async () => {
     const caller = createCaller();
 
-    // 14 days: the pre-reduction client lookback must no longer validate.
     await expect(
       caller.legacyApiUsageSummary({
         projectId,
-        fromTimestamp: new Date("2026-06-11T00:00:00Z"),
+        fromTimestamp: new Date("2026-06-10T00:00:00Z"),
         toTimestamp: new Date("2026-06-25T00:00:00Z"),
       }),
-    ).rejects.toThrow("7 days");
+    ).rejects.toThrow("14 days");
     await expect(
       caller.sdkUsageSummary({
         projectId,
-        fromTimestamp: new Date("2026-06-11T00:00:00Z"),
+        fromTimestamp: new Date("2026-06-10T00:00:00Z"),
         toTimestamp: new Date("2026-06-25T00:00:00Z"),
       }),
-    ).rejects.toThrow("7 days");
+    ).rejects.toThrow("14 days");
 
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
   });
@@ -2078,15 +2077,15 @@ describe("v4TransitionRouter", () => {
       expect(redisMock.setex).not.toHaveBeenCalled();
     });
 
-    it("drops cached SDK series that aged out of the 7-day window", async () => {
+    it("drops cached SDK series that aged out of the 14-day window", async () => {
       enableRedisCache({
         [sdkUsageCacheKey]: sdkUsageBlob([
           cachedSdkSeries(),
           cachedSdkSeries({
             sdkVersion: "2.0.0",
-            // Older than now - 7d (2026-06-18T00:30Z): trimmed at read time.
-            firstSeen: "2026-06-15T00:00:00Z",
-            lastSeen: "2026-06-17T00:00:00Z",
+            // Older than now - 14d (2026-06-11T00:30Z): trimmed at read time.
+            firstSeen: "2026-06-08T00:00:00Z",
+            lastSeen: "2026-06-10T00:00:00Z",
           }),
         ]),
         [experimentPostUsageCacheKey]: experimentPostBlob(false),
@@ -2148,7 +2147,7 @@ describe("v4TransitionRouter", () => {
             // Aged out of the window: trimmed at read time.
             entrypoint: "publicapi: GET /api/public/sessions",
             count: 2,
-            lastSeen: "2026-06-17T00:00:00.000000Z",
+            lastSeen: "2026-06-10T00:00:00.000000Z",
           },
         ]),
       });
@@ -2219,7 +2218,7 @@ describe("v4TransitionRouter", () => {
       // The idle project gets an empty entry so it does not re-run the
       // expensive query_log scan on every request.
       expect(
-        writesByKey.get(`langfuse:v4:legacy-api-usage:v1:${secondProjectId}`),
+        writesByKey.get(`langfuse:v4:legacy-api-usage:v2:${secondProjectId}`),
       ).toMatchObject({ ttl: 12 * 60 * 60, value: { rows: [] } });
     });
 
