@@ -51,6 +51,7 @@ import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
 } from "@langfuse/shared/in-app-agent/server/sandbox/config";
+import { terminateInAppAgentSandboxSession } from "@langfuse/shared/in-app-agent/server/sandbox";
 
 import { env } from "../../env";
 
@@ -325,7 +326,7 @@ export async function executeInAppAgentRun(params: {
           provider: sandboxProvider,
           getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),
           saveState: async (state) => {
-            await prisma.inAppAgentConversation.updateMany({
+            const result = await prisma.inAppAgentConversation.updateMany({
               where: {
                 id: conversation.id,
                 projectId,
@@ -333,6 +334,16 @@ export async function executeInAppAgentRun(params: {
               },
               data: state,
             });
+            // The conversation was deleted between the session snapshot and
+            // this save: the update matched nothing, so the new sandbox
+            // session would be orphaned. Terminate it to release the
+            // provider resource instead of leaking it until provider expiry.
+            if (result.count === 0 && state.providerSessionId && sandboxProvider) {
+              await terminateInAppAgentSandboxSession({
+                provider: sandboxProvider,
+                providerSessionId: state.providerSessionId,
+              });
+            }
           },
         })
       : undefined;

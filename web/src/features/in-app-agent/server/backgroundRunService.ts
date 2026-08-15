@@ -321,19 +321,23 @@ export async function deleteBackgroundConversation(params: {
       provider,
       providerSessionId,
     });
-  }
 
-  await params.prisma.inAppAgentConversation.update({
-    where: {
-      id_projectId: {
-        id: params.conversationId,
-        projectId: params.projectId,
+    // Only clear the persisted session id after a successful termination.
+    // If the provider could not be resolved (env unset or changed), keeping
+    // the id leaves a handle for a later cleanup attempt instead of
+    // orphaning the sandbox with no way to find it.
+    await params.prisma.inAppAgentConversation.update({
+      where: {
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
       },
-    },
-    data: {
-      providerSessionId: null,
-    },
-  });
+      data: {
+        providerSessionId: null,
+      },
+    });
+  }
 
   return { success: true };
 }
