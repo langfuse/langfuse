@@ -110,7 +110,7 @@ const projectTimeRangeInputSchema = z
   .refine(
     ({ fromTimestamp, toTimestamp }) =>
       toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_DETECTION_RANGE_MS,
-    { message: "V4 migration ranges cannot exceed 7 days" },
+    { message: "V4 migration ranges cannot exceed 14 days" },
   );
 
 const organizationTimeRangeInputSchema = z
@@ -127,7 +127,7 @@ const organizationTimeRangeInputSchema = z
   .refine(
     ({ fromTimestamp, toTimestamp }) =>
       toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_DETECTION_RANGE_MS,
-    { message: "V4 migration ranges cannot exceed 7 days" },
+    { message: "V4 migration ranges cannot exceed 14 days" },
   );
 
 type LegacyApiUsageSummaryByProjectRow = {

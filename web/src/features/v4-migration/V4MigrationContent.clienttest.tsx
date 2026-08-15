@@ -396,7 +396,7 @@ describe("V4MigrationDetailsContent", () => {
 
     expect(
       screen.getByText(
-        "SDK, instrumentation, experiment, and API checks cover activity from the last 7 days.",
+        "SDK, instrumentation, experiment, and API checks cover activity from the last 14 days.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -567,7 +567,7 @@ describe("V4MigrationDetailsContent", () => {
           "ingestionSource;stringOptions;;any of;ingestion-api-dual-write," +
           "ingestionSdkName;stringOptions;;any of;python," +
           "ingestionSdkVersion;stringOptions;;any of;2.60.3",
-      )}&dateRange=7d`,
+      )}&dateRange=14d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -691,7 +691,7 @@ describe("V4MigrationDetailsContent", () => {
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;," +
           "ingestionSource;stringOptions;;any of;otel-dual-write",
-      )}&dateRange=7d`,
+      )}&dateRange=14d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -961,7 +961,7 @@ describe("V4MigrationDetailsContent", () => {
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef," +
           "ingestionSource;stringOptions;;any of;ingestion-api-dual-write",
-      )}&dateRange=7d`,
+      )}&dateRange=14d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");

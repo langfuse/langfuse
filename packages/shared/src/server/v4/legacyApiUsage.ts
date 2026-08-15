@@ -30,10 +30,10 @@ import { z } from "zod/v4";
 const HOUR_MS = 60 * 60 * 1000;
 
 /** Detection window served to the UI; must match the web-side window. */
-export const V4_LEGACY_API_USAGE_WINDOW_MS = 7 * 24 * HOUR_MS;
+export const V4_LEGACY_API_USAGE_WINDOW_MS = 14 * 24 * HOUR_MS;
 
 /** GC horizon for hour buckets: window plus one day of slack. */
-export const V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS = 8 * 24 * 60 * 60;
+export const V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS = 15 * 24 * 60 * 60;
 
 /**
  * Per-project entries outlive several missed worker runs; the worker
@@ -79,14 +79,21 @@ export const V4_LEGACY_API_ROLLUP_PROJECTS_KEY =
 export const v4LegacyApiHourStartIso = (hourStartMs: number): string =>
   new Date(hourStartMs).toISOString().replace(".000Z", "Z");
 
+// Hour buckets stay v1 across window changes: they hold per-hour raw facts
+// that are independent of the window length. Widening the window simply
+// leaves older hours missing, which the worker's hole repair backfills on
+// its next run.
 export const v4LegacyApiHourBucketKey = (hourStartMs: number): string =>
   `langfuse:v4:legacy-api-usage:hour:v1:${v4LegacyApiHourStartIso(hourStartMs)}`;
 
+// v2: per-project entries are aggregates over the detection window, so a
+// window/semantics change must invalidate them instead of serving
+// old-window aggregates under new semantics.
 export const v4LegacyApiUsageProjectKey = (projectId: string): string =>
-  `langfuse:v4:legacy-api-usage:v1:${projectId}`;
+  `langfuse:v4:legacy-api-usage:v2:${projectId}`;
 
 export const v4ExperimentPostUsageProjectKey = (projectId: string): string =>
-  `langfuse:v4:experiment-post-usage:v1:${projectId}`;
+  `langfuse:v4:experiment-post-usage:v2:${projectId}`;
 
 const legacyApiUsageRowSchema = z.object({
   entrypoint: z.string(),

@@ -42,7 +42,7 @@ import { RedisLock } from "../../utils/RedisLock";
  *
  * Steady state each hourly run scans only the trailing re-scan margin
  * (~3 hours; 24 hours once a day for late query_log flushes) instead of the
- * full 7-day window. Buckets are written by full overwrite, so re-scans and
+ * full detection-window scan. Buckets are written by full overwrite, so re-scans and
  * backfills after missed runs are idempotent. The full-window scan happens
  * exactly once, on cold start (no cursor).
  */

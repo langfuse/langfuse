@@ -105,8 +105,11 @@ export type CachedLegacyApiUsageRow = V4LegacyApiUsageRow;
 export type LegacyApiUsageCacheBlob = V4LegacyApiUsageBlob;
 export type ExperimentPostUsageCacheBlob = V4ExperimentPostUsageBlob;
 
+// v2: entries derived from the 14-day detection window. The version segment
+// exists so window/semantics changes invalidate old entries instead of being
+// silently served under new semantics.
 const sdkUsageKey = (projectId: string) =>
-  `langfuse:v4:sdk-usage:v1:${projectId}`;
+  `langfuse:v4:sdk-usage:v2:${projectId}`;
 const legacyApiUsageKey = v4LegacyApiUsageProjectKey;
 const experimentPostUsageKey = v4ExperimentPostUsageProjectKey;
 
