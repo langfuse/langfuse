@@ -38,11 +38,6 @@ export type EvaluatorFilterValidationResult = {
 
 const parsedFilterSchema = z.array(singleFilter).nullable();
 
-// Bookmarking was removed from the product UI. Existing evaluator configs may
-// still carry a bookmarked / ⭐️ filter; drop it rather than fail validation so
-// the rest of the config keeps running and a save rewrites the retired clause away.
-const RETIRED_TRACE_EVAL_FILTER_COLUMNS = new Set(["bookmarked", "⭐️"]);
-
 const getSupportedColumnsForTarget = (
   targetObject: EvalTargetObjectType,
 ): ColumnDefinition[] => {
@@ -69,13 +64,6 @@ const findMatchingColumnDefinition = (
       column.aliases?.includes(filterColumn),
   );
 
-const isRetiredTraceEvalFilterColumn = (
-  targetObject: EvalTargetObjectType,
-  column: string,
-): boolean =>
-  targetObject === EvalTargetObject.TRACE &&
-  RETIRED_TRACE_EVAL_FILTER_COLUMNS.has(column);
-
 export function validateEvaluatorFiltersForTarget(params: {
   targetObject: EvalTargetObjectType;
   filter: unknown;
@@ -100,10 +88,7 @@ export function validateEvaluatorFiltersForTarget(params: {
     };
   }
 
-  const filters = (parsedFilter.data ?? []).filter(
-    (filter) =>
-      !isRetiredTraceEvalFilterColumn(params.targetObject, filter.column),
-  );
+  const filters = parsedFilter.data ?? [];
 
   const issues: EvaluatorFilterValidationIssue[] = filters.flatMap(
     (filter, index): EvaluatorFilterValidationIssue[] => {

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { type FilterState } from "@langfuse/shared";
 import {
   evalConfigFormSchema,
   getJsonPathCompatibilityWarning,
+  getSelectableTraceFilterColumns,
 } from "./evaluator-form-utils";
 
 describe("getJsonPathCompatibilityWarning", () => {
@@ -50,6 +52,32 @@ describe("getJsonPathCompatibilityWarning", () => {
   ])("does not warn about supported selector %s", (selector) => {
     expect(getJsonPathCompatibilityWarning(selector)).toBeNull();
   });
+});
+
+describe("getSelectableTraceFilterColumns", () => {
+  const columns = [
+    { name: "⭐️", id: "bookmarked", type: "boolean", internal: "t.bookmarked" },
+    { name: "Name", id: "traceName", type: "string", internal: 't."name"' },
+  ] as const;
+
+  it("hides bookmarked so new evaluators cannot filter on it", () => {
+    expect(getSelectableTraceFilterColumns([...columns], [])).toEqual([
+      columns[1],
+    ]);
+  });
+
+  it.each(["bookmarked", "⭐️"])(
+    "keeps bookmarked selectable while a config still filters on %s",
+    (column) => {
+      const filter: FilterState = [
+        { column, type: "boolean", operator: "=", value: true },
+      ];
+
+      expect(getSelectableTraceFilterColumns([...columns], filter)).toEqual(
+        columns,
+      );
+    },
+  );
 });
 
 describe("evalConfigFormSchema", () => {

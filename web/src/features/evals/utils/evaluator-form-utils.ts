@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
+  type ColumnDefinition,
   EvalTargetObjectSchema,
+  type FilterState,
   singleFilter,
   type langfuseObjects,
   TimeScopeSchema,
@@ -133,6 +135,27 @@ export function getActiveJsonPathCompatibilityWarning(mappingRow: {
   if (!fieldHasJsonSelectorOption(mappingRow.selectedColumnId)) return null;
 
   return getJsonPathCompatibilityWarning(mappingRow.jsonSelector);
+}
+
+// Bookmarking is retired from the UI, so the trace evaluator form no longer
+// offers it as a filter column. An evaluator that already filters on it keeps
+// the column selectable — its filter still runs, and hiding the column would
+// leave that row rendering an empty column picker.
+const RETIRED_TRACE_FILTER_COLUMNS = ["bookmarked", "⭐️"];
+
+export function getSelectableTraceFilterColumns(
+  columns: ColumnDefinition[],
+  filterState: FilterState | null | undefined,
+): ColumnDefinition[] {
+  const isStillFiltered = (filterState ?? []).some((filter) =>
+    RETIRED_TRACE_FILTER_COLUMNS.includes(filter.column),
+  );
+
+  return isStillFiltered
+    ? columns
+    : columns.filter(
+        (column) => !RETIRED_TRACE_FILTER_COLUMNS.includes(column.id),
+      );
 }
 
 export const getTargetDisplayName = (target: string): string => {

@@ -48,6 +48,7 @@ import {
   evalConfigFormSchema,
   getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
+  getSelectableTraceFilterColumns,
   getTargetDisplayName,
   inferDefaultMapping,
   type LangfuseObject,
@@ -1167,9 +1168,12 @@ export const InnerEvaluatorForm = (props: {
                             ),
                         );
                       } else if (isTraceTarget(target)) {
-                        return tracesTableColsWithOptions(
-                          traceFilterOptions,
-                          evalTraceTableCols,
+                        return getSelectableTraceFilterColumns(
+                          tracesTableColsWithOptions(
+                            traceFilterOptions,
+                            evalTraceTableCols,
+                          ),
+                          field.value,
                         );
                       } else if (isExperimentTarget(target)) {
                         // Experiment evaluators - only dataset filter

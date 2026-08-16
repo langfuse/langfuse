@@ -86,40 +86,6 @@ describe("validateEvaluatorFiltersForTarget", () => {
     });
   });
 
-  it.each(["bookmarked", "⭐️"] as const)(
-    "drops retired %s filters from trace evaluators without failing",
-    (column) => {
-      const result = validateEvaluatorFiltersForTarget({
-        targetObject: EvalTargetObject.TRACE,
-        filter: [
-          {
-            type: "boolean",
-            column,
-            operator: "=",
-            value: true,
-          },
-          {
-            type: "string",
-            column: "name",
-            operator: "=",
-            value: "checkout-trace",
-          },
-        ] satisfies FilterState,
-      });
-
-      expect(result.isValid).toBe(true);
-      expect(result.issues).toEqual([]);
-      expect(result.validatedFilters).toEqual([
-        {
-          type: "string",
-          column: "name",
-          operator: "=",
-          value: "checkout-trace",
-        },
-      ]);
-    },
-  );
-
   it("rejects incompatible filter types", () => {
     const result = validateEvaluatorFiltersForTarget({
       targetObject: EvalTargetObject.EVENT,
