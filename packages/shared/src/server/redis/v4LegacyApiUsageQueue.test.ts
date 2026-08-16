@@ -40,8 +40,8 @@ describe("V4LegacyApiUsageQueue schedule", () => {
     }));
 
     const { V4LegacyApiUsageQueue, V4_LEGACY_API_USAGE_CRON_PATTERN } =
-      await import("./v4LegacyApiUsageQueue");
-    const { QueueJobs } = await import("../queues");
+      await import("./v4LegacyApiUsageQueue.js");
+    const { QueueJobs } = await import("../queues.js");
 
     V4LegacyApiUsageQueue.getInstance();
 
