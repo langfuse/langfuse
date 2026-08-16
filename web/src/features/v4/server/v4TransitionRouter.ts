@@ -25,27 +25,18 @@ import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sd
 import {
   isV4TransitionCacheAvailable,
   MIGRATION_INGRESS_EVENT_SOURCES,
-  readExperimentPostUsageCache,
-  readLegacyApiUsageCache,
   readSdkUsageCache,
-  SDK_USAGE_CACHE_MAX_AGE_MS,
-  writeExperimentPostUsageCache,
-  writeLegacyApiUsageCache,
   writeSdkUsageCache,
-  type CachedLegacyApiUsageRow,
   type CachedSdkUsageSeries,
   type SdkUsageCacheBlob,
 } from "@/src/features/v4/server/v4TransitionCache";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DETECTION_WINDOW_MS = 14 * 24 * HOUR_MS;
-const MAX_DETECTION_RANGE_MS = DETECTION_WINDOW_MS;
 
 /**
  * Detection windows are computed server-side so cache entries are shared
- * across requesters and long-lived tabs cannot pin stale ranges. The
- * client-provided range is validated for contract compatibility but does not
- * drive the queried window.
+ * across requesters and long-lived tabs cannot pin stale ranges.
  */
 const getDetectionWindow = (nowMs = Date.now()) => {
   const hotStart = new Date(Math.floor(nowMs / HOUR_MS) * HOUR_MS);
@@ -90,40 +81,6 @@ const isEnabledLegacyIntegration = (
   Boolean(
     integration?.enabled &&
     isLegacyIntegrationExportSource(integration.exportSource),
-  );
-
-const projectTimeRangeInputSchema = z
-  .object({
-    projectId: z.string(),
-    fromTimestamp: z.date(),
-    toTimestamp: z.date(),
-  })
-  .refine(
-    ({ fromTimestamp, toTimestamp }) =>
-      toTimestamp.getTime() > fromTimestamp.getTime(),
-    { message: "fromTimestamp must be before toTimestamp" },
-  )
-  .refine(
-    ({ fromTimestamp, toTimestamp }) =>
-      toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_DETECTION_RANGE_MS,
-    { message: "V4 migration ranges cannot exceed 14 days" },
-  );
-
-const organizationTimeRangeInputSchema = z
-  .object({
-    orgId: z.string(),
-    fromTimestamp: z.date(),
-    toTimestamp: z.date(),
-  })
-  .refine(
-    ({ fromTimestamp, toTimestamp }) =>
-      toTimestamp.getTime() > fromTimestamp.getTime(),
-    { message: "fromTimestamp must be before toTimestamp" },
-  )
-  .refine(
-    ({ fromTimestamp, toTimestamp }) =>
-      toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_DETECTION_RANGE_MS,
-    { message: "V4 migration ranges cannot exceed 14 days" },
   );
 
 type LegacyApiUsageSummaryByProjectRow = {
@@ -660,11 +617,9 @@ const isSdkUsageBlobUsable = (
 ): blob is SdkUsageCacheBlob => {
   if (!blob) return false;
   const blobHotStartMs = Date.parse(blob.hotStart);
-  return (
-    Number.isFinite(blobHotStartMs) &&
-    blobHotStartMs >= nowMs - SDK_USAGE_CACHE_MAX_AGE_MS &&
-    blobHotStartMs <= nowMs
-  );
+  // Reject unparsable or future hotStart; Redis TTL is the only freshness
+  // bound — we do not expire blobs early based on age.
+  return Number.isFinite(blobHotStartMs) && blobHotStartMs <= nowMs;
 };
 
 /**
@@ -847,10 +802,8 @@ SETTINGS skip_unavailable_shards = 1
 
 /**
  * Whether each project called `POST /api/public/dataset-run-items` within the
- * detection window. Served from a 12h Redis cache because the underlying
- * `system.query_log` scan is expensive (unindexed JSON filters, multi-service
- * replica fan-out); only cache misses reach ClickHouse. `"check_failed"`
- * marks projects whose usage could not be determined.
+ * detection window. Reads `system.query_log` directly; Redis caching for this
+ * path lands in a follow-up PR with the worker pipeline.
  */
 const getExperimentPostUsageByProject = async ({
   projectIds,
@@ -862,27 +815,13 @@ const getExperimentPostUsageByProject = async ({
   const { windowStart, windowEnd } = getDetectionWindow(nowMs);
   const usageByProject = new Map<string, boolean | "check_failed">();
 
-  // readExperimentPostUsageCache already returns all-null when Redis is
-  // unavailable, which flows into the direct-query fallback below.
-  const cachedBlobs = await readExperimentPostUsageCache(projectIds);
-  const missedProjectIds: string[] = [];
-  projectIds.forEach((projectId, index) => {
-    const blob = cachedBlobs[index];
-    if (blob) {
-      usageByProject.set(projectId, blob.used);
-    } else {
-      missedProjectIds.push(projectId);
-    }
-  });
-  if (missedProjectIds.length === 0) return usageByProject;
-
   const queryResult = await queryDatasetRunItemsPostUsage({
-    projectIds: missedProjectIds,
+    projectIds,
     fromTimestamp: windowStart,
     toTimestamp: windowEnd,
   });
   if (queryResult.status === "error") {
-    missedProjectIds.forEach((projectId) =>
+    projectIds.forEach((projectId) =>
       usageByProject.set(projectId, "check_failed"),
     );
     return usageByProject;
@@ -893,18 +832,11 @@ const getExperimentPostUsageByProject = async ({
       .filter((row) => Number(row.count) > 0)
       .map((row) => row.projectId),
   );
-  missedProjectIds.forEach((projectId) =>
+  projectIds.forEach((projectId) =>
     usageByProject.set(
       projectId,
       projectsUsingDatasetRunItemsPost.has(projectId),
     ),
-  );
-  await writeExperimentPostUsageCache(
-    missedProjectIds.map((projectId) => ({
-      projectId,
-      used: projectsUsingDatasetRunItemsPost.has(projectId),
-    })),
-    new Date(nowMs),
   );
   return usageByProject;
 };
@@ -1170,18 +1102,10 @@ const queryLegacyApiUsageSummaries = async ({
   );
 };
 
-const trimLegacyApiUsageRows = (
-  rows: CachedLegacyApiUsageRow[],
-  nowMs: number,
-): CachedLegacyApiUsageRow[] =>
-  rows.filter((row) => isWithinDetectionWindow(row.lastSeen, nowMs));
-
 /**
- * Deprecated public API usage per project, served from a 12h Redis cache.
- * The underlying `system.query_log` scan is the expensive query that
- * saturated ClickHouse when run per sidebar mount: only cache misses reach
- * ClickHouse, and the always-mounted sidebar uses `cachedMigrationActions`,
- * which never falls through to a query at all.
+ * Deprecated public API usage per project. Reads `system.query_log` directly;
+ * Redis caching and the worker pipeline for this path land in a follow-up PR.
+ * The always-mounted sidebar never calls this procedure.
  */
 const getLegacyApiUsageSummaries = async ({
   projectIds,
@@ -1192,65 +1116,18 @@ const getLegacyApiUsageSummaries = async ({
 
   const nowMs = Date.now();
   const { windowStart, windowEnd } = getDetectionWindow(nowMs);
-
-  if (!isV4TransitionCacheAvailable()) {
-    return queryLegacyApiUsageSummaries({
-      projectIds,
-      fromTimestamp: windowStart,
-      toTimestamp: windowEnd,
-    });
-  }
-
-  const cachedBlobs = await readLegacyApiUsageCache(projectIds);
-  const rows: LegacyApiUsageSummaryByProjectResultRow[] = [];
-  const missedProjectIds: string[] = [];
-  projectIds.forEach((projectId, index) => {
-    const blob = cachedBlobs[index];
-    if (blob) {
-      rows.push(
-        ...trimLegacyApiUsageRows(blob.rows, nowMs).map((row) => ({
-          projectId,
-          ...row,
-        })),
-      );
-    } else {
-      missedProjectIds.push(projectId);
-    }
+  const rows = await queryLegacyApiUsageSummaries({
+    projectIds,
+    fromTimestamp: windowStart,
+    toTimestamp: windowEnd,
   });
-
-  if (missedProjectIds.length > 0) {
-    const freshRows = await queryLegacyApiUsageSummaries({
-      projectIds: missedProjectIds,
-      fromTimestamp: windowStart,
-      toTimestamp: windowEnd,
-    });
-    const freshRowsByProject = new Map<string, CachedLegacyApiUsageRow[]>(
-      missedProjectIds.map((projectId) => [projectId, []]),
+  return rows
+    .filter((row) => isWithinDetectionWindow(row.lastSeen, nowMs))
+    .sort(
+      (left, right) =>
+        left.projectId.localeCompare(right.projectId) ||
+        left.entrypoint.localeCompare(right.entrypoint),
     );
-    for (const row of freshRows) {
-      freshRowsByProject.get(row.projectId)?.push({
-        entrypoint: row.entrypoint,
-        count: row.count,
-        lastSeen: row.lastSeen,
-      });
-    }
-    // Projects without usage get an empty entry so they do not re-run the
-    // expensive scan on every request.
-    await writeLegacyApiUsageCache(
-      missedProjectIds.map((projectId) => ({
-        projectId,
-        rows: freshRowsByProject.get(projectId) ?? [],
-      })),
-      new Date(nowMs),
-    );
-    rows.push(...freshRows);
-  }
-
-  return rows.sort(
-    (left, right) =>
-      left.projectId.localeCompare(right.projectId) ||
-      left.entrypoint.localeCompare(right.entrypoint),
-  );
 };
 
 export const v4TransitionRouter = createTRPCRouter({
@@ -1326,11 +1203,8 @@ export const v4TransitionRouter = createTRPCRouter({
       });
     }),
 
-  // The time-range inputs below are validated for contract compatibility,
-  // but the server computes its own detection window (see
-  // getDetectionWindow) so cache entries are shared across requesters.
   sdkUsageSummary: protectedProjectProcedure
-    .input(projectTimeRangeInputSchema)
+    .input(z.object({ projectId: z.string() }))
     .query(async ({ input }) => {
       const [summary] = await getSdkUsageSummaries({
         projectIds: [input.projectId],
@@ -1339,7 +1213,7 @@ export const v4TransitionRouter = createTRPCRouter({
     }),
 
   sdkUsageSummaryByProject: protectedOrganizationProcedure
-    .input(organizationTimeRangeInputSchema)
+    .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
       const projects = await getAccessibleOrganizationProjects({
         prisma: ctx.prisma,
@@ -1352,7 +1226,7 @@ export const v4TransitionRouter = createTRPCRouter({
     }),
 
   legacyApiUsageSummary: protectedProjectProcedure
-    .input(projectTimeRangeInputSchema)
+    .input(z.object({ projectId: z.string() }))
     .query(({ input }) =>
       getLegacyApiUsageSummaries({
         projectIds: [input.projectId],
@@ -1360,7 +1234,7 @@ export const v4TransitionRouter = createTRPCRouter({
     ),
 
   legacyApiUsageSummaryByProject: protectedOrganizationProcedure
-    .input(organizationTimeRangeInputSchema)
+    .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
       const projects = await getAccessibleOrganizationProjects({
         prisma: ctx.prisma,
@@ -1374,9 +1248,9 @@ export const v4TransitionRouter = createTRPCRouter({
 
   /**
    * Migration signal for always-mounted UI (the sidebar "Action required"
-   * pill). Reads only Postgres and Redis; it never queries ClickHouse, so a
-   * cold cache degrades to `null` ("unknown") categories instead of
-   * re-running the expensive usage scans on every sidebar mount.
+   * pill). Reads Postgres and the SDK Redis cache only — never ClickHouse.
+   * Deprecated API / experiment signals stay `null` here until the follow-up
+   * query_log worker pipeline populates those caches.
    */
   cachedMigrationActions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -1397,40 +1271,18 @@ export const v4TransitionRouter = createTRPCRouter({
       const nowMs = Date.now();
       const projectIds = [input.projectId];
 
-      const [
-        evalSummaries,
-        integrationSummaries,
-        sdkBlobs,
-        postBlobs,
-        apiBlobs,
-      ] = await Promise.all([
-        getTraceLevelEvalSummaries({ prisma: ctx.prisma, projectIds }),
-        getLegacyIntegrationSummaries({ prisma: ctx.prisma, projectIds }),
-        readSdkUsageCache(projectIds),
-        readExperimentPostUsageCache(projectIds),
-        readLegacyApiUsageCache(projectIds),
-      ]);
+      const [evalSummaries, integrationSummaries, sdkBlobs] = await Promise.all(
+        [
+          getTraceLevelEvalSummaries({ prisma: ctx.prisma, projectIds }),
+          getLegacyIntegrationSummaries({ prisma: ctx.prisma, projectIds }),
+          readSdkUsageCache(projectIds),
+        ],
+      );
 
       const sdkBlob = sdkBlobs[0] ?? null;
       const cachedSeries = isSdkUsageBlobUsable(sdkBlob, nowMs)
         ? trimSdkUsageSeries(sdkBlob.series, nowMs)
         : null;
-      const postBlob = postBlobs[0] ?? null;
-      const apiBlob = apiBlobs[0] ?? null;
-
-      const experimentsActionNeeded =
-        postBlob === null
-          ? null
-          : postBlob.used === false
-            ? false
-            : cachedSeries === null
-              ? null
-              : ["required", "sdk_usage_inconclusive"].includes(
-                  deriveExperimentInstrumentationMigration({
-                    sdkUsageSeries: cachedSeries,
-                    postUsage: true,
-                  }).status,
-                );
 
       return {
         forceV3Experience: isForceV3ExperienceProject(input.projectId),
@@ -1440,11 +1292,8 @@ export const v4TransitionRouter = createTRPCRouter({
           cachedSeries === null
             ? null
             : cachedSeries.some((series) => series.actionLevel === "required"),
-        experimentsActionNeeded,
-        apisActionNeeded:
-          apiBlob === null
-            ? null
-            : trimLegacyApiUsageRows(apiBlob.rows, nowMs).length > 0,
+        experimentsActionNeeded: null,
+        apisActionNeeded: null,
         evalsActionNeeded: (evalSummaries[0]?.traceLevelEvalCount ?? 0) > 0,
         exportsActionNeeded:
           (integrationSummaries[0]?.legacyIntegrationCount ?? 0) > 0,

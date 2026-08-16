@@ -2,27 +2,22 @@ import { z } from "zod/v4";
 import { logger, redis } from "@langfuse/shared/src/server";
 
 /**
- * Redis caching for the v4 transition usage checks.
+ * Redis caching for the v4 transition SDK usage check.
  *
- * The v4 sidebar/panel checks read two expensive ClickHouse sources: SDK
- * ingestion from `events_core` and deprecated public API usage from
- * `system.query_log`. Uncached, always-mounted UI repeating these scans
- * saturated ClickHouse, so results are cached per project:
+ * SDK ingestion is read from the indexed `events_core` table. A per-project
+ * blob covers the detection window up to an hour-aligned `hotStart` boundary;
+ * readers always query the small `[hotStart, now]` gap live and merge it with
+ * the blob so new SDK versions register within minutes. The TTL is one hour so
+ * left-edge overcount on the sliding 14-day window (and stale classification
+ * fields embedded in the blob) stay bounded to ~1h.
  *
- * - SDK usage: a per-project blob covering the detection window up to an
- *   hour-aligned `hotStart` boundary. Readers always query the small
- *   `[hotStart, now]` gap live from the indexed `events_core` table and merge
- *   it with the blob, so freshness never depends on the TTL. The TTL is
- *   bounded to a day because cached rows embed classification verdicts
- *   (e.g. `latestSdkMajor`) that must re-apply within a day of a rules
- *   change.
- * - Legacy API usage and experiment POST usage: raw per-project facts from
- *   `system.query_log`, which is unindexed for our filters, fans out across
- *   replicas, and is delayed at the source anyway. Cached for 12h; the
- *   cache-only sidebar reads never fall back to ClickHouse.
+ * Deprecated public API and experiment POST usage come from `system.query_log`
+ * and are intentionally not cached here — that path lives in a follow-up PR
+ * with a worker-maintained pipeline. The always-mounted sidebar reads this
+ * SDK cache (and Postgres) only and never queries ClickHouse.
  *
- * All helpers degrade gracefully: no Redis, Redis errors, or unparsable
- * entries behave like cache misses and never fail the request.
+ * Helpers degrade gracefully: no Redis, Redis errors, or unparsable entries
+ * behave like cache misses and never fail the request.
  */
 
 /** Customer-ingress sources. Historical and experiment materializations are excluded. */
@@ -32,15 +27,7 @@ export const MIGRATION_INGRESS_EVENT_SOURCES = [
   "otel",
 ] as const;
 
-export const SDK_USAGE_CACHE_TTL_SECONDS = 24 * 60 * 60;
-/**
- * Blobs older than this force a refill: the live gap query spans
- * `[blob.hotStart, now]`, so past this age it would approach the full
- * detection window and the cache would save nothing.
- */
-export const SDK_USAGE_CACHE_MAX_AGE_MS = 25 * 60 * 60 * 1000;
-export const LEGACY_API_CACHE_TTL_SECONDS = 12 * 60 * 60;
-export const EXPERIMENT_POST_CACHE_TTL_SECONDS = 12 * 60 * 60;
+export const SDK_USAGE_CACHE_TTL_SECONDS = 60 * 60;
 
 const sdkUsageSeriesSchema = z.object({
   source: z.enum(MIGRATION_INGRESS_EVENT_SOURCES),
@@ -83,41 +70,8 @@ const sdkUsageBlobSchema = z.object({
 
 export type SdkUsageCacheBlob = z.infer<typeof sdkUsageBlobSchema>;
 
-const legacyApiUsageRowSchema = z.object({
-  entrypoint: z.string(),
-  count: z.number(),
-  lastSeen: z.string(),
-});
-
-export type CachedLegacyApiUsageRow = z.infer<typeof legacyApiUsageRowSchema>;
-
-const legacyApiUsageBlobSchema = z.object({
-  version: z.literal(1),
-  computedAt: z.string(),
-  rows: z.array(legacyApiUsageRowSchema),
-});
-
-export type LegacyApiUsageCacheBlob = z.infer<typeof legacyApiUsageBlobSchema>;
-
-const experimentPostUsageBlobSchema = z.object({
-  version: z.literal(1),
-  computedAt: z.string(),
-  used: z.boolean(),
-});
-
-export type ExperimentPostUsageCacheBlob = z.infer<
-  typeof experimentPostUsageBlobSchema
->;
-
-// v2: entries derived from the 14-day detection window. The version segment
-// exists so window/semantics changes invalidate old entries instead of being
-// silently served under new semantics.
 const sdkUsageKey = (projectId: string) =>
-  `langfuse:v4:sdk-usage:v2:${projectId}`;
-const legacyApiUsageKey = (projectId: string) =>
-  `langfuse:v4:legacy-api-usage:v2:${projectId}`;
-const experimentPostUsageKey = (projectId: string) =>
-  `langfuse:v4:experiment-post-usage:v2:${projectId}`;
+  `langfuse:v4:sdk-usage:v1:${projectId}`;
 
 export const isV4TransitionCacheAvailable = (): boolean =>
   redis != null && redis.status !== "end" && redis.status !== "close";
@@ -184,50 +138,5 @@ export const writeSdkUsageCache = (
         hotStart: entry.hotStart.toISOString(),
         series: entry.series,
       } satisfies SdkUsageCacheBlob,
-    })),
-  );
-
-export const readLegacyApiUsageCache = (
-  projectIds: string[],
-): Promise<(LegacyApiUsageCacheBlob | null)[]> =>
-  readBlobs(projectIds.map(legacyApiUsageKey), legacyApiUsageBlobSchema);
-
-export const writeLegacyApiUsageCache = (
-  entries: { projectId: string; rows: CachedLegacyApiUsageRow[] }[],
-  now = new Date(),
-): Promise<void> =>
-  writeBlobs(
-    entries.map((entry) => ({
-      key: legacyApiUsageKey(entry.projectId),
-      ttlSeconds: LEGACY_API_CACHE_TTL_SECONDS,
-      value: {
-        version: 1,
-        computedAt: now.toISOString(),
-        rows: entry.rows,
-      } satisfies LegacyApiUsageCacheBlob,
-    })),
-  );
-
-export const readExperimentPostUsageCache = (
-  projectIds: string[],
-): Promise<(ExperimentPostUsageCacheBlob | null)[]> =>
-  readBlobs(
-    projectIds.map(experimentPostUsageKey),
-    experimentPostUsageBlobSchema,
-  );
-
-export const writeExperimentPostUsageCache = (
-  entries: { projectId: string; used: boolean }[],
-  now = new Date(),
-): Promise<void> =>
-  writeBlobs(
-    entries.map((entry) => ({
-      key: experimentPostUsageKey(entry.projectId),
-      ttlSeconds: EXPERIMENT_POST_CACHE_TTL_SECONDS,
-      value: {
-        version: 1,
-        computedAt: now.toISOString(),
-        used: entry.used,
-      } satisfies ExperimentPostUsageCacheBlob,
     })),
   );
