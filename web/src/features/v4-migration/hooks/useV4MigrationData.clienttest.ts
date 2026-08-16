@@ -231,10 +231,7 @@ describe("cached migration actions", () => {
     mocks.cachedMigrationActionsUseQuery.mockReturnValue({ data: undefined });
 
     const { result } = renderHook(() =>
-      useProjectV4CachedMigrationActions({
-        projectId: "project-1",
-        enabled: true,
-      }),
+      useProjectV4CachedMigrationActions("project-1"),
     );
 
     expect(result.current).toEqual({ actionNeeded: false });
@@ -246,10 +243,7 @@ describe("cached migration actions", () => {
     });
 
     const { result } = renderHook(() =>
-      useProjectV4CachedMigrationActions({
-        projectId: "project-1",
-        enabled: true,
-      }),
+      useProjectV4CachedMigrationActions("project-1"),
     );
 
     expect(result.current).toEqual({ actionNeeded: false });
@@ -261,10 +255,7 @@ describe("cached migration actions", () => {
     });
 
     const { result } = renderHook(() =>
-      useProjectV4CachedMigrationActions({
-        projectId: "project-1",
-        enabled: true,
-      }),
+      useProjectV4CachedMigrationActions("project-1"),
     );
 
     expect(result.current).toEqual({ actionNeeded: true });
@@ -280,10 +271,7 @@ describe("cached migration actions", () => {
     });
 
     const { result } = renderHook(() =>
-      useProjectV4CachedMigrationActions({
-        projectId: "project-1",
-        enabled: true,
-      }),
+      useProjectV4CachedMigrationActions("project-1"),
     );
 
     expect(result.current).toEqual({ actionNeeded: false });

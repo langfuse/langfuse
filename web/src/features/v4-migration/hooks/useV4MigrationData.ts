@@ -13,9 +13,6 @@ import { getV4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionSt
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
-// Legacy API usage is served from a 12h server-side cache; a longer client
-// stale time avoids re-requesting data that cannot have changed.
-const LEGACY_API_QUERY_STALE_TIME_MS = 30 * 60 * 1000;
 
 export type V4MigrationOrganization = {
   id: string;
@@ -26,11 +23,6 @@ export type V4MigrationOrganization = {
 const queryOptions = {
   refetchOnWindowFocus: false,
   staleTime: QUERY_STALE_TIME_MS,
-};
-
-const legacyApiQueryOptions = {
-  refetchOnWindowFocus: false,
-  staleTime: LEGACY_API_QUERY_STALE_TIME_MS,
 };
 
 export function useAccountV4MigrationData(params: {
@@ -79,7 +71,7 @@ export function useAccountV4MigrationData(params: {
       t.v4Transition.legacyApiUsageSummaryByProject(
         { orgId: organization.id },
         {
-          ...legacyApiQueryOptions,
+          ...queryOptions,
           enabled,
           trpc: { context: { skipBatch: true } },
         },
@@ -184,22 +176,12 @@ export function useProjectV4EvalData(params: {
   return getMigrationCountState(evalQuery, (data) => data.traceLevelEvalCount);
 }
 
-/**
- * Cache-only migration signal for always-mounted UI (the sidebar pill).
- * Backed by `v4Transition.cachedMigrationActions`, which reads Postgres and
- * the SDK Redis cache only and never triggers ClickHouse. Deprecated API and
- * experiment categories stay unknown (`null`) until the follow-up query_log
- * pipeline; a cold SDK cache likewise counts as "no action needed" here.
- * Full checks run once the user opens the migration panel or status page.
- */
-export function useProjectV4CachedMigrationActions(params: {
-  projectId: string | undefined;
-  enabled: boolean;
-}): { actionNeeded: boolean } {
-  const { projectId, enabled } = params;
+export function useProjectV4CachedMigrationActions(
+  projectId: string | undefined,
+): { actionNeeded: boolean } {
   const query = api.v4Transition.cachedMigrationActions.useQuery(
     { projectId: projectId ?? "" },
-    { ...queryOptions, enabled: enabled && Boolean(projectId) },
+    { ...queryOptions, enabled: Boolean(projectId) },
   );
   const actions = query.data;
 
@@ -235,7 +217,7 @@ export function useProjectV4MigrationData(params: {
   const apiQuery = api.v4Transition.legacyApiUsageSummary.useQuery(
     { projectId: projectId ?? "" },
     {
-      ...legacyApiQueryOptions,
+      ...queryOptions,
       enabled: queryEnabled,
       trpc: { context: { skipBatch: true } },
     },

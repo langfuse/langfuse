@@ -12,12 +12,7 @@ export function V4MigrationNavItem() {
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
   const capture = usePostHogClientCapture();
-  // The nav item mounts on every sidebar render, so it must stay on the
-  // cache-only signal: full usage checks run when the panel is opened.
-  const { actionNeeded } = useProjectV4CachedMigrationActions({
-    projectId: project?.id,
-    enabled: v4UpgradeUiEnabled && Boolean(project),
-  });
+  const { actionNeeded } = useProjectV4CachedMigrationActions(project?.id);
 
   if (!v4UpgradeUiEnabled || !project || !actionNeeded) {
     return null;
