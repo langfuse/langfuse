@@ -134,7 +134,7 @@ export const v4TransitionRouter = createTRPCRouter({
    * Migration signal for always-mounted UI (the sidebar "Action required"
    * pill). Postgres for eval/export signals; SDK via the same Redis + live
    * gap-fill path as sdkUsageSummary. Deprecated API / experiment signals
-   * read worker-maintained Redis caches when available.
+   * read worker-maintained Redis entries when available (miss = unknown/none).
    */
   migrationActions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))

@@ -1,14 +1,11 @@
 import { z } from "zod/v4";
 import {
-  isV4LegacyApiHeartbeatFresh,
   logger,
   redis,
   v4ExperimentPostUsageBlobSchema,
   v4ExperimentPostUsageProjectKey,
   v4LegacyApiUsageBlobSchema,
   v4LegacyApiUsageProjectKey,
-  V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS,
-  V4_LEGACY_API_USAGE_HEARTBEAT_KEY,
   type V4ExperimentPostUsageBlob,
   type V4LegacyApiUsageBlob,
   type V4LegacyApiUsageRow,
@@ -25,10 +22,9 @@ import {
  * fields embedded in the blob) stay bounded to ~1h.
  *
  * Deprecated public API and experiment POST usage are maintained by the
- * worker pipeline into the shared Redis keys; the request path reads those
- * entries and only falls back to `system.query_log` when the pipeline
- * heartbeat is stale. Sidebar and panel SDK reads share this blob + gap-fill
- * path so both stay consistent.
+ * worker pipeline into the shared Redis keys; the request path only reads
+ * those entries (miss = no usage). Sidebar and panel SDK reads share this
+ * blob + gap-fill path so both stay consistent.
  *
  * Helpers degrade gracefully: no Redis, Redis errors, or unparsable entries
  * behave like cache misses and never fail the request.
@@ -43,15 +39,6 @@ export const MIGRATION_INGRESS_EVENT_SOURCES = [
 
 /** Historical blob TTL: 60 minutes (1 hour). */
 export const SDK_USAGE_CACHE_TTL_SECONDS = 60 * 60;
-// Legacy API and experiment POST entries share the pipeline contract owned
-// by @langfuse/shared/src/server (`v4/legacyApiUsage`): the worker refreshes the
-// same keys hourly, and this request-path fallback only fills them while the
-// pipeline heartbeat is stale.
-export const LEGACY_API_CACHE_TTL_SECONDS =
-  V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS;
-export const EXPERIMENT_POST_CACHE_TTL_SECONDS =
-  V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS;
-
 const sdkUsageSeriesSchema = z.object({
   source: z.enum(MIGRATION_INGRESS_EVENT_SOURCES),
   ingestionPath: z.enum(["otel", "ingestion_api"]),
@@ -175,64 +162,12 @@ export const readLegacyApiUsageCache = (
 ): Promise<(LegacyApiUsageCacheBlob | null)[]> =>
   readBlobs(projectIds.map(legacyApiUsageKey), v4LegacyApiUsageBlobSchema);
 
-/**
- * Whether the worker-maintained legacy API usage pipeline ran recently. While
- * true, a missing per-project cache entry authoritatively means "no usage"
- * and the request path must not fall back to the expensive
- * `system.query_log` scan.
- */
-export const isLegacyApiUsagePipelineFresh = async (
-  nowMs: number,
-): Promise<boolean> => {
-  if (!isV4TransitionCacheAvailable()) return false;
-  try {
-    const heartbeatIso = await redis!.get(V4_LEGACY_API_USAGE_HEARTBEAT_KEY);
-    return isV4LegacyApiHeartbeatFresh(heartbeatIso, nowMs);
-  } catch (error) {
-    logger.warn("Failed to read v4 legacy API usage heartbeat", { error });
-    return false;
-  }
-};
-
-export const writeLegacyApiUsageCache = (
-  entries: { projectId: string; rows: CachedLegacyApiUsageRow[] }[],
-  now = new Date(),
-): Promise<void> =>
-  writeBlobs(
-    entries.map((entry) => ({
-      key: legacyApiUsageKey(entry.projectId),
-      ttlSeconds: LEGACY_API_CACHE_TTL_SECONDS,
-      value: {
-        version: 1,
-        computedAt: now.toISOString(),
-        rows: entry.rows,
-      } satisfies LegacyApiUsageCacheBlob,
-    })),
-  );
-
 export const readExperimentPostUsageCache = (
   projectIds: string[],
 ): Promise<(ExperimentPostUsageCacheBlob | null)[]> =>
   readBlobs(
     projectIds.map(experimentPostUsageKey),
     v4ExperimentPostUsageBlobSchema,
-  );
-
-export const writeExperimentPostUsageCache = (
-  entries: { projectId: string; used: boolean; lastSeen: string | null }[],
-  now = new Date(),
-): Promise<void> =>
-  writeBlobs(
-    entries.map((entry) => ({
-      key: experimentPostUsageKey(entry.projectId),
-      ttlSeconds: EXPERIMENT_POST_CACHE_TTL_SECONDS,
-      value: {
-        version: 1,
-        computedAt: now.toISOString(),
-        used: entry.used,
-        lastSeen: entry.lastSeen,
-      } satisfies ExperimentPostUsageCacheBlob,
-    })),
   );
 
 const MINUTE_MS = 60 * 1000;

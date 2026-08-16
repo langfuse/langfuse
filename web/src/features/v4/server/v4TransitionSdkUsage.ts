@@ -4,8 +4,8 @@
  * Historical series come from a per-project Redis blob; the remaining gap up
  * to a minute-aligned recentCutoff is queried live from events_core (with
  * ClickHouse use_query_cache). Detection windows are server-side — no client
- * from/to. Experiment POST usage prefers the worker Redis path in the
- * query_log module (with query_log fallback when the heartbeat is stale).
+ * from/to. Experiment POST usage is read from worker-maintained Redis only
+ * (miss = no usage).
  */
 import {
   convertDateToClickhouseDateTime,

@@ -473,6 +473,27 @@ const RECENT_CUTOFF_CLICKHOUSE = "2026-06-25 00:30:00.000";
 const sdkUsageCacheKey = `langfuse:v4:sdk-usage:v1:${projectId}`;
 const legacyApiUsageCacheKey = `langfuse:v4:legacy-api-usage:v1:${projectId}`;
 const experimentPostUsageCacheKey = `langfuse:v4:experiment-post-usage:v1:${projectId}`;
+
+const experimentPostBlob = (
+  used: boolean,
+  lastSeen: string | null = used ? "2026-06-24T15:00:00.000000Z" : null,
+) =>
+  JSON.stringify({
+    version: 1,
+    computedAt: "2026-06-25T00:00:00.000Z",
+    used,
+    lastSeen,
+  });
+
+const legacyApiBlob = (
+  rows: { entrypoint: string; count: number; lastSeen: string }[],
+) =>
+  JSON.stringify({
+    version: 1,
+    computedAt: "2026-06-25T00:00:00.000Z",
+    rows,
+  });
+
 const legacyApiUsageHeartbeatKey = "langfuse:v4:legacy-api-usage:heartbeat:v1";
 
 const DEFAULT_SEED_TTL_SECONDS = 60 * 60;
@@ -533,30 +554,21 @@ describe("v4TransitionRouter", () => {
     vi.clearAllMocks();
   });
 
-  it("summarizes legacy public API usage for a project with route classification", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
+  it("serves legacy public API usage from Redis without querying ClickHouse", async () => {
+    await seedRedisCache({
+      [legacyApiUsageCacheKey]: legacyApiBlob([
         {
-          projectId,
-          entrypoint: "publicapi: GET /api/public/traces/{id}",
-          count: "0.6666666666666666",
-          lastSeen: "2026-06-24T12:34:56.789123Z",
-        },
-        {
-          projectId,
           entrypoint: "publicapi: GET /api/public/datasets/{datasetName}/runs",
-          count: "1",
+          count: 1,
           lastSeen: "2026-06-24T14:00:00.000000Z",
         },
-      ])
-      .mockResolvedValueOnce([
         {
-          projectId,
           entrypoint: "publicapi: GET /api/public/traces/{id}",
-          count: "1.3333333333333335",
+          count: 2,
           lastSeen: "2026-06-24T15:00:00.000000Z",
         },
-      ]);
+      ]),
+    });
     const caller = createCaller();
 
     const rows = await caller.legacyApiUsageSummary({
@@ -577,187 +589,34 @@ describe("v4TransitionRouter", () => {
         lastSeen: "2026-06-24T15:00:00.000000Z",
       },
     ]);
-
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
-    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(clickhouseQuery?.query).toContain(
-      "FROM clusterAllReplicas('test-cluster', 'system.query_log')",
-    );
-    expect(clickhouseQuery?.query).not.toContain("toStartOfInterval");
-    expect(clickhouseQuery?.query).not.toContain("bucket_time");
-    expect(clickhouseQuery?.query).toContain(
-      "splitByChar('?', JSONExtractString(log_comment, 'route'))[1]",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "sum(1.0 / clickhouse_queries_per_api_call) AS count",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "SETTINGS skip_unavailable_shards = 1",
-    );
-    expect(clickhouseQuery?.query).toContain("AND type = 'QueryFinish'");
-    expect(clickhouseQuery?.query).toContain(
-      "JSONExtractString(log_comment, 'tag_schema_version') = '1'",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "JSONExtractString(log_comment, 'surface') = 'publicapi'",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "JSONExtractString(log_comment, 'projectId') IN {projectIds: Array(String)}",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "GROUP BY project_id, legacy_route",
-    );
-    expect(clickhouseQuery?.query).not.toContain("hostName()");
-    expect(clickhouseQuery?.params).toMatchObject({
-      projectIds: [projectId],
-    });
-    expect(clickhouseQuery?.tags).toEqual({
-      route: "v4-legacy-api-usage-summary",
-    });
-    expect(clickhouseQuery?.clickhouseSettings).toEqual({
-      skip_unavailable_shards: 1,
-    });
-    expect(mockedQueryClickhouse.mock.calls[0]?.[0]).toMatchObject({
-      preferredClickhouseService: "ReadOnly",
-    });
-    expect(mockedQueryClickhouse.mock.calls[1]?.[0]).toMatchObject({
-      preferredClickhouseService: "ReadWrite",
-    });
-
-    [
-      "GET /api/public/spans",
-      "GET /api/public/generations",
-      "GET /api/public/traces",
-      "GET /api/public/sessions",
-      "GET /api/public/observations",
-      "GET /api/public/scores",
-      "GET /api/public/v2/scores",
-      "GET /api/public/metrics",
-      "GET /api/public/metrics/daily",
-      "GET /api/public/dataset-run-items",
-    ].forEach((route) => expect(clickhouseQuery?.query).toContain(route));
-
-    [
-      "GET /api/public/traces/{id}",
-      "GET /api/public/sessions/{id}",
-      "GET /api/public/observations/{id}",
-      "GET /api/public/scores/{id}",
-      "GET /api/public/v2/scores/{id}",
-      "GET /api/public/datasets/{datasetName}/runs",
-      "GET /api/public/datasets/{datasetName}/runs/{runName}",
-    ].forEach((route) => expect(clickhouseQuery?.query).toContain(route));
-    expect(clickhouseQuery?.query).toContain(
-      "match(route_path, '^GET /api/public/datasets/[^/?#]+/runs$'), 'GET /api/public/datasets/{datasetName}/runs'",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1",
-    );
-    expect(clickhouseQuery?.query).not.toContain("DELETE /api/public/datasets");
-    expect(clickhouseQuery?.query).toContain(
-      "'GET /api/public/traces',\n        'GET /api/public/observations',\n        'GET /api/public/scores',\n        'GET /api/public/v2/scores',\n        'GET /api/public/metrics/daily',\n        'GET /api/public/dataset-run-items'\n      ), 2",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "'GET /api/public/sessions',\n        'GET /api/public/metrics'\n      ), 1",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "match(route_path, '^GET /api/public/traces/[^/?#]+$'), 3",
-    );
+    expect(mockedQueryClickhouse).not.toHaveBeenCalled();
   });
 
-  it("queries the main service once when no separate read replica is configured", async () => {
-    sharedEnvMock.CLICKHOUSE_READ_ONLY_URL = sharedEnvMock.CLICKHOUSE_URL;
-    const caller = createCaller();
-
-    await caller.legacyApiUsageSummary({
-      projectId,
-    });
-
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
-    expect(mockedQueryClickhouse).toHaveBeenCalledWith(
-      expect.objectContaining({ preferredClickhouseService: "ReadWrite" }),
-    );
-  });
-
-  it("returns legacy API usage when one ClickHouse service is unavailable", async () => {
-    mockedQueryClickhouse
-      .mockRejectedValueOnce(new Error("read replica unavailable"))
-      .mockResolvedValueOnce([
-        {
-          projectId,
-          entrypoint: "publicapi: GET /api/public/traces/{id}",
-          count: "1",
-          lastSeen: "2026-06-24T15:00:00.000000Z",
-        },
-      ]);
+  it("treats missing legacy API Redis entries as no usage", async () => {
+    await seedRedisCache();
     const caller = createCaller();
 
     await expect(
       caller.legacyApiUsageSummary({
         projectId,
       }),
-    ).resolves.toEqual([
-      {
-        projectId,
-        entrypoint: "publicapi: GET /api/public/traces/{id}",
-        count: 1,
-        lastSeen: "2026-06-24T15:00:00.000000Z",
-      },
-    ]);
-
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
-  });
-
-  it("does not double-count identical results from two ClickHouse services", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
-        {
-          projectId,
-          entrypoint: "publicapi: GET /api/public/traces/{id}",
-          count: "2",
-          lastSeen: "2026-06-24T14:00:00.000000Z",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          projectId,
-          entrypoint: "publicapi: GET /api/public/traces/{id}",
-          count: "2",
-          lastSeen: "2026-06-24T14:00:00.000000Z",
-        },
-      ]);
-    const caller = createCaller();
-
-    await expect(
-      caller.legacyApiUsageSummary({
-        projectId,
-      }),
-    ).resolves.toEqual([
-      {
-        projectId,
-        entrypoint: "publicapi: GET /api/public/traces/{id}",
-        count: 2,
-        lastSeen: "2026-06-24T14:00:00.000000Z",
-      },
-    ]);
+    ).resolves.toEqual([]);
+    expect(mockedQueryClickhouse).not.toHaveBeenCalled();
+    await expect(readRedisJson(legacyApiUsageCacheKey)).resolves.toBeNull();
   });
 
   it("queries SDK usage for only the authorized project", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
-        mockSdkUsageRow({
-          projectId,
-          sdkName: "python",
-          sdkVersion: "4.7.0",
-          publicKey: "pk-lf-python",
-          eventCount: "2",
-          firstSeen: "2026-06-24T01:00:00Z",
-          lastSeen: "2026-06-24T02:00:00Z",
-        }),
-      ])
-      .mockResolvedValueOnce([]);
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "4.7.0",
+        publicKey: "pk-lf-python",
+        eventCount: "2",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T02:00:00Z",
+      }),
+    ]);
     const caller = createCaller();
 
     const summary = await caller.sdkUsageSummary({
@@ -780,11 +639,8 @@ describe("v4TransitionRouter", () => {
         },
       ],
     });
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
     expect(mockedQueryClickhouse.mock.calls[0]?.[0].params).toMatchObject({
-      projectIds: [projectId],
-    });
-    expect(mockedQueryClickhouse.mock.calls[1]?.[0].params).toMatchObject({
       projectIds: [projectId],
     });
   });
@@ -1214,77 +1070,73 @@ describe("v4TransitionRouter", () => {
   );
 
   it("summarizes outdated SDK usage series by organization project", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
-        mockSdkUsageRow({
-          projectId,
-          sdkName: "python",
-          sdkVersion: "3.9.0",
-          publicKey: "pk-lf-python",
-          eventCount: "8",
-          firstSeen: "2026-06-24T01:00:00Z",
-          lastSeen: "2026-06-24T02:00:00Z",
-        }),
-        mockSdkUsageRow({
-          projectId,
-          sdkName: "python",
-          sdkVersion: "4.14.1",
-          publicKey: "pk-lf-python",
-          eventCount: "13",
-          firstSeen: "2026-06-24T03:00:00Z",
-          lastSeen: "2026-06-24T04:00:00Z",
-        }),
-        mockSdkUsageRow({
-          projectId,
-          sdkName: "python",
-          sdkVersion: "4.6.9",
-          publicKey: "pk-lf-pre-v4-python",
-          eventCount: "5",
-          firstSeen: "2026-06-24T12:00:00Z",
-          lastSeen: "2026-06-24T13:00:00Z",
-        }),
-        mockSdkUsageRow({
-          projectId,
-          sdkName: "python",
-          sdkVersion: "4.7.0",
-          publicKey: "pk-lf-current-python",
-          eventCount: "6",
-          firstSeen: "2026-06-24T13:30:00Z",
-          lastSeen: "2026-06-24T14:00:00Z",
-        }),
-        mockSdkUsageRow({
-          projectId: secondProjectId,
-          sdkName: "@langfuse/tracing",
-          sdkVersion: "5.3.9",
-          publicKey: "pk-lf-old-js",
-          eventCount: "5",
-          firstSeen: "2026-06-24T01:00:00Z",
-          lastSeen: "2026-06-24T04:00:00Z",
-        }),
-        mockSdkUsageRow({
-          projectId: secondProjectId,
-          source: "otel",
-          sdkName: "unknown",
-          sdkVersion: "unknown",
-          publicKey: "pk-lf-otel",
-          eventCount: "3",
-          firstSeen: "2026-06-24T01:00:00Z",
-          lastSeen: "2026-06-24T04:00:00Z",
-        }),
-        mockSdkUsageRow({
-          projectId: secondProjectId,
-          source: "otel-dual-write",
-          sdkName: "custom-otel-writer",
-          sdkVersion: "1.2.3",
-          publicKey: "pk-lf-custom-otel",
-          eventCount: "2",
-          firstSeen: "2026-06-24T02:00:00Z",
-          lastSeen: "2026-06-24T03:00:00Z",
-        }),
-      ])
-      .mockResolvedValueOnce([
-        { projectId, count: "1", lastSeen: "2026-06-24T15:00:00.000000Z" },
-      ]);
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        publicKey: "pk-lf-python",
+        eventCount: "8",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T02:00:00Z",
+      }),
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "4.14.1",
+        publicKey: "pk-lf-python",
+        eventCount: "13",
+        firstSeen: "2026-06-24T03:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+      }),
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "4.6.9",
+        publicKey: "pk-lf-pre-v4-python",
+        eventCount: "5",
+        firstSeen: "2026-06-24T12:00:00Z",
+        lastSeen: "2026-06-24T13:00:00Z",
+      }),
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "4.7.0",
+        publicKey: "pk-lf-current-python",
+        eventCount: "6",
+        firstSeen: "2026-06-24T13:30:00Z",
+        lastSeen: "2026-06-24T14:00:00Z",
+      }),
+      mockSdkUsageRow({
+        projectId: secondProjectId,
+        sdkName: "@langfuse/tracing",
+        sdkVersion: "5.3.9",
+        publicKey: "pk-lf-old-js",
+        eventCount: "5",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+      }),
+      mockSdkUsageRow({
+        projectId: secondProjectId,
+        source: "otel",
+        sdkName: "unknown",
+        sdkVersion: "unknown",
+        publicKey: "pk-lf-otel",
+        eventCount: "3",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+      }),
+      mockSdkUsageRow({
+        projectId: secondProjectId,
+        source: "otel-dual-write",
+        sdkName: "custom-otel-writer",
+        sdkVersion: "1.2.3",
+        publicKey: "pk-lf-custom-otel",
+        eventCount: "2",
+        firstSeen: "2026-06-24T02:00:00Z",
+        lastSeen: "2026-06-24T03:00:00Z",
+      }),
+    ]);
     const mockPrisma = {
       project: {
         findMany: vi.fn().mockResolvedValue([
@@ -1303,8 +1155,8 @@ describe("v4TransitionRouter", () => {
       {
         projectId,
         experimentInstrumentationMigration: {
-          status: "sdk_usage_inconclusive",
-          upgradePath: "sdk",
+          status: "not_required",
+          upgradePath: null,
         },
         // Most recently seen first: the server re-sorts after merging cached
         // and live series.
@@ -1459,7 +1311,7 @@ describe("v4TransitionRouter", () => {
     expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
       accessibleProjectsFindManyArgs,
     );
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
     const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(usageQuery?.query).toContain("FROM events_core");
     expect(usageQuery?.query).not.toContain("WITH selected");
@@ -1507,51 +1359,21 @@ describe("v4TransitionRouter", () => {
       use_query_cache: 1,
       query_cache_ttl: 300,
     });
-
-    const experimentUsageQuery = mockedQueryClickhouse.mock.calls[1]?.[0];
-    expect(experimentUsageQuery?.query).toContain(
-      "splitByChar('?', JSONExtractString(log_comment, 'route'))[1] = 'POST /api/public/dataset-run-items'",
-    );
-    expect(experimentUsageQuery?.query).toContain(
-      "formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen",
-    );
-    expect(experimentUsageQuery?.query).toContain(
-      "JSONExtractString(log_comment, 'projectId') IN {projectIds: Array(String)}",
-    );
-    expect(experimentUsageQuery?.query).toContain(
-      "event_date >= toDate({fromTimestamp: DateTime64(3)})",
-    );
-    expect(experimentUsageQuery?.query).not.toContain("hostName()");
-    expect(experimentUsageQuery?.params).toMatchObject({
-      projectIds: [projectId, secondProjectId],
-      fromTimestamp: WINDOW_START_CLICKHOUSE,
-      toTimestamp: WINDOW_END_CLICKHOUSE,
-    });
-    expect(experimentUsageQuery?.tags).toEqual({
-      route: "v4-experiment-instrumentation-summary",
-    });
-    // The query_log-backed experiment check must not enable the query cache.
-    expect(
-      experimentUsageQuery?.clickhouseSettings?.use_query_cache,
-    ).toBeUndefined();
   });
 
-  it("finds dataset-run-items POST usage when only the main service has it", async () => {
-    sharedEnvMock.CLICKHOUSE_EVENTS_READ_ONLY_URL =
-      "https://clickhouse-events-read.example.com";
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
-        mockSdkUsageRow({
-          projectId,
-          source: "otel",
-          sdkName: "unknown",
-          sdkVersion: "unknown",
-        }),
-      ])
-      .mockRejectedValueOnce(new Error("events read replica unavailable"))
-      .mockResolvedValueOnce([
-        { projectId, count: "1", lastSeen: "2026-06-24T15:00:00.000000Z" },
-      ]);
+  it("requires an API upgrade when Redis shows dataset-run-items POST usage", async () => {
+    await seedRedisCache({
+      [experimentPostUsageCacheKey]: experimentPostBlob(true),
+    });
+    // Redis is available but the SDK blob is missing: historical + live gap.
+    mockedQueryClickhouse.mockResolvedValue([
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "3.3.5",
+        publicKey: "pk-lf-python",
+      }),
+    ]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1566,29 +1388,29 @@ describe("v4TransitionRouter", () => {
       status: "required",
       upgradePath: "api",
     });
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(3);
-    expect(mockedQueryClickhouse.mock.calls[1]?.[0]).toMatchObject({
-      preferredClickhouseService: "EventsReadOnly",
-    });
-    expect(mockedQueryClickhouse.mock.calls[2]?.[0]).toMatchObject({
-      preferredClickhouseService: "ReadWrite",
-    });
+    const eventsCoreCalls = mockedQueryClickhouse.mock.calls.filter(([args]) =>
+      args.query.includes("FROM events_core"),
+    );
+    expect(eventsCoreCalls).toHaveLength(2);
+    expect(
+      mockedQueryClickhouse.mock.calls.some(([args]) =>
+        args.query.includes("system.query_log"),
+      ),
+    ).toBe(false);
   });
 
   it("summarizes SDK usage for a single project with exactly that projectId", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
-        mockSdkUsageRow({
-          projectId,
-          sdkName: "python",
-          sdkVersion: "4.7.0",
-          publicKey: "pk-lf-python",
-          eventCount: "6",
-          firstSeen: "2026-06-24T13:30:00Z",
-          lastSeen: "2026-06-24T14:00:00Z",
-        }),
-      ])
-      .mockResolvedValueOnce([]);
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "4.7.0",
+        publicKey: "pk-lf-python",
+        eventCount: "6",
+        firstSeen: "2026-06-24T13:30:00Z",
+        lastSeen: "2026-06-24T14:00:00Z",
+      }),
+    ]);
 
     const caller = createCaller();
 
@@ -1614,64 +1436,56 @@ describe("v4TransitionRouter", () => {
       ],
     });
 
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
     expect(mockedQueryClickhouse.mock.calls[0]?.[0]?.params).toMatchObject({
-      projectIds: [projectId],
-    });
-    expect(mockedQueryClickhouse.mock.calls[1]?.[0]?.params).toMatchObject({
       projectIds: [projectId],
     });
     expect(mockedQueryClickhouse.mock.calls[0]?.[0]?.tags).toEqual({
       route: "v4-sdk-usage-summary",
     });
-    expect(mockedQueryClickhouse.mock.calls[1]?.[0]?.tags).toEqual({
-      route: "v4-experiment-instrumentation-summary",
-    });
   });
 
   it("keeps source-specific series and consumes SQL-owned classification", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
-        {
-          projectId,
-          source: "otel-dual-write",
-          ingestionPath: "otel",
-          deliveryMode: "delayed",
-          sdkName: "unknown",
-          sdkVersion: "unknown",
-          canonicalSdkName: null,
-          sdkVersionMajor: null,
-          isValidSdkVersion: false,
-          attributionStatus: "missing_name_and_version",
-          publicKey: "pk-lf-shared",
-          v4MigrationStatus: "unknown",
-          remediationType: "update_otel_instrumentation",
-          actionLevel: "required",
-          eventCount: "3",
-          firstSeen: "2026-06-24T01:00:00Z",
-          lastSeen: "2026-06-24T02:00:00Z",
-        },
-        {
-          projectId,
-          source: "ingestion-api-dual-write",
-          ingestionPath: "ingestion_api",
-          deliveryMode: "delayed",
-          sdkName: "unknown",
-          sdkVersion: "unknown",
-          canonicalSdkName: null,
-          sdkVersionMajor: null,
-          isValidSdkVersion: false,
-          attributionStatus: "missing_name_and_version",
-          publicKey: "pk-lf-shared",
-          v4MigrationStatus: "unknown",
-          remediationType: "upgrade_instrumentation",
-          actionLevel: "required",
-          eventCount: "2",
-          firstSeen: "2026-06-24T03:00:00Z",
-          lastSeen: "2026-06-24T04:00:00Z",
-        },
-      ])
-      .mockResolvedValueOnce([]);
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        projectId,
+        source: "otel-dual-write",
+        ingestionPath: "otel",
+        deliveryMode: "delayed",
+        sdkName: "unknown",
+        sdkVersion: "unknown",
+        canonicalSdkName: null,
+        sdkVersionMajor: null,
+        isValidSdkVersion: false,
+        attributionStatus: "missing_name_and_version",
+        publicKey: "pk-lf-shared",
+        v4MigrationStatus: "unknown",
+        remediationType: "update_otel_instrumentation",
+        actionLevel: "required",
+        eventCount: "3",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T02:00:00Z",
+      },
+      {
+        projectId,
+        source: "ingestion-api-dual-write",
+        ingestionPath: "ingestion_api",
+        deliveryMode: "delayed",
+        sdkName: "unknown",
+        sdkVersion: "unknown",
+        canonicalSdkName: null,
+        sdkVersionMajor: null,
+        isValidSdkVersion: false,
+        attributionStatus: "missing_name_and_version",
+        publicKey: "pk-lf-shared",
+        v4MigrationStatus: "unknown",
+        remediationType: "upgrade_instrumentation",
+        actionLevel: "required",
+        eventCount: "2",
+        firstSeen: "2026-06-24T03:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+      },
+    ]);
     const caller = createCaller();
 
     const summary = await caller.sdkUsageSummary({
@@ -1709,22 +1523,21 @@ describe("v4TransitionRouter", () => {
   });
 
   it("requires removing dataset-run-items POST usage for native OTel instrumentation", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
-        mockSdkUsageRow({
-          projectId,
-          source: "otel",
-          sdkName: "unknown",
-          sdkVersion: "unknown",
-          publicKey: "pk-lf-otel",
-          eventCount: "3",
-          firstSeen: "2026-06-24T01:00:00Z",
-          lastSeen: "2026-06-24T04:00:00Z",
-        }),
-      ])
-      .mockResolvedValueOnce([
-        { projectId, count: "1", lastSeen: "2026-06-24T15:00:00.000000Z" },
-      ]);
+    await seedRedisCache({
+      [experimentPostUsageCacheKey]: experimentPostBlob(true),
+    });
+    mockedQueryClickhouse.mockResolvedValue([
+      mockSdkUsageRow({
+        projectId,
+        source: "otel",
+        sdkName: "unknown",
+        sdkVersion: "unknown",
+        publicKey: "pk-lf-otel",
+        eventCount: "3",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+      }),
+    ]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1744,20 +1557,19 @@ describe("v4TransitionRouter", () => {
     });
   });
 
-  it("preserves SDK usage when the experiment instrumentation check fails", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
-        mockSdkUsageRow({
-          projectId,
-          sdkName: "python",
-          sdkVersion: "3.9.0",
-          publicKey: "pk-lf-python",
-          eventCount: "3",
-          firstSeen: "2026-06-24T01:00:00Z",
-          lastSeen: "2026-06-24T04:00:00Z",
-        }),
-      ])
-      .mockRejectedValueOnce(new Error("query_log unavailable"));
+  it("keeps SDK usage when experiment POST Redis data is missing", async () => {
+    // No worker entry and no query_log fallback: experiment stays not_required.
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        publicKey: "pk-lf-python",
+        eventCount: "3",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+      }),
+    ]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1771,7 +1583,7 @@ describe("v4TransitionRouter", () => {
     expect(summary).toMatchObject({
       projectId,
       experimentInstrumentationMigration: {
-        status: "check_failed",
+        status: "not_required",
         upgradePath: null,
       },
       sdkUsageSeries: [
@@ -1787,21 +1599,20 @@ describe("v4TransitionRouter", () => {
   });
 
   it("requires an API upgrade when POST usage predates the experiment runner", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
-        mockSdkUsageRow({
-          projectId,
-          sdkName: "python",
-          sdkVersion: "3.3.5",
-          publicKey: "pk-lf-python",
-          eventCount: "3",
-          firstSeen: "2026-06-24T01:00:00Z",
-          lastSeen: "2026-06-24T04:00:00Z",
-        }),
-      ])
-      .mockResolvedValueOnce([
-        { projectId, count: "1", lastSeen: "2026-06-24T15:00:00.000000Z" },
-      ]);
+    await seedRedisCache({
+      [experimentPostUsageCacheKey]: experimentPostBlob(true),
+    });
+    mockedQueryClickhouse.mockResolvedValue([
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "3.3.5",
+        publicKey: "pk-lf-python",
+        eventCount: "3",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+      }),
+    ]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1819,21 +1630,20 @@ describe("v4TransitionRouter", () => {
   });
 
   it("does not require an upgrade for current experiment instrumentation", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
-        mockSdkUsageRow({
-          projectId,
-          sdkName: "python",
-          sdkVersion: "4.0.0",
-          publicKey: "pk-lf-python",
-          eventCount: "3",
-          firstSeen: "2026-06-24T01:00:00Z",
-          lastSeen: "2026-06-24T04:00:00Z",
-        }),
-      ])
-      .mockResolvedValueOnce([
-        { projectId, count: "1", lastSeen: "2026-06-24T15:00:00.000000Z" },
-      ]);
+    await seedRedisCache({
+      [experimentPostUsageCacheKey]: experimentPostBlob(true),
+    });
+    mockedQueryClickhouse.mockResolvedValue([
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "4.0.0",
+        publicKey: "pk-lf-python",
+        eventCount: "3",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+      }),
+    ]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1850,36 +1660,23 @@ describe("v4TransitionRouter", () => {
     });
   });
 
-  it("summarizes legacy public API usage by organization project", async () => {
-    mockedQueryClickhouse
-      .mockResolvedValueOnce([
+  it("summarizes legacy public API usage by organization project from Redis", async () => {
+    await seedRedisCache({
+      [legacyApiUsageCacheKey]: legacyApiBlob([
         {
-          projectId,
           entrypoint: "publicapi: GET /api/public/traces/{id}",
-          count: "0.6666666666666666",
-          lastSeen: "2026-06-24T12:34:56.789123Z",
-        },
-        {
-          projectId: secondProjectId,
-          entrypoint: "publicapi: GET /api/public/metrics",
-          count: 3,
-          lastSeen: "2026-06-24T15:00:00.000000Z",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          projectId,
-          entrypoint: "publicapi: GET /api/public/traces/{id}",
-          count: "0.3333333333333334",
+          count: 1,
           lastSeen: "2026-06-24T14:00:00.000000Z",
         },
+      ]),
+      [`langfuse:v4:legacy-api-usage:v1:${secondProjectId}`]: legacyApiBlob([
         {
-          projectId: secondProjectId,
           entrypoint: "publicapi: GET /api/public/metrics",
-          count: 2,
+          count: 5,
           lastSeen: "2026-06-24T16:00:00.000000Z",
         },
-      ]);
+      ]),
+    });
     const mockPrisma = {
       project: {
         findMany: vi.fn().mockResolvedValue([
@@ -1908,39 +1705,10 @@ describe("v4TransitionRouter", () => {
         lastSeen: "2026-06-24T16:00:00.000000Z",
       },
     ]);
-
     expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
       accessibleProjectsFindManyArgs,
     );
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
-    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
-    expect(clickhouseQuery?.query).not.toContain("toStartOfInterval");
-    expect(clickhouseQuery?.query).not.toContain("bucket_time");
-    expect(clickhouseQuery?.query).toContain(
-      "JSONExtractString(log_comment, 'projectId') AS project_id",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "JSONExtractString(log_comment, 'projectId') IN {projectIds: Array(String)}",
-    );
-    expect(clickhouseQuery?.query).toContain("project_id AS projectId");
-    expect(clickhouseQuery?.query).toContain(
-      "formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen",
-    );
-    expect(clickhouseQuery?.query).toContain(
-      "GROUP BY project_id, legacy_route",
-    );
-    expect(clickhouseQuery?.params).toMatchObject({
-      projectIds: [projectId, secondProjectId],
-    });
-    expect(clickhouseQuery?.tags).toEqual({
-      route: "v4-legacy-api-usage-summary",
-    });
-    expect(mockedQueryClickhouse.mock.calls[0]?.[0]).toMatchObject({
-      preferredClickhouseService: "ReadOnly",
-    });
-    expect(mockedQueryClickhouse.mock.calls[1]?.[0]).toMatchObject({
-      preferredClickhouseService: "ReadWrite",
-    });
+    expect(mockedQueryClickhouse).not.toHaveBeenCalled();
   });
 
   describe("redis caching", () => {
@@ -1982,26 +1750,6 @@ describe("v4TransitionRouter", () => {
         computedAt: "2026-06-25T00:00:00.000Z",
         hotStart,
         series,
-      });
-
-    const experimentPostBlob = (
-      used: boolean,
-      lastSeen: string | null = used ? "2026-06-24T15:00:00.000000Z" : null,
-    ) =>
-      JSON.stringify({
-        version: 1,
-        computedAt: "2026-06-25T00:00:00.000Z",
-        used,
-        lastSeen,
-      });
-
-    const legacyApiBlob = (
-      rows: { entrypoint: string; count: number; lastSeen: string }[],
-    ) =>
-      JSON.stringify({
-        version: 1,
-        computedAt: "2026-06-25T00:00:00.000Z",
-        rows,
       });
 
     it("splits SDK usage into a cached-historical and a live-gap query on cache miss", async () => {
@@ -2088,18 +1836,11 @@ describe("v4TransitionRouter", () => {
       });
       expect(await readRedisTtl(sdkUsageCacheKey)).toBeGreaterThan(55 * 60);
       expect(await readRedisTtl(sdkUsageCacheKey)).toBeLessThanOrEqual(60 * 60);
+      // Experiment POST is Redis-only from the worker; the request path must
+      // not shadow-write empty entries on miss.
       await expect(
         readRedisJson(experimentPostUsageCacheKey),
-      ).resolves.toMatchObject({
-        used: false,
-        lastSeen: null,
-      });
-      expect(await readRedisTtl(experimentPostUsageCacheKey)).toBeGreaterThan(
-        11 * 60 * 60,
-      );
-      expect(
-        await readRedisTtl(experimentPostUsageCacheKey),
-      ).toBeLessThanOrEqual(12 * 60 * 60);
+      ).resolves.toBeNull();
     });
 
     it("serves cached SDK history with a live gap query on cache hit", async () => {
@@ -2235,16 +1976,8 @@ describe("v4TransitionRouter", () => {
       expect(mockedQueryClickhouse).not.toHaveBeenCalled();
     });
 
-    it("caches legacy API usage per project on miss, including empty results", async () => {
+    it("does not query or shadow-write legacy API Redis entries on miss", async () => {
       await seedRedisCache();
-      mockedQueryClickhouse.mockResolvedValue([
-        {
-          projectId,
-          entrypoint: "publicapi: GET /api/public/traces",
-          count: "4",
-          lastSeen: "2026-06-24T12:00:00.000000Z",
-        },
-      ]);
       const mockPrisma = {
         project: {
           findMany: vi.fn().mockResolvedValue([
@@ -2255,38 +1988,43 @@ describe("v4TransitionRouter", () => {
       };
       const caller = createCaller(mockPrisma);
 
-      const rows = await caller.legacyApiUsageSummaryByProject({
-        orgId,
-      });
-
-      expect(rows).toEqual([
-        {
-          projectId,
-          entrypoint: "publicapi: GET /api/public/traces",
-          count: 4,
-          lastSeen: "2026-06-24T12:00:00.000000Z",
-        },
-      ]);
-
       await expect(
-        readRedisJson(legacyApiUsageCacheKey),
-      ).resolves.toMatchObject({
-        rows: [expect.objectContaining({ count: 4 })],
-      });
-      expect(await readRedisTtl(legacyApiUsageCacheKey)).toBeGreaterThan(
-        11 * 60 * 60,
-      );
-      expect(await readRedisTtl(legacyApiUsageCacheKey)).toBeLessThanOrEqual(
-        12 * 60 * 60,
-      );
-      // The idle project gets an empty entry so it does not re-run the
-      // expensive query_log scan on every request.
+        caller.legacyApiUsageSummaryByProject({
+          orgId,
+        }),
+      ).resolves.toEqual([]);
+      expect(mockedQueryClickhouse).not.toHaveBeenCalled();
+      await expect(readRedisJson(legacyApiUsageCacheKey)).resolves.toBeNull();
       await expect(
         readRedisJson(`langfuse:v4:legacy-api-usage:v1:${secondProjectId}`),
-      ).resolves.toMatchObject({ rows: [] });
+      ).resolves.toBeNull();
     });
 
     describe("worker pipeline heartbeat", () => {
+      it("serves experiment POST Redis data even when the heartbeat is stale", async () => {
+        await seedRedisCache({
+          [legacyApiUsageHeartbeatKey]: "2026-06-24T20:30:00.000Z",
+          [sdkUsageCacheKey]: sdkUsageBlob([cachedSdkSeries()]),
+          [experimentPostUsageCacheKey]: experimentPostBlob(true),
+        });
+        mockedQueryClickhouse.mockResolvedValue([]);
+        const caller = createCaller();
+
+        const summary = await caller.sdkUsageSummary({
+          projectId,
+        });
+        // python 3.9.0 + POST usage → inconclusive (needs current experiment SDK).
+        expect(summary.experimentInstrumentationMigration).toEqual({
+          status: "sdk_usage_inconclusive",
+          upgradePath: "sdk",
+        });
+        expect(
+          mockedQueryClickhouse.mock.calls.some(([args]) =>
+            args.query.includes("system.query_log"),
+          ),
+        ).toBe(false);
+      });
+
       it("treats missing entries as no usage while the heartbeat is fresh", async () => {
         await seedRedisCache({
           // Worker ran 30 minutes ago; it only writes entries for projects
@@ -2320,32 +2058,33 @@ describe("v4TransitionRouter", () => {
         );
       });
 
-      it("falls back to querying when the heartbeat is stale", async () => {
+      it("serves legacy API Redis data even when the heartbeat is stale", async () => {
         await seedRedisCache({
-          // 4h old: past the 3h freshness horizon.
+          // 4h old: past the 3h freshness horizon — still serve Redis, no CH.
           [legacyApiUsageHeartbeatKey]: "2026-06-24T20:30:00.000Z",
+          [legacyApiUsageCacheKey]: legacyApiBlob([
+            {
+              entrypoint: "publicapi: GET /api/public/traces",
+              count: 4,
+              lastSeen: "2026-06-24T12:00:00.000000Z",
+            },
+          ]),
         });
-        mockedQueryClickhouse.mockResolvedValue([
-          {
-            projectId,
-            entrypoint: "publicapi: GET /api/public/traces",
-            count: "4",
-            lastSeen: "2026-06-24T12:00:00.000000Z",
-          },
-        ]);
         const caller = createCaller();
 
         const rows = await caller.legacyApiUsageSummary({
           projectId,
         });
 
-        expect(rows).toHaveLength(1);
-        expect(mockedQueryClickhouse).toHaveBeenCalled();
-        await expect(
-          readRedisJson(legacyApiUsageCacheKey),
-        ).resolves.toMatchObject({
-          rows: [expect.objectContaining({ count: 4 })],
-        });
+        expect(rows).toEqual([
+          {
+            projectId,
+            entrypoint: "publicapi: GET /api/public/traces",
+            count: 4,
+            lastSeen: "2026-06-24T12:00:00.000000Z",
+          },
+        ]);
+        expect(mockedQueryClickhouse).not.toHaveBeenCalled();
       });
     });
 
