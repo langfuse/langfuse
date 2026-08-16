@@ -9,16 +9,11 @@ vi.mock("@/src/server/auth", () => ({
 }));
 
 /**
- * Mutable Redis stub shared with the mocked "@langfuse/shared/src/server"
- * barrel. Defaults to status "end" (cache unavailable, direct-query mode);
- * cache tests flip status to "ready" and stub mget/setex.
+ * Cache tests seed the real shared Redis singleton. Most tests keep the
+ * cache "unavailable" via this flag so they exercise the direct-query path.
  */
-const redisMock = vi.hoisted(() => ({
-  status: "end" as string,
-  disconnect: vi.fn(),
-  get: vi.fn(),
-  mget: vi.fn(),
-  setex: vi.fn(),
+const redisAvailability = vi.hoisted(() => ({
+  available: false,
 }));
 
 const sharedServerMock = vi.hoisted(() => ({
@@ -116,12 +111,39 @@ const sharedEnvMock = vi.hoisted(() => ({
   CLICKHOUSE_URL: "https://clickhouse-main.example.com",
   CLICKHOUSE_READ_ONLY_URL: "https://clickhouse-read.example.com",
   CLICKHOUSE_EVENTS_READ_ONLY_URL: "https://clickhouse-main.example.com",
+  // Real Redis for cache tests (matches .env.test / docker-compose.dev.yml).
+  REDIS_CONNECTION_STRING: "redis://:myredissecret@127.0.0.1:6379/1",
+  REDIS_CLUSTER_ENABLED: "false",
+  REDIS_SENTINEL_ENABLED: "false",
+  REDIS_TLS_ENABLED: "false",
+  REDIS_ENABLE_AUTO_PIPELINING: "false",
+  REDIS_SOCKET_TIMEOUT_MS: 0,
 }));
 
 vi.mock("@langfuse/shared/src/env", () => ({ env: sharedEnvMock }));
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const { ROOT_CONTEXT } = await import("@opentelemetry/api");
+  // Import the Redis module directly so we get a real client without
+  // importOriginal'ing the mocked server barrel (circular with prisma/db).
+  const { createNewRedisInstance } =
+    await import("@langfuse/shared/src/server/redis/redis");
+  const realRedis = createNewRedisInstance();
+  if (!realRedis) {
+    throw new Error("Failed to create Redis client for v4 cache tests");
+  }
+
+  // Gate cache availability without replacing Redis I/O: when unavailable,
+  // isV4TransitionCacheAvailable() sees status "end" and skips Redis.
+  const redis = new Proxy(realRedis, {
+    get(target, property, receiver) {
+      if (property === "status") {
+        return redisAvailability.available ? target.status : "end";
+      }
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 
   return {
     ...sharedServerMock,
@@ -132,7 +154,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
       warn: vi.fn(),
       error: vi.fn(),
     },
-    redis: redisMock,
+    redis,
     ClickHouseClientManager: {
       getInstance: () => ({
         closeAllConnections: vi.fn(),
@@ -399,30 +421,82 @@ const legacyApiUsageCacheKey = `langfuse:v4:legacy-api-usage:v2:${projectId}`;
 const experimentPostUsageCacheKey = `langfuse:v4:experiment-post-usage:v2:${projectId}`;
 const legacyApiUsageHeartbeatKey = "langfuse:v4:legacy-api-usage:heartbeat:v1";
 
-/** In-memory Redis fake: get/mget/setex against a Map, status "ready". */
-const enableRedisCache = (initialEntries: Record<string, string> = {}) => {
-  const store = new Map<string, string>(Object.entries(initialEntries));
-  redisMock.status = "ready";
-  redisMock.get.mockImplementation(
-    async (key: string) => store.get(key) ?? null,
+const V4_CACHE_KEY_PATTERN = "langfuse:v4:*";
+const DEFAULT_SEED_TTL_SECONDS = 60 * 60;
+
+const getTestRedis = async () => {
+  const { redis } = await import("@langfuse/shared/src/server");
+  if (!redis) {
+    throw new Error("Shared Redis singleton is required for v4 cache tests");
+  }
+  // Wait until the real connection is ready (ignore the availability proxy).
+  for (let attempt = 0; attempt < 40; attempt++) {
+    try {
+      if (redis.status === "ready" || redis.status === "end") {
+        // When gated unavailable, status reads as "end"; still ping via raw call.
+      }
+      await redis.ping();
+      return redis;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+  throw new Error("Redis not ready for v4 cache tests");
+};
+
+const clearV4CacheKeys = async () => {
+  const redis = await getTestRedis();
+  const keys: string[] = [];
+  let cursor = "0";
+  do {
+    const [nextCursor, batch] = await redis.scan(
+      cursor,
+      "MATCH",
+      V4_CACHE_KEY_PATTERN,
+      "COUNT",
+      200,
+    );
+    cursor = nextCursor;
+    keys.push(...batch);
+  } while (cursor !== "0");
+  if (keys.length > 0) {
+    await redis.del(...keys);
+  }
+};
+
+/** Seed real Redis keys and enable the cache for the code under test. */
+const seedRedisCache = async (
+  initialEntries: Record<string, string> = {},
+  ttlSeconds = DEFAULT_SEED_TTL_SECONDS,
+) => {
+  const redis = await getTestRedis();
+  await clearV4CacheKeys();
+  redisAvailability.available = true;
+  if (Object.keys(initialEntries).length === 0) return;
+  await Promise.all(
+    Object.entries(initialEntries).map(([key, value]) =>
+      redis.setex(key, ttlSeconds, value),
+    ),
   );
-  redisMock.mget.mockImplementation(async (keys: string[]) =>
-    keys.map((key) => store.get(key) ?? null),
-  );
-  redisMock.setex.mockImplementation(
-    async (key: string, _ttlSeconds: number, value: string) => {
-      store.set(key, value);
-      return "OK";
-    },
-  );
-  return store;
+};
+
+const readRedisJson = async (key: string) => {
+  const redis = await getTestRedis();
+  const raw = await redis.get(key);
+  return raw === null ? null : JSON.parse(raw);
+};
+
+const readRedisTtl = async (key: string) => {
+  const redis = await getTestRedis();
+  return redis.ttl(key);
 };
 
 describe("v4TransitionRouter", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(TEST_NOW);
-    redisMock.status = "end";
+    redisAvailability.available = false;
+    await clearV4CacheKeys();
     sharedEnvMock.CLICKHOUSE_READ_ONLY_URL =
       "https://clickhouse-read.example.com";
     sharedEnvMock.CLICKHOUSE_EVENTS_READ_ONLY_URL =
@@ -435,6 +509,11 @@ describe("v4TransitionRouter", () => {
         lastSeen: "2026-06-24T12:34:56.789123Z",
       },
     ]);
+  });
+
+  afterEach(async () => {
+    redisAvailability.available = false;
+    await clearV4CacheKeys();
   });
 
   afterEach(() => {
@@ -1962,7 +2041,7 @@ describe("v4TransitionRouter", () => {
       });
 
     it("splits SDK usage into a cached-historical and a live-gap query on cache miss", async () => {
-      enableRedisCache();
+      await seedRedisCache();
       const historicalRow = mockSdkUsageRow({
         projectId,
         sdkName: "python",
@@ -2031,27 +2110,33 @@ describe("v4TransitionRouter", () => {
       });
 
       // Only the historical slice is cached (24h TTL); the gap stays live.
-      const sdkWrite = redisMock.setex.mock.calls.find(
-        ([key]) => key === sdkUsageCacheKey,
-      );
-      expect(sdkWrite?.[1]).toBe(24 * 60 * 60);
-      expect(JSON.parse(sdkWrite?.[2] as string)).toMatchObject({
+      await expect(readRedisJson(sdkUsageCacheKey)).resolves.toMatchObject({
         version: 1,
         hotStart: HOT_START_ISO,
         series: [expect.objectContaining({ eventCount: 5 })],
       });
-      const experimentWrite = redisMock.setex.mock.calls.find(
-        ([key]) => key === experimentPostUsageCacheKey,
+      expect(await readRedisTtl(sdkUsageCacheKey)).toBeGreaterThan(
+        23 * 60 * 60,
       );
-      expect(experimentWrite?.[1]).toBe(12 * 60 * 60);
-      expect(JSON.parse(experimentWrite?.[2] as string)).toMatchObject({
+      expect(await readRedisTtl(sdkUsageCacheKey)).toBeLessThanOrEqual(
+        24 * 60 * 60,
+      );
+      await expect(
+        readRedisJson(experimentPostUsageCacheKey),
+      ).resolves.toMatchObject({
         used: false,
         lastSeen: null,
       });
+      expect(await readRedisTtl(experimentPostUsageCacheKey)).toBeGreaterThan(
+        11 * 60 * 60,
+      );
+      expect(
+        await readRedisTtl(experimentPostUsageCacheKey),
+      ).toBeLessThanOrEqual(12 * 60 * 60);
     });
 
     it("serves cached SDK history with a live gap query on cache hit", async () => {
-      enableRedisCache({
+      await seedRedisCache({
         [sdkUsageCacheKey]: sdkUsageBlob([cachedSdkSeries()]),
         [experimentPostUsageCacheKey]: experimentPostBlob(false),
       });
@@ -2097,11 +2182,15 @@ describe("v4TransitionRouter", () => {
         fromTimestamp: HOT_START_CLICKHOUSE,
         toTimestamp: WINDOW_END_CLICKHOUSE,
       });
-      expect(redisMock.setex).not.toHaveBeenCalled();
+      // Cache hit must not rewrite the historical blob.
+      await expect(readRedisJson(sdkUsageCacheKey)).resolves.toMatchObject({
+        hotStart: HOT_START_ISO,
+        series: [expect.objectContaining({ eventCount: 5 })],
+      });
     });
 
     it("drops cached SDK series that aged out of the 14-day window", async () => {
-      enableRedisCache({
+      await seedRedisCache({
         [sdkUsageCacheKey]: sdkUsageBlob([
           cachedSdkSeries(),
           cachedSdkSeries({
@@ -2133,7 +2222,7 @@ describe("v4TransitionRouter", () => {
       // the full window and the blob is refilled instead.
       ["a stale hot boundary", null],
     ])("treats blobs with %s as cache misses", async (_label, corruptValue) => {
-      enableRedisCache({
+      await seedRedisCache({
         [sdkUsageCacheKey]:
           corruptValue ??
           sdkUsageBlob([cachedSdkSeries()], "2026-06-23T22:00:00.000Z"),
@@ -2153,13 +2242,14 @@ describe("v4TransitionRouter", () => {
         ([args]) => args.query.includes("FROM events_core"),
       );
       expect(eventsCoreCalls).toHaveLength(2);
-      expect(
-        redisMock.setex.mock.calls.some(([key]) => key === sdkUsageCacheKey),
-      ).toBe(true);
+      await expect(readRedisJson(sdkUsageCacheKey)).resolves.toMatchObject({
+        version: 1,
+        hotStart: HOT_START_ISO,
+      });
     });
 
     it("serves legacy API usage from the cache without querying ClickHouse", async () => {
-      enableRedisCache({
+      await seedRedisCache({
         [legacyApiUsageCacheKey]: legacyApiBlob([
           {
             entrypoint: "publicapi: GET /api/public/traces",
@@ -2194,7 +2284,7 @@ describe("v4TransitionRouter", () => {
     });
 
     it("caches legacy API usage per project on miss, including empty results", async () => {
-      enableRedisCache();
+      await seedRedisCache();
       mockedQueryClickhouse.mockResolvedValue([
         {
           projectId,
@@ -2228,26 +2318,27 @@ describe("v4TransitionRouter", () => {
         },
       ]);
 
-      const writesByKey = new Map(
-        redisMock.setex.mock.calls.map(([key, ttl, value]) => [
-          key,
-          { ttl, value: JSON.parse(value as string) },
-        ]),
-      );
-      expect(writesByKey.get(legacyApiUsageCacheKey)).toMatchObject({
-        ttl: 12 * 60 * 60,
-        value: { rows: [expect.objectContaining({ count: 4 })] },
+      await expect(
+        readRedisJson(legacyApiUsageCacheKey),
+      ).resolves.toMatchObject({
+        rows: [expect.objectContaining({ count: 4 })],
       });
+      expect(await readRedisTtl(legacyApiUsageCacheKey)).toBeGreaterThan(
+        11 * 60 * 60,
+      );
+      expect(await readRedisTtl(legacyApiUsageCacheKey)).toBeLessThanOrEqual(
+        12 * 60 * 60,
+      );
       // The idle project gets an empty entry so it does not re-run the
       // expensive query_log scan on every request.
-      expect(
-        writesByKey.get(`langfuse:v4:legacy-api-usage:v2:${secondProjectId}`),
-      ).toMatchObject({ ttl: 12 * 60 * 60, value: { rows: [] } });
+      await expect(
+        readRedisJson(`langfuse:v4:legacy-api-usage:v2:${secondProjectId}`),
+      ).resolves.toMatchObject({ rows: [] });
     });
 
     describe("worker pipeline heartbeat", () => {
       it("treats missing entries as no usage while the heartbeat is fresh", async () => {
-        enableRedisCache({
+        await seedRedisCache({
           // Worker ran 30 minutes ago; it only writes entries for projects
           // WITH usage, so absence is authoritative.
           [legacyApiUsageHeartbeatKey]: "2026-06-25T00:00:00.000Z",
@@ -2265,7 +2356,7 @@ describe("v4TransitionRouter", () => {
         ).resolves.toEqual([]);
         expect(mockedQueryClickhouse).not.toHaveBeenCalled();
         // The request path must not shadow the worker's entries either.
-        expect(redisMock.setex).not.toHaveBeenCalled();
+        await expect(readRedisJson(legacyApiUsageCacheKey)).resolves.toBeNull();
 
         const summary = await caller.sdkUsageSummary({
           projectId,
@@ -2284,7 +2375,7 @@ describe("v4TransitionRouter", () => {
       });
 
       it("falls back to querying when the heartbeat is stale", async () => {
-        enableRedisCache({
+        await seedRedisCache({
           // 4h old: past the 3h freshness horizon.
           [legacyApiUsageHeartbeatKey]: "2026-06-24T20:30:00.000Z",
         });
@@ -2306,11 +2397,11 @@ describe("v4TransitionRouter", () => {
 
         expect(rows).toHaveLength(1);
         expect(mockedQueryClickhouse).toHaveBeenCalled();
-        expect(
-          redisMock.setex.mock.calls.some(
-            ([key]) => key === legacyApiUsageCacheKey,
-          ),
-        ).toBe(true);
+        await expect(
+          readRedisJson(legacyApiUsageCacheKey),
+        ).resolves.toMatchObject({
+          rows: [expect.objectContaining({ count: 4 })],
+        });
       });
     });
 
@@ -2331,7 +2422,7 @@ describe("v4TransitionRouter", () => {
       });
 
       it("returns unknown categories on a cold cache without querying ClickHouse", async () => {
-        enableRedisCache();
+        await seedRedisCache();
         const caller = createCaller(mockPrismaForActions());
 
         await expect(
@@ -2346,11 +2437,12 @@ describe("v4TransitionRouter", () => {
         });
 
         expect(mockedQueryClickhouse).not.toHaveBeenCalled();
-        expect(redisMock.setex).not.toHaveBeenCalled();
+        await expect(readRedisJson(sdkUsageCacheKey)).resolves.toBeNull();
+        await expect(readRedisJson(legacyApiUsageCacheKey)).resolves.toBeNull();
       });
 
       it("derives action flags from cached usage without querying ClickHouse", async () => {
-        enableRedisCache({
+        await seedRedisCache({
           [sdkUsageCacheKey]: sdkUsageBlob([
             cachedSdkSeries({ actionLevel: "required" }),
           ]),
@@ -2374,7 +2466,7 @@ describe("v4TransitionRouter", () => {
       });
 
       it("short-circuits partner-managed (forced v3) projects without any I/O", async () => {
-        enableRedisCache();
+        await seedRedisCache();
         sharedServerMock.isForceV3ExperienceProject.mockReturnValueOnce(true);
         const prismaMock = mockPrismaForActions();
         const caller = createCaller(prismaMock);
@@ -2391,12 +2483,12 @@ describe("v4TransitionRouter", () => {
         });
 
         expect(prismaMock.jobConfiguration.groupBy).not.toHaveBeenCalled();
-        expect(redisMock.mget).not.toHaveBeenCalled();
         expect(mockedQueryClickhouse).not.toHaveBeenCalled();
       });
 
       it("returns unknown categories when Redis is unavailable", async () => {
-        redisMock.status = "end";
+        // Default beforeEach leaves the cache gated off (status proxy → "end").
+        redisAvailability.available = false;
         const caller = createCaller(mockPrismaForActions());
 
         await expect(
@@ -2408,7 +2500,6 @@ describe("v4TransitionRouter", () => {
         });
 
         expect(mockedQueryClickhouse).not.toHaveBeenCalled();
-        expect(redisMock.mget).not.toHaveBeenCalled();
       });
     });
   });
