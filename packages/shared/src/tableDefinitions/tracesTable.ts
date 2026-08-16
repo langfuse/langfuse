@@ -219,7 +219,11 @@ export const datasetCol: ColumnDefinition = {
 export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
 
 /** @alias */
-export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
+export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols.filter(
+  // Bookmarking is retired from the UI; keep it out of the evaluator filter
+  // picker and validation allowlist so configs can't keep selecting it.
+  (col) => col.id !== "bookmarked",
+);
 /** @alias */
 export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 
