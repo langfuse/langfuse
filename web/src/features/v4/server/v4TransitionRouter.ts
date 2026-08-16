@@ -187,6 +187,7 @@ type SdkUsageSummaryByProjectResultRow = {
 type DatasetRunItemsPostUsageByProjectRow = {
   projectId: string;
   count: string | number;
+  lastSeen: string;
 };
 
 type SystemQueryLogReadService = "ReadOnly" | "EventsReadOnly";
@@ -809,7 +810,8 @@ const queryDatasetRunItemsPostUsage = async ({
         query: `
 SELECT
   JSONExtractString(log_comment, 'projectId') AS projectId,
-  count() AS count
+  count() AS count,
+  formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen
 FROM ${systemTableRef("system.query_log")}
 WHERE
   event_time >= {fromTimestamp: DateTime64(3)}
@@ -872,11 +874,17 @@ const getExperimentPostUsageByProject = async ({
   const missedProjectIds: string[] = [];
   projectIds.forEach((projectId, index) => {
     const blob = cachedBlobs[index];
-    if (blob) {
-      usageByProject.set(projectId, blob.used);
-    } else {
+    if (!blob) {
       missedProjectIds.push(projectId);
+      return;
     }
+    // Prefer lastSeen for the 14d trim when present; used alone is enough
+    // for worker-written entries that already rolled up inside the window.
+    const stillInWindow =
+      blob.lastSeen == null
+        ? blob.used
+        : blob.used && isWithinDetectionWindow(blob.lastSeen, nowMs);
+    usageByProject.set(projectId, stillInWindow);
   });
   if (missedProjectIds.length === 0) return usageByProject;
 
@@ -902,22 +910,27 @@ const getExperimentPostUsageByProject = async ({
     return usageByProject;
   }
 
-  const projectsUsingDatasetRunItemsPost = new Set(
-    queryResult.rows
-      .filter((row) => Number(row.count) > 0)
-      .map((row) => row.projectId),
-  );
+  const lastSeenByProject = new Map<string, string>();
+  for (const row of queryResult.rows) {
+    if (Number(row.count) <= 0) continue;
+    const existing = lastSeenByProject.get(row.projectId);
+    lastSeenByProject.set(
+      row.projectId,
+      existing && existing > row.lastSeen ? existing : row.lastSeen,
+    );
+  }
   missedProjectIds.forEach((projectId) =>
-    usageByProject.set(
-      projectId,
-      projectsUsingDatasetRunItemsPost.has(projectId),
-    ),
+    usageByProject.set(projectId, lastSeenByProject.has(projectId)),
   );
   await writeExperimentPostUsageCache(
-    missedProjectIds.map((projectId) => ({
-      projectId,
-      used: projectsUsingDatasetRunItemsPost.has(projectId),
-    })),
+    missedProjectIds.map((projectId) => {
+      const lastSeen = lastSeenByProject.get(projectId) ?? null;
+      return {
+        projectId,
+        used: lastSeen != null,
+        lastSeen,
+      };
+    }),
     new Date(nowMs),
   );
   return usageByProject;

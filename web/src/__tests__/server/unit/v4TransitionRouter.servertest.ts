@@ -1229,7 +1229,9 @@ describe("v4TransitionRouter", () => {
           lastSeen: "2026-06-24T03:00:00Z",
         }),
       ])
-      .mockResolvedValueOnce([{ projectId, count: "1" }]);
+      .mockResolvedValueOnce([
+        { projectId, count: "1", lastSeen: "2026-06-24T15:00:00.000000Z" },
+      ]);
     const mockPrisma = {
       project: {
         findMany: vi.fn().mockResolvedValue([
@@ -1456,6 +1458,9 @@ describe("v4TransitionRouter", () => {
       "splitByChar('?', JSONExtractString(log_comment, 'route'))[1] = 'POST /api/public/dataset-run-items'",
     );
     expect(experimentUsageQuery?.query).toContain(
+      "formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen",
+    );
+    expect(experimentUsageQuery?.query).toContain(
       "JSONExtractString(log_comment, 'projectId') IN {projectIds: Array(String)}",
     );
     expect(experimentUsageQuery?.query).toContain(
@@ -1485,7 +1490,9 @@ describe("v4TransitionRouter", () => {
         }),
       ])
       .mockRejectedValueOnce(new Error("events read replica unavailable"))
-      .mockResolvedValueOnce([{ projectId, count: "1" }]);
+      .mockResolvedValueOnce([
+        { projectId, count: "1", lastSeen: "2026-06-24T15:00:00.000000Z" },
+      ]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1662,7 +1669,9 @@ describe("v4TransitionRouter", () => {
           lastSeen: "2026-06-24T04:00:00Z",
         }),
       ])
-      .mockResolvedValueOnce([{ projectId, count: "1" }]);
+      .mockResolvedValueOnce([
+        { projectId, count: "1", lastSeen: "2026-06-24T15:00:00.000000Z" },
+      ]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1741,7 +1750,9 @@ describe("v4TransitionRouter", () => {
           lastSeen: "2026-06-24T04:00:00Z",
         }),
       ])
-      .mockResolvedValueOnce([{ projectId, count: "1" }]);
+      .mockResolvedValueOnce([
+        { projectId, count: "1", lastSeen: "2026-06-24T15:00:00.000000Z" },
+      ]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1773,7 +1784,9 @@ describe("v4TransitionRouter", () => {
           lastSeen: "2026-06-24T04:00:00Z",
         }),
       ])
-      .mockResolvedValueOnce([{ projectId, count: "1" }]);
+      .mockResolvedValueOnce([
+        { projectId, count: "1", lastSeen: "2026-06-24T15:00:00.000000Z" },
+      ]);
     const caller = createCaller({
       project: {
         findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
@@ -1928,11 +1941,15 @@ describe("v4TransitionRouter", () => {
         series,
       });
 
-    const experimentPostBlob = (used: boolean) =>
+    const experimentPostBlob = (
+      used: boolean,
+      lastSeen: string | null = used ? "2026-06-24T15:00:00.000000Z" : null,
+    ) =>
       JSON.stringify({
         version: 1,
         computedAt: "2026-06-25T00:00:00.000Z",
         used,
+        lastSeen,
       });
 
     const legacyApiBlob = (
@@ -2029,6 +2046,7 @@ describe("v4TransitionRouter", () => {
       expect(experimentWrite?.[1]).toBe(12 * 60 * 60);
       expect(JSON.parse(experimentWrite?.[2] as string)).toMatchObject({
         used: false,
+        lastSeen: null,
       });
     });
 

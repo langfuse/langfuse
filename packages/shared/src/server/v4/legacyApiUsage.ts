@@ -115,6 +115,8 @@ export const v4LegacyApiHourBucketSchema = z.object({
     z.object({
       projectId: z.string(),
       count: z.number(),
+      // Optional so pre-lastSeen hour buckets keep parsing; new writes always set it.
+      lastSeen: z.string().optional(),
     }),
   ),
 });
@@ -135,6 +137,11 @@ export const v4ExperimentPostUsageBlobSchema = z.object({
   version: z.literal(1),
   computedAt: z.string(),
   used: z.boolean(),
+  /**
+   * Latest POST /api/public/dataset-run-items in the window; null when unused.
+   * Default keeps older worker blobs readable until the next refresh.
+   */
+  lastSeen: z.string().nullable().default(null),
 });
 
 export type V4ExperimentPostUsageBlob = z.infer<
@@ -181,7 +188,11 @@ export const listV4LegacyApiHourStarts = (
 
 export type V4LegacyApiUsageRollup = {
   apiRowsByProjectId: Map<string, V4LegacyApiUsageRow[]>;
-  experimentPostProjectIds: Set<string>;
+  /**
+   * projectId → latest experiment POST lastSeen within the aggregated buckets.
+   * `null` means usage was observed in a legacy hour bucket that lacked lastSeen.
+   */
+  experimentPostLastSeenByProjectId: Map<string, string | null>;
 };
 
 /**
@@ -196,7 +207,7 @@ export const aggregateV4LegacyApiHourBuckets = (
     string,
     Map<string, V4LegacyApiUsageRow>
   >();
-  const experimentPostProjectIds = new Set<string>();
+  const experimentPostLastSeenByProjectId = new Map<string, string | null>();
 
   for (const bucket of buckets) {
     for (const row of bucket.apiRows) {
@@ -224,9 +235,22 @@ export const aggregateV4LegacyApiHourBuckets = (
       rowsByProjectAndEntrypoint.set(row.projectId, rowsByEntrypoint);
     }
     for (const row of bucket.experimentPostRows) {
-      if (row.count > 0) {
-        experimentPostProjectIds.add(row.projectId);
+      if (row.count <= 0) continue;
+      const existingLastSeen = experimentPostLastSeenByProjectId.get(
+        row.projectId,
+      );
+      if (!row.lastSeen) {
+        if (existingLastSeen === undefined) {
+          experimentPostLastSeenByProjectId.set(row.projectId, null);
+        }
+        continue;
       }
+      experimentPostLastSeenByProjectId.set(
+        row.projectId,
+        existingLastSeen && existingLastSeen > row.lastSeen
+          ? existingLastSeen
+          : row.lastSeen,
+      );
     }
   }
 
@@ -240,5 +264,5 @@ export const aggregateV4LegacyApiHourBuckets = (
     );
   }
 
-  return { apiRowsByProjectId, experimentPostProjectIds };
+  return { apiRowsByProjectId, experimentPostLastSeenByProjectId };
 };

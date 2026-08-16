@@ -230,7 +230,7 @@ export const readExperimentPostUsageCache = (
   );
 
 export const writeExperimentPostUsageCache = (
-  entries: { projectId: string; used: boolean }[],
+  entries: { projectId: string; used: boolean; lastSeen: string | null }[],
   now = new Date(),
 ): Promise<void> =>
   writeBlobs(
@@ -241,6 +241,7 @@ export const writeExperimentPostUsageCache = (
         version: 1,
         computedAt: now.toISOString(),
         used: entry.used,
+        lastSeen: entry.lastSeen,
       } satisfies ExperimentPostUsageCacheBlob,
     })),
   );

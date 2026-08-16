@@ -276,6 +276,7 @@ const buildHourBuckets = ({
       bucket.experimentPostRows.push({
         projectId: row.projectId,
         count: row.count,
+        lastSeen: row.lastSeen,
       });
     } else {
       bucket.apiRows.push({
@@ -466,11 +467,18 @@ export const handleV4LegacyApiUsageJob = async (
           value: JSON.stringify({ version: 1, computedAt, rows }),
         }),
       ),
-      ...Array.from(rollup.experimentPostProjectIds).map((projectId) => ({
-        key: v4ExperimentPostUsageProjectKey(projectId),
-        ttlSeconds: V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS,
-        value: JSON.stringify({ version: 1, computedAt, used: true }),
-      })),
+      ...Array.from(rollup.experimentPostLastSeenByProjectId.entries()).map(
+        ([projectId, lastSeen]) => ({
+          key: v4ExperimentPostUsageProjectKey(projectId),
+          ttlSeconds: V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS,
+          value: JSON.stringify({
+            version: 1,
+            computedAt,
+            used: true,
+            lastSeen,
+          }),
+        }),
+      ),
     ]);
 
     // Delete entries for projects that dropped out of the trailing window
@@ -491,7 +499,10 @@ export const handleV4LegacyApiUsageJob = async (
         .filter((projectId) => !rollup.apiRowsByProjectId.has(projectId))
         .map(v4LegacyApiUsageProjectKey),
       ...(previousRollupProjects?.experimentPost ?? [])
-        .filter((projectId) => !rollup.experimentPostProjectIds.has(projectId))
+        .filter(
+          (projectId) =>
+            !rollup.experimentPostLastSeenByProjectId.has(projectId),
+        )
         .map(v4ExperimentPostUsageProjectKey),
     ]);
     await redis!.setex(
@@ -500,7 +511,9 @@ export const handleV4LegacyApiUsageJob = async (
       JSON.stringify({
         version: 1,
         api: Array.from(rollup.apiRowsByProjectId.keys()),
-        experimentPost: Array.from(rollup.experimentPostProjectIds),
+        experimentPost: Array.from(
+          rollup.experimentPostLastSeenByProjectId.keys(),
+        ),
       }),
     );
 
@@ -528,7 +541,8 @@ export const handleV4LegacyApiUsageJob = async (
     logger.info("Completed v4 legacy API usage job", {
       scannedHours: scannedHourStartsMs.length,
       projectsWithLegacyApiUsage: rollup.apiRowsByProjectId.size,
-      projectsWithExperimentPostUsage: rollup.experimentPostProjectIds.size,
+      projectsWithExperimentPostUsage:
+        rollup.experimentPostLastSeenByProjectId.size,
     });
     return "completed" as const;
   });

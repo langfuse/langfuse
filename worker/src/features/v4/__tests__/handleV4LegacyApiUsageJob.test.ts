@@ -208,7 +208,13 @@ describe("handleV4LegacyApiUsageJob", () => {
       readJson(v4LegacyApiHourBucketKey(Date.parse(CURRENT_HOUR_ISO))),
     ).toMatchObject({
       apiRows: [],
-      experimentPostRows: [{ projectId: "project-b", count: 2 }],
+      experimentPostRows: [
+        {
+          projectId: "project-b",
+          count: 2,
+          lastSeen: "2026-06-25T10:05:00.000000Z",
+        },
+      ],
     });
 
     // Consumer-facing entries: identical service sets deduplicated (count 4,
@@ -226,7 +232,10 @@ describe("handleV4LegacyApiUsageJob", () => {
     expect(readJson(v4LegacyApiUsageProjectKey("project-b"))).toBeNull();
     expect(
       readJson(v4ExperimentPostUsageProjectKey("project-b")),
-    ).toMatchObject({ used: true });
+    ).toMatchObject({
+      used: true,
+      lastSeen: "2026-06-25T10:05:00.000000Z",
+    });
 
     expect(redisState.store.get(V4_LEGACY_API_USAGE_CURSOR_KEY)).toBe(
       CURRENT_HOUR_ISO,
@@ -361,7 +370,12 @@ describe("handleV4LegacyApiUsageJob", () => {
     );
     redisState.store.set(
       v4ExperimentPostUsageProjectKey("project-post-gone"),
-      JSON.stringify({ version: 1, computedAt: "old", used: true }),
+      JSON.stringify({
+        version: 1,
+        computedAt: "old",
+        used: true,
+        lastSeen: "2026-06-10T00:00:00.000000Z",
+      }),
     );
 
     await handleV4LegacyApiUsageJob();
