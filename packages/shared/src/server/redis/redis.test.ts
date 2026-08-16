@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Redis } from "ioredis";
 
 vi.mock("../../env", () => ({
@@ -83,6 +83,10 @@ describe("scanKeys", () => {
 });
 
 describe("safeMultiGet", () => {
+  afterEach(() => {
+    env.REDIS_CLUSTER_ENABLED = "false";
+  });
+
   it("uses mget when cluster mode is disabled", async () => {
     env.REDIS_CLUSTER_ENABLED = "false";
     const mget = vi.fn(async () => ["a", null, "c"]);
