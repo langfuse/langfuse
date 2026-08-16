@@ -4,11 +4,26 @@ import { handleV4LegacyApiUsageJob } from "../features/v4/handleV4LegacyApiUsage
 
 export const v4LegacyApiUsageProcessor: Processor = async (job) => {
   if (job.name === QueueJobs.V4LegacyApiUsageJob) {
-    logger.info("Executing V4 Legacy API Usage Job");
+    const startedAt = performance.now();
+    logger.info("Executing V4 Legacy API Usage Job", {
+      jobId: job.id,
+      attemptsMade: job.attemptsMade,
+    });
     try {
-      return await handleV4LegacyApiUsageJob();
+      const result = await handleV4LegacyApiUsageJob();
+      logger.info("Finished V4 Legacy API Usage Job", {
+        jobId: job.id,
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+      return result;
     } catch (error) {
-      logger.error("Error executing V4LegacyApiUsageJob", error);
+      logger.error("Error executing V4LegacyApiUsageJob", {
+        jobId: job.id,
+        attemptsMade: job.attemptsMade,
+        durationMs: Math.round(performance.now() - startedAt),
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
       throw error;
     }
   }
