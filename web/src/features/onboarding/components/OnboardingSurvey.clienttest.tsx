@@ -131,6 +131,25 @@ describe("OnboardingSurvey", () => {
     });
   });
 
+  it("preserves demo trace callback URLs for new OAuth users after onboarding", async () => {
+    mocks.routerMock.query = {
+      callbackUrl: `${window.location.origin}/demo/trace-123`,
+    };
+
+    render(<OnboardingSurvey />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    await waitFor(() => {
+      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith(undefined);
+      expect(mocks.statusSetDataMock).toHaveBeenCalledWith(undefined, {
+        completed: true,
+        redirectTo: "/demo/trace-123",
+      });
+      expect(mocks.routerMock.replace).toHaveBeenCalledWith("/demo/trace-123");
+    });
+  });
+
   it("ignores non-demo callback URLs after onboarding", async () => {
     mocks.routerMock.query = {
       callbackUrl: `${window.location.origin}/project/project-2`,

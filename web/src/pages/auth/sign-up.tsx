@@ -29,10 +29,11 @@ import {
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
-import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { getDemoTargetPath } from "@/src/features/auth/lib/demoProjectAccess";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
@@ -91,10 +92,8 @@ function StandardSignupFlow({
   const targetPath = queryTargetPath
     ? getSafeRedirectPath(queryTargetPath)
     : undefined;
-  const ssoCallbackUrl =
-    targetPath && stripBasePath(targetPath) === "/demo"
-      ? targetPath
-      : undefined;
+  const demoTargetPath = targetPath ? getDemoTargetPath(targetPath) : undefined;
+  const ssoCallbackUrl = demoTargetPath ? targetPath : undefined;
 
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -329,11 +328,7 @@ function VerifiedSignupFlow({
   const capture = usePostHogClientCapture();
   const emailParam = router.query.email as string | undefined;
   const queryTargetPath = router.query.targetPath as string | undefined;
-  const targetPath = queryTargetPath
-    ? stripBasePath(getSafeRedirectPath(queryTargetPath)) === "/demo"
-      ? "/demo"
-      : undefined
-    : undefined;
+  const targetPath = getDemoTargetPath(queryTargetPath);
   const setupPasswordPath = targetPath
     ? `/auth/setup-password?targetPath=${encodeURIComponent(targetPath)}`
     : "/auth/setup-password";
