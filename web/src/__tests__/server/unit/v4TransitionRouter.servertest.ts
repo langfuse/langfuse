@@ -2319,7 +2319,7 @@ describe("v4TransitionRouter", () => {
       });
     });
 
-    describe("cachedMigrationActions", () => {
+    describe("migrationActions", () => {
       const mockPrismaForActions = ({
         evalCount = 0,
       }: { evalCount?: number } = {}) => ({
@@ -2335,27 +2335,51 @@ describe("v4TransitionRouter", () => {
         blobStorageIntegration: { findMany: vi.fn().mockResolvedValue([]) },
       });
 
-      it("returns unknown categories on a cold cache without querying ClickHouse", async () => {
+      it("on cold cache, runs history+gap queries, writes back, and derives the SDK flag", async () => {
         await seedRedisCache();
+        mockedQueryClickhouse.mockImplementation(async (args) => {
+          if (!args.query.includes("FROM events_core")) return [];
+          return (args.params?.toTimestamp as string) === HOT_START_CLICKHOUSE
+            ? [
+                mockSdkUsageRow({
+                  projectId,
+                  sdkName: "python",
+                  sdkVersion: "3.9.0",
+                  publicKey: "pk-lf-python",
+                  eventCount: "5",
+                  firstSeen: "2026-06-20T01:00:00Z",
+                  lastSeen: "2026-06-24T10:00:00Z",
+                }),
+              ]
+            : [];
+        });
         const caller = createCaller(mockPrismaForActions());
 
-        await expect(
-          caller.cachedMigrationActions({ projectId }),
-        ).resolves.toEqual({
+        await expect(caller.migrationActions({ projectId })).resolves.toEqual({
           forceV3Experience: false,
-          sdkActionNeeded: null,
+          sdkActionNeeded: true,
           experimentsActionNeeded: null,
           apisActionNeeded: null,
           evalsActionNeeded: false,
           exportsActionNeeded: false,
         });
 
-        expect(mockedQueryClickhouse).not.toHaveBeenCalled();
-        await expect(readRedisJson(sdkUsageCacheKey)).resolves.toBeNull();
+        const eventsCoreCalls = mockedQueryClickhouse.mock.calls.filter(
+          ([args]) => args.query.includes("FROM events_core"),
+        );
+        expect(eventsCoreCalls).toHaveLength(2);
+        await expect(readRedisJson(sdkUsageCacheKey)).resolves.toMatchObject({
+          version: 1,
+          hotStart: HOT_START_ISO,
+          series: [expect.objectContaining({ eventCount: 5 })],
+        });
         await expect(readRedisJson(legacyApiUsageCacheKey)).resolves.toBeNull();
+        await expect(
+          readRedisJson(experimentPostUsageCacheKey),
+        ).resolves.toBeNull();
       });
 
-      it("derives action flags from cached Redis usage without querying ClickHouse", async () => {
+      it("on cache hit, runs the live gap query and merges for the SDK flag", async () => {
         await seedRedisCache({
           [sdkUsageCacheKey]: sdkUsageBlob([
             cachedSdkSeries({ actionLevel: "required" }),
@@ -2363,11 +2387,13 @@ describe("v4TransitionRouter", () => {
           [experimentPostUsageCacheKey]: experimentPostBlob(false),
           [legacyApiUsageCacheKey]: legacyApiBlob([]),
         });
+        mockedQueryClickhouse.mockImplementation(async (args) => {
+          if (!args.query.includes("FROM events_core")) return [];
+          return [];
+        });
         const caller = createCaller(mockPrismaForActions({ evalCount: 2 }));
 
-        await expect(
-          caller.cachedMigrationActions({ projectId }),
-        ).resolves.toEqual({
+        await expect(caller.migrationActions({ projectId })).resolves.toEqual({
           forceV3Experience: false,
           sdkActionNeeded: true,
           experimentsActionNeeded: false,
@@ -2376,7 +2402,19 @@ describe("v4TransitionRouter", () => {
           exportsActionNeeded: false,
         });
 
-        expect(mockedQueryClickhouse).not.toHaveBeenCalled();
+        const eventsCoreCalls = mockedQueryClickhouse.mock.calls.filter(
+          ([args]) => args.query.includes("FROM events_core"),
+        );
+        expect(eventsCoreCalls).toHaveLength(1);
+        expect(eventsCoreCalls[0]?.[0].params).toMatchObject({
+          fromTimestamp: HOT_START_CLICKHOUSE,
+          toTimestamp: WINDOW_END_CLICKHOUSE,
+        });
+        // Cache hit must not rewrite the historical SDK blob.
+        await expect(readRedisJson(sdkUsageCacheKey)).resolves.toMatchObject({
+          hotStart: HOT_START_ISO,
+          series: [expect.objectContaining({ eventCount: 5 })],
+        });
       });
 
       it("short-circuits partner-managed (forced v3) projects without any I/O", async () => {
@@ -2385,9 +2423,7 @@ describe("v4TransitionRouter", () => {
         const prismaMock = mockPrismaForActions();
         const caller = createCaller(prismaMock);
 
-        await expect(
-          caller.cachedMigrationActions({ projectId }),
-        ).resolves.toEqual({
+        await expect(caller.migrationActions({ projectId })).resolves.toEqual({
           forceV3Experience: true,
           sdkActionNeeded: null,
           experimentsActionNeeded: null,
@@ -2400,20 +2436,37 @@ describe("v4TransitionRouter", () => {
         expect(mockedQueryClickhouse).not.toHaveBeenCalled();
       });
 
-      it("returns unknown categories when Redis is unavailable", async () => {
+      it("when Redis is unavailable, queries the full window and derives the SDK flag", async () => {
         // Default beforeEach leaves the cache gated off (status proxy → "end").
         redisAvailability.available = false;
+        mockedQueryClickhouse.mockImplementation(async (args) => {
+          if (!args.query.includes("FROM events_core")) return [];
+          return [
+            mockSdkUsageRow({
+              projectId,
+              sdkName: "python",
+              sdkVersion: "3.9.0",
+              publicKey: "pk-lf-python",
+              eventCount: "3",
+              firstSeen: "2026-06-20T01:00:00Z",
+              lastSeen: "2026-06-24T10:00:00Z",
+            }),
+          ];
+        });
         const caller = createCaller(mockPrismaForActions());
 
         await expect(
-          caller.cachedMigrationActions({ projectId }),
+          caller.migrationActions({ projectId }),
         ).resolves.toMatchObject({
-          sdkActionNeeded: null,
+          sdkActionNeeded: true,
           experimentsActionNeeded: null,
           apisActionNeeded: null,
         });
 
-        expect(mockedQueryClickhouse).not.toHaveBeenCalled();
+        const eventsCoreCalls = mockedQueryClickhouse.mock.calls.filter(
+          ([args]) => args.query.includes("FROM events_core"),
+        );
+        expect(eventsCoreCalls).toHaveLength(1);
       });
     });
   });

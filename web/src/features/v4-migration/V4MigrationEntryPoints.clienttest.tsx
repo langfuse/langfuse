@@ -39,9 +39,9 @@ vi.mock("@/src/features/projects/hooks", () => ({
 
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useProjectV4MigrationData: () => mocks.migrationData,
-  // The nav item reads the Redis-backed signal only; unknown categories keep
-  // the pill hidden instead of triggering the full usage checks.
-  useProjectV4CachedMigrationActions: () => ({
+  // The nav item reads the shared migration-actions signal; unknown
+  // categories keep the pill hidden.
+  useProjectV4MigrationActions: () => ({
     actionNeeded: mocks.cachedActionNeeded,
   }),
 }));

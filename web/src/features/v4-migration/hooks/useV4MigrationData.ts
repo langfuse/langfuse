@@ -176,10 +176,10 @@ export function useProjectV4EvalData(params: {
   return getMigrationCountState(evalQuery, (data) => data.traceLevelEvalCount);
 }
 
-export function useProjectV4CachedMigrationActions(
-  projectId: string | undefined,
-): { actionNeeded: boolean } {
-  const query = api.v4Transition.cachedMigrationActions.useQuery(
+export function useProjectV4MigrationActions(projectId: string | undefined): {
+  actionNeeded: boolean;
+} {
+  const query = api.v4Transition.migrationActions.useQuery(
     { projectId: projectId ?? "" },
     { ...queryOptions, enabled: Boolean(projectId) },
   );

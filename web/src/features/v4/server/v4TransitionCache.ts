@@ -26,8 +26,8 @@ import {
  * Deprecated public API and experiment POST usage are maintained by the
  * worker pipeline into the shared Redis keys; the request path reads those
  * entries and only falls back to `system.query_log` when the pipeline
- * heartbeat is stale. The always-mounted sidebar reads Redis (and Postgres)
- * only and never queries ClickHouse.
+ * heartbeat is stale. Sidebar and panel SDK reads share this blob + gap-fill
+ * path so both stay consistent.
  *
  * Helpers degrade gracefully: no Redis, Redis errors, or unparsable entries
  * behave like cache misses and never fail the request.

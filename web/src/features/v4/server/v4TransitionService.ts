@@ -1219,7 +1219,13 @@ export const getLegacyApiUsageSummaries = async ({
   );
 };
 
-export const getCachedMigrationActions = async ({
+/**
+ * Migration signals for the always-mounted sidebar "Action required" pill.
+ * SDK uses the same Redis + live gap-fill path as the panel summaries so the
+ * pill cannot go stale relative to them. Deprecated API / experiment signals
+ * read worker-maintained Redis caches when available (`null` = unknown).
+ */
+export const getMigrationActions = async ({
   prisma,
   projectId,
 }: {
@@ -1242,19 +1248,21 @@ export const getCachedMigrationActions = async ({
   const nowMs = Date.now();
   const projectIds = [projectId];
 
-  const [evalSummaries, integrationSummaries, sdkBlobs, postBlobs, apiBlobs] =
-    await Promise.all([
-      getTraceLevelEvalSummaries({ prisma, projectIds }),
-      getLegacyIntegrationSummaries({ prisma, projectIds }),
-      readSdkUsageCache(projectIds),
-      readExperimentPostUsageCache(projectIds),
-      readLegacyApiUsageCache(projectIds),
-    ]);
+  const [
+    evalSummaries,
+    integrationSummaries,
+    seriesByProject,
+    postBlobs,
+    apiBlobs,
+  ] = await Promise.all([
+    getTraceLevelEvalSummaries({ prisma, projectIds }),
+    getLegacyIntegrationSummaries({ prisma, projectIds }),
+    getSdkUsageSeriesByProject({ projectIds, nowMs }),
+    readExperimentPostUsageCache(projectIds),
+    readLegacyApiUsageCache(projectIds),
+  ]);
 
-  const sdkBlob = sdkBlobs[0] ?? null;
-  const cachedSeries = isSdkUsageBlobUsable(sdkBlob, nowMs)
-    ? trimSdkUsageSeries(sdkBlob.series, nowMs)
-    : null;
+  const sdkUsageSeries = seriesByProject.get(projectId) ?? [];
   const postBlob = postBlobs[0] ?? null;
   const apiBlob = apiBlobs[0] ?? null;
 
@@ -1263,23 +1271,18 @@ export const getCachedMigrationActions = async ({
       ? null
       : postBlob.used === false
         ? false
-        : cachedSeries === null
-          ? null
-          : ["required", "sdk_usage_inconclusive"].includes(
-              deriveExperimentInstrumentationMigration({
-                sdkUsageSeries: cachedSeries,
-                postUsage: true,
-              }).status,
-            );
+        : ["required", "sdk_usage_inconclusive"].includes(
+            deriveExperimentInstrumentationMigration({
+              sdkUsageSeries,
+              postUsage: true,
+            }).status,
+          );
 
   return {
     forceV3Experience: isForceV3ExperienceProject(projectId),
-    // null = unknown: no cached data yet. The pill treats unknown
-    // categories as "no signal" instead of triggering a query.
-    sdkActionNeeded:
-      cachedSeries === null
-        ? null
-        : cachedSeries.some((series) => series.actionLevel === "required"),
+    sdkActionNeeded: sdkUsageSeries.some(
+      (series) => series.actionLevel === "required",
+    ),
     experimentsActionNeeded,
     apisActionNeeded:
       apiBlob === null
