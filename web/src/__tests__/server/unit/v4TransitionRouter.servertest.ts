@@ -392,6 +392,10 @@ const HOT_START_ISO = "2026-06-25T00:00:00.000Z";
 const HOT_START_CLICKHOUSE = "2026-06-25 00:00:00.000";
 const WINDOW_END_CLICKHOUSE = "2026-06-25 01:00:00.000";
 const WINDOW_START_CLICKHOUSE = "2026-06-11 01:00:00.000";
+// Recent SDK gap cutoff: TEST_NOW floored to the minute (zero
+// seconds/millis) so repeated calls within the minute share one ClickHouse
+// query-cache key.
+const RECENT_CUTOFF_CLICKHOUSE = "2026-06-25 00:30:00.000";
 
 const sdkUsageCacheKey = `langfuse:v4:sdk-usage:v1:${projectId}`;
 
@@ -1395,11 +1399,15 @@ describe("v4TransitionRouter", () => {
     expect(usageQuery?.params).toMatchObject({
       projectIds: [projectId, secondProjectId],
       fromTimestamp: WINDOW_START_CLICKHOUSE,
-      toTimestamp: WINDOW_END_CLICKHOUSE,
+      toTimestamp: RECENT_CUTOFF_CLICKHOUSE,
       ingressSources: ["ingestion-api-dual-write", "otel-dual-write", "otel"],
     });
     expect(usageQuery?.tags).toEqual({
       route: "v4-sdk-usage-summary",
+    });
+    expect(usageQuery?.clickhouseSettings).toEqual({
+      use_query_cache: 1,
+      query_cache_ttl: 300,
     });
 
     const experimentUsageQuery = mockedQueryClickhouse.mock.calls[1]?.[0];
@@ -1421,6 +1429,10 @@ describe("v4TransitionRouter", () => {
     expect(experimentUsageQuery?.tags).toEqual({
       route: "v4-experiment-instrumentation-summary",
     });
+    // The query_log-backed experiment check must not enable the query cache.
+    expect(
+      experimentUsageQuery?.clickhouseSettings?.use_query_cache,
+    ).toBeUndefined();
   });
 
   it("finds dataset-run-items POST usage when only the main service has it", async () => {
@@ -1915,7 +1927,7 @@ describe("v4TransitionRouter", () => {
         ([args]) => args.params?.toTimestamp === HOT_START_CLICKHOUSE,
       );
       const [gapCall] = eventsCoreCalls.filter(
-        ([args]) => args.params?.toTimestamp === WINDOW_END_CLICKHOUSE,
+        ([args]) => args.params?.toTimestamp === RECENT_CUTOFF_CLICKHOUSE,
       );
       // Half-open boundary: an event exactly at hotStart lands only in the
       // live gap query.
@@ -1930,7 +1942,16 @@ describe("v4TransitionRouter", () => {
       );
       expect(gapCall?.[0].params).toMatchObject({
         fromTimestamp: HOT_START_CLICKHOUSE,
+        toTimestamp: RECENT_CUTOFF_CLICKHOUSE,
       });
+      // Both events_core SELECTs opt into the ClickHouse query cache; the
+      // minute-aligned cutoff keeps their AST identical within a minute.
+      for (const [args] of eventsCoreCalls) {
+        expect(args.clickhouseSettings).toEqual({
+          use_query_cache: 1,
+          query_cache_ttl: 300,
+        });
+      }
 
       // Only the historical SDK slice is cached (1h TTL); the gap stays live.
       // query_log experiment usage is not Redis-cached in this PR.
@@ -1990,7 +2011,7 @@ describe("v4TransitionRouter", () => {
       expect(eventsCoreCalls).toHaveLength(1);
       expect(eventsCoreCalls[0]?.[0].params).toMatchObject({
         fromTimestamp: HOT_START_CLICKHOUSE,
-        toTimestamp: WINDOW_END_CLICKHOUSE,
+        toTimestamp: RECENT_CUTOFF_CLICKHOUSE,
       });
       expect(redisMock.setex).not.toHaveBeenCalled();
     });
@@ -2128,7 +2149,7 @@ describe("v4TransitionRouter", () => {
         expect(eventsCoreCalls).toHaveLength(1);
         expect(eventsCoreCalls[0]?.[0].params).toMatchObject({
           fromTimestamp: HOT_START_CLICKHOUSE,
-          toTimestamp: WINDOW_END_CLICKHOUSE,
+          toTimestamp: RECENT_CUTOFF_CLICKHOUSE,
         });
         expect(redisMock.setex).not.toHaveBeenCalled();
       });
