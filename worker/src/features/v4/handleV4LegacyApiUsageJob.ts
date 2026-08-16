@@ -5,6 +5,8 @@ import {
   logger,
   queryClickhouse,
   redis,
+  safeMultiDel,
+  safeMultiGet,
   systemTableRef,
   v4ExperimentPostUsageProjectKey,
   v4LegacyApiHourBucketKey,
@@ -318,14 +320,17 @@ const setexInChunks = async (
 const mgetInChunks = async (keys: string[]): Promise<(string | null)[]> => {
   const values: (string | null)[] = [];
   for (let index = 0; index < keys.length; index += CHUNK_SIZE) {
-    values.push(...(await redis!.mget(keys.slice(index, index + CHUNK_SIZE))));
+    // Cluster-safe: MGET/multi-key DEL fail with CROSSSLOT across hour/project keys.
+    values.push(
+      ...(await safeMultiGet(redis, keys.slice(index, index + CHUNK_SIZE))),
+    );
   }
   return values;
 };
 
 const delInChunks = async (keys: string[]): Promise<void> => {
   for (let index = 0; index < keys.length; index += CHUNK_SIZE) {
-    await redis!.del(...keys.slice(index, index + CHUNK_SIZE));
+    await safeMultiDel(redis, keys.slice(index, index + CHUNK_SIZE));
   }
 };
 

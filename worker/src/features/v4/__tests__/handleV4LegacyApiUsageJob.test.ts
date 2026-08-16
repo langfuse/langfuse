@@ -49,7 +49,9 @@ const redisMock = vi.hoisted(() => ({
     }
     return 0;
   }),
-  del: vi.fn(async (...keys: string[]) => {
+  del: vi.fn(async (...args: Array<string | string[]>) => {
+    // Mirror ioredis: del(...keys) and del(keys[]) are both valid.
+    const keys = args.flat();
     let deleted = 0;
     for (const key of keys) {
       if (redisState.store.delete(key)) deleted += 1;
