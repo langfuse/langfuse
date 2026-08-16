@@ -62,6 +62,12 @@ const redisMock = vi.hoisted(() => ({
 
 const mocks = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -70,12 +76,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   return {
     ...original,
     redis: redisMock,
-    logger: {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    },
+    logger: mocks.logger,
     queryClickhouse: mocks.queryClickhouse,
     systemTableRef: (table: string) =>
       `clusterAllReplicas('test-cluster', '${table}')`,
@@ -93,6 +94,21 @@ vi.mock("@langfuse/shared/src/env", () => ({
 }));
 
 import { handleV4LegacyApiUsageJob } from "../handleV4LegacyApiUsageJob";
+
+const loggedInfo = (message: string) =>
+  mocks.logger.info.mock.calls.find(
+    ([loggedMessage]) => loggedMessage === message,
+  )?.[1];
+
+const loggedWarn = (message: string) =>
+  mocks.logger.warn.mock.calls.find(
+    ([loggedMessage]) => loggedMessage === message,
+  )?.[1];
+
+const loggedError = (message: string) =>
+  mocks.logger.error.mock.calls.find(
+    ([loggedMessage]) => loggedMessage === message,
+  )?.[1];
 
 // 10:30 UTC: a regular run (the deep re-scan happens at 03:xx UTC only).
 const TEST_NOW = new Date("2026-06-25T10:30:00Z");
@@ -252,6 +268,33 @@ describe("handleV4LegacyApiUsageJob", () => {
     );
     // Lock released after the run.
     expect(redisState.store.has(V4_LEGACY_API_USAGE_LOCK_KEY)).toBe(false);
+
+    expect(loggedInfo("Running v4 legacy API usage job")).toMatchObject({
+      scanStart: "2026-06-11T10:00:00Z",
+      hours: 337,
+      coldStart: true,
+      repairedHole: false,
+      missingBucketCount: 337,
+      clickhouseServices: ["ReadWrite", "ReadOnly"],
+    });
+    expect(
+      loggedInfo("v4 legacy API usage: merged query_log rows"),
+    ).toMatchObject({
+      inputServiceCount: 2,
+      uniqueResultSetCount: 1,
+      mergedRowCount: 2,
+      uniqueProjects: 2,
+      apiRowCount: 1,
+      experimentPostRowCount: 1,
+    });
+    expect(loggedInfo("Completed v4 legacy API usage job")).toMatchObject({
+      scannedHours: 337,
+      nonEmptyBuckets: 2,
+      projectsWithLegacyApiUsage: 1,
+      projectsWithExperimentPostUsage: 1,
+      cursor: CURRENT_HOUR_ISO,
+      deepRescanRecorded: true,
+    });
   });
 
   it("incremental run: re-scans only the trailing margin and merges with existing buckets", async () => {
@@ -308,6 +351,21 @@ describe("handleV4LegacyApiUsageJob", () => {
       api: ["project-a"],
       experimentPost: [],
     });
+    expect(loggedInfo("Running v4 legacy API usage job")).toMatchObject({
+      scanStart: "2026-06-25T06:00:00Z",
+      hours: 5,
+      coldStart: false,
+      deepRescan: false,
+      repairedHole: false,
+      missingBucketCount: 0,
+    });
+    expect(
+      loggedInfo("v4 legacy API usage: merged query_log rows"),
+    ).toMatchObject({
+      uniqueResultSetCount: 2,
+      serviceRowCounts: [1, 1],
+      mergedRowCount: 1,
+    });
   });
 
   it("runs the deep re-scan when none happened within the last 24 hours", async () => {
@@ -353,6 +411,11 @@ describe("handleV4LegacyApiUsageJob", () => {
         v4LegacyApiHourBucketKey(Date.parse("2026-06-21T05:00:00Z")),
       ),
     ).toBe(true);
+    expect(loggedInfo("Running v4 legacy API usage job")).toMatchObject({
+      repairedHole: true,
+      repairedHoleHour: "2026-06-21T05:00:00Z",
+      missingBucketCount: 1,
+    });
   });
 
   it("deletes per-project entries for projects that dropped out of the window", async () => {
@@ -400,6 +463,16 @@ describe("handleV4LegacyApiUsageJob", () => {
       api: [],
       experimentPost: [],
     });
+    expect(
+      loggedInfo("v4 legacy API usage: wrote project rollup"),
+    ).toMatchObject({
+      apiProjectsWritten: 0,
+      experimentPostProjectsWritten: 0,
+      deletedApiProjects: 1,
+      deletedExperimentPostProjects: 1,
+      previousApiProjects: 1,
+      previousExperimentPostProjects: 1,
+    });
   });
 
   it("skips the run when another worker holds the lock", async () => {
@@ -409,6 +482,9 @@ describe("handleV4LegacyApiUsageJob", () => {
 
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
     expect(redisState.store.has(V4_LEGACY_API_USAGE_CURSOR_KEY)).toBe(false);
+    expect(mocks.logger.info).toHaveBeenCalledWith(
+      "Skipping v4 legacy API usage job: another worker holds the lock",
+    );
   });
 
   it("throws and leaves the cursor untouched when a service scan fails", async () => {
@@ -430,5 +506,38 @@ describe("handleV4LegacyApiUsageJob", () => {
     expect(redisState.store.has(V4_LEGACY_API_USAGE_HEARTBEAT_KEY)).toBe(false);
     // Lock still released on failure.
     expect(redisState.store.has(V4_LEGACY_API_USAGE_LOCK_KEY)).toBe(false);
+    expect(
+      loggedError("v4 legacy API usage: query_log scan failed"),
+    ).toMatchObject({
+      service: "ReadOnly",
+    });
+    expect(loggedError("v4 legacy API usage: job failed")).toBeDefined();
+  });
+
+  it("logs unparsable hour buckets and extends the scan to repair them", async () => {
+    redisState.store.set(
+      V4_LEGACY_API_USAGE_CURSOR_KEY,
+      "2026-06-25T09:00:00Z",
+    );
+    seedRecentDeepRescan();
+    seedCoverageBuckets();
+    redisState.store.set(
+      v4LegacyApiHourBucketKey(Date.parse("2026-06-21T05:00:00Z")),
+      "not-json",
+    );
+
+    await handleV4LegacyApiUsageJob();
+
+    expect(
+      loggedWarn("v4 legacy API usage: unparsable hour buckets"),
+    ).toMatchObject({
+      count: 1,
+      hourStarts: ["2026-06-21T05:00:00Z"],
+    });
+    expect(loggedInfo("Running v4 legacy API usage job")).toMatchObject({
+      repairedHole: true,
+      repairedHoleHour: "2026-06-21T05:00:00Z",
+      unparsableBucketCount: 1,
+    });
   });
 });
