@@ -1,4 +1,7 @@
-import { type GetServerSideProps, type GetServerSidePropsResult } from "next";
+import {
+  type GetServerSidePropsContext,
+  type GetServerSidePropsResult,
+} from "next";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -11,13 +14,25 @@ import {
   readProjectCookie,
 } from "@/src/server/utils/cookies";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  buildDemoTargetPath,
+  getDemoProjectPath,
+} from "@/src/features/auth/lib/demoProjectAccess";
 
-const DemoRedirectPage = () => null;
+const redirect = (destination: string): GetServerSidePropsResult<never> => ({
+  redirect: { destination, permanent: false },
+});
 
-export default DemoRedirectPage;
-
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const crossRegionDestination = getCrossRegionDestination(ctx);
+export const getDemoRedirectServerSideProps = async (
+  ctx: GetServerSidePropsContext,
+  options?: {
+    traceId?: string;
+  },
+): Promise<GetServerSidePropsResult<never>> => {
+  const crossRegionDestination = getCrossRegionDestination(
+    ctx,
+    options?.traceId,
+  );
   if (crossRegionDestination) {
     return redirect(crossRegionDestination);
   }
@@ -39,13 +54,15 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     return redirect("/");
   }
 
-  const demoProjectPath = `/project/${encodeURIComponent(
-    demoProject.id,
-  )}/traces`;
   const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
 
   if (session?.user) {
-    return redirect(demoProjectPath);
+    return redirect(
+      getDemoProjectPath({
+        demoProjectId: demoProject.id,
+        traceId: options?.traceId,
+      }),
+    );
   }
 
   const authPath =
@@ -54,15 +71,15 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       ? "/auth/sign-in"
       : "/auth/sign-up";
 
-  return redirect(`${authPath}?targetPath=${encodeURIComponent("/demo")}`);
+  const demoTargetPath = buildDemoTargetPath(options?.traceId);
+  return redirect(
+    `${authPath}?targetPath=${encodeURIComponent(demoTargetPath)}`,
+  );
 };
 
-const redirect = (destination: string): GetServerSidePropsResult<never> => ({
-  redirect: { destination, permanent: false },
-});
-
 const getCrossRegionDestination = (
-  ctx: Parameters<GetServerSideProps>[0],
+  ctx: GetServerSidePropsContext,
+  traceId?: string,
 ): string | null => {
   const currentRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   if (!currentRegion || !isRegionProduction(currentRegion)) {
@@ -74,13 +91,14 @@ const getCrossRegionDestination = (
     return null;
   }
 
+  const resolvedUrl = ctx.resolvedUrl || buildDemoTargetPath(traceId);
   const projectCookie = readProjectCookie(ctx.req.cookies ?? {});
   if (
     projectCookie &&
     projectCookie.origin !== currentOrigin &&
     sameRegistrableDomain(projectCookie.origin, currentOrigin)
   ) {
-    return `${projectCookie.origin}${ctx.resolvedUrl}`;
+    return `${projectCookie.origin}${resolvedUrl}`;
   }
 
   const sessionOrigins = getSessionOrigins(ctx.req.cookies ?? {});
@@ -93,7 +111,7 @@ const getCrossRegionDestination = (
     return null;
   }
 
-  return `${preferredOrigin}${ctx.resolvedUrl}`;
+  return `${preferredOrigin}${resolvedUrl}`;
 };
 
 const getSessionOrigins = (

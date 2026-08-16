@@ -23,9 +23,6 @@ const { getServerAuthSessionMock, prismaMock } = vi.hoisted(() => ({
     project: {
       findUnique: vi.fn(),
     },
-    organizationMembership: {
-      upsert: vi.fn(),
-    },
   },
 }));
 
@@ -39,9 +36,11 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => {
 });
 
 import { type GetServerSidePropsContext } from "next";
-import { getServerSideProps as getDemoServerSideProps } from "@/src/pages/demo";
+import { getServerSideProps as getDemoServerSideProps } from "@/src/pages/demo/index";
+import { getServerSideProps as getDemoTraceServerSideProps } from "@/src/pages/demo/[traceId]";
 
 type DemoCtxOverrides = {
+  params?: GetServerSidePropsContext["params"];
   resolvedUrl?: string;
   req?: {
     cookies?: Partial<Record<string, string>>;
@@ -63,7 +62,7 @@ const makeCtx = (overrides: DemoCtxOverrides = {}): GetServerSidePropsContext =>
     ...overrides,
   }) as unknown as GetServerSidePropsContext;
 
-describe("demo redirect page", () => {
+describe("demo redirect pages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEnv.env.AUTH_DISABLE_SIGNUP = undefined;
@@ -75,11 +74,10 @@ describe("demo redirect page", () => {
       id: "demo-project",
       orgId: "demo-org",
     });
-    prismaMock.organizationMembership.upsert.mockResolvedValue({});
     getServerAuthSessionMock.mockResolvedValue(null);
   });
 
-  it("redirects authenticated users to the configured regional demo project without changing memberships", async () => {
+  it("redirects authenticated users from /demo to the configured demo project", async () => {
     getServerAuthSessionMock.mockResolvedValue({ user: { id: "user-1" } });
 
     await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
@@ -97,7 +95,6 @@ describe("demo redirect page", () => {
         id: true,
       },
     });
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("bounces to the project-cookie region before resolving demo redirects", async () => {
@@ -116,12 +113,12 @@ describe("demo redirect page", () => {
               "x-forwarded-proto": "https",
             },
           },
-          resolvedUrl: "/demo",
+          resolvedUrl: "/demo/trace-123",
         }),
       ),
     ).resolves.toEqual({
       redirect: {
-        destination: "https://us.cloud.langfuse.com/demo",
+        destination: "https://us.cloud.langfuse.com/demo/trace-123",
         permanent: false,
       },
     });
@@ -158,6 +155,8 @@ describe("demo redirect page", () => {
   });
 
   it("stays on the current host when it already has a matching session cookie", async () => {
+    getServerAuthSessionMock.mockResolvedValue(null);
+
     await expect(
       getDemoServerSideProps(
         makeCtx({
@@ -180,7 +179,20 @@ describe("demo redirect page", () => {
     });
   });
 
-  it("redirects unauthenticated users to sign up with the demo target", async () => {
+  it("redirects authenticated users from /demo/[traceId] to the demo trace page", async () => {
+    getServerAuthSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+
+    await expect(
+      getDemoTraceServerSideProps(makeCtx({ params: { traceId: "trace-1" } })),
+    ).resolves.toEqual({
+      redirect: {
+        destination: "/project/demo-project/traces/trace-1",
+        permanent: false,
+      },
+    });
+  });
+
+  it("redirects unauthenticated users from /demo to sign up with demo targetPath", async () => {
     getServerAuthSessionMock.mockResolvedValue(null);
 
     await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
@@ -190,16 +202,34 @@ describe("demo redirect page", () => {
       },
     });
     expect(prismaMock.project.findUnique).toHaveBeenCalled();
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
-  it("redirects unauthenticated users to sign in when sign-up is disabled", async () => {
+  it("redirects unauthenticated users from /demo/[traceId] to sign up with trace targetPath", async () => {
+    getServerAuthSessionMock.mockResolvedValue(null);
+
+    await expect(
+      getDemoTraceServerSideProps(
+        makeCtx({ params: { traceId: "trace-for-demo" } }),
+      ),
+    ).resolves.toEqual({
+      redirect: {
+        destination: `/auth/sign-up?targetPath=${encodeURIComponent("/demo/trace-for-demo")}`,
+        permanent: false,
+      },
+    });
+  });
+
+  it("redirects unauthenticated users from /demo/[traceId] to sign in when sign-up is disabled", async () => {
     mockEnv.env.AUTH_DISABLE_SIGNUP = "true";
     getServerAuthSessionMock.mockResolvedValue(null);
 
-    await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
+    await expect(
+      getDemoTraceServerSideProps(
+        makeCtx({ params: { traceId: "trace-for-demo" } }),
+      ),
+    ).resolves.toEqual({
       redirect: {
-        destination: `/auth/sign-in?targetPath=${encodeURIComponent("/demo")}`,
+        destination: `/auth/sign-in?targetPath=${encodeURIComponent("/demo/trace-for-demo")}`,
         permanent: false,
       },
     });
@@ -216,7 +246,6 @@ describe("demo redirect page", () => {
     });
     expect(getServerAuthSessionMock).not.toHaveBeenCalled();
     expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("falls back to home when no demo organization is configured", async () => {
@@ -230,7 +259,6 @@ describe("demo redirect page", () => {
     });
     expect(getServerAuthSessionMock).not.toHaveBeenCalled();
     expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("falls back to home when the configured demo project does not exist", async () => {
@@ -243,6 +271,20 @@ describe("demo redirect page", () => {
         permanent: false,
       },
     });
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
+  });
+
+  it("falls back to home when /demo/[traceId] is called without a valid trace id", async () => {
+    await expect(
+      getDemoTraceServerSideProps(
+        makeCtx({ params: { traceId: ["trace-a", "trace-b"] } }),
+      ),
+    ).resolves.toEqual({
+      redirect: {
+        destination: "/",
+        permanent: false,
+      },
+    });
+    expect(getServerAuthSessionMock).not.toHaveBeenCalled();
+    expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
   });
 });

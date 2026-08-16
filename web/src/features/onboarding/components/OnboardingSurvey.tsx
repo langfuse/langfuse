@@ -18,30 +18,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import type { SurveyFormData } from "../lib/surveyTypes";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
-import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
-
-const getSameOriginPath = (url: string): string | null => {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const parsedUrl = new URL(url);
-    if (parsedUrl.origin !== window.location.origin) return null;
-    return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
-  } catch {
-    return null;
-  }
-};
-
-const getQueryRedirectPath = (value: unknown): string | undefined => {
-  if (typeof value !== "string") return undefined;
-  const sameOriginPath = getSameOriginPath(value);
-  return stripBasePath(getSafeRedirectPath(sameOriginPath ?? value));
-};
-
-const getDemoCallbackRedirectPath = (value: unknown): string | undefined => {
-  const redirectPath = getQueryRedirectPath(value);
-  return redirectPath === "/demo" ? redirectPath : undefined;
-};
+import { getDemoTargetPathFromQueryValue } from "@/src/features/auth/lib/demoProjectAccess";
 
 export function OnboardingSurvey() {
   const router = useRouter();
@@ -55,8 +32,8 @@ export function OnboardingSurvey() {
   const onboardingStatus = api.onboarding.status.useQuery();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
   const queryRedirectPath =
-    getDemoCallbackRedirectPath(router.query.targetPath) ??
-    getDemoCallbackRedirectPath(router.query.callbackUrl);
+    getDemoTargetPathFromQueryValue(router.query.targetPath) ??
+    getDemoTargetPathFromQueryValue(router.query.callbackUrl);
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
 

@@ -27,7 +27,7 @@ import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
+import { getDemoTargetPath } from "@/src/features/auth/lib/demoProjectAccess";
 
 const resetPasswordSchema = z
   .object({
@@ -39,12 +39,6 @@ const resetPasswordSchema = z
     message: "Passwords do not match",
     path: ["confirmPassword"],
   });
-
-const getDemoTargetPath = (value: unknown): string | undefined => {
-  if (typeof value !== "string") return undefined;
-  const targetPath = stripBasePath(getSafeRedirectPath(value));
-  return targetPath === "/demo" ? targetPath : undefined;
-};
 
 export function ResetPasswordPage({
   passwordResetAvailable,
