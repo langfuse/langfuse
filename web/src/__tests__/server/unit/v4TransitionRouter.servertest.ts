@@ -9,12 +9,87 @@ vi.mock("@/src/server/auth", () => ({
 }));
 
 /**
- * Cache tests seed the real shared Redis singleton. Most tests keep the
- * cache "unavailable" via this flag so they exercise the direct-query path.
+ * In-memory Redis stand-in for cache tests. Avoids a real localhost:6379
+ * dependency so the redis-cluster CI matrix (no standalone Redis) stays green.
+ * Most tests keep `available=false` to exercise the direct-query path.
  */
 const redisAvailability = vi.hoisted(() => ({
   available: false,
 }));
+
+const memoryRedis = vi.hoisted(() => {
+  type Entry = { value: string; expiresAtMs: number | null };
+  const store = new Map<string, Entry>();
+  const nowMs = () => Date.now();
+  const isLive = (entry: Entry | undefined) =>
+    entry != null && (entry.expiresAtMs == null || entry.expiresAtMs > nowMs());
+
+  const client = {
+    get status() {
+      return redisAvailability.available ? "ready" : "end";
+    },
+    disconnect: vi.fn(),
+    ping: async () => "PONG",
+    get: async (key: string) => {
+      const entry = store.get(key);
+      if (!isLive(entry)) {
+        store.delete(key);
+        return null;
+      }
+      return entry!.value;
+    },
+    mget: async (...keysOrArray: string[] | [string[]]) => {
+      const keys =
+        keysOrArray.length === 1 && Array.isArray(keysOrArray[0])
+          ? keysOrArray[0]
+          : (keysOrArray as string[]);
+      return Promise.all(keys.map((key) => client.get(key)));
+    },
+    setex: async (key: string, ttlSeconds: number, value: string) => {
+      store.set(key, {
+        value,
+        expiresAtMs: nowMs() + ttlSeconds * 1000,
+      });
+      return "OK";
+    },
+    del: async (...keys: string[]) => {
+      let removed = 0;
+      for (const key of keys) {
+        if (store.delete(key)) removed += 1;
+      }
+      return removed;
+    },
+    ttl: async (key: string) => {
+      const entry = store.get(key);
+      if (!isLive(entry)) {
+        store.delete(key);
+        return -2;
+      }
+      if (entry!.expiresAtMs == null) return -1;
+      return Math.max(0, Math.ceil((entry!.expiresAtMs - nowMs()) / 1000));
+    },
+    scan: async (
+      cursor: string,
+      _matchToken: string,
+      pattern: string,
+      _countToken: string,
+      _count: number,
+    ) => {
+      const prefix = pattern.endsWith("*") ? pattern.slice(0, -1) : pattern;
+      const keys = [...store.keys()].filter((key) =>
+        pattern.endsWith("*") ? key.startsWith(prefix) : key === pattern,
+      );
+      // Single-page scan: first call returns all keys, next cursor is "0".
+      if (cursor !== "0") return ["0", [] as string[]];
+      return ["0", keys];
+    },
+    __store: store,
+    __reset() {
+      store.clear();
+    },
+  };
+  return client;
+});
 
 const sharedServerMock = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
@@ -111,41 +186,12 @@ const sharedEnvMock = vi.hoisted(() => ({
   CLICKHOUSE_URL: "https://clickhouse-main.example.com",
   CLICKHOUSE_READ_ONLY_URL: "https://clickhouse-read.example.com",
   CLICKHOUSE_EVENTS_READ_ONLY_URL: "https://clickhouse-main.example.com",
-  // Real Redis for cache tests (matches .env.test / docker-compose.dev.yml).
-  REDIS_CONNECTION_STRING: "redis://:myredissecret@127.0.0.1:6379/1",
-  REDIS_CLUSTER_ENABLED: "false",
-  REDIS_SENTINEL_ENABLED: "false",
-  REDIS_TLS_ENABLED: "false",
-  REDIS_ENABLE_AUTO_PIPELINING: "false",
-  REDIS_SOCKET_TIMEOUT_MS: 0,
 }));
 
 vi.mock("@langfuse/shared/src/env", () => ({ env: sharedEnvMock }));
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const { ROOT_CONTEXT } = await import("@opentelemetry/api");
-  // Import the Redis module directly so we get a real client without
-  // importOriginal'ing the mocked server barrel (circular with prisma/db).
-  // Relative import: the shared package does not export this subpath, and
-  // importOriginal on the server barrel is circular with the prisma/db mock.
-  const { createNewRedisInstance } =
-    await import("../../../../../packages/shared/src/server/redis/redis");
-  const realRedis = createNewRedisInstance();
-  if (!realRedis) {
-    throw new Error("Failed to create Redis client for v4 cache tests");
-  }
-
-  // Gate cache availability without replacing Redis I/O: when unavailable,
-  // isV4TransitionCacheAvailable() sees status "end" and skips Redis.
-  const redis = new Proxy(realRedis, {
-    get(target, property, receiver) {
-      if (property === "status") {
-        return redisAvailability.available ? target.status : "end";
-      }
-      const value = Reflect.get(target, property, receiver);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
 
   return {
     ...sharedServerMock,
@@ -156,7 +202,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
       warn: vi.fn(),
       error: vi.fn(),
     },
-    redis,
+    redis: memoryRedis,
     ClickHouseClientManager: {
       getInstance: () => ({
         closeAllConnections: vi.fn(),
@@ -430,72 +476,31 @@ const legacyApiUsageHeartbeatKey = "langfuse:v4:legacy-api-usage:heartbeat:v1";
 const V4_CACHE_KEY_PATTERN = "langfuse:v4:*";
 const DEFAULT_SEED_TTL_SECONDS = 60 * 60;
 
-const getTestRedis = async () => {
-  const { redis } = await import("@langfuse/shared/src/server");
-  if (!redis) {
-    throw new Error("Shared Redis singleton is required for v4 cache tests");
-  }
-  // Wait until the real connection is ready (ignore the availability proxy).
-  for (let attempt = 0; attempt < 40; attempt++) {
-    try {
-      if (redis.status === "ready" || redis.status === "end") {
-        // When gated unavailable, status reads as "end"; still ping via raw call.
-      }
-      await redis.ping();
-      return redis;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  }
-  throw new Error("Redis not ready for v4 cache tests");
-};
-
 const clearV4CacheKeys = async () => {
-  const redis = await getTestRedis();
-  const keys: string[] = [];
-  let cursor = "0";
-  do {
-    const [nextCursor, batch] = await redis.scan(
-      cursor,
-      "MATCH",
-      V4_CACHE_KEY_PATTERN,
-      "COUNT",
-      200,
-    );
-    cursor = nextCursor;
-    keys.push(...batch);
-  } while (cursor !== "0");
-  if (keys.length > 0) {
-    await redis.del(...keys);
-  }
+  memoryRedis.__reset();
 };
 
-/** Seed real Redis keys and enable the cache for the code under test. */
+/** Seed in-memory Redis keys and enable the cache for the code under test. */
 const seedRedisCache = async (
   initialEntries: Record<string, string> = {},
   ttlSeconds = DEFAULT_SEED_TTL_SECONDS,
 ) => {
-  const redis = await getTestRedis();
   await clearV4CacheKeys();
   redisAvailability.available = true;
   if (Object.keys(initialEntries).length === 0) return;
   await Promise.all(
     Object.entries(initialEntries).map(([key, value]) =>
-      redis.setex(key, ttlSeconds, value),
+      memoryRedis.setex(key, ttlSeconds, value),
     ),
   );
 };
 
 const readRedisJson = async (key: string) => {
-  const redis = await getTestRedis();
-  const raw = await redis.get(key);
+  const raw = await memoryRedis.get(key);
   return raw === null ? null : JSON.parse(raw);
 };
 
-const readRedisTtl = async (key: string) => {
-  const redis = await getTestRedis();
-  return redis.ttl(key);
-};
+const readRedisTtl = async (key: string) => memoryRedis.ttl(key);
 
 describe("v4TransitionRouter", () => {
   beforeEach(async () => {
