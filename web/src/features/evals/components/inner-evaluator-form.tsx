@@ -48,7 +48,7 @@ import {
   evalConfigFormSchema,
   getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
-  getSelectableTraceFilterColumns,
+  RETIRED_TRACE_FILTER_COLUMNS,
   getTargetDisplayName,
   inferDefaultMapping,
   type LangfuseObject,
@@ -1168,12 +1168,9 @@ export const InnerEvaluatorForm = (props: {
                             ),
                         );
                       } else if (isTraceTarget(target)) {
-                        return getSelectableTraceFilterColumns(
-                          tracesTableColsWithOptions(
-                            traceFilterOptions,
-                            evalTraceTableCols,
-                          ),
-                          field.value,
+                        return tracesTableColsWithOptions(
+                          traceFilterOptions,
+                          evalTraceTableCols,
                         );
                       } else if (isExperimentTarget(target)) {
                         // Experiment evaluators - only dataset filter
@@ -1234,6 +1231,11 @@ export const InnerEvaluatorForm = (props: {
                                     : isEventTarget(target)
                                       ? ["tags", "name", "calledToolNames"]
                                       : undefined
+                                }
+                                columnsHiddenUnlessSelected={
+                                  isTraceTarget(target)
+                                    ? RETIRED_TRACE_FILTER_COLUMNS
+                                    : undefined
                                 }
                               />
                             )}

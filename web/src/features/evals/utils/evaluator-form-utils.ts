@@ -1,8 +1,6 @@
 import { z } from "zod";
 import {
-  type ColumnDefinition,
   EvalTargetObjectSchema,
-  type FilterState,
   singleFilter,
   type langfuseObjects,
   TimeScopeSchema,
@@ -137,26 +135,11 @@ export function getActiveJsonPathCompatibilityWarning(mappingRow: {
   return getJsonPathCompatibilityWarning(mappingRow.jsonSelector);
 }
 
-// Bookmarking is retired from the UI, so the trace evaluator form no longer
-// offers it as a filter column. An evaluator that already filters on it keeps
-// the column selectable — its filter still runs, and hiding the column would
-// leave that row rendering an empty column picker.
-const RETIRED_TRACE_FILTER_COLUMNS = ["bookmarked", "⭐️"];
-
-export function getSelectableTraceFilterColumns(
-  columns: ColumnDefinition[],
-  filterState: FilterState | null | undefined,
-): ColumnDefinition[] {
-  const isStillFiltered = (filterState ?? []).some((filter) =>
-    RETIRED_TRACE_FILTER_COLUMNS.includes(filter.column),
-  );
-
-  return isStillFiltered
-    ? columns
-    : columns.filter(
-        (column) => !RETIRED_TRACE_FILTER_COLUMNS.includes(column.id),
-      );
-}
+// Bookmarking is retired from the UI. Keep these ids/names in the shared
+// column list so existing bookmarked filter rows still resolve a definition,
+// but pass them to InlineFilterBuilder as hiddenUnlessSelected so only those
+// grandfathered rows can keep the column — new rows cannot pick it.
+export const RETIRED_TRACE_FILTER_COLUMNS = ["bookmarked", "⭐️"] as const;
 
 export const getTargetDisplayName = (target: string): string => {
   switch (target) {
