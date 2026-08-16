@@ -195,7 +195,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const { ROOT_CONTEXT } = await import("@opentelemetry/api");
 
   return {
-    ...actual,
+    ...(actual as object),
     ...sharedServerMock,
     getTraceById: vi.fn(),
     logger: {
