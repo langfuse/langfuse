@@ -11,7 +11,7 @@ import {
  * A single gauge is enough to alert on staleness: the worker only refreshes
  * the heartbeat after a fully successful run, so a stuck, failing, or missing
  * job lets `heartbeat_age_seconds` climb past the freshness window. Emitted
- * from QueueMetricsRunner so age keeps rising between the hourly job runs.
+ * from QueueMetricsRunner so age keeps rising between the 15-minute job runs.
  *
  * Alert: `avg:langfuse.v4.legacy_api_usage.heartbeat_age_seconds > 10800` (3h).
  */
