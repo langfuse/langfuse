@@ -473,7 +473,6 @@ const legacyApiUsageCacheKey = `langfuse:v4:legacy-api-usage:v1:${projectId}`;
 const experimentPostUsageCacheKey = `langfuse:v4:experiment-post-usage:v1:${projectId}`;
 const legacyApiUsageHeartbeatKey = "langfuse:v4:legacy-api-usage:heartbeat:v1";
 
-const V4_CACHE_KEY_PATTERN = "langfuse:v4:*";
 const DEFAULT_SEED_TTL_SECONDS = 60 * 60;
 
 const clearV4CacheKeys = async () => {
