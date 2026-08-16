@@ -16,10 +16,10 @@ import { api } from "@/src/utils/api";
 
 /** headerProps are shared by all of the ListMonitorPage headers */
 const headerProps = {
-  title: "Monitors",
+  title: "Alerts",
   help: {
     description:
-      "Monitors notify your team and automated workflows of sudden cost spikes, quality drops, latency changes, and other important changes on the system.",
+      "Alerts notify your team and automated workflows of sudden cost spikes, quality drops, latency changes, and other important changes on the system.",
   },
 };
 
@@ -37,7 +37,7 @@ export default function ListMonitorsPage() {
   );
 
   return (
-    <MonitorPagePermissions scope="monitors:read">
+    <MonitorPagePermissions scope="alerts:read">
       {!projectId || isLoading ? (
         <EmptyPage />
       ) : isSuccess && hasMonitors ? (
@@ -57,7 +57,7 @@ const OnboardingPage = ({ projectId }: { projectId: string }) => {
   /** hasCUDAccess is true if the user has permission to create monitors */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "monitors:CUD",
+    scope: "alerts:CUD",
   });
 
   return (
@@ -72,7 +72,7 @@ const MainPage = ({ projectId }: { projectId: string }) => {
   /** hasCUDAccess is true if the user has permission to create monitors */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "monitors:CUD",
+    scope: "alerts:CUD",
   });
 
   /** monitorEntitlementLimit is the limit of the number of monitors that can be created for this org  */
@@ -110,10 +110,10 @@ const MainPage = ({ projectId }: { projectId: string }) => {
                       }
                     : undefined
                 }
-                href={`/project/${projectId}/monitors/new`}
+                href={`/project/${projectId}/alerts/new`}
                 variant="default"
               >
-                New Monitor
+                New Alert
               </ActionButton>
             </>
           ),

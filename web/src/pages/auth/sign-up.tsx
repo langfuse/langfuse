@@ -414,6 +414,8 @@ function VerifiedSignupFlow({
     const callback = encodeURIComponent(
       `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
     );
+    // Existing hard navigation is accepted during the Next.js 16.3 migration.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
   }
 

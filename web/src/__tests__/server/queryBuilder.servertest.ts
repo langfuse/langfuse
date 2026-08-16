@@ -4336,6 +4336,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "missing_top_n",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
@@ -4372,6 +4378,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "entity_dimension_unbounded",
+        dimensions: ["experimentName"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension 'experimentName'",
     );
@@ -4456,6 +4468,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "additional_entity_dimension",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
@@ -4494,6 +4512,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "invalid_order_by",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
@@ -4590,6 +4614,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "time_dimension",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "traceId",
     );
@@ -5063,6 +5093,116 @@ describe("query builder measure-aggregation validation", () => {
         // Should return only trace 1 (matches both name AND environment)
         expect(result).toHaveLength(1);
         expect(result[0].name).toBe("target-trace");
+      },
+    );
+  });
+
+  describe("metadata filters on events views (v2)", () => {
+    // events_core stores metadata_values truncated to 200 chars
+    // (events_core_mv); metadata filters must read events_full or matches
+    // beyond the truncation point are silently dropped.
+    const isEventsTableV2Enabled =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+    const metadataFilterQuery = (
+      view: "traces" | "observations",
+    ): QueryType => ({
+      view,
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [
+        {
+          column: "metadata",
+          operator: "contains",
+          key: "experiments",
+          value: "HAGTI=B",
+          type: "stringObject",
+        },
+      ],
+      timeDimension: null,
+      fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+      toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+      orderBy: null,
+    });
+
+    it("reads events_full when a metadata filter is present (traces view)", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: sql } = await builder.build(
+        metadataFilterQuery("traces"),
+        randomUUID(),
+      );
+
+      expect(sql).toContain("FROM events_full events_traces");
+      expect(sql).not.toContain("events_core");
+    });
+
+    it("reads events_full when a metadata filter is present (observations view)", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: sql } = await builder.build(
+        metadataFilterQuery("observations"),
+        randomUUID(),
+      );
+
+      expect(sql).toContain("FROM events_full events_observations");
+      expect(sql).not.toContain("events_core");
+    });
+
+    it("keeps reading events_core without truncation-sensitive filters", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const query = metadataFilterQuery("traces");
+      query.filters = [
+        {
+          column: "environment",
+          operator: "=",
+          value: "production",
+          type: "string",
+        },
+      ];
+      const { query: sql } = await builder.build(query, randomUUID());
+
+      expect(sql).toContain("FROM events_core events_traces");
+      expect(sql).not.toContain("events_full");
+    });
+
+    isEventsTableV2Enabled(
+      "metadata 'contains' matches a value beyond the 200-char truncation point",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        const needle = `HAGTI=B-${randomUUID()}`;
+        const longValue = JSON.stringify([
+          ...Array.from({ length: 20 }, (_, i) => `experiment-${i}`),
+          needle,
+        ]);
+        expect(longValue.length).toBeGreaterThan(200);
+
+        await createEventsCh([
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            trace_name: "trace-with-long-metadata",
+            name: "root-op",
+            parent_span_id: "",
+            metadata_names: ["experiments"],
+            metadata_values: [longValue],
+            start_time: Date.now() * 1000,
+          }),
+        ]);
+
+        const query = metadataFilterQuery("traces");
+        query.filters = [
+          {
+            column: "metadata",
+            operator: "contains",
+            key: "experiments",
+            value: needle,
+            type: "stringObject",
+          },
+        ];
+        const result = await executeQuery(projectId, query, "v2");
+
+        expect(result).toHaveLength(1);
+        expect(result[0].name).toBe("trace-with-long-metadata");
       },
     );
   });

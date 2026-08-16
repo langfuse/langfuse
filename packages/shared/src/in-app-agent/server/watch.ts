@@ -33,6 +33,7 @@ export async function* watchConversationFrames(params: {
   projectId: string;
   conversationId: string;
   cursor: number;
+  openRunId?: string;
   signal?: AbortSignal;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
@@ -45,7 +46,7 @@ export async function* watchConversationFrames(params: {
   const startedAt = now();
   let cursor = params.cursor;
   let lastKeepaliveAt = startedAt;
-  let openRunId: string | null = null;
+  let openRunId: string | null = params.openRunId ?? null;
   let lastStatusKey: string | null = null;
   let reconciledStaleRun = false;
 
@@ -148,7 +149,7 @@ export async function* watchConversationFrames(params: {
       cursor = row.sequenceNumber;
     }
 
-    // Legacy rows may have no status and cannot be watched as active runs.
+    // Rows without a recognized status cannot be watched as active runs.
     if (!latestRun) {
       yield { type: "done" };
       return;
@@ -214,11 +215,7 @@ export async function* watchConversationFrames(params: {
   }
 }
 
-/**
- * Only a claimed run can be judged by its heartbeat. Foreground runs insert as
- * RUNNING with neither timestamp and are stale-closed by their own 150s rule on
- * the read path, so they must not be judged here.
- */
+/** Only a claimed run can be judged by its heartbeat. */
 function isStaleClaimedRun(
   run: {
     status: string | null;
@@ -233,8 +230,6 @@ function isStaleClaimedRun(
 
   const lastSign = run.heartbeatAt ?? run.claimedAt;
 
-  // Nullish rather than `!== null`: a legacy row can carry neither timestamp,
-  // and treating "no signal ever recorded" as stale would kill it.
   if (!lastSign) {
     return false;
   }
@@ -242,7 +237,7 @@ function isStaleClaimedRun(
   return now - lastSign.getTime() > IN_APP_AGENT_HEARTBEAT_STALE_MS;
 }
 
-/** Match foreground streaming by withholding private persisted event payloads. */
+/** Withhold private persisted event payloads from the browser watch stream. */
 export function toPublicEvent(event: AgUiEvent): AgUiEvent {
   if (event.type === EventType.RUN_STARTED && event.input !== undefined) {
     const publicEvent = { ...event };

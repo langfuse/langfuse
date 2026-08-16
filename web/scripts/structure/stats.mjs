@@ -129,7 +129,7 @@ const RULES = [
   {
     id: 8,
     mech: "graph",
-    title: "Cross-feature imports only via the feature's index.ts",
+    title: "Cross-feature imports only via a feature surface (index, server)",
     get: () => d.rule8(modules),
   },
   {

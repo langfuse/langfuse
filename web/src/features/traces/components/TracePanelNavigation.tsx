@@ -19,7 +19,7 @@ import { StringParam, useQueryParam } from "use-query-params";
 import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { TraceTree } from "./TraceTree";
 import { TraceSearchList } from "./TraceSearchList";
-import { TraceTimeline } from "./TraceTimeline";
+import { TraceTimeline } from "./TraceTimeline/TraceTimeline";
 import { useMemo } from "react";
 
 export function TracePanelNavigation() {

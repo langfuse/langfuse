@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
 import { Card } from "@/src/components/ui/card";
@@ -32,6 +33,7 @@ import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -240,18 +242,25 @@ function DeleteAccountButton() {
 type AccountSettingsPage = {
   title: string;
   slug: string;
-  content: React.ReactNode;
+  show?: boolean | (() => boolean);
   cmdKKeywords?: string[];
-};
+} & ({ content: React.ReactNode } | { href: string });
 
 export function useAccountSettingsPages(): AccountSettingsPage[] {
   const { data: session } = useSession();
   const userEmail = session?.user?.email ?? "";
+  const showV4Migration = useV4UpgradeUiFlag();
 
-  return getAccountSettingsPages(userEmail);
+  return getAccountSettingsPages({ userEmail, showV4Migration });
 }
 
-const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
+const getAccountSettingsPages = ({
+  userEmail,
+  showV4Migration,
+}: {
+  userEmail: string;
+  showV4Migration: boolean;
+}): AccountSettingsPage[] => [
   {
     title: "General",
     slug: "index",
@@ -303,14 +312,17 @@ const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
       </div>
     ),
   },
+  {
+    title: "v4 Migration",
+    slug: "v4-migration",
+    href: "/v4-migration",
+    show: showV4Migration,
+  },
 ];
 
 export default function AccountSettingsPage() {
-  const { data: session } = useSession();
   const router = useRouter();
-  const userEmail = session?.user?.email ?? "";
-
-  const pages = getAccountSettingsPages(userEmail);
+  const pages = useAccountSettingsPages();
 
   return (
     <ContainerPage

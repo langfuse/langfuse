@@ -2,7 +2,7 @@
  * Timeline-specific types for trace visualization
  */
 
-import type { TreeNode } from "../../fns/types";
+import type { TreeNode } from "../../types/treeNode";
 import type Decimal from "decimal.js";
 import type { ScoreDomain } from "@langfuse/shared";
 import type { WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";

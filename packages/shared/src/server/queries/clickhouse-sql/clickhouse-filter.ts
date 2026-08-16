@@ -427,22 +427,29 @@ export class StringObjectFilter implements Filter {
     } else {
       // For observations/traces tables, use Map access: metadata[key]
       const column = `${prefix}${this.field}`;
+      const valueAccessor = `${column}[{${varKeyName}: String}]`;
+      // A missing key resolves the Map access to the empty-string default,
+      // which would otherwise make `contains ""` (and every other operator's
+      // empty-value comparison) incorrectly match rows that never had the
+      // key. Require the key to exist first, mirroring the events-table fix
+      // in PR #13369.
+      const hasKey = `mapContains(${column}, {${varKeyName}: String})`;
 
       switch (this.operator) {
         case "=":
-          query = `${column}[{${varKeyName}: String}] = {${varValueName}: String}`;
+          query = `${hasKey} AND (${valueAccessor} = {${varValueName}: String})`;
           break;
         case "contains":
-          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) > 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) > 0)`;
           break;
         case "does not contain":
-          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) = 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) = 0)`;
           break;
         case "starts with":
-          query = `startsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          query = `${hasKey} AND (startsWith(${valueAccessor}, {${varValueName}: String}))`;
           break;
         case "ends with":
-          query = `endsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          query = `${hasKey} AND (endsWith(${valueAccessor}, {${varValueName}: String}))`;
           break;
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);

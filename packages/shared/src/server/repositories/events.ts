@@ -113,6 +113,8 @@ import {
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsMetadataValuesQuery,
+  EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   EVENTS_FILTER_OPTION_TOP_N,
   type EventFilterOptionRow,
   type EventFilterOptionColumn,
@@ -121,6 +123,7 @@ import {
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
+  normalizeEventsTraceName,
   type NumericEventsTableColumnId,
 } from "../../eventsTable";
 import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
@@ -412,7 +415,8 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
 }));
 
 // TODO: introduce pagination
-export const MAX_OBSERVATIONS_PER_TRACE = 10_000;
+export const MAX_OBSERVATIONS_PER_TRACE =
+  env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
 
 export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
@@ -2047,6 +2051,7 @@ const queryEventsFilterOptionsForColumns = async (params: {
     limit: params.limit,
     scope: params.scope,
     includeApproxCount: params.includeApproxCount,
+    sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   });
 
   if (!queryWithParams) {
@@ -2063,6 +2068,7 @@ const queryEventsFilterOptionColumn = async (params: {
   limit: number;
   offset?: number;
   scope?: EventFilterOptionScope;
+  sampleRows?: number;
 }) => {
   const queryWithParams = buildEventsFilterOptionColumnQuery({
     projectId: params.projectId,
@@ -2071,6 +2077,7 @@ const queryEventsFilterOptionColumn = async (params: {
     limit: params.limit,
     offset: params.offset,
     scope: params.scope,
+    sampleRows: params.sampleRows,
   });
 
   if (!queryWithParams) {
@@ -2093,6 +2100,7 @@ export const getEventsFilterOptionsForColumns = async (params: {
     limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
   });
 
+// Unsampled: the cursor contract lets MCP agents page the true distinct set.
 export const getEventsFilterOptionValuesPage = async (params: {
   projectId: string;
   filter: FilterState;
@@ -2108,6 +2116,36 @@ export const getEventsFilterOptionValuesPage = async (params: {
     offset: params.offset,
   });
 
+/** EventsMetadataOptionRow is one metadata key or value with its event count. */
+export type EventsMetadataOptionRow = { value: string; count: number };
+
+/** getEventsMetadataValues returns the top-N distinct values for one metadata key on the events table. */
+export const getEventsMetadataValues = async (params: {
+  projectId: string;
+  filter: FilterState;
+  key: string;
+  topN?: number;
+}): Promise<EventsMetadataOptionRow[]> => {
+  const queryWithParams = buildEventsMetadataValuesQuery({
+    projectId: params.projectId,
+    filter: params.filter,
+    key: params.key,
+    limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
+    sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
+  });
+
+  if (!queryWithParams) {
+    return [];
+  }
+
+  return queryClickhouse<EventsMetadataOptionRow>({
+    query: queryWithParams.query,
+    params: queryWithParams.params,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+};
+
 const getSingleEventsFilterOptionColumn = async (
   projectId: string,
   filter: FilterState,
@@ -2120,6 +2158,7 @@ const getSingleEventsFilterOptionColumn = async (
     column,
     limit: opts?.limit ?? EVENTS_FILTER_OPTION_TOP_N,
     scope: opts?.scope,
+    sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   });
 
 export const getEventsGroupedByTraceName = async (
@@ -2164,6 +2203,7 @@ export const getEventsGroupedByUserId = async (
   return rows.map((row) => ({ userId: row.value, count: row.count }));
 };
 
+// Unsampled: a sampled max() under-reports, hiding real outliers from MCP agents.
 export const getEventsNumericStatsByFilterColumn = async (
   projectId: string,
   filter: FilterState,
@@ -2470,6 +2510,12 @@ export const getObservationsBatchIOFromEventsTable = async <
   minStartTime: Date;
   maxStartTime: Date;
   truncated?: boolean; // Default true for performance, false for full data
+  /**
+   * Chars of I/O and of each metadata value to ship on a full read. Lets a
+   * caller that needs more than events_core's pre-truncated I/O still bound
+   * the payload. Ignored for truncated reads (events_core caps far tighter).
+   */
+  ioCharLimit?: number;
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
@@ -2481,6 +2527,12 @@ export const getObservationsBatchIOFromEventsTable = async <
   }
 
   const truncated = opts.truncated ?? true;
+  // Interpolated into SQL, so coerce to a positive integer here rather than
+  // trusting the caller's number.
+  const fullReadCharLimit =
+    !truncated && opts.ioCharLimit !== undefined
+      ? Math.max(1, Math.trunc(opts.ioCharLimit))
+      : undefined;
 
   // Extract IDs and trace IDs for filtering
   const observationIds = opts.observations.map((o) => o.id);
@@ -2492,16 +2544,28 @@ export const getObservationsBatchIOFromEventsTable = async <
 
   // Use events_core for truncated reads (lightweight), events_full for full I/O
   const tableName = truncated ? "events_core" : "events_full";
-  const inputSelect = truncated
-    ? `leftUTF8(e.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input`
+  const charLimit = truncated
+    ? env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
+    : fullReadCharLimit;
+  const inputSelect = charLimit
+    ? `leftUTF8(e.input, ${charLimit}) as input`
     : `e.input as input`;
-  const outputSelect = truncated
-    ? `leftUTF8(e.output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output`
+  const outputSelect = charLimit
+    ? `leftUTF8(e.output, ${charLimit}) as output`
     : `e.output as output`;
+  // events_core already stores these pre-truncated, so only a full read needs
+  // capping — an explicit limit has to bound every large field, not just I/O.
+  const capOnFullRead = (expr: string) =>
+    fullReadCharLimit ? `leftUTF8(${expr}, ${fullReadCharLimit})` : expr;
+  const capEachOnFullRead = (expr: string) =>
+    fullReadCharLimit
+      ? `arrayMap(v -> leftUTF8(v, ${fullReadCharLimit}), ${expr})`
+      : expr;
+  const metadataValues = capEachOnFullRead("e.metadata_values");
   const experimentFieldsSelect = opts.includeExperimentFields
     ? `
-      experiment_item_expected_output,
-      mapFromArrays(arrayReverse(e.experiment_item_metadata_names), arrayReverse(e.experiment_item_metadata_values)) as experiment_item_metadata,
+      ${capOnFullRead("e.experiment_item_expected_output")} as experiment_item_expected_output,
+      mapFromArrays(arrayReverse(e.experiment_item_metadata_names), arrayReverse(${capEachOnFullRead("e.experiment_item_metadata_values")})) as experiment_item_metadata,
     `
     : "";
   const toolCallFieldsSelect = opts.includeToolCallFields
@@ -2518,7 +2582,7 @@ export const getObservationsBatchIOFromEventsTable = async <
       ${outputSelect},
       ${experimentFieldsSelect}
       ${toolCallFieldsSelect}
-      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata
+      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(${metadataValues})) as metadata
     FROM ${tableName} e
     WHERE e.project_id = {projectId: String}
       AND e.span_id IN {observationIds: Array(String)}
@@ -3228,7 +3292,11 @@ export const getEventsForAnalyticsIntegrations = async function* (
     yield {
       timestamp: record.start_time,
       langfuse_observation_name: record.name,
-      langfuse_trace_name: record.trace_name,
+      // The row type here is Record<string, unknown>; the column is a String
+      // projection (eventsTableTraceNameSelectSql).
+      langfuse_trace_name: normalizeEventsTraceName(
+        record.trace_name as string | null | undefined,
+      ),
       langfuse_trace_id: record.trace_id,
       langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.trace_id as string)}?observation=${encodeURIComponent(record.id as string)}`,
       langfuse_user_url: record.user_id

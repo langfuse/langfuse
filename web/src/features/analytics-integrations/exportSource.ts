@@ -1,8 +1,11 @@
 import {
   AnalyticsIntegrationExportSource,
+  areEnrichedWritesActive,
+  areLegacyWritesActive,
   EXPORT_SOURCE_OPTIONS,
   getAvailableExportSources,
   validateExportSource,
+  type BlobExportWriteMode,
   type ExportSourceBlockedReason,
   type ExportSourceContext,
   type ExportSourceOption,
@@ -11,6 +14,28 @@ import {
 // UI adapters over the export-source policy, shared by the blob-storage,
 // PostHog, and Mixpanel settings forms. Policy and rationale live in
 // packages/shared/.../export-source-policy.ts.
+
+// The write mode is server-only, so every settings page receives it from its
+// tRPC get response and derives both capabilities here.
+export function buildExportSourceContext({
+  writeMode,
+  isCloud,
+  projectCreatedAt,
+  integrationCreatedAt,
+}: {
+  writeMode: BlobExportWriteMode;
+  isCloud: boolean;
+  projectCreatedAt?: Date;
+  integrationCreatedAt?: Date | null;
+}): ExportSourceContext {
+  return {
+    isCloud,
+    enrichedAvailable: areEnrichedWritesActive(writeMode),
+    legacyWritesActive: areLegacyWritesActive(writeMode),
+    projectCreatedAt,
+    integrationCreatedAt,
+  };
+}
 
 export function isExportSourceSelectable(
   source: AnalyticsIntegrationExportSource,
@@ -70,7 +95,7 @@ const EXPORT_SOURCE_UNAVAILABLE_MESSAGES: Record<
   string
 > = {
   "enriched-unavailable":
-    "This integration is configured to export enriched observations, but enriched export is not available on this deployment. Saving is blocked until you select an available export source above. To keep the current configuration instead, re-enable enriched export (V4 preview opt-in) on your deployment.",
+    "This integration is configured to export enriched observations, but this deployment runs LANGFUSE_MIGRATION_V4_WRITE_MODE=legacy and does not write the enriched observations table. Saving is blocked until you select an available export source above.",
   "cloud-cutoff":
     "This integration is configured to export legacy traces and observations, which is no longer available for this project. Saving is blocked until you select an available export source above.",
   // Self-hosted-operator-facing: naming the env var is intentional.

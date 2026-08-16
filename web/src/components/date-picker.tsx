@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 "use client";
 
 import * as React from "react";

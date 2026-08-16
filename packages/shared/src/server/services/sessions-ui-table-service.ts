@@ -4,7 +4,10 @@ import { sessionCols } from "../tableMappings/mapSessionTable";
 import { FilterState } from "../../types";
 import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  type PreferredClickhouseService,
+} from "../clickhouse/client";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
 import {
@@ -91,6 +94,7 @@ export const getSessionsWithMetrics = async (props: {
   limit?: number;
   page?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const rows = await getSessionsTableGeneric<SessionWithMetricsReturnType>({
     select: "metrics",
@@ -100,6 +104,7 @@ export const getSessionsWithMetrics = async (props: {
     limit: props.limit,
     page: props.page,
     clickhouseConfigs: props.clickhouseConfigs,
+    preferredClickhouseService: props.preferredClickhouseService,
   });
 
   return rows.map((row) => ({
@@ -119,11 +124,20 @@ export type FetchSessionsTableProps = {
   page?: number;
   tags?: Record<string, string>;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
-  const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
-    props;
+  const {
+    select,
+    projectId,
+    filter,
+    orderBy,
+    limit,
+    page,
+    clickhouseConfigs,
+    preferredClickhouseService,
+  } = props;
 
   let sqlSelect: string;
   switch (select) {
@@ -402,5 +416,6 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
     params: input.params,
     tags: input.tags,
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 };
