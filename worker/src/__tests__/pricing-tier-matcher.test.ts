@@ -317,6 +317,10 @@ describe("default-model-prices.json", () => {
           15,
         );
         expect(prices.cache_write_tokens).toBeCloseTo(prices.input * 1.25, 15);
+        expect(prices.input_cache_write_tokens).toBeCloseTo(
+          prices.input * 1.25,
+          15,
+        );
       }
     }
 
@@ -352,6 +356,24 @@ describe("default-model-prices.json", () => {
       0,
     );
     expect(reportedCost).toBeCloseTo(0.738273, 12);
+
+    const jsWrapperUsage = {
+      input: 3,
+      input_cached_tokens: 0,
+      input_cache_write_tokens: 537807,
+      output: 71,
+      output_reasoning_tokens: 23,
+      total: 537904,
+    };
+    const jsWrapperResult = matchPricingTier(tiers, jsWrapperUsage);
+    expect(jsWrapperResult?.pricingTierName).toBe("Large Context (>272K)");
+
+    const jsWrapperCost = Object.entries(jsWrapperUsage).reduce(
+      (total, [usageType, units]) =>
+        total + (jsWrapperResult?.prices[usageType]?.toNumber() ?? 0) * units,
+      0,
+    );
+    expect(jsWrapperCost).toBeCloseTo(6.7268475, 12);
 
     expect(
       matchPricingTier(tiers, { cache_write_tokens: 272001 })?.pricingTierName,
