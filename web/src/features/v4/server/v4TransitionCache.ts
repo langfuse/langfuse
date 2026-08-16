@@ -16,25 +16,21 @@ import {
 /**
  * Redis caching for the v4 transition usage checks.
  *
- * The v4 sidebar/panel checks read two expensive ClickHouse sources: SDK
- * ingestion from `events_core` and deprecated public API usage from
- * `system.query_log`. Uncached, always-mounted UI repeating these scans
- * saturated ClickHouse, so results are cached per project:
+ * SDK ingestion is read from the indexed `events_core` table. A per-project
+ * blob covers the detection window up to an hour-aligned `hotStart` boundary;
+ * readers always query the small `[hotStart, now]` gap live and merge it with
+ * the blob so new SDK versions register within minutes. The TTL is one hour so
+ * left-edge overcount on the sliding 14-day window (and stale classification
+ * fields embedded in the blob) stay bounded to ~1h.
  *
- * - SDK usage: a per-project blob covering the detection window up to an
- *   hour-aligned `hotStart` boundary. Readers always query the small
- *   `[hotStart, now]` gap live from the indexed `events_core` table and merge
- *   it with the blob, so freshness never depends on the TTL. The TTL is
- *   bounded to a day because cached rows embed classification verdicts
- *   (e.g. `latestSdkMajor`) that must re-apply within a day of a rules
- *   change.
- * - Legacy API usage and experiment POST usage: raw per-project facts from
- *   `system.query_log`, which is unindexed for our filters, fans out across
- *   replicas, and is delayed at the source anyway. Cached for 12h; the
- *   cache-only sidebar reads never fall back to ClickHouse.
+ * Deprecated public API and experiment POST usage are maintained by the
+ * worker pipeline into the shared Redis keys; the request path reads those
+ * entries and only falls back to `system.query_log` when the pipeline
+ * heartbeat is stale. The always-mounted sidebar reads Redis (and Postgres)
+ * only and never queries ClickHouse.
  *
- * All helpers degrade gracefully: no Redis, Redis errors, or unparsable
- * entries behave like cache misses and never fail the request.
+ * Helpers degrade gracefully: no Redis, Redis errors, or unparsable entries
+ * behave like cache misses and never fail the request.
  */
 
 /** Customer-ingress sources. Historical and experiment materializations are excluded. */
@@ -44,13 +40,8 @@ export const MIGRATION_INGRESS_EVENT_SOURCES = [
   "otel",
 ] as const;
 
-export const SDK_USAGE_CACHE_TTL_SECONDS = 24 * 60 * 60;
-/**
- * Blobs older than this force a refill: the live gap query spans
- * `[blob.hotStart, now]`, so past this age it would approach the full
- * detection window and the cache would save nothing.
- */
-export const SDK_USAGE_CACHE_MAX_AGE_MS = 25 * 60 * 60 * 1000;
+/** Historical blob TTL: 60 minutes (1 hour). */
+export const SDK_USAGE_CACHE_TTL_SECONDS = 60 * 60;
 // Legacy API and experiment POST entries share the pipeline contract owned
 // by @langfuse/shared/src/server/v4/legacyApiUsage: the worker refreshes the
 // same keys hourly, and this request-path fallback only fills them while the
@@ -105,11 +96,8 @@ export type CachedLegacyApiUsageRow = V4LegacyApiUsageRow;
 export type LegacyApiUsageCacheBlob = V4LegacyApiUsageBlob;
 export type ExperimentPostUsageCacheBlob = V4ExperimentPostUsageBlob;
 
-// v2: entries derived from the 14-day detection window. The version segment
-// exists so window/semantics changes invalidate old entries instead of being
-// silently served under new semantics.
 const sdkUsageKey = (projectId: string) =>
-  `langfuse:v4:sdk-usage:v2:${projectId}`;
+  `langfuse:v4:sdk-usage:v1:${projectId}`;
 const legacyApiUsageKey = v4LegacyApiUsageProjectKey;
 const experimentPostUsageKey = v4ExperimentPostUsageProjectKey;
 
@@ -245,3 +233,25 @@ export const writeExperimentPostUsageCache = (
       } satisfies ExperimentPostUsageCacheBlob,
     })),
   );
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/** Trailing detection window used for SDK cache blobs and usage queries. */
+export const V4_TRANSITION_DETECTION_WINDOW_MS = 14 * 24 * HOUR_MS;
+
+/**
+ * Detection windows are computed server-side so cache entries are shared
+ * across requesters and long-lived tabs cannot pin stale ranges.
+ */
+export const getV4TransitionDetectionWindow = (nowMs = Date.now()) => {
+  const hotStart = new Date(Math.floor(nowMs / HOUR_MS) * HOUR_MS);
+  const windowEnd = new Date(hotStart.getTime() + HOUR_MS);
+  return {
+    /** Start of the current hour; cached SDK blobs cover strictly before it. */
+    hotStart,
+    windowEnd,
+    windowStart: new Date(
+      windowEnd.getTime() - V4_TRANSITION_DETECTION_WINDOW_MS,
+    ),
+  };
+};

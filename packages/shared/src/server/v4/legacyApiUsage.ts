@@ -101,14 +101,13 @@ export const v4LegacyApiHourStartIso = (hourStartMs: number): string =>
 export const v4LegacyApiHourBucketKey = (hourStartMs: number): string =>
   `langfuse:v4:legacy-api-usage:hour:v1:${v4LegacyApiHourStartIso(hourStartMs)}`;
 
-// v2: per-project entries are aggregates over the detection window, so a
-// window/semantics change must invalidate them instead of serving
-// old-window aggregates under new semantics.
+// v1: per-project entries. Age trimming and worker rollup deletion handle
+// semantic invalidation when the detection window or aggregation changes.
 export const v4LegacyApiUsageProjectKey = (projectId: string): string =>
-  `langfuse:v4:legacy-api-usage:v2:${projectId}`;
+  `langfuse:v4:legacy-api-usage:v1:${projectId}`;
 
 export const v4ExperimentPostUsageProjectKey = (projectId: string): string =>
-  `langfuse:v4:experiment-post-usage:v2:${projectId}`;
+  `langfuse:v4:experiment-post-usage:v1:${projectId}`;
 
 const legacyApiUsageRowSchema = z.object({
   entrypoint: z.string(),

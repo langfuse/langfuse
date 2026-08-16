@@ -1,12 +1,9 @@
-import { useState } from "react";
-
 import { api } from "@/src/utils/api";
 import {
   countLegacyApiEntrypoints,
   normalizeLegacyApiEntrypoint,
 } from "@/src/features/v4/utils";
 import {
-  createV4MigrationDetectionRange,
   getLegacyIntegrationLabels,
   getMigrationActionState,
   getMigrationCountState,
@@ -16,9 +13,6 @@ import { getV4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionSt
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
-// Legacy API usage is served from a 12h server-side cache; a longer client
-// stale time avoids re-requesting data that cannot have changed.
-const LEGACY_API_QUERY_STALE_TIME_MS = 30 * 60 * 1000;
 
 export type V4MigrationOrganization = {
   id: string;
@@ -31,17 +25,11 @@ const queryOptions = {
   staleTime: QUERY_STALE_TIME_MS,
 };
 
-const legacyApiQueryOptions = {
-  refetchOnWindowFocus: false,
-  staleTime: LEGACY_API_QUERY_STALE_TIME_MS,
-};
-
 export function useAccountV4MigrationData(params: {
   organizations: V4MigrationOrganization[];
   enabled: boolean;
 }): Map<string, ProjectMigrationStatus> {
   const { organizations, enabled } = params;
-  const [detectionRange] = useState(createV4MigrationDetectionRange);
 
   const integrationQueries = api.useQueries((t) =>
     organizations.map((organization) =>
@@ -69,10 +57,7 @@ export function useAccountV4MigrationData(params: {
   const sdkQueries = api.useQueries((t) =>
     organizations.map((organization) =>
       t.v4Transition.sdkUsageSummaryByProject(
-        {
-          orgId: organization.id,
-          ...detectionRange,
-        },
+        { orgId: organization.id },
         {
           ...queryOptions,
           enabled,
@@ -84,12 +69,9 @@ export function useAccountV4MigrationData(params: {
   const apiQueries = api.useQueries((t) =>
     organizations.map((organization) =>
       t.v4Transition.legacyApiUsageSummaryByProject(
+        { orgId: organization.id },
         {
-          orgId: organization.id,
-          ...detectionRange,
-        },
-        {
-          ...legacyApiQueryOptions,
+          ...queryOptions,
           enabled,
           trpc: { context: { skipBatch: true } },
         },
@@ -156,13 +138,9 @@ function useProjectV4SdkSummary(params: {
   enabled: boolean;
 }) {
   const { projectId, enabled } = params;
-  const [detectionRange] = useState(createV4MigrationDetectionRange);
   const queryEnabled = enabled && Boolean(projectId);
   const sdkQuery = api.v4Transition.sdkUsageSummary.useQuery(
-    {
-      projectId: projectId ?? "",
-      ...detectionRange,
-    },
+    { projectId: projectId ?? "" },
     {
       ...queryOptions,
       enabled: queryEnabled,
@@ -198,22 +176,12 @@ export function useProjectV4EvalData(params: {
   return getMigrationCountState(evalQuery, (data) => data.traceLevelEvalCount);
 }
 
-/**
- * Cache-only migration signal for always-mounted UI (the sidebar pill).
- * Backed by `v4Transition.cachedMigrationActions`, which reads Postgres and
- * Redis only and never triggers the expensive ClickHouse usage scans. A cold
- * cache reports categories as unknown (`null`), which counts as "no action
- * needed" here: the full checks run once the user opens the migration panel
- * or status page.
- */
-export function useProjectV4CachedMigrationActions(params: {
-  projectId: string | undefined;
-  enabled: boolean;
-}): { actionNeeded: boolean } {
-  const { projectId, enabled } = params;
+export function useProjectV4CachedMigrationActions(
+  projectId: string | undefined,
+): { actionNeeded: boolean } {
   const query = api.v4Transition.cachedMigrationActions.useQuery(
     { projectId: projectId ?? "" },
-    { ...queryOptions, enabled: enabled && Boolean(projectId) },
+    { ...queryOptions, enabled: Boolean(projectId) },
   );
   const actions = query.data;
 
@@ -237,7 +205,6 @@ export function useProjectV4MigrationData(params: {
 }) {
   const { projectId, enabled } = params;
   const queryEnabled = enabled && Boolean(projectId);
-  const [detectionRange] = useState(createV4MigrationDetectionRange);
   const forceV3Experience = useForceV3Experience(projectId);
   const { sdkQuery, summary: sdkSummary } = useProjectV4SdkSummary({
     projectId,
@@ -248,12 +215,9 @@ export function useProjectV4MigrationData(params: {
     { ...queryOptions, enabled: queryEnabled },
   );
   const apiQuery = api.v4Transition.legacyApiUsageSummary.useQuery(
+    { projectId: projectId ?? "" },
     {
-      projectId: projectId ?? "",
-      ...detectionRange,
-    },
-    {
-      ...legacyApiQueryOptions,
+      ...queryOptions,
       enabled: queryEnabled,
       trpc: { context: { skipBatch: true } },
     },

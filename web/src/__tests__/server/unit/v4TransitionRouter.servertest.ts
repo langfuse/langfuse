@@ -416,9 +416,9 @@ const HOT_START_CLICKHOUSE = "2026-06-25 00:00:00.000";
 const WINDOW_END_CLICKHOUSE = "2026-06-25 01:00:00.000";
 const WINDOW_START_CLICKHOUSE = "2026-06-11 01:00:00.000";
 
-const sdkUsageCacheKey = `langfuse:v4:sdk-usage:v2:${projectId}`;
-const legacyApiUsageCacheKey = `langfuse:v4:legacy-api-usage:v2:${projectId}`;
-const experimentPostUsageCacheKey = `langfuse:v4:experiment-post-usage:v2:${projectId}`;
+const sdkUsageCacheKey = `langfuse:v4:sdk-usage:v1:${projectId}`;
+const legacyApiUsageCacheKey = `langfuse:v4:legacy-api-usage:v1:${projectId}`;
+const experimentPostUsageCacheKey = `langfuse:v4:experiment-post-usage:v1:${projectId}`;
 const legacyApiUsageHeartbeatKey = "langfuse:v4:legacy-api-usage:heartbeat:v1";
 
 const V4_CACHE_KEY_PATTERN = "langfuse:v4:*";
@@ -549,8 +549,6 @@ describe("v4TransitionRouter", () => {
 
     const rows = await caller.legacyApiUsageSummary({
       projectId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(rows).toEqual([
@@ -657,35 +655,12 @@ describe("v4TransitionRouter", () => {
     );
   });
 
-  it("rejects ranges over 14 days", async () => {
-    const caller = createCaller();
-
-    await expect(
-      caller.legacyApiUsageSummary({
-        projectId,
-        fromTimestamp: new Date("2026-06-10T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
-      }),
-    ).rejects.toThrow("14 days");
-    await expect(
-      caller.sdkUsageSummary({
-        projectId,
-        fromTimestamp: new Date("2026-06-10T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
-      }),
-    ).rejects.toThrow("14 days");
-
-    expect(mockedQueryClickhouse).not.toHaveBeenCalled();
-  });
-
   it("queries the main service once when no separate read replica is configured", async () => {
     sharedEnvMock.CLICKHOUSE_READ_ONLY_URL = sharedEnvMock.CLICKHOUSE_URL;
     const caller = createCaller();
 
     await caller.legacyApiUsageSummary({
       projectId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
@@ -710,8 +685,6 @@ describe("v4TransitionRouter", () => {
     await expect(
       caller.legacyApiUsageSummary({
         projectId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       }),
     ).resolves.toEqual([
       {
@@ -748,8 +721,6 @@ describe("v4TransitionRouter", () => {
     await expect(
       caller.legacyApiUsageSummary({
         projectId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       }),
     ).resolves.toEqual([
       {
@@ -779,8 +750,6 @@ describe("v4TransitionRouter", () => {
 
     const summary = await caller.sdkUsageSummary({
       projectId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(summary).toMatchObject({
@@ -810,10 +779,7 @@ describe("v4TransitionRouter", () => {
 
   it("rejects project summaries outside the caller session", async () => {
     const caller = createCaller();
-    const range = {
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
-    };
+    const range = {};
 
     await expect(
       caller.sdkUsageSummary({ projectId: outsideProjectId, ...range }),
@@ -1123,8 +1089,6 @@ describe("v4TransitionRouter", () => {
         createSessionWithOrgRole("OWNER"),
       ).sdkUsageSummaryByProject({
         orgId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       }),
     ).resolves.toEqual([]);
 
@@ -1150,8 +1114,6 @@ describe("v4TransitionRouter", () => {
         createSessionWithOrgRole("ADMIN"),
       ).sdkUsageSummaryByProject({
         orgId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       }),
     ).resolves.toEqual([]);
   });
@@ -1323,8 +1285,6 @@ describe("v4TransitionRouter", () => {
 
     const rows = await caller.sdkUsageSummaryByProject({
       orgId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(rows).toEqual([
@@ -1524,8 +1484,6 @@ describe("v4TransitionRouter", () => {
     expect(usageQuery?.query).not.toContain("toDate(timestamp)");
     expect(usageQuery?.params).toMatchObject({
       projectIds: [projectId, secondProjectId],
-      fromTimestamp: WINDOW_START_CLICKHOUSE,
-      toTimestamp: WINDOW_END_CLICKHOUSE,
       ingressSources: ["ingestion-api-dual-write", "otel-dual-write", "otel"],
     });
     expect(usageQuery?.tags).toEqual({
@@ -1580,8 +1538,6 @@ describe("v4TransitionRouter", () => {
 
     const [summary] = await caller.sdkUsageSummaryByProject({
       orgId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(summary?.experimentInstrumentationMigration).toEqual({
@@ -1616,8 +1572,6 @@ describe("v4TransitionRouter", () => {
 
     const summary = await caller.sdkUsageSummary({
       projectId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(summary).toMatchObject({
@@ -1700,8 +1654,6 @@ describe("v4TransitionRouter", () => {
 
     const summary = await caller.sdkUsageSummary({
       projectId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     // Sorted by lastSeen descending after the merge step.
@@ -1759,8 +1711,6 @@ describe("v4TransitionRouter", () => {
 
     const [summary] = await caller.sdkUsageSummaryByProject({
       orgId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(summary).toMatchObject({
@@ -1794,8 +1744,6 @@ describe("v4TransitionRouter", () => {
 
     const [summary] = await caller.sdkUsageSummaryByProject({
       orgId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(summary).toMatchObject({
@@ -1840,8 +1788,6 @@ describe("v4TransitionRouter", () => {
 
     const [summary] = await caller.sdkUsageSummaryByProject({
       orgId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(summary?.experimentInstrumentationMigration).toEqual({
@@ -1874,8 +1820,6 @@ describe("v4TransitionRouter", () => {
 
     const [summary] = await caller.sdkUsageSummaryByProject({
       orgId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(summary?.experimentInstrumentationMigration).toEqual({
@@ -1926,8 +1870,6 @@ describe("v4TransitionRouter", () => {
 
     const rows = await caller.legacyApiUsageSummaryByProject({
       orgId,
-      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-      toTimestamp: new Date("2026-06-25T00:00:00Z"),
     });
 
     expect(rows).toEqual([
@@ -2070,8 +2012,6 @@ describe("v4TransitionRouter", () => {
 
       const summary = await caller.sdkUsageSummary({
         projectId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       });
 
       // One merged series: counts add, seen-range unions across the boundary.
@@ -2109,18 +2049,14 @@ describe("v4TransitionRouter", () => {
         fromTimestamp: HOT_START_CLICKHOUSE,
       });
 
-      // Only the historical slice is cached (24h TTL); the gap stays live.
+      // Only the historical slice is cached (1h TTL); the gap stays live.
       await expect(readRedisJson(sdkUsageCacheKey)).resolves.toMatchObject({
         version: 1,
         hotStart: HOT_START_ISO,
         series: [expect.objectContaining({ eventCount: 5 })],
       });
-      expect(await readRedisTtl(sdkUsageCacheKey)).toBeGreaterThan(
-        23 * 60 * 60,
-      );
-      expect(await readRedisTtl(sdkUsageCacheKey)).toBeLessThanOrEqual(
-        24 * 60 * 60,
-      );
+      expect(await readRedisTtl(sdkUsageCacheKey)).toBeGreaterThan(55 * 60);
+      expect(await readRedisTtl(sdkUsageCacheKey)).toBeLessThanOrEqual(60 * 60);
       await expect(
         readRedisJson(experimentPostUsageCacheKey),
       ).resolves.toMatchObject({
@@ -2155,8 +2091,6 @@ describe("v4TransitionRouter", () => {
 
       const summary = await caller.sdkUsageSummary({
         projectId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       });
 
       expect(summary.sdkUsageSeries).toEqual([
@@ -2180,7 +2114,6 @@ describe("v4TransitionRouter", () => {
       );
       expect(mockedQueryClickhouse.mock.calls[0]?.[0].params).toMatchObject({
         fromTimestamp: HOT_START_CLICKHOUSE,
-        toTimestamp: WINDOW_END_CLICKHOUSE,
       });
       // Cache hit must not rewrite the historical blob.
       await expect(readRedisJson(sdkUsageCacheKey)).resolves.toMatchObject({
@@ -2207,8 +2140,6 @@ describe("v4TransitionRouter", () => {
 
       const summary = await caller.sdkUsageSummary({
         projectId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       });
 
       expect(summary.sdkUsageSeries).toEqual([
@@ -2216,16 +2147,9 @@ describe("v4TransitionRouter", () => {
       ]);
     });
 
-    it.each([
-      ["corrupt JSON", "not-json"],
-      // 26.5h old: past the 25h drift cap, so the gap query would approach
-      // the full window and the blob is refilled instead.
-      ["a stale hot boundary", null],
-    ])("treats blobs with %s as cache misses", async (_label, corruptValue) => {
+    it("treats blobs with corrupt JSON as cache misses", async () => {
       await seedRedisCache({
-        [sdkUsageCacheKey]:
-          corruptValue ??
-          sdkUsageBlob([cachedSdkSeries()], "2026-06-23T22:00:00.000Z"),
+        [sdkUsageCacheKey]: "not-json",
         [experimentPostUsageCacheKey]: experimentPostBlob(false),
       });
       mockedQueryClickhouse.mockResolvedValue([]);
@@ -2233,8 +2157,6 @@ describe("v4TransitionRouter", () => {
 
       await caller.sdkUsageSummary({
         projectId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       });
 
       // Historical refill plus live gap, both against events_core.
@@ -2268,8 +2190,6 @@ describe("v4TransitionRouter", () => {
 
       const rows = await caller.legacyApiUsageSummary({
         projectId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       });
 
       expect(rows).toEqual([
@@ -2305,8 +2225,6 @@ describe("v4TransitionRouter", () => {
 
       const rows = await caller.legacyApiUsageSummaryByProject({
         orgId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
       });
 
       expect(rows).toEqual([
@@ -2332,7 +2250,7 @@ describe("v4TransitionRouter", () => {
       // The idle project gets an empty entry so it does not re-run the
       // expensive query_log scan on every request.
       await expect(
-        readRedisJson(`langfuse:v4:legacy-api-usage:v2:${secondProjectId}`),
+        readRedisJson(`langfuse:v4:legacy-api-usage:v1:${secondProjectId}`),
       ).resolves.toMatchObject({ rows: [] });
     });
 
@@ -2350,8 +2268,6 @@ describe("v4TransitionRouter", () => {
         await expect(
           caller.legacyApiUsageSummary({
             projectId,
-            fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-            toTimestamp: new Date("2026-06-25T00:00:00Z"),
           }),
         ).resolves.toEqual([]);
         expect(mockedQueryClickhouse).not.toHaveBeenCalled();
@@ -2360,8 +2276,6 @@ describe("v4TransitionRouter", () => {
 
         const summary = await caller.sdkUsageSummary({
           projectId,
-          fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-          toTimestamp: new Date("2026-06-25T00:00:00Z"),
         });
         expect(summary.experimentInstrumentationMigration).toEqual({
           status: "not_required",
@@ -2391,8 +2305,6 @@ describe("v4TransitionRouter", () => {
 
         const rows = await caller.legacyApiUsageSummary({
           projectId,
-          fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-          toTimestamp: new Date("2026-06-25T00:00:00Z"),
         });
 
         expect(rows).toHaveLength(1);
@@ -2441,7 +2353,7 @@ describe("v4TransitionRouter", () => {
         await expect(readRedisJson(legacyApiUsageCacheKey)).resolves.toBeNull();
       });
 
-      it("derives action flags from cached usage without querying ClickHouse", async () => {
+      it("derives action flags from cached Redis usage without querying ClickHouse", async () => {
         await seedRedisCache({
           [sdkUsageCacheKey]: sdkUsageBlob([
             cachedSdkSeries({ actionLevel: "required" }),
