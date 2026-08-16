@@ -463,7 +463,6 @@ const accessibleProjectsFindManyArgs = {
 const TEST_NOW = new Date("2026-06-25T00:30:00Z");
 const HOT_START_ISO = "2026-06-25T00:00:00.000Z";
 const HOT_START_CLICKHOUSE = "2026-06-25 00:00:00.000";
-const WINDOW_END_CLICKHOUSE = "2026-06-25 01:00:00.000";
 const WINDOW_START_CLICKHOUSE = "2026-06-11 01:00:00.000";
 // Recent SDK gap cutoff: TEST_NOW floored to the minute (zero
 // seconds/millis) so repeated calls within the minute share one ClickHouse
