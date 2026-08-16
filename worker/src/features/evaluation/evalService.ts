@@ -416,24 +416,26 @@ export const createEvalJobs = async ({
     // Self-hosted only: Skip trace-level evaluators with invalid filters.
     // A bug (ff4b03c0b, Feb 2026) allowed score filters on trace evaluators, which the worker doesn't support.
     // Cloud deployments are fixed; self-hosters need this runtime check.
-    if (
-      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      config.targetObject === EvalTargetObject.TRACE
-    ) {
+    // Always prefer the validated filter list for TRACE so retired columns
+    // (bookmarked) are stripped rather than still narrowing the match set.
+    let validatedFilter = z.array(singleFilter).parse(config.filter);
+    if (config.targetObject === EvalTargetObject.TRACE) {
       const filterValidation = validateEvaluatorFiltersForTarget({
         targetObject: EvalTargetObject.TRACE,
         filter: config.filter,
       });
-      if (!filterValidation.isValid) {
+      if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && !filterValidation.isValid) {
         logger.debug(
           `Skipping trace evaluator ${config.id} with invalid filters: ${filterValidation.issues[0]?.message}`,
         );
         continue;
       }
+      if (filterValidation.isValid) {
+        validatedFilter = filterValidation.validatedFilters;
+      }
     }
 
     logger.debug("Creating eval job for config", config.id);
-    const validatedFilter = z.array(singleFilter).parse(config.filter);
 
     const maxTimeStamp =
       "timestamp" in event &&
