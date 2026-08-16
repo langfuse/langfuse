@@ -176,6 +176,7 @@ export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./deletionGuard";
 export * from "./forceV3Experience";
+export * from "./v4/legacyApiUsage";
 export * from "./analytics-integrations/types";
 
 // Re-annotate these deprecated routing wrappers at the public server barrel.

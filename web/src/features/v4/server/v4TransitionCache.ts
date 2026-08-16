@@ -1,7 +1,8 @@
 import { z } from "zod/v4";
-import { logger, redis } from "@langfuse/shared/src/server";
 import {
   isV4LegacyApiHeartbeatFresh,
+  logger,
+  redis,
   v4ExperimentPostUsageBlobSchema,
   v4ExperimentPostUsageProjectKey,
   v4LegacyApiUsageBlobSchema,
@@ -11,7 +12,7 @@ import {
   type V4ExperimentPostUsageBlob,
   type V4LegacyApiUsageBlob,
   type V4LegacyApiUsageRow,
-} from "@langfuse/shared/src/server/v4/legacyApiUsage";
+} from "@langfuse/shared/src/server";
 
 /**
  * Redis caching for the v4 transition usage checks.
@@ -43,7 +44,7 @@ export const MIGRATION_INGRESS_EVENT_SOURCES = [
 /** Historical blob TTL: 60 minutes (1 hour). */
 export const SDK_USAGE_CACHE_TTL_SECONDS = 60 * 60;
 // Legacy API and experiment POST entries share the pipeline contract owned
-// by @langfuse/shared/src/server/v4/legacyApiUsage: the worker refreshes the
+// by @langfuse/shared/src/server (`v4/legacyApiUsage`): the worker refreshes the
 // same keys hourly, and this request-path fallback only fills them while the
 // pipeline heartbeat is stale.
 export const LEGACY_API_CACHE_TTL_SECONDS =

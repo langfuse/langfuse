@@ -9,7 +9,7 @@ import {
   V4_LEGACY_API_USAGE_DEEP_RESCAN_AT_KEY,
   V4_LEGACY_API_USAGE_HEARTBEAT_KEY,
   V4_LEGACY_API_USAGE_LOCK_KEY,
-} from "@langfuse/shared/src/server/v4/legacyApiUsage";
+} from "@langfuse/shared/src/server";
 
 /**
  * In-memory Redis fake covering the commands used by the handler and
@@ -62,20 +62,25 @@ const mocks = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
 }));
 
-vi.mock("@langfuse/shared/src/server", () => ({
-  redis: redisMock,
-  logger: {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
-  queryClickhouse: mocks.queryClickhouse,
-  systemTableRef: (table: string) =>
-    `clusterAllReplicas('test-cluster', '${table}')`,
-  convertDateToClickhouseDateTime: (date: Date) =>
-    date.toISOString().replace("T", " ").replace("Z", ""),
-}));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...original,
+    redis: redisMock,
+    logger: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    },
+    queryClickhouse: mocks.queryClickhouse,
+    systemTableRef: (table: string) =>
+      `clusterAllReplicas('test-cluster', '${table}')`,
+    convertDateToClickhouseDateTime: (date: Date) =>
+      date.toISOString().replace("T", " ").replace("Z", ""),
+  };
+});
 
 vi.mock("@langfuse/shared/src/env", () => ({
   env: {

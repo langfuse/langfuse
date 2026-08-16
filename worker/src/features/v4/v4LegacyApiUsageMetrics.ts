@@ -1,5 +1,9 @@
-import { logger, recordGauge, redis } from "@langfuse/shared/src/server";
-import { V4_LEGACY_API_USAGE_HEARTBEAT_KEY } from "@langfuse/shared/src/server/v4/legacyApiUsage";
+import {
+  logger,
+  recordGauge,
+  redis,
+  V4_LEGACY_API_USAGE_HEARTBEAT_KEY,
+} from "@langfuse/shared/src/server";
 
 /**
  * Freshness metric for the v4 legacy API usage pipeline.

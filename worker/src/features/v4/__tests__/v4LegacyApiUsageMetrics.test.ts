@@ -8,15 +8,20 @@ const mocks = vi.hoisted(() => ({
   recordGauge: vi.fn(),
 }));
 
-vi.mock("@langfuse/shared/src/server", () => ({
-  redis: {
-    get: vi.fn(async (key: string) => redisState.store.get(key) ?? null),
-  },
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-  recordGauge: mocks.recordGauge,
-}));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...original,
+    redis: {
+      get: vi.fn(async (key: string) => redisState.store.get(key) ?? null),
+    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    recordGauge: mocks.recordGauge,
+  };
+});
 
-import { V4_LEGACY_API_USAGE_HEARTBEAT_KEY } from "@langfuse/shared/src/server/v4/legacyApiUsage";
+import { V4_LEGACY_API_USAGE_HEARTBEAT_KEY } from "@langfuse/shared/src/server";
 import {
   emitV4LegacyApiUsageFreshnessMetrics,
   V4_LEGACY_API_USAGE_HEARTBEAT_AGE_METRIC,

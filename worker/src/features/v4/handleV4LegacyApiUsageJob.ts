@@ -1,15 +1,11 @@
 import {
+  aggregateV4LegacyApiHourBuckets,
   convertDateToClickhouseDateTime,
+  listV4LegacyApiHourStarts,
   logger,
   queryClickhouse,
   redis,
   systemTableRef,
-  type PreferredClickhouseService,
-} from "@langfuse/shared/src/server";
-import { env } from "@langfuse/shared/src/env";
-import {
-  aggregateV4LegacyApiHourBuckets,
-  listV4LegacyApiHourStarts,
   v4ExperimentPostUsageProjectKey,
   v4LegacyApiHourBucketKey,
   v4LegacyApiHourBucketSchema,
@@ -28,8 +24,10 @@ import {
   V4_LEGACY_API_USAGE_HEARTBEAT_KEY,
   V4_LEGACY_API_USAGE_LOCK_KEY,
   V4_LEGACY_API_USAGE_WINDOW_MS,
+  type PreferredClickhouseService,
   type V4LegacyApiHourBucket,
-} from "@langfuse/shared/src/server/v4/legacyApiUsage";
+} from "@langfuse/shared/src/server";
+import { env } from "@langfuse/shared/src/env";
 import { RedisLock } from "../../utils/RedisLock";
 
 /**
@@ -39,7 +37,7 @@ import { RedisLock } from "../../utils/RedisLock";
  * `POST /api/public/dataset-run-items` calls, environment-wide (one scan
  * serves every project), and materializes the results in Redis so the v4
  * transition UI never has to run this scan from a web request. See
- * `@langfuse/shared/src/server/v4/legacyApiUsage` for the data contracts.
+ * `@langfuse/shared/src/server` (`v4/legacyApiUsage`) for the data contracts.
  *
  * Steady state each hourly run scans only the trailing re-scan margin
  * (~3 hours; 24 hours once a day for late query_log flushes) instead of the
