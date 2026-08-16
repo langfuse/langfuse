@@ -1,7 +1,7 @@
 /**
- * v4 transition orchestration: Postgres summaries and re-exports for the
- * tRPC router. SDK / events_core and system.query_log logic live in sibling
- * modules.
+ * v4 transition orchestration: Postgres summaries, sidebar migration actions,
+ * and re-exports for the tRPC router. SDK / events_core and system.query_log
+ * logic live in sibling modules.
  */
 import {
   AnalyticsIntegrationExportSource,
@@ -9,6 +9,8 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
+import { isForceV3ExperienceProject } from "@langfuse/shared/src/server";
+import { getSdkUsageSeriesByProject } from "@/src/features/v4/server/v4TransitionSdkUsage";
 
 export { getSdkUsageSummaries } from "@/src/features/v4/server/v4TransitionSdkUsage";
 export { getLegacyApiUsageSummaries } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
@@ -201,4 +203,55 @@ export const getTraceLevelEvalSummaries = async ({
     projectId,
     traceLevelEvalCount: countByProjectId.get(projectId) ?? 0,
   }));
+};
+
+/**
+ * Migration signals for the always-mounted sidebar "Action required" pill.
+ * SDK uses the same Redis + live gap-fill path as the panel summaries so the
+ * pill cannot go stale relative to them. Deprecated API / experiment signals
+ * stay `null` until the follow-up query_log worker pipeline lands.
+ */
+export const getMigrationActions = async ({
+  prisma,
+  projectId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+}) => {
+  // Forced-v3 projects are partner-managed: the client suppresses every
+  // migration signal, so skip all I/O on this always-mounted hot path.
+  if (isForceV3ExperienceProject(projectId)) {
+    return {
+      forceV3Experience: true,
+      sdkActionNeeded: null,
+      experimentsActionNeeded: null,
+      apisActionNeeded: null,
+      evalsActionNeeded: false,
+      exportsActionNeeded: false,
+    };
+  }
+
+  const nowMs = Date.now();
+  const projectIds = [projectId];
+
+  const [evalSummaries, integrationSummaries, seriesByProject] =
+    await Promise.all([
+      getTraceLevelEvalSummaries({ prisma, projectIds }),
+      getLegacyIntegrationSummaries({ prisma, projectIds }),
+      getSdkUsageSeriesByProject({ projectIds, nowMs }),
+    ]);
+
+  const sdkUsageSeries = seriesByProject.get(projectId) ?? [];
+
+  return {
+    forceV3Experience: isForceV3ExperienceProject(projectId),
+    sdkActionNeeded: sdkUsageSeries.some(
+      (series) => series.actionLevel === "required",
+    ),
+    experimentsActionNeeded: null,
+    apisActionNeeded: null,
+    evalsActionNeeded: (evalSummaries[0]?.traceLevelEvalCount ?? 0) > 0,
+    exportsActionNeeded:
+      (integrationSummaries[0]?.legacyIntegrationCount ?? 0) > 0,
+  };
 };

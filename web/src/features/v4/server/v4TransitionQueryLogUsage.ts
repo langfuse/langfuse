@@ -1,6 +1,10 @@
 /**
  * ClickHouse system.query_log helpers for v4 transition checks
  * (legacy public API usage and experiment POST /dataset-run-items).
+ *
+ * Legacy API stays on a direct query_log read (no Redis worker yet). The
+ * public summary uses the server detection window so behavior matches the
+ * pre-split service; internal helpers still accept from/to for reuse.
  */
 import { env } from "@langfuse/shared/src/env";
 import {
@@ -10,6 +14,10 @@ import {
   systemTableRef,
   type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
+import {
+  getV4TransitionDetectionWindow,
+  V4_TRANSITION_DETECTION_WINDOW_MS,
+} from "@/src/features/v4/server/v4TransitionCache";
 
 type LegacyApiUsageSummaryByProjectRow = {
   projectId: string;
@@ -82,6 +90,13 @@ const querySystemQueryLogAcrossServices = async <T>({
     result.status === "fulfilled" ? [result.value] : [],
   );
 };
+
+/**
+ * Read-time aging-out rule: drop entries whose last activity left the trailing
+ * detection window (same rule as the SDK path).
+ */
+const isWithinDetectionWindow = (lastSeen: string, nowMs: number): boolean =>
+  Date.parse(lastSeen) >= nowMs - V4_TRANSITION_DETECTION_WINDOW_MS;
 
 export type DatasetRunItemsPostUsageResult =
   | {
@@ -278,7 +293,7 @@ SETTINGS skip_unavailable_shards = 1
   }));
 };
 
-export const getLegacyApiUsageSummaries = async ({
+const queryLegacyApiUsageSummaries = async ({
   projectIds,
   fromTimestamp,
   toTimestamp,
@@ -349,4 +364,32 @@ export const getLegacyApiUsageSummaries = async ({
       left.projectId.localeCompare(right.projectId) ||
       left.entrypoint.localeCompare(right.entrypoint),
   );
+};
+
+/**
+ * Deprecated public API usage per project. Reads `system.query_log` directly;
+ * Redis caching and the worker pipeline for this path land in a follow-up PR.
+ * The always-mounted sidebar never calls this procedure.
+ */
+export const getLegacyApiUsageSummaries = async ({
+  projectIds,
+}: {
+  projectIds: string[];
+}): Promise<LegacyApiUsageSummaryByProjectResultRow[]> => {
+  if (projectIds.length === 0) return [];
+
+  const nowMs = Date.now();
+  const { windowStart, windowEnd } = getV4TransitionDetectionWindow(nowMs);
+  const rows = await queryLegacyApiUsageSummaries({
+    projectIds,
+    fromTimestamp: windowStart,
+    toTimestamp: windowEnd,
+  });
+  return rows
+    .filter((row) => isWithinDetectionWindow(row.lastSeen, nowMs))
+    .sort(
+      (left, right) =>
+        left.projectId.localeCompare(right.projectId) ||
+        left.entrypoint.localeCompare(right.entrypoint),
+    );
 };

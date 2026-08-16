@@ -7,47 +7,12 @@ import {
 import { isForceV3ExperienceProject } from "@langfuse/shared/src/server";
 import {
   getAccessibleOrganizationProjects,
+  getMigrationActions,
   getLegacyApiUsageSummaries,
   getLegacyIntegrationSummaries,
   getSdkUsageSummaries,
   getTraceLevelEvalSummaries,
 } from "@/src/features/v4/server/v4TransitionService";
-
-const MAX_DETECTION_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
-
-const projectTimeRangeInputSchema = z
-  .object({
-    projectId: z.string(),
-    fromTimestamp: z.date(),
-    toTimestamp: z.date(),
-  })
-  .refine(
-    ({ fromTimestamp, toTimestamp }) =>
-      toTimestamp.getTime() > fromTimestamp.getTime(),
-    { message: "fromTimestamp must be before toTimestamp" },
-  )
-  .refine(
-    ({ fromTimestamp, toTimestamp }) =>
-      toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_DETECTION_RANGE_MS,
-    { message: "V4 migration ranges cannot exceed 30 days" },
-  );
-
-const organizationTimeRangeInputSchema = z
-  .object({
-    orgId: z.string(),
-    fromTimestamp: z.date(),
-    toTimestamp: z.date(),
-  })
-  .refine(
-    ({ fromTimestamp, toTimestamp }) =>
-      toTimestamp.getTime() > fromTimestamp.getTime(),
-    { message: "fromTimestamp must be before toTimestamp" },
-  )
-  .refine(
-    ({ fromTimestamp, toTimestamp }) =>
-      toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_DETECTION_RANGE_MS,
-    { message: "V4 migration ranges cannot exceed 30 days" },
-  );
 
 export const v4TransitionRouter = createTRPCRouter({
   forceV3Experience: protectedProjectProcedure
@@ -123,18 +88,16 @@ export const v4TransitionRouter = createTRPCRouter({
     }),
 
   sdkUsageSummary: protectedProjectProcedure
-    .input(projectTimeRangeInputSchema)
+    .input(z.object({ projectId: z.string() }))
     .query(async ({ input }) => {
       const [summary] = await getSdkUsageSummaries({
         projectIds: [input.projectId],
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
       });
       return summary!;
     }),
 
   sdkUsageSummaryByProject: protectedOrganizationProcedure
-    .input(organizationTimeRangeInputSchema)
+    .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
       const projects = await getAccessibleOrganizationProjects({
         prisma: ctx.prisma,
@@ -143,23 +106,19 @@ export const v4TransitionRouter = createTRPCRouter({
       });
       return getSdkUsageSummaries({
         projectIds: projects.map((project) => project.id),
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
       });
     }),
 
   legacyApiUsageSummary: protectedProjectProcedure
-    .input(projectTimeRangeInputSchema)
+    .input(z.object({ projectId: z.string() }))
     .query(({ input }) =>
       getLegacyApiUsageSummaries({
         projectIds: [input.projectId],
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
       }),
     ),
 
   legacyApiUsageSummaryByProject: protectedOrganizationProcedure
-    .input(organizationTimeRangeInputSchema)
+    .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
       const projects = await getAccessibleOrganizationProjects({
         prisma: ctx.prisma,
@@ -168,8 +127,21 @@ export const v4TransitionRouter = createTRPCRouter({
       });
       return getLegacyApiUsageSummaries({
         projectIds: projects.map((project) => project.id),
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
       });
     }),
+
+  /**
+   * Migration signal for always-mounted UI (the sidebar "Action required"
+   * pill). Postgres for eval/export signals; SDK via the same Redis + live
+   * gap-fill path as sdkUsageSummary. Deprecated API / experiment signals
+   * stay `null` until the follow-up query_log worker pipeline lands.
+   */
+  migrationActions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ input, ctx }) =>
+      getMigrationActions({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+      }),
+    ),
 });
