@@ -10,7 +10,15 @@ import {
 } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { isForceV3ExperienceProject } from "@langfuse/shared/src/server";
-import { getSdkUsageSeriesByProject } from "@/src/features/v4/server/v4TransitionSdkUsage";
+import {
+  readExperimentPostUsageCache,
+  readLegacyApiUsageCache,
+} from "@/src/features/v4/server/v4TransitionCache";
+import { trimLegacyApiUsageRows } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
+import {
+  deriveExperimentInstrumentationMigration,
+  getSdkUsageSeriesByProject,
+} from "@/src/features/v4/server/v4TransitionSdkUsage";
 
 export { getSdkUsageSummaries } from "@/src/features/v4/server/v4TransitionSdkUsage";
 export { getLegacyApiUsageSummaries } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
@@ -209,7 +217,7 @@ export const getTraceLevelEvalSummaries = async ({
  * Migration signals for the always-mounted sidebar "Action required" pill.
  * SDK uses the same Redis + live gap-fill path as the panel summaries so the
  * pill cannot go stale relative to them. Deprecated API / experiment signals
- * stay `null` until the follow-up query_log worker pipeline lands.
+ * read worker-maintained Redis caches when available (`null` = unknown).
  */
 export const getMigrationActions = async ({
   prisma,
@@ -234,22 +242,46 @@ export const getMigrationActions = async ({
   const nowMs = Date.now();
   const projectIds = [projectId];
 
-  const [evalSummaries, integrationSummaries, seriesByProject] =
-    await Promise.all([
-      getTraceLevelEvalSummaries({ prisma, projectIds }),
-      getLegacyIntegrationSummaries({ prisma, projectIds }),
-      getSdkUsageSeriesByProject({ projectIds, nowMs }),
-    ]);
+  const [
+    evalSummaries,
+    integrationSummaries,
+    seriesByProject,
+    postBlobs,
+    apiBlobs,
+  ] = await Promise.all([
+    getTraceLevelEvalSummaries({ prisma, projectIds }),
+    getLegacyIntegrationSummaries({ prisma, projectIds }),
+    getSdkUsageSeriesByProject({ projectIds, nowMs }),
+    readExperimentPostUsageCache(projectIds),
+    readLegacyApiUsageCache(projectIds),
+  ]);
 
   const sdkUsageSeries = seriesByProject.get(projectId) ?? [];
+  const postBlob = postBlobs[0] ?? null;
+  const apiBlob = apiBlobs[0] ?? null;
+
+  const experimentsActionNeeded =
+    postBlob === null
+      ? null
+      : postBlob.used === false
+        ? false
+        : ["required", "sdk_usage_inconclusive"].includes(
+            deriveExperimentInstrumentationMigration({
+              sdkUsageSeries,
+              postUsage: true,
+            }).status,
+          );
 
   return {
     forceV3Experience: isForceV3ExperienceProject(projectId),
     sdkActionNeeded: sdkUsageSeries.some(
       (series) => series.actionLevel === "required",
     ),
-    experimentsActionNeeded: null,
-    apisActionNeeded: null,
+    experimentsActionNeeded,
+    apisActionNeeded:
+      apiBlob === null
+        ? null
+        : trimLegacyApiUsageRows(apiBlob.rows, nowMs).length > 0,
     evalsActionNeeded: (evalSummaries[0]?.traceLevelEvalCount ?? 0) > 0,
     exportsActionNeeded:
       (integrationSummaries[0]?.legacyIntegrationCount ?? 0) > 0,

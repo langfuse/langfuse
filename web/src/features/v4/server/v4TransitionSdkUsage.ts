@@ -4,7 +4,8 @@
  * Historical series come from a per-project Redis blob; the remaining gap up
  * to a minute-aligned recentCutoff is queried live from events_core (with
  * ClickHouse use_query_cache). Detection windows are server-side — no client
- * from/to. Experiment POST usage is delegated to the query_log module.
+ * from/to. Experiment POST usage is read from worker-maintained Redis only
+ * (miss = no usage).
  */
 import {
   convertDateToClickhouseDateTime,
@@ -13,7 +14,7 @@ import {
   type IngestionSdkAttributionStatus,
 } from "@langfuse/shared/src/server";
 import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
-import { getDatasetRunItemsPostUsageByProject } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
+import { getExperimentPostUsageByProject } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
 import {
   getV4TransitionDetectionWindow,
   isV4TransitionCacheAvailable,
@@ -472,48 +473,7 @@ export const getSdkUsageSeriesByProject = async ({
   );
 };
 
-/**
- * Whether each project called `POST /api/public/dataset-run-items` within the
- * detection window. Reads `system.query_log` directly; Redis caching for this
- * path lands in a follow-up PR with the worker pipeline.
- */
-const getExperimentPostUsageByProject = async ({
-  projectIds,
-  nowMs,
-}: {
-  projectIds: string[];
-  nowMs: number;
-}): Promise<Map<string, boolean | "check_failed">> => {
-  const { windowStart, windowEnd } = getV4TransitionDetectionWindow(nowMs);
-  const usageByProject = new Map<string, boolean | "check_failed">();
-
-  const queryResult = await getDatasetRunItemsPostUsageByProject({
-    projectIds,
-    fromTimestamp: windowStart,
-    toTimestamp: windowEnd,
-  });
-  if (queryResult.status === "error") {
-    projectIds.forEach((projectId) =>
-      usageByProject.set(projectId, "check_failed"),
-    );
-    return usageByProject;
-  }
-
-  const projectsUsingDatasetRunItemsPost = new Set(
-    queryResult.rows
-      .filter((row) => Number(row.count) > 0)
-      .map((row) => row.projectId),
-  );
-  projectIds.forEach((projectId) =>
-    usageByProject.set(
-      projectId,
-      projectsUsingDatasetRunItemsPost.has(projectId),
-    ),
-  );
-  return usageByProject;
-};
-
-const deriveExperimentInstrumentationMigration = ({
+export const deriveExperimentInstrumentationMigration = ({
   sdkUsageSeries,
   postUsage,
 }: {

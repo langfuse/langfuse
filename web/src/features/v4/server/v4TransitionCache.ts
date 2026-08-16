@@ -1,8 +1,18 @@
 import { z } from "zod/v4";
-import { logger, redis } from "@langfuse/shared/src/server";
+import {
+  logger,
+  redis,
+  v4ExperimentPostUsageBlobSchema,
+  v4ExperimentPostUsageProjectKey,
+  v4LegacyApiUsageBlobSchema,
+  v4LegacyApiUsageProjectKey,
+  type V4ExperimentPostUsageBlob,
+  type V4LegacyApiUsageBlob,
+  type V4LegacyApiUsageRow,
+} from "@langfuse/shared/src/server";
 
 /**
- * Redis caching for the v4 transition SDK usage check.
+ * Redis caching for the v4 transition usage checks.
  *
  * SDK ingestion is read from the indexed `events_core` table. A per-project
  * blob covers the detection window up to an hour-aligned `hotStart` boundary;
@@ -11,9 +21,9 @@ import { logger, redis } from "@langfuse/shared/src/server";
  * left-edge overcount on the sliding 14-day window (and stale classification
  * fields embedded in the blob) stay bounded to ~1h.
  *
- * Deprecated public API and experiment POST usage come from `system.query_log`
- * and are intentionally not cached here — that path lives in a follow-up PR
- * with a worker-maintained pipeline. Sidebar and panel SDK reads share this
+ * Deprecated public API and experiment POST usage are maintained by the
+ * worker pipeline into the shared Redis keys; the request path only reads
+ * those entries (miss = no usage). Sidebar and panel SDK reads share this
  * blob + gap-fill path so both stay consistent.
  *
  * Helpers degrade gracefully: no Redis, Redis errors, or unparsable entries
@@ -29,7 +39,6 @@ export const MIGRATION_INGRESS_EVENT_SOURCES = [
 
 /** Historical blob TTL: 60 minutes (1 hour). */
 export const SDK_USAGE_CACHE_TTL_SECONDS = 60 * 60;
-
 const sdkUsageSeriesSchema = z.object({
   source: z.enum(MIGRATION_INGRESS_EVENT_SOURCES),
   ingestionPath: z.enum(["otel", "ingestion_api"]),
@@ -71,8 +80,14 @@ const sdkUsageBlobSchema = z.object({
 
 export type SdkUsageCacheBlob = z.infer<typeof sdkUsageBlobSchema>;
 
+export type CachedLegacyApiUsageRow = V4LegacyApiUsageRow;
+export type LegacyApiUsageCacheBlob = V4LegacyApiUsageBlob;
+export type ExperimentPostUsageCacheBlob = V4ExperimentPostUsageBlob;
+
 const sdkUsageKey = (projectId: string) =>
   `langfuse:v4:sdk-usage:v1:${projectId}`;
+const legacyApiUsageKey = v4LegacyApiUsageProjectKey;
+const experimentPostUsageKey = v4ExperimentPostUsageProjectKey;
 
 export const isV4TransitionCacheAvailable = (): boolean =>
   redis != null && redis.status !== "end" && redis.status !== "close";
@@ -140,6 +155,19 @@ export const writeSdkUsageCache = (
         series: entry.series,
       } satisfies SdkUsageCacheBlob,
     })),
+  );
+
+export const readLegacyApiUsageCache = (
+  projectIds: string[],
+): Promise<(LegacyApiUsageCacheBlob | null)[]> =>
+  readBlobs(projectIds.map(legacyApiUsageKey), v4LegacyApiUsageBlobSchema);
+
+export const readExperimentPostUsageCache = (
+  projectIds: string[],
+): Promise<(ExperimentPostUsageCacheBlob | null)[]> =>
+  readBlobs(
+    projectIds.map(experimentPostUsageKey),
+    v4ExperimentPostUsageBlobSchema,
   );
 
 const MINUTE_MS = 60 * 1000;
