@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import {
   logger,
   redis,
+  safeMultiGet,
   v4ExperimentPostUsageBlobSchema,
   v4ExperimentPostUsageProjectKey,
   v4LegacyApiUsageBlobSchema,
@@ -100,7 +101,8 @@ const readBlobs = async <T>(
     return keys.map(() => null);
   }
   try {
-    const rawValues = await redis!.mget(keys);
+    // Cluster-safe: project keys hash to different slots.
+    const rawValues = await safeMultiGet(redis, keys);
     return rawValues.map((rawValue) => {
       if (!rawValue) return null;
       try {
