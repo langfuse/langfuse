@@ -19,6 +19,7 @@ import {
   V4_LEGACY_API_DEEP_RESCAN_HOURS,
   V4_LEGACY_API_DEEP_RESCAN_INTERVAL_MS,
   V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS,
+  v4LegacyApiHourBucketTtlSeconds,
   V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS,
   V4_LEGACY_API_RESCAN_HOURS,
   V4_LEGACY_API_ROLLUP_PROJECTS_KEY,
@@ -441,7 +442,9 @@ export const handleV4LegacyApiUsageJob = async (
     await setexInChunks(
       Array.from(buckets.entries()).map(([hourStartMs, bucket]) => ({
         key: v4LegacyApiHourBucketKey(hourStartMs),
-        ttlSeconds: V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS,
+        // Age-based TTL: backfilled/missing hours expire with the window,
+        // not a flat 15d from this write.
+        ttlSeconds: v4LegacyApiHourBucketTtlSeconds(hourStartMs, nowMs),
         value: JSON.stringify(bucket),
       })),
     );

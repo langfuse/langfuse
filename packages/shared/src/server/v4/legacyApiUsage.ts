@@ -10,9 +10,11 @@ import { z } from "zod/v4";
  * replicas. Instead of running that scan from web requests, a worker job
  * maintains the data incrementally in Redis:
  *
- * - Hour buckets (`hourBucketKey`, 8d TTL): environment-wide usage rows per
- *   hour, written by full overwrite so re-scans and backfills are idempotent.
- *   Redis expiry implements the sliding window; the worker never deletes.
+ * - Hour buckets (`hourBucketKey`): environment-wide usage rows per hour,
+ *   written by full overwrite so re-scans and backfills are idempotent. TTL is
+ *   remaining life until `hourStart + GC horizon` (not a flat clock from write
+ *   time), so hole-repaired older hours expire with the sliding window. The
+ *   worker never deletes buckets; Redis expiry is the GC.
  * - Cursor (`V4_LEGACY_API_USAGE_CURSOR_KEY`): the last hour the worker
  *   materialized. Missed runs backfill from here, so gaps self-heal.
  * - Per-project usage entries (`legacyApiUsageProjectKey`,
@@ -34,6 +36,19 @@ export const V4_LEGACY_API_USAGE_WINDOW_MS = 14 * 24 * HOUR_MS;
 
 /** GC horizon for hour buckets: window plus one day of slack. */
 export const V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS = 15 * 24 * 60 * 60;
+
+/**
+ * Redis TTL for an hour bucket keyed by that hour's start, not by write time.
+ * A hole-repaired bucket from 10 days ago must expire in ~5 days (horizon
+ * minus age), not live another full 15 days from the repair write.
+ */
+export const v4LegacyApiHourBucketTtlSeconds = (
+  hourStartMs: number,
+  nowMs: number,
+): number => {
+  const expireAtMs = hourStartMs + V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS * 1000;
+  return Math.max(1, Math.floor((expireAtMs - nowMs) / 1000));
+};
 
 /**
  * Per-project entries outlive several missed worker runs; the worker
