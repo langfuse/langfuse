@@ -510,8 +510,11 @@ describe("handleV4LegacyApiUsageJob", () => {
       loggedError("v4 legacy API usage: query_log scan failed"),
     ).toMatchObject({
       service: "ReadOnly",
+      errorMessage: "query_log unavailable",
     });
-    expect(loggedError("v4 legacy API usage: job failed")).toBeDefined();
+    expect(loggedError("v4 legacy API usage: job failed")).toMatchObject({
+      errorMessage: "query_log unavailable",
+    });
   });
 
   it("logs unparsable hour buckets and extends the scan to repair them", async () => {

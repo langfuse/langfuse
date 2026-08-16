@@ -62,6 +62,15 @@ const EXPERIMENT_POST_ROUTE = "POST /api/public/dataset-run-items";
 const elapsedMs = (startedAt: number): number =>
   Math.round(performance.now() - startedAt);
 
+/** Enumerable error fields for winston JSON logs. Nesting an `Error` under a
+ * metadata key serializes to `{}` because message/stack are non-enumerable. */
+const serializeLogError = (
+  error: unknown,
+): { errorMessage: string; errorStack?: string } =>
+  error instanceof Error
+    ? { errorMessage: error.message, errorStack: error.stack }
+    : { errorMessage: String(error) };
+
 type HourUsageRow = {
   hourStart: string;
   projectId: string;
@@ -225,7 +234,7 @@ SETTINGS skip_unavailable_shards = 1
     logger.error("v4 legacy API usage: query_log scan failed", {
       service: preferredClickhouseService,
       durationMs: elapsedMs(startedAt),
-      error,
+      ...serializeLogError(error),
     });
     throw error;
   }
@@ -701,7 +710,7 @@ export const handleV4LegacyApiUsageJob = async (
     } catch (error) {
       logger.error("v4 legacy API usage: job failed", {
         durationMs: elapsedMs(jobStartedAt),
-        error,
+        ...serializeLogError(error),
       });
       throw error;
     }

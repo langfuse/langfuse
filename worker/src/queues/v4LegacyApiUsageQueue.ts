@@ -21,7 +21,8 @@ export const v4LegacyApiUsageProcessor: Processor = async (job) => {
         jobId: job.id,
         attemptsMade: job.attemptsMade,
         durationMs: Math.round(performance.now() - startedAt),
-        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
       });
       throw error;
     }
