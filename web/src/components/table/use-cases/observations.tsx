@@ -17,6 +17,7 @@ import {
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
+import { useFacetOptionsWithObservedMetadata } from "@/src/hooks/useObservedMetadata";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
@@ -26,6 +27,7 @@ import {
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
   type ObservationsOmittableFilterColumn,
 } from "@/src/features/filters/config/observations-config";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
@@ -70,7 +72,7 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
-} from "@/src/features/traces/components/_shared/BreakdownToolTip";
+} from "@/src/features/traces";
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -98,9 +100,9 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {
-  type RefreshInterval,
   REFRESH_INTERVALS,
-} from "@/src/components/table/data-table-refresh-button";
+  type RefreshInterval,
+} from "@/src/components/table/utils/refresh-intervals";
 import {
   ObservationsTableStoreProvider,
   useObservationsTableStore,
@@ -514,13 +516,31 @@ export default function ObservationsTable({
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        promptName ? "prompt" : modelId ? "model" : undefined,
+      ),
     };
-  }, [hideControls, isSidebarFilterLoading, peekContext, projectId]);
+  }, [
+    hideControls,
+    isSidebarFilterLoading,
+    peekContext,
+    projectId,
+    promptName,
+    modelId,
+  ]);
+
+  // Opt into the shared observed-metadata suggestions for the Metadata facet
+  // (LFE-11030). This table's rows fetch metadata per cell, so it reads the
+  // per-project map without contributing to it.
+  const facetOptions = useFacetOptionsWithObservedMetadata(
+    projectId,
+    newFilterOptions,
+  );
 
   const queryFilter = useSidebarFilterState(
     observationsFilterConfig,
-    newFilterOptions,
+    facetOptions,
     queryFilterOptions,
   );
 

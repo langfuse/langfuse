@@ -1,14 +1,16 @@
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import {
+  type BlobExportWriteMode,
   type BlobStorageIntegration,
   type ExportSourceContext,
 } from "@langfuse/shared";
+import { buildExportSourceContext } from "@/src/features/analytics-integrations/exportSource";
 import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -25,15 +27,11 @@ import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integrati
 export const BlobStorageIntegrationContainer = ({
   config,
   projectId,
-  isLoading,
-  isEnrichedExportAvailable,
-  legacyWritesActive,
+  writeMode,
 }: {
   config: Partial<BlobStorageIntegration> | null;
   projectId: string;
-  isLoading: boolean;
-  isEnrichedExportAvailable: boolean;
-  legacyWritesActive: boolean;
+  writeMode: BlobExportWriteMode;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -44,24 +42,18 @@ export const BlobStorageIntegrationContainer = ({
   const projectCreatedAt = project?.createdAt;
   const integrationCreatedAt = config?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
-    () => ({
-      isCloud: isLangfuseCloud,
-      enrichedAvailable: isEnrichedExportAvailable,
-      legacyWritesActive,
-      projectCreatedAt: projectCreatedAt
-        ? new Date(projectCreatedAt)
-        : undefined,
-      integrationCreatedAt: integrationCreatedAt
-        ? new Date(integrationCreatedAt)
-        : null,
-    }),
-    [
-      isLangfuseCloud,
-      isEnrichedExportAvailable,
-      legacyWritesActive,
-      projectCreatedAt,
-      integrationCreatedAt,
-    ],
+    () =>
+      buildExportSourceContext({
+        writeMode,
+        isCloud: isLangfuseCloud,
+        projectCreatedAt: projectCreatedAt
+          ? new Date(projectCreatedAt)
+          : undefined,
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
+      }),
+    [isLangfuseCloud, writeMode, projectCreatedAt, integrationCreatedAt],
   );
 
   const utils = api.useUtils();
@@ -96,15 +88,10 @@ export const BlobStorageIntegrationContainer = ({
   });
 
   // The form is never mounted before its inputs resolve, so there is no
-  // mid-flight reset to protect a draft from.
-  if (isLoading || !project) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-full" />
-      </div>
-    );
+  // mid-flight reset to protect a draft from. The page already gates on the
+  // integration query; only the separate project query can still be pending.
+  if (!project) {
+    return <IntegrationSettingsSkeleton />;
   }
 
   const handleSubmit = (values: BlobStorageIntegrationFormSchema) => {

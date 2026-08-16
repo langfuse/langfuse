@@ -11,7 +11,6 @@ import {
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
@@ -39,6 +38,7 @@ import {
   decideBackgroundApproval,
   deleteBackgroundConversation,
   getBackgroundConversationSnapshot,
+  serializeConversationLatestRun,
   startBackgroundRun,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
 
@@ -62,9 +62,8 @@ const RenameConversationInput = ConversationIdInput.extend({
 const StartRunInput = ConversationIdInput.extend({
   message: z.string().trim().min(1).max(MAX_IN_APP_AGENT_MESSAGE_LENGTH),
   /**
-   * The same AG-UI context array the foreground path sends (current page, the
-   * quick action and entry point that triggered the turn); resolved and
-   * sanitized server-side, then stored on the run for the worker to replay.
+   * The AG-UI context for the current page, quick action, and entry point;
+   * resolved and sanitized server-side, then stored for the worker to replay.
    */
   context: z.array(AgUiContextSchema).default([]),
 });
@@ -77,6 +76,11 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
   runId: z.string(),
   toolCallId: z.string(),
   approved: z.boolean(),
+  // "conversation" also approves this call; it never means approve-without-run.
+  approvalScope: z.enum(["once", "conversation"]).default("once"),
+}).refine((input) => input.approved || input.approvalScope === "once", {
+  message: "A rejection cannot grant a tool",
+  path: ["approvalScope"],
 });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
@@ -90,14 +94,10 @@ const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
 const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
-  // Deployment config, not agent access, so no availability assert: an org
-  // without the entitlement should get an answer rather than an error.
-  getExecutionMode: protectedProjectProcedureWithoutTracing
-    .input(z.object({ projectId: z.string() }))
-    .query(() => ({
-      mode: sharedEnv.LANGFUSE_IN_APP_AGENT_EXECUTION_MODE,
-    })),
-
+  // Each row carries its newest run summary for the activity poll and badges.
+  // Activity clients request the newest page only (see
+  // IN_APP_AGENT_ACTIVITY_LIST_LIMIT); quieter conversations outside that
+  // window are an accepted attention gap for now.
   listConversations: protectedProjectProcedure
     .input(
       z.object({
@@ -132,15 +132,37 @@ export const inAppAgentRouter = createTRPCRouter({
         },
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take: input.limit + 1,
+        relationLoadStrategy: "join",
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          updatedAt: true,
+          runs: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              errorCode: true,
+              cancelRequestedAt: true,
+              createdAt: true,
+              claimedAt: true,
+              heartbeatAt: true,
+              finishedAt: true,
+            },
+          },
+        },
       });
 
       const page = conversations.slice(0, input.limit);
       const lastConversation = page.at(-1);
 
       return {
-        conversations: page.map((conversation) =>
-          serializeConversation(conversation),
-        ),
+        conversations: page.map((conversation) => ({
+          ...serializeConversation(conversation),
+          latestRun: serializeConversationLatestRun(conversation.runs[0]),
+        })),
         nextCursor:
           conversations.length > input.limit && lastConversation
             ? {
@@ -171,8 +193,8 @@ export const inAppAgentRouter = createTRPCRouter({
   /**
    * Submit a turn for background execution.
    *
-   * Runs the same validation chain as the foreground route, then commits the
-   * run as QUEUED with its user message already appended — the events table is
+   * Validates the request, then commits the run as QUEUED with its user message
+   * already appended — the events table is
    * the render source from the instant of submit, so there is no optimistic UI
    * state to survive a refresh. The BullMQ enqueue happens after commit; a
    * failure there marks the run FAILED immediately rather than leaving a
@@ -270,6 +292,7 @@ export const inAppAgentRouter = createTRPCRouter({
         runId: input.runId,
         toolCallId: input.toolCallId,
         approved: input.approved,
+        approvalScope: input.approvalScope,
         userId: ctx.session.user.id,
         model: env.LANGFUSE_AWS_BEDROCK_MODEL,
       });

@@ -28,7 +28,7 @@ import {
   buildNodeWindows,
   createPlayheadStore,
   type PlayheadStore,
-} from "./playheadStore";
+} from "../stores/playheadStore";
 
 const PlayheadStoreContext = createContext<PlayheadStore | null>(null);
 

@@ -17,19 +17,21 @@
 //   only — a persisted legacy value on an old row is grandfathered, which is
 //   why the cutoffs key on creation dates rather than the write path.
 // - ENRICHED AVAILABILITY ("enriched-unavailable"): sources that include the
-//   enriched observations path (EVENTS, TRACES_OBSERVATIONS_EVENTS) need the
-//   enriched read path — available on Cloud, or on self-hosted via the V4
-//   preview opt-in. A persisted enriched value left behind by a preview
-//   rollback is rejected too, instead of silently driving exports against
-//   unpopulated tables (LFE-10296).
+//   enriched observations path (EVENTS, TRACES_OBSERVATIONS_EVENTS) read the v4
+//   events table. Under LANGFUSE_MIGRATION_V4_WRITE_MODE=legacy that table is
+//   not written, so such a source would export nothing.
 // - LEGACY WRITE CAPABILITY ("legacy-writes-disabled"): legacy sources read
 //   the v3 traces/observations tables. Under
 //   LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only those tables are no longer
-//   written, so a legacy source would silently export stale/empty data —
-//   blocked by data capability, deployment-agnostic, on Cloud and self-hosted
-//   alike (LFE-10148). Unlike the date cutoffs this also applies to persisted
-//   values: keeping one would not grandfather anything, it would export
-//   nothing.
+//   written, so a legacy source would silently export stale/empty data.
+//
+//   Both are data capability, deployment-agnostic, on Cloud and self-hosted
+//   alike, and derived from the one write mode via areEnrichedWritesActive /
+//   areLegacyWritesActive. Unlike the date cutoffs
+//   they also apply to persisted values: keeping one would not grandfather
+//   anything, it would export nothing. TRACES_OBSERVATIONS_EVENTS is both
+//   families at once, so it needs dual — that falls out of the two rules
+//   rather than being special-cased.
 // - PERSISTED VALUES ARE NEVER SILENTLY REWRITTEN (LFE-10296): the UI keeps a
 //   persisted-but-blocked source visible as an unavailable option and blocks
 //   the save; forms and servers must not substitute a different source behind
@@ -126,14 +128,6 @@ export function isLegacyBlobExporter(
   return integrationCreatedAt < LEGACY_BLOB_EXPORTER_CUTOFF;
 }
 
-/** Enriched export path availability: Cloud, or self-hosted V4 preview opt-in. */
-export function isEnrichedBlobExportAvailable(
-  isCloud: boolean,
-  isV4PreviewEnabled?: boolean,
-): boolean {
-  return isCloud || isV4PreviewEnabled === true;
-}
-
 /**
  * Mirrors the LANGFUSE_MIGRATION_V4_WRITE_MODE env enum; kept as a literal
  * union so this client-safe file has no dependency on server env parsing.
@@ -143,6 +137,13 @@ export type BlobExportWriteMode = "legacy" | "dual" | "events_only";
 /** Whether the deployment still writes the v3 traces/observations tables. */
 export function areLegacyWritesActive(writeMode: BlobExportWriteMode): boolean {
   return writeMode !== "events_only";
+}
+
+/** Whether the deployment already writes the v4 events table. */
+export function areEnrichedWritesActive(
+  writeMode: BlobExportWriteMode,
+): boolean {
+  return writeMode !== "legacy";
 }
 
 /**

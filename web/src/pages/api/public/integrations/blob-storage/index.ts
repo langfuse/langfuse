@@ -19,8 +19,8 @@ import {
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
 import {
+  areEnrichedWritesActive,
   areLegacyWritesActive,
-  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
@@ -162,8 +162,6 @@ async function handleUpsertBlobStorageIntegration(
 
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-  const isV4PreviewEnabled =
-    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
   const internalExportSource =
     validatedData.exportSource != null
       ? toInternalExportSource(validatedData.exportSource)
@@ -185,9 +183,8 @@ async function handleUpsertBlobStorageIntegration(
     persistedExportSource: existingIntegration?.exportSource,
     ctx: {
       isCloud,
-      enrichedAvailable: isEnrichedBlobExportAvailable(
-        isCloud,
-        isV4PreviewEnabled,
+      enrichedAvailable: areEnrichedWritesActive(
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
       ),
       legacyWritesActive: areLegacyWritesActive(
         env.LANGFUSE_MIGRATION_V4_WRITE_MODE,

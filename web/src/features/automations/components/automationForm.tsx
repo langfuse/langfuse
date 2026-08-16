@@ -247,7 +247,7 @@ const EventSourceField = ({
               {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>
-                  Monitor
+                  Alert
                 </SelectItem>
               )}
               <SelectItem disabled={true} value="planned">
@@ -341,14 +341,14 @@ const PromptTriggerFields = ({
 const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
   <Alert>
     <Info className="h-4 w-4" />
-    <AlertTitle>How Monitors Connect</AlertTitle>
+    <AlertTitle>How Alerts Connect</AlertTitle>
     <AlertDescription>
-      Add this automation to a monitor from the{" "}
+      Add this automation to an alert from the{" "}
       <Link
-        href={`/project/${projectId}/monitors/new`}
+        href={`/project/${projectId}/alerts/new`}
         className="text-primary underline underline-offset-2"
       >
-        create monitors page
+        create alerts page
       </Link>
       .
     </AlertDescription>
