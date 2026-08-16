@@ -68,10 +68,6 @@
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/ee/ingestionMasking`, and
   `@langfuse/shared/src/utils/chatml`.
-- V4 legacy API usage pipeline contracts (pure keys, schemas, aggregation)
-  live under `src/server/v4/legacyApiUsage.ts` and are re-exported from
-  `@langfuse/shared/src/server`. Redis and ClickHouse I/O stay with the
-  worker producer and web consumer.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in
