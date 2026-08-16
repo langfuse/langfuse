@@ -191,8 +191,7 @@ const sharedEnvMock = vi.hoisted(() => ({
 vi.mock("@langfuse/shared/src/env", () => ({ env: sharedEnvMock }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  const actual = await importOriginal();
   const { ROOT_CONTEXT } = await import("@opentelemetry/api");
 
   return {
