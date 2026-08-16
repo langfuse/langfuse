@@ -39,6 +39,20 @@ export class V4LegacyApiUsageQueue {
 
     if (V4LegacyApiUsageQueue.instance) {
       logger.debug("Scheduling jobs for V4LegacyApiUsageQueue");
+      // Remove the old hourly cron pattern - BullMQ keys repeatable jobs by
+      // name + pattern, so changing the pattern creates a second schedule
+      // while the old one keeps firing.
+      V4LegacyApiUsageQueue.instance
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Existing repeatable-job cleanup; job scheduler migration should be handled separately.
+        .removeRepeatable(QueueJobs.V4LegacyApiUsageJob, {
+          pattern: "25 * * * *",
+        })
+        .catch((err) => {
+          logger.error(
+            "Error removing legacy V4LegacyApiUsageJob schedule",
+            err,
+          );
+        });
       V4LegacyApiUsageQueue.instance
         .add(
           QueueJobs.V4LegacyApiUsageJob,
