@@ -50,6 +50,13 @@ import { RedisLock } from "../../utils/RedisLock";
 
 const HOUR_MS = 60 * 60 * 1000;
 
+/**
+ * Cold-start / deep-rescan query_log sweeps can take minutes; raise the
+ * ClickHouse client request timeout (and derived max_execution_time) above
+ * the shared 30s default.
+ */
+export const V4_LEGACY_API_USAGE_QUERY_TIMEOUT_MS = 10 * 60 * 1000;
+
 const EXPERIMENT_POST_ROUTE = "POST /api/public/dataset-run-items";
 
 type HourUsageRow = {
@@ -191,6 +198,11 @@ SETTINGS skip_unavailable_shards = 1
     },
     tags: { route: "v4-legacy-api-usage-pipeline" },
     preferredClickhouseService,
+    // Shared client derives max_execution_time = request_timeout/1000 + 5s
+    // and enables HTTP progress headers when request_timeout > 30s default.
+    clickhouseConfigs: {
+      request_timeout: V4_LEGACY_API_USAGE_QUERY_TIMEOUT_MS,
+    },
     clickhouseSettings: { skip_unavailable_shards: 1 },
   });
 

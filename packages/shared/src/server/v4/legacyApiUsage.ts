@@ -25,6 +25,10 @@ import { z } from "zod/v4";
  *   recently. While fresh, a missing per-project entry authoritatively means
  *   "no usage" and web must not fall back to querying ClickHouse.
  *
+ * Worker Datadog freshness gauge
+ * `langfuse.v4.legacy_api_usage.heartbeat_age_seconds` exposes staleness for
+ * alerting (alert when it exceeds `V4_LEGACY_API_HEARTBEAT_FRESHNESS_MS`, 3h).
+ *
  * This module is pure (keys, schemas, constants, aggregation); Redis and
  * ClickHouse I/O live with the producer (worker) and consumer (web).
  */
