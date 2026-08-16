@@ -3,10 +3,9 @@ import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
-// Hourly, offset from other scheduled jobs (:5 metering, :30 posthog, :35
-// free-tier). The worker re-scans a trailing margin each run, so the exact
-// minute only affects freshness, not correctness.
-export const V4_LEGACY_API_USAGE_CRON_PATTERN = "25 * * * *";
+// Every 15 minutes. The worker re-scans a trailing margin each run, so the
+// exact minute only affects freshness, not correctness.
+export const V4_LEGACY_API_USAGE_CRON_PATTERN = "*/15 * * * *";
 
 export class V4LegacyApiUsageQueue {
   private static instance: Queue | null = null;

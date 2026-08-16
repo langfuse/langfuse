@@ -56,7 +56,7 @@ export const v4LegacyApiHourBucketTtlSeconds = (
 
 /**
  * Per-project entries outlive several missed worker runs; the worker
- * refreshes them hourly, so they only expire when the pipeline is down and
+ * refreshes them every 15 minutes, so they only expire when the pipeline is down and
  * web falls back to its request-path cache behavior.
  */
 export const V4_LEGACY_API_PROJECT_ENTRY_TTL_SECONDS = 12 * 60 * 60;
@@ -69,7 +69,7 @@ export const V4_LEGACY_API_HEARTBEAT_FRESHNESS_MS = 3 * HOUR_MS;
 
 /** Trailing hours re-scanned every run to absorb late query_log flushes. */
 export const V4_LEGACY_API_RESCAN_HOURS = 3;
-/** Deeper re-scan for stragglers beyond the hourly margin. */
+/** Deeper re-scan for stragglers beyond the regular rescan margin. */
 export const V4_LEGACY_API_DEEP_RESCAN_HOURS = 24;
 /**
  * Minimum spacing between deep re-scans. Tracked via a persisted timestamp
