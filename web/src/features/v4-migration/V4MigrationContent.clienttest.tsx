@@ -396,7 +396,7 @@ describe("V4MigrationDetailsContent", () => {
 
     expect(
       screen.getByText(
-        "SDK, instrumentation, experiment, and API checks cover activity from the last 14 days.",
+        "SDK, instrumentation, experiment, and API checks cover activity from the last 14 days. API and experiment usage counts refresh about once an hour, so recent calls may not appear yet.",
       ),
     ).toBeInTheDocument();
     expect(
