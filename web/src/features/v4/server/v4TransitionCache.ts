@@ -27,6 +27,7 @@ export const MIGRATION_INGRESS_EVENT_SOURCES = [
   "otel",
 ] as const;
 
+/** Historical blob TTL: 60 minutes (1 hour). */
 export const SDK_USAGE_CACHE_TTL_SECONDS = 60 * 60;
 
 const sdkUsageSeriesSchema = z.object({
@@ -140,3 +141,25 @@ export const writeSdkUsageCache = (
       } satisfies SdkUsageCacheBlob,
     })),
   );
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/** Trailing detection window used for SDK cache blobs and usage queries. */
+export const V4_TRANSITION_DETECTION_WINDOW_MS = 14 * 24 * HOUR_MS;
+
+/**
+ * Detection windows are computed server-side so cache entries are shared
+ * across requesters and long-lived tabs cannot pin stale ranges.
+ */
+export const getV4TransitionDetectionWindow = (nowMs = Date.now()) => {
+  const hotStart = new Date(Math.floor(nowMs / HOUR_MS) * HOUR_MS);
+  const windowEnd = new Date(hotStart.getTime() + HOUR_MS);
+  return {
+    /** Start of the current hour; cached SDK blobs cover strictly before it. */
+    hotStart,
+    windowEnd,
+    windowStart: new Date(
+      windowEnd.getTime() - V4_TRANSITION_DETECTION_WINDOW_MS,
+    ),
+  };
+};
