@@ -2,6 +2,39 @@ import { renderHook } from "@testing-library/react";
 import { type ChatMLParserResult, useChatMLParser } from "./useChatMLParser";
 
 describe("useChatMLParser", () => {
+  it("preserves reasoning when a legacy completion is empty", () => {
+    const input = [{ role: "user", content: "Solve this problem." }];
+    const output = {
+      completion: "",
+      reasoning: "Work through the constraints first.",
+    };
+
+    const { result } = renderHook(() =>
+      useChatMLParser(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        input,
+        output,
+      ),
+    );
+
+    expect(result.current.canDisplayAsChat).toBe(true);
+    expect(result.current.allMessages).toContainEqual(
+      expect.objectContaining({
+        role: "assistant",
+        content: "",
+        thinking: [
+          {
+            type: "thinking",
+            content: "Work through the constraints first.",
+          },
+        ],
+      }),
+    );
+  });
+
   it("groups output-side tool call arguments by tool name", () => {
     const input = {
       messages: [

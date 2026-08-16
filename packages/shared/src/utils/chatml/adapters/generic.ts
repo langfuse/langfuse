@@ -64,6 +64,26 @@ function normalizeGoogleMessage(msg: unknown): Record<string, unknown> {
   return normalized;
 }
 
+function normalizeLegacyReasoningOutput(data: unknown): unknown {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return data;
+
+  const output = data as Record<string, unknown>;
+  const keys = Object.keys(output);
+  if (
+    keys.length !== 2 ||
+    typeof output.completion !== "string" ||
+    typeof output.reasoning !== "string"
+  ) {
+    return data;
+  }
+
+  return {
+    role: "assistant",
+    content: output.completion,
+    thinking: [{ type: "thinking", content: output.reasoning }],
+  };
+}
+
 function preprocessData(data: unknown): unknown {
   if (!data) return data;
 
@@ -154,9 +174,11 @@ export const genericAdapter: ProviderAdapter = {
 
   preprocess(
     data: unknown,
-    _kind: "input" | "output",
+    kind: "input" | "output",
     _ctx: NormalizerContext,
   ): unknown {
-    return preprocessData(data);
+    return preprocessData(
+      kind === "output" ? normalizeLegacyReasoningOutput(data) : data,
+    );
   },
 };
