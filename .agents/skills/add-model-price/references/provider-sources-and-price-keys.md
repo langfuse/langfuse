@@ -277,6 +277,33 @@ Always fetch pricing from the provider's official docs before editing.
   applying it to the bare (non-`ft:`) entry — a summarizer can silently pick either table
   when both rows share the same model name.
 
+- **OpenAI "Cyber models" (Daybreak program) discovered but not added (August 16
+  2026)** — The official pricing page (`developers.openai.com/api/docs/pricing`)
+  has a "Cyber models" section listing `gpt-5.6-cyber` ($12.50/$1.25/$15.625/$75.00
+  input/cached-input/cache-write/output per MTok) and `gpt-5.5-cyber`
+  ($12.50/$1.25/—/$75.00, no cache write). Both require separate approval and
+  enrollment in OpenAI's "Daybreak" program for "authorized vulnerability
+  research, exploit validation, and security testing" and are not available for
+  general use. The dedicated model page for `gpt-5.6-cyber`
+  (`https://developers.openai.com/api/docs/models/gpt-5.6-cyber`) states a >272K
+  long-context tier applies (2x input/cache-write/cached-input, 1.5x output —
+  the same multiplier as the gpt-5.6 family), but a separate targeted fetch of
+  the pricing page's own "Cyber models" table explicitly states neither
+  `gpt-5.6-cyber` nor `gpt-5.5-cyber` has a long-context pricing row (dashes).
+  This is a direct conflict between two official sources on the same domain.
+  `gpt-5.5-cyber` additionally has no dedicated model page at all (404 on
+  `https://developers.openai.com/api/docs/models/gpt-5.5-cyber`), so its context
+  window, output limit, and cache-write support are unconfirmed beyond the
+  aggregate table's dashes. The page also states `daybreak-blue-latest` and
+  `daybreak-red-latest` are aliases currently pointing to `gpt-5.6-sol` and
+  `gpt-5.6-cyber` respectively — moving-target aliases, not fixed model IDs.
+  **No pricing entries or matchPattern changes were made for any of these four
+  identifiers this run** given the tiering conflict, the missing model page for
+  `gpt-5.5-cyber`, and the "currently points to" wording on the daybreak-*-latest
+  aliases. A future audit should re-fetch both the aggregate pricing page and
+  each model's own page with a request to explicitly reconcile the long-context
+  discrepancy before adding `gpt-5.6-cyber`/`gpt-5.5-cyber` pricing entries.
+
 Capture:
 
 1. Base input token price per million tokens
