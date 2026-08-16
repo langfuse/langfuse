@@ -7,7 +7,7 @@ import {
 import { isForceV3ExperienceProject } from "@langfuse/shared/src/server";
 import {
   getAccessibleOrganizationProjects,
-  getCachedMigrationActions,
+  getMigrationActions,
   getLegacyApiUsageSummaries,
   getLegacyIntegrationSummaries,
   getSdkUsageSummaries,
@@ -132,14 +132,14 @@ export const v4TransitionRouter = createTRPCRouter({
 
   /**
    * Migration signal for always-mounted UI (the sidebar "Action required"
-   * pill). Reads Postgres and the SDK Redis cache only — never ClickHouse.
-   * Deprecated API / experiment signals stay `null` here until the follow-up
-   * query_log worker pipeline populates those caches.
+   * pill). Postgres for eval/export signals; SDK via the same Redis + live
+   * gap-fill path as sdkUsageSummary. Deprecated API / experiment signals
+   * stay `null` until the follow-up query_log worker pipeline lands.
    */
-  cachedMigrationActions: protectedProjectProcedure
+  migrationActions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(({ input, ctx }) =>
-      getCachedMigrationActions({
+      getMigrationActions({
         prisma: ctx.prisma,
         projectId: input.projectId,
       }),

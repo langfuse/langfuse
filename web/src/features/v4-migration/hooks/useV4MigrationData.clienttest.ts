@@ -3,7 +3,7 @@ import { vi } from "vitest";
 
 import {
   useAccountV4MigrationData,
-  useProjectV4CachedMigrationActions,
+  useProjectV4MigrationActions,
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   traceLevelEvalSummaryByProject: vi.fn(),
   legacyApiUsageSummaryByProject: vi.fn(),
   sdkUsageSummaryByProject: vi.fn(),
-  cachedMigrationActionsUseQuery: vi.fn(),
+  migrationActionsUseQuery: vi.fn(),
   queryResultSets: [] as unknown[][],
 }));
 
@@ -38,9 +38,9 @@ vi.mock("@/src/utils/api", () => ({
       return mocks.queryResultSets.shift() ?? [];
     },
     v4Transition: {
-      cachedMigrationActions: {
+      migrationActions: {
         useQuery: (...args: unknown[]) =>
-          mocks.cachedMigrationActionsUseQuery(...args),
+          mocks.migrationActionsUseQuery(...args),
       },
     },
   },
@@ -203,7 +203,7 @@ describe("account v4 migration data", () => {
   });
 });
 
-describe("cached migration actions", () => {
+describe("migration actions", () => {
   const cachedActions = (
     overrides: Partial<{
       forceV3Experience: boolean;
@@ -224,45 +224,45 @@ describe("cached migration actions", () => {
   });
 
   beforeEach(() => {
-    mocks.cachedMigrationActionsUseQuery.mockReset();
+    mocks.migrationActionsUseQuery.mockReset();
   });
 
   it("reports no action while the query has no data", () => {
-    mocks.cachedMigrationActionsUseQuery.mockReturnValue({ data: undefined });
+    mocks.migrationActionsUseQuery.mockReturnValue({ data: undefined });
 
     const { result } = renderHook(() =>
-      useProjectV4CachedMigrationActions("project-1"),
+      useProjectV4MigrationActions("project-1"),
     );
 
     expect(result.current).toEqual({ actionNeeded: false });
   });
 
   it("treats unknown categories as no signal instead of action needed", () => {
-    mocks.cachedMigrationActionsUseQuery.mockReturnValue({
+    mocks.migrationActionsUseQuery.mockReturnValue({
       data: cachedActions(),
     });
 
     const { result } = renderHook(() =>
-      useProjectV4CachedMigrationActions("project-1"),
+      useProjectV4MigrationActions("project-1"),
     );
 
     expect(result.current).toEqual({ actionNeeded: false });
   });
 
   it("needs action when any known category requires it", () => {
-    mocks.cachedMigrationActionsUseQuery.mockReturnValue({
+    mocks.migrationActionsUseQuery.mockReturnValue({
       data: cachedActions({ sdkActionNeeded: true }),
     });
 
     const { result } = renderHook(() =>
-      useProjectV4CachedMigrationActions("project-1"),
+      useProjectV4MigrationActions("project-1"),
     );
 
     expect(result.current).toEqual({ actionNeeded: true });
   });
 
   it("suppresses the signal for partner-managed (forced v3) projects", () => {
-    mocks.cachedMigrationActionsUseQuery.mockReturnValue({
+    mocks.migrationActionsUseQuery.mockReturnValue({
       data: cachedActions({
         forceV3Experience: true,
         sdkActionNeeded: true,
@@ -271,7 +271,7 @@ describe("cached migration actions", () => {
     });
 
     const { result } = renderHook(() =>
-      useProjectV4CachedMigrationActions("project-1"),
+      useProjectV4MigrationActions("project-1"),
     );
 
     expect(result.current).toEqual({ actionNeeded: false });

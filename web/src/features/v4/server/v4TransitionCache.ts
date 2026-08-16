@@ -13,8 +13,8 @@ import { logger, redis } from "@langfuse/shared/src/server";
  *
  * Deprecated public API and experiment POST usage come from `system.query_log`
  * and are intentionally not cached here — that path lives in a follow-up PR
- * with a worker-maintained pipeline. The always-mounted sidebar reads this
- * SDK cache (and Postgres) only and never queries ClickHouse.
+ * with a worker-maintained pipeline. Sidebar and panel SDK reads share this
+ * blob + gap-fill path so both stay consistent.
  *
  * Helpers degrade gracefully: no Redis, Redis errors, or unparsable entries
  * behave like cache misses and never fail the request.
