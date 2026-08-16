@@ -126,8 +126,10 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const { ROOT_CONTEXT } = await import("@opentelemetry/api");
   // Import the Redis module directly so we get a real client without
   // importOriginal'ing the mocked server barrel (circular with prisma/db).
+  // Relative import: the shared package does not export this subpath, and
+  // importOriginal on the server barrel is circular with the prisma/db mock.
   const { createNewRedisInstance } =
-    await import("@langfuse/shared/src/server/redis/redis");
+    await import("../../../../../packages/shared/src/server/redis/redis");
   const realRedis = createNewRedisInstance();
   if (!realRedis) {
     throw new Error("Failed to create Redis client for v4 cache tests");
