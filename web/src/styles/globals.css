@@ -173,6 +173,33 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-appear: appear 0.2s ease-out forwards;
+  /* Cycle length comes from REFETCH_SWEEP_MS in components/table/data-table.tsx,
+     which sets --table-refetch-cycle on the element: the same number also
+     releases the busy flag on a whole sweep, so the two must not drift. */
+  --animate-table-refetch: table-refetch var(--table-refetch-cycle, 1.4s) linear
+    infinite;
+  --animate-table-refetch-in: table-refetch-fade-in 200ms ease-out;
+
+  /* Sweeps the highlight of the table's refetch bar across its track. It starts
+     and ends fully outside the (clipped) track, so the jump back to the start is
+     never visible — inside the track it reads as a blink every cycle. Linear,
+     because eased motion makes that wrap even more obvious. The highlight is a
+     third of the track wide, hence -100%/300% of its own width. */
+  @keyframes table-refetch {
+    from {
+      transform: translateX(-100%);
+    }
+
+    to {
+      transform: translateX(300%);
+    }
+  }
+
+  @keyframes table-refetch-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
 
   @keyframes rainbow {
     0% {
@@ -397,6 +424,14 @@
     --banner-offset: calc(
       env(safe-area-inset-top, 0px) + var(--banner-height, 0px)
     );
+
+    /* `env()` is CSS-only, so mirror the insets into custom properties that JS
+       can read (getComputedStyle resolves them to px). Non-zero only because
+       the viewport meta sets `viewport-fit=cover` — see pages/_app.tsx. */
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
   }
 
   .dark {
@@ -572,6 +607,11 @@
   body {
     /* Prevent pull-to-refresh and rubber-banding on the page level only */
     overscroll-behavior-y: none;
+    /* Omitting `pinch-zoom` blocks pinch and double-tap zoom at the engine
+       level, which modern iOS honors where it ignores `user-scalable=no`
+       (viewport meta lives in pages/_app.tsx). Elements that own their own
+       gestures set their own `touch-action`. */
+    touch-action: pan-x pan-y;
   }
 
   body {
@@ -675,7 +715,30 @@
   }
 }
 
-/* 
+/* Tailwind's `sr-only` verbatim, plus `top: 0; left: 0`. Without them the box
+   sits at its static position, and since it is absolute, its containing block
+   is the nearest positioned ancestor — usually far outside the scroll container
+   it visually lives in. A scroll container only clips descendants it is a
+   containing block for, so an `sr-only` below the fold escaped the clip and
+   grew the app shell's scrollable overflow, scrolling the whole document.
+   Pinning it to the containing block's origin keeps it inside every box that
+   should clip it. `not-sr-only` still wins: it sets `position: static`, which
+   makes these offsets inert. */
+@utility sr-only {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/*
  * Fix for Vaul drawer blocking text selection
  * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
  * We override this for drawers that set blockTextSelection={false}

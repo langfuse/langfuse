@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";

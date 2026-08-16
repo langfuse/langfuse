@@ -5,6 +5,7 @@ import {
   BaseError,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  InAppAgentRunStatusSchema,
   LangfuseNotFoundError,
   type Plan,
 } from "@langfuse/shared";
@@ -19,10 +20,12 @@ import { deleteApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
   parseInAppAgentApprovalDecisionEvent,
   type AgUiRunAgentInput,
 } from "@langfuse/shared/in-app-agent";
 import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/tools";
 import {
   ensureOwnedConversation,
   getConversationEvents,
@@ -33,7 +36,9 @@ import {
   type PersistedConversationEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import {
+  cancelConversationRunsInTransaction,
   cleanupTerminalRunMcpApiKeys,
+  classifyStaleRun,
   createQueuedRun,
   decideToolApproval,
   reconcileConversationRuns,
@@ -44,9 +49,6 @@ import { serializeInAppAgentDisplayState } from "@/src/features/in-app-agent/lib
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
 import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
-
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
 export async function getBackgroundConversationSnapshot(params: {
   prisma: PrismaClient;
@@ -147,6 +149,48 @@ export async function getBackgroundConversationSnapshot(params: {
   };
 }
 
+export type ConversationLatestRunSummary = {
+  id: string;
+  status: InAppAgentRunStatus;
+  errorCode: string | null;
+  cancelRequested: boolean;
+};
+
+/** Compact newest-run summary for list rows. Stale overlay is read-only. */
+export function serializeConversationLatestRun(
+  run:
+    | {
+        id: string;
+        status: string | null;
+        errorCode: string | null;
+        cancelRequestedAt: Date | null;
+        createdAt: Date;
+        claimedAt: Date | null;
+        heartbeatAt: Date | null;
+        finishedAt: Date | null;
+      }
+    | null
+    | undefined,
+): ConversationLatestRunSummary | null {
+  if (!run) {
+    return null;
+  }
+
+  const parsedStatus = InAppAgentRunStatusSchema.safeParse(run.status);
+  if (!parsedStatus.success) {
+    return null;
+  }
+
+  const stale = classifyStaleRun(run, Date.now());
+
+  return {
+    id: run.id,
+    status: stale ? InAppAgentRunStatus.FAILED : parsedStatus.data,
+    errorCode: stale ? stale.errorCode : run.errorCode,
+    cancelRequested: Boolean(run.cancelRequestedAt),
+  };
+}
+
 export async function startBackgroundRun(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -194,7 +238,7 @@ export async function startBackgroundRun(params: {
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
       true,
     );
   }
@@ -257,7 +301,50 @@ export async function startBackgroundRun(params: {
     aiTelemetryEnabled: params.aiTelemetryEnabled,
   });
 
-  return { runId: run.id };
+  return { conversationId: conversation.id, runId: run.id };
+}
+
+/** Soft-delete a conversation and cancel its unsettled runs atomically. */
+export async function deleteBackgroundConversation(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  userId: string;
+}) {
+  await getOwnedConversationOrThrow({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    userId: params.userId,
+  });
+
+  const cancelledRunIds = await params.prisma.$transaction(async (tx) => {
+    const cancelledImmediately = await cancelConversationRunsInTransaction({
+      tx,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+    });
+
+    await tx.inAppAgentConversation.update({
+      where: {
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
+      },
+      data: {
+        providerSessionId: null,
+        deletedAt: new Date(),
+      },
+    });
+
+    return cancelledImmediately;
+  });
+
+  // Avoid spending a worker slot on jobs whose runs are already cancelled.
+  await Promise.all(cancelledRunIds.map(removeInAppAgentRunJob));
+
+  return { success: true };
 }
 
 export async function cancelBackgroundRun(params: {
@@ -295,6 +382,7 @@ export async function decideBackgroundApproval(params: {
   runId: string;
   toolCallId: string;
   approved: boolean;
+  approvalScope?: "once" | "conversation";
   userId: string;
   model: string | undefined;
 }) {
@@ -315,21 +403,33 @@ export async function decideBackgroundApproval(params: {
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
       true,
     );
   }
 
-  const approvalRequest = events.find(
-    (persisted) =>
-      persisted.runId === params.runId &&
-      parseInAppAgentInterruptEvent(persisted.event)?.toolCallId ===
-        params.toolCallId,
-  );
+  let approvalRequest: ReturnType<typeof parseInAppAgentInterruptEvent>;
+  for (const persisted of events) {
+    if (persisted.runId !== params.runId) {
+      continue;
+    }
+
+    const parsedRequest = parseInAppAgentInterruptEvent(persisted.event);
+    if (parsedRequest?.toolCallId === params.toolCallId) {
+      approvalRequest = parsedRequest;
+      break;
+    }
+  }
 
   if (!approvalRequest) {
     throw new LangfuseNotFoundError("Approval request not found");
   }
+
+  // Resolve the granted tool from the persisted interrupt, never client input.
+  const alwaysAllowToolName =
+    params.approvalScope === "conversation" && params.approved
+      ? getInAppAgentPrefixedToolName(approvalRequest.toolName)
+      : undefined;
 
   const continuationRun = await decideToolApproval({
     prisma: params.prisma,
@@ -339,6 +439,7 @@ export async function decideBackgroundApproval(params: {
     continuationRunId: createInAppAgentRunId(),
     toolCallId: params.toolCallId,
     approved: params.approved,
+    alwaysAllowToolName,
     decidedByUserId: params.userId,
     model: params.model,
   });

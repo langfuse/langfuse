@@ -27,11 +27,11 @@ import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   AnalyticsIntegrationExportSource,
+  areEnrichedWritesActive,
   areLegacyWritesActive,
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   InvalidRequestError,
-  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 
 const getAuditLogErrorType = (error: unknown) =>
@@ -74,16 +74,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         scope: "integrations:CRUD",
       });
       try {
-        const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-        const isEnrichedExportAvailable = isEnrichedBlobExportAvailable(
-          isCloud,
-          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
-        );
-        // Data capability for legacy sources (see export-source-policy.ts).
-        const legacyWritesActive = areLegacyWritesActive(
-          env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-        );
-
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
             projectId: input.projectId,
@@ -95,8 +85,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
         return {
           config: config ?? null,
-          isEnrichedExportAvailable,
-          legacyWritesActive,
+          writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
         };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);
@@ -131,8 +120,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         });
 
         const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-        const isV4PreviewEnabled =
-          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
         const existingIntegration =
           await ctx.prisma.blobStorageIntegration.findUnique({
@@ -156,9 +143,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           persistedExportSource: existingIntegration?.exportSource,
           ctx: {
             isCloud,
-            enrichedAvailable: isEnrichedBlobExportAvailable(
-              isCloud,
-              isV4PreviewEnabled,
+            enrichedAvailable: areEnrichedWritesActive(
+              env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
             ),
             legacyWritesActive: areLegacyWritesActive(
               env.LANGFUSE_MIGRATION_V4_WRITE_MODE,

@@ -148,6 +148,9 @@ const EnvSchema = z.object({
   // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports
   // and avoid overwhelming the target instance (see issue #12786).
   LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
+  // Timeout (ms) for each Mixpanel import request, so an unresponsive endpoint
+  // cannot hold the integration job indefinitely (see issue #15958).
+  LANGFUSE_MIXPANEL_TIMEOUT_MS: z.coerce.number().positive().default(30000),
   // Delay (ms) after each PostHog flush. Together with 1,000-event flushes,
   // this bounds the export rate for fast-acknowledging target instances.
   LANGFUSE_POSTHOG_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
@@ -288,6 +291,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_V4_LEGACY_API_USAGE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED: z
@@ -534,6 +540,21 @@ const EnvSchema = z.object({
   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
     .enum(["dual_write", "direct"])
     .default("direct"),
+  // Cloud-only rollout boundary for automatic direct OTel event writes.
+  // Organizations created on or after this date are past the point where the v4
+  // preview is force-enabled and cannot be switched off, so the events table is
+  // the only surface they read; their OTLP traffic therefore takes the direct
+  // write even without an `x-langfuse-ingestion-version: 4` header. Applies to
+  // non-Langfuse-SDK exports only — an older SDK keeps its established
+  // dual-write shape. An ISO date (YYYY-MM-DD) read as midnight UTC; a plain
+  // date is enough precision and easier to reason about than a timestamp.
+  // Unset disables the rule, which is the right default when self-hosting:
+  // those deployments move the whole deployment at once via
+  // LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct instead of rolling a
+  // tenant cohort forward.
+  LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CREATED_CUTOFF: z.iso
+    .date()
+    .optional(),
   LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
     .enum(["true", "false"])
     .default("true"),

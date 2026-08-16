@@ -15,7 +15,7 @@ import { memo } from "react";
 import type Decimal from "decimal.js";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { type TreeNode } from "../../fns/types";
+import { type TreeNode } from "../../types/treeNode";
 import { type FlatTimelineItem } from "./types";
 import { TimelineGutterRow } from "./TimelineGutterRow";
 import { TimelineBar } from "./TimelineBar";
