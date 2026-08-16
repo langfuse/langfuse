@@ -3,6 +3,14 @@ const mockEnv = vi.hoisted(() => ({
     AUTH_DISABLE_SIGNUP: undefined as string | undefined,
     NEXT_PUBLIC_DEMO_ORG_ID: "demo-org" as string | undefined,
     NEXT_PUBLIC_DEMO_PROJECT_ID: "demo-project" as string | undefined,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" as
+      | "EU"
+      | "US"
+      | "JP"
+      | "HIPAA"
+      | "DEV"
+      | "STAGING"
+      | undefined,
     NEXT_PUBLIC_SIGN_UP_DISABLED: "false" as "true" | "false",
   },
 }));
@@ -33,12 +41,25 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => {
 import { type GetServerSidePropsContext } from "next";
 import { getServerSideProps as getDemoServerSideProps } from "@/src/pages/demo";
 
-const makeCtx = (
-  overrides: Partial<GetServerSidePropsContext> = {},
-): GetServerSidePropsContext =>
+type DemoCtxOverrides = {
+  resolvedUrl?: string;
+  req?: {
+    cookies?: Partial<Record<string, string>>;
+    headers?: Partial<Record<string, string>>;
+  };
+};
+
+const makeCtx = (overrides: DemoCtxOverrides = {}): GetServerSidePropsContext =>
   ({
-    req: {},
+    req: {
+      cookies: {},
+      headers: {
+        host: "cloud.langfuse.com",
+        "x-forwarded-proto": "https",
+      },
+    },
     res: {},
+    resolvedUrl: "/demo",
     ...overrides,
   }) as unknown as GetServerSidePropsContext;
 
@@ -48,12 +69,14 @@ describe("demo redirect page", () => {
     mockEnv.env.AUTH_DISABLE_SIGNUP = undefined;
     mockEnv.env.NEXT_PUBLIC_DEMO_ORG_ID = "demo-org";
     mockEnv.env.NEXT_PUBLIC_DEMO_PROJECT_ID = "demo-project";
+    mockEnv.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
     mockEnv.env.NEXT_PUBLIC_SIGN_UP_DISABLED = "false";
     prismaMock.project.findUnique.mockResolvedValue({
       id: "demo-project",
       orgId: "demo-org",
     });
     prismaMock.organizationMembership.upsert.mockResolvedValue({});
+    getServerAuthSessionMock.mockResolvedValue(null);
   });
 
   it("redirects authenticated users to the configured regional demo project without changing memberships", async () => {
@@ -75,6 +98,86 @@ describe("demo redirect page", () => {
       },
     });
     expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
+  });
+
+  it("bounces to the project-cookie region before resolving demo redirects", async () => {
+    await expect(
+      getDemoServerSideProps(
+        makeCtx({
+          req: {
+            cookies: {
+              "langfuse.project": JSON.stringify({
+                origin: "https://us.cloud.langfuse.com",
+                projectId: "project-1",
+              }),
+            },
+            headers: {
+              host: "cloud.langfuse.com",
+              "x-forwarded-proto": "https",
+            },
+          },
+          resolvedUrl: "/demo",
+        }),
+      ),
+    ).resolves.toEqual({
+      redirect: {
+        destination: "https://us.cloud.langfuse.com/demo",
+        permanent: false,
+      },
+    });
+
+    expect(getServerAuthSessionMock).not.toHaveBeenCalled();
+    expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("bounces to the first detected session-cookie region when current host is unauthenticated", async () => {
+    await expect(
+      getDemoServerSideProps(
+        makeCtx({
+          req: {
+            cookies: {
+              "__Secure-next-auth.session-token.US": "token",
+              "__Secure-next-auth.session-token.EU": "token",
+            },
+            headers: {
+              host: "jp.cloud.langfuse.com",
+              "x-forwarded-proto": "https",
+            },
+          },
+        }),
+      ),
+    ).resolves.toEqual({
+      redirect: {
+        destination: "https://us.cloud.langfuse.com/demo",
+        permanent: false,
+      },
+    });
+
+    expect(getServerAuthSessionMock).not.toHaveBeenCalled();
+    expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("stays on the current host when it already has a matching session cookie", async () => {
+    await expect(
+      getDemoServerSideProps(
+        makeCtx({
+          req: {
+            cookies: {
+              "__Secure-next-auth.session-token.EU": "token",
+            },
+            headers: {
+              host: "cloud.langfuse.com",
+              "x-forwarded-proto": "https",
+            },
+          },
+        }),
+      ),
+    ).resolves.toEqual({
+      redirect: {
+        destination: `/auth/sign-up?targetPath=${encodeURIComponent("/demo")}`,
+        permanent: false,
+      },
+    });
   });
 
   it("redirects unauthenticated users to sign up with the demo target", async () => {
