@@ -356,6 +356,14 @@ export const getTraceLevelEvalSummaries = async ({
   }));
 };
 
+/**
+ * TTL for the SDK `events_core` usage query result cache. Longer than the
+ * ~1-minute cache-key lifetime (the minute-aligned recent cutoff) so entries
+ * are not evicted between identical minutes; effective reuse per key is still
+ * ~1 minute because the key rotates every minute.
+ */
+const SDK_USAGE_QUERY_CACHE_TTL_SECONDS = 5 * 60;
+
 const buildSdkUsageQuery = (endBoundary: "inclusive" | "exclusive") => `
 WITH filtered AS (
   SELECT
@@ -495,6 +503,20 @@ const querySdkUsageRows = ({
     },
     tags: { route: "v4-sdk-usage-summary" },
     preferredClickhouseService: "EventsReadOnly",
+    // Enable the ClickHouse query result cache for this SDK `events_core`
+    // SELECT only. Cache reuse requires an identical query AST, so the caller
+    // passes a minute-aligned `recentCutoff` (see getV4TransitionDetectionWindow):
+    // the rendered datetime literals carry no varying seconds/millis, so every
+    // request within the same minute produces the same cache key. That key
+    // rotates each minute; the 300s TTL simply outlives one key so entries are
+    // not evicted before the next identical minute. These are query-level
+    // settings and the result cache is per ClickHouse server/process; the
+    // SELECT uses no nondeterministic functions, so cached rows stay valid for
+    // the key's lifetime. Not applied to `system.query_log`.
+    clickhouseSettings: {
+      use_query_cache: 1,
+      query_cache_ttl: SDK_USAGE_QUERY_CACHE_TTL_SECONDS,
+    },
   });
 
 const toSdkUsageSeries = (
@@ -630,14 +652,14 @@ const getSdkUsageSeriesByProject = async ({
   projectIds: string[];
   nowMs: number;
 }): Promise<Map<string, SdkUsageSummaryByProjectSeries[]>> => {
-  const { hotStart, windowEnd, windowStart } =
+  const { hotStart, recentCutoff, windowStart } =
     getV4TransitionDetectionWindow(nowMs);
 
   if (!isV4TransitionCacheAvailable()) {
     const rows = await querySdkUsageRows({
       projectIds,
       fromTimestamp: windowStart,
-      toTimestamp: windowEnd,
+      toTimestamp: recentCutoff,
       endBoundary: "inclusive",
     });
     const byProject = groupSdkUsageRowsByProject(rows);
@@ -693,7 +715,7 @@ const getSdkUsageSeriesByProject = async ({
         querySdkUsageRows({
           projectIds: gapProjectIds,
           fromTimestamp: new Date(gapStartMs),
-          toTimestamp: windowEnd,
+          toTimestamp: recentCutoff,
           endBoundary: "inclusive",
         }),
     ),

@@ -234,7 +234,8 @@ export const writeExperimentPostUsageCache = (
     })),
   );
 
-const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
 
 /** Trailing detection window used for SDK cache blobs and usage queries. */
 export const V4_TRANSITION_DETECTION_WINDOW_MS = 14 * 24 * HOUR_MS;
@@ -253,5 +254,14 @@ export const getV4TransitionDetectionWindow = (nowMs = Date.now()) => {
     windowStart: new Date(
       windowEnd.getTime() - V4_TRANSITION_DETECTION_WINDOW_MS,
     ),
+    /**
+     * Upper bound for the live SDK `events_core` gap query, floored to the
+     * current minute. Every request within the same minute sees the identical
+     * boundary, so the rendered ClickHouse datetime literal (and thus the whole
+     * query AST) is stable and can hit the ClickHouse query result cache.
+     * Events after the cutoff surface on the next minute; there is no permanent
+     * gap. Minute (not hour) alignment keeps freshness at ~1 minute.
+     */
+    recentCutoff: new Date(Math.floor(nowMs / MINUTE_MS) * MINUTE_MS),
   };
 };
