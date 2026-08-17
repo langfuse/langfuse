@@ -52,6 +52,14 @@ export const ProjectNotificationEventSchema = z.discriminatedUnion(
     }),
     projectNotificationEventBaseSchema.extend({
       eventType: z.literal(
+        ProjectNotificationEventTypeSchema.enum["posthog-export-failed"],
+      ),
+      // true when the integration was auto-disabled after a deterministic
+      // customer-config fault (terminal event; selects the "disabled" variant).
+      disabled: z.boolean().optional(),
+    }),
+    projectNotificationEventBaseSchema.extend({
+      eventType: z.literal(
         ProjectNotificationEventTypeSchema.enum["evaluator-blocked"],
       ),
       blockReason: z.enum(EvaluatorBlockReason),

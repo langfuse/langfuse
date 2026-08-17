@@ -19,8 +19,8 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
@@ -86,8 +86,6 @@ const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   messages: EMPTY_MESSAGES,
@@ -144,7 +142,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   activityByConversationId: new Map(),
   attentionCount: 0,
   selectedConversationId: undefined,
-  selectedConversationIsWriteLocked: false,
+  selectedConversationTitle: null,
   loadMoreConversations: () => undefined,
   invalidateConversations: () => undefined,
   selectConversation: () => undefined,
@@ -172,7 +170,6 @@ export type InAppAiAgentConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;
-  isWriteLocked: boolean;
 };
 
 type InAppAiAgentExecution = {
@@ -205,7 +202,8 @@ type InAppAiAgentContextType = {
   /** Conversations the user still owes a look, for the launcher badge. */
   attentionCount: number;
   selectedConversationId: string | undefined;
-  selectedConversationIsWriteLocked: boolean;
+  /** Server-given name of the selected conversation, null until it has one. */
+  selectedConversationTitle: string | null;
   loadMoreConversations: () => void;
   invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
@@ -380,8 +378,6 @@ function InAppAiAgentProviderInner({
   );
   const hasMoreConversations = conversationListQuery.hasNextPage === true;
   const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
-  const selectedConversationIsWriteLocked =
-    conversationQuery.data?.conversation.isWriteLocked ?? false;
 
   const bootstrapBackgroundView = useMemo<BackgroundExecutionView>(() => {
     if (
@@ -452,6 +448,24 @@ function InAppAiAgentProviderInner({
     // conversation behind a closed window has not been read.
     visibleConversationId: open ? selectedConversationId : null,
   });
+
+  // What the window titles itself by. Three sources, because no single one
+  // covers every way a conversation gets selected: the snapshot query is
+  // authoritative and runs for the selected id whatever the list has loaded,
+  // the recent list already holds the title when you pick one out of history,
+  // and the activity poll is the only one warm when a background-run
+  // notification opens a conversation the list has yet to fetch.
+  const selectedConversationTitle =
+    (conversationQuery.data?.conversation.id === selectedConversationId
+      ? conversationQuery.data.conversation.title
+      : null) ??
+    conversations.find(
+      (conversation) => conversation.id === selectedConversationId,
+    )?.title ??
+    (selectedConversationId
+      ? activityByConversationId.get(selectedConversationId)?.title
+      : null) ??
+    null;
 
   const effectivePendingToolApprovals = useMemo(() => {
     return backgroundExecutionView.pendingToolApprovals.map(
@@ -559,6 +573,9 @@ function InAppAiAgentProviderInner({
         ...message,
         isLoading:
           loadingEventIds.has(message.id) ||
+          (message.feedbackMessageId
+            ? loadingEventIds.has(message.feedbackMessageId)
+            : false) ||
           (message.toolCalls?.some(
             (toolCall) =>
               toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
@@ -1053,14 +1070,6 @@ function InAppAiAgentProviderInner({
         return false;
       }
 
-      if (!startsNewConversation && selectedConversationIsWriteLocked) {
-        setError({
-          type: "generic",
-          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-        });
-        return false;
-      }
-
       submitInFlightRef.current = conversationId;
       setSubmittingConversationId(conversationId);
       setError(null);
@@ -1151,7 +1160,6 @@ function InAppAiAgentProviderInner({
       isRunning,
       releaseSubmitLock,
       selectedConversationId,
-      selectedConversationIsWriteLocked,
       setSelectedConversationId,
       unpersistedConversationIds,
     ],
@@ -1378,14 +1386,6 @@ function InAppAiAgentProviderInner({
       approved: boolean,
       approvalScope: "once" | "conversation" = "once",
     ) => {
-      if (selectedConversationIsWriteLocked) {
-        setError({
-          type: "generic",
-          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-        });
-        return;
-      }
-
       const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
       );
@@ -1420,7 +1420,6 @@ function InAppAiAgentProviderInner({
       error,
       isRunning,
       selectedConversationId,
-      selectedConversationIsWriteLocked,
     ],
   );
 
@@ -1497,7 +1496,7 @@ function InAppAiAgentProviderInner({
       activityByConversationId,
       attentionCount,
       selectedConversationId: selectedConversationId ?? undefined,
-      selectedConversationIsWriteLocked,
+      selectedConversationTitle,
       loadMoreConversations,
       invalidateConversations,
       selectConversation,
@@ -1520,7 +1519,7 @@ function InAppAiAgentProviderInner({
       isLoadingMoreConversations,
       isRunning,
       isSelectedConversationHydrating,
-      selectedConversationIsWriteLocked,
+      selectedConversationTitle,
       isSubmitting,
       isSelectedConversationNotFound,
       deleteConversation,

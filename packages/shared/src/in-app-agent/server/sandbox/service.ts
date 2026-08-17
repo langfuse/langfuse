@@ -1,4 +1,10 @@
-import type { InAppAgentSandbox, SandboxFile, SandboxProvider } from "./types";
+import type {
+  InAppAgentSandbox,
+  InAppAgentSandboxSessionReplacementReason,
+  SandboxFile,
+  SandboxProvider,
+} from "./types";
+import { logger, recordIncrement } from "../../../server";
 
 export async function createInAppAgentSandbox(params: {
   conversationId: string;
@@ -10,9 +16,36 @@ export async function createInAppAgentSandbox(params: {
 }): Promise<{
   sandbox: InAppAgentSandbox;
   onTurnEnded: () => Promise<void>;
+  /** The earlier turn's workspace is gone; pass on as `sandboxWorkspaceWasReset`. */
+  workspaceWasReset: boolean;
 }> {
   let sessionId = params.providerSessionId ?? null;
   let sessionIsKnownActive = sessionId !== null;
+
+  const recordSessionReplaced = (
+    reason: InAppAgentSandboxSessionReplacementReason,
+  ) => {
+    logger.info("In-app agent sandbox session replaced", {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      reason,
+    });
+    recordIncrement("langfuse.in_app_agent.sandbox.session_replaced", 1, {
+      reason,
+    });
+  };
+
+  // Probe up front: `ensureSession` only notices a lost session on the first tool
+  // call, too late to tell the model. Clearing the flag avoids a second probe.
+  let workspaceWasReset = false;
+  if (sessionId && params.provider.probeSession) {
+    const lostReason = await params.provider.probeSession({ sessionId });
+    if (lostReason) {
+      workspaceWasReset = true;
+      sessionIsKnownActive = false;
+      recordSessionReplaced(lostReason);
+    }
+  }
 
   const persistState = async () => {
     await params.saveState({
@@ -36,6 +69,10 @@ export async function createInAppAgentSandbox(params: {
       conversationId: params.conversationId,
       sessionId: sessionIsKnownActive ? sessionId : null,
     });
+
+    if (session.replacementReason) {
+      recordSessionReplaced(session.replacementReason);
+    }
 
     await updateSessionState(session.sessionId);
 
@@ -68,6 +105,7 @@ export async function createInAppAgentSandbox(params: {
 
   return {
     sandbox: createExecutionSandbox(),
+    workspaceWasReset,
     onTurnEnded: async () => {
       if (!sessionId) {
         return;

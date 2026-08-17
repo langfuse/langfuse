@@ -51,7 +51,7 @@ env:
 jobs:
   audit:
     if: github.repository == 'langfuse/langfuse'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 45
     outputs:
       has_changes: ${{ steps.prepare.outputs.has_changes }}
@@ -241,7 +241,7 @@ jobs:
             --max-turns ${{ steps.validate-inputs.outputs.max_turns }}
             --max-budget-usd ${{ steps.validate-inputs.outputs.max_budget_usd }}
             --no-session-persistence
-            --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/packages/shared/src/server/otel/OtelIngestionProcessor.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:developers.openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:cloud.google.com),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs:*),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
+            --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/packages/shared/src/server/otel/OtelIngestionProcessor.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:developers.openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:cloud.google.com),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(uuidgen),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs:*),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
             --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"auditDate":{"type":"string","pattern":"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},"pullRequestTitle":{"type":"string","maxLength":100},"modelsChecked":{"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"properties":{"provider":{"type":"string","minLength":1},"model":{"type":"string","minLength":1},"pricingChecked":{"type":"string","minLength":1},"priceConfirmed":{"type":"string","enum":["yes","no"]},"usageKeysChecked":{"type":"string","minLength":1},"usageKeyCoverageConfirmed":{"type":"string","enum":["yes","no"]},"tieringChecked":{"type":"string","minLength":1},"tieringCorrect":{"type":"string","enum":["yes","no","not_applicable"]},"change":{"type":"string","enum":["none","updated","added","unresolved"]},"officialSources":{"type":"array","items":{"type":"string"}},"comments":{"type":"string"}},"required":["provider","model","pricingChecked","priceConfirmed","usageKeysChecked","usageKeyCoverageConfirmed","tieringChecked","tieringCorrect","change","officialSources","comments"]}},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","auditDate","pullRequestTitle","modelsChecked","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
 
       - name: Mock Claude price audit
@@ -711,7 +711,7 @@ jobs:
   publish:
     needs: audit
     if: needs.audit.outputs.has_changes == 'true' && needs.audit.outputs.dry_run_mode == 'disabled'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     steps:
       - name: Download pull request artifact

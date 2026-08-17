@@ -53,7 +53,7 @@ const providerMocks = vi.hoisted(() => {
       data: undefined as
         | undefined
         | {
-            conversation: { id: string; isWriteLocked: boolean };
+            conversation: { id: string };
             messages: AgUiMessage[];
             eventCursor: number;
             latestRun: {
@@ -331,7 +331,6 @@ describe("in-app agent execution", () => {
     const approvedSnapshot = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -404,6 +403,11 @@ describe("in-app agent execution", () => {
     renderExecutionUi();
 
     expect(await screen.findByText("Create the prompt")).toBeInTheDocument();
+    // The run is parked on this approval, so the drawer says so rather than
+    // narrating the tool it was about to call.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Waiting for your approval…" }),
+    );
     expect(screen.getByText("I need approval.")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", {
@@ -442,7 +446,6 @@ describe("in-app agent execution", () => {
     const completedSnapshot = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -548,7 +551,6 @@ describe("in-app agent execution", () => {
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -592,14 +594,15 @@ describe("in-app agent execution", () => {
 
     renderExecutionUi();
 
-    expect(await screen.findByText("Calling 1 tool")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Browsing traces" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps approval cancellation visibly stopping until hydration settles", async () => {
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -648,12 +651,12 @@ describe("in-app agent execution", () => {
       ).toHaveBeenCalledOnce();
     });
     expect(screen.getByRole("button", { name: "Stopping run" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Stopping the run…");
+    expect(screen.getByText("Stopping the run…")).toBeVisible();
   });
 
   it("does not observe a cached active run while the assistant is closed", async () => {
     const runningSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: 5,
       latestRun: {
@@ -699,7 +702,7 @@ describe("in-app agent execution", () => {
     const initialText = "I found the affected traces.";
     const finalText = "The remaining analysis was cancelled before completion.";
     const runningSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [
         { id: "persisted-user", role: "user", content: "Investigate this" },
         {
@@ -853,9 +856,7 @@ describe("in-app agent execution", () => {
       ).not.toBeInTheDocument();
     });
     expect(screen.getByText(finalText)).toBeVisible();
-    expect(
-      screen.getByText("The assistant is aware of this trace view."),
-    ).toBeVisible();
+    expect(screen.getByText("Current trace view in context")).toBeVisible();
     expect(screen.getByRole("button", { name: "Good response" })).toBeVisible();
   });
 
@@ -871,14 +872,14 @@ describe("in-app agent execution", () => {
 
     const finalText = "The investigation was cancelled before it completed.";
     providerMocks.conversationQuery.data = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: -1,
       latestRun: null,
       pendingToolApprovals: [],
     };
     const cancellingSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [
         { id: "persisted-user", role: "user", content: "Investigate this" },
       ] satisfies AgUiMessage[],
@@ -1084,7 +1085,7 @@ describe("in-app agent concurrent conversations", () => {
 
   it("starts a new conversation while another one is still running", async () => {
     providerMocks.conversationQuery.data = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: 3,
       latestRun: {

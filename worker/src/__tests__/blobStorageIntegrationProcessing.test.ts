@@ -132,19 +132,18 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     s3Prefix = null;
   });
 
-  // LFE-10296: a persisted enriched export source on a deployment without the
-  // enriched export path (e.g. after a V4-preview rollback) must fail the job
-  // loudly instead of silently exporting from unpopulated tables.
+  // A persisted enriched export source on a deployment that does not write the
+  // v4 events table must fail the job loudly instead of silently exporting
+  // from unpopulated tables.
   describe("enriched export source guard", () => {
-    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
     afterEach(() => {
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
-        originalV4Preview;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
     });
 
-    it("fails the job and persists lastError when the enriched export path is unavailable", async () => {
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+    it("fails the job and persists lastError when an enriched source runs on legacy", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
 
@@ -242,11 +241,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   // After BullMQ exhausts its retries, a customer-fault error disables the
   // integration; everything else keeps retrying as before.
   describe("customer-fault disable", () => {
-    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
     afterEach(() => {
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
-        originalV4Preview;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
     });
 
     // Minimal AWS SDK v3 S3 AccessDenied shape (high-confidence customer fault).
@@ -337,9 +335,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
 
     it("does not disable on the final attempt of a non-customer-fault ('other') error", async () => {
-      // Enriched source + V4 preview off => the guard throws a plain Error,
-      // which the classifier treats as "other".
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      // Enriched source on the legacy write mode => the guard throws a plain
+      // Error, which the classifier treats as "other".
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
 

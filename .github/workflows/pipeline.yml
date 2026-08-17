@@ -47,7 +47,7 @@ jobs:
   # it instantly and their jobs start without waiting for it (~45-100s of
   # wall clock per run).
   pre-job:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     if: github.event_name == 'push'
     outputs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
@@ -76,7 +76,7 @@ jobs:
           fi
 
   llm-connections-filter:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       changed: ${{ steps.filter.outputs.llm_connections }}
     timeout-minutes: 15
@@ -101,7 +101,8 @@ jobs:
               - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
-    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -167,7 +168,7 @@ jobs:
         run: pnpm run typecheck
 
   knip:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -201,7 +202,7 @@ jobs:
         run: pnpm exec knip
 
   prettier-check:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -262,7 +263,7 @@ jobs:
           fi
 
   tests-eslint-plugin:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -298,7 +299,7 @@ jobs:
         run: pnpm --filter @repo/eslint-plugin run test
 
   tests-storybook:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -345,7 +346,23 @@ jobs:
         # same reason. `prisma generate` only reads the schema; it needs no DB.
         run: pnpm --filter=shared run db:generate
       - name: Install playwright
-        run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
+        # apt-get (pulled in by --with-deps) occasionally stalls against a
+        # slow/unresponsive mirror and can ride the job's timeout-minutes
+        # instead of failing fast (observed: a 10-minute hang cancelled by
+        # the job timeout). A normal install takes well under a minute, so
+        # bound each attempt and retry instead of trusting the job-level
+        # timeout as the only guard.
+        run: |
+          attempt=1
+          until timeout 120 pnpm --filter=web exec playwright install --with-deps --only-shell chromium; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "Playwright install failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Attempt $attempt failed (possibly a stalled apt mirror), retrying in $((attempt * 15))s..." >&2
+            sleep $((attempt * 15))
+            attempt=$((attempt + 1))
+          done
       - name: run Storybook tests
         run: pnpm --filter web run test-storybook
       - name: build Storybook
@@ -353,7 +370,7 @@ jobs:
 
   tests-shared:
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -411,11 +428,11 @@ jobs:
         include:
           - component: web
             service: langfuse-web
-            runner: ubuntu-latest
+            runner: blacksmith-8vcpu-ubuntu-2404
             health_url: http://localhost:3000/api/public/health
           - component: worker
             service: langfuse-worker
-            runner: ubuntu-latest
+            runner: blacksmith-4vcpu-ubuntu-2404
             health_url: http://localhost:3030/api/health
     steps:
       - name: Checkout
@@ -428,6 +445,10 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
+        with:
+          cache-key: langfuse/test-${{ matrix.component }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Start dependency containers in background
@@ -487,7 +508,7 @@ jobs:
           if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -656,7 +677,7 @@ jobs:
 
   tests-web-client:
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
@@ -695,7 +716,7 @@ jobs:
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -794,7 +815,7 @@ jobs:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
   test-worker-llm-connections:
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
       - llm-connections-filter
@@ -875,7 +896,7 @@ jobs:
           LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
 
   e2e-tests:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -998,7 +1019,7 @@ jobs:
         run: pnpm --filter=web run test:e2e
 
   e2e-server-tests:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1101,7 +1122,7 @@ jobs:
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       [
         lint,
@@ -1302,7 +1323,7 @@ jobs:
             image_name: langfuse
           - component: worker
             image_name: langfuse-worker
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       packages: write
       contents: read
@@ -1451,7 +1472,7 @@ jobs:
       - build-docker-image-release
       - publish-docker-image-release
     if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       actions: read

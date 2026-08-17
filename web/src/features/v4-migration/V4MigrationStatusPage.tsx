@@ -37,6 +37,9 @@ import {
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
 import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
+import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
+import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -161,18 +164,15 @@ function SortableHead({
 function OrgStatusSection({
   org,
   statusByProjectId,
+  lastTraceTimes,
 }: {
   org: V4MigrationOrganization;
   statusByProjectId: Map<string, ProjectMigrationStatus>;
+  lastTraceTimes: { projectId: string; lastTraceAt: Date }[];
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const openMigrationPanel = useOpenV4MigrationPanel();
-  const { data: lastTraceTimes } =
-    api.organizations.lastTraceByProject.useQuery(
-      { orgId: org.id },
-      { enabled: org.projects.length > 0 },
-    );
 
   const openProjectMigration = (
     row: { id: string; name: string },
@@ -487,6 +487,18 @@ function V4MigrationStatusPageContent() {
     organizations: orgs,
     enabled: true,
   });
+  // Start the table's remaining data alongside the migration checks. Keeping
+  // these queries in the page lets one loading boundary wait for the complete
+  // snapshot instead of mounting each organization table with placeholder
+  // values that update after its rows become visible.
+  const lastTraceQueries = api.useQueries((t) =>
+    orgs.map((org) =>
+      t.organizations.lastTraceByProject(
+        { orgId: org.id },
+        { enabled: org.projects.length > 0 },
+      ),
+    ),
+  );
 
   const faqItems: { q: string; a: ReactNode }[] = [
     {
@@ -578,9 +590,23 @@ function V4MigrationStatusPageContent() {
   // Ready projects are hidden from the org tables, so the page needs its own
   // "nothing left to do" state once every project drops out.
   const listedProjects = readiness.filter((state) => state !== "ready").length;
-  const isChecking =
+  const isLoading =
     session.status === "loading" ||
-    readiness.some((state) => state === "checking");
+    readiness.some((state) => state === "checking") ||
+    orgs.some(
+      (org, index) =>
+        org.projects.length > 0 &&
+        lastTraceQueries[index]?.data === undefined &&
+        !lastTraceQueries[index]?.isError,
+    );
+
+  if (isLoading) {
+    return (
+      <ContainerPage headerProps={{ title: "Migration status" }}>
+        <V4MigrationLoadingState />
+      </ContainerPage>
+    );
+  }
 
   return (
     <ContainerPage
@@ -601,11 +627,7 @@ function V4MigrationStatusPageContent() {
             {actionNeededProjects > 0 && <V4MigrationDeadlineNote />}
           </div>
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            {isChecking ? (
-              <span className="text-muted-foreground text-sm">
-                Checking project status…
-              </span>
-            ) : totalProjects === 0 ? (
+            {totalProjects === 0 ? (
               <span className="text-muted-foreground text-sm">
                 No active projects
               </span>
@@ -625,15 +647,16 @@ function V4MigrationStatusPageContent() {
           </div>
         </Card>
 
-        {orgs.map((org) => (
+        {orgs.map((org, index) => (
           <OrgStatusSection
             key={org.id}
             org={org}
             statusByProjectId={statusByProjectId}
+            lastTraceTimes={lastTraceQueries[index]?.data ?? []}
           />
         ))}
 
-        {!isChecking && totalProjects > 0 && listedProjects === 0 && (
+        {totalProjects > 0 && listedProjects === 0 && (
           <p className="text-muted-foreground flex items-center gap-2.5 text-sm">
             <V4MigrationStatusDot variant="done" />
             All projects are up to date. Nothing to do here.
@@ -655,7 +678,40 @@ function V4MigrationStatusPageContent() {
             </div>
           </div>
         </div>
+
+        <SwitchBackSection />
       </div>
     </ContainerPage>
+  );
+}
+
+// User-level v3/v4 UI toggle, the same one the migration side panel shows.
+// Hides itself when the session cannot toggle v4 (legacy/events_only write
+// mode, post-rollout auto-enrollment).
+function SwitchBackSection() {
+  const { canToggleV4, isBetaEnabled } = useV4Beta();
+
+  if (!canToggleV4) {
+    return null;
+  }
+
+  return (
+    <div className="mt-6">
+      <p className="text-base font-bold">
+        {isBetaEnabled
+          ? "Need to switch back to the legacy UI (v3)?"
+          : "Switch back to the latest UI (v4)"}
+      </p>
+      <div className="flex flex-col gap-4 pt-4">
+        {isBetaEnabled && (
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            The features powering the legacy v3 UI will be sunset on{" "}
+            {V4_MIGRATION_DEADLINE}. We strongly recommend switching to the
+            latest UI (v4) before then.
+          </p>
+        )}
+        <V4PreviewToggleRow />
+      </div>
+    </div>
   );
 }
