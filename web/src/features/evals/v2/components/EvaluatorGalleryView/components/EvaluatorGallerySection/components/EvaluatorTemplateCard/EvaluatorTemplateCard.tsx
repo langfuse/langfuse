@@ -1,7 +1,6 @@
 import { formatDistanceToNowStrict } from "date-fns";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import type {
   CustomEvaluatorTemplate,
   GalleryTemplate,
@@ -17,12 +16,7 @@ type TemplateCardContent = {
   type: EvalTemplateType;
   runsOn: TemplateRunTarget[] | null;
   attribution: string | null;
-  byLangfuse: boolean;
 };
-
-function capitalize(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
 
 const RUNS_ON_LABELS: Record<TemplateRunTarget, string> = {
   experiment: "Experiment",
@@ -30,14 +24,11 @@ const RUNS_ON_LABELS: Record<TemplateRunTarget, string> = {
 };
 
 function managedCardContent(template: ManagedTemplate): TemplateCardContent {
-  const byLangfuse = template.maintainer === "langfuse";
-
   return {
     description: template.description,
     type: template.evaluator.type,
     runsOn: template.runsOn,
-    attribution: `by ${byLangfuse ? "Langfuse" : capitalize(template.maintainer)}`,
-    byLangfuse,
+    attribution: null,
   };
 }
 
@@ -63,7 +54,6 @@ function customCardContent(
     type: template.type,
     runsOn: null,
     attribution: author ? `by ${author} · ${updated}` : `Updated ${updated}`,
-    byLangfuse: false,
   };
 }
 
@@ -74,7 +64,7 @@ export function EvaluatorTemplateCard({
   template: GalleryTemplate;
   onSelect: (template: GalleryTemplate) => void;
 }) {
-  const { description, type, runsOn, attribution, byLangfuse } =
+  const { description, type, runsOn, attribution } =
     template.source === "managed"
       ? managedCardContent(template)
       : customCardContent(template);
@@ -119,7 +109,6 @@ export function EvaluatorTemplateCard({
         </div>
         {attribution ? (
           <p className="text-muted-foreground/80 mt-2 flex min-w-0 items-center gap-1.5 text-sm">
-            {byLangfuse ? <LangfuseIcon size={14} /> : null}
             <span className="truncate" title={attribution}>
               {attribution}
             </span>
