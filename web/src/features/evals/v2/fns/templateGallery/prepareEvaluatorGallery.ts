@@ -67,7 +67,7 @@ export function prepareEvaluatorGallery({
       category.key,
       (category.key === "conversation"
         ? managedCatalog.templates
-            .filter((template) => template.category === category.key)
+            .filter((template) => template.categories.includes(category.key))
             .toSorted(
               (left, right) =>
                 (CONVERSATION_TEMPLATE_RANK.get(left.key) ??
@@ -75,12 +75,10 @@ export function prepareEvaluatorGallery({
                 (CONVERSATION_TEMPLATE_RANK.get(right.key) ??
                   Number.MAX_SAFE_INTEGER),
             )
-        : managedCatalog.templates.filter(
-            (template) => template.category === category.key,
+        : managedCatalog.templates.filter((template) =>
+            template.categories.includes(category.key),
           )
-      )
-        .filter((template) => template.category === category.key)
-        .map((template) => ({ source: "managed" as const, ...template })),
+      ).map((template) => ({ source: "managed" as const, ...template })),
     ]),
   );
   const navigationItems: GalleryNavigationItem[] = [

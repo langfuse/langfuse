@@ -20,7 +20,10 @@ describe("managed evaluator templates catalog", () => {
     expect(new Set(templateKeys).size).toBe(templateKeys.length);
 
     for (const template of MANAGED_TEMPLATES_CATALOG.templates) {
-      expect(categoryKeys.has(template.category)).toBe(true);
+      expect(template.categories.length).toBeGreaterThan(0);
+      expect(
+        template.categories.every((category) => categoryKeys.has(category)),
+      ).toBe(true);
       expect(template.runsOn.length).toBeGreaterThan(0);
       expect(template.runsOn.every((target) => runTargets.has(target))).toBe(
         true,

@@ -26,12 +26,29 @@ describe("prepareEvaluatorGallery", () => {
     expect(gallery.sections[0]?.totalCount).toBe(12);
     expect(gallery.sections.map(({ key }) => key)).toEqual([
       "custom",
+      "recommended",
       "conversation",
       "quality",
       "classifier",
       "retrieval",
       "safety",
       "coding-agents",
+    ]);
+
+    const recommendedSection = gallery.sections.find(
+      ({ key }) => key === "recommended",
+    );
+    expect(
+      recommendedSection?.templates.map((template) =>
+        template.source === "managed" ? template.key : null,
+      ),
+    ).toEqual([
+      "language",
+      "chat-intent",
+      "out-of-scope-request",
+      "answer-relevance",
+      "quality-criterion",
+      "rule-adherence",
     ]);
     const conversationSection = gallery.sections.find(
       ({ key }) => key === "conversation",

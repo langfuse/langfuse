@@ -20,7 +20,7 @@ export const managedEvaluatorTemplateService = {
           (!query ||
             template.name.toLowerCase().includes(query) ||
             template.description.toLowerCase().includes(query)) &&
-          (!category || template.category === category) &&
+          (!category || template.categories.includes(category)) &&
           (!type || template.evaluator.type === type),
       ),
     };

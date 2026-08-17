@@ -15,6 +15,13 @@ export const MANAGED_TEMPLATES_CATALOG = {
   schemaVersion: 1,
   categories: [
     {
+      key: "recommended",
+      label: "Recommended for you",
+      description:
+        "A curated starter set of templates that works well for most teams.",
+      icon: "sparkles",
+    },
+    {
       key: "conversation",
       label: "Conversational / Chatbots",
       description:
@@ -61,7 +68,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "language",
       name: "Language",
-      category: "conversation",
+      categories: ["conversation", "recommended"],
       icon: "languages",
       description:
         "Checks if primary language of output matches the primary language of input.",
@@ -98,7 +105,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "chat-intent",
       name: "Chat Intent",
-      category: "conversation",
+      categories: ["conversation", "recommended"],
       icon: "message-square",
       description:
         "Classifies user question into one of the predefined categories, e.g. support intent or topic area.",
@@ -139,7 +146,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "out-of-scope-request",
       name: "Out-of-scope request",
-      category: "conversation",
+      categories: ["conversation", "recommended"],
       icon: "shield",
       description:
         "Checks whether the user's request falls outside the assistant's defined role or supported scope.",
@@ -172,7 +179,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "user-disagreement",
       name: "User Disagreement",
-      category: "conversation",
+      categories: ["conversation"],
       icon: "messages-square",
       description:
         "Detects whether the user is rejecting, correcting, or pushing back on the assistant's previous response.",
@@ -205,7 +212,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "all-caps",
       name: "User frustration (ALL CAPS)",
-      category: "conversation",
+      categories: ["conversation"],
       icon: "type",
       description:
         "Detects whether user uses all capital letters, potentially indicating frustration.",
@@ -221,7 +228,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "user-distress",
       name: "User Distress",
-      category: "conversation",
+      categories: ["conversation"],
       icon: "frown",
       description:
         "Detects whether the user shows strong frustration, anger, or profanity.",
@@ -254,7 +261,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "correctness",
       name: "Correctness",
-      category: "quality",
+      categories: ["quality"],
       icon: "circle-check",
       description:
         "Checks whether the output is semantically correct compared with a reference answer or expected result.",
@@ -294,7 +301,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "exact-match",
       name: "Exact Match",
-      category: "quality",
+      categories: ["quality"],
       icon: "equal",
       description:
         "Checks whether the output exactly matches the expected output.",
@@ -316,7 +323,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "keyword-match",
       name: "Keyword match",
-      category: "quality",
+      categories: ["quality"],
       icon: "list-checks",
       description:
         "Checks whether required keywords, phrases, or entities appear in the output.",
@@ -338,7 +345,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "answer-relevance",
       name: "Answer relevance",
-      category: "quality",
+      categories: ["quality", "recommended"],
       icon: "target",
       description:
         "Checks whether the response actually addresses the user's question or task.",
@@ -373,7 +380,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "quality-criterion",
       name: "Judge on one Quality criterion",
-      category: "quality",
+      categories: ["quality", "recommended"],
       icon: "scale",
       description: "Checks whether output follows a defined quality criterion.",
       maintainer: "langfuse",
@@ -399,7 +406,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "topic-classifier",
       name: "Topic classifier",
-      category: "classifier",
+      categories: ["classifier"],
       icon: "tags",
       description:
         "Assigns the input, output, or conversation to one of a predefined set of topics.",
@@ -439,7 +446,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "language-classifier",
       name: "Language classifier",
-      category: "classifier",
+      categories: ["classifier"],
       icon: "languages",
       description:
         "Classifies input into one of the pre-defined language categories.",
@@ -485,7 +492,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "answer-groundedness",
       name: "Answer Groundedness",
-      category: "retrieval",
+      categories: ["retrieval"],
       icon: "book-open-check",
       description:
         "Checks whether the output is supported by the provided context and avoids unsupported claims.",
@@ -524,7 +531,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "context-precision",
       name: "Context precision",
-      category: "retrieval",
+      categories: ["retrieval"],
       icon: "scan-search",
       description:
         "Checks whether the provided context is actually useful and relevant for producing the answer.",
@@ -563,7 +570,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "context-recall",
       name: "Context recall",
-      category: "retrieval",
+      categories: ["retrieval"],
       icon: "list-checks",
       description:
         "Checks whether the provided context covers the information needed to support the answer.",
@@ -606,7 +613,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "pii-leakage",
       name: "PII leakage",
-      category: "safety",
+      categories: ["safety"],
       icon: "shield-alert",
       description:
         "Checks whether sensitive personal information appears in the input or output.",
@@ -635,7 +642,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "rule-adherence",
       name: "Rule adherence",
-      category: "safety",
+      categories: ["safety", "recommended"],
       icon: "shield-check",
       description:
         "Checks whether the output follows a defined policy, instruction set, rubric, or formatting rule.",
@@ -662,7 +669,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "prompt-injection",
       name: "Prompt injection",
-      category: "safety",
+      categories: ["safety"],
       icon: "shield-x",
       description:
         "Checks whether the input contains attempts of prompt injection.",
@@ -692,7 +699,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "engineering-task-type",
       name: "Engineering task type",
-      category: "coding-agents",
+      categories: ["coding-agents"],
       icon: "code-2",
       description: "Categorizes the type of task the coding agent is used for.",
       maintainer: "langfuse",
@@ -737,7 +744,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "coding-agent-department-usage",
       name: "Coding agent department usage",
-      category: "coding-agents",
+      categories: ["coding-agents"],
       icon: "building-2",
       description: "Classifies coding-agent usage into department buckets.",
       maintainer: "langfuse",

@@ -23,7 +23,7 @@ export type ExpectedOutputHint = {
 export type ManagedTemplate = {
   key: string;
   name: string;
-  category: string;
+  categories: string[];
   icon: string;
   description: string;
   maintainer: string;

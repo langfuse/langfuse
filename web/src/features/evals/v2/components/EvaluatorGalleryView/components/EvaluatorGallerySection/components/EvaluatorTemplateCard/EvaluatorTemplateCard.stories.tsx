@@ -12,7 +12,7 @@ const managedTemplate = {
   source: "managed",
   key: "hallucination",
   name: "Answer relevance",
-  category: "quality",
+  categories: ["quality"],
   icon: "gauge",
   description: "Assess whether the answer directly addresses the question.",
   maintainer: "langfuse",
