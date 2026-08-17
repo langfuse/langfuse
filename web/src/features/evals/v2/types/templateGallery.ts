@@ -15,6 +15,11 @@ export type EvaluatorSetupDraft = {
 
 export type TemplateRunTarget = "experiment" | "live-observations";
 
+export type ExpectedOutputHint = {
+  shape: string;
+  example?: string;
+};
+
 export type ManagedTemplate = {
   key: string;
   name: string;
@@ -23,6 +28,7 @@ export type ManagedTemplate = {
   description: string;
   maintainer: string;
   runsOn: TemplateRunTarget[];
+  expectedOutputHint?: ExpectedOutputHint;
   evaluator:
     | {
         type: Extract<EvalTemplateType, "LLM_AS_JUDGE">;

@@ -260,6 +260,11 @@ export const MANAGED_TEMPLATES_CATALOG = {
         "Checks whether the output is semantically correct compared with a reference answer or expected result.",
       maintainer: "langfuse",
       runsOn: ["experiment"],
+      expectedOutputHint: {
+        shape:
+          "Use a reference answer in expected_output (usually a string, but object/array is also supported).",
+        example: '"The capital of France is Paris."',
+      },
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -295,6 +300,12 @@ export const MANAGED_TEMPLATES_CATALOG = {
         "Checks whether the output exactly matches the expected output.",
       maintainer: "langfuse",
       runsOn: ["experiment"],
+      expectedOutputHint: {
+        shape:
+          "expected_output must have the same value shape as output. Nested objects/arrays are supported.",
+        example:
+          '{ "answer": "Paris", "citations": ["doc-1", "doc-4"], "confidence": 0.92 }',
+      },
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
@@ -311,6 +322,12 @@ export const MANAGED_TEMPLATES_CATALOG = {
         "Checks whether required keywords, phrases, or entities appear in the output.",
       maintainer: "langfuse",
       runsOn: ["experiment"],
+      expectedOutputHint: {
+        shape:
+          "expected_output must be a JSON object with an expected_keywords string array.",
+        example:
+          '{ "expected_keywords": ["refund", "invoice", "tracking number"] }',
+      },
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
