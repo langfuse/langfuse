@@ -16,7 +16,11 @@
 import { type TimelineBarProps } from "./types";
 import { cn } from "@/src/utils/tailwind";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import {
+  GroupedScoreBadges,
+  groupScoresByName,
+} from "@/src/components/grouped-score-badge";
+import { scoreLevelFromScore } from "@/src/components/score-tag";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
@@ -26,9 +30,10 @@ import { isPresent } from "@langfuse/shared";
 const SUBTREE_DURATION_TITLE =
   "Subtree wall-clock duration (first start → last end)";
 
-// Room between the bar and a metric cluster sitting outside it.
-const CLUSTER_GAP_PX = 6;
-const CLUSTER_INSET_PX = 4;
+// Room between the bar and a metric cluster: `density`'s own `labelGapPx` and
+// `labelPaddingPx`, threaded in rather than copied. These are the exact values
+// `placeLabel()` measured the placement with, so a local copy is a silent desync
+// waiting for the first change to density.
 /**
  * The cluster's own `gap-2`. The budget has to reserve the gap the cluster
  * actually renders with, not a smaller one: five admitted items multiply a 2px
@@ -43,6 +48,12 @@ const SCORE_CHIP_CHROME_PX = 22;
 const SCORE_NAME_MAX_PX = 80;
 /** The gap between a chip's name and its values. */
 const SCORE_NAME_GAP_PX = 4;
+/** A value's comment / metadata icon, when it carries one. */
+const SCORE_VALUE_ICON_PX = 16;
+/** The full ScoreTag level pill a chip grows when a row mixes score levels. */
+const SCORE_LEVEL_PILL_PX = 46;
+/** The "+N" button for groups past `maxVisible`. */
+const SCORE_OVERFLOW_PX = 28;
 
 /**
  * What `GroupedScoreBadges` will actually take, measured rather than guessed.
@@ -59,25 +70,44 @@ function scoreBadgesWidth(
   measurer: TimelineBarProps["measurer"],
   maxVisible: number,
 ): number {
-  const groups = new Map<string, string[]>();
-  for (const score of scores) {
-    const value = score.stringValue ?? score.value?.toFixed(2) ?? "";
-    groups.set(score.name, [...(groups.get(score.name) ?? []), value]);
-  }
-  const widths = [...groups]
-    .map(
-      ([name, values]) =>
+  // Bucketed by the badges' own grouping rule, so this cannot price a chip that
+  // never renders — or miss one that does.
+  const groups = Object.entries(groupScoresByName(scores));
+  // Level pills appear only when the row MIXES levels; a row whose scores share
+  // one level needs no per-chip disambiguation. Same rule the badges use.
+  const mixesLevels =
+    new Set(scores.map((score) => scoreLevelFromScore(score))).size > 1;
+
+  const widths = groups
+    .map(([name, group]) => {
+      const values = group.map(
+        (score) => score.stringValue ?? score.value?.toFixed(2) ?? "",
+      );
+      // Each value can carry a comment or metadata icon of its own.
+      const icons = group.filter(
+        (score) => score.comment || score.metadata,
+      ).length;
+      const levels = mixesLevels
+        ? new Set(group.map((score) => scoreLevelFromScore(score))).size
+        : 0;
+      return (
         Math.min(measurer.measure(`${name}:`), SCORE_NAME_MAX_PX) +
         SCORE_NAME_GAP_PX +
         measurer.measure(values.join(" ")) +
-        SCORE_CHIP_CHROME_PX,
-    )
+        icons * SCORE_VALUE_ICON_PX +
+        levels * SCORE_LEVEL_PILL_PX +
+        SCORE_CHIP_CHROME_PX
+      );
+    })
     .sort((a, b) => b - a)
     .slice(0, maxVisible);
+
+  // Groups past the cap collapse into a "+N" button, which is also width.
+  const overflow = groups.length > maxVisible ? SCORE_OVERFLOW_PX : 0;
   return widths.reduce(
     (total, width, index) =>
       total + width + (index > 0 ? CLUSTER_ITEM_GAP_PX : 0),
-    0,
+    overflow,
   );
 }
 
@@ -99,7 +129,10 @@ export function TimelineBar({
   parentTotalDuration,
   commentCount,
   scores,
+  density,
 }: TimelineBarProps) {
+  const CLUSTER_GAP_PX = density.labelGapPx;
+  const CLUSTER_INSET_PX = density.labelPaddingPx;
   const node = row.node;
 
   // Own-span basis mirrors SpanContent: fall back to node.latency when there's
@@ -165,9 +198,14 @@ export function TimelineBar({
   // duration always beats a cost you cannot finish reading.
   const budgetPx = Number.parseFloat(clusterStyle.maxWidth);
   let spentPx = 0;
-  /** Admit a piece of the cluster, or refuse it — and charge it if admitted. */
+  /**
+   * Admit a piece of the cluster, or refuse it — and charge it if admitted. The
+   * flex gap sits BETWEEN children, so the first item is charged none: billing it
+   * for a gap it does not have rejected content that renders perfectly well
+   * alone (a 32px duration against a 39px budget).
+   */
   const fitsWidth = (widthPx: number) => {
-    const next = spentPx + widthPx + CLUSTER_ITEM_GAP_PX;
+    const next = spentPx + widthPx + (spentPx > 0 ? CLUSTER_ITEM_GAP_PX : 0);
     if (next > budgetPx) return false;
     spentPx = next;
     return true;

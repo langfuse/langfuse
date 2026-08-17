@@ -18,6 +18,23 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 
+/**
+ * Bucket scores by name, the way the badges group them. Exported so a caller that
+ * has to RESERVE room for these badges buckets them identically — two copies of
+ * the grouping rule are two chances to price a chip that never renders.
+ */
+export const groupScoresByName = <
+  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
+>(
+  scores: T[],
+): Record<string, T[]> =>
+  scores.reduce<Record<string, T[]>>((groups, score) => {
+    const bucket = groups[score.name];
+    if (!bucket || !Array.isArray(bucket)) groups[score.name] = [score];
+    else bucket.push(score);
+    return groups;
+  }, {});
+
 const partitionScores = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
 >(
@@ -156,14 +173,7 @@ export const GroupedScoreBadges = <
   compact?: boolean;
   badgeClassName?: string;
 }) => {
-  const groupedScores = scores.reduce<Record<string, T[]>>((acc, score) => {
-    if (!acc[score.name] || !Array.isArray(acc[score.name])) {
-      acc[score.name] = [score];
-    } else {
-      acc[score.name].push(score);
-    }
-    return acc;
-  }, {});
+  const groupedScores = groupScoresByName(scores);
 
   // Level tags only when this selection MIXES levels (LFE-10596): a row whose
   // scores all share one level (the common case — e.g. a span's own

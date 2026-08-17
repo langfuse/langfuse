@@ -740,6 +740,7 @@ export function TraceTimeline() {
                   top={row.y}
                   height={row.height}
                   width={chartBox.width}
+                  density={DENSITY}
                   isSelected={selectedNodeId === nodeId}
                   isHovered={hoveredNodeId === nodeId}
                   showDuration={showDuration}

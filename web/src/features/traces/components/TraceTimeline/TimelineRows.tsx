@@ -18,6 +18,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { type TreeNode } from "../../types/treeNode";
 import { type TimelineRowNode } from "./types";
 import { type TextMeasurer } from "../../fns/timeline/textMeasurer";
+import { type Density } from "../../fns/timeline/density";
 import { TimelineGutterRow } from "./TimelineGutterRow";
 import { TimelineBar } from "./TimelineBar";
 import { useIsObservationActive } from "@/src/features/traces/contexts/PlayheadContext";
@@ -104,6 +105,7 @@ type ChartRowShellProps = RowShellSharedProps & {
   commentCount: number;
   nodeScores: WithStringifiedMetadata<ScoreDomain>[];
   measurer: TextMeasurer;
+  density: Density;
 };
 
 function TimelineChartRowShellComponent({
@@ -123,6 +125,7 @@ function TimelineChartRowShellComponent({
   commentCount,
   nodeScores,
   measurer,
+  density,
   onSelect,
   onHover,
 }: ChartRowShellProps) {
@@ -159,6 +162,7 @@ function TimelineChartRowShellComponent({
         row={row}
         laneWidth={width}
         measurer={measurer}
+        density={density}
         isSelected={isSelected}
         isHovered={isHovered}
         showDuration={showDuration}

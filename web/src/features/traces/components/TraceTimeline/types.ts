@@ -9,6 +9,7 @@
 import type { TreeNode } from "../../types/treeNode";
 import type { PositionedNode, Tick } from "../../fns/timeline/layout";
 import type { TextMeasurer } from "../../fns/timeline/textMeasurer";
+import type { Density } from "../../fns/timeline/density";
 import type Decimal from "decimal.js";
 import type { ScoreDomain } from "@langfuse/shared";
 import type { WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -28,6 +29,14 @@ export interface TimelineBarProps {
   laneWidth: number;
   /** Same measurer layout() used, so the bar can fit its own optional badges. */
   measurer: TextMeasurer;
+  /**
+   * Same density layout() used. The cluster's gap and inset ARE
+   * `labelGapPx`/`labelPaddingPx` — the values `placeLabel()` measured the
+   * placement with — so they have to come from the same place, or a change to
+   * density silently desyncs the rendered cluster from the decision made about
+   * where it goes.
+   */
+  density: Density;
   isSelected: boolean;
   /** Row is hovered (driven by shared state so the whole row highlights). */
   isHovered?: boolean;

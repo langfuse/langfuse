@@ -2,6 +2,7 @@ import { expect, waitFor } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { TimelineBar } from "./TimelineBar";
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
+import { resolveDensity } from "../../fns/timeline/density";
 import {
   makeRow,
   makeTreeNode,
@@ -15,6 +16,9 @@ const meta = preview.meta({
     row: makeRow(),
     laneWidth: 640,
     measurer: createTextMeasurer(),
+    // The same density layout() positions with — the cluster's gap and inset
+    // come from it, so a story that omitted it would measure a different bar.
+    density: resolveDensity({ pointer: "fine" }),
     isSelected: false,
     showDuration: true,
     showCostTokens: false,
