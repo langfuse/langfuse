@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
@@ -725,14 +717,6 @@ describe("MonitorScheduler (timeouts)", () => {
       transaction,
     };
   };
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
 
   it("claim: bounds the query with a statement timeout", async () => {
     const { db, executeRawUnsafe, transaction } = stubDb([]);
