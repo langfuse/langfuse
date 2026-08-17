@@ -28,19 +28,6 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   sparkles: Sparkles,
 };
 
-const CONVERSATION_TEMPLATE_ORDER = [
-  "chat-intent",
-  "user-disagreement",
-  "all-caps",
-  "user-distress",
-  "out-of-scope-request",
-  "language",
-] as const;
-
-const CONVERSATION_TEMPLATE_RANK = new Map<string, number>(
-  CONVERSATION_TEMPLATE_ORDER.map((key, index) => [key, index]),
-);
-
 const RECOMMENDED_TEMPLATE_ORDER = [
   "chat-intent",
   "out-of-scope-request",
@@ -75,29 +62,19 @@ export function prepareEvaluatorGallery({
   const managedByCategory = new Map(
     managedCatalog.categories.map((category) => [
       category.key,
-      (category.key === "conversation"
+      (category.key === "recommended"
         ? managedCatalog.templates
             .filter((template) => template.categories.includes(category.key))
             .toSorted(
               (left, right) =>
-                (CONVERSATION_TEMPLATE_RANK.get(left.key) ??
+                (RECOMMENDED_TEMPLATE_RANK.get(left.key) ??
                   Number.MAX_SAFE_INTEGER) -
-                (CONVERSATION_TEMPLATE_RANK.get(right.key) ??
+                (RECOMMENDED_TEMPLATE_RANK.get(right.key) ??
                   Number.MAX_SAFE_INTEGER),
             )
-        : category.key === "recommended"
-          ? managedCatalog.templates
-              .filter((template) => template.categories.includes(category.key))
-              .toSorted(
-                (left, right) =>
-                  (RECOMMENDED_TEMPLATE_RANK.get(left.key) ??
-                    Number.MAX_SAFE_INTEGER) -
-                  (RECOMMENDED_TEMPLATE_RANK.get(right.key) ??
-                    Number.MAX_SAFE_INTEGER),
-              )
-          : managedCatalog.templates.filter((template) =>
-              template.categories.includes(category.key),
-            )
+        : managedCatalog.templates.filter((template) =>
+            template.categories.includes(category.key),
+          )
       ).map((template) => ({ source: "managed" as const, ...template })),
     ]),
   );
