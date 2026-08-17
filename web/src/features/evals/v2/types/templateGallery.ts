@@ -13,6 +13,8 @@ export type EvaluatorSetupDraft = {
   definition: EvaluatorDefinition;
 };
 
+export type TemplateRunTarget = "experiment" | "live-observations";
+
 export type ManagedTemplate = {
   key: string;
   name: string;
@@ -20,6 +22,7 @@ export type ManagedTemplate = {
   icon: string;
   description: string;
   maintainer: string;
+  runsOn: TemplateRunTarget[];
   evaluator:
     | {
         type: Extract<EvalTemplateType, "LLM_AS_JUDGE">;

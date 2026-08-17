@@ -1,10 +1,12 @@
 import { formatDistanceToNowStrict } from "date-fns";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
+import { Badge } from "@/src/components/ui/badge";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import type {
   CustomEvaluatorTemplate,
   GalleryTemplate,
   ManagedTemplate,
+  TemplateRunTarget,
 } from "@/src/features/evals/v2/types/templateGallery";
 import { EvaluatorTypeBadge } from "@/src/features/evals/v2/components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
@@ -13,6 +15,7 @@ import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/
 type TemplateCardContent = {
   description: string | undefined;
   type: EvalTemplateType;
+  runsOn: TemplateRunTarget[] | null;
   attribution: string | null;
   byLangfuse: boolean;
 };
@@ -21,12 +24,18 @@ function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+const RUNS_ON_LABELS: Record<TemplateRunTarget, string> = {
+  experiment: "Experiment",
+  "live-observations": "Live observations",
+};
+
 function managedCardContent(template: ManagedTemplate): TemplateCardContent {
   const byLangfuse = template.maintainer === "langfuse";
 
   return {
     description: template.description,
     type: template.evaluator.type,
+    runsOn: template.runsOn,
     attribution: `by ${byLangfuse ? "Langfuse" : capitalize(template.maintainer)}`,
     byLangfuse,
   };
@@ -52,6 +61,7 @@ function customCardContent(
   return {
     description: template.prompt?.trim() ? template.prompt : codeFallback,
     type: template.type,
+    runsOn: null,
     attribution: author ? `by ${author} · ${updated}` : `Updated ${updated}`,
     byLangfuse: false,
   };
@@ -64,7 +74,7 @@ export function EvaluatorTemplateCard({
   template: GalleryTemplate;
   onSelect: (template: GalleryTemplate) => void;
 }) {
-  const { description, type, attribution, byLangfuse } =
+  const { description, type, runsOn, attribution, byLangfuse } =
     template.source === "managed"
       ? managedCardContent(template)
       : customCardContent(template);
@@ -81,25 +91,35 @@ export function EvaluatorTemplateCard({
             {template.name}
           </span>
           <p
-            className="text-muted-foreground line-clamp-1 text-sm leading-relaxed"
+            className="text-muted-foreground line-clamp-2 text-sm leading-relaxed"
             title={description}
           >
             {description}
           </p>
         </div>
-        <div className="mt-2 flex items-center gap-2">
-          {attribution ? (
-            <p className="text-muted-foreground/80 flex min-w-0 items-center gap-1.5 text-sm">
-              {byLangfuse ? <LangfuseIcon size={14} /> : null}
-              <span className="truncate" title={attribution}>
-                {attribution}
-              </span>
-            </p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {runsOn?.length ? (
+            <>
+              <span className="text-muted-foreground text-xs">Runs on</span>
+              {runsOn.map((target) => (
+                <Badge key={target} variant="secondary" size="sm">
+                  {RUNS_ON_LABELS[target]}
+                </Badge>
+              ))}
+            </>
           ) : null}
-          <span className="ml-auto shrink-0">
+          <span className="ml-auto">
             <EvaluatorTypeBadge type={type} />
           </span>
         </div>
+        {attribution ? (
+          <p className="text-muted-foreground/80 mt-2 flex min-w-0 items-center gap-1.5 text-sm">
+            {byLangfuse ? <LangfuseIcon size={14} /> : null}
+            <span className="truncate" title={attribution}>
+              {attribution}
+            </span>
+          </p>
+        ) : null}
       </div>
     </button>
   );
