@@ -89,27 +89,28 @@ export const MANAGED_TEMPLATES_CATALOG = {
       name: "Correctness",
       category: "quality",
       icon: "circle-check",
-      description: "Compares the response against ground truth facts.",
+      description:
+        "Checks whether the output is semantically correct compared with an expected result.",
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
-          "Evaluate the correctness of the generation on a continuous scale from 0 to 1. A generation can be considered correct (Score: 1) if it includes all the key facts from the ground truth and if every fact presented in the generation is factually supported by the ground truth or common sense.\n\nExample:\nQuery: Can eating carrots improve your vision?\nGeneration: Yes, eating carrots significantly improves your vision, especially at night. This is why people who eat lots of carrots never need glasses. Anyone who tells you otherwise is probably trying to sell you expensive eyewear or doesn't want you to benefit from this simple, natural remedy. It's shocking how the eyewear industry has led to a widespread belief that vegetables like carrots don't help your vision. People are so gullible to fall for these money-making schemes.\nGround truth: Well, yes and no. Carrots won't improve your visual acuity if you have less than perfect vision. A diet of carrots won't give a blind person 20/20 vision. But, the vitamins found in the vegetable can help promote overall eye health. Carrots contain beta-carotene, a substance that the body converts to vitamin A, an important nutrient for eye health.  An extreme lack of vitamin A can cause blindness. Vitamin A can prevent the formation of cataracts and macular degeneration, the world's leading cause of blindness. However, if your vision problems aren't related to vitamin A, your vision won't change no matter how many carrots you eat.\nScore: 0.1\nReasoning: While the generation mentions that carrots can improve vision, it fails to outline the reason for this phenomenon and the circumstances under which this is the case. The rest of the response contains misinformation and exaggerations regarding the benefits of eating carrots for vision improvement. It deviates significantly from the more accurate and nuanced explanation provided in the ground truth.\n\nInput:\nQuery: {{query}}\nGeneration: {{generation}}\nGround truth: {{ground_truth}}\n\nThink step by step.",
+          "You are a Correctness evaluator.\nGiven a user input, an assistant output, and an expected reference answer, classify semantic correctness into exactly one label.\n\nLabels:\n- Not correct: output is mostly wrong, missing core facts, or contradicts the expected answer.\n- Somewhat correct: output is partially correct but incomplete, ambiguous, or contains minor inaccuracies.\n- Correct: output is semantically aligned with the expected answer, allowing for different wording.\n\nInput:\nUser input: {{user_input}}\nAssistant output: {{assistant_output}}\nExpected answer: {{expected_answer}}\n\nThink step by step and return the structured result.",
         variables: [
           {
-            name: "query",
+            name: "user_input",
             defaultMapping: {
               field: "input",
             },
           },
           {
-            name: "generation",
+            name: "assistant_output",
             defaultMapping: {
               field: "output",
             },
           },
           {
-            name: "ground_truth",
+            name: "expected_answer",
             defaultMapping: {
               field: "expected_output",
             },
@@ -117,13 +118,15 @@ export const MANAGED_TEMPLATES_CATALOG = {
         ],
         outputDefinition: {
           version: 2,
-          dataType: "NUMERIC",
+          dataType: "CATEGORICAL",
           score: {
-            description:
-              "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
+            description: "Semantic correctness label for the assistant output.",
+            categories: ["Not correct", "Somewhat correct", "Correct"],
+            shouldAllowMultipleMatches: false,
           },
           reasoning: {
-            description: "One sentence reasoning for the score",
+            description:
+              "One sentence explaining why the output received this correctness label.",
           },
         },
       },
@@ -208,25 +211,25 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "relevance",
-      name: "Relevance",
+      name: "Answer Relevance",
       category: "quality",
       icon: "target",
       description:
-        "Checks the response stays on topic and adds value to the query.",
+        "Checks whether the response actually addresses the user's question or task.",
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
-          "Evaluate the relevance of the generation on a continuous scale from 0 to 1. A generation can be considered relevant (Score: 1) if it enhances or clarifies the response, adding value to the user's comprehension of the topic in question. Relevance is determined by the extent to which the provided information addresses the specific question asked, staying focused on the subject without straying into unrelated areas or providing extraneous details.\n\nExample:\nQuery: Can eating carrots improve your vision?\nGeneration: Yes, eating carrots significantly improves your vision, especially at night. This is why people who eat lots of carrots never need glasses. Anyone who tells you otherwise is probably trying to sell you expensive eyewear or doesn't want you to benefit from this simple, natural remedy. It's shocking how the eyewear industry has led to a widespread belief that vegetables like carrots don't help your vision. People are so gullible to fall for these money-making schemes.\nScore: 0.1\nReasoning: Only the first part of the first sentence clearly answers the question and thus, is relevant. The rest of the text is not relevant to answer the query.\n\nInput:\nQuery: {{query}}\nGeneration: {{generation}}\n\nThink step by step.",
+          "You are an Answer Relevance evaluator.\nClassify whether the assistant output addresses the user's request.\n\nLabels:\n- Not relevant: does not answer the request or is off-topic.\n- Somewhat relevant: partially addresses the request but misses important parts.\n- Relevant: directly answers the request and stays on task.\n\nInput:\nUser input: {{user_input}}\nAssistant output: {{assistant_output}}\n\nThink step by step and return the structured result.",
         variables: [
           {
-            name: "query",
+            name: "user_input",
             defaultMapping: {
               field: "input",
             },
           },
           {
-            name: "generation",
+            name: "assistant_output",
             defaultMapping: {
               field: "output",
             },
@@ -234,13 +237,15 @@ export const MANAGED_TEMPLATES_CATALOG = {
         ],
         outputDefinition: {
           version: 2,
-          dataType: "NUMERIC",
+          dataType: "CATEGORICAL",
           score: {
-            description:
-              "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
+            description: "Relevance label for the assistant output.",
+            categories: ["Not relevant", "Somewhat relevant", "Relevant"],
+            shouldAllowMultipleMatches: false,
           },
           reasoning: {
-            description: "One sentence reasoning for the score",
+            description:
+              "One sentence explaining why the output received this relevance label.",
           },
         },
       },
@@ -251,13 +256,79 @@ export const MANAGED_TEMPLATES_CATALOG = {
       category: "quality",
       icon: "equal",
       description:
-        "Checks whether the observation output exactly matches its input.",
+        "Checks whether the output exactly matches the expected output.",
       maintainer: "langfuse",
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
         source:
-          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const matches =\n    ctx.observation.input !== undefined &&\n    ctx.observation.output === ctx.observation.input;\n\n  return {\n    scores: [\n      {\n        name: "Exact match",\n        value: matches,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
+          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const expected = ctx.experiment?.itemExpectedOutput;\n  const matches =\n    expected !== undefined && ctx.observation.output === expected;\n\n  return {\n    scores: [\n      {\n        name: "Exact match",\n        value: matches,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
+      },
+    },
+    {
+      key: "keyword-match",
+      name: "Keyword Match",
+      category: "quality",
+      icon: "list-checks",
+      description:
+        "Checks whether required keywords or phrases are present in the output.",
+      maintainer: "langfuse",
+      evaluator: {
+        type: "CODE",
+        language: "TYPESCRIPT",
+        source:
+          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const outputText =\n    typeof ctx.observation.output === "string"\n      ? ctx.observation.output\n      : JSON.stringify(ctx.observation.output ?? "");\n\n  const metadataKeywords =\n    Array.isArray(ctx.observation.metadata?.keywords) &&\n    ctx.observation.metadata.keywords.every((keyword) => typeof keyword === "string")\n      ? ctx.observation.metadata.keywords\n      : null;\n  const expectedRaw = ctx.experiment?.itemExpectedOutput;\n\n  const expectedKeywords =\n    metadataKeywords ??\n    (Array.isArray(expectedRaw)\n      ? expectedRaw.filter((keyword): keyword is string => typeof keyword === "string")\n      : typeof expectedRaw === "string"\n        ? expectedRaw\n            .split(/[,\\n]/)\n            .map((keyword) => keyword.trim())\n            .filter(Boolean)\n        : []);\n\n  const normalizedOutput = outputText.toLowerCase();\n  const matches =\n    expectedKeywords.length > 0 &&\n    expectedKeywords.every((keyword) =>\n      normalizedOutput.includes(keyword.toLowerCase()),\n    );\n\n  return {\n    scores: [\n      {\n        name: "Keyword match",\n        value: matches,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
+      },
+    },
+    {
+      key: "quality-criterion",
+      name: "Quality Criterion",
+      category: "quality",
+      icon: "scale",
+      description:
+        "Scores output quality against a custom criterion definition.",
+      maintainer: "langfuse",
+      evaluator: {
+        type: "LLM_AS_JUDGE",
+        prompt:
+          "You are a Quality Criterion evaluator.\nUse the criterion definition to judge the assistant output for the given input.\nClassify into exactly one label.\n\nLabels:\n- Does not meet criterion\n- Partially meets criterion\n- Meets criterion\n\nInput:\nCriterion definition: {{criterion_definition}}\nUser input: {{user_input}}\nAssistant output: {{assistant_output}}\n\nThink step by step and return the structured result.",
+        variables: [
+          {
+            name: "criterion_definition",
+            defaultMapping: {
+              field: "input",
+            },
+          },
+          {
+            name: "user_input",
+            defaultMapping: {
+              field: "input",
+            },
+          },
+          {
+            name: "assistant_output",
+            defaultMapping: {
+              field: "output",
+            },
+          },
+        ],
+        outputDefinition: {
+          version: 2,
+          dataType: "CATEGORICAL",
+          score: {
+            description: "Quality judgment against the provided criterion.",
+            categories: [
+              "Does not meet criterion",
+              "Partially meets criterion",
+              "Meets criterion",
+            ],
+            shouldAllowMultipleMatches: false,
+          },
+          reasoning: {
+            description:
+              "One sentence explaining why the output received this quality label.",
+          },
+        },
       },
     },
     {
