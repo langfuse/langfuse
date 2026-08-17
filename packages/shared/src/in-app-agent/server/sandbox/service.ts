@@ -9,7 +9,6 @@ import { logger, recordIncrement } from "../../../server";
 export async function createInAppAgentSandbox(params: {
   conversationId: string;
   projectId: string;
-  runId?: string;
   providerSessionId?: string | null;
   provider: SandboxProvider;
   getToolCallFiles: () => Promise<ReadonlyArray<SandboxFile>>;
@@ -19,8 +18,10 @@ export async function createInAppAgentSandbox(params: {
   onTurnEnded: () => Promise<void>;
   /**
    * True when a workspace persisted by an earlier turn is already gone, so this
-   * turn starts from a clean one. Callers pass this to `createAgUiStream` as
-   * `sandboxWorkspaceWasReset` so the system prompt can say so.
+   * turn starts from a clean one. This is the `probeSession` result surfaced to
+   * the caller, which passes it to `createAgUiStream` as
+   * `sandboxWorkspaceWasReset` to add a run-scoped instruction telling the model
+   * its earlier files are missing.
    */
   workspaceWasReset: boolean;
 }> {
@@ -33,7 +34,6 @@ export async function createInAppAgentSandbox(params: {
     logger.info("In-app agent sandbox session replaced", {
       projectId: params.projectId,
       conversationId: params.conversationId,
-      runId: params.runId,
       provider: params.provider.type,
       reason,
     });
