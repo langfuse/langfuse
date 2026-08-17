@@ -37,7 +37,7 @@ const CONVERSATION_TEMPLATE_ORDER = [
   "language",
 ] as const;
 
-const CONVERSATION_TEMPLATE_RANK = new Map(
+const CONVERSATION_TEMPLATE_RANK = new Map<string, number>(
   CONVERSATION_TEMPLATE_ORDER.map((key, index) => [key, index]),
 );
 
