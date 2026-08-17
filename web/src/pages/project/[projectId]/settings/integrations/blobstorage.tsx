@@ -3,6 +3,7 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -106,15 +107,15 @@ export default function BlobStorageIntegrationSettings() {
         <>
           <Header title="Configuration" className="mt-8" />
           <Card className="p-3">
-            <BlobStorageIntegrationContainer
-              config={state.data?.config ?? null}
-              projectId={projectId}
-              isLoading={state.isLoading}
-              isEnrichedExportAvailable={
-                state.data?.isEnrichedExportAvailable ?? false
-              }
-              legacyWritesActive={state.data?.legacyWritesActive ?? true}
-            />
+            {!state.data ? (
+              <IntegrationSettingsSkeleton />
+            ) : (
+              <BlobStorageIntegrationContainer
+                config={state.data.config ?? null}
+                projectId={projectId}
+                writeMode={state.data.writeMode}
+              />
+            )}
           </Card>
         </>
       )}

@@ -104,6 +104,7 @@ export * from "./redis/batchExport";
 export * from "./redis/batchActionQueue";
 export * from "./redis/ingestionQueue";
 export * from "./redis/postHogIntegrationQueue";
+export * from "./redis/v4LegacyApiUsageQueue";
 export * from "./redis/postHogIntegrationProcessingQueue";
 export * from "./redis/mixpanelIntegrationQueue";
 export * from "./redis/mixpanelIntegrationProcessingQueue";
@@ -175,6 +176,7 @@ export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./deletionGuard";
 export * from "./forceV3Experience";
+export * from "./v4/legacyApiUsage";
 export * from "./analytics-integrations/types";
 
 // Re-annotate these deprecated routing wrappers at the public server barrel.

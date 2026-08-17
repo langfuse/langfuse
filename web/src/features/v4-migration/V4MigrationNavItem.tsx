@@ -3,8 +3,7 @@ import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
-import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
+import { useProjectV4MigrationActions } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 
 export function V4MigrationNavItem() {
@@ -13,23 +12,9 @@ export function V4MigrationNavItem() {
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
   const capture = usePostHogClientCapture();
-  const migrationData = useProjectV4MigrationData({
-    projectId: project?.id,
-    enabled: v4UpgradeUiEnabled && Boolean(project),
-  });
+  const { actionNeeded } = useProjectV4MigrationActions(project?.id);
 
-  if (!v4UpgradeUiEnabled || !project) {
-    return null;
-  }
-  const readiness = getProjectMigrationReadiness({
-    sdk: migrationData.sdk,
-    evals: migrationData.evals,
-    experiments: migrationData.experiments,
-    apis: migrationData.apis,
-    exports: migrationData.exports,
-    forceV3Experience: migrationData.forceV3Experience,
-  });
-  if (readiness !== "action-needed") {
+  if (!v4UpgradeUiEnabled || !project || !actionNeeded) {
     return null;
   }
   const label = "Action required";
