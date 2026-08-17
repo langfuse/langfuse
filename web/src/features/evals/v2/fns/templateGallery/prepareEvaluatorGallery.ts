@@ -1,4 +1,5 @@
 import {
+  Code2,
   FileSearch,
   Gauge,
   ListFilter,
@@ -23,6 +24,7 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   "file-search": FileSearch,
   "list-filter": ListFilter,
   "messages-square": MessagesSquare,
+  "code-2": Code2,
   sparkles: Sparkles,
 };
 

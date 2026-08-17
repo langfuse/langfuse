@@ -27,11 +27,11 @@ describe("prepareEvaluatorGallery", () => {
     expect(gallery.sections.map(({ key }) => key)).toEqual([
       "custom",
       "conversation",
-      "classifier",
       "quality",
+      "classifier",
+      "retrieval",
       "safety",
-      "rag",
-      "other",
+      "coding-agents",
     ]);
   });
 
@@ -39,12 +39,15 @@ describe("prepareEvaluatorGallery", () => {
     const gallery = prepareEvaluatorGallery({
       customTemplates: [customTemplate],
       customTemplateCount: 1,
-      search: "not grounded",
+      search: "grounded",
     });
 
     expect(gallery.sections).toHaveLength(1);
     expect(gallery.sections[0]?.templates).toEqual([
-      expect.objectContaining({ source: "managed", key: "hallucination" }),
+      expect.objectContaining({
+        source: "managed",
+        key: "answer-groundedness",
+      }),
     ]);
   });
 });
