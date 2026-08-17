@@ -26,10 +26,11 @@ describe("prepareEvaluatorGallery", () => {
     expect(gallery.sections[0]?.totalCount).toBe(12);
     expect(gallery.sections.map(({ key }) => key)).toEqual([
       "custom",
+      "conversation",
+      "classifier",
       "quality",
       "safety",
       "rag",
-      "conversation",
       "other",
     ]);
   });

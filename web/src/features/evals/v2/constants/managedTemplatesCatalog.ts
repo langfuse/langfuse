@@ -15,6 +15,19 @@ export const MANAGED_TEMPLATES_CATALOG = {
   schemaVersion: 1,
   categories: [
     {
+      key: "conversation",
+      label: "Conversation",
+      description: "Quality signals from chat and agent conversations. ",
+      icon: "messages-square",
+    },
+    {
+      key: "classifier",
+      label: "Classifier",
+      description:
+        "Help categorize the requests going through your system to understand respective volumes",
+      icon: "list-filter",
+    },
+    {
       key: "quality",
       label: "Quality",
       description: "Core output quality checks for any LLM generation.",
@@ -31,12 +44,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       label: "RAG",
       description: "Judge retrieved context and how well answers are grounded.",
       icon: "file-search",
-    },
-    {
-      key: "conversation",
-      label: "Conversational / Chatbots",
-      description: "Signals from multi-turn chats and chatbot interactions.",
-      icon: "messages-square",
     },
     {
       key: "other",
@@ -89,28 +96,27 @@ export const MANAGED_TEMPLATES_CATALOG = {
       name: "Correctness",
       category: "quality",
       icon: "circle-check",
-      description:
-        "Checks whether the output is semantically correct compared with an expected result.",
+      description: "Compares the response against ground truth facts.",
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
-          "You are a Correctness evaluator.\nGiven a user input, an assistant output, and an expected reference answer, classify semantic correctness into exactly one label.\n\nLabels:\n- Not correct: output is mostly wrong, missing core facts, or contradicts the expected answer.\n- Somewhat correct: output is partially correct but incomplete, ambiguous, or contains minor inaccuracies.\n- Correct: output is semantically aligned with the expected answer, allowing for different wording.\n\nInput:\nUser input: {{user_input}}\nAssistant output: {{assistant_output}}\nExpected answer: {{expected_answer}}\n\nThink step by step and return the structured result.",
+          "Evaluate the correctness of the generation on a continuous scale from 0 to 1. A generation can be considered correct (Score: 1) if it includes all the key facts from the ground truth and if every fact presented in the generation is factually supported by the ground truth or common sense.\n\nExample:\nQuery: Can eating carrots improve your vision?\nGeneration: Yes, eating carrots significantly improves your vision, especially at night. This is why people who eat lots of carrots never need glasses. Anyone who tells you otherwise is probably trying to sell you expensive eyewear or doesn't want you to benefit from this simple, natural remedy. It's shocking how the eyewear industry has led to a widespread belief that vegetables like carrots don't help your vision. People are so gullible to fall for these money-making schemes.\nGround truth: Well, yes and no. Carrots won't improve your visual acuity if you have less than perfect vision. A diet of carrots won't give a blind person 20/20 vision. But, the vitamins found in the vegetable can help promote overall eye health. Carrots contain beta-carotene, a substance that the body converts to vitamin A, an important nutrient for eye health.  An extreme lack of vitamin A can cause blindness. Vitamin A can prevent the formation of cataracts and macular degeneration, the world's leading cause of blindness. However, if your vision problems aren't related to vitamin A, your vision won't change no matter how many carrots you eat.\nScore: 0.1\nReasoning: While the generation mentions that carrots can improve vision, it fails to outline the reason for this phenomenon and the circumstances under which this is the case. The rest of the response contains misinformation and exaggerations regarding the benefits of eating carrots for vision improvement. It deviates significantly from the more accurate and nuanced explanation provided in the ground truth.\n\nInput:\nQuery: {{query}}\nGeneration: {{generation}}\nGround truth: {{ground_truth}}\n\nThink step by step.",
         variables: [
           {
-            name: "user_input",
+            name: "query",
             defaultMapping: {
               field: "input",
             },
           },
           {
-            name: "assistant_output",
+            name: "generation",
             defaultMapping: {
               field: "output",
             },
           },
           {
-            name: "expected_answer",
+            name: "ground_truth",
             defaultMapping: {
               field: "expected_output",
             },
@@ -118,15 +124,13 @@ export const MANAGED_TEMPLATES_CATALOG = {
         ],
         outputDefinition: {
           version: 2,
-          dataType: "CATEGORICAL",
+          dataType: "NUMERIC",
           score: {
-            description: "Semantic correctness label for the assistant output.",
-            categories: ["Not correct", "Somewhat correct", "Correct"],
-            shouldAllowMultipleMatches: false,
+            description:
+              "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
           },
           reasoning: {
-            description:
-              "One sentence explaining why the output received this correctness label.",
+            description: "One sentence reasoning for the score",
           },
         },
       },
@@ -211,25 +215,25 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "relevance",
-      name: "Answer Relevance",
+      name: "Relevance",
       category: "quality",
       icon: "target",
       description:
-        "Checks whether the response actually addresses the user's question or task.",
+        "Checks the response stays on topic and adds value to the query.",
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
-          "You are an Answer Relevance evaluator.\nClassify whether the assistant output addresses the user's request.\n\nLabels:\n- Not relevant: does not answer the request or is off-topic.\n- Somewhat relevant: partially addresses the request but misses important parts.\n- Relevant: directly answers the request and stays on task.\n\nInput:\nUser input: {{user_input}}\nAssistant output: {{assistant_output}}\n\nThink step by step and return the structured result.",
+          "Evaluate the relevance of the generation on a continuous scale from 0 to 1. A generation can be considered relevant (Score: 1) if it enhances or clarifies the response, adding value to the user's comprehension of the topic in question. Relevance is determined by the extent to which the provided information addresses the specific question asked, staying focused on the subject without straying into unrelated areas or providing extraneous details.\n\nExample:\nQuery: Can eating carrots improve your vision?\nGeneration: Yes, eating carrots significantly improves your vision, especially at night. This is why people who eat lots of carrots never need glasses. Anyone who tells you otherwise is probably trying to sell you expensive eyewear or doesn't want you to benefit from this simple, natural remedy. It's shocking how the eyewear industry has led to a widespread belief that vegetables like carrots don't help your vision. People are so gullible to fall for these money-making schemes.\nScore: 0.1\nReasoning: Only the first part of the first sentence clearly answers the question and thus, is relevant. The rest of the text is not relevant to answer the query.\n\nInput:\nQuery: {{query}}\nGeneration: {{generation}}\n\nThink step by step.",
         variables: [
           {
-            name: "user_input",
+            name: "query",
             defaultMapping: {
               field: "input",
             },
           },
           {
-            name: "assistant_output",
+            name: "generation",
             defaultMapping: {
               field: "output",
             },
@@ -237,15 +241,13 @@ export const MANAGED_TEMPLATES_CATALOG = {
         ],
         outputDefinition: {
           version: 2,
-          dataType: "CATEGORICAL",
+          dataType: "NUMERIC",
           score: {
-            description: "Relevance label for the assistant output.",
-            categories: ["Not relevant", "Somewhat relevant", "Relevant"],
-            shouldAllowMultipleMatches: false,
+            description:
+              "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
           },
           reasoning: {
-            description:
-              "One sentence explaining why the output received this relevance label.",
+            description: "One sentence reasoning for the score",
           },
         },
       },
@@ -256,79 +258,13 @@ export const MANAGED_TEMPLATES_CATALOG = {
       category: "quality",
       icon: "equal",
       description:
-        "Checks whether the output exactly matches the expected output.",
+        "Checks whether the observation output exactly matches its input.",
       maintainer: "langfuse",
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
         source:
-          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const expected = ctx.experiment?.itemExpectedOutput;\n  const matches =\n    expected !== undefined && ctx.observation.output === expected;\n\n  return {\n    scores: [\n      {\n        name: "Exact match",\n        value: matches,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
-      },
-    },
-    {
-      key: "keyword-match",
-      name: "Keyword Match",
-      category: "quality",
-      icon: "list-checks",
-      description:
-        "Checks whether required keywords or phrases are present in the output.",
-      maintainer: "langfuse",
-      evaluator: {
-        type: "CODE",
-        language: "TYPESCRIPT",
-        source:
-          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const outputText =\n    typeof ctx.observation.output === "string"\n      ? ctx.observation.output\n      : JSON.stringify(ctx.observation.output ?? "");\n\n  const metadataKeywords =\n    Array.isArray(ctx.observation.metadata?.keywords) &&\n    ctx.observation.metadata.keywords.every((keyword) => typeof keyword === "string")\n      ? ctx.observation.metadata.keywords\n      : null;\n  const expectedRaw = ctx.experiment?.itemExpectedOutput;\n\n  const expectedKeywords =\n    metadataKeywords ??\n    (Array.isArray(expectedRaw)\n      ? expectedRaw.filter((keyword): keyword is string => typeof keyword === "string")\n      : typeof expectedRaw === "string"\n        ? expectedRaw\n            .split(/[,\\n]/)\n            .map((keyword) => keyword.trim())\n            .filter(Boolean)\n        : []);\n\n  const normalizedOutput = outputText.toLowerCase();\n  const matches =\n    expectedKeywords.length > 0 &&\n    expectedKeywords.every((keyword) =>\n      normalizedOutput.includes(keyword.toLowerCase()),\n    );\n\n  return {\n    scores: [\n      {\n        name: "Keyword match",\n        value: matches,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
-      },
-    },
-    {
-      key: "quality-criterion",
-      name: "Quality Criterion",
-      category: "quality",
-      icon: "scale",
-      description:
-        "Scores output quality against a custom criterion definition.",
-      maintainer: "langfuse",
-      evaluator: {
-        type: "LLM_AS_JUDGE",
-        prompt:
-          "You are a Quality Criterion evaluator.\nUse the criterion definition to judge the assistant output for the given input.\nClassify into exactly one label.\n\nLabels:\n- Does not meet criterion\n- Partially meets criterion\n- Meets criterion\n\nInput:\nCriterion definition: {{criterion_definition}}\nUser input: {{user_input}}\nAssistant output: {{assistant_output}}\n\nThink step by step and return the structured result.",
-        variables: [
-          {
-            name: "criterion_definition",
-            defaultMapping: {
-              field: "input",
-            },
-          },
-          {
-            name: "user_input",
-            defaultMapping: {
-              field: "input",
-            },
-          },
-          {
-            name: "assistant_output",
-            defaultMapping: {
-              field: "output",
-            },
-          },
-        ],
-        outputDefinition: {
-          version: 2,
-          dataType: "CATEGORICAL",
-          score: {
-            description: "Quality judgment against the provided criterion.",
-            categories: [
-              "Does not meet criterion",
-              "Partially meets criterion",
-              "Meets criterion",
-            ],
-            shouldAllowMultipleMatches: false,
-          },
-          reasoning: {
-            description:
-              "One sentence explaining why the output received this quality label.",
-          },
-        },
+          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const matches =\n    ctx.observation.input !== undefined &&\n    ctx.observation.output === ctx.observation.input;\n\n  return {\n    scores: [\n      {\n        name: "Exact match",\n        value: matches,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
       },
     },
     {
@@ -368,122 +304,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
               "One concise explanation identifying the request, the agent scope, and why it is or is not out of scope.",
           },
         },
-      },
-    },
-    {
-      key: "language",
-      name: "Language",
-      category: "conversation",
-      icon: "languages",
-      description:
-        "Detects the primary language and indicates if input/output languages match.",
-      maintainer: "langfuse",
-      evaluator: {
-        type: "LLM_AS_JUDGE",
-        prompt:
-          "You are a Language Identification Judge.\nGiven the provided text variables, detect the primary language using ISO 639-1 codes and return exactly one score category.\n\nRules:\n- First detect the language of input_text if available.\n- Then detect the language of output_text if available.\n- If output_text exists and is non-empty, return the detected language for output_text as the score.\n- Otherwise return the detected language for input_text as the score.\n- In reasoning, mention whether input_text and output_text appear to match when both are available.\n\nAllowed language codes:\nen, de, fr, es, it, pt, zh, ja, ko, ar, hi, ru, other\n\nInput:\ninput_text: {{input_text}}\noutput_text: {{output_text}}\n\nThink step by step and return the structured result.",
-        variables: [
-          {
-            name: "input_text",
-            defaultMapping: {
-              field: "input",
-            },
-          },
-          {
-            name: "output_text",
-            defaultMapping: {
-              field: "output",
-            },
-          },
-        ],
-        outputDefinition: {
-          version: 2,
-          dataType: "CATEGORICAL",
-          score: {
-            description:
-              "Primary language code for the selected text (output_text when present, otherwise input_text).",
-            categories: [
-              "en",
-              "de",
-              "fr",
-              "es",
-              "it",
-              "pt",
-              "zh",
-              "ja",
-              "ko",
-              "ar",
-              "hi",
-              "ru",
-              "other",
-            ],
-            shouldAllowMultipleMatches: false,
-          },
-          reasoning: {
-            description:
-              "One sentence explaining the detected language and whether input/output languages match.",
-          },
-        },
-      },
-    },
-    {
-      key: "chat-intent",
-      name: "Chat Intent",
-      category: "conversation",
-      icon: "message-square",
-      description:
-        "Classifies the user request into a predefined support or topic intent.",
-      maintainer: "langfuse",
-      evaluator: {
-        type: "LLM_AS_JUDGE",
-        prompt:
-          "You are a Chat Intent classifier for assistant conversations.\nClassify the user's message into exactly one intent category.\n\nIntent categories:\n- support_request: asks for help using a product or service\n- bug_report: reports something broken or not working\n- billing_question: asks about invoices, charges, plans, or subscriptions\n- feature_request: asks for a new capability or improvement\n- sales_inquiry: asks about buying, pricing, enterprise, or demos\n- general_question: neutral informational question\n- greeting: greeting or short social opener without a concrete request\n- feedback: explicit praise, complaint, or evaluative feedback\n- other: does not fit the categories above\n\nInput:\nuser_message: {{user_message}}\n\nThink step by step and return the structured result.",
-        variables: [
-          {
-            name: "user_message",
-            defaultMapping: {
-              field: "input",
-            },
-          },
-        ],
-        outputDefinition: {
-          version: 2,
-          dataType: "CATEGORICAL",
-          score: {
-            description: "Intent category that best matches the user message.",
-            categories: [
-              "support_request",
-              "bug_report",
-              "billing_question",
-              "feature_request",
-              "sales_inquiry",
-              "general_question",
-              "greeting",
-              "feedback",
-              "other",
-            ],
-            shouldAllowMultipleMatches: false,
-          },
-          reasoning: {
-            description:
-              "One sentence explaining which intent was selected and why.",
-          },
-        },
-      },
-    },
-    {
-      key: "all-caps",
-      name: "All CAPS",
-      category: "conversation",
-      icon: "type",
-      description:
-        "Detects whether text is fully or mostly written in uppercase letters.",
-      maintainer: "langfuse",
-      evaluator: {
-        type: "CODE",
-        language: "TYPESCRIPT",
-        source:
-          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const inputText = typeof ctx.observation.input === "string" ? ctx.observation.input : "";\n  const outputText = typeof ctx.observation.output === "string" ? ctx.observation.output : "";\n  const text = outputText.trim().length > 0 ? outputText : inputText;\n\n  const letters = text.match(/[A-Za-z]/g) ?? [];\n  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];\n  const uppercaseRatio =\n    letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;\n  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.8;\n\n  return {\n    scores: [\n      {\n        name: "All CAPS",\n        value: isAllCaps,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
       },
     },
     {
@@ -849,76 +669,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       },
     },
     {
-      key: "topic-adherence-classification",
-      name: "Topic Adherence Classification",
-      category: "conversation",
-      icon: "message-square",
-      description: "Classifies whether a topic falls within reference topics.",
-      maintainer: "ragas",
-      evaluator: {
-        type: "LLM_AS_JUDGE",
-        prompt:
-          "Given a topic and a set of reference topics classify if the topic falls into any of the given reference topics.\nTopic: {{topic}}\nReference Topics: {{reference_topics}}",
-        variables: [
-          {
-            name: "topic",
-            defaultMapping: {
-              field: "input",
-            },
-          },
-          {
-            name: "reference_topics",
-            defaultMapping: {
-              field: "input",
-            },
-          },
-        ],
-        outputDefinition: {
-          version: 2,
-          dataType: "NUMERIC",
-          score: {
-            description:
-              "Score between 0 and 1, 1 if the topic falls into any of the given reference topics, 0 otherwise",
-          },
-          reasoning: {
-            description: "One sentence reasoning for the score",
-          },
-        },
-      },
-    },
-    {
-      key: "topic-adherence-refusal",
-      name: "Topic Adherence Refusal",
-      category: "conversation",
-      icon: "bot",
-      description: "Detects whether the AI refused to answer about a topic.",
-      maintainer: "ragas",
-      evaluator: {
-        type: "LLM_AS_JUDGE",
-        prompt:
-          "Given a topic, classify if the AI refused to answer the question about the topic.\nTopic: {{topic}}",
-        variables: [
-          {
-            name: "topic",
-            defaultMapping: {
-              field: "input",
-            },
-          },
-        ],
-        outputDefinition: {
-          version: 2,
-          dataType: "NUMERIC",
-          score: {
-            description:
-              "Score between 0 and 1. 1 if the AI refused to answer the question about the topic, 0 otherwise",
-          },
-          reasoning: {
-            description: "One sentence reasoning for the score",
-          },
-        },
-      },
-    },
-    {
       key: "user-disagreement",
       name: "User Disagreement",
       category: "conversation",
@@ -998,26 +748,38 @@ export const MANAGED_TEMPLATES_CATALOG = {
       },
     },
     {
-      key: "answer-critic",
-      name: "Answer Critic",
-      category: "other",
-      icon: "scale",
+      key: "topic-classifier",
+      name: "Topic classifier",
+      category: "classifier",
+      icon: "tags",
       description:
-        "Provides a yes/no verdict on the answer against custom criteria.",
-      maintainer: "ragas",
+        "Assigns content to one of a predefined set of topics for routing and analytics.",
+      maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
-          "Evaluate the Input based on the criteria defined. Use only 'Yes' (1) and 'No' (0) as verdict.\nCriteria Definition: {{criteria_definition}}\nInput: {{input}}.",
+          "You are a topic classifier.\nClassify the provided content into exactly one topic from the predefined topic list.\nIf multiple content inputs are present, prioritize in this order: conversation_history, output_text, input_text.\nAlways return one topic label from the provided topics list.\n\nTopics: {{topics}}\nInput text: {{input_text}}\nOutput text: {{output_text}}\nConversation history: {{conversation_history}}",
         variables: [
           {
-            name: "criteria_definition",
+            name: "topics",
             defaultMapping: {
               field: "input",
             },
           },
           {
-            name: "input",
+            name: "input_text",
+            defaultMapping: {
+              field: "input",
+            },
+          },
+          {
+            name: "output_text",
+            defaultMapping: {
+              field: "output",
+            },
+          },
+          {
+            name: "conversation_history",
             defaultMapping: {
               field: "input",
             },
@@ -1025,38 +787,40 @@ export const MANAGED_TEMPLATES_CATALOG = {
         ],
         outputDefinition: {
           version: 2,
-          dataType: "NUMERIC",
+          dataType: "CATEGORICAL",
           score: {
-            description:
-              "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
+            description: "Single predicted topic label.",
+            categories: [
+              "support",
+              "billing",
+              "technical",
+              "sales",
+              "feedback",
+              "other",
+            ],
+            shouldAllowMultipleMatches: false,
           },
           reasoning: {
-            description: "One sentence reasoning for the score",
+            description: "One sentence explaining why this topic was selected.",
           },
         },
       },
     },
     {
-      key: "simple-criteria",
-      name: "Simple Criteria",
-      category: "other",
-      icon: "list-checks",
+      key: "language-classifier",
+      name: "Language classifier",
+      category: "classifier",
+      icon: "languages",
       description:
-        "Scores the input against a single custom criteria definition.",
-      maintainer: "ragas",
+        "Classifies text into one of the predefined language labels.",
+      maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
-          "Evaluate the input based on the criteria defined.\nCriteria Definition: {{criteria_definition}}\nInput: {{input}}",
+          "You are a language classifier.\nClassify the text into one predefined language label.\nReturn exactly one language label from the list.\n\nText: {{text}}",
         variables: [
           {
-            name: "criteria_definition",
-            defaultMapping: {
-              field: "input",
-            },
-          },
-          {
-            name: "input",
+            name: "text",
             defaultMapping: {
               field: "input",
             },
@@ -1064,10 +828,58 @@ export const MANAGED_TEMPLATES_CATALOG = {
         ],
         outputDefinition: {
           version: 2,
-          dataType: "NUMERIC",
+          dataType: "CATEGORICAL",
+          score: {
+            description: "Predicted language label.",
+            categories: [
+              "English",
+              "German",
+              "French",
+              "Spanish",
+              "Portuguese",
+              "Italian",
+              "Chinese",
+              "Japanese",
+              "Korean",
+              "Arabic",
+              "Hindi",
+              "Other",
+            ],
+            shouldAllowMultipleMatches: false,
+          },
+          reasoning: {
+            description:
+              "One sentence explaining why this language label was selected.",
+          },
+        },
+      },
+    },
+    {
+      key: "quality-criterion",
+      name: "Judge on one Quality criterion",
+      category: "quality",
+      icon: "scale",
+      description:
+        "Provides a yes/no verdict on the answer against a custom criterion.",
+      maintainer: "ragas",
+      evaluator: {
+        type: "LLM_AS_JUDGE",
+        prompt:
+          "Evaluate the Output based on the criterion defined. Use a boolean true/false as verdict.\nCriteria Definition: INSERT YOUR CRITERIA\nOutput: {{output}}.",
+        variables: [
+          {
+            name: "output",
+            defaultMapping: {
+              field: "output",
+            },
+          },
+        ],
+        outputDefinition: {
+          version: 2,
+          dataType: "BOOLEAN",
           score: {
             description:
-              "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
+              "Score between true if criertion is met. Score false if criterion is not met",
           },
           reasoning: {
             description: "One sentence reasoning for the score",

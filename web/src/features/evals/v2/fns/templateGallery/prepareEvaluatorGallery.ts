@@ -1,6 +1,7 @@
 import {
   FileSearch,
   Gauge,
+  ListFilter,
   MessagesSquare,
   Shield,
   Sparkles,
@@ -20,6 +21,7 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   gauge: Gauge,
   shield: Shield,
   "file-search": FileSearch,
+  "list-filter": ListFilter,
   "messages-square": MessagesSquare,
   sparkles: Sparkles,
 };
