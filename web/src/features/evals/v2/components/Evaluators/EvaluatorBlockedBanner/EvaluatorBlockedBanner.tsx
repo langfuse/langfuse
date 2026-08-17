@@ -1,7 +1,7 @@
 import { formatDistanceToNow } from "date-fns";
 import {
-  EvaluatorBlockReason,
   getEvaluatorBlockMetadata,
+  type EvaluatorBlockReason,
 } from "@langfuse/shared";
 import { AlertTriangle, ExternalLinkIcon } from "lucide-react";
 import Link from "next/link";
@@ -20,10 +20,10 @@ function getResolutionAction({
   blockReason: EvaluatorBlockReason;
 }) {
   if (
-    blockReason === EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID ||
-    blockReason === EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED ||
-    blockReason === EvaluatorBlockReason.LLM_CONNECTION_ENDPOINT_UNREACHABLE ||
-    blockReason === EvaluatorBlockReason.LLM_CONNECTION_MISSING
+    blockReason === "LLM_CONNECTION_AUTH_INVALID" ||
+    blockReason === "LLM_CONNECTION_BILLING_EXHAUSTED" ||
+    blockReason === "LLM_CONNECTION_ENDPOINT_UNREACHABLE" ||
+    blockReason === "LLM_CONNECTION_MISSING"
   ) {
     return {
       href: `/project/${projectId}/settings/llm-connections`,
@@ -49,7 +49,7 @@ export function EvaluatorBlockedBanner({
   blockReason: EvaluatorBlockReason | null;
   blockMessage: string | null;
 }) {
-  const reason = blockReason ?? EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID;
+  const reason = blockReason ?? "EVAL_MODEL_CONFIG_INVALID";
   const blockMetadata = getEvaluatorBlockMetadata(reason);
   const blockedAtLabel = formatDistanceToNow(blockedAt, { addSuffix: true });
   const resolutionAction = getResolutionAction({
