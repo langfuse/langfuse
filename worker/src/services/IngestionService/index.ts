@@ -53,6 +53,7 @@ import {
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
   type IngestionAttribution,
+  type PricingTierMatchAttributes,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -77,6 +78,12 @@ function parseUInt16(value: string | null | undefined): number | undefined {
   const num = parseInt(value, 10);
   if (!Number.isInteger(num) || num < 0 || num > 65535) return undefined;
   return num;
+}
+
+function toPricingAttributeRecord(value: unknown): Record<string, string> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? convertRecordValuesToString(value as Record<string, unknown>)
+    : {};
 }
 
 export type EventInput = InternalTraceEventInput;
@@ -256,6 +263,11 @@ export class IngestionService {
     // fields as strings, so stringify at this schema boundary.
     const input = this.stringify(eventData.input);
     const output = this.stringify(eventData.output);
+    const modelParameters = eventData.modelParameters
+      ? typeof eventData.modelParameters === "string"
+        ? JSON.parse(eventData.modelParameters)
+        : eventData.modelParameters
+      : {};
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -288,6 +300,10 @@ export class IngestionService {
       shouldEnrichUsageAndCost
         ? this.getGenerationUsage({
             projectId: eventData.projectId,
+            pricingMatchAttributes: {
+              modelParameters: toPricingAttributeRecord(modelParameters),
+              metadata: toPricingAttributeRecord(eventData.metadata),
+            },
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -359,11 +375,7 @@ export class IngestionService {
       // Model
       model_id: generationUsage?.internal_model_id || "",
       provided_model_name: eventData.modelName,
-      model_parameters: eventData.modelParameters
-        ? typeof eventData.modelParameters === "string"
-          ? JSON.parse(eventData.modelParameters)
-          : eventData.modelParameters
-        : {},
+      model_parameters: modelParameters,
 
       // Usage & Cost
       provided_usage_details: eventData.providedUsageDetails ?? {},
@@ -1197,6 +1209,7 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
+    pricingMatchAttributes?: PricingTierMatchAttributes;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1220,7 +1233,7 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const { projectId, observationRecord } = params;
+    const { projectId, observationRecord, pricingMatchAttributes } = params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1249,6 +1262,7 @@ export class IngestionService {
       const matchedTier = matchPricingTier(
         pricingTiers,
         final_usage_details.usage_details,
+        pricingMatchAttributes,
       );
 
       if (matchedTier) {

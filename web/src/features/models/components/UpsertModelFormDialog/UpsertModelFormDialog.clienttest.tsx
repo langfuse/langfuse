@@ -71,6 +71,23 @@ const longContextTier = {
   prices: { text_input: 0.000008, text_output: 0.000032, audio: 0.00006 },
 };
 
+const priorityTier = {
+  id: "tier-priority",
+  name: "Priority",
+  isDefault: false,
+  priority: 1,
+  conditions: [
+    {
+      column: "model_parameters" as const,
+      type: "stringObject" as const,
+      key: "service_tier",
+      operator: "=" as const,
+      value: "priority",
+    },
+  ],
+  prices: { text_input: 0.0000125, text_output: 0.000075, audio: 0.00009 },
+};
+
 const modelData = (
   pricingTiers: GetModelResult["pricingTiers"],
 ): GetModelResult => ({
@@ -188,7 +205,15 @@ describe("UpsertModelFormDialog price editor", () => {
         name: "Long context",
         isDefault: false,
         priority: 1,
-        conditions: longContextTier.conditions,
+        conditions: [
+          {
+            column: "usage_details",
+            type: "numberObject",
+            key: "^text_input",
+            operator: ">",
+            value: 128000,
+          },
+        ],
         // The rename must not zero this tier's price for the renamed key.
         prices: {
           text_input_cached: 0.000008,
@@ -197,6 +222,16 @@ describe("UpsertModelFormDialog price editor", () => {
         },
       },
     ]);
+  });
+
+  it("preserves filter-shaped model parameter conditions when saving", async () => {
+    openEditDialog([defaultTier, priorityTier]);
+    submit();
+
+    await waitFor(() => expect(upsertMutateAsync).toHaveBeenCalledTimes(1));
+    expect(
+      upsertMutateAsync.mock.calls[0][0].pricingTiers[1].conditions,
+    ).toEqual(priorityTier.conditions);
   });
 
   it("renaming a clone keeps a custom match pattern but follows a generated one", () => {

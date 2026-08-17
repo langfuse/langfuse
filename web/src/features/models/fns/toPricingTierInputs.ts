@@ -1,4 +1,7 @@
-import { type PricingTierInput } from "@langfuse/shared";
+import {
+  normalizePricingTierCondition,
+  type PricingTierInput,
+} from "@langfuse/shared";
 
 import { derivePriorities } from "@/src/features/models/fns/derivePriorities";
 import { parsePriceInput } from "@/src/features/models/fns/parsePriceInput";
@@ -14,10 +17,7 @@ export const toPricingTierInputs = (
     name: tier.name,
     isDefault: tier.isDefault,
     priority: priorities[tierIndex],
-    conditions: tier.conditions.map((condition) => ({
-      ...condition,
-      caseSensitive: condition.caseSensitive ?? false,
-    })),
+    conditions: tier.conditions.map(normalizePricingTierCondition),
     prices: Object.fromEntries(
       values.usageTypes.flatMap((row) => {
         const price = parsePriceInput(tier.prices[row.key]);

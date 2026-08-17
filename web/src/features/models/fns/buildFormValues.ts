@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import { normalizePricingTierCondition } from "@langfuse/shared";
 
 import { matchPatternFor } from "@/src/features/models/fns/matchPatternFor";
 import {
@@ -88,7 +89,7 @@ export const buildFormValues = (source: ModelFormSource): FormUpsertModel => {
     pricingTiers: tiers.map((tier) => ({
       name: tier.name,
       isDefault: tier.isDefault,
-      conditions: tier.conditions,
+      conditions: tier.conditions.map(normalizePricingTierCondition),
       prices: pricesByRowKey(usageTypes, tier.prices),
     })),
   };

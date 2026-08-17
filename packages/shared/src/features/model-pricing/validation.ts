@@ -38,34 +38,92 @@ export function validateRegexPattern(pattern: string): void {
   }
 }
 
-/**
- * Pricing tier condition schema (shared across API and tRPC)
- */
-export const PricingTierConditionSchema = z.object({
-  usageDetailPattern: z
-    .string()
-    .min(1, "Pattern cannot be empty")
-    .max(200, "Pattern exceeds maximum length of 200 characters")
-    .refine(
-      (pattern) => {
-        try {
-          validateRegexPattern(pattern);
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      {
-        message:
-          "Invalid regex pattern: must be valid regex and not cause catastrophic backtracking",
-      },
-    ),
+const UsageDetailPatternSchema = z
+  .string()
+  .min(1, "Pattern cannot be empty")
+  .max(200, "Pattern exceeds maximum length of 200 characters")
+  .refine(
+    (pattern) => {
+      try {
+        validateRegexPattern(pattern);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid regex pattern: must be valid regex and not cause catastrophic backtracking",
+    },
+  );
+
+/** Existing persisted condition shape. Kept for backwards compatibility. */
+export const LegacyPricingTierConditionSchema = z.object({
+  usageDetailPattern: UsageDetailPatternSchema,
   operator: z.enum(["gt", "gte", "lt", "lte", "eq", "neq"]),
   value: z.number().nonnegative(),
   caseSensitive: z.boolean().default(false),
 });
 
+export const PricingTierUsageConditionSchema = z.object({
+  column: z.literal("usage_details"),
+  type: z.literal("numberObject"),
+  key: UsageDetailPatternSchema,
+  operator: z.enum(["=", ">", "<", ">=", "<=", "<>"]),
+  value: z.number().nonnegative(),
+  caseSensitive: z.boolean().optional(),
+});
+
+export const PricingTierAttributeConditionSchema = z.object({
+  column: z.enum(["model_parameters", "metadata"]),
+  type: z.literal("stringObject"),
+  key: z.string().min(1, "Key cannot be empty").max(200),
+  operator: z.literal("="),
+  value: z.string(),
+});
+
+export const PricingTierFilterConditionSchema = z.union([
+  PricingTierUsageConditionSchema,
+  PricingTierAttributeConditionSchema,
+]);
+
+/**
+ * Pricing conditions use the same column/type/key/operator/value structure as
+ * FilterState. The legacy usage-only shape remains readable for saved models.
+ */
+export const PricingTierConditionSchema = z.union([
+  LegacyPricingTierConditionSchema,
+  PricingTierFilterConditionSchema,
+]);
+
 export type PricingTierCondition = z.infer<typeof PricingTierConditionSchema>;
+export type PricingTierFilterCondition = z.infer<
+  typeof PricingTierFilterConditionSchema
+>;
+
+export function normalizePricingTierCondition(
+  condition: PricingTierCondition,
+): PricingTierFilterCondition {
+  if (!("usageDetailPattern" in condition)) return condition;
+
+  const operator = {
+    gt: ">",
+    gte: ">=",
+    lt: "<",
+    lte: "<=",
+    eq: "=",
+    neq: "<>",
+  }[condition.operator] as "=" | ">" | "<" | ">=" | "<=" | "<>";
+
+  return {
+    column: "usage_details",
+    type: "numberObject",
+    key: condition.usageDetailPattern,
+    operator,
+    value: condition.value,
+    ...(condition.caseSensitive ? { caseSensitive: true } : {}),
+  };
+}
 
 /**
  * Pricing tier input schema (for creation - no ID)
@@ -194,11 +252,19 @@ export function validatePricingTiers(
     return { valid: false, error: "Pricing tier names must be unique" };
   }
 
-  // Validate all conditions have valid regex patterns
+  // Validate all usage-detail conditions have valid regex patterns
   for (const tier of tiers) {
     for (const condition of tier.conditions) {
+      const pattern =
+        "usageDetailPattern" in condition
+          ? condition.usageDetailPattern
+          : condition.column === "usage_details"
+            ? condition.key
+            : null;
+      if (pattern === null) continue;
+
       try {
-        validateRegexPattern(condition.usageDetailPattern);
+        validateRegexPattern(pattern);
       } catch (error) {
         return {
           valid: false,

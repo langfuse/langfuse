@@ -20,6 +20,7 @@ import {
 } from "@/src/components/ui/select";
 import type { UseFormReturn } from "react-hook-form";
 import type { FormUpsertModel } from "@/src/features/models/validation";
+import type { PricingTierFilterCondition } from "@langfuse/shared";
 
 type TierConditionsEditorProps = {
   tierIndex: number;
@@ -32,10 +33,17 @@ export function TierConditionsEditor({
   tierIndex,
   form,
 }: TierConditionsEditorProps) {
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, update } = useFieldArray({
     control: form.control,
     name: `pricingTiers.${tierIndex}.conditions`,
   });
+
+  const replaceCondition = (
+    conditionIndex: number,
+    condition: PricingTierFilterCondition,
+  ) => {
+    update(conditionIndex, condition);
+  };
 
   return (
     <div className="space-y-3">
@@ -47,10 +55,11 @@ export function TierConditionsEditor({
           size="sm"
           onClick={() =>
             append({
-              usageDetailPattern: "",
-              operator: "gt",
+              column: "usage_details",
+              type: "numberObject",
+              key: "",
+              operator: ">",
               value: 0,
-              caseSensitive: false,
             })
           }
         >
@@ -82,18 +91,76 @@ export function TierConditionsEditor({
             </Button>
           </div>
 
-          {/* Pattern */}
           <FormField
             control={form.control}
-            name={`pricingTiers.${tierIndex}.conditions.${conditionIndex}.usageDetailPattern`}
+            name={`pricingTiers.${tierIndex}.conditions.${conditionIndex}.column`}
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Usage Detail Pattern (Regex)</FormLabel>
+                <FormLabel>Source</FormLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={(column) => {
+                    if (column === "usage_details") {
+                      replaceCondition(conditionIndex, {
+                        column,
+                        type: "numberObject",
+                        key: "",
+                        operator: ">",
+                        value: 0,
+                      });
+                    } else {
+                      replaceCondition(conditionIndex, {
+                        column: column as "model_parameters" | "metadata",
+                        type: "stringObject",
+                        key: "",
+                        operator: "=",
+                        value: "",
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="usage_details">Usage details</SelectItem>
+                    <SelectItem value="model_parameters">
+                      Model parameters
+                    </SelectItem>
+                    <SelectItem value="metadata">Metadata</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name={`pricingTiers.${tierIndex}.conditions.${conditionIndex}.key`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  {condition.column === "usage_details"
+                    ? "Usage detail key pattern (Regex)"
+                    : "Top-level key"}
+                </FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="^input" />
+                  <Input
+                    {...field}
+                    placeholder={
+                      condition.column === "usage_details"
+                        ? "^input"
+                        : condition.column === "model_parameters"
+                          ? "service_tier"
+                          : "model_provider"
+                    }
+                  />
                 </FormControl>
                 <FormDescription>
-                  Match usage type keys (e.g., ^input, .*cache.*, output_tokens)
+                  {condition.column === "usage_details"
+                    ? "Match and sum usage keys such as input or cached tokens."
+                    : "Match this key exactly; nested paths are not supported."}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -113,14 +180,22 @@ export function TierConditionsEditor({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gt">&gt; (greater than)</SelectItem>
-                      <SelectItem value="gte">
-                        &gt;= (greater or equal)
-                      </SelectItem>
-                      <SelectItem value="lt">&lt; (less than)</SelectItem>
-                      <SelectItem value="lte">&lt;= (less or equal)</SelectItem>
-                      <SelectItem value="eq">= (equals)</SelectItem>
-                      <SelectItem value="neq">!= (not equals)</SelectItem>
+                      {condition.column === "usage_details" ? (
+                        <>
+                          <SelectItem value=">">&gt; (greater than)</SelectItem>
+                          <SelectItem value=">=">
+                            &gt;= (greater or equal)
+                          </SelectItem>
+                          <SelectItem value="<">&lt; (less than)</SelectItem>
+                          <SelectItem value="<=">
+                            &lt;= (less or equal)
+                          </SelectItem>
+                          <SelectItem value="=">= (equals)</SelectItem>
+                          <SelectItem value="<>">!= (not equals)</SelectItem>
+                        </>
+                      ) : (
+                        <SelectItem value="=">= (equals)</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -136,10 +211,16 @@ export function TierConditionsEditor({
                   <FormLabel>Value</FormLabel>
                   <FormControl>
                     <Input
-                      type="number"
+                      type={
+                        condition.column === "usage_details" ? "number" : "text"
+                      }
                       {...field}
                       onChange={(e) =>
-                        field.onChange(parseFloat(e.target.value))
+                        field.onChange(
+                          condition.column === "usage_details"
+                            ? parseFloat(e.target.value)
+                            : e.target.value,
+                        )
                       }
                     />
                   </FormControl>
@@ -149,22 +230,23 @@ export function TierConditionsEditor({
             />
           </div>
 
-          {/* Case Sensitive */}
-          <FormField
-            control={form.control}
-            name={`pricingTiers.${tierIndex}.conditions.${conditionIndex}.caseSensitive`}
-            render={({ field }) => (
-              <FormItem className="flex items-center gap-2">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <FormLabel className="mt-0!">Case sensitive</FormLabel>
-              </FormItem>
-            )}
-          />
+          {condition.column === "usage_details" && (
+            <FormField
+              control={form.control}
+              name={`pricingTiers.${tierIndex}.conditions.${conditionIndex}.caseSensitive`}
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-2">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value ?? false}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormLabel className="mt-0!">Case sensitive</FormLabel>
+                </FormItem>
+              )}
+            />
+          )}
         </div>
       ))}
     </div>

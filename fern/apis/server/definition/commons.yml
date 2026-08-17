@@ -835,47 +835,75 @@ types:
 
   PricingTierCondition:
     docs: |
-      Condition for matching a pricing tier based on usage details. Used to implement tiered pricing models where costs vary based on usage thresholds.
+      Condition for matching a pricing tier. New conditions use the same column/type/key/operator/value shape as Langfuse filters. The legacy usage-detail shape remains accepted for backwards compatibility.
 
-      How it works:
-      1. The regex pattern matches against usage detail keys (e.g., "input_tokens", "input_cached")
-      2. Values of all matching keys are summed together
-      3. The sum is compared against the threshold value using the specified operator
-      4. All conditions in a tier must be met (AND logic) for the tier to match
+      Usage-detail conditions treat key as a regex, sum all matching usage values, and compare the sum to the numeric value. Model-parameter and metadata conditions match an exact top-level key and string value.
+    discriminated: false
+    union:
+      - LegacyPricingTierCondition
+      - PricingTierFilterCondition
 
-      Common use cases:
-      - Threshold-based pricing: Match when accumulated usage exceeds a certain amount
-      - Usage-type-specific pricing: Different rates for cached vs non-cached tokens, or input vs output
-      - Volume-based pricing: Different rates based on total request or token count
+  LegacyPricingTierCondition:
+    docs: Legacy usage-detail condition retained for backwards compatibility.
     properties:
       usageDetailPattern:
-        docs: |
-          Regex pattern to match against usage detail keys. All matching keys' values are summed for threshold comparison.
-
-          Examples:
-          - "^input" matches "input", "input_tokens", "input_cached", etc.
-          - "^(input|prompt)" matches both "input_tokens" and "prompt_tokens"
-          - "_cache$" matches "input_cache", "output_cache", etc.
-
-          The pattern is case-insensitive by default. If no keys match, the sum is treated as zero.
+        docs: Regex pattern matched against usage detail keys.
         type: string
-      operator:
-        docs: |
-          Comparison operator to apply between the summed value and the threshold.
-
-          - gt: greater than (sum > threshold)
-          - gte: greater than or equal (sum >= threshold)
-          - lt: less than (sum < threshold)
-          - lte: less than or equal (sum <= threshold)
-          - eq: equal (sum == threshold)
-          - neq: not equal (sum != threshold)
-        type: PricingTierOperator
+      operator: PricingTierOperator
       value:
-        docs: Threshold value for comparison. For token-based pricing, this is typically the token count threshold (e.g., 200000 for a 200K token threshold).
+        docs: Numeric threshold for the summed matching usage values.
         type: double
       caseSensitive:
-        docs: Whether the regex pattern matching is case-sensitive. Default is false (case-insensitive matching).
+        docs: Whether the usage-detail regex is case-sensitive.
         type: boolean
+
+  PricingTierFilterCondition:
+    docs: Filter-shaped pricing tier condition.
+    properties:
+      column:
+        docs: Observation field evaluated by this condition.
+        type: PricingTierFilterColumn
+      type:
+        docs: Filter value type. Usage details use numberObject; model parameters and metadata use stringObject.
+        type: PricingTierFilterType
+      key:
+        docs: Usage-detail regex or exact top-level attribute key.
+        type: string
+      operator:
+        docs: Comparison operator. Attribute conditions currently support exact equality only.
+        type: PricingTierFilterOperator
+      value:
+        docs: Numeric usage threshold or exact string attribute value.
+        type: PricingTierFilterValue
+      caseSensitive:
+        docs: Optional legacy compatibility flag for usage-detail regex matching.
+        type: optional<boolean>
+
+  PricingTierFilterColumn:
+    enum:
+      - usage_details
+      - model_parameters
+      - metadata
+
+  PricingTierFilterType:
+    enum:
+      - numberObject
+      - stringObject
+
+  PricingTierFilterOperator:
+    enum:
+      - "="
+      - ">"
+      - "<"
+      - ">="
+      - "<="
+      - "<>"
+
+  PricingTierFilterValue:
+    discriminated: false
+    union:
+      - double
+      - string
 
   PricingTier:
     docs: |

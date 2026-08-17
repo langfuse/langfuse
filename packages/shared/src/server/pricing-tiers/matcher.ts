@@ -1,5 +1,9 @@
 import { PricingTierCondition } from "../../features/model-pricing";
-import type { PricingTierMatchResult, PricingTierWithPrices } from "./types";
+import type {
+  PricingTierMatchAttributes,
+  PricingTierMatchResult,
+  PricingTierWithPrices,
+} from "./types";
 
 /**
  * Pricing tier matching algorithm
@@ -7,17 +11,50 @@ import type { PricingTierMatchResult, PricingTierWithPrices } from "./types";
  */
 
 /**
- * Evaluates a single condition against usage details
- * Sums all usage_details keys matching the pattern and compares to threshold
+ * Evaluates a single condition against usage details or observation attributes.
+ * Usage conditions sum keys matching the regex; attribute conditions compare an
+ * exact top-level key and value.
  */
 function evaluateCondition(
   condition: PricingTierCondition,
   usageDetails: Record<string, number>,
+  attributes: PricingTierMatchAttributes,
 ): boolean {
   try {
+    if (!("usageDetailPattern" in condition)) {
+      if (condition.column !== "usage_details") {
+        const values =
+          condition.column === "model_parameters"
+            ? attributes.modelParameters
+            : attributes.metadata;
+
+        return (
+          Object.prototype.hasOwnProperty.call(values ?? {}, condition.key) &&
+          values?.[condition.key] === condition.value
+        );
+      }
+    }
+
+    const pattern =
+      "usageDetailPattern" in condition
+        ? condition.usageDetailPattern
+        : condition.key;
+    const operator =
+      "usageDetailPattern" in condition
+        ? condition.operator
+        : {
+            "=": "eq",
+            ">": "gt",
+            "<": "lt",
+            ">=": "gte",
+            "<=": "lte",
+            "<>": "neq",
+          }[condition.operator];
+
     // Build regex with case sensitivity flag
-    const flags = condition.caseSensitive ? "" : "i";
-    const regex = new RegExp(condition.usageDetailPattern, flags);
+    const flags =
+      "caseSensitive" in condition && condition.caseSensitive ? "" : "i";
+    const regex = new RegExp(pattern, flags);
 
     // Find all keys matching the pattern
     const matchingKeys = Object.keys(usageDetails).filter((key) =>
@@ -31,7 +68,7 @@ function evaluateCondition(
     );
 
     // Compare sum to threshold
-    switch (condition.operator) {
+    switch (operator) {
       case "gt":
         return sum > condition.value;
       case "gte":
@@ -59,6 +96,7 @@ function evaluateCondition(
 function evaluateConditions(
   conditions: PricingTierCondition[],
   usageDetails: Record<string, number>,
+  attributes: PricingTierMatchAttributes,
 ): boolean {
   // Empty conditions should never match (except for default tiers)
   if (conditions.length === 0) {
@@ -67,7 +105,7 @@ function evaluateConditions(
 
   // All conditions must pass (AND logic)
   return conditions.every((condition) =>
-    evaluateCondition(condition, usageDetails),
+    evaluateCondition(condition, usageDetails, attributes),
   );
 }
 
@@ -83,11 +121,13 @@ function evaluateConditions(
  *
  * @param tiers - Array of pricing tiers with prices
  * @param usageDetails - Usage details from the observation (e.g., { input_tokens: 250000, output_tokens: 2000 })
+ * @param attributes - Top-level model parameters and metadata from the observation
  * @returns Matched tier with prices, or null if no match and no default
  */
 export function matchPricingTier(
   tiers: PricingTierWithPrices[],
   usageDetails: Record<string, number>,
+  attributes: PricingTierMatchAttributes = {},
 ): PricingTierMatchResult | null {
   // 1. Filter and sort non-default tiers by priority (ascending)
   const sortedTiers = tiers
@@ -96,7 +136,7 @@ export function matchPricingTier(
 
   // 2. Try to match each tier in priority order
   for (const tier of sortedTiers) {
-    if (evaluateConditions(tier.conditions, usageDetails)) {
+    if (evaluateConditions(tier.conditions, usageDetails, attributes)) {
       return {
         pricingTierId: tier.id,
         pricingTierName: tier.name,
