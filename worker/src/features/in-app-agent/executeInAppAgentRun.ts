@@ -533,9 +533,7 @@ export async function executeInAppAgentRun(params: {
           },
         }),
         sandbox: sandboxState?.sandbox,
-        // The replayed history still contains this agent's own earlier
-        // write/edit/bash turns, so without this it reads a path it "created"
-        // and improvises from an ENOENT.
+        // History still shows this agent's own earlier writes, so it needs telling.
         sandboxWorkspaceWasReset: sandboxState?.workspaceWasReset,
       },
     });

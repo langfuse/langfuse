@@ -142,12 +142,7 @@ When working in the sandbox filesystem, assume this layout:
 `;
 }
 
-/**
- * Run-scoped instruction, passed as an extra system message rather than compiled
- * into the managed prompt: it describes one turn's environment, not the agent's
- * standing behaviour. It cannot be a transcript message, because @ag-ui/mastra
- * forwards only assistant, user and tool messages to the model.
- */
+/** Run-scoped, not part of the managed prompt: it describes one turn's environment. */
 const SANDBOX_WORKSPACE_RESET_INSTRUCTION = `<sandbox_workspace_reset>
 The sandbox workspace from earlier turns in this conversation expired and has been replaced with an empty one.
 - Any file you created earlier with write, edit, or bash is gone, along with installed packages and all process state.
@@ -206,11 +201,7 @@ type CreateAgUiStreamOptions = {
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
   sandbox?: InAppAgentSandbox;
-  /**
-   * Set when the workspace persisted by an earlier turn is already gone, so this
-   * turn starts from a clean one. Adds a run-scoped instruction, because the
-   * model's history still references files it wrote into the old workspace.
-   */
+  /** Adds a run instruction telling the model its earlier workspace files are gone. */
   sandboxWorkspaceWasReset?: boolean;
 };
 

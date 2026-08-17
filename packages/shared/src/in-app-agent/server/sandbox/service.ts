@@ -16,13 +16,7 @@ export async function createInAppAgentSandbox(params: {
 }): Promise<{
   sandbox: InAppAgentSandbox;
   onTurnEnded: () => Promise<void>;
-  /**
-   * True when a workspace persisted by an earlier turn is already gone, so this
-   * turn starts from a clean one. This is the `probeSession` result surfaced to
-   * the caller, which passes it to `createAgUiStream` as
-   * `sandboxWorkspaceWasReset` to add a run-scoped instruction telling the model
-   * its earlier files are missing.
-   */
+  /** The earlier turn's workspace is gone; pass on as `sandboxWorkspaceWasReset`. */
   workspaceWasReset: boolean;
 }> {
   let sessionId = params.providerSessionId ?? null;
@@ -43,10 +37,8 @@ export async function createInAppAgentSandbox(params: {
     });
   };
 
-  // Probe before the agent runs. `ensureSession` also detects a lost session, but
-  // only on the first sandbox tool call, which is after the model has its input.
-  // Marking the session inactive here lets `ensureSession` create fresh without
-  // paying for a second probe, so this path owns the metric for that case.
+  // Probe up front: `ensureSession` only notices a lost session on the first tool
+  // call, too late to tell the model. Clearing the flag avoids a second probe.
   let workspaceWasReset = false;
   if (sessionId && params.provider.probeSession) {
     const lostReason = await params.provider.probeSession({ sessionId });

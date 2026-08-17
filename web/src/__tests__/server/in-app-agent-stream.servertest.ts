@@ -985,9 +985,7 @@ describe("createAgUiStream", () => {
 
     await readStream(stream);
 
-    // @ag-ui/mastra forwards only assistant/user/tool messages, so the reset
-    // rides on the run's own system message rather than the transcript. It stays
-    // out of the managed prompt, which describes standing behaviour.
+    // Rides on the run's system message, not the transcript or managed prompt.
     const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0];
     const runInstruction = (agentConfig?.defaultOptions as { system?: string })
       ?.system;

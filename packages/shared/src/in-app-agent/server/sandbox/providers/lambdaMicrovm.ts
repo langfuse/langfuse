@@ -24,10 +24,8 @@ const DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES = 30;
 const AUTH_TOKEN_REFRESH_BUFFER_MS = 60_000;
 const DEFAULT_SANDBOX_SERVER_PORT = 5000;
 const DEFAULT_SUSPEND_AFTER_IDLE_SECONDS = 60;
-// How long a workspace stays resumable is min(existence from creation, suspension
-// from last activity), so these two have to agree or the larger one is unreachable
-// config. Four hours covers a working session and most approval turnarounds; the
-// API maximum for the existence cap is 28,800 (8h).
+// Resumable window is min(existence from creation, suspension from last activity),
+// so these two must agree. API maximum for the existence cap is 28,800.
 const DEFAULT_TERMINATE_AFTER_SUSPEND_SECONDS = 4 * 60 * 60;
 const DEFAULT_MAXIMUM_DURATION_SECONDS = 4 * 60 * 60;
 const BRIDGE_READY_TIMEOUT_MS = 30_000;
