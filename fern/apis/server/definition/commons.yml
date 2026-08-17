@@ -858,39 +858,59 @@ types:
         type: boolean
 
   PricingTierFilterCondition:
-    docs: Filter-shaped pricing tier condition.
+    docs: Filter-shaped usage-detail or attribute pricing tier condition.
+    discriminated: false
+    union:
+      - PricingTierUsageFilterCondition
+      - PricingTierAttributeFilterCondition
+
+  PricingTierUsageFilterCondition:
+    docs: Filter-shaped condition that sums usage details whose keys match a regex.
     properties:
       column:
-        docs: Observation field evaluated by this condition.
-        type: PricingTierFilterColumn
+        docs: Observation usage details.
+        type: literal<"usage_details">
       type:
-        docs: Filter value type. Usage details use numberObject; model parameters and metadata use stringObject.
-        type: PricingTierFilterType
+        docs: Numeric object filter type.
+        type: literal<"numberObject">
       key:
-        docs: Usage-detail regex or exact top-level attribute key.
+        docs: Regex matched against usage-detail keys.
         type: string
       operator:
-        docs: Comparison operator. Attribute conditions currently support exact equality only.
-        type: PricingTierFilterOperator
+        docs: Numeric comparison operator.
+        type: PricingTierUsageFilterOperator
       value:
-        docs: Numeric usage threshold or exact string attribute value.
-        type: PricingTierFilterValue
+        docs: Numeric threshold for the summed matching usage values.
+        type: double
       caseSensitive:
         docs: Optional legacy compatibility flag for usage-detail regex matching.
         type: optional<boolean>
 
-  PricingTierFilterColumn:
+  PricingTierAttributeFilterCondition:
+    docs: Filter-shaped condition that exactly matches a top-level observation attribute.
+    properties:
+      column:
+        docs: Observation attribute object evaluated by this condition.
+        type: PricingTierAttributeFilterColumn
+      type:
+        docs: String object filter type.
+        type: literal<"stringObject">
+      key:
+        docs: Exact top-level attribute key.
+        type: string
+      operator:
+        docs: Exact equality operator.
+        type: literal<"=">
+      value:
+        docs: Exact string attribute value.
+        type: string
+
+  PricingTierAttributeFilterColumn:
     enum:
-      - usage_details
       - model_parameters
       - metadata
 
-  PricingTierFilterType:
-    enum:
-      - numberObject
-      - stringObject
-
-  PricingTierFilterOperator:
+  PricingTierUsageFilterOperator:
     enum:
       - "="
       - ">"
@@ -898,12 +918,6 @@ types:
       - ">="
       - "<="
       - "<>"
-
-  PricingTierFilterValue:
-    discriminated: false
-    union:
-      - double
-      - string
 
   PricingTier:
     docs: |

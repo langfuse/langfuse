@@ -12,6 +12,7 @@ import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { UsageDetailsEditor } from "./UsageDetailsEditor";
+import { StringMapEditor } from "./StringMapEditor";
 import { MatchedModelCard } from "./MatchedModelCard";
 import { MatchedTierCard } from "./MatchedTierCard";
 import { NoMatchDisplay } from "./NoMatchDisplay";
@@ -33,6 +34,10 @@ export function TestModelMatchDialog({
 }: TestModelMatchDialogProps) {
   const [modelName, setModelName] = useState("");
   const [usageDetails, setUsageDetails] = useState<Record<string, number>>({});
+  const [modelParameters, setModelParameters] = useState<
+    Record<string, string>
+  >({});
+  const [metadata, setMetadata] = useState<Record<string, string>>({});
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
   // Query for match result - only enabled after submit
@@ -41,6 +46,8 @@ export function TestModelMatchDialog({
       projectId,
       modelName,
       usageDetails,
+      modelParameters,
+      metadata,
     },
     {
       enabled: false, // Manual trigger only
@@ -61,6 +68,8 @@ export function TestModelMatchDialog({
     if (!open) {
       setModelName("");
       setUsageDetails({});
+      setModelParameters({});
+      setMetadata({});
       setHasSubmitted(false);
     }
   }, [open]);
@@ -100,6 +109,20 @@ export function TestModelMatchDialog({
                 <UsageDetailsEditor
                   usageDetails={usageDetails}
                   onChange={setUsageDetails}
+                />
+
+                <StringMapEditor
+                  title="Model Parameters"
+                  description="Add top-level model parameters used by pricing tier conditions."
+                  entries={modelParameters}
+                  onChange={setModelParameters}
+                />
+
+                <StringMapEditor
+                  title="Metadata"
+                  description="Add top-level metadata used by pricing tier conditions."
+                  entries={metadata}
+                  onChange={setMetadata}
                 />
               </div>
 
