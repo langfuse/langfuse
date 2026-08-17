@@ -65,7 +65,12 @@ engine:
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
-timeout-minutes: 60
+# Bumped from 60: with the Actions MCP tool actually working (rather than
+# being blocked by a secrecy-filter bug), a full weekly analysis run now
+# legitimately needs more wall-clock time — a real run only spent
+# ~2300/4500 AI credits but still hit the 60-minute step timeout before it
+# could finish or report anything useful.
+timeout-minutes: 90
 
 # Bumped from 3000: with the Actions MCP tool actually working (rather than
 # being blocked by a secrecy-filter bug), a full weekly analysis run now
