@@ -39,6 +39,7 @@
  * Not production code.
  */
 
+import { useTheme } from "next-themes";
 import {
   useCallback,
   useMemo,
@@ -67,6 +68,7 @@ import {
   type PositionedNode,
 } from "../../fns/timeline/layout";
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
+import { resolveBarTones } from "../../fns/timeline/barContrast";
 import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
@@ -104,6 +106,16 @@ const TYPE_COLOR: Record<string, string> = {
   GUARDRAIL: "bg-red-600",
 };
 const FALLBACK_COLOR = "bg-muted-gray";
+/** Neutral mode's bar, and the accent a selected or hovered bar takes. */
+const NEUTRAL_COLOR = "bg-muted-foreground/60";
+const ACCENT_COLOR = "bg-primary-accent";
+/** Every colour a bar can be — the set whose contrast has to be resolved. */
+const BAR_COLORS = [
+  ...Object.values(TYPE_COLOR),
+  FALLBACK_COLOR,
+  NEUTRAL_COLOR,
+  ACCENT_COLOR,
+];
 
 const RAIL_INDENT = 2;
 const RAIL_MAX_DEPTH = 4;
@@ -117,7 +129,15 @@ const RAIL_SQUARE_MAX = 5;
  */
 const RAIL_WIDTH = RAIL_MAX_DEPTH * RAIL_INDENT + RAIL_SQUARE_MAX + 2;
 /** Indent per level once the gutter is open, matching the production gutter. */
-const GUTTER_INDENT = 10;
+const GUTTER_INDENT = 14;
+/** The ItemBadge box at `isSmall`, which is square. */
+const GUTTER_ICON = 16;
+/**
+ * Where a level's vertical rail sits: under the CENTRE of that level's icon, so
+ * the spine reads as descending from the icon that owns it. Hugging the icon's
+ * left edge instead left the elbow pointing at nothing in particular.
+ */
+const GUTTER_RAIL = GUTTER_ICON / 2;
 const TOOLBAR_HEIGHT = 22;
 const AXIS_HEIGHT = 16;
 const READOUT_HEIGHT = 18;
@@ -257,6 +277,13 @@ export function TimelineDense({
   // Rendered at 10px, so measured at 10px: layout() decides which side a label
   // goes on, and that decision is only as good as the font it measured.
   const measurer = useMemo(() => createTextMeasurer("10px ui-sans-serif"), []);
+  // Resolved per theme, because three of these colours flip lightness between
+  // themes. `resolvedTheme` is the trigger; the probe is the answer.
+  const { resolvedTheme } = useTheme();
+  const barTones = useMemo(
+    () => resolveBarTones(BAR_COLORS, { theme: resolvedTheme }),
+    [resolvedTheme],
+  );
 
   // A manual override lives until you touch the chart again, which is what
   // "expand to look, then get out of my way" means in practice.
@@ -1033,6 +1060,14 @@ export function TimelineDense({
             const isSelected = node.id === selectedId;
             const isActive = activeIds?.has(node.id) ?? false;
             const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
+            // One place decides the bar's colour, so the label can ask about the
+            // exact class the bar got rather than guessing at it.
+            const barClass =
+              isFocused || isSelected
+                ? ACCENT_COLOR
+                : barColor === "type"
+                  ? typeColor
+                  : NEUTRAL_COLOR;
 
             return (
               <div
@@ -1077,12 +1112,7 @@ export function TimelineDense({
                       row itself stays for hover and selection. */}
                   {node.offscreen ? (
                     <div
-                      className={cn(
-                        "absolute w-[2px] opacity-40",
-                        barColor === "type"
-                          ? typeColor
-                          : "bg-muted-foreground/60",
-                      )}
+                      className={cn("absolute w-[2px] opacity-40", barClass)}
                       style={{
                         left: node.x <= 0 ? "0px" : undefined,
                         right: node.x <= 0 ? undefined : "0px",
@@ -1094,13 +1124,7 @@ export function TimelineDense({
                     />
                   ) : (
                     <div
-                      className={cn(
-                        "absolute rounded-[1px]",
-                        barColor === "type"
-                          ? typeColor
-                          : "bg-muted-foreground/60",
-                        (isFocused || isSelected) && "bg-primary-accent",
-                      )}
+                      className={cn("absolute rounded-[1px]", barClass)}
                       style={{
                         left: `${node.x}px`,
                         width: `${node.width}px`,
@@ -1121,14 +1145,16 @@ export function TimelineDense({
                     <span
                       className={cn(
                         "absolute overflow-hidden whitespace-nowrap",
-                        // A label drawn ON the bar has to contrast with the BAR,
-                        // not with the page — and it cannot pick one colour that
-                        // does, because the type palette runs from pastels to
-                        // 600s. So it brings its own ground: foreground on
-                        // background is legible over any hue, in either theme.
-                        node.labelPlacement === "inside"
-                          ? "bg-background/85 text-foreground rounded-[2px] px-0.5"
-                          : "text-muted-foreground",
+                        // A label drawn ON the bar contrasts with the BAR, not
+                        // with the page, so it takes white or black from that
+                        // bar's own luminance — see fns/timeline/barContrast.ts.
+                        // A chip of page-coloured ground read as a hole punched
+                        // in the bar; this reads as a label on it.
+                        node.labelPlacement !== "inside"
+                          ? "text-muted-foreground"
+                          : barTones[barClass] === "dark"
+                            ? "text-black/85"
+                            : "text-white/95",
                       )}
                       data-testid="timeline-dense-duration"
                       data-placement={node.labelPlacement}
@@ -1331,6 +1357,9 @@ function GutterContent({
   const indent = showName
     ? depth * GUTTER_INDENT
     : Math.min(depth * RAIL_INDENT + 1, Math.max(width - squareSize - 1, 0));
+  /** x of this row's own rail, and of its parent's. */
+  const railX = depth * GUTTER_INDENT + GUTTER_RAIL;
+  const parentRailX = (depth - 1) * GUTTER_INDENT + GUTTER_RAIL;
 
   return (
     <div
@@ -1345,7 +1374,7 @@ function GutterContent({
                 <div
                   key={level}
                   className="bg-border-contrast absolute inset-y-0 w-px"
-                  style={{ left: `${level * GUTTER_INDENT + 5}px` }}
+                  style={{ left: `${level * GUTTER_INDENT + GUTTER_RAIL}px` }}
                 />
               ) : null,
             )
@@ -1357,22 +1386,29 @@ function GutterContent({
               "bg-border-contrast absolute top-0 w-px",
               node.isLastSibling ? "h-1/2" : "bottom-0",
             )}
-            style={{ left: `${(depth - 1) * GUTTER_INDENT + 5}px` }}
+            style={{ left: `${parentRailX}px` }}
           />
           <div
             className="bg-border-contrast absolute top-1/2 h-px"
             style={{
-              left: `${(depth - 1) * GUTTER_INDENT + 5}px`,
-              width: `${GUTTER_INDENT}px`,
+              left: `${parentRailX}px`,
+              width: `${Math.max(indent - parentRailX, 0)}px`,
             }}
           />
         </>
+      ) : null}
+      {/* This row's own spine, descending from its icon to its children. */}
+      {showName && node.hasChildren && !node.isCollapsed ? (
+        <div
+          className="bg-border-contrast absolute top-1/2 bottom-0 w-px"
+          style={{ left: `${railX}px` }}
+        />
       ) : null}
       {showName ? (
         <div
           className="absolute flex items-center gap-1 overflow-hidden"
           style={{
-            left: `${indent + 6}px`,
+            left: `${indent}px`,
             right: "2px",
             top: `${Math.max((rowHeight - 16) / 2, 0)}px`,
             height: "16px",

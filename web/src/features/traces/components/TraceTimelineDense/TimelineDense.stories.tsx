@@ -357,6 +357,25 @@ export const ScrollPansPinchZooms = meta.story({
   },
 });
 
+/**
+ * Relative luminance of ANY css colour, via a painted pixel. Parsing the computed
+ * string would not do: Chrome returns `oklch(...)` verbatim for the tokens
+ * authored in it, and reading those numbers as R, G, B turns a mid-tone into
+ * near-black — which is exactly the bug this test exists to catch.
+ */
+const luminance = (colour: string) => {
+  const context = document.createElement("canvas").getContext("2d");
+  if (!context) throw new Error("no 2d context to measure a colour with");
+  context.fillStyle = colour;
+  context.fillRect(0, 0, 1, 1);
+  const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
+  const channel = (value: number) => {
+    const c = value / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+};
+
 export const LabelsStayReadableOnBars = meta.story({
   name: "(Test) Labels Stay Readable On Bars",
   args: {
@@ -381,10 +400,29 @@ export const LabelsStayReadableOnBars = meta.story({
     // the case that has to be legible: the type palette runs from pastels to
     // 600s, so no single text colour works on all of it.
     await expect(labels.length).toBeGreaterThan(0);
+
     for (const label of labels) {
-      const background = getComputedStyle(label).backgroundColor;
-      await expect(background).not.toBe("transparent");
-      await expect(background).not.toMatch(/rgba\(0, 0, 0, 0\)/);
+      // The label draws straight on the bar — no chip of page-coloured ground,
+      // which read as a hole punched in the bar.
+      await expect(getComputedStyle(label).backgroundColor).toMatch(
+        /rgba\(0, 0, 0, 0\)|transparent/,
+      );
+
+      // And its colour is the one that contrasts with THIS bar: the bar is the
+      // label's own row, so ask that bar what colour it resolved to.
+      const bar = label.parentElement?.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      );
+      if (!bar) throw new Error("a label with no bar to sit on");
+      const barLuminance = luminance(getComputedStyle(bar).backgroundColor);
+      const textLuminance = luminance(getComputedStyle(label).color);
+      // Light bar → dark text, dark bar → light text. Either way the two must
+      // land on opposite sides of the crossover.
+      if (barLuminance > 0.179) {
+        await expect(textLuminance).toBeLessThan(barLuminance);
+      } else {
+        await expect(textLuminance).toBeGreaterThan(barLuminance);
+      }
     }
   },
 });
