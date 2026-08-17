@@ -3,8 +3,14 @@ import { useState } from "react";
 
 import { StringMapEditor } from "./StringMapEditor";
 
-function TestEditor() {
-  const [entries, setEntries] = useState<Record<string, string>>({});
+function TestEditor({
+  initialEntries = {},
+}: {
+  initialEntries?: Record<string, string>;
+}) {
+  const [entries, setEntries] = useState<Array<[string, string]>>(() =>
+    Object.entries(initialEntries),
+  );
 
   return (
     <StringMapEditor
@@ -30,6 +36,20 @@ describe("StringMapEditor", () => {
     });
 
     expect(screen.getByDisplayValue("service_tier")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("priority")).toBeInTheDocument();
+  });
+
+  it("preserves the row while replacing its key", () => {
+    render(<TestEditor initialEntries={{ service_tier: "priority" }} />);
+
+    const keyInput = screen.getByDisplayValue("service_tier");
+    fireEvent.change(keyInput, { target: { value: "" } });
+
+    expect(screen.getByDisplayValue("priority")).toBeInTheDocument();
+
+    fireEvent.change(keyInput, { target: { value: "service_class" } });
+
+    expect(screen.getByDisplayValue("service_class")).toBeInTheDocument();
     expect(screen.getByDisplayValue("priority")).toBeInTheDocument();
   });
 });

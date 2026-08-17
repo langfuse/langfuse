@@ -5,8 +5,8 @@ import { Input } from "@/src/components/ui/input";
 type StringMapEditorProps = {
   title: string;
   description: string;
-  entries: Record<string, string>;
-  onChange: (entries: Record<string, string>) => void;
+  entries: Array<[string, string]>;
+  onChange: (entries: Array<[string, string]>) => void;
 };
 
 export function StringMapEditor({
@@ -15,12 +15,8 @@ export function StringMapEditor({
   entries,
   onChange,
 }: StringMapEditorProps) {
-  const rows = Object.entries(entries);
-
   const updateRows = (newRows: Array<[string, string]>) => {
-    onChange(
-      Object.fromEntries(newRows.filter(([key]) => key.trim().length > 0)),
-    );
+    onChange(newRows);
   };
 
   return (
@@ -30,20 +26,20 @@ export function StringMapEditor({
         <div className="text-muted-foreground text-sm">{description}</div>
       </div>
 
-      {rows.length > 0 && (
+      {entries.length > 0 && (
         <div className="space-y-2 rounded-lg border p-3">
           <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-bold">
             <div>Key</div>
             <div>Value</div>
             <div className="w-10" />
           </div>
-          {rows.map(([key, value], index) => (
+          {entries.map(([key, value], index) => (
             <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
               <Input
                 placeholder="e.g. service_tier"
                 value={key}
                 onChange={(event) => {
-                  const newRows = [...rows] as Array<[string, string]>;
+                  const newRows = [...entries];
                   newRows[index] = [event.target.value, value];
                   updateRows(newRows);
                 }}
@@ -52,7 +48,7 @@ export function StringMapEditor({
                 placeholder="e.g. priority"
                 value={value}
                 onChange={(event) => {
-                  const newRows = [...rows] as Array<[string, string]>;
+                  const newRows = [...entries];
                   newRows[index] = [key, event.target.value];
                   updateRows(newRows);
                 }}
@@ -61,7 +57,9 @@ export function StringMapEditor({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => updateRows(rows.filter((_, i) => i !== index))}
+                onClick={() =>
+                  updateRows(entries.filter((_, i) => i !== index))
+                }
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -73,7 +71,7 @@ export function StringMapEditor({
       <Button
         type="button"
         variant="ghost"
-        onClick={() => updateRows([...rows, ["new_key", ""]])}
+        onClick={() => updateRows([...entries, ["new_key", ""]])}
         className="w-full"
       >
         <PlusCircle className="mr-2 h-4 w-4" />
