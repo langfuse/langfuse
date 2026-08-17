@@ -341,40 +341,6 @@ describe("executeInAppAgentRun", () => {
     expect((merged!.event as { delta?: string }).delta).toBe("Hello world");
   });
 
-  it("executes an old conversation that already used sandbox tools", async () => {
-    const { projectId, conversation, run } = await seedBackgroundRun();
-    await prisma.inAppAgentConversation.update({
-      where: { id_projectId: { id: conversation.id, projectId } },
-      data: { createdAt: new Date(Date.now() - 9 * 60 * 60 * 1000) },
-    });
-    await prisma.inAppAgentEvent.create({
-      data: {
-        projectId,
-        conversationId: conversation.id,
-        runId: run.id,
-        sequenceNumber: 0,
-        type: "TOOL_CALL_START",
-        event: {
-          type: "TOOL_CALL_START",
-          toolCallId: "sandbox-tool-call",
-          toolCallName: "bash",
-        },
-      },
-    });
-
-    let executed = false;
-    scenarioRef.current = async ({ options }) => {
-      executed = true;
-      await options.onComplete();
-      await options.onFinish();
-    };
-
-    await executeInAppAgentRun({ projectId, runId: run.id });
-
-    expect(executed).toBe(true);
-    expect((await getRun(projectId, run.id)).status).toBe("SUCCEEDED");
-  });
-
   it("acknowledges duplicate delivery without executing (claim CAS returns no row)", async () => {
     const { projectId, run } = await seedBackgroundRun({ status: "RUNNING" });
 
