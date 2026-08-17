@@ -143,7 +143,6 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   attentionCount: 0,
   selectedConversationId: undefined,
   selectedConversationTitle: null,
-  selectedConversationIsWriteLocked: false,
   loadMoreConversations: () => undefined,
   invalidateConversations: () => undefined,
   selectConversation: () => undefined,
@@ -171,7 +170,6 @@ export type InAppAiAgentConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;
-  isWriteLocked: boolean;
 };
 
 type InAppAiAgentExecution = {
@@ -206,7 +204,6 @@ type InAppAiAgentContextType = {
   selectedConversationId: string | undefined;
   /** Server-given name of the selected conversation, null until it has one. */
   selectedConversationTitle: string | null;
-  selectedConversationIsWriteLocked: boolean;
   loadMoreConversations: () => void;
   invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
@@ -381,8 +378,6 @@ function InAppAiAgentProviderInner({
   );
   const hasMoreConversations = conversationListQuery.hasNextPage === true;
   const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
-  const selectedConversationIsWriteLocked =
-    conversationQuery.data?.conversation.isWriteLocked ?? false;
 
   const bootstrapBackgroundView = useMemo<BackgroundExecutionView>(() => {
     if (
@@ -1075,11 +1070,6 @@ function InAppAiAgentProviderInner({
         return false;
       }
 
-      if (!startsNewConversation && selectedConversationIsWriteLocked) {
-        setError({ type: "write_lock" });
-        return false;
-      }
-
       submitInFlightRef.current = conversationId;
       setSubmittingConversationId(conversationId);
       setError(null);
@@ -1170,7 +1160,6 @@ function InAppAiAgentProviderInner({
       isRunning,
       releaseSubmitLock,
       selectedConversationId,
-      selectedConversationIsWriteLocked,
       setSelectedConversationId,
       unpersistedConversationIds,
     ],
@@ -1397,11 +1386,6 @@ function InAppAiAgentProviderInner({
       approved: boolean,
       approvalScope: "once" | "conversation" = "once",
     ) => {
-      if (selectedConversationIsWriteLocked) {
-        setError({ type: "write_lock" });
-        return;
-      }
-
       const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
       );
@@ -1436,7 +1420,6 @@ function InAppAiAgentProviderInner({
       error,
       isRunning,
       selectedConversationId,
-      selectedConversationIsWriteLocked,
     ],
   );
 
@@ -1514,7 +1497,6 @@ function InAppAiAgentProviderInner({
       attentionCount,
       selectedConversationId: selectedConversationId ?? undefined,
       selectedConversationTitle,
-      selectedConversationIsWriteLocked,
       loadMoreConversations,
       invalidateConversations,
       selectConversation,
@@ -1537,7 +1519,6 @@ function InAppAiAgentProviderInner({
       isLoadingMoreConversations,
       isRunning,
       isSelectedConversationHydrating,
-      selectedConversationIsWriteLocked,
       selectedConversationTitle,
       isSubmitting,
       isSelectedConversationNotFound,

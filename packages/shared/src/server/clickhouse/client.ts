@@ -257,9 +257,10 @@ export const clickhouseClient = (
 };
 
 /**
- * Accepts a JavaScript date and returns the DateTime in format YYYY-MM-DD HH:MM:SS
+ * Accepts a JavaScript date and returns its UTC calendar time in ClickHouse's
+ * YYYY-MM-DD HH:MM:SS.sss format.
  */
 export const convertDateToClickhouseDateTime = (date: Date): string => {
-  // 2024-11-06T20:37:00.123Z -> 2024-11-06 21:37:00.123
+  // 2024-11-06T20:37:00.123Z -> 2024-11-06 20:37:00.123
   return date.toISOString().replace("T", " ").replace("Z", "");
 };
