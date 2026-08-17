@@ -253,11 +253,11 @@ We deploy this code base in Docker containers based on the Linux Alpine Image ([
 
 ## ⭐️ Star History
 
-<a href="https://star-history.com/#langfuse/langfuse&Date">
+<a href="https://star-history.dera.page/#langfuse/langfuse&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date" style="border-radius: 15px;" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=langfuse/langfuse&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=langfuse/langfuse&type=Date" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=langfuse/langfuse&type=Date" style="border-radius: 15px;" />
  </picture>
 </a>
 
