@@ -904,7 +904,6 @@ describe("InAppAgentInstrumentation", () => {
         continuation_type: "tool_approval",
         continuation_number: 2,
         parent_run_id: "parent-run-1",
-        parent_trace_id: parentTraceId,
         approval_status: status,
         approval_tool_call_id: "tool-1",
         approval_tool_name: "langfuse_createTextPrompt",
@@ -948,7 +947,7 @@ describe("InAppAgentInstrumentation", () => {
           startTime: new Date(approvalRequestedAt),
           endTime: new Date(approvalDecidedAt),
           output: `User ${status} tool langfuse_createTextPrompt`,
-          metadata: expect.objectContaining(approvalMetadata),
+          metadata: approvalMetadata,
         }),
       );
       expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(

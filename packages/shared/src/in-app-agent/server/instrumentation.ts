@@ -1228,7 +1228,6 @@ function getApprovalContinuation(
     approvalDecidedAt,
   } = forwardedProps.data.command.resume;
   const status = approved ? "approved" : "rejected";
-  const traceId = getInAppAgentInstrumentationTraceId(rootRunId);
 
   return {
     status,
@@ -1247,7 +1246,6 @@ function getApprovalContinuation(
       continuation_type: "tool_approval",
       continuation_number: continuationNumber,
       parent_run_id: approvalRequest.runId,
-      parent_trace_id: traceId,
       approval_status: status,
       approval_tool_call_id: approvalRequest.toolCallId,
       approval_tool_name: approvalRequest.toolName,
