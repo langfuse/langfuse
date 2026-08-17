@@ -860,6 +860,142 @@ export const AGestureTakesOverFromAFlight = meta.story({
   },
 });
 
+/** Two fingers on the surface, as a touchscreen delivers them. */
+const touch = (
+  element: HTMLElement,
+  type: string,
+  pointerId: number,
+  x: number,
+  y: number,
+) =>
+  element.dispatchEvent(
+    new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      pointerId,
+      pointerType: "touch",
+      isPrimary: pointerId === 1,
+      // A live contact reports a pressed button; a release reports none. The
+      // renderer uses that to drop pointers whose release never arrived.
+      buttons: type === "pointerup" || type === "pointercancel" ? 0 : 1,
+      clientX: x,
+      clientY: y,
+    }),
+  );
+
+export const PinchZoomsOnTouch = meta.story({
+  name: "(Test) Pinch Zooms On Touch",
+  args: {
+    roots: manySpans(600),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "coarse",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const rowHeight = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="dense-rowheight"]',
+      )?.textContent ?? "";
+    const rowWindow = () =>
+      canvasElement.querySelector<HTMLElement>('[data-testid="dense-rows"]')
+        ?.textContent ?? "";
+
+    const rect = surface.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const midY = rect.top + rect.height / 2;
+
+    // A touchscreen pinch is two pointers — never a wheel — and `touch-action:
+    // none` means the browser will not zoom the page either. With one-pointer
+    // logic only, this did nothing at all.
+    await expect(rowHeight()).toContain("1.0px");
+    touch(surface, "pointerdown", 1, midX - 40, midY - 40);
+    touch(surface, "pointerdown", 2, midX + 40, midY + 40);
+    for (const spread of [60, 90, 120, 150]) {
+      touch(surface, "pointermove", 1, midX - spread, midY - spread);
+      touch(surface, "pointermove", 2, midX + spread, midY + spread);
+    }
+    await waitFor(() => expect(rowHeight()).not.toContain("1.0px"));
+
+    // Fingers apart = zoomed in: taller rows AND a narrower row window.
+    const zoomed = rowWindow();
+    const span = /rows ([\d.]+)[–-]([\d.]+)/.exec(zoomed);
+    if (!span) throw new Error(`no row window in "${zoomed}"`);
+    await expect(Number(span[2]) - Number(span[1])).toBeLessThan(600);
+
+    // Lifting one finger hands over to a one-finger pan from where THAT finger
+    // is. Inheriting the departed finger's origin panned by the whole finger
+    // separation on the survivor's next small move.
+    touch(surface, "pointerup", 2, midX + 150, midY + 150);
+    const settled = rowWindow();
+    touch(surface, "pointermove", 1, midX - 149, midY - 149);
+    await expect(rowWindow()).toBe(settled);
+    touch(surface, "pointerup", 1, midX - 149, midY - 149);
+
+    // And pinching back in returns to the floor rather than sticking.
+    touch(surface, "pointerdown", 1, midX - 150, midY - 150);
+    touch(surface, "pointerdown", 2, midX + 150, midY + 150);
+    for (const spread of [110, 70, 40, 15]) {
+      touch(surface, "pointermove", 1, midX - spread, midY - spread);
+      touch(surface, "pointermove", 2, midX + spread, midY + spread);
+    }
+    await waitFor(() => expect(rowHeight()).toContain("1.0px"));
+  },
+});
+
+export const DoubleTapFocusesOnTouch = meta.story({
+  name: "(Test) Double Tap Focuses On Touch",
+  args: {
+    roots: manySpans(150),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "coarse",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+
+    const rect = surface.getBoundingClientRect();
+    const x = rect.left + rect.width * 0.6;
+    const y = rect.top + 200;
+
+    await expect(readout()).toContain("fitted");
+    // `dblclick` is not dependable from touch — Safari does not synthesise it —
+    // so two quick taps in the same place are detected here instead.
+    for (const _ of [1, 2]) {
+      touch(surface, "pointerdown", 1, x, y);
+      touch(surface, "pointerup", 1, x, y);
+    }
+    await waitFor(() => expect(readout()).toContain("zoomed"));
+    await waitFor(() => expect(readout()).toContain("26.0px rows"));
+  },
+});
+
 export const TooltipFollowsTheContent = meta.story({
   name: "(Test) Tooltip Follows The Content",
   args: {

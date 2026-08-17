@@ -25,6 +25,12 @@
  *    gesture where the user has stated the window on both axes, so it goes
  *    straight there. There are no scrollbars by design: a map has none, and the
  *    viewport clamps to the content so there is nowhere to get lost.
+ *  - On a TOUCHSCREEN the same three gestures arrive as pointers rather than
+ *    wheels: two fingers pinch to zoom both axes about their midpoint and pan by
+ *    however far that midpoint travels, one finger pans, and a double-tap
+ *    focuses — `dblclick` is not dependable from touch. `touch-action: none`
+ *    stops the browser panning or zooming the page underneath, which also means
+ *    nothing else will handle a pinch: it is this component's job or nobody's.
  *  - Double-click an element focuses it — the time window onto its own extent,
  *    the rows at a height a human reads, the element centred.
  *  - What a row shows follows from how tall it has become: the type square grows
@@ -189,6 +195,13 @@ const PEEK_MARGIN_PX = 6;
 const GAP_LABEL_MIN_WIDTH = 14;
 /** Below this in both axes a shift-drag was a stray click, not a box. */
 const MARQUEE_MIN_PX = 6;
+/** Two taps within this long, and this close, are one double-tap. */
+const DOUBLE_TAP_MS = 320;
+const DOUBLE_TAP_SLOP_PX = 24;
+
+/** Anchor ratios are fractions of the box; a finger can leave it mid-gesture. */
+const clampRatio = (value: number) =>
+  Number.isFinite(value) ? Math.min(Math.max(value, 0), 1) : 0.5;
 
 type MarqueeBox = {
   from: { x: number; y: number };
@@ -484,6 +497,19 @@ export function TimelineDense({
 
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const gesture = useRef({ down: false, dragging: false, x: 0, y: 0 });
+  /**
+   * Every pointer currently down, and the pinch they describe.
+   *
+   * A touchscreen pinch is NOT a wheel event: it arrives as two pointers, and
+   * `touch-action: none` (which this surface needs, so the browser does not pan
+   * or zoom the page under the gesture) means nothing else handles it either. So
+   * with one-pointer logic only, a two-finger pinch did nothing at all.
+   */
+  const touches = useRef({
+    points: new Map<number, { x: number; y: number }>(),
+    distance: 0,
+    midpoint: { x: 0, y: 0 },
+  });
   const tween = useRef(0);
 
   const cancelTween = useCallback(() => {
@@ -751,10 +777,13 @@ export function TimelineDense({
   );
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    // Touch has no hover, so a tap on the rail is the toggle.
+    // Touch has no hover, so a tap on the rail is the toggle — but only a FIRST
+    // finger. A pinch whose first finger happens to land near the left edge was
+    // otherwise swallowed by this branch and never became a pinch at all.
     const offsetX =
       event.clientX - event.currentTarget.getBoundingClientRect().left;
     if (
+      touches.current.points.size === 0 &&
       (pointer === "coarse" || event.pointerType === "touch") &&
       offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX
     ) {
@@ -776,6 +805,36 @@ export function TimelineDense({
       return;
     }
 
+    // A PRIMARY touch is the first contact of a new gesture, so anything left in
+    // the map is stale by definition. Not every release arrives — lift two
+    // fingers at once and a `pointerup` can go missing, or land outside the
+    // element — and one phantom finger turns the next one-finger drag into a
+    // pinch, which showed up as a pan that also zoomed a little.
+    if (event.isPrimary && event.pointerType !== "mouse") {
+      touches.current.points.clear();
+      touches.current.distance = 0;
+    }
+    touches.current.points.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    if (touches.current.points.size === 2) {
+      // A second finger ends whatever the first one was doing and starts a
+      // pinch from where the two currently are.
+      gesture.current.down = false;
+      gesture.current.dragging = false;
+      setDragging(false);
+      const [a, b] = [...touches.current.points.values()];
+      if (a && b) {
+        touches.current.distance = Math.hypot(b.x - a.x, b.y - a.y);
+        touches.current.midpoint = {
+          x: (a.x + b.x) / 2,
+          y: (a.y + b.y) / 2,
+        };
+      }
+      return;
+    }
+
     gesture.current = {
       down: true,
       dragging: false,
@@ -785,6 +844,60 @@ export function TimelineDense({
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // Two fingers: pinch to zoom BOTH axes about the midpoint, and pan by
+    // however far that midpoint travelled — the two happen together on a map,
+    // and separating them makes a pinch feel like it fights the drag. Both go
+    // through the same per-frame accumulator the wheel uses, so they inherit its
+    // zoom-then-reanchor and its cancelling of a focus flight.
+    const active = touches.current;
+    // Self-heal the other way too: no contact for this pointer means it is not
+    // down, whatever we were told.
+    if (event.buttons === 0 && active.points.has(event.pointerId)) {
+      active.points.delete(event.pointerId);
+      active.distance = 0;
+    }
+    if (active.points.has(event.pointerId) && active.points.size >= 2) {
+      active.points.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      const [a, b] = [...active.points.values()];
+      if (!a || !b) return;
+      const distance = Math.hypot(b.x - a.x, b.y - a.y);
+      const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const rect = event.currentTarget.getBoundingClientRect();
+      const queued = pending.current;
+
+      if (active.distance > 0 && distance > 0) {
+        // A ratio of distances is a ratio of scales, and the accumulator speaks
+        // in zoom LEVELS — one level per doubling.
+        queued.levels += Math.log2(distance / active.distance);
+        const rail = layoutRef.current.railWidth;
+        queued.xRatio =
+          rect.width > rail
+            ? clampRatio((midpoint.x - rect.left - rail) / (rect.width - rail))
+            : 0.5;
+        queued.yRatio =
+          rect.height > 0
+            ? clampRatio((midpoint.y - rect.top) / rect.height)
+            : 0.5;
+      }
+      queued.dxPx += midpoint.x - active.midpoint.x;
+      queued.dyPx += midpoint.y - active.midpoint.y;
+
+      active.distance = distance;
+      active.midpoint = midpoint;
+      event.preventDefault();
+      scheduleGesture();
+      return;
+    }
+    if (active.points.has(event.pointerId)) {
+      active.points.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+    }
+
     const drawing = marqueeRef.current;
     if (drawing) {
       const rect = event.currentTarget.getBoundingClientRect();
@@ -857,6 +970,65 @@ export function TimelineDense({
         yEndRatio: box.to.y / tall,
       }),
     );
+  };
+
+  /**
+   * A pointer left. Lifting one finger of a pinch does NOT end the gesture — the
+   * survivor becomes a one-finger pan — so its drag origin has to be re-anchored
+   * on where that finger actually is. Inheriting the departed finger's origin
+   * makes the survivor's next small move pan by the whole finger separation.
+   */
+  const releasePointer = (pointerId: number) => {
+    const active = touches.current;
+    active.points.delete(pointerId);
+    if (active.points.size === 1) {
+      const [survivor] = [...active.points.values()];
+      if (survivor) {
+        gesture.current = {
+          down: true,
+          dragging: false,
+          x: survivor.x,
+          y: survivor.y,
+        };
+        setDragging(false);
+        return;
+      }
+    }
+    if (active.points.size === 0) {
+      active.distance = 0;
+      gesture.current.down = false;
+      gesture.current.dragging = false;
+      setDragging(false);
+    }
+  };
+
+  /**
+   * Double-TAP focuses a row, because `dblclick` is not dependable from touch —
+   * Safari in particular does not synthesise it. Detected here rather than
+   * relied upon: two taps close in time and place, on the same row.
+   */
+  const lastTap = useRef({ at: 0, x: 0, y: 0 });
+  const maybeDoubleTap = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse") return; // the mouse has a real dblclick
+    if (touches.current.points.size > 1 || gesture.current.dragging) return;
+    const now = event.timeStamp;
+    const previous = lastTap.current;
+    const near =
+      Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <
+      DOUBLE_TAP_SLOP_PX;
+    if (now - previous.at < DOUBLE_TAP_MS && near) {
+      lastTap.current = { at: 0, x: 0, y: 0 };
+      const rect = event.currentTarget.getBoundingClientRect();
+      const index = rowIndexAtOffset(
+        current,
+        event.clientY - rect.top,
+        rowHeight,
+        prepared.rows.length,
+      );
+      if (index != null) focusRow(index);
+      return;
+    }
+    lastTap.current = { at: now, x: event.clientX, y: event.clientY };
   };
 
   const endGesture = useCallback(() => {
@@ -1060,12 +1232,14 @@ export function TimelineDense({
         onPointerMove={onPointerMove}
         onPointerUp={(event) => {
           commitMarquee();
-          endGesture();
+          maybeDoubleTap(event);
+          releasePointer(event.pointerId);
           event.currentTarget.releasePointerCapture?.(event.pointerId);
         }}
         onPointerLeave={clearFocus}
-        onPointerCancel={() => {
+        onPointerCancel={(event) => {
           setMarqueeBox(null);
+          releasePointer(event.pointerId);
           clearFocus();
         }}
         data-testid="timeline-dense-surface"
