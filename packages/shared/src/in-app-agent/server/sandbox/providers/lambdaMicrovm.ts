@@ -356,6 +356,7 @@ export function createLambdaMicrovmSandboxProvider(params: {
   });
 
   return {
+    type: "lambda-microvm",
     async probeSession({ sessionId }) {
       const existing = await getMicrovm(client, sessionId);
       const lostReason = !existing

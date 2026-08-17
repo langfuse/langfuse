@@ -53,6 +53,8 @@ export type SandboxSession = {
  * handles for isolated workspaces.
  */
 export type SandboxProvider = {
+  /** Identifies the backing runtime, so callers do not have to be told. */
+  type: InAppAgentSandboxProviderType;
   /**
    * Reports why a persisted session can no longer be resumed, or `null` when it
    * is still usable. Creates nothing, so callers can learn that a workspace was

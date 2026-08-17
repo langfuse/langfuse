@@ -1,6 +1,5 @@
 import type {
   InAppAgentSandbox,
-  InAppAgentSandboxProviderType,
   InAppAgentSandboxSessionReplacementReason,
   SandboxFile,
   SandboxProvider,
@@ -11,7 +10,6 @@ export async function createInAppAgentSandbox(params: {
   conversationId: string;
   projectId: string;
   runId?: string;
-  providerType?: InAppAgentSandboxProviderType;
   providerSessionId?: string | null;
   provider: SandboxProvider;
   getToolCallFiles: () => Promise<ReadonlyArray<SandboxFile>>;
@@ -36,11 +34,11 @@ export async function createInAppAgentSandbox(params: {
       projectId: params.projectId,
       conversationId: params.conversationId,
       runId: params.runId,
-      provider: params.providerType,
+      provider: params.provider.type,
       reason,
     });
     recordIncrement("langfuse.in_app_agent.sandbox.session_replaced", 1, {
-      provider: params.providerType ?? "unknown",
+      provider: params.provider.type,
       reason,
     });
   };

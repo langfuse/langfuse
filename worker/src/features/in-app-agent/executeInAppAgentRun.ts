@@ -310,7 +310,6 @@ export async function executeInAppAgentRun(params: {
           conversationId: conversation.id,
           projectId,
           runId,
-          providerType: sandboxProviderType ?? undefined,
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
           getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),
