@@ -11,14 +11,14 @@ describe("managedEvaluatorTemplateService", () => {
       category: "recommended",
     });
 
-    expect(exactMatch?.name).toBe("Exact Match");
+    expect(exactMatch?.name).toBe("Check if output is an Exact Match");
     expect(codeTemplates.templates.map(({ key }) => key)).toEqual([
       "exact-match",
     ]);
     expect(recommendedTemplates.templates.map(({ key }) => key)).toContain(
       "chat-intent",
     );
-    expect(recommendedTemplates.templates.map(({ key }) => key)).toContain(
+    expect(recommendedTemplates.templates.map(({ key }) => key)).not.toContain(
       "answer-relevance",
     );
     expect(codeTemplates.categories.length).toBeGreaterThan(0);

@@ -68,7 +68,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "language",
       name: "Detect Language match",
-      categories: ["conversation", "recommended"],
+      categories: ["conversation"],
       icon: "languages",
       description:
         "Checks if primary language of output matches the primary language of input.",
@@ -146,7 +146,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "out-of-scope-request",
       name: "Detect Out-of-scope request",
-      categories: ["conversation", "recommended"],
+      categories: ["conversation"],
       icon: "shield",
       description:
         "Checks whether the user's request falls outside the assistant's defined role or supported scope.",
@@ -345,7 +345,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "answer-relevance",
       name: "Check Answer relevance",
-      categories: ["quality", "recommended"],
+      categories: ["quality"],
       icon: "target",
       description:
         "Checks whether the response actually addresses the user's question or task.",
@@ -642,7 +642,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "rule-adherence",
       name: "Check Rule adherence",
-      categories: ["safety", "recommended"],
+      categories: ["safety"],
       icon: "shield-check",
       description:
         "Checks whether the output follows a defined policy, instruction set, rubric, or formatting rule.",

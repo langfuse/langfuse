@@ -42,14 +42,7 @@ describe("prepareEvaluatorGallery", () => {
       recommendedSection?.templates.map((template) =>
         template.source === "managed" ? template.key : null,
       ),
-    ).toEqual([
-      "chat-intent",
-      "out-of-scope-request",
-      "language",
-      "answer-relevance",
-      "quality-criterion",
-      "rule-adherence",
-    ]);
+    ).toEqual(["chat-intent", "quality-criterion"]);
     const conversationSection = gallery.sections.find(
       ({ key }) => key === "conversation",
     );
@@ -75,7 +68,7 @@ describe("prepareEvaluatorGallery", () => {
     });
 
     expect(gallery.navigationItems).toEqual([
-      expect.objectContaining({ key: "quality", count: 1 }),
+      expect.objectContaining({ key: "retrieval", count: 1 }),
     ]);
     expect(gallery.navigationItems.map(({ key }) => key)).toEqual(
       gallery.sections.map(({ key }) => key),
