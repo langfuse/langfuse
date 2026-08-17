@@ -81,6 +81,18 @@ export type GalleryTemplatePresentation = {
   attribution: string | null;
 };
 
+function managedReturnTypeLabel(
+  evaluator: ManagedTemplate["evaluator"],
+): string | null {
+  if (evaluator.type !== EvalTemplateTypeEnum.LLM_AS_JUDGE) {
+    return null;
+  }
+
+  return "dataType" in evaluator.outputDefinition
+    ? evaluator.outputDefinition.dataType
+    : null;
+}
+
 function managedPresentation(
   template: ManagedTemplate,
 ): GalleryTemplatePresentation {
@@ -88,10 +100,7 @@ function managedPresentation(
     description: template.description,
     type: template.evaluator.type,
     icon: GALLERY_TEMPLATE_ICONS[template.icon] ?? Sparkles,
-    returnTypeLabel:
-      template.evaluator.type === EvalTemplateTypeEnum.LLM_AS_JUDGE
-        ? template.evaluator.outputDefinition.dataType
-        : null,
+    returnTypeLabel: managedReturnTypeLabel(template.evaluator),
     runsOn: template.runsOn,
     expectedOutputHint: template.expectedOutputHint,
     attribution: null,
