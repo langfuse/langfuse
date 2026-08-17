@@ -1,6 +1,7 @@
-import { expect, fn, waitFor } from "storybook/test";
+import { useState } from "react";
+import { expect, fn, userEvent, waitFor } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
-import { TimelineDense } from "./TimelineDense";
+import { TimelineDense, type TimelineDenseProps } from "./TimelineDense";
 import {
   deepNesting,
   manySpans,
@@ -989,6 +990,57 @@ export const PlaybackSweepsAndGlows = meta.story({
       }),
     );
     await expect(PLAYBACK.onSeek).toHaveBeenCalled();
+  },
+});
+
+/** A selection whose row arrives late, as a deep link's does. */
+function WithLateRows(props: TimelineDenseProps) {
+  const [roots, setRoots] = useState<TimelineDenseProps["roots"]>([]);
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <button type="button" onClick={() => setRoots(props.roots)}>
+        load rows
+      </button>
+      <TimelineDense {...props} roots={roots} />
+    </div>
+  );
+}
+
+export const ALateRowIsStillRevealed = meta.story({
+  name: "(Test) A Late Row Is Still Revealed",
+  args: {
+    roots: DEEP_TRACE,
+    selectedId: lastRowId(DEEP_TRACE),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  render: (args) => <WithLateRows {...args} />,
+  play: async ({ canvasElement }) => {
+    const rows = () =>
+      canvasElement.querySelector<HTMLElement>('[data-testid="dense-rows"]')
+        ?.textContent ?? "";
+
+    // The selection is set before its row exists — a deep link naming an
+    // observation fetched by id, or one past the load cap.
+    await waitFor(() => expect(rows()).toContain("of 0"));
+    const load = canvasElement.querySelector("button");
+    if (!load) throw new Error("expected the load button");
+    await userEvent.click(load);
+
+    // Spending the one reveal on the absent row left the highlight off-screen
+    // forever; un-advanced, the render that brings the rows retries.
+    await waitFor(() => expect(rows()).toContain("of 3000"));
+    await waitFor(() => {
+      const window = /rows ([\d.]+)[–-]([\d.]+)/.exec(rows());
+      if (!window) throw new Error(`no row window in "${rows()}"`);
+      expect(Number(window[1])).toBeGreaterThan(2_000);
+    });
   },
 });
 

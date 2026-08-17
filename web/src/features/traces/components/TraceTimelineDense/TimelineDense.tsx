@@ -573,11 +573,16 @@ export function TimelineDense({
   // deep-link case, and it has to be revealed like any other.
   const revealedRef = useRef<string | null | undefined>(undefined);
   if (selectedId !== revealedRef.current) {
-    revealedRef.current = selectedId;
     const index = selectedId
       ? prepared.rows.findIndex((row) => row.node.id === selectedId)
       : -1;
     const row = index >= 0 ? prepared.rows[index] : undefined;
+    // Marked handled only once the row EXISTS. A deep link can name an
+    // observation that is not in the rows yet — fetched by id, or past the
+    // load cap — and advancing the ref regardless meant the one chance to reveal
+    // it was spent on an absent row: the highlight then stayed off-screen until
+    // the user panned. Left un-advanced, the next render with rows retries.
+    if (!selectedId || row) revealedRef.current = selectedId;
     if (row) {
       const offsets = spanOffsetsOf(row.node, prepared.originMs);
       const revealed = revealViewport(current, limits, {
