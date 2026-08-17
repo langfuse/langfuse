@@ -2436,18 +2436,23 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     instrumentationScopeName: string,
   ): Record<string, unknown> {
+    let explicitModelParameters: Record<string, unknown> | undefined;
     if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS]) {
       try {
-        return this.sanitizeModelParams(
+        explicitModelParameters = this.sanitizeModelParams(
           JSON.parse(
             attributes[
               LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS
             ] as string,
           ),
-        );
+        ) as Record<string, unknown>;
       } catch {
         // Fallthrough
       }
+    }
+
+    if (explicitModelParameters && instrumentationScopeName !== "ai") {
+      return explicitModelParameters;
     }
 
     // Genkit
@@ -2511,8 +2516,11 @@ export class OtelIngestionProcessor {
             : "gen_ai.request.service_tier" in attributes
               ? (attributes["gen_ai.request.service_tier"]?.toString() ?? null)
               : null,
+        ...explicitModelParameters,
       };
     }
+
+    if (explicitModelParameters) return explicitModelParameters;
 
     if (attributes["llm.invocation_parameters"]) {
       try {

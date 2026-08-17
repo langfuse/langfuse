@@ -157,6 +157,34 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.cost_details).toEqual({ total: 0.03 });
   });
 
+  it("preserves non-JSON model parameter strings on direct events", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "invalid-model-parameters",
+        type: "SPAN",
+        environment: "default",
+        startTimeISO: "2026-08-17T00:00:00.000Z",
+        endTimeISO: "2026-08-17T00:00:01.000Z",
+        modelParameters: "not-json",
+        metadata: {},
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(eventRecord.model_parameters).toBe("not-json");
+  });
+
   it("does not overflow legacy observation or dual-write staging records", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(

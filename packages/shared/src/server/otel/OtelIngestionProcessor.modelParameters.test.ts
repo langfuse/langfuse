@@ -107,4 +107,64 @@ describe("OtelIngestionProcessor model parameters", () => {
       service_tier: "priority",
     });
   });
+
+  it("merges the Vercel provider service tier into explicit model parameters", () => {
+    const batch: ResourceSpan[] = [
+      {
+        scopeSpans: [
+          {
+            scope: { name: "ai", version: "7.0.0" },
+            spans: [
+              {
+                traceId: Buffer.from("0123456789abcdef0123456789abcdef", "hex"),
+                spanId: Buffer.from("0123456789abcdef", "hex"),
+                name: "chat gpt-5.5",
+                kind: 3,
+                startTimeUnixNano: "1752384000000000000",
+                endTimeUnixNano: "1752384001000000000",
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "gpt-5.5" },
+                  },
+                  {
+                    key: "langfuse.observation.model.parameters",
+                    value: {
+                      stringValue: JSON.stringify({ temperature: 0.5 }),
+                    },
+                  },
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        openai: { serviceTier: "priority" },
+                      }),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const events = new OtelIngestionProcessor({
+      projectId: "project-1",
+      publicKey: "pk-test",
+      sdkName: "ai",
+      sdkVersion: "7.0.0",
+    }).processToEvent(batch);
+
+    expect(events).toHaveLength(1);
+    expect(events[0].modelParameters).toMatchObject({
+      temperature: 0.5,
+      service_tier: "priority",
+    });
+  });
 });

@@ -268,11 +268,18 @@ export class IngestionService {
     // fields as strings, so stringify at this schema boundary.
     const input = this.stringify(eventData.input);
     const output = this.stringify(eventData.output);
-    const modelParameters = eventData.modelParameters
-      ? typeof eventData.modelParameters === "string"
-        ? JSON.parse(eventData.modelParameters)
-        : eventData.modelParameters
-      : {};
+    const modelParameters = (() => {
+      if (!eventData.modelParameters) return {};
+      if (typeof eventData.modelParameters !== "string") {
+        return eventData.modelParameters;
+      }
+
+      try {
+        return JSON.parse(eventData.modelParameters);
+      } catch {
+        return eventData.modelParameters;
+      }
+    })();
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
