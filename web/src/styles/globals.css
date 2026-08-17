@@ -607,10 +607,21 @@
   body {
     /* Prevent pull-to-refresh and rubber-banding on the page level only */
     overscroll-behavior-y: none;
-    /* Omitting `pinch-zoom` blocks pinch and double-tap zoom at the engine
-       level, which modern iOS honors where it ignores `user-scalable=no`
-       (viewport meta lives in pages/_app.tsx). Elements that own their own
-       gestures set their own `touch-action`. */
+  }
+
+  /* The page never zooms, so a pinch belongs to the surface under it (omitting
+     `pinch-zoom` is the block; the viewport meta lives in pages/_app.tsx).
+     Naming `html, body` alone is NOT enough: WebKit ignores root-level
+     `touch-action` for page pinch, just as it ignores `user-scalable=no`, and
+     overlays portal OUT of `#__next` into the layer containers, so each needs
+     the declaration. Deliberately layered — vaul injects
+     `[data-vaul-drawer]{touch-action:none}` unlayered, which beats any layer;
+     that is stricter, so the drawer keeps owning its drag. Surfaces that own a
+     gesture set their own `touch-action` (a `touch-*` utility wins over this). */
+  html,
+  body,
+  div#__next,
+  [data-overlay-root] > [data-layer] > * {
     touch-action: pan-x pan-y;
   }
 
