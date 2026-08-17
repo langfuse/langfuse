@@ -154,7 +154,6 @@ async function createTestSandbox(opts?: {
   };
 
   const provider: SandboxProvider = {
-    type: "lambda-microvm",
     ...(opts?.sessionLostReason
       ? { probeSession: async () => opts.sessionLostReason ?? null }
       : {}),

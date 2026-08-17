@@ -191,7 +191,6 @@ export async function createDockerSandboxProvider(params: {
   });
 
   return {
-    type: "dangerous-docker",
     async ensureSession({ conversationId, sessionId }) {
       logger.debug("In-app agent docker sandbox ensureSession", {
         conversationId,

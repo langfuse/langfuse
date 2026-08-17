@@ -28,11 +28,9 @@ export async function createInAppAgentSandbox(params: {
     logger.info("In-app agent sandbox session replaced", {
       projectId: params.projectId,
       conversationId: params.conversationId,
-      provider: params.provider.type,
       reason,
     });
     recordIncrement("langfuse.in_app_agent.sandbox.session_replaced", 1, {
-      provider: params.provider.type,
       reason,
     });
   };
