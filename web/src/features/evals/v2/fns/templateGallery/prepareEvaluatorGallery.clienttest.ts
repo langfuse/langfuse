@@ -33,6 +33,21 @@ describe("prepareEvaluatorGallery", () => {
       "safety",
       "coding-agents",
     ]);
+    const conversationSection = gallery.sections.find(
+      ({ key }) => key === "conversation",
+    );
+    expect(
+      conversationSection?.templates.map((template) =>
+        template.source === "managed" ? template.key : null,
+      ),
+    ).toEqual([
+      "chat-intent",
+      "user-disagreement",
+      "all-caps",
+      "user-distress",
+      "out-of-scope-request",
+      "language",
+    ]);
   });
 
   it("searches custom and managed template descriptions", () => {

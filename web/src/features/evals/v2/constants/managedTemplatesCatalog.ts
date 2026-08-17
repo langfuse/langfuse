@@ -204,11 +204,11 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "all-caps",
-      name: "All CAPS",
+      name: "User frustration (ALL CAPS)",
       category: "conversation",
       icon: "type",
       description:
-        "Detects whether text is written fully or mostly in all caps.",
+        "Detects whether user uses all capital letters, potentially indicating frustration.",
       maintainer: "langfuse",
       runsOn: ["live-observations"],
       evaluator: {

@@ -28,6 +28,19 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   sparkles: Sparkles,
 };
 
+const CONVERSATION_TEMPLATE_ORDER = [
+  "chat-intent",
+  "user-disagreement",
+  "all-caps",
+  "user-distress",
+  "out-of-scope-request",
+  "language",
+] as const;
+
+const CONVERSATION_TEMPLATE_RANK = new Map(
+  CONVERSATION_TEMPLATE_ORDER.map((key, index) => [key, index]),
+);
+
 export function prepareEvaluatorGallery({
   customTemplates,
   customTemplateCount,
@@ -52,7 +65,20 @@ export function prepareEvaluatorGallery({
   const managedByCategory = new Map(
     managedCatalog.categories.map((category) => [
       category.key,
-      managedCatalog.templates
+      (category.key === "conversation"
+        ? managedCatalog.templates
+            .filter((template) => template.category === category.key)
+            .toSorted(
+              (left, right) =>
+                (CONVERSATION_TEMPLATE_RANK.get(left.key) ??
+                  Number.MAX_SAFE_INTEGER) -
+                (CONVERSATION_TEMPLATE_RANK.get(right.key) ??
+                  Number.MAX_SAFE_INTEGER),
+            )
+        : managedCatalog.templates.filter(
+            (template) => template.category === category.key,
+          )
+      )
         .filter((template) => template.category === category.key)
         .map((template) => ({ source: "managed" as const, ...template })),
     ]),
