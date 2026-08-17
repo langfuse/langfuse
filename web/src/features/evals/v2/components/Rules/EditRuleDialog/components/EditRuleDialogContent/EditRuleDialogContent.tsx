@@ -160,7 +160,7 @@ export function EditRuleDialogContent({
         : [],
       title: matchScopeChanged
         ? "Update active evaluation rule?"
-        : "Attach LLM evaluator?",
+        : "Attach evaluator?",
       description:
         "This rule is active. Based on matching observations from the last seven days and the latest evaluator test calls:",
       confirmLabel: matchScopeChanged ? "Save changes" : "Save and attach",
