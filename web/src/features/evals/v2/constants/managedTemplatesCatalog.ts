@@ -34,8 +34,8 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "conversation",
-      label: "Conversation",
-      description: "Signals from multi-turn chats and agent conversations.",
+      label: "Conversational / Chatbots",
+      description: "Signals from multi-turn chats and chatbot interactions.",
       icon: "messages-square",
     },
     {
@@ -263,7 +263,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "out-of-scope-request",
       name: "Out-of-Scope Request",
-      category: "safety",
+      category: "conversation",
       icon: "shield",
       description: "Flags user requests outside the assistant's defined scope.",
       maintainer: "langfuse",
@@ -297,6 +297,122 @@ export const MANAGED_TEMPLATES_CATALOG = {
               "One concise explanation identifying the request, the agent scope, and why it is or is not out of scope.",
           },
         },
+      },
+    },
+    {
+      key: "language",
+      name: "Language",
+      category: "conversation",
+      icon: "languages",
+      description:
+        "Detects the primary language and indicates if input/output languages match.",
+      maintainer: "langfuse",
+      evaluator: {
+        type: "LLM_AS_JUDGE",
+        prompt:
+          "You are a Language Identification Judge.\nGiven the provided text variables, detect the primary language using ISO 639-1 codes and return exactly one score category.\n\nRules:\n- First detect the language of input_text if available.\n- Then detect the language of output_text if available.\n- If output_text exists and is non-empty, return the detected language for output_text as the score.\n- Otherwise return the detected language for input_text as the score.\n- In reasoning, mention whether input_text and output_text appear to match when both are available.\n\nAllowed language codes:\nen, de, fr, es, it, pt, zh, ja, ko, ar, hi, ru, other\n\nInput:\ninput_text: {{input_text}}\noutput_text: {{output_text}}\n\nThink step by step and return the structured result.",
+        variables: [
+          {
+            name: "input_text",
+            defaultMapping: {
+              field: "input",
+            },
+          },
+          {
+            name: "output_text",
+            defaultMapping: {
+              field: "output",
+            },
+          },
+        ],
+        outputDefinition: {
+          version: 2,
+          dataType: "CATEGORICAL",
+          score: {
+            description:
+              "Primary language code for the selected text (output_text when present, otherwise input_text).",
+            categories: [
+              "en",
+              "de",
+              "fr",
+              "es",
+              "it",
+              "pt",
+              "zh",
+              "ja",
+              "ko",
+              "ar",
+              "hi",
+              "ru",
+              "other",
+            ],
+            shouldAllowMultipleMatches: false,
+          },
+          reasoning: {
+            description:
+              "One sentence explaining the detected language and whether input/output languages match.",
+          },
+        },
+      },
+    },
+    {
+      key: "chat-intent",
+      name: "Chat Intent",
+      category: "conversation",
+      icon: "message-square",
+      description:
+        "Classifies the user request into a predefined support or topic intent.",
+      maintainer: "langfuse",
+      evaluator: {
+        type: "LLM_AS_JUDGE",
+        prompt:
+          "You are a Chat Intent classifier for assistant conversations.\nClassify the user's message into exactly one intent category.\n\nIntent categories:\n- support_request: asks for help using a product or service\n- bug_report: reports something broken or not working\n- billing_question: asks about invoices, charges, plans, or subscriptions\n- feature_request: asks for a new capability or improvement\n- sales_inquiry: asks about buying, pricing, enterprise, or demos\n- general_question: neutral informational question\n- greeting: greeting or short social opener without a concrete request\n- feedback: explicit praise, complaint, or evaluative feedback\n- other: does not fit the categories above\n\nInput:\nuser_message: {{user_message}}\n\nThink step by step and return the structured result.",
+        variables: [
+          {
+            name: "user_message",
+            defaultMapping: {
+              field: "input",
+            },
+          },
+        ],
+        outputDefinition: {
+          version: 2,
+          dataType: "CATEGORICAL",
+          score: {
+            description: "Intent category that best matches the user message.",
+            categories: [
+              "support_request",
+              "bug_report",
+              "billing_question",
+              "feature_request",
+              "sales_inquiry",
+              "general_question",
+              "greeting",
+              "feedback",
+              "other",
+            ],
+            shouldAllowMultipleMatches: false,
+          },
+          reasoning: {
+            description:
+              "One sentence explaining which intent was selected and why.",
+          },
+        },
+      },
+    },
+    {
+      key: "all-caps",
+      name: "All CAPS",
+      category: "conversation",
+      icon: "type",
+      description:
+        "Detects whether text is fully or mostly written in uppercase letters.",
+      maintainer: "langfuse",
+      evaluator: {
+        type: "CODE",
+        language: "TYPESCRIPT",
+        source:
+          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const inputText = typeof ctx.observation.input === "string" ? ctx.observation.input : "";\n  const outputText = typeof ctx.observation.output === "string" ? ctx.observation.output : "";\n  const text = outputText.trim().length > 0 ? outputText : inputText;\n\n  const letters = text.match(/[A-Za-z]/g) ?? [];\n  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];\n  const uppercaseRatio =\n    letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;\n  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.8;\n\n  return {\n    scores: [\n      {\n        name: "All CAPS",\n        value: isAllCaps,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
       },
     },
     {

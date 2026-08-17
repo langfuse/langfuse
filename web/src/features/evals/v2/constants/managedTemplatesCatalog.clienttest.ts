@@ -15,7 +15,7 @@ describe("managed evaluator templates catalog", () => {
       ({ key }) => key,
     );
 
-    expect(MANAGED_TEMPLATES_CATALOG.templates).toHaveLength(23);
+    expect(MANAGED_TEMPLATES_CATALOG.templates).toHaveLength(26);
     expect(new Set(templateKeys).size).toBe(templateKeys.length);
 
     for (const template of MANAGED_TEMPLATES_CATALOG.templates) {
