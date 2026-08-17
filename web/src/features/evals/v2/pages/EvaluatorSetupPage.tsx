@@ -4,6 +4,7 @@ import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "lucide-react";
 import {
   observationVariableMappingList,
+  type EvaluatorBlockReason,
   type EvalTemplateType,
   type FilterState,
   type ObservationVariableMapping,
@@ -41,6 +42,7 @@ import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
+import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 
 type InitialEvaluator = {
   id: string;
@@ -48,6 +50,9 @@ type InitialEvaluator = {
   description: string | null;
   type: EvalTemplateType;
   definition: EvaluatorDefinition;
+  blockedAt: Date | null;
+  blockReason: EvaluatorBlockReason | null;
+  blockMessage: string | null;
 };
 
 export function EvaluatorSetupPage(
@@ -369,6 +374,16 @@ export function EvaluatorSetupPage(
       }}
     >
       <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
+      {initialEvaluator?.blockedAt ? (
+        <div className="mx-3 mt-3">
+          <EvaluatorBlockedBanner
+            projectId={projectId}
+            blockedAt={initialEvaluator.blockedAt}
+            blockReason={initialEvaluator.blockReason}
+            blockMessage={initialEvaluator.blockMessage}
+          />
+        </div>
+      ) : null}
       <ResizableSplitLayout
         className="min-h-0 flex-1"
         primaryContent={

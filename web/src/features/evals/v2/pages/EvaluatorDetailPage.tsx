@@ -51,6 +51,9 @@ export default function EvaluatorDetailPage() {
         description: evaluator.data.description,
         type: evaluator.data.type,
         definition: definition as EvaluatorDefinition,
+        blockedAt: evaluator.data.blockedAt,
+        blockReason: evaluator.data.blockReason,
+        blockMessage: evaluator.data.blockMessage,
       }}
     />
   );

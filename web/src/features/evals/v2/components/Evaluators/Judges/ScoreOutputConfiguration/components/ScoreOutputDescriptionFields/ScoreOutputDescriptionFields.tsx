@@ -53,10 +53,10 @@ export function ScoreOutputDescriptionFields({
   const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-1.5">
       <button
         type="button"
-        className="flex w-fit items-center gap-1.5 text-sm font-bold"
+        className="col-span-2 flex w-fit items-center gap-1.5 text-sm font-bold"
         aria-expanded={advancedOpen}
         onClick={() => setAdvancedOpen((current) => !current)}
       >
@@ -70,7 +70,7 @@ export function ScoreOutputDescriptionFields({
       </button>
 
       {advancedOpen ? (
-        <div className="flex flex-col gap-4">
+        <div className="col-start-2 mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <DescriptionLabel
               tooltip="How the score field is described to the judge."
