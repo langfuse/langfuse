@@ -4,7 +4,6 @@ import { EventType } from "@ag-ui/core";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
-  LangfuseConflictError,
   LangfuseNotFoundError,
 } from "../../index";
 import {
@@ -44,22 +43,16 @@ import {
   getSandboxInAppAgentMcpToolResultContent,
   IN_APP_AGENT_SANDBOX_TOOL_NAMES,
 } from "./tools";
+import { getToolFailureMessage } from "./toolErrors";
 
-// Keep this close to the route maxDuration (120s) so a killed foreground stream
-// does not block the conversation long after the route can no longer respond.
-export const FOREGROUND_RUN_STALE_AFTER_MS = 150 * 1000;
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
-export const FOREGROUND_RUN_STALE_ERROR_MESSAGE =
-  "Run was marked stale before starting a new run";
-const SANDBOX_CONVERSATION_WRITE_WINDOW_MS = 8 * 60 * 60 * 1000;
 
 export type SerializedInAppAgentConversation = {
   id: string;
   title: string | null;
   createdAt: Date;
   updatedAt: Date;
-  isWriteLocked: boolean;
 };
 
 export type PersistedConversationEvent = {
@@ -80,41 +73,13 @@ export function serializeConversation(
     InAppAgentConversation,
     "id" | "title" | "createdAt" | "updatedAt"
   >,
-  options?: { isWriteLocked?: boolean },
 ): SerializedInAppAgentConversation {
   return {
     id: conversation.id,
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
-    isWriteLocked: options?.isWriteLocked ?? false,
   };
-}
-
-export function isInAppAgentConversationWriteLocked(params: {
-  conversation: Pick<InAppAgentConversation, "createdAt">;
-  events: readonly Pick<PersistedConversationEvent, "event">[];
-  now?: Date;
-}) {
-  const now = params.now ?? new Date();
-  const ageMs = now.getTime() - params.conversation.createdAt.getTime();
-
-  if (ageMs <= SANDBOX_CONVERSATION_WRITE_WINDOW_MS) {
-    return false;
-  }
-
-  return params.events.some(({ event }) => {
-    if (event.type !== EventType.TOOL_CALL_START) {
-      return false;
-    }
-
-    const toolName = getString(event, "toolCallName");
-    if (!toolName) {
-      return false;
-    }
-
-    return IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName);
-  });
 }
 
 export async function getOwnedConversationOrThrow(params: {
@@ -176,130 +141,6 @@ export async function ensureOwnedConversation(params: {
   });
 }
 
-export async function createRun(params: {
-  prisma: PrismaClient;
-  runId: string;
-  projectId: string;
-  conversationId: string;
-  triggeredByUserId: string;
-  model?: string;
-  mcpApiKeyId?: string;
-}) {
-  const now = new Date();
-  const staleBefore = new Date(now.getTime() - FOREGROUND_RUN_STALE_AFTER_MS);
-
-  return params.prisma.$transaction(async (tx) => {
-    await lockConversation(tx, params.projectId, params.conversationId);
-
-    // If a foreground stream dies before finishRun runs, lazily mark the old
-    // run stale so it does not block the conversation forever.
-    //
-    // `claimedAt`/`heartbeatAt` must stay NULL here: only the background
-    // worker sets them, and a background run legitimately runs for up to
-    // RUN_MAX_DURATION. Without this guard a foreground submit (flag off)
-    // would stale-close a healthy background run at 150s and fence its
-    // worker — execution mode is not sticky per conversation, so that mix is
-    // a normal state. An unclaimed QUEUED run stays sweepable, which is what
-    // we want: it unblocks the conversation and reconcile-on-read agrees.
-    await tx.inAppAgentRun.updateMany({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        finishedAt: null,
-        createdAt: { lt: staleBefore },
-        claimedAt: null,
-        heartbeatAt: null,
-      },
-      data: {
-        status: InAppAgentRunStatus.FAILED,
-        finishedAt: now,
-        errorCode: InAppAgentRunErrorCode.STALE,
-        errorMessage: FOREGROUND_RUN_STALE_ERROR_MESSAGE,
-      },
-    });
-
-    const activeRun = await tx.inAppAgentRun.findFirst({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        finishedAt: null,
-      },
-      select: { id: true },
-    });
-
-    if (activeRun) {
-      throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
-    }
-
-    try {
-      return await tx.inAppAgentRun.create({
-        data: {
-          id: params.runId,
-          projectId: params.projectId,
-          conversationId: params.conversationId,
-          triggeredByUserId: params.triggeredByUserId,
-          model: params.model,
-          mcpApiKeyId: params.mcpApiKeyId,
-          // The foreground path has no queue/claim step; runs start executing.
-          status: InAppAgentRunStatus.RUNNING,
-        },
-      });
-    } catch (error) {
-      // Backstop: the partial unique index on active runs. The conversation
-      // lock above should make this unreachable; surface it as the same
-      // conflict as the primary check instead of a 500. The insert can also
-      // violate the (id, project_id) primary key (a replayed runId), so only
-      // map the active-run index — Prisma reports it via its column names.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002" &&
-        Array.isArray(error.meta?.target) &&
-        error.meta.target.includes("conversation_id")
-      ) {
-        throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
-      }
-      throw error;
-    }
-  });
-}
-
-export async function finishRun(params: {
-  prisma: PrismaClient;
-  runId: string;
-  projectId: string;
-  errorCode?: InAppAgentRunErrorCode | null;
-  errorMessage?: string | null;
-}) {
-  const errorCode = params.errorCode ?? null;
-  const status =
-    errorCode == null
-      ? InAppAgentRunStatus.SUCCEEDED
-      : errorCode === InAppAgentRunErrorCode.CANCELLED
-        ? InAppAgentRunStatus.CANCELLED
-        : InAppAgentRunStatus.FAILED;
-  await params.prisma.inAppAgentRun
-    .updateMany({
-      where: {
-        id: params.runId,
-        projectId: params.projectId,
-        finishedAt: null,
-      },
-      data: {
-        status,
-        finishedAt: new Date(),
-        errorCode,
-        errorMessage: params.errorMessage ?? null,
-      },
-    })
-    .catch((error: unknown) =>
-      logger.error("Failed to finish in-app agent run", {
-        error,
-        runId: params.runId,
-        projectId: params.projectId,
-      }),
-    );
-}
-
 export async function appendRunEvents(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -317,7 +158,7 @@ export async function appendRunEvents(params: {
   };
 }): Promise<boolean> {
   return params.prisma.$transaction(async (tx) => {
-    await lockConversation(tx, params.projectId, params.conversationId);
+    await lockConversationRow(tx, params.projectId, params.conversationId);
 
     if (params.finish) {
       const finished = await tx.inAppAgentRun.updateMany({
@@ -445,6 +286,14 @@ export function createSandboxToolCallFileAccumulator(
     const draft = drafts.get(toolCall.toolCallId);
     drafts.delete(toolCall.toolCallId);
     completedToolCallIds.add(toolCall.toolCallId);
+
+    // The MCP wrapper already classified the failure onto `error`, so failures
+    // never become sandbox tool_calls files. Marking the id completed above
+    // keeps a later replayed event from writing one either.
+    if (toolCall.error !== null) {
+      return;
+    }
+
     files.push({
       path: `tool_calls/${formatSandboxToolCallTimestamp(draft?.createdAt ?? toolCall.createdAt)}_${draft?.toolName ?? toolCall.toolName}_${toolCall.toolCallId}.json`,
       content: JSON.stringify(
@@ -505,18 +354,28 @@ export function createSandboxToolCallFileAccumulator(
       return;
     }
 
+    const error = getString(event, "error") ?? null;
+    // Unwrap once and classify the result we would archive, rather than parsing
+    // the raw content here and again on the way into the file.
+    const response = parseSandboxToolCallValue(
+      getString(event, "content"),
+      getSandboxInAppAgentMcpToolResultContent,
+    );
+
     drafts.delete(toolCallId);
     completedToolCallIds.add(toolCallId);
+
+    if (getToolFailureMessage(error, response)) {
+      return;
+    }
+
     files.push({
       path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
-          response: parseSandboxToolCallValue(
-            getString(event, "content"),
-            getSandboxInAppAgentMcpToolResultContent,
-          ),
-          error: getString(event, "error") ?? null,
+          response,
+          error,
         },
         null,
         2,
@@ -1423,23 +1282,38 @@ function stripAssistantRunIds(messages: readonly AgUiMessage[]) {
 
 export type InAppAgentTx = Prisma.TransactionClient;
 
-/**
- * Serializes every run-creating and approval-consuming mutation on one row.
- * The partial unique index on active runs is only the backstop; this lock is
- * what turns a race into a clean conflict error instead of a 500.
- */
+/** Serialize run mutations and reject conversations deleted while waiting. */
 export async function lockConversation(
   tx: InAppAgentTx,
   projectId: string,
   conversationId: string,
 ) {
-  await tx.$queryRaw`
-    SELECT 1
+  const conversation = await lockConversationRow(tx, projectId, conversationId);
+
+  if (conversation.deletedAt) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
+}
+
+async function lockConversationRow(
+  tx: InAppAgentTx,
+  projectId: string,
+  conversationId: string,
+) {
+  const conversations = await tx.$queryRaw<Array<{ deletedAt: Date | null }>>`
+    SELECT "deleted_at" AS "deletedAt"
     FROM "in_app_agent_conversations"
     WHERE "id" = ${conversationId}
       AND "project_id" = ${projectId}
     FOR UPDATE
   `;
+
+  const conversation = conversations[0];
+  if (!conversation) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
+
+  return conversation;
 }
 
 function parseMessages(messages: unknown[]): AgUiMessage[] {

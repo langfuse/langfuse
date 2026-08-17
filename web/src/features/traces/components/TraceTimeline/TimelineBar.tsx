@@ -13,10 +13,8 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
-import {
-  heatMapTextColor,
-  getSubtreeDurationOverflowMs,
-} from "@/src/features/traces/fns/helpers";
+import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
+import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
 import { isPresent } from "@langfuse/shared";
 
 const SUBTREE_DURATION_TITLE =

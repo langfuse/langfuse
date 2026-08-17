@@ -244,12 +244,13 @@ describe("in-app agent background runs", () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
-    const { runId } = await caller.startRun({
+    const { conversationId, runId } = await caller.startRun({
       projectId,
       conversationId: conversation.id,
       message: "why did these traces fail?",
       context: [{ description: "current_url", value: "/project/x/traces" }],
     });
+    expect(conversationId).toBe(conversation.id);
 
     const run = await prisma.inAppAgentRun.findFirstOrThrow({
       where: { id: runId, projectId },
@@ -510,6 +511,70 @@ describe("in-app agent background runs", () => {
     expect(runId).not.toBe(parkedRunId);
   });
 
+  it("grants a tool for the conversation only when the scope asks for it", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const onceConversation = await createConversation({ projectId, userId });
+    const grantConversation = await createConversation({ projectId, userId });
+
+    const onceRunId = await parkRunForApproval({
+      projectId,
+      conversationId: onceConversation.id,
+      userId,
+      toolCallId: "tool-call-once",
+    });
+
+    await caller.decideToolApproval({
+      projectId,
+      conversationId: onceConversation.id,
+      runId: onceRunId,
+      toolCallId: "tool-call-once",
+      approved: true,
+    });
+
+    await expect(
+      prisma.inAppAgentConversation.findFirstOrThrow({
+        where: { id: onceConversation.id, projectId },
+        select: { alwaysAllowedTools: true },
+      }),
+    ).resolves.toEqual({ alwaysAllowedTools: [] });
+
+    const grantRunId = await parkRunForApproval({
+      projectId,
+      conversationId: grantConversation.id,
+      userId,
+      toolCallId: "tool-call-grant",
+    });
+
+    await caller.decideToolApproval({
+      projectId,
+      conversationId: grantConversation.id,
+      runId: grantRunId,
+      toolCallId: "tool-call-grant",
+      approved: true,
+      approvalScope: "conversation",
+    });
+
+    await expect(
+      prisma.inAppAgentConversation.findFirstOrThrow({
+        where: { id: grantConversation.id, projectId },
+        select: { alwaysAllowedTools: true },
+      }),
+    ).resolves.toEqual({ alwaysAllowedTools: ["langfuse_createTextPrompt"] });
+
+    const decisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
+      where: {
+        projectId,
+        conversationId: grantConversation.id,
+        runId: grantRunId,
+      },
+      orderBy: { sequenceNumber: "desc" },
+    });
+    expect(decisionEvent.event).toMatchObject({
+      name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+      value: { toolCallId: "tool-call-grant", scope: "conversation" },
+    });
+  });
+
   it("decides an approval exactly once and reads the tool args server-side", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -702,66 +767,6 @@ describe("in-app agent background runs", () => {
     expect(enqueuedJobs).toEqual([]);
   });
 
-  it("rejects approval continuations for write-locked conversations before mutating", async () => {
-    const { caller, projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
-    const parkedRunId = await parkRunForApproval({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-      toolCallId: "write-locked-tool-call",
-    });
-
-    await prisma.inAppAgentConversation.update({
-      where: {
-        id_projectId: { id: conversation.id, projectId },
-      },
-      data: { createdAt: new Date(Date.now() - 9 * 60 * 60 * 1000) },
-    });
-    await prisma.inAppAgentEvent.create({
-      data: {
-        projectId,
-        conversationId: conversation.id,
-        runId: parkedRunId,
-        sequenceNumber: 1,
-        type: EventType.TOOL_CALL_START,
-        event: {
-          type: EventType.TOOL_CALL_START,
-          toolCallId: "sandbox-tool-call",
-          toolCallName: "bash",
-        },
-      },
-    });
-
-    await expect(
-      caller.decideToolApproval({
-        projectId,
-        conversationId: conversation.id,
-        runId: parkedRunId,
-        toolCallId: "write-locked-tool-call",
-        approved: true,
-      }),
-    ).rejects.toMatchObject({
-      code: "PRECONDITION_FAILED",
-      message:
-        "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.",
-    });
-
-    await expect(
-      prisma.inAppAgentRun.findFirstOrThrow({
-        where: { id: parkedRunId, projectId },
-      }),
-    ).resolves.toMatchObject({
-      status: InAppAgentRunStatus.AWAITING_APPROVAL,
-    });
-    await expect(
-      prisma.inAppAgentRun.count({
-        where: { projectId, conversationId: conversation.id },
-      }),
-    ).resolves.toBe(1);
-    expect(enqueuedJobs).toEqual([]);
-  });
-
   it("persists approval expiry before rejecting a late decision", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -883,6 +888,60 @@ describe("in-app agent background runs", () => {
     });
   });
 
+  it("deletes a conversation while cancelling its unsettled run", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const runningConversation = await createConversation({ projectId, userId });
+    const parkedConversation = await createConversation({ projectId, userId });
+
+    const runningRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: runningConversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: new Date(),
+        heartbeatAt: new Date(),
+      },
+    });
+    // Parked approvals have finishedAt set but still require cancellation.
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: parkedConversation.id,
+      userId,
+      toolCallId: "tool-call-delete",
+    });
+
+    for (const conversationId of [
+      runningConversation.id,
+      parkedConversation.id,
+    ]) {
+      await caller.deleteConversation({ projectId, conversationId });
+      await expect(
+        prisma.inAppAgentConversation.findFirstOrThrow({
+          where: { id: conversationId, projectId },
+        }),
+      ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
+    }
+
+    await expect(
+      prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: parkedRunId, projectId },
+      }),
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.CANCELLED,
+      errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
+    });
+    await expect(
+      prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: runningRun.id, projectId },
+      }),
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.RUNNING,
+      cancelRequestedAt: expect.any(Date),
+    });
+  });
+
   it("stops surfacing an approval that a newer message superseded", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -934,12 +993,6 @@ describe("in-app agent background runs", () => {
       },
     },
     {
-      name: "foreground_stale",
-      expected: InAppAgentRunErrorCode.STALE,
-      data: { status: InAppAgentRunStatus.RUNNING },
-      createdAt: new Date(Date.now() - 3 * 60_000),
-    },
-    {
       name: "queue_timeout",
       expected: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
       data: { status: InAppAgentRunStatus.QUEUED },
@@ -986,6 +1039,48 @@ describe("in-app agent background runs", () => {
       status: InAppAgentRunStatus.FAILED,
       errorCode: testCase.expected,
     });
+  });
+
+  it("continues a conversation after a timestamp-less run times out", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const previousRunId = createInAppAgentRunId();
+
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: previousRunId,
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: previousRunId, projectId } },
+      data: { createdAt: new Date(Date.now() - 16 * 60_000) },
+    });
+
+    const { runId } = await caller.startRun({
+      projectId,
+      conversationId: conversation.id,
+      message: "continue in background",
+    });
+
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: previousRunId, projectId } },
+      }),
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.RUN_TIMEOUT,
+    });
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: runId, projectId } },
+      }),
+    ).resolves.toMatchObject({ status: InAppAgentRunStatus.QUEUED });
+    expect(enqueuedJobs).toEqual([expect.objectContaining({ jobId: runId })]);
   });
 
   it("fails the committed run when the enqueue fails", async () => {
@@ -1133,5 +1228,55 @@ describe("in-app agent background runs", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     expect(enqueuedJobs).toHaveLength(0);
+  });
+
+  it("lists the newest run per conversation and classifies a dead worker without writing", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.SUCCEEDED,
+        finishedAt: new Date(Date.now() - 10 * 60_000),
+        createdAt: new Date(Date.now() - 10 * 60_000),
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+    const deadRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: new Date(Date.now() - 5 * 60_000),
+        heartbeatAt: new Date(Date.now() - 5 * 60_000),
+        createdAt: new Date(Date.now() - 5 * 60_000),
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+
+    const listed = await caller.listConversations({ projectId, limit: 50 });
+
+    // The newest run wins, and a run whose worker stopped reporting is served
+    // as failed even though nothing has written that verdict yet.
+    expect(
+      listed.conversations.find((row) => row.id === conversation.id)?.latestRun,
+    ).toEqual({
+      id: deadRun.id,
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.WORKER_LOST,
+      cancelRequested: false,
+    });
+
+    const stored = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: deadRun.id, projectId },
+    });
+    expect(stored.status).toBe(InAppAgentRunStatus.RUNNING);
+    expect(stored.finishedAt).toBeNull();
   });
 });

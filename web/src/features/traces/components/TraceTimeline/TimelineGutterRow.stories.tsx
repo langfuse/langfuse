@@ -2,7 +2,7 @@ import { fn } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { TimelineGutterRow } from "./TimelineGutterRow";
 import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
-import { makeItem, makeTreeNode } from "./timeline.fixtures";
+import { makeItem, makeTreeNode } from "./__tests__/timeline.fixtures";
 
 const ROW_BOX =
   "bg-background relative h-[26px] w-[320px] overflow-hidden rounded border";

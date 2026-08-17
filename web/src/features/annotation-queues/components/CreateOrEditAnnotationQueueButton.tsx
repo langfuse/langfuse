@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import React, { useEffect, useMemo, useState } from "react";
 import {

@@ -1,8 +1,5 @@
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
-import {
-  createInAppAgentMcpRunOverride,
-  InAppAgentMcpRunOverrideSchema,
-} from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import { createInAppAgentMcpRunOverride } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 import { getInAppAgentContext } from "@/src/pages/api/public/mcp";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
@@ -47,20 +44,25 @@ describe("MCP route in-app-agent context", () => {
     });
   });
 
-  it("returns a single-tool override for valid override headers", async () => {
+  it("returns the tool allowlist for valid override headers", async () => {
     const overrideHeader = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset", "createDashboardWidget"],
     });
     const req = createRequest(overrideHeader);
 
-    expect(
-      InAppAgentMcpRunOverrideSchema.parse(JSON.parse(overrideHeader)),
-    ).toEqual({
-      toolName: "upsertDataset",
-    });
     expect(getInAppAgentContext(req, true)).toEqual({
-      permissions: "single-tool-override",
-      allowedToolName: "upsertDataset",
+      permissions: "tool-allowlist",
+      allowedToolNames: ["upsertDataset", "createDashboardWidget"],
+    });
+  });
+
+  // Accept continuations queued by workers that still emit one tool.
+  it("still resolves the pre-allowlist single-tool header", () => {
+    const req = createRequest('{"toolName":"upsertDataset"}');
+
+    expect(getInAppAgentContext(req, true)).toEqual({
+      permissions: "tool-allowlist",
+      allowedToolNames: ["upsertDataset"],
     });
   });
 });

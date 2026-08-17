@@ -199,7 +199,7 @@ describe("monitors trpc", () => {
       ).rejects.toThrow(/access/i);
     });
 
-    it("allows monitors.create from MEMBER role (monitors:CUD)", async () => {
+    it("allows monitors.create from MEMBER role (alerts:CUD)", async () => {
       const { project, caller } = await prepare({ projectRole: "MEMBER" });
 
       const created = await caller.monitors.create(

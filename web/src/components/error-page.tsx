@@ -66,6 +66,7 @@ export const ErrorPageWithSentry = ({
   title = "Error",
   message,
   additionalButton,
+  expected = false,
 }: {
   title?: string;
   message: string;
@@ -78,15 +79,17 @@ export const ErrorPageWithSentry = ({
         label: string;
         onClick: () => void;
       };
+  /** Expected, user-caused outcome: breadcrumb instead of a Sentry error. */
+  expected?: boolean;
 }) => {
   useEffect(() => {
-    // Capture the error with Sentry
+    // Capture the error with Sentry (breadcrumb only when expected)
     if (window !== undefined)
       reportError(
         new Error(`ErrorPageWithSentry rendered: ${title}, ${message}`),
-        { area: "error-page" },
+        { area: "error-page", expected, extra: { title, message } },
       );
-  }, [title, message]); // Empty dependency array means this effect runs once on mount
+  }, [title, message, expected]);
 
   return (
     <ErrorPage

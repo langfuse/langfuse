@@ -1,4 +1,8 @@
-import { getFacetSummary, rankFacetOptions } from "./facet-display";
+import {
+  getFacetSummary,
+  rankFacetOptions,
+  rankFacetsByName,
+} from "./facet-display";
 import type {
   CategoricalUIFilter,
   NumericUIFilter,
@@ -273,5 +277,32 @@ describe("rankFacetOptions", () => {
 
   it("returns everything unchanged for an empty query", () => {
     expect(rankFacetOptions(["b", "a"], "")).toEqual(["b", "a"]);
+  });
+});
+
+describe("rankFacetsByName", () => {
+  const facets = [
+    { column: "userId", label: "User ID" },
+    { column: "sessionId", label: "Session ID" },
+    { column: "totalTokens", label: "Total Tokens" },
+  ];
+
+  it("matches the column key as well as the label", () => {
+    // The label's space defeats a label-only match on "userid".
+    expect(rankFacetsByName(facets, "userid")).toEqual([facets[0]]);
+    expect(rankFacetsByName(facets, "tokens")).toEqual([facets[2]]);
+  });
+
+  it("ranks prefix matches before substring matches", () => {
+    // "name" is the Trace Name facet's own key (prefix) and only part of the
+    // Prompt Name one (substring) — the traces sidebar's real shape.
+    const named = [
+      { column: "promptName", label: "Prompt Name" },
+      { column: "name", label: "Trace Name" },
+    ];
+    expect(rankFacetsByName(named, "name").map((f) => f.column)).toEqual([
+      "name",
+      "promptName",
+    ]);
   });
 });

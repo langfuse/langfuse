@@ -2,10 +2,12 @@ import {
   AnalyticsIntegrationExportSource,
   LEGACY_BLOB_EXPORT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
+  type BlobExportWriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
 
 import {
+  buildExportSourceContext,
   getExportSourceFormValue,
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
@@ -252,11 +254,162 @@ describe("shouldHideExportSourceSelector", () => {
   });
 });
 
+// The settings pages (blob storage, PostHog, Mixpanel) build their context
+// through buildExportSourceContext from the write mode the integration router
+// reports — not from the session's beta flag and not from a frontend preview
+// env var. Driving these cases through the real builder is what covers that
+// wiring; the builder takes no session or beta input at all.
+describe("write mode drives the settings-page selector", () => {
+  const WRITE_MODES: BlobExportWriteMode[] = ["legacy", "dual", "events_only"];
+
+  const ctxFor = (
+    writeMode: BlobExportWriteMode,
+    over: Partial<
+      Omit<ExportSourceContext, "enrichedAvailable" | "legacyWritesActive">
+    > = {},
+  ): ExportSourceContext =>
+    buildExportSourceContext({ writeMode, isCloud: false, ...over });
+
+  const selectableValues = (ctx: ExportSourceContext) =>
+    getExportSourceOptions(undefined, ctx)
+      .filter((o) => !o.unavailable)
+      .map((o) => o.value);
+
+  const offered: Array<
+    [BlobExportWriteMode, AnalyticsIntegrationExportSource[]]
+  > = [
+    ["legacy", [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS]],
+    [
+      "dual",
+      [
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+        AnalyticsIntegrationExportSource.EVENTS,
+      ],
+    ],
+    ["events_only", [AnalyticsIntegrationExportSource.EVENTS]],
+  ];
+
+  it.each(offered)(
+    "write mode %s offers exactly the sources it still writes",
+    (mode, expected) => {
+      expect(selectableValues(ctxFor(mode))).toEqual(expected);
+    },
+  );
+
+  const defaults: Array<
+    [BlobExportWriteMode, AnalyticsIntegrationExportSource]
+  > = [
+    ["legacy", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS],
+    ["dual", AnalyticsIntegrationExportSource.EVENTS],
+    ["events_only", AnalyticsIntegrationExportSource.EVENTS],
+  ];
+
+  // The settings-page create default: areEnrichedWritesActive(writeMode)
+  // ? EVENTS : TRACES_OBSERVATIONS. The tRPC/REST routers keep their own,
+  // older default for an omitted exportSource (TRACES_OBSERVATIONS on dual);
+  // that divergence predates this change and is tracked separately.
+  it.each(defaults)(
+    "write mode %s picks %s as the settings-page create default",
+    (mode, expected) => {
+      expect(getExportSourceFormValue(undefined, ctxFor(mode))).toBe(expected);
+    },
+  );
+
+  // Precedence: when legacy is blocked by the Cloud cutoff, the page pins
+  // EVENTS even though the general rule would pick TRACES_OBSERVATIONS for a
+  // write mode without enriched writes. Only this ordering distinguishes the
+  // two rules; every other combination agrees.
+  it("post-cutoff Cloud pins EVENTS ahead of the write-mode rule", () => {
+    const ctx = ctxFor("legacy", {
+      isCloud: true,
+      projectCreatedAt: PROJECT_POST,
+      integrationCreatedAt: ROW_PRE,
+    });
+    expect(ctx.enrichedAvailable).toBe(false);
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        ctx,
+      ),
+    ).toBe(false);
+    expect(getExportSourceFormValue(undefined, ctx)).toBe(
+      AnalyticsIntegrationExportSource.EVENTS,
+    );
+  });
+
+  // Same pinning on the reachable Cloud configuration, where the write-mode
+  // rule already agrees — this is the case real Cloud projects hit.
+  it("post-cutoff Cloud on dual pins EVENTS", () => {
+    expect(
+      getExportSourceFormValue(
+        undefined,
+        ctxFor("dual", {
+          isCloud: true,
+          projectCreatedAt: PROJECT_POST,
+          integrationCreatedAt: ROW_PRE,
+        }),
+      ),
+    ).toBe(AnalyticsIntegrationExportSource.EVENTS);
+  });
+
+  // A source that was legal when it was saved must never silently vanish: the
+  // user has to see why their save is blocked and what to switch to.
+  const blockedPersisted: Array<
+    [BlobExportWriteMode, AnalyticsIntegrationExportSource]
+  > = [
+    ["legacy", AnalyticsIntegrationExportSource.EVENTS],
+    ["legacy", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS],
+    ["events_only", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS],
+    [
+      "events_only",
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+    ],
+  ];
+
+  it.each(blockedPersisted)(
+    "write mode %s keeps a persisted %s visible and greyed out",
+    (mode, persisted) => {
+      const ctx = ctxFor(mode);
+      const options = getExportSourceOptions(persisted, ctx);
+      expect(options.map((o) => o.value)).toContain(persisted);
+      expect(options.find((o) => o.value === persisted)?.unavailable).toBe(
+        true,
+      );
+      // The form keeps the persisted value, so the blocked-save alert has a
+      // selected option to point at.
+      expect(getExportSourceFormValue(persisted, ctx)).toBe(persisted);
+      expect(shouldHideExportSourceSelector(options)).toBe(false);
+    },
+  );
+
+  // No per-user beta gate and no Cloud-specific enriched path remain, so a
+  // pre-cutoff Cloud project renders exactly what self-hosted renders.
+  it.each(WRITE_MODES)(
+    "pre-cutoff Cloud renders the same options as self-hosted on %s",
+    (mode) => {
+      expect(
+        getExportSourceOptions(
+          undefined,
+          ctxFor(mode, {
+            isCloud: true,
+            projectCreatedAt: PROJECT_PRE,
+            integrationCreatedAt: ROW_PRE,
+          }),
+        ),
+      ).toEqual(getExportSourceOptions(undefined, ctxFor(mode)));
+    },
+  );
+});
+
 describe("getExportSourceUnavailableMessage", () => {
-  it("names the enriched path for enriched-unavailable", () => {
+  it("names the write mode for enriched-unavailable (self-hosted operator-facing)", () => {
     const message = getExportSourceUnavailableMessage("enriched-unavailable");
     expect(message).toContain("enriched observations");
-    expect(message).toContain("V4 preview opt-in");
+    expect(message).toContain("LANGFUSE_MIGRATION_V4_WRITE_MODE=legacy");
+    // The preview opt-in no longer affects enriched availability, so pointing
+    // an operator at it during a blocked save sends them to a dead end.
+    expect(message).not.toContain("preview opt-in");
   });
 
   it("describes the Cloud cutoff for cloud-cutoff", () => {

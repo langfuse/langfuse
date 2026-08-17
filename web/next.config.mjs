@@ -5,6 +5,7 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
+import { renamedRouteRedirects } from "./redirects.mjs";
 
 /**
  * CSP headers
@@ -117,7 +118,8 @@ const nextConfig = {
     browserToTerminal: true,
   },
   experimental: {
-    turbopackFileSystemCacheForBuild: true,
+    // Use the Rust port instead of the Babel transform
+    // turbopackRustReactCompiler: true,
   },
 
   /**
@@ -131,6 +133,10 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+
+  async redirects() {
+    return renamedRouteRedirects;
+  },
 
   async rewrites() {
     return [

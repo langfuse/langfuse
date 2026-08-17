@@ -30,40 +30,40 @@ type RunRow = {
 
 function fakePrisma(polls: Array<{ events: EventRow[]; run: RunRow | null }>) {
   let pollIndex = 0;
+  // Reconciliation is the only thing still reaching for a transaction; the poll
+  // itself is one conversation-rooted read.
   const inAppAgentRun = {
     findMany: async () => [],
     updateMany: async () => ({ count: 0 }),
-    findFirst: async () =>
-      polls[Math.min(pollIndex, polls.length - 1)]?.run ?? null,
-  };
-  const inAppAgentEvent = {
-    findMany: async ({
-      where,
-    }: {
-      where: { sequenceNumber: { gt: number } };
-    }) => {
-      const poll = polls[Math.min(pollIndex, polls.length - 1)];
-      pollIndex += 1;
-
-      return (poll?.events ?? []).filter(
-        (row) => row.sequenceNumber > where.sequenceNumber.gt,
-      );
-    },
   };
   return {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
-      fn({
-        inAppAgentRun,
-        inAppAgentEvent,
-      }),
+      fn({ inAppAgentRun }),
     inAppAgentRun,
-    inAppAgentEvent,
+    inAppAgentConversation: {
+      findUnique: async ({
+        select,
+      }: {
+        select: { events: { where: { sequenceNumber: { gt: number } } } };
+      }) => {
+        const poll = polls[Math.min(pollIndex, polls.length - 1)];
+        pollIndex += 1;
+
+        return {
+          runs: poll?.run ? [poll.run] : [],
+          events: (poll?.events ?? []).filter(
+            (row) => row.sequenceNumber > select.events.where.sequenceNumber.gt,
+          ),
+        };
+      },
+    },
   } as unknown as PrismaClient;
 }
 
 async function collect(
   prisma: PrismaClient,
   cursor: number,
+  openRunId?: string,
 ): Promise<InAppAgentWatchFrame[]> {
   const frames: InAppAgentWatchFrame[] = [];
 
@@ -72,6 +72,7 @@ async function collect(
     projectId: "project-1",
     conversationId: "conversation-1",
     cursor,
+    openRunId,
     now: () => 0,
     sleep: async () => undefined,
   })) {
@@ -184,6 +185,24 @@ describe("watchConversationFrames", () => {
 
     // A drop right after the synthetic frame must re-read event 1, not skip it.
     expect(eventFrames(frames)[0]?.sequenceNumber).toBe(0);
+  });
+
+  it("continues an already-open run without synthesizing another start", async () => {
+    const frames = await collect(
+      fakePrisma([
+        {
+          events: [textMessage("run-1", 1), runFinished("run-1", 2)],
+          run: succeeded,
+        },
+      ]),
+      0,
+      "run-1",
+    );
+
+    expect(eventTypes(frames)).toEqual([
+      EventType.TEXT_MESSAGE_START,
+      EventType.RUN_FINISHED,
+    ]);
   });
 
   it("hands off from cursor to tail with no duplicated and no missed event", async () => {

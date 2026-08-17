@@ -65,7 +65,6 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 
   addUserToSpan({
     userId: session?.user?.id,
-    email: session?.user?.email ?? undefined,
   });
 
   return createInnerTRPCContext({ session, headers });
@@ -96,6 +95,7 @@ import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApi
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
 import { type Flag } from "@/src/features/feature-flags/types";
+import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
 
 setUpSuperjson();
 
@@ -282,6 +282,14 @@ const inputProjectSchema = z.object({
   projectId: z.string(),
 });
 
+const trackPosthogActivity = (
+  activity: Parameters<typeof recordBackendActivity>[0],
+) => {
+  recordBackendActivity(activity).catch((error) => {
+    logger.warn("Failed to track PostHog activity", { error });
+  });
+};
+
 /**
  * Protected (authenticated) procedure with project role
  */
@@ -332,6 +340,11 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         projectId,
         orgId: dbProject.orgId,
       });
+      trackPosthogActivity({
+        userId: ctx.session.user.id,
+        organizationId: dbProject.orgId,
+        projectId,
+      });
       return next({
         ctx: {
           // infers the `session` as non-nullable
@@ -361,6 +374,12 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
       orgId: sessionProject.organization.id,
     });
   }
+
+  trackPosthogActivity({
+    userId: ctx.session.user.id,
+    organizationId: sessionProject.organization.id,
+    projectId,
+  });
 
   return next({
     ctx: {
@@ -456,6 +475,11 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
       orgId,
     });
   }
+
+  trackPosthogActivity({
+    userId: ctx.session.user.id,
+    organizationId: orgId,
+  });
 
   return next({
     ctx: {

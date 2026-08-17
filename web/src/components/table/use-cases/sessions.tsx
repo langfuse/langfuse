@@ -1,4 +1,3 @@
-import { StarSessionToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -7,7 +6,6 @@ import {
 } from "@/src/components/table/data-table-controls";
 import {
   TableBadgeLoadingCell,
-  TableIconButtonLoadingCell,
   TableTextLoadingCell,
 } from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
@@ -24,6 +22,7 @@ import {
   SESSION_COLUMN_TO_BACKEND_KEY,
   type SessionOmittableFilterColumn,
 } from "@/src/features/filters/config/sessions-config";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type FilterState,
@@ -36,6 +35,7 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
@@ -69,7 +69,6 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 export type SessionTableRow = {
   id: string;
   createdAt: Date;
-  bookmarked: boolean;
   userIds: string[] | undefined;
   countTraces: number | undefined;
   sessionDuration: number | null | undefined;
@@ -239,14 +238,14 @@ export default function SessionsTable({
     const scoresBoolean = filterOptions.data?.score_booleans ?? undefined;
 
     return {
-      bookmarked: ["Bookmarked", "Not bookmarked"],
       environment: environmentOptions,
       userIds:
         filterOptions.data?.userIds.map((u) => ({
           value: u.value,
           count: Number(u.count),
         })) ?? undefined,
-      tags: filterOptions.data?.tags.map((t) => t.value) ?? undefined, // tags don't have counts
+      // tags don't have counts; they read A→Z
+      tags: sortOptionValues(filterOptions.data?.tags.map((t) => t.value)),
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],
@@ -268,12 +267,15 @@ export default function SessionsTable({
     () => ({
       loading: isSidebarFilterLoading,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        userId ? "user" : undefined,
+      ),
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
       isV4: isBetaEnabled,
     }),
-    [isBetaEnabled, isSidebarFilterLoading, projectId],
+    [isBetaEnabled, isSidebarFilterLoading, projectId, userId],
   );
 
   const queryFilter = useSidebarFilterState(
@@ -457,31 +459,6 @@ export default function SessionsTable({
 
   const columns: LangfuseColumnDef<SessionTableRow>[] = [
     selectActionColumn,
-    {
-      accessorKey: "bookmarked",
-      id: "bookmarked",
-      isFixedPosition: true,
-      header: undefined,
-      size: 50,
-      loadingCell: <TableIconButtonLoadingCell />,
-      cell: ({ row }) => {
-        const bookmarked: SessionTableRow["bookmarked"] =
-          row.getValue("bookmarked");
-        const sessionId: SessionTableRow["id"] = row.getValue("id");
-
-        return typeof sessionId === "string" &&
-          typeof bookmarked === "boolean" ? (
-          <StarSessionToggle
-            sessionId={sessionId}
-            projectId={projectId}
-            value={bookmarked}
-            size="icon-xs"
-          />
-        ) : undefined;
-      },
-      enableSorting: false,
-    },
-
     {
       accessorKey: "id",
       id: "id",
@@ -913,7 +890,6 @@ export default function SessionsTable({
                             return {
                               id: session.id,
                               createdAt: session.createdAt,
-                              bookmarked: session.bookmarked,
                               userIds: session.userIds,
                               countTraces: session.countTraces,
                               sessionDuration: session.sessionDuration,
