@@ -9,6 +9,7 @@ import { cn } from "@/src/utils/tailwind";
 // so it's reused as-is rather than duplicated.
 import { ChartTypePicker } from "@/src/features/chart-view/components/ConfigControls";
 import { type AggregationFn } from "@/src/features/chart-view/types";
+import { isTimeSeriesChartType } from "@/src/features/chart-view/vocab";
 import {
   describeScoreChartConfig,
   getScoreMetric,
@@ -165,6 +166,7 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
           <PanelField label="Breakdown">
             <BreakdownSelect
               dataset={config.dataset}
+              isTimeSeries={isTimeSeriesChartType(config.chartType)}
               value={config.breakdown}
               onChange={onBreakdown}
             />

@@ -108,9 +108,12 @@ export const mergeScoreOutlierRows = (
 
     const existing = rowsByTimestamp.get(row.time_dimension);
     if (existing) {
+      // `executeQuery` can return `count_count` as a string (ClickHouse's
+      // UInt64 columns serialize as strings in JSON) — a `typeof ... ===
+      // "number"` check alone would treat that as 0 and could zero out (then
+      // drop, via `rowsToScoreOutlierBins`) a bucket that actually had data.
       existing.count_count =
-        (typeof existing.count_count === "number" ? existing.count_count : 0) +
-        (typeof row.count_count === "number" ? row.count_count : 0);
+        Number(existing.count_count ?? 0) + Number(row.count_count ?? 0);
     } else {
       rowsByTimestamp.set(row.time_dimension, { ...row });
     }

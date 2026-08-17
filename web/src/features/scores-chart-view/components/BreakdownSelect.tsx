@@ -18,18 +18,22 @@ const TRIGGER_CLASS = "h-7 w-auto gap-1 text-xs";
  * The "Breakdown" picker in the scores chart config panel — options are the
  * selected `dataset`'s real view dimensions (see
  * `getScoreDimensionsForDataset`), so e.g. "String Value" only exists on the
- * categorical view because that's the only view declaring it.
+ * categorical view because that's the only view declaring it. `isTimeSeries`
+ * additionally hides `highCardinality` dimensions (id, traceId, ...) for a
+ * time-series chart type — the server rejects that combination with a 422.
  */
 export const BreakdownSelect = React.memo(function BreakdownSelect({
   dataset,
+  isTimeSeries,
   value,
   onChange,
 }: {
   dataset: ScoreChartDataset;
+  isTimeSeries: boolean;
   value: ScoreDimensionKey;
   onChange: (value: ScoreDimensionKey) => void;
 }) {
-  const options = getScoreDimensionsForDataset(dataset);
+  const options = getScoreDimensionsForDataset(dataset, isTimeSeries);
   return (
     <Select
       value={value}

@@ -102,6 +102,18 @@ describe("mergeScoreOutlierRows", () => {
       },
     ]);
   });
+
+  // Regression: ClickHouse UInt64 columns serialize as strings in JSON, so
+  // `count_count` can arrive as a string. A plain `typeof x === "number"`
+  // check treated that as 0, dropping real counts instead of adding them.
+  it("coerces a stringified count before adding, instead of treating it as 0", () => {
+    expect(
+      mergeScoreOutlierRows(
+        [{ time_dimension: "2026-06-25T10:00:00Z", count_count: "2" }],
+        [{ time_dimension: "2026-06-25T10:00:00Z", count_count: "3" }],
+      ),
+    ).toEqual([{ time_dimension: "2026-06-25T10:00:00Z", count_count: 5 }]);
+  });
 });
 
 describe("prepareScoreOutlierSeries", () => {

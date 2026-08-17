@@ -241,6 +241,19 @@ describe("scoreChartConfigToWidgetInput", () => {
     expect(build({}).view).toBe("scores-numeric");
   });
 
+  // Regression: `scores-numeric`'s own segment allow-lists NUMERIC AND
+  // BOOLEAN, so leaving the numeric dataset unscoped mixed boolean 0/1
+  // values into it once "boolean" became a separately selectable dataset.
+  it("scopes the numeric dataset to NUMERIC only, excluding boolean scores", () => {
+    expect(build({}).filters).toEqual([
+      { column: "dataType", operator: "=", value: "NUMERIC", type: "string" },
+    ]);
+  });
+
+  it("does not add a data-type filter for the boolean dataset (the view is already BOOLEAN-only)", () => {
+    expect(build({ dataset: "boolean", metric: "value" }).filters).toEqual([]);
+  });
+
   // Regression: a stale two-way check (`dataset === "categorical" ? ... :
   // "scores-numeric"`) used to fall the boolean dataset through to
   // scores-numeric, so "Add to dashboard" would save a widget querying the

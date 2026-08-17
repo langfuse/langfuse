@@ -1132,10 +1132,16 @@ export default function ScoresTable({
           />
 
           <div className="flex flex-1 flex-col overflow-hidden">
+            {/* `effectiveFilterState`, not `explicitFilterState`: the table's
+                own data query (`getAllPayload` above) reads `effectiveFilterState`,
+                which folds in the implicit environment filter (hides internal
+                eval/experiment environments by default). Using the explicit
+                state here would let the chart/strip aggregate scores the table
+                itself doesn't show. */}
             {chartEnabled && chartTimeRange && !chartActive && (
               <ScoresOutlierStrip
                 projectId={projectId}
-                filterState={queryFilter.explicitFilterState}
+                filterState={queryFilter.effectiveFilterState}
                 fromTimestamp={chartTimeRange.from}
                 toTimestamp={chartTimeRange.to}
                 onSelectRange={setScoresTimeRangeTransient}
@@ -1144,7 +1150,7 @@ export default function ScoresTable({
             {chartActive && chartTimeRange ? (
               <ScoresChartView
                 projectId={projectId}
-                filterState={queryFilter.explicitFilterState}
+                filterState={queryFilter.effectiveFilterState}
                 fromTimestamp={chartTimeRange.from}
                 toTimestamp={chartTimeRange.to}
                 config={chartConfig}

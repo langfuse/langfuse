@@ -2678,9 +2678,16 @@ describe("queryBuilder", () => {
           projectId,
         );
 
-        // Verify SQL includes segment filter for CATEGORICAL type
-        expect(compiledQuery).toContain("data_type = {");
-        expect(Object.values(parameters)).toContain("CATEGORICAL");
+        // Verify SQL restricts scores-categorical to the CATEGORICAL/TEXT
+        // allow-list (widened from CATEGORICAL-only to also cover text scores).
+        expect(compiledQuery).toContain(
+          "scores_categorical.data_type IN ({stringOptionsFilter",
+        );
+        expect(compiledQuery).toContain(": Array(String)})");
+        expect(Object.values(parameters)).toContainEqual([
+          "CATEGORICAL",
+          "TEXT",
+        ]);
 
         // Execute query
         const result: { data: Array<any> } = { data: [] };

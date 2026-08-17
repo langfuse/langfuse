@@ -58,8 +58,9 @@ export const getScoreMetric = (
 export const getScoreDimension = (
   key: ScoreDimensionKey,
   dataset: ScoreChartDataset,
+  isTimeSeries: boolean,
 ): ScoreDimensionDef => {
-  const options = getScoreDimensionsForDataset(dataset);
+  const options = getScoreDimensionsForDataset(dataset, isTimeSeries);
   return options.find((d) => d.key === key) ?? options[0];
 };
 
@@ -98,13 +99,17 @@ export const coerceScoreChartConfig = (
   const aggregation = metric.aggregations.includes(config.aggregation)
     ? config.aggregation
     : metric.aggregations[0];
-  const datasetDimensions = getScoreDimensionsForDataset(dataset);
-  const breakdown = datasetDimensions.some((d) => d.key === config.breakdown)
-    ? config.breakdown
-    : "none";
   const chartType = CHART_TYPES.some((c) => c.value === config.chartType)
     ? config.chartType
     : CHART_TYPES[0].value;
+  // Resolved before the breakdown check below: switching TO a time-series
+  // chart type must also re-validate a highCardinality breakdown the user
+  // had picked on a ranked/pie/number chart, or the next query 422s.
+  const isTimeSeries = isTimeSeriesChartType(chartType);
+  const datasetDimensions = getScoreDimensionsForDataset(dataset, isTimeSeries);
+  const breakdown = datasetDimensions.some((d) => d.key === config.breakdown)
+    ? config.breakdown
+    : "none";
   const timeGranularity = GRANULARITIES.includes(config.timeGranularity)
     ? config.timeGranularity
     : "hour";
@@ -130,7 +135,11 @@ export const describeScoreChartConfig = (
   const byPart =
     config.breakdown === "none" || config.chartType === "NUMBER"
       ? ""
-      : ` by ${getScoreDimension(config.breakdown, config.dataset).label.toLowerCase()}`;
+      : ` by ${getScoreDimension(
+          config.breakdown,
+          config.dataset,
+          isTimeSeriesChartType(config.chartType),
+        ).label.toLowerCase()}`;
   const timePart = isTimeSeriesChartType(config.chartType) ? " over time" : "";
   return `${metricPart}${byPart}${timePart}`;
 };
@@ -158,6 +167,32 @@ export const CATEGORICAL_DATA_TYPE_FILTER = {
 };
 
 /**
+ * `scores-numeric` also carries BOOLEAN scores (its segment allow-lists both
+ * NUMERIC and BOOLEAN — the existing "Scores" dashboard widgets rely on that
+ * to show numeric-like scores together). That's fine when boolean has no
+ * dataset of its own, but this feature also offers a dedicated "boolean"
+ * dataset, so leaving "numeric" unscoped would silently double-count/mix in
+ * boolean 0/1 values whenever both types exist and no data-type filter is
+ * active. Scope it explicitly, same mechanism as the categorical filter
+ * above.
+ */
+const NUMERIC_DATA_TYPE_FILTER = {
+  column: "dataType",
+  operator: "=" as const,
+  value: "NUMERIC",
+  type: "string" as const,
+};
+
+const DATASET_DATA_TYPE_FILTER: Record<
+  ScoreChartDataset,
+  { column: string; operator: "="; value: string; type: "string" } | null
+> = {
+  numeric: NUMERIC_DATA_TYPE_FILTER,
+  boolean: null, // scores-boolean's own segment is already BOOLEAN-only.
+  categorical: CATEGORICAL_DATA_TYPE_FILTER,
+};
+
+/**
  * Builds the dashboard `QueryType` for a scores chart-view config. Mirrors
  * `buildChartQuery` (the observations chart view) and the existing "Scores"
  * dashboard widgets — same views, same shape. `filters` should already be
@@ -175,9 +210,13 @@ export function buildScoresChartQuery({
   fromTimestamp: Date;
   toTimestamp: Date;
 }): QueryType {
-  const metric = getScoreMetric(config.metric, config.dataset);
-  const dimension = getScoreDimension(config.breakdown, config.dataset);
   const isTimeSeries = isTimeSeriesChartType(config.chartType);
+  const metric = getScoreMetric(config.metric, config.dataset);
+  const dimension = getScoreDimension(
+    config.breakdown,
+    config.dataset,
+    isTimeSeries,
+  );
   const isNumber = config.chartType === "NUMBER";
 
   const dimensions =
@@ -191,10 +230,9 @@ export function buildScoresChartQuery({
     view: VIEW_BY_DATASET[config.dataset],
     dimensions,
     metrics: [{ measure: metric.measure, aggregation: config.aggregation }],
-    filters:
-      config.dataset === "categorical"
-        ? [...filters, CATEGORICAL_DATA_TYPE_FILTER]
-        : filters,
+    filters: DATASET_DATA_TYPE_FILTER[config.dataset]
+      ? [...filters, DATASET_DATA_TYPE_FILTER[config.dataset]!]
+      : filters,
     timeDimension: isTimeSeries ? { granularity: "auto" } : null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -224,11 +262,15 @@ export function scoreRowsToDataPoints(
   rows: Array<Record<string, unknown>>,
   config: ScoreChartViewConfig,
 ): DataPoint[] {
+  const isTimeSeries = isTimeSeriesChartType(config.chartType);
   const metric = getScoreMetric(config.metric, config.dataset);
-  const dimension = getScoreDimension(config.breakdown, config.dataset);
+  const dimension = getScoreDimension(
+    config.breakdown,
+    config.dataset,
+    isTimeSeries,
+  );
   const field = scoreMetricField(config);
   const isNumber = config.chartType === "NUMBER";
-  const isTimeSeries = isTimeSeriesChartType(config.chartType);
   const hasBreakdown = !isNumber && dimension.field !== null;
 
   return rows.map((row) => {
@@ -273,8 +315,13 @@ export function scoreChartConfigToWidgetInput({
   config: ScoreChartViewConfig;
   filters: FilterState;
 }): ChartWidgetInput {
+  const isTimeSeries = isTimeSeriesChartType(config.chartType);
   const metric = getScoreMetric(config.metric, config.dataset);
-  const dimension = getScoreDimension(config.breakdown, config.dataset);
+  const dimension = getScoreDimension(
+    config.breakdown,
+    config.dataset,
+    isTimeSeries,
+  );
   const isNumber = config.chartType === "NUMBER";
 
   const dimensions =
@@ -282,9 +329,7 @@ export function scoreChartConfigToWidgetInput({
   const metrics = [{ measure: metric.measure, agg: config.aggregation }];
 
   const isCategoricalBreakdown =
-    !isTimeSeriesChartType(config.chartType) &&
-    !isNumber &&
-    dimensions.length > 0;
+    !isTimeSeries && !isNumber && dimensions.length > 0;
 
   const chartConfig = (
     isCategoricalBreakdown
@@ -298,12 +343,11 @@ export function scoreChartConfigToWidgetInput({
     view: VIEW_BY_DATASET[config.dataset],
     dimensions,
     metrics,
-    // Matches `buildScoresChartQuery`: exclude TEXT scores from the
-    // categorical dataset, same scope `CategoricalScoreChart` uses.
-    filters:
-      config.dataset === "categorical"
-        ? [...filters, CATEGORICAL_DATA_TYPE_FILTER]
-        : filters,
+    // Matches `buildScoresChartQuery`'s per-dataset data-type scoping so
+    // "Add to dashboard" saves the same scope the chart showed.
+    filters: DATASET_DATA_TYPE_FILTER[config.dataset]
+      ? [...filters, DATASET_DATA_TYPE_FILTER[config.dataset]!]
+      : filters,
     chartType: config.chartType,
     chartConfig,
   };
