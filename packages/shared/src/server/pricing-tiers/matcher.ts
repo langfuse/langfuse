@@ -33,28 +33,31 @@ function evaluateCondition(
           values?.[condition.key] === condition.value
         );
       }
+
+      const operator = {
+        "=": "eq",
+        ">": "gt",
+        "<": "lt",
+        ">=": "gte",
+        "<=": "lte",
+        "<>": "neq",
+      }[condition.operator] as "eq" | "gt" | "lt" | "gte" | "lte" | "neq";
+
+      return evaluateCondition(
+        {
+          usageDetailPattern: condition.key,
+          operator,
+          value: condition.value,
+          caseSensitive: condition.caseSensitive ?? false,
+        },
+        usageDetails,
+        attributes,
+      );
     }
 
-    const pattern =
-      "usageDetailPattern" in condition
-        ? condition.usageDetailPattern
-        : condition.key;
-    const operator =
-      "usageDetailPattern" in condition
-        ? condition.operator
-        : {
-            "=": "eq",
-            ">": "gt",
-            "<": "lt",
-            ">=": "gte",
-            "<=": "lte",
-            "<>": "neq",
-          }[condition.operator];
-
     // Build regex with case sensitivity flag
-    const flags =
-      "caseSensitive" in condition && condition.caseSensitive ? "" : "i";
-    const regex = new RegExp(pattern, flags);
+    const flags = condition.caseSensitive ? "" : "i";
+    const regex = new RegExp(condition.usageDetailPattern, flags);
 
     // Find all keys matching the pattern
     const matchingKeys = Object.keys(usageDetails).filter((key) =>
@@ -68,7 +71,7 @@ function evaluateCondition(
     );
 
     // Compare sum to threshold
-    switch (operator) {
+    switch (condition.operator) {
       case "gt":
         return sum > condition.value;
       case "gte":
