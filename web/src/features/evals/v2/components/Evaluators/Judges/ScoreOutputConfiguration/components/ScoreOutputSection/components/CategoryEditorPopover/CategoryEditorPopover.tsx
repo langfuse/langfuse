@@ -9,6 +9,7 @@ import {
   PopoverClose,
   PopoverContent,
 } from "@/src/components/ui/popover";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { type ScoreOutputChoice } from "@/src/features/evals/v2/scoreOutputTypes";
 import { cn } from "@/src/utils/tailwind";
 
@@ -57,22 +58,21 @@ export function CategoryEditorPopover({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`score-output-category-value-${idSuffix}`}>
+            <Label
+              htmlFor={`score-output-category-value-${idSuffix}`}
+              className="flex items-center gap-1.5"
+            >
               Numeric score
+              <InfoTooltip label="About numeric scores">
+                Used in analytics and dashboards.
+              </InfoTooltip>
             </Label>
             <Input
               id={`score-output-category-value-${idSuffix}`}
               type="number"
               value={choice.value}
-              aria-describedby={`score-output-category-value-description-${idSuffix}`}
               onChange={(event) => onChange({ value: event.target.value })}
             />
-            <p
-              id={`score-output-category-value-description-${idSuffix}`}
-              className="text-muted-foreground text-xs"
-            >
-              Used in analytics and dashboards.
-            </p>
           </div>
           <div
             className={cn(

@@ -304,7 +304,7 @@ export function EvaluatorRuleRelationshipsSheet({
                               },
                             ]
                           : [],
-                      title: "Attach LLM evaluator?",
+                      title: "Attach evaluator?",
                       description:
                         "This rule is active. Based on matching observations from the last seven days and the latest evaluator test call:",
                       confirmLabel: "Attach evaluator",
@@ -348,7 +348,7 @@ export function EvaluatorRuleRelationshipsSheet({
                           <Link2 className="h-4 w-4" />
                           Attach to rule
                         </span>
-                        <span className="text-muted-foreground text-xs font-normal">
+                        <span className="text-muted-foreground text-sm font-normal">
                           Choose a rule that should run this evaluator.
                         </span>
                       </button>

@@ -50,6 +50,7 @@ export function EditRuleDialogContent({
         return {
           evaluatorId: assignment.evaluator.id,
           evaluatorName: assignment.evaluator.name,
+          evaluatorType: assignment.evaluator.type,
           defaultVariableMapping: preparedDefault.defaultVariableMapping,
           variableMapping:
             assignment.variableMapping == null
@@ -115,6 +116,7 @@ export function EditRuleDialogContent({
     });
     await Promise.all([
       utils.evalsV2.rules.list.invalidate({ projectId }),
+      utils.evalsV2.rules.filterOptions.invalidate({ projectId }),
       utils.evalsV2.rules.get.invalidate({ projectId, ruleId: rule.id }),
       utils.evalsV2.list.invalidate({ projectId }),
     ]);
@@ -160,7 +162,7 @@ export function EditRuleDialogContent({
         : [],
       title: matchScopeChanged
         ? "Update active evaluation rule?"
-        : "Attach LLM evaluator?",
+        : "Attach evaluator?",
       description:
         "This rule is active. Based on matching observations from the last seven days and the latest evaluator test calls:",
       confirmLabel: matchScopeChanged ? "Save changes" : "Save and attach",

@@ -11,6 +11,7 @@ import type { SampleObservation } from "@/src/features/evals/v2/components/Evalu
 type RuleDraftAssignment = {
   evaluatorId: string;
   evaluatorName: string;
+  evaluatorType: EvalTemplateType;
   defaultVariableMapping: ObservationVariableMapping[];
   variableMapping: ObservationVariableMapping[] | null;
 };
@@ -26,6 +27,8 @@ export type RuleEvaluatorOption = {
   id: string;
   name: string;
   type: EvalTemplateType;
+  updatedAt?: Date;
+  createdByUser?: { name: string | null; email: string | null } | null;
   defaultVariableMapping: ObservationVariableMapping[];
   initialVariableMapping: ObservationVariableMapping[] | null;
 };

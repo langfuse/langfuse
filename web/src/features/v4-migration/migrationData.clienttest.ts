@@ -1,5 +1,4 @@
 import {
-  createV4MigrationDetectionRange,
   getLegacyIntegrationLabels,
   getMigrationActionState,
   getMigrationCountState,
@@ -29,17 +28,6 @@ const migrationStatus = (
 });
 
 describe("v4 migration data", () => {
-  it("uses a stable fourteen-day range aligned to the hour", () => {
-    const range = createV4MigrationDetectionRange(
-      new Date("2026-07-23T10:42:31.000Z").getTime(),
-    );
-
-    expect(range).toEqual({
-      fromTimestamp: new Date("2026-07-09T11:00:00.000Z"),
-      toTimestamp: new Date("2026-07-23T11:00:00.000Z"),
-    });
-  });
-
   it("keeps loading and errors distinct from a real zero", () => {
     expect(getMigrationCountState(null, () => 4)).toEqual({
       status: "loading",

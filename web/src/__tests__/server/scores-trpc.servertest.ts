@@ -123,6 +123,78 @@ describe("scores trpc", () => {
   });
 
   describe("scores.all", () => {
+    it("returns the recorded evaluator and resolves legacy scores by rule assignment and score name", async () => {
+      const [recordedEvaluator, matchingEvaluator, otherEvaluator] =
+        await Promise.all(
+          ["Recorded evaluator", "Matching evaluator", "Other evaluator"].map(
+            (name) =>
+              prisma.evaluator.create({
+                data: {
+                  projectId,
+                  name,
+                  type: "LLM_AS_JUDGE",
+                },
+              }),
+          ),
+        );
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Evaluation rule",
+          targetObject: "EVENT",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: [matchingEvaluator, otherEvaluator].map((evaluator) => ({
+              projectId,
+              evaluatorId: evaluator.id,
+            })),
+          },
+        },
+      });
+      const recordedScore = createTraceScore({
+        project_id: projectId,
+        name: recordedEvaluator.name,
+        metadata: { evaluator_id: recordedEvaluator.id },
+      });
+      const legacyScore = createTraceScore({
+        project_id: projectId,
+        name: matchingEvaluator.name,
+        metadata: {},
+      });
+
+      await Promise.all([
+        createScoresCh([recordedScore, legacyScore]),
+        prisma.jobExecution.createMany({
+          data: [recordedScore, legacyScore].map((score) => ({
+            projectId,
+            jobConfigurationId: rule.id,
+            jobOutputScoreId: score.id,
+            status: "COMPLETED",
+          })),
+        }),
+      ]);
+
+      const result = await caller.scores.allFromEvents({
+        projectId,
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        page: 0,
+        limit: 50,
+      });
+      const evaluatorIdByScoreId = new Map(
+        result.scores.map((score) => [score.id, score.evaluatorId]),
+      );
+
+      expect(evaluatorIdByScoreId.get(recordedScore.id)).toBe(
+        recordedEvaluator.id,
+      );
+      expect(evaluatorIdByScoreId.get(legacyScore.id)).toBe(
+        matchingEvaluator.id,
+      );
+    });
+
     it("does not match empty boolean representations when filtering boolean values", async () => {
       const trueBooleanScore = createTraceScore({
         project_id: projectId,

@@ -1,3 +1,4 @@
+import { EvalTargetObject } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessageRole,
@@ -355,6 +356,56 @@ describe("EvaluatorService", () => {
         limit: 1,
       }),
     ).rejects.toThrow("Evaluator not found");
+  });
+
+  it("rejects prompt changes that make existing rule mappings incomplete", async () => {
+    const service = createService();
+    const input = llmInput("Assigned evaluator update");
+    const created = await service.create(input, null);
+    await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "Assigned rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        assignments: {
+          create: {
+            projectId,
+            evaluatorId: created.id,
+            variableMapping: input.definition
+              .variableMapping as Prisma.InputJsonValue,
+          },
+        },
+      },
+    });
+
+    await expect(
+      service.update(
+        {
+          ...input,
+          evaluatorId: created.id,
+          name: "Invalid renamed evaluator",
+          definition: {
+            ...input.definition,
+            prompt: "Judge {{input}} and {{output}}",
+            vars: ["input", "output"],
+            variableMapping: [
+              { templateVariable: "input", selectedColumnId: "input" },
+              { templateVariable: "output", selectedColumnId: "output" },
+            ],
+          },
+        },
+        null,
+      ),
+    ).rejects.toThrow("Missing mappings for evaluator variables: input");
+
+    await expect(service.get(projectId, created.id)).resolves.toMatchObject({
+      name: input.name,
+      versions: [expect.objectContaining({ version: 1 })],
+    });
   });
 
   it("returns a retryable conflict when an evaluator version advances concurrently", async () => {

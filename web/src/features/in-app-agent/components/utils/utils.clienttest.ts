@@ -1,5 +1,7 @@
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
   IN_APP_AGENT_SANDBOX_TOOL_NAMES,

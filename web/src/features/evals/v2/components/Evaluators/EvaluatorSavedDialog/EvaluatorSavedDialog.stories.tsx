@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { ActivationCostEstimateDetails } from "@/src/features/evals/v2/components/Rules/ActivationConfirmationDialog/components/ActivationCostEstimateDetails/ActivationCostEstimateDetails";
 import preview from "../../../../../../../.storybook/preview";
 import { fn } from "storybook/test";
 import { EvaluatorSavedDialog } from "./EvaluatorSavedDialog";
@@ -31,7 +32,24 @@ export const RuleSelected = meta.story({
         Production observations
       </Button>
     ),
-    costEstimate: null,
+    costEstimate: (
+      <ActivationCostEstimateDetails
+        estimates={[
+          {
+            evaluatorId: "evaluator-1",
+            evaluatorName: "Conciseness",
+            matchingObservations: 1_900,
+            sampling: 1,
+            testRunCostUsd: 0.001,
+            estimatedCostUsd: 1.9,
+          },
+        ]}
+        unavailableEstimateCount={0}
+        matchingObservations={1_900}
+        sampling={1}
+        descriptionAsTooltip
+      />
+    ),
     canSubmit: true,
     isAttaching: false,
     isEstimating: false,

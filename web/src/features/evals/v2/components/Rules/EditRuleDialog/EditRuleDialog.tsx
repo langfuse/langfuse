@@ -48,6 +48,8 @@ export function EditRuleDialog({
       id: evaluator.id,
       name: evaluator.name,
       type: evaluator.type,
+      updatedAt: evaluator.updatedAt,
+      createdByUser: evaluator.createdByUser,
       ...prepareModernRuleVariableMapping(
         evaluator.latestVersion?.variableMapping,
       ),

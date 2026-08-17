@@ -23,9 +23,6 @@ import {
 import { InAppAgentRunStatus } from "@langfuse/shared";
 import { isUnsettledInAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
-
 function getBackgroundRunNotice(
   run: BackgroundExecutionRunView | null,
 ): string | null {
@@ -88,7 +85,6 @@ export function ControlledInAppAgentWindow(
     selectConversation,
     selectedConversationId,
     selectedConversationTitle,
-    selectedConversationIsWriteLocked,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
@@ -122,11 +118,10 @@ export function ControlledInAppAgentWindow(
           }
         : null,
   };
-  // Only a read-only conversation disables the composer outright. An assistant
-  // turn -- including one paused on an approval -- blocks submission but leaves
-  // the draft editable.
-  const isConversationInteractionDisabled =
-    selectedConversationIsWriteLocked || isSelectedConversationHydrating;
+  // An assistant turn -- including one paused on an approval -- blocks
+  // submission but leaves the draft editable. Hydration is the only case that
+  // disables the composer outright so a stale snapshot cannot be submitted.
+  const isConversationInteractionDisabled = isSelectedConversationHydrating;
   const isAssistantTurnInProgress =
     isRunning ||
     isAnimating ||
@@ -153,12 +148,6 @@ export function ControlledInAppAgentWindow(
     execution.run?.status === InAppAgentRunStatus.AWAITING_APPROVAL &&
     (pendingToolApprovals.length > 0 ||
       displayedPendingToolApprovals.length > 0);
-  const displayError = selectedConversationIsWriteLocked
-    ? ({
-        type: "generic",
-        message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-      } as const)
-    : error;
   const screenContextDescription = useMemo(
     () => getInAppAgentScreenContextDescription(router.asPath),
     [router.asPath],
@@ -197,7 +186,7 @@ export function ControlledInAppAgentWindow(
 
   return (
     <InAppAgentWindow
-      error={displayError}
+      error={error}
       isAssistantTurnInProgress={isAssistantTurnInProgress}
       isRunUnsettled={isRunUnsettled}
       isAwaitingApproval={isAwaitingApproval}
@@ -205,7 +194,6 @@ export function ControlledInAppAgentWindow(
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
       isSelectedConversationHydrating={isSelectedConversationHydrating}
-      disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}

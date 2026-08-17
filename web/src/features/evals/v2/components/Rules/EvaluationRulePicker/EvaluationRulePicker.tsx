@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
+import { formatDistanceToNowStrict } from "date-fns";
 import { Check, Plus } from "lucide-react";
 
+import { Badge } from "@/src/components/ui/badge";
 import {
   Command,
   CommandEmpty,
@@ -15,7 +17,50 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 type EvaluationRule = {
   id: string;
   name: string;
+  enabled?: boolean;
+  updatedAt?: Date;
+  createdByUser?: { name: string | null; email: string | null } | null;
 };
+
+function EvaluationRulePickerOption({ rule }: { rule: EvaluationRule }) {
+  const creator =
+    rule.createdByUser?.name ?? rule.createdByUser?.email ?? "API";
+  const updated = rule.updatedAt
+    ? formatDistanceToNowStrict(rule.updatedAt, { addSuffix: true })
+    : null;
+  const hasMetadata =
+    rule.enabled !== undefined || rule.updatedAt !== undefined;
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="min-w-0 truncate" title={rule.name}>
+          {rule.name}
+        </span>
+        {rule.enabled !== undefined ? (
+          <Badge variant="secondary" className="shrink-0 whitespace-nowrap">
+            {rule.enabled ? "Active" : "Inactive"}
+          </Badge>
+        ) : null}
+      </div>
+      {hasMetadata ? (
+        <div className="text-muted-foreground flex max-w-[45%] min-w-0 shrink-0 items-center justify-end gap-1 text-xs">
+          <span className="min-w-0 truncate" title={`Created by ${creator}`}>
+            {creator}
+          </span>
+          {updated ? (
+            <>
+              <span aria-hidden>·</span>
+              <span className="shrink-0" title={`Updated ${updated}`}>
+                {updated}
+              </span>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function EvaluationRulePicker<Rule extends EvaluationRule>({
   children,
@@ -66,7 +111,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
       {children(resolvedOpen)}
       <PopoverContent
         align={align}
-        className="w-96 p-0"
+        className="w-[28rem] max-w-[calc(100vw-2rem)] p-0"
         onWheel={(event) => event.stopPropagation()}
       >
         <Command shouldFilter={onSearchChange === undefined}>
@@ -94,11 +139,10 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
                     value={`${rule.name} ${rule.id}`}
                     disabled
                     title={reason}
+                    className="py-2.5"
                   >
                     <Check className="h-4 w-4 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate" title={reason}>
-                      {rule.name}
-                    </span>
+                    <EvaluationRulePickerOption rule={rule} />
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -111,12 +155,11 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
                   <CommandItem
                     key={rule.id}
                     value={`${rule.name} ${rule.id}`}
+                    className="py-2.5"
                     onSelect={() => select(() => onSelectAvailableRule(rule))}
                   >
-                    <Plus className="h-4 w-4" />
-                    <span className="truncate" title={rule.name}>
-                      {rule.name}
-                    </span>
+                    <Plus className="h-4 w-4 shrink-0" />
+                    <EvaluationRulePickerOption rule={rule} />
                   </CommandItem>
                 ))
               )}

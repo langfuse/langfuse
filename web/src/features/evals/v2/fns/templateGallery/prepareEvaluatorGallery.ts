@@ -105,7 +105,7 @@ export function prepareEvaluatorGallery({
     ]),
   );
   const navigationItems: GalleryNavigationItem[] = [
-    ...(customTemplates.length
+    ...(filteredCustom.length
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
@@ -120,9 +120,7 @@ export function prepareEvaluatorGallery({
         key: category.key,
         label: category.label,
         icon: CATEGORY_ICONS[category.icon],
-        count: managedEvaluatorTemplateService.list({
-          category: category.key,
-        }).templates.length,
+        count: managedByCategory.get(category.key)?.length ?? 0,
       }))
       .filter(({ count }) => count > 0),
   ];

@@ -13,6 +13,7 @@ import {
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
+import type { InAppAgentError } from "./utils/utils";
 
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
@@ -20,7 +21,7 @@ const controlledAgent = vi.hoisted(() => ({
     conversations: [] as Array<{ id: string; title: string | null }>,
     activityByConversationId: new Map<string, { state: string }>(),
     attentionCount: 0,
-    error: null,
+    error: null as InAppAgentError | null,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
     isRunning: true,
@@ -45,7 +46,7 @@ const controlledAgent = vi.hoisted(() => ({
     rejectToolCall: vi.fn(),
     selectedConversationId: undefined,
     selectedConversationTitle: null,
-    selectedConversationIsWriteLocked: false,
+    selectConversation: vi.fn(),
     submit: vi.fn(),
     submitFeedback: vi.fn(),
   },
@@ -297,7 +298,12 @@ describe("ControlledInAppAgentWindow composer", () => {
     controlledAgent.value.isSelectedConversationHydrating = false;
     controlledAgent.value.isSubmitting = false;
     controlledAgent.value.pendingToolApprovals = [];
-    controlledAgent.value.selectedConversationIsWriteLocked = false;
+    controlledAgent.value.selectConversation = vi.fn();
+    controlledAgent.value.execution = {
+      run: null,
+      isCancelling: false,
+      cancel: vi.fn(),
+    };
   });
 
   it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {
@@ -354,32 +360,6 @@ describe("ControlledInAppAgentWindow composer", () => {
       screen.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Start new conversation" }),
-    ).toBeEnabled();
-    expect(
-      screen.getByRole("button", { name: /^Conversation history/ }),
-    ).toBeEnabled();
-  });
-
-  it("lets you leave a read-only conversation", () => {
-    controlledAgent.value.isRunning = false;
-    controlledAgent.value.selectedConversationIsWriteLocked = true;
-
-    render(
-      <TooltipProvider>
-        <ControlledInAppAgentWindow
-          isExpanded={false}
-          onClose={vi.fn()}
-          onDeleteConversation={vi.fn()}
-          onExpandedChange={vi.fn()}
-        />
-      </TooltipProvider>,
-    );
-
-    expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Start new conversation" }),
     ).toBeEnabled();

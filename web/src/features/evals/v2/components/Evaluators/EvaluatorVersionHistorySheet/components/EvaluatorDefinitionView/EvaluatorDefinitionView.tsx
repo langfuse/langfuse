@@ -53,7 +53,7 @@ function CodeEvaluatorDefinitionView({
   const { sourceCode, sourceCodeLanguage } = definition;
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-4">
       <EvaluationTypeConfiguration
         mode={EvalTemplateTypeEnum.CODE}
         onModeChange={noop}
@@ -108,7 +108,7 @@ function LlmEvaluatorDefinitionView({
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-4">
       <EvaluationTypeConfiguration
         mode={EvalTemplateTypeEnum.LLM_AS_JUDGE}
         onModeChange={noop}

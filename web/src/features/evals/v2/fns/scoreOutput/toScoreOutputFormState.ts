@@ -17,6 +17,7 @@ export function toScoreOutputFormState(
       scoreDescription: "",
       reasoningDescription: "",
       choices: [],
+      shouldAllowMultipleMatches: false,
       minValue: "0",
       maxValue: "1",
     };
@@ -34,6 +35,10 @@ export function toScoreOutputFormState(
             value: "",
           }))
         : [],
+    shouldAllowMultipleMatches:
+      "shouldAllowMultipleMatches" in resolved
+        ? resolved.shouldAllowMultipleMatches
+        : false,
     minValue:
       "minValue" in resolved && resolved.minValue != null
         ? String(resolved.minValue)

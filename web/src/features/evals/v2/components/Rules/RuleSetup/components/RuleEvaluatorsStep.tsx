@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatDistanceToNowStrict } from "date-fns";
 import { Check, Link2, Plus } from "lucide-react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -18,6 +19,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { EvaluatorTypeBadge } from "@/src/features/evals/v2/components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
 import { buildSelectedSampleObject } from "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject";
 import type {
   RuleEvaluatorOption,
@@ -26,6 +28,44 @@ import type {
 
 import { EvaluatorMappingRow } from "./EvaluatorMappingRow";
 import { api, sendAsPostOption } from "@/src/utils/api";
+
+function EvaluatorPickerOption({
+  evaluator,
+}: {
+  evaluator: RuleEvaluatorOption;
+}) {
+  const creator =
+    evaluator.createdByUser?.name ??
+    evaluator.createdByUser?.email ??
+    "Unknown";
+  const updated = evaluator.updatedAt
+    ? formatDistanceToNowStrict(evaluator.updatedAt, { addSuffix: true })
+    : null;
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="min-w-0 truncate" title={evaluator.name}>
+          {evaluator.name}
+        </span>
+        <EvaluatorTypeBadge type={evaluator.type} />
+      </div>
+      <div className="text-muted-foreground flex max-w-[45%] min-w-0 shrink-0 items-center justify-end gap-1 text-xs">
+        <span className="min-w-0 truncate" title={`Created by ${creator}`}>
+          {creator}
+        </span>
+        {updated ? (
+          <>
+            <span aria-hidden>·</span>
+            <span className="shrink-0" title={`Updated ${updated}`}>
+              {updated}
+            </span>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export function RuleEvaluatorsStep({
   projectId,
@@ -103,8 +143,8 @@ export function RuleEvaluatorsStep({
               <Link2 className="h-4 w-4" />
               Attach evaluator
             </span>
-            <span className="text-muted-foreground text-xs font-normal">
-              Choose an evaluator to run for matching observations.
+            <span className="text-muted-foreground text-sm font-normal">
+              Attach an evaluator to run on matching observations.
             </span>
           </button>
         ) : (
@@ -119,7 +159,10 @@ export function RuleEvaluatorsStep({
           </Button>
         )}
       </PopoverTrigger>
-      <PopoverContent align="start" className="h-80 w-80 p-0">
+      <PopoverContent
+        align="start"
+        className="h-80 w-[32rem] max-w-[calc(100vw-2rem)] p-0"
+      >
         {/* Filtering is server-side so evaluators beyond the first page stay
             reachable. */}
         <Command shouldFilter={false}>
@@ -137,48 +180,39 @@ export function RuleEvaluatorsStep({
                     key={evaluator.id}
                     value={`${evaluator.name} ${evaluator.id} already attached`}
                     disabled
+                    className="py-2.5"
                   >
                     <Check className="h-4 w-4 shrink-0" />
-                    <span
-                      className="min-w-0 flex-1 truncate"
-                      title={evaluator.name}
-                    >
-                      {evaluator.name}
-                    </span>
-                    <span className="text-muted-foreground shrink-0 text-xs">
-                      Already attached
-                    </span>
+                    <EvaluatorPickerOption evaluator={evaluator} />
                   </CommandItem>
                 ))}
               </CommandGroup>
             ) : null}
-            <CommandGroup heading="Available evaluators">
-              {available.map((evaluator) => (
-                <CommandItem
-                  key={evaluator.id}
-                  value={`${evaluator.name} ${evaluator.id}`}
-                  onSelect={() => {
-                    attachEvaluator({
-                      evaluatorId: evaluator.id,
-                      evaluatorName: evaluator.name,
-                      defaultVariableMapping: evaluator.defaultVariableMapping,
-                      variableMapping: evaluator.initialVariableMapping,
-                    });
-                    setPickerOpen(false);
-                  }}
-                >
-                  <Plus className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0 truncate" title={evaluator.name}>
-                    {evaluator.name}
-                  </span>
-                </CommandItem>
-              ))}
-              {available.length === 0 ? (
-                <div className="text-muted-foreground px-2 py-1.5 text-sm">
-                  No evaluators available
-                </div>
-              ) : null}
-            </CommandGroup>
+            {available.length > 0 ? (
+              <CommandGroup heading="Available evaluators">
+                {available.map((evaluator) => (
+                  <CommandItem
+                    key={evaluator.id}
+                    value={`${evaluator.name} ${evaluator.id}`}
+                    className="py-2.5"
+                    onSelect={() => {
+                      attachEvaluator({
+                        evaluatorId: evaluator.id,
+                        evaluatorName: evaluator.name,
+                        evaluatorType: evaluator.type,
+                        defaultVariableMapping:
+                          evaluator.defaultVariableMapping,
+                        variableMapping: evaluator.initialVariableMapping,
+                      });
+                      setPickerOpen(false);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 shrink-0" />
+                    <EvaluatorPickerOption evaluator={evaluator} />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ) : null}
           </CommandList>
         </Command>
       </PopoverContent>
@@ -213,6 +247,11 @@ export function RuleEvaluatorsStep({
                       assignment?.evaluatorName ??
                       evaluator?.name ??
                       "Evaluator"
+                    }
+                    evaluatorType={
+                      assignment?.evaluatorType ??
+                      evaluator?.type ??
+                      "LLM_AS_JUDGE"
                     }
                     defaultVariableMapping={
                       assignment?.defaultVariableMapping ??

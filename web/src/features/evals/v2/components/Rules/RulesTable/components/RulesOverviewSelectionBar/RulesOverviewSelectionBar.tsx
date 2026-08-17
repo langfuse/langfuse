@@ -7,6 +7,7 @@ import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActi
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import type { FilterState } from "@langfuse/shared";
 
 export function RulesOverviewSelectionBar({
   projectId,
@@ -14,12 +15,14 @@ export function RulesOverviewSelectionBar({
   searchQuery,
   totalCount,
   selectionStore,
+  filterState,
 }: {
   projectId: string;
   hasWriteAccess: boolean;
   searchQuery: string | undefined;
   totalCount: number | null;
   selectionStore: RulesTableStore;
+  filterState: FilterState;
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -54,7 +57,10 @@ export function RulesOverviewSelectionBar({
       });
       setDeleteDialogOpen(false);
       selectionActions.clearSelection();
-      await utils.evalsV2.rules.list.invalidate({ projectId });
+      await Promise.all([
+        utils.evalsV2.rules.list.invalidate({ projectId }),
+        utils.evalsV2.rules.filterOptions.invalidate({ projectId }),
+      ]);
     },
   });
   const selection = selectAll
@@ -62,6 +68,7 @@ export function RulesOverviewSelectionBar({
         projectId,
         isBatchAction: true as const,
         search: searchQuery,
+        filter: filterState,
       }
     : { projectId, ruleIds: selectedIds };
 

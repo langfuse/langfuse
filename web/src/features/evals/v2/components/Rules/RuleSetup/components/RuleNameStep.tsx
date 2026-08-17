@@ -21,7 +21,7 @@ export function RuleNameStep({
     <Stepper
       number={3}
       title="Name rule"
-      description="Use a clear name so this rule can be reused."
+      description="Choose a name that describes what this rule evaluates."
       defaultOpen={name.length > 0}
       onOpenChange={onOpenChange}
     >

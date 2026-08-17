@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import {
   Dialog,
   DialogBody,
@@ -41,24 +42,40 @@ export function EvaluatorSavedDialog({
         closeOnInteractionOutside
         onCloseAutoFocus={onCloseAnimationEnd}
       >
-        <DialogHeader variant="action">
+        <DialogHeader>
           <DialogTitle>Evaluator saved successfully</DialogTitle>
+          <DialogDescription>
+            Your evaluator is ready. Set up a rule to run it automatically on
+            incoming observations.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <DialogDescription>
-            Your evaluator is ready. Run it automatically on incoming production
-            observations by creating a rule or attaching it to an existing one.
-          </DialogDescription>
           <div className="space-y-2">
             <div>
-              <p className="text-sm font-bold">Choose a rule</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-bold">Choose a rule</p>
+                <InfoTooltip label="About evaluation rules">
+                  Saved evaluators are available for experiments and batch
+                  evaluations on historical data. Connect this evaluator to a
+                  rule to run it automatically on new incoming observations.
+                </InfoTooltip>
+              </div>
               <p className="text-muted-foreground text-sm">
                 The evaluator will run on incoming observations matched by this
                 rule.
               </p>
             </div>
             {rulePicker}
-            {isEstimating ? (
+          </div>
+          {isEstimating ? (
+            <div className="space-y-2">
+              <div>
+                <p className="text-sm font-bold">Cost estimation</p>
+                <p className="text-muted-foreground text-sm">
+                  Review the expected cost before running this evaluator
+                  automatically.
+                </p>
+              </div>
               <div
                 className="flex items-center gap-2 rounded-md border p-3"
                 aria-label="Calculating evaluator costs"
@@ -68,12 +85,12 @@ export function EvaluatorSavedDialog({
                   Calculating costs
                 </span>
               </div>
-            ) : (
-              costEstimate
-            )}
-          </div>
+            </div>
+          ) : (
+            costEstimate
+          )}
         </DialogBody>
-        <DialogFooter variant="action">
+        <DialogFooter>
           <Button
             variant="outline"
             disabled={isAttaching}

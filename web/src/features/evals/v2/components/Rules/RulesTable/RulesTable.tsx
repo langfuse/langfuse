@@ -4,11 +4,17 @@ import { ExternalLink, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DataTable } from "@/src/components/table/data-table";
+import {
+  DataTableControls,
+  DataTableControlsProvider,
+} from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -43,6 +49,14 @@ import {
   getRuleNavigationUrl,
 } from "@/src/features/evals/v2/utils/ruleNavigation";
 import { ruleExecutionsUrl } from "@/src/features/evals/v2/fns/rules/ruleExecutionsUrl";
+import { TableViewPresetTableName } from "@langfuse/shared";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import {
+  evaluationRuleTableFilterColumns,
+  evaluationRuleTableFilterConfig,
+  evaluationRuleTableFilterOptions,
+} from "@/src/features/evals/v2/constants/tableFilterColumns";
 
 function RelativeDate({ date }: { date: Date }) {
   return (
@@ -73,7 +87,7 @@ function RuleFiltersCell({ filter }: Pick<RuleTableRow, "filter">) {
       renderOverflow={({ overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" size="sm">
+            <Badge variant="secondary" size="sm" className="font-normal">
               +{overflowItemCount}
             </Badge>
           </TooltipTrigger>
@@ -108,7 +122,7 @@ function RuleEvaluatorsCell({
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" size="sm">
+            <Badge variant="secondary" size="sm" className="font-normal">
               +{overflowItemCount}
             </Badge>
           </TooltipTrigger>
@@ -142,6 +156,36 @@ export function RulesTable({
     "search",
     withDefault(StringParam, null),
   );
+  const filterOptionsQuery = api.evalsV2.rules.filterOptions.useQuery(
+    { projectId },
+    {
+      enabled: Boolean(projectId),
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+    },
+  );
+  const filterOptions = useMemo(
+    () => ({
+      ...evaluationRuleTableFilterOptions,
+      name: filterOptionsQuery.data?.name ?? [],
+      creator: filterOptionsQuery.data?.creator ?? [],
+    }),
+    [filterOptionsQuery.data],
+  );
+  const queryFilter = useSidebarFilterState(
+    evaluationRuleTableFilterConfig,
+    filterOptions,
+    {
+      loading: filterOptionsQuery.isPending,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+      onExplicitFilterStateChange: () => {
+        setPagination({ page: 1, limit: pagination.limit });
+        selectionStore.getState().actions.clearSelection();
+      },
+    },
+  );
+  const filterState = queryFilter.filterState;
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
   // Query param so other surfaces can deep-link straight to a rule.
   const [editRuleId, setEditRuleId] = useQueryParam(
@@ -161,6 +205,7 @@ export function RulesTable({
     projectId,
     ...pagination,
     search: searchQuery ?? undefined,
+    filter: filterState,
   });
   const ruleIds = useMemo(
     () => rules.data?.rules.map(({ id }) => id) ?? [],
@@ -182,7 +227,10 @@ export function RulesTable({
       });
       setDeleteIds([]);
       selectionStore.getState().actions.clearSelection();
-      await utils.evalsV2.rules.list.invalidate({ projectId });
+      await Promise.all([
+        utils.evalsV2.rules.list.invalidate({ projectId }),
+        utils.evalsV2.rules.filterOptions.invalidate({ projectId }),
+      ]);
     },
   });
   const selectionActions = selectionStore.getState().actions;
@@ -275,7 +323,7 @@ export function RulesTable({
         accessorKey: "filter",
         id: "filter",
         header: "Filters",
-        size: 340,
+        size: 300,
         enableHiding: true,
         cell: ({ row }) =>
           isLegacyEvalTarget(row.original.targetObject) ? (
@@ -316,6 +364,7 @@ export function RulesTable({
         header: "Created at",
         size: 180,
         enableHiding: true,
+        defaultHidden: true,
         cell: ({ row }) => <RelativeDate date={row.original.createdAt} />,
       },
       {
@@ -347,19 +396,20 @@ export function RulesTable({
             >
               View traces <ExternalLink className="ml-1 h-3 w-3" />
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
+            <IconOnlyButton
+              icon={<Trash2 className="h-4 w-4" />}
+              label="Delete"
               aria-label={`Delete ${row.original.name}`}
-              disabled={!hasWriteAccess}
+              disabledReason={
+                hasWriteAccess
+                  ? undefined
+                  : "You don't have permission to delete this rule."
+              }
               onClick={(event) => {
                 event.stopPropagation();
                 setDeleteIds([row.original.id]);
               }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            />
           </div>
         ),
       },
@@ -385,137 +435,181 @@ export function RulesTable({
     "evaluationRulesV2ColumnOrder-v2",
     columns,
   );
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.EvaluationRules,
+    projectId,
+    stateUpdaters: {
+      setFilters: (filters) =>
+        queryFilter.setFilterState(filters, { origin: "saved_view" }),
+      setExpandedFilters: queryFilter.onExpandedChange,
+      setSearchQuery: (query) => {
+        setSearchQuery(query);
+        setPagination({ page: 1, limit: pagination.limit });
+        selectionActions.clearSelection();
+      },
+      setColumnOrder,
+      setColumnVisibility,
+    },
+    validationContext: {
+      columns,
+      filterColumnDefinition: evaluationRuleTableFilterColumns,
+      expandableFilterColumns: evaluationRuleTableFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
+    },
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
+  });
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <RulesTableToolbar
-        columns={columns}
-        currentQuery={searchQuery ?? undefined}
-        onSearchChange={(query) => {
-          setSearchQuery(query || null);
-          setPagination({ page: 1, limit: pagination.limit });
-          selectionActions.clearSelection();
-        }}
-        pageRowIds={rules.data?.rules.map(({ id }) => id) ?? []}
-        pageSize={pagination.limit}
-        pageIndex={pagination.page - 1}
-        totalCount={rules.data?.totalItems ?? null}
-        selectionStore={selectionStore}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        columnOrder={columnOrder}
-        setColumnOrder={setColumnOrder}
-        rowHeight={rowHeight}
-        setRowHeight={setRowHeight}
-      />
-      <DataTable
-        tableName="evaluation-rules-v2"
-        columns={columns}
-        data={
-          rules.isPending
-            ? { isLoading: true, isError: false }
-            : rules.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: rules.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: rules.data.rules,
-                }
-        }
-        selectionStore={selectionStore}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        columnOrder={columnOrder}
-        onColumnOrderChange={setColumnOrder}
-        rowHeight={rowHeight}
-        pagination={{
-          totalCount: rules.data?.totalItems ?? null,
-          state: {
-            pageIndex: pagination.page - 1,
-            pageSize: pagination.limit,
-          },
-          onChange: (updater) => {
-            const next =
-              typeof updater === "function"
-                ? updater({
-                    pageIndex: pagination.page - 1,
-                    pageSize: pagination.limit,
-                  })
-                : updater;
-            setPagination({
-              page: next.pageIndex + 1,
-              limit: next.pageSize,
-            });
-          },
-        }}
-        noResultsMessage="No evaluation rules yet."
-        onRowClick={(rule) => {
-          const navigationAction = getRuleNavigationAction(rule);
-          if (navigationAction === "remap") {
-            router.push(
-              getRuleNavigationUrl({
-                projectId,
-                ruleId: rule.id,
-                targetObject: rule.targetObject,
-                enabled: rule.enabled,
-              }),
-            );
-            return;
-          }
-
-          if (navigationAction === "peek") {
-            setEditRuleId(null);
-            legacyPeekNavigation.openPeek(rule.id, rule);
-            return;
-          }
-
-          setEditRuleId(rule.id);
-        }}
-      />
-      <TablePeekViewEvaluatorConfigDetail
-        {...legacyPeekConfig}
-        projectId={projectId}
-        readOnly
-      />
-      <RulesOverviewSelectionBar
-        projectId={projectId}
-        hasWriteAccess={hasWriteAccess}
-        searchQuery={searchQuery ?? undefined}
-        totalCount={rules.data?.totalItems ?? null}
-        selectionStore={selectionStore}
-      />
-      <ConfirmDialog
-        open={deleteIds.length > 0}
-        onOpenChange={(open) => {
-          if (!open) setDeleteIds([]);
-        }}
-        title="Delete evaluation rules?"
-        description={`This permanently deletes ${deleteIds.length} rule${deleteIds.length === 1 ? "" : "s"} and its evaluator assignments.`}
-        confirmLabel="Delete"
-        loading={deleteMany.isPending}
-        onConfirm={() => deleteMany.mutate({ projectId, ruleIds: deleteIds })}
-      />
-      <ActivationConfirmationDialog
-        confirmation={activationConfirmation.confirmation}
-        estimate={activationConfirmation.estimate}
-        onOpenChange={activationConfirmation.setOpen}
-        onSamplingChange={activationConfirmation.setSampling}
-        onConfirm={() =>
-          activationConfirmation.confirmActivation().catch(() => undefined)
-        }
-      />
-      {editRuleId ? (
-        <EditRuleDialog
-          projectId={projectId}
-          ruleId={editRuleId}
-          hasWriteAccess={hasWriteAccess}
-          onOpenChange={(open) => !open && setEditRuleId(null)}
+    <DataTableControlsProvider
+      tableName={evaluationRuleTableFilterConfig.tableName}
+    >
+      <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+        <RulesTableToolbar
+          columns={columns}
+          currentQuery={searchQuery ?? undefined}
+          onSearchChange={(query) => {
+            setSearchQuery(query || null);
+            setPagination({ page: 1, limit: pagination.limit });
+            selectionActions.clearSelection();
+          }}
+          pageRowIds={rules.data?.rules.map(({ id }) => id) ?? []}
+          pageSize={pagination.limit}
+          pageIndex={pagination.page - 1}
+          totalCount={rules.data?.totalItems ?? null}
+          selectionStore={selectionStore}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          filterState={filterState}
+          viewConfig={{
+            tableName: TableViewPresetTableName.EvaluationRules,
+            projectId,
+            controllers: viewControllers,
+          }}
         />
-      ) : null}
-    </div>
+        <ResizableFilterLayout>
+          <DataTableControls
+            key={viewControllers.selectedViewId ?? "no-view"}
+            queryFilter={queryFilter}
+          />
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <DataTable
+              tableName="evaluation-rules-v2"
+              columns={columns}
+              data={
+                rules.isPending || isViewLoading
+                  ? { isLoading: true, isError: false }
+                  : rules.isError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: rules.error.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: rules.data.rules,
+                      }
+              }
+              selectionStore={selectionStore}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+              rowHeight={rowHeight}
+              pagination={{
+                totalCount: rules.data?.totalItems ?? null,
+                state: {
+                  pageIndex: pagination.page - 1,
+                  pageSize: pagination.limit,
+                },
+                onChange: (updater) => {
+                  const next =
+                    typeof updater === "function"
+                      ? updater({
+                          pageIndex: pagination.page - 1,
+                          pageSize: pagination.limit,
+                        })
+                      : updater;
+                  setPagination({
+                    page: next.pageIndex + 1,
+                    limit: next.pageSize,
+                  });
+                },
+              }}
+              noResultsMessage="No evaluation rules found."
+              onRowClick={(rule) => {
+                const navigationAction = getRuleNavigationAction(rule);
+                if (navigationAction === "remap") {
+                  router.push(
+                    getRuleNavigationUrl({
+                      projectId,
+                      ruleId: rule.id,
+                      targetObject: rule.targetObject,
+                      enabled: rule.enabled,
+                    }),
+                  );
+                  return;
+                }
+
+                if (navigationAction === "peek") {
+                  setEditRuleId(null);
+                  legacyPeekNavigation.openPeek(rule.id, rule);
+                  return;
+                }
+
+                setEditRuleId(rule.id);
+              }}
+            />
+          </div>
+        </ResizableFilterLayout>
+        <TablePeekViewEvaluatorConfigDetail
+          {...legacyPeekConfig}
+          projectId={projectId}
+          readOnly
+        />
+        <RulesOverviewSelectionBar
+          projectId={projectId}
+          hasWriteAccess={hasWriteAccess}
+          searchQuery={searchQuery ?? undefined}
+          totalCount={rules.data?.totalItems ?? null}
+          selectionStore={selectionStore}
+          filterState={filterState}
+        />
+        <ConfirmDialog
+          open={deleteIds.length > 0}
+          onOpenChange={(open) => {
+            if (!open) setDeleteIds([]);
+          }}
+          title="Delete evaluation rules?"
+          description={`This permanently deletes ${deleteIds.length} rule${deleteIds.length === 1 ? "" : "s"} and its evaluator assignments.`}
+          confirmLabel="Delete"
+          loading={deleteMany.isPending}
+          onConfirm={() => deleteMany.mutate({ projectId, ruleIds: deleteIds })}
+        />
+        <ActivationConfirmationDialog
+          confirmation={activationConfirmation.confirmation}
+          estimate={activationConfirmation.estimate}
+          onOpenChange={activationConfirmation.setOpen}
+          onSamplingChange={activationConfirmation.setSampling}
+          onConfirm={() =>
+            activationConfirmation.confirmActivation().catch(() => undefined)
+          }
+        />
+        {editRuleId ? (
+          <EditRuleDialog
+            projectId={projectId}
+            ruleId={editRuleId}
+            hasWriteAccess={hasWriteAccess}
+            onOpenChange={(open) => !open && setEditRuleId(null)}
+          />
+        ) : null}
+      </div>
+    </DataTableControlsProvider>
   );
 }

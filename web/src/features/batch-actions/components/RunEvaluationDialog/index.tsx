@@ -2,9 +2,7 @@ import { useMemo, useState } from "react";
 import {
   type BatchActionQuery,
   type BatchEvalSourceTable,
-  EvalTargetObject,
   BatchEvalSourceTable as SourceTable,
-  getEvalTargetObjectFromSourceTable,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { api, sendAsPostOption } from "@/src/utils/api";
@@ -26,9 +24,7 @@ import {
   type BatchEvaluator,
 } from "./EvaluatorSelectionStep";
 import { ConfirmationStep } from "./ConfirmationStep";
-import { CreateEvaluatorDialog } from "./CreateEvaluatorDialog";
 import { buildQueryWithSelectedIds } from "./utils";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 type RunEvaluationDialogProps = {
   projectId: string;
@@ -52,7 +48,6 @@ type DialogStep = "select-evaluator" | "confirm";
 const BATCH_EVALUATOR_LIMIT = 100;
 
 export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
-  const { isBetaEnabled } = useV4Beta();
   const {
     projectId,
     selectedObservationIds,
@@ -67,25 +62,13 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     BatchEvaluator[]
   >([]);
   const [evaluatorSearchQuery, setEvaluatorSearchQuery] = useState("");
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-  // Derive targetObject from sourceTable
-  const targetObject = getEvalTargetObjectFromSourceTable(sourceTable);
-
-  const legacyEvaluatorsQuery = api.evals.jobConfigsByTarget.useQuery(
-    { projectId, targetObject },
-    { enabled: !isBetaEnabled },
-  );
   // Unsearched: `EvaluatorSelectionStep` filters the list client-side, the
-  // same way the legacy query does, so typing does not refetch.
-  const v2EvaluatorsQuery = api.evalsV2.options.useQuery(
-    { projectId, limit: BATCH_EVALUATOR_LIMIT },
-    { enabled: isBetaEnabled },
-  );
-
-  const evaluatorsQuery = isBetaEnabled
-    ? v2EvaluatorsQuery
-    : legacyEvaluatorsQuery;
+  // same way the overview does, so typing does not refetch.
+  const evaluatorsQuery = api.evalsV2.options.useQuery({
+    projectId,
+    limit: BATCH_EVALUATOR_LIMIT,
+  });
 
   const runEvaluationMutation =
     api.batchAction.runEvaluation.create.useMutation({
@@ -99,30 +82,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   const isExperimentsSource = sourceTable === SourceTable.EXPERIMENTS;
   const scopeLabel =
     sourceTable === SourceTable.EVENTS ? "observation" : "experiment item";
-  const evaluatorScopeLabel =
-    targetObject === EvalTargetObject.EVENT ? "observation" : "experiment";
   const experimentItemsExperimentCount =
     sourceTable === SourceTable.EXPERIMENT_ITEMS
       ? (props.experimentCount ?? 0)
       : 0;
 
-  const previewObservationQuery = api.observations.byId.useQuery(
-    {
-      projectId,
-      observationId: props.exampleObservation?.id as string,
-      traceId: props.exampleObservation?.traceId as string,
-      startTime: props.exampleObservation?.startTime ?? null,
-    },
-    {
-      enabled:
-        !isBetaEnabled &&
-        Boolean(
-          props.exampleObservation?.id && props.exampleObservation?.traceId,
-        ),
-    },
-  );
-
-  const previewEventQuery = api.events.batchIO.useQuery(
+  const previewQuery = api.events.batchIO.useQuery(
     {
       projectId,
       observations: [
@@ -138,21 +103,19 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     },
     {
       ...sendAsPostOption,
-      enabled:
-        isBetaEnabled &&
-        Boolean(
-          props.exampleObservation?.id &&
-          props.exampleObservation?.traceId &&
-          props.exampleObservation?.startTime,
-        ),
+      enabled: Boolean(
+        props.exampleObservation?.id &&
+        props.exampleObservation?.traceId &&
+        props.exampleObservation?.startTime,
+      ),
     },
   );
 
-  const eligibleEvaluators = useMemo(() => {
-    if (isBetaEnabled) {
+  const eligibleEvaluators = useMemo(
+    () =>
       // A blocked evaluator is skipped by the scheduler, so offering it would
       // report a successful batch that produced no scores.
-      return (v2EvaluatorsQuery.data ?? [])
+      (evaluatorsQuery.data ?? [])
         .filter((evaluator) => evaluator.blockedAt === null)
         .map(
           (evaluator): BatchEvaluator => ({
@@ -162,23 +125,11 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
               observationVariableMappingList.safeParse(
                 evaluator.latestVersion?.variableMapping,
               ).data ?? [],
-            evalTemplate: {
-              name: evaluator.name,
-              prompt: evaluator.latestVersion?.prompt ?? null,
-            },
+            prompt: evaluator.latestVersion?.prompt ?? null,
           }),
-        );
-    }
-
-    return (legacyEvaluatorsQuery.data ?? []).filter(
-      (evaluator) => evaluator.targetObject === targetObject,
-    );
-  }, [
-    isBetaEnabled,
-    legacyEvaluatorsQuery.data,
-    targetObject,
-    v2EvaluatorsQuery.data,
-  ]);
+        ),
+    [evaluatorsQuery.data],
+  );
 
   const selectedEvaluatorIds = useMemo(
     () => selectedEvaluators.map((evaluator) => evaluator.id),
@@ -214,7 +165,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
         query: finalQuery,
         evaluatorIds: selectedEvaluators.map((evaluator) => evaluator.id),
         sourceTable,
-        ...(isBetaEnabled ? { evalVersion: "v2" as const } : {}),
+        evalVersion: "v2",
       });
     } catch {
       return;
@@ -251,7 +202,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
             <DialogDescription>
               {step === "confirm"
                 ? "Review your evaluation configuration before running."
-                : `Select one or more ${evaluatorScopeLabel}-scoped evaluators.`}
+                : "Select one or more evaluators."}
             </DialogDescription>
           </DialogHeader>
 
@@ -263,23 +214,13 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 isQueryLoading={evaluatorsQuery.isLoading}
                 isQueryError={evaluatorsQuery.isError}
                 queryErrorMessage={evaluatorsQuery.error?.message}
-                previewObservation={
-                  isBetaEnabled
-                    ? previewEventQuery.data?.[0]
-                    : previewObservationQuery.data
-                }
-                isPreviewLoading={
-                  previewObservationQuery.isLoading ||
-                  previewEventQuery.isLoading
-                }
-                evaluatorScopeLabel={evaluatorScopeLabel}
+                previewObservation={previewQuery.data?.[0]}
+                isPreviewLoading={previewQuery.isLoading}
                 selectedEvaluatorIds={selectedEvaluatorIds}
                 evaluatorSearchQuery={evaluatorSearchQuery}
                 onSearchQueryChange={setEvaluatorSearchQuery}
                 onToggleEvaluator={toggleEvaluatorSelection}
-                onCreateEvaluator={
-                  isBetaEnabled ? undefined : () => setShowCreateDialog(true)
-                }
+                createEvaluatorHref={`/project/${projectId}/evals?gallery=open`}
               />
             ) : (
               <ConfirmationStep
@@ -289,7 +230,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   id: e.id,
                   name: e.scoreName,
                 }))}
-                hideCount={targetObject === EvalTargetObject.EXPERIMENT}
+                hideCount={sourceTable !== SourceTable.EVENTS}
                 sourceTable={sourceTable}
                 experimentCount={experimentItemsExperimentCount}
               />
@@ -331,15 +272,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {!isBetaEnabled ? (
-        <CreateEvaluatorDialog
-          projectId={projectId}
-          open={showCreateDialog}
-          onOpenChange={setShowCreateDialog}
-          targetObject={targetObject}
-        />
-      ) : null}
     </>
   );
 }

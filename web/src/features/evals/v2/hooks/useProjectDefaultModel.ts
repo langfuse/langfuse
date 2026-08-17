@@ -131,6 +131,9 @@ export function useProjectDefaultModel({
         "_blank",
         "noopener,noreferrer",
       );
+      window.addEventListener("focus", () => connectionsQuery.refetch(), {
+        once: true,
+      });
     },
   };
 }

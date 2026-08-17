@@ -19,8 +19,8 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
@@ -86,8 +86,6 @@ const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   messages: EMPTY_MESSAGES,
@@ -145,7 +143,6 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   attentionCount: 0,
   selectedConversationId: undefined,
   selectedConversationTitle: null,
-  selectedConversationIsWriteLocked: false,
   loadMoreConversations: () => undefined,
   invalidateConversations: () => undefined,
   selectConversation: () => undefined,
@@ -173,7 +170,6 @@ export type InAppAiAgentConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;
-  isWriteLocked: boolean;
 };
 
 type InAppAiAgentExecution = {
@@ -208,7 +204,6 @@ type InAppAiAgentContextType = {
   selectedConversationId: string | undefined;
   /** Server-given name of the selected conversation, null until it has one. */
   selectedConversationTitle: string | null;
-  selectedConversationIsWriteLocked: boolean;
   loadMoreConversations: () => void;
   invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
@@ -383,8 +378,6 @@ function InAppAiAgentProviderInner({
   );
   const hasMoreConversations = conversationListQuery.hasNextPage === true;
   const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
-  const selectedConversationIsWriteLocked =
-    conversationQuery.data?.conversation.isWriteLocked ?? false;
 
   const bootstrapBackgroundView = useMemo<BackgroundExecutionView>(() => {
     if (
@@ -1077,14 +1070,6 @@ function InAppAiAgentProviderInner({
         return false;
       }
 
-      if (!startsNewConversation && selectedConversationIsWriteLocked) {
-        setError({
-          type: "generic",
-          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-        });
-        return false;
-      }
-
       submitInFlightRef.current = conversationId;
       setSubmittingConversationId(conversationId);
       setError(null);
@@ -1175,7 +1160,6 @@ function InAppAiAgentProviderInner({
       isRunning,
       releaseSubmitLock,
       selectedConversationId,
-      selectedConversationIsWriteLocked,
       setSelectedConversationId,
       unpersistedConversationIds,
     ],
@@ -1402,14 +1386,6 @@ function InAppAiAgentProviderInner({
       approved: boolean,
       approvalScope: "once" | "conversation" = "once",
     ) => {
-      if (selectedConversationIsWriteLocked) {
-        setError({
-          type: "generic",
-          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-        });
-        return;
-      }
-
       const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
       );
@@ -1444,7 +1420,6 @@ function InAppAiAgentProviderInner({
       error,
       isRunning,
       selectedConversationId,
-      selectedConversationIsWriteLocked,
     ],
   );
 
@@ -1522,7 +1497,6 @@ function InAppAiAgentProviderInner({
       attentionCount,
       selectedConversationId: selectedConversationId ?? undefined,
       selectedConversationTitle,
-      selectedConversationIsWriteLocked,
       loadMoreConversations,
       invalidateConversations,
       selectConversation,
@@ -1545,7 +1519,6 @@ function InAppAiAgentProviderInner({
       isLoadingMoreConversations,
       isRunning,
       isSelectedConversationHydrating,
-      selectedConversationIsWriteLocked,
       selectedConversationTitle,
       isSubmitting,
       isSelectedConversationNotFound,

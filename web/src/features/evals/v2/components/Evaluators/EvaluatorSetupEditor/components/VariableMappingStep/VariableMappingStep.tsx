@@ -15,7 +15,7 @@ export function VariableMappingStep({
     <Stepper
       number={2}
       title="Map variables to data"
-      description="Configure how observation data maps to variables in your evaluator prompt. Use the sample observation to preview and verify the mapping."
+      description="Choose how observation fields populate each variable in your evaluation prompt. The live preview fills in real data so you can verify the mapping."
       open={open}
       onOpenChange={onOpenChange}
     >

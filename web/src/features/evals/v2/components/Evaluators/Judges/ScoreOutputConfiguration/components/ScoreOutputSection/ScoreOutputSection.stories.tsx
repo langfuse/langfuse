@@ -11,6 +11,7 @@ export const Numeric = meta.story({
     state: {
       dataType: ScoreDataTypeEnum.NUMERIC,
       choices: [],
+      shouldAllowMultipleMatches: false,
       minValue: "0",
       maxValue: "1",
     },
@@ -26,6 +27,7 @@ export const Categorical = meta.story({
         { label: "Positive", value: "1" },
         { label: "Negative", value: "0" },
       ],
+      shouldAllowMultipleMatches: false,
       minValue: "",
       maxValue: "",
     },
@@ -38,6 +40,7 @@ export const Boolean = meta.story({
     state: {
       dataType: ScoreDataTypeEnum.BOOLEAN,
       choices: [],
+      shouldAllowMultipleMatches: false,
       minValue: "",
       maxValue: "",
     },
@@ -50,6 +53,7 @@ export const ReadOnly = meta.story({
     state: {
       dataType: ScoreDataTypeEnum.BOOLEAN,
       choices: [],
+      shouldAllowMultipleMatches: false,
       minValue: "",
       maxValue: "",
     },

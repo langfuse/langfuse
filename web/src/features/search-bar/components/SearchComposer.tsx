@@ -1490,14 +1490,9 @@ export function SearchComposer({
           </button>
         )}
         {/* Bar-local overlay stacking ladder: token text (base) < remove-X
-            (z-20) < autocomplete popover (z-50). Both the X and the popover drop
-            BELOW the bar, staying in-flow inside the table. The error tooltip is
-            the exception: when the popover is open it flips ABOVE the offending
-            block, into the page header's band — an ancestor it can't beat
-            in-flow (`#page > main` is overflow:hidden and the header is its own
-            z-50 stacking context). So it renders through the "tooltip" <Layer>,
-            which portals it to a body-level layer container (see the render
-            below + components/ui/layer.tsx). */}
+            (z-20). The autocomplete and token tooltip both render through app
+            overlay layers so they escape clipped table, panel, and dialog
+            ancestors. */}
         {removeTarget !== null && removePosition !== null && (
           <RemoveTokenButton
             segment={removeTarget}
@@ -1539,7 +1534,6 @@ export function SearchComposer({
           onHighlight={setHighlightedOptionId}
           listboxId={LISTBOX_ID}
           anchorLeft={0}
-          containerRef={containerRef}
         />
       )}
 

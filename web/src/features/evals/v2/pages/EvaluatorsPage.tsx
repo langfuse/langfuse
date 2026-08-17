@@ -1,5 +1,5 @@
 import { formatDistanceToNowStrict } from "date-fns";
-import { ZodModelConfig } from "@langfuse/shared";
+import { TableViewPresetTableName, ZodModelConfig } from "@langfuse/shared";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
 import { type ComponentProps, useMemo, useState } from "react";
@@ -9,6 +9,11 @@ import Page from "@/src/components/layouts/page";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableControls,
+  DataTableControlsProvider,
+} from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
@@ -29,6 +34,8 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   createEvaluatorsTableStore,
   type EvaluatorsTableStore,
@@ -51,6 +58,11 @@ import {
   JudgeModelPickerTrigger,
 } from "../components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { JudgeModelConfigurationDialog } from "../components/Evaluators/JudgeModelConfigurationDialog/JudgeModelConfigurationDialog";
+import {
+  evaluatorTableFilterColumns,
+  evaluatorTableFilterConfig,
+  evaluatorTableFilterOptions,
+} from "../constants/tableFilterColumns";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
 
@@ -153,9 +165,46 @@ export default function EvaluatorsPage() {
     withDefault(StringParam, null),
   );
   const [selectionStore] = useState(() => createEvaluatorsTableStore());
+  const filterOptionsQuery = api.evalsV2.filterOptions.useQuery(
+    { projectId },
+    {
+      enabled: Boolean(projectId),
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+    },
+  );
+  const filterOptions = useMemo(
+    () => ({
+      ...evaluatorTableFilterOptions,
+      name: filterOptionsQuery.data?.name ?? [],
+      creator: filterOptionsQuery.data?.creator ?? [],
+    }),
+    [filterOptionsQuery.data],
+  );
+  const queryFilter = useSidebarFilterState(
+    evaluatorTableFilterConfig,
+    filterOptions,
+    {
+      loading: filterOptionsQuery.isPending,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+      onExplicitFilterStateChange: () => {
+        setPagination({ page: 1, limit: pagination.limit });
+        selectionStore.getState().actions.clearSelection();
+      },
+    },
+  );
+  const filterState = queryFilter.filterState;
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [deleteAll, setDeleteAll] = useState(false);
-  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [gallery, setGallery] = useQueryParam(
+    "gallery",
+    withDefault(StringParam, null),
+  );
+  const galleryOpen = gallery === "open";
+  const setGalleryOpen = (open: boolean) => {
+    setGallery(open ? "open" : null, "replaceIn");
+  };
   const [defaultModelPickerOpen, setDefaultModelPickerOpen] = useState(false);
   const [defaultModelConfigurationOpen, setDefaultModelConfigurationOpen] =
     useState(false);
@@ -163,7 +212,12 @@ export default function EvaluatorsPage() {
     null,
   );
   const evaluators = api.evalsV2.list.useQuery(
-    { projectId, ...pagination, search: searchQuery ?? undefined },
+    {
+      projectId,
+      ...pagination,
+      search: searchQuery ?? undefined,
+      filter: filterState,
+    },
     { enabled: Boolean(projectId) },
   );
   const evaluatorIds = useMemo(
@@ -174,7 +228,10 @@ export default function EvaluatorsPage() {
     ({ id }) => id === attachEvaluatorId,
   );
   const showOnboarding =
-    evaluators.isSuccess && evaluators.data.totalItems === 0 && !searchQuery;
+    evaluators.isSuccess &&
+    evaluators.data.totalItems === 0 &&
+    !searchQuery &&
+    filterState.length === 0;
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:read",
@@ -233,7 +290,10 @@ export default function EvaluatorsPage() {
         title: "Evaluators deleted",
         description: `${deletedCount} evaluator${deletedCount === 1 ? "" : "s"} deleted.`,
       });
-      await utils.evalsV2.list.invalidate({ projectId });
+      await Promise.all([
+        utils.evalsV2.list.invalidate({ projectId }),
+        utils.evalsV2.filterOptions.invalidate({ projectId }),
+      ]);
     },
   });
 
@@ -358,6 +418,7 @@ export default function EvaluatorsPage() {
         header: "Created at",
         size: 180,
         enableHiding: true,
+        defaultHidden: true,
         cell: ({ row }) => <RelativeDate date={row.original.createdAt} />,
       },
       {
@@ -420,6 +481,31 @@ export default function EvaluatorsPage() {
     "evaluatorsV2ColumnOrder-v2",
     columns,
   );
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Evaluators,
+    projectId,
+    stateUpdaters: {
+      setFilters: (filters) =>
+        queryFilter.setFilterState(filters, { origin: "saved_view" }),
+      setExpandedFilters: queryFilter.onExpandedChange,
+      setSearchQuery: (query) => {
+        setSearchQuery(query);
+        setPagination({ page: 1, limit: pagination.limit });
+        selectionStore.getState().actions.clearSelection();
+      },
+      setColumnOrder,
+      setColumnVisibility,
+    },
+    validationContext: {
+      columns,
+      filterColumnDefinition: evaluatorTableFilterColumns,
+      expandableFilterColumns: evaluatorTableFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
+    },
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
+  });
 
   return (
     <Page
@@ -456,6 +542,9 @@ export default function EvaluatorsPage() {
                   mode="default"
                   defaultModel={projectDefaultModel.defaultModel}
                   selectedModel={null}
+                  missingDefaultLabel="Set project default model"
+                  loading={projectDefaultModel.update.isPending}
+                  loadingText="Setting model..."
                   disabled={
                     !projectDefaultModel.canUpdate ||
                     !projectDefaultModel.canRead ||
@@ -486,83 +575,100 @@ export default function EvaluatorsPage() {
           }}
         />
       ) : (
-        <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-          <EvaluatorsTableToolbar
-            selectionStore={selectionStore}
-            pageRowIds={evaluatorIds}
-            pageSize={pagination.limit}
-            pageIndex={pagination.page - 1}
-            totalCount={evaluators.data?.totalItems ?? null}
-            columns={columns}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibility}
-            columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            searchConfig={{
-              metadataSearchFields: ["Name"],
-              updateQuery: (query) => {
-                setSearchQuery(query || null);
-                setPagination({ page: 1, limit: pagination.limit });
-                selectionStore.getState().actions.clearSelection();
-              },
-              currentQuery: searchQuery ?? undefined,
-              tableAllowsFullTextSearch: false,
-            }}
-          />
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <DataTable
-              tableName="evaluators-v2-overview-v2"
-              columns={columns}
-              data={
-                evaluators.isPending
-                  ? { isLoading: true, isError: false }
-                  : evaluators.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: evaluators.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: evaluators.data.evaluators,
-                      }
-              }
-              pagination={{
-                totalCount: evaluators.data?.totalItems ?? null,
-                state: {
-                  pageIndex: pagination.page - 1,
-                  pageSize: pagination.limit,
-                },
-                onChange: (updater) => {
-                  const next =
-                    typeof updater === "function"
-                      ? updater({
-                          pageIndex: pagination.page - 1,
-                          pageSize: pagination.limit,
-                        })
-                      : updater;
-                  setPagination({
-                    page: next.pageIndex + 1,
-                    limit: next.pageSize,
-                  });
-                },
-              }}
+        <DataTableControlsProvider
+          tableName={evaluatorTableFilterConfig.tableName}
+        >
+          <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+            <EvaluatorsTableToolbar
               selectionStore={selectionStore}
+              pageRowIds={evaluatorIds}
+              pageSize={pagination.limit}
+              pageIndex={pagination.page - 1}
+              totalCount={evaluators.data?.totalItems ?? null}
+              columns={columns}
               columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibility}
+              setColumnVisibility={setColumnVisibility}
               columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
+              setColumnOrder={setColumnOrder}
               rowHeight={rowHeight}
-              onRowClick={(row) =>
-                router.push(`/project/${projectId}/evals/${row.id}`)
-              }
-              noResultsMessage="No evaluators found."
+              setRowHeight={setRowHeight}
+              filterState={filterState}
+              currentSearchQuery={searchQuery ?? undefined}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Evaluators,
+                projectId,
+                controllers: viewControllers,
+              }}
+              searchConfig={{
+                metadataSearchFields: ["Name"],
+                updateQuery: (query) => {
+                  setSearchQuery(query || null);
+                  setPagination({ page: 1, limit: pagination.limit });
+                  selectionStore.getState().actions.clearSelection();
+                },
+                currentQuery: searchQuery ?? undefined,
+                tableAllowsFullTextSearch: false,
+              }}
             />
+            <ResizableFilterLayout>
+              <DataTableControls
+                key={viewControllers.selectedViewId ?? "no-view"}
+                queryFilter={queryFilter}
+              />
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <DataTable
+                  tableName="evaluators-v2-overview-v2"
+                  columns={columns}
+                  data={
+                    evaluators.isPending || isViewLoading
+                      ? { isLoading: true, isError: false }
+                      : evaluators.isError
+                        ? {
+                            isLoading: false,
+                            isError: true,
+                            error: evaluators.error.message,
+                          }
+                        : {
+                            isLoading: false,
+                            isError: false,
+                            data: evaluators.data.evaluators,
+                          }
+                  }
+                  pagination={{
+                    totalCount: evaluators.data?.totalItems ?? null,
+                    state: {
+                      pageIndex: pagination.page - 1,
+                      pageSize: pagination.limit,
+                    },
+                    onChange: (updater) => {
+                      const next =
+                        typeof updater === "function"
+                          ? updater({
+                              pageIndex: pagination.page - 1,
+                              pageSize: pagination.limit,
+                            })
+                          : updater;
+                      setPagination({
+                        page: next.pageIndex + 1,
+                        limit: next.pageSize,
+                      });
+                    },
+                  }}
+                  selectionStore={selectionStore}
+                  columnVisibility={columnVisibility}
+                  onColumnVisibilityChange={setColumnVisibility}
+                  columnOrder={columnOrder}
+                  onColumnOrderChange={setColumnOrder}
+                  rowHeight={rowHeight}
+                  onRowClick={(row) =>
+                    router.push(`/project/${projectId}/evals/${row.id}`)
+                  }
+                  noResultsMessage="No evaluators found."
+                />
+              </div>
+            </ResizableFilterLayout>
           </div>
-        </div>
+        </DataTableControlsProvider>
       )}
 
       <EvaluatorsOverviewSelectionBar
@@ -590,6 +696,7 @@ export default function EvaluatorsPage() {
                   projectId,
                   isBatchAction: true,
                   search: searchQuery ?? undefined,
+                  filter: filterState,
                 }
               : { projectId, evaluatorIds: deleteIds },
           )

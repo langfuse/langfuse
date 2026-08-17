@@ -28,6 +28,7 @@ export function EvaluatorTestPanel({
           variant="ghost"
           size="icon"
           aria-label={open ? "Collapse test panel" : "Expand test panel"}
+          title={open ? "Collapse test panel" : "Expand test panel"}
           onClick={() => onOpenChange(!open)}
         >
           {open ? (

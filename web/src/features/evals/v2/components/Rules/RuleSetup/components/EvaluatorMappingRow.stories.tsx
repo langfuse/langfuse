@@ -24,6 +24,7 @@ const store = createRuleSetupStore({
     {
       evaluatorId,
       evaluatorName: "Conciseness",
+      evaluatorType: "LLM_AS_JUDGE",
       defaultVariableMapping,
       variableMapping: null,
     },
@@ -36,6 +37,7 @@ export const FullyMapped = meta.story({
   args: {
     evaluatorId,
     evaluatorName: "Conciseness",
+    evaluatorType: "LLM_AS_JUDGE",
     defaultVariableMapping,
     store,
     sampleObject: null,

@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import {
   EvalTemplateType,
+  type FilterState,
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
@@ -30,7 +31,10 @@ import {
 } from "./evaluatorTypes";
 import { testEvaluator as executeEvaluatorTest } from "./testEvaluator";
 import * as repository from "./evaluatorRepository";
-import { assertEvaluatorConfigurationValid } from "./evaluatorValidation";
+import {
+  assertCompleteEvaluatorVariableMapping,
+  assertEvaluatorConfigurationValid,
+} from "./evaluatorValidation";
 
 type SuggestEvaluatorNameParams = {
   projectId: string;
@@ -65,10 +69,23 @@ export class EvaluatorService {
     private readonly audit: (event: EvaluatorAuditEvent) => Promise<void>,
   ) {}
 
-  list(params: { projectId: string; page: number; limit: number }) {
+  list(params: {
+    projectId: string;
+    page: number;
+    limit: number;
+    search?: string;
+    filter?: FilterState;
+  }) {
     return repository.listEvaluators({
       prisma: this.prisma,
       ...params,
+    });
+  }
+
+  listFilterOptions(projectId: string) {
+    return repository.listEvaluatorFilterOptions({
+      prisma: this.prisma,
+      projectId,
     });
   }
 
@@ -270,6 +287,7 @@ export class EvaluatorService {
               prisma,
               projectId: input.projectId,
               search: input.search,
+              filter: input.filter,
             });
 
       for (const evaluatorId of ids) {
@@ -364,6 +382,31 @@ async function updateEvaluator(params: {
     throw new LangfuseConflictError("Evaluator type cannot be changed");
   }
 
+  const latest = current.versions[0];
+  if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
+  const definitionChanged = !isDeepStrictEqual(
+    toEvaluatorDefinition(current.type, latest),
+    input.definition,
+  );
+
+  if (
+    input.definition.type === EvalTemplateType.LLM_AS_JUDGE &&
+    (definitionChanged || params.forceNewVersion)
+  ) {
+    const assignments = await repository.findRuleMappingOverridesForEvaluator({
+      prisma: tx,
+      projectId: input.projectId,
+      evaluatorId: input.evaluatorId,
+    });
+    for (const assignment of assignments) {
+      assertCompleteEvaluatorVariableMapping({
+        prompt: input.definition.prompt,
+        variableMapping:
+          assignment.variableMapping ?? input.definition.variableMapping ?? [],
+      });
+    }
+  }
+
   await repository.updateEvaluatorMetadata({
     tx,
     projectId: input.projectId,
@@ -372,17 +415,9 @@ async function updateEvaluator(params: {
     description: input.description,
   });
 
-  const latest = current.versions[0];
-  if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
   // Name-based upserts from the unstable API preserve every write as a new
   // version. Stable ID-based updates only version actual definition changes.
-  if (
-    params.forceNewVersion ||
-    !isDeepStrictEqual(
-      toEvaluatorDefinition(current.type, latest),
-      input.definition,
-    )
-  ) {
+  if (params.forceNewVersion || definitionChanged) {
     await repository.appendEvaluatorVersion({
       tx,
       evaluatorId: input.evaluatorId,

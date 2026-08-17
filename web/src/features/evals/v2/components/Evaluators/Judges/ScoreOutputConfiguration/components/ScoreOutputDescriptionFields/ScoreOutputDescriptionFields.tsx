@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { ChevronDown, InfoIcon } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { cn } from "@/src/utils/tailwind";
+import {
+  DEFAULT_REASONING_DESCRIPTION,
+  DEFAULT_SCORE_DESCRIPTION,
+} from "@/src/features/evals/v2/scoreOutputDefaults";
 
 function DescriptionLabel({
   children,
@@ -24,12 +24,9 @@ function DescriptionLabel({
       {children}
       <span className="text-muted-foreground font-regular">(optional)</span>
       {!disabled ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs">{tooltip}</TooltipContent>
-        </Tooltip>
+        <InfoTooltip label={`About ${children.toLowerCase()}`}>
+          {tooltip}
+        </InfoTooltip>
       ) : null}
     </Label>
   );
@@ -53,10 +50,10 @@ export function ScoreOutputDescriptionFields({
   const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-1.5">
       <button
         type="button"
-        className="flex w-fit items-center gap-1.5 text-sm font-bold"
+        className="col-span-2 flex w-fit items-center gap-1.5 text-sm font-bold"
         aria-expanded={advancedOpen}
         onClick={() => setAdvancedOpen((current) => !current)}
       >
@@ -70,17 +67,17 @@ export function ScoreOutputDescriptionFields({
       </button>
 
       {advancedOpen ? (
-        <div className="flex flex-col gap-4">
+        <div className="col-start-2 mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <DescriptionLabel
-              tooltip="How the score field is described to the judge."
+              tooltip="Gives the judge context on what the score field should capture."
               disabled={disabled}
             >
               Score description
             </DescriptionLabel>
             <Textarea
               className="min-h-16"
-              placeholder="Describe what the score represents"
+              placeholder={DEFAULT_SCORE_DESCRIPTION}
               value={scoreDescription}
               disabled={disabled}
               onChange={(event) => onScoreDescriptionChange(event.target.value)}
@@ -96,7 +93,7 @@ export function ScoreOutputDescriptionFields({
             </DescriptionLabel>
             <Textarea
               className="min-h-16"
-              placeholder="Describe what the reasoning should explain"
+              placeholder={DEFAULT_REASONING_DESCRIPTION}
               value={reasoningDescription}
               disabled={disabled}
               onChange={(event) =>

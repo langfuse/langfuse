@@ -1,4 +1,5 @@
 import { Slider } from "@/src/components/ui/slider";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import type { ActivationEstimate } from "@/src/features/evals/v2/fns/requestRuleActivation";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { ActivationCostEstimateView } from "../ActivationCostEstimateView/ActivationCostEstimateView";
@@ -9,12 +10,14 @@ export function ActivationCostEstimateDetails({
   matchingObservations,
   sampling,
   onSamplingChange,
+  descriptionAsTooltip = false,
 }: {
   estimates: ActivationEstimate[];
   unavailableEstimateCount: number;
   matchingObservations: number;
   sampling: number;
   onSamplingChange?: (sampling: number) => void;
+  descriptionAsTooltip?: boolean;
 }) {
   const hasNoMatchingObservations = matchingObservations === 0;
   const hasOnlyUnavailableEstimates =
@@ -26,16 +29,30 @@ export function ActivationCostEstimateDetails({
     estimatedCostUsd:
       estimate.matchingObservations * sampling * estimate.testRunCostUsd,
   }));
+  const description = hasNoMatchingObservations
+    ? "No observations matched this rule in the last 7 days, so there is nothing to estimate yet. It will evaluate matching observations as they arrive."
+    : hasOnlyUnavailableEstimates
+      ? "Activating this rule may incur costs. Are you sure you want to continue?"
+      : `${compactNumberFormatter(matchingObservations, 1)} observations matched this rule in the last 7 days. Rates come from each evaluator's latest test call.`;
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-muted-foreground text-sm">
-        {hasNoMatchingObservations
-          ? "No observations matched this rule in the last 7 days, so there is nothing to estimate yet. It will evaluate matching observations as they arrive."
-          : hasOnlyUnavailableEstimates
-            ? "Activating this rule may incur costs. Are you sure you want to continue?"
-            : `${compactNumberFormatter(matchingObservations, 1)} observations matched this rule in the last 7 days. Rates come from each evaluator's latest test call.`}
-      </p>
+      {descriptionAsTooltip ? (
+        <div>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-bold">Cost estimation</p>
+            <InfoTooltip label="About cost estimation">
+              {description}
+            </InfoTooltip>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            Review the expected cost before running this evaluator
+            automatically.
+          </p>
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-sm">{description}</p>
+      )}
 
       {estimates.length > 0 ? (
         <>

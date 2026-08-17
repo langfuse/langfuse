@@ -9,6 +9,7 @@ const state = {
   scoreDescription: "Measures factual accuracy",
   reasoningDescription: "Explain which evidence supports the score",
   choices: [],
+  shouldAllowMultipleMatches: false,
   minValue: "0",
   maxValue: "1",
 };

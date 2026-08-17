@@ -1,4 +1,5 @@
 import {
+  EvalTemplateType,
   EvalTargetObject,
   InvalidRequestError,
   isExperimentEvaluationRule,
@@ -39,6 +40,7 @@ import { assertActiveRuleLimitNotExceeded } from "./ruleErrors";
 import * as repository from "./ruleRepository";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
+import { assertCompleteEvaluatorVariableMapping } from "../evaluators/evaluatorValidation";
 
 export type RuleAuditEvent = {
   action: "create" | "update" | "delete";
@@ -62,6 +64,13 @@ export class RuleService {
       input,
     });
     return { rules: rules.map(toRuleResponse), totalItems };
+  }
+
+  listFilterOptions(projectId: string) {
+    return repository.listRuleFilterOptions({
+      prisma: this.prisma,
+      projectId,
+    });
   }
 
   async get(projectId: string, ruleId: string) {
@@ -580,14 +589,26 @@ export class RuleService {
       evaluators.map((evaluator) => [evaluator.id, evaluator]),
     );
     return params.assignments.map((assignment) => {
-      if (assignment.variableMapping !== null) return assignment;
       const evaluator = evaluatorById.get(assignment.evaluatorId)!;
+      const latestVersion = evaluator.versions[0];
+      if (!latestVersion) {
+        throw new LangfuseNotFoundError("Evaluator version not found");
+      }
       const prepared = prepareModernRuleVariableMapping(
-        evaluator.versions[0]?.variableMapping,
+        latestVersion.variableMapping,
       );
+      const storedVariableMapping =
+        assignment.variableMapping ?? prepared.initialVariableMapping;
+      if (evaluator.type !== EvalTemplateType.CODE) {
+        assertCompleteEvaluatorVariableMapping({
+          prompt: latestVersion.prompt ?? "",
+          variableMapping:
+            storedVariableMapping ?? prepared.defaultVariableMapping,
+        });
+      }
       return {
         ...assignment,
-        variableMapping: prepared.initialVariableMapping,
+        variableMapping: storedVariableMapping,
       };
     });
   }

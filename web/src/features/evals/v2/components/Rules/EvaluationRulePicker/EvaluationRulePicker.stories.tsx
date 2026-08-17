@@ -7,8 +7,20 @@ import { EvaluationRulePicker } from "./EvaluationRulePicker";
 
 const meta = preview.meta({ component: EvaluationRulePicker });
 const rules = [
-  { id: "rule-1", name: "Production traces" },
-  { id: "rule-2", name: "Customer support" },
+  {
+    id: "rule-1",
+    name: "Production traces",
+    enabled: true,
+    updatedAt: new Date("2026-08-17T14:00:00.000Z"),
+    createdByUser: { name: "Demo User", email: "demo@example.com" },
+  },
+  {
+    id: "rule-2",
+    name: "Customer support",
+    enabled: false,
+    updatedAt: new Date("2026-08-17T10:00:00.000Z"),
+    createdByUser: { name: "Demo User", email: "demo@example.com" },
+  },
 ];
 
 export const WithRules = meta.story({

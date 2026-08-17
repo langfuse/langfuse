@@ -86,6 +86,16 @@ export const CreateEvaluationRuleInputSchema = CreateRuleSchema.omit({
   filter: RuleMetadataSchema.shape.filter.optional(),
 });
 
+export const ListEvaluationRulesBaseSchema = ListRulesSchema.omit({
+  projectId: true,
+  filter: true,
+}).extend({
+  filter: z
+    .array(RuleFilterBaseSchema)
+    .optional()
+    .describe("Conditions filtering the returned evaluation rules."),
+});
+
 export const ListEvaluationRulesInputSchema = ListRulesSchema.omit({
   projectId: true,
 });

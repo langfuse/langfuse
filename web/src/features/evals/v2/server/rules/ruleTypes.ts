@@ -38,6 +38,24 @@ export const ListRulesSchema = z.object({
     .min(1)
     .max(2)
     .optional(),
+  filter: z
+    .array(singleFilter)
+    .superRefine((filters, ctx) => {
+      for (const [index, filter] of filters.entries()) {
+        const valid =
+          ((filter.column === "name" || filter.column === "creator") &&
+            (filter.type === "string" || filter.type === "stringOptions")) ||
+          (filter.column === "enabled" && filter.type === "boolean");
+        if (!valid) {
+          ctx.addIssue({
+            code: "custom",
+            message: `Unsupported evaluation rule filter: ${filter.column}`,
+            path: [index],
+          });
+        }
+      }
+    })
+    .optional(),
 });
 
 export const CreateRuleSchema = RuleMetadataSchema.extend({
@@ -89,6 +107,7 @@ const FilteredRuleSelectionSchema = z.object({
   isBatchAction: z.literal(true),
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
+  filter: ListRulesSchema.shape.filter,
 });
 
 export const RuleSelectionSchema = z.union([

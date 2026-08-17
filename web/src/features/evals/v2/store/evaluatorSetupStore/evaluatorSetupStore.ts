@@ -1,7 +1,6 @@
 import {
   EvalTemplateTypeEnum,
   observationVariableMappingList,
-  ScoreDataTypeEnum,
   type FilterState,
   type ModelConfig,
   type EvalTemplateSourceCodeLanguage,
@@ -11,6 +10,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 
 import { inferDefaultMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import type {
   ActiveVariableMapping,
@@ -20,18 +20,12 @@ import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
+import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/search-bar/lib/filter-aliases";
 
 const DEFAULT_PROMPT = `Evaluate the quality of the response.
 
 Input: {{input}}
 Response: {{output}}`;
-
-const DEFAULT_OUTPUT = {
-  version: 2 as const,
-  dataType: ScoreDataTypeEnum.NUMERIC,
-  score: { description: "Quality score" },
-  reasoning: { description: "Reasoning for the score" },
-};
 
 function buildInitialVariableFields(
   definition: EvaluatorDefinition | null | undefined,
@@ -113,6 +107,7 @@ export type EvaluatorSetupStore = StoreApi<EvaluatorSetupStoreState>;
 export function createEvaluatorSetupStore({
   initialEvaluator,
   initialType,
+  mode,
 }: {
   initialEvaluator: {
     name: string;
@@ -120,6 +115,7 @@ export function createEvaluatorSetupStore({
     definition: EvaluatorDefinition;
   } | null;
   initialType?: EvalTemplateType;
+  mode: "create" | "edit";
 }): EvaluatorSetupStore {
   const initialDefinition = initialEvaluator?.definition;
 
@@ -144,7 +140,7 @@ export function createEvaluatorSetupStore({
     scoreOutput: toScoreOutputFormState(
       initialDefinition?.type === "LLM_AS_JUDGE"
         ? initialDefinition.outputDefinition
-        : DEFAULT_OUTPUT,
+        : null,
     ),
     name: initialEvaluator?.name ?? "",
     description: initialEvaluator?.description ?? "",
@@ -170,7 +166,13 @@ export function createEvaluatorSetupStore({
         ? initialDefinition.modelParams
         : null,
     selectedObservation: null,
-    sampleFilter: [],
+    sampleFilter:
+      mode === "create"
+        ? [
+            ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
+            ...EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
+          ]
+        : [],
     promptPreviewEnabled: false,
     testPanelOpen: true,
     actions: {

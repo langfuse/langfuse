@@ -199,7 +199,7 @@ function TreeSelectorBody({
 }
 
 /**
- * One mapping card per variable: header = "{{variable}} pulls from <crumbs>"
+ * One mapping card per variable: header = "{{variable}} maps to <crumbs>"
  * with the pencil as the single edit affordance (plus trash), body = the
  * resolved value preview. The pencil flips the body into the point-at-data
  * tree, where one click binds and closes. Information-first: nothing else in

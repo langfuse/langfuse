@@ -48,9 +48,10 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import type {
-  InAppAgentMessageFeedbackValue,
-  InAppAgentMessageSource,
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  type InAppAgentMessageFeedbackValue,
+  type InAppAgentMessageSource,
 } from "@langfuse/shared/in-app-agent";
 import { deduplicateBy } from "@/src/utils/arrays";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
@@ -823,7 +824,6 @@ export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
   /** Per-conversation attention state, for the recent-conversation indicators. */
   activityByConversationId: InAppAgentActivityByConversationId;
-  disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   executionUi: InAppAgentWindowExecutionUi;
   hasMoreConversations: boolean;
@@ -914,22 +914,23 @@ function InAppAgentRateLimitError({
   );
 }
 
-function InAppAgentGenericError({
-  error,
-  isExpanded,
-}: {
-  error: Extract<InAppAgentError, { type: "generic" }>;
-  isExpanded: boolean;
-}) {
+function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
   return (
-    <div
-      role="alert"
-      className={cn(
-        "border-destructive/40 dark:bg-destructive dark:border-destructive-foreground/20 bg-destructive/10 dark:text-destructive-foreground text-destructive rounded-lg border px-2 py-1",
-        isExpanded ? "text-sm" : "text-xs",
-      )}
-    >
-      {error.message}
+    <div className="shrink-0 px-2 pb-2">
+      <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
+        <p
+          role="alert"
+          className={cn(
+            "border-destructive/40 bg-destructive/10 text-destructive flex w-full items-center gap-2 rounded-lg border px-2 py-1",
+            isExpanded ? "text-sm" : "text-xs",
+          )}
+        >
+          <Info aria-hidden="true" className="size-3 shrink-0" />
+          <span className="min-w-0 flex-1">
+            {IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -938,7 +939,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     activityByConversationId,
     conversations,
-    disablePendingToolApprovalActions = false,
     error,
     executionUi,
     hasMoreConversations,
@@ -1451,10 +1451,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 );
               })}
             </ol>
-
-            {error?.type === "generic" && (
-              <InAppAgentGenericError error={error} isExpanded={isExpanded} />
-            )}
           </div>
         </ConversationScroller>
         {pendingToolCalls.length > 0 ? (
@@ -1475,9 +1471,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   key={`${tool.approval?.id ?? tool.name}-${index}`}
                   tool={tool}
                   isCompact={!isExpanded}
-                  isDisabled={
-                    isRateLimited || disablePendingToolApprovalActions
-                  }
+                  isDisabled={isRateLimited}
                   onApproveToolCall={onApproveToolCall}
                   onAlwaysAllowToolCall={onAlwaysAllowToolCall}
                   onRejectToolCall={onRejectToolCall}
@@ -1504,6 +1498,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
+        {error?.type === "generic" && (
+          <InAppAgentIssueNotice isExpanded={isExpanded} />
+        )}
         {backgroundHint.isVisible && props.onClose ? (
           <InAppAgentBackgroundHint
             isExpanded={isExpanded}
