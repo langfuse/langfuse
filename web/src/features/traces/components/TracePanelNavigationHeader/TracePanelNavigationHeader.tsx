@@ -180,16 +180,21 @@ function TracePanelNavigationHeaderExpanded({
 
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
-      {/* Responsive toolbar via container queries on this row's own width —
-          no JS measurement. The breakpoints are tuned to the row's actual
-          content minimums (all fixed-size icon buttons + the search input's
-          min-width, so the sums are font-independent): with playback controls
-          present the row needs ~434px with switcher labels, ~352px icons-only,
-          ~292px with the minor tools folded into "…". Hence: labels < 440px →
-          hidden; tools < 360px → folded; search < 300px → narrower min-width
-          (covers dragging to the 260px panel min). If you ADD anything to this
-          row, re-measure and retune all three — stale thresholds show up as a
-          clipped switcher at default widths (LFE-10729). */}
+      {/* Responsive toolbar via container queries on this row's own width — no JS
+          measurement. The breakpoints are tuned to the row's actual content
+          minimums (all fixed-size icon buttons plus the search input's
+          min-width, so the sums are font-independent). Measured states:
+
+            ≥ 440px   switcher labels, minor tools and transport all inline
+            360-440   switcher icons-only, tools and transport still inline
+            < 360px   tools AND transport folded into the "…" menu; this row
+                      first overflows at 188px, well under the 260px panel min
+
+          Hence: labels < 440px → hidden; tools and the transport < 360px →
+          folded; search < 300px → narrower min-width (covers dragging to the
+          panel min). If you ADD anything to this row, re-measure and retune all
+          three — stale thresholds show up as a clipped switcher at default
+          widths, which is what the folding exists to prevent. */}
       <div className="@container/navheader flex flex-row items-center justify-between pr-2 pl-1">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
             version. Hidden while the detail panel is closed (nothing useful to
