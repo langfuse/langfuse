@@ -172,6 +172,7 @@ Provider contract:
 - `ensureSession({ conversationId, sessionId? })`
 - `syncReadonlyFiles({ sessionId, files })`
 - `read`, `write`, `edit`, `bash`
+- optional `probeSession({ sessionId })`, returning why a stored session is unusable
 - optional `suspendSession({ sessionId })`
 - optional `terminateSession({ sessionId })`
 
@@ -186,11 +187,11 @@ Runtime HTTP surface:
 
 Sandbox state is stored on the conversation row as `providerSessionId`. The configured sandbox provider is assumed to remain stable for the lifetime of the database.
 
-Live or suspended MicroVMs keep workspace files and memory. A terminated session cannot be revived: continuation starts a clean VM. Persisted conversation history still drives the next turn, and `tool_calls/` is reconstructed from the event log. Arbitrary workspace files, installed packages, and in-memory process state are not durable across termination.
+Live or suspended MicroVMs keep workspace files and memory. A terminated session cannot be revived, so continuation starts a clean VM: conversation history and the reconstructed `tool_calls/` survive, but workspace files, installed packages, and process state do not.
 
-When a turn starts against a session that is already gone, `createInAppAgentSandbox` detects it up front via the provider's `isSessionAvailable` probe and returns `workspaceWasReset`. The worker then appends `createSandboxWorkspaceResetMessage()` to the agent input, a `developer` message stating what was lost and that `tool_calls/` was restored. `developer` messages are dropped from the rendered transcript, so this reaches the model and not the user.
+`createInAppAgentSandbox` calls the provider's `probeSession` up front and returns `workspaceWasReset` when the stored session is gone. The worker passes that on as `sandboxWorkspaceWasReset`, which adds a run-scoped system message telling the model its earlier files are gone and that `tool_calls/` was restored. It is not a transcript message, so the user never sees it.
 
-Production relies entirely on the AWS idle policy to reclaim MicroVMs: suspend after 60s idle, terminate four hours later, and terminate unconditionally four hours after creation. Nothing in the application terminates a MicroVM. Turn completion persists `providerSessionId` and does not call `suspendSession`, and deleting a conversation clears `providerSessionId` without terminating the MicroVM it pointed at, so that workspace survives until the idle policy reclaims it.
+Nothing in the application terminates a MicroVM; the AWS idle policy reclaims them, suspending after 60s idle and terminating four hours after either suspension or creation. Deleting a conversation clears `providerSessionId` without terminating, so that workspace outlives the delete.
 
 `dangerous-docker` is development-only. Local Docker sandbox cleanup stays in the web process where that provider is used.
 
