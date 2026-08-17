@@ -37,7 +37,7 @@ describe("TracingAIFeatureOptInDialog", () => {
     );
 
     expect(
-      screen.getByText("Only organization admins can enable AI features."),
+      screen.getByText(/Only organization admins can enable AI features\./),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Organization Settings" }),
