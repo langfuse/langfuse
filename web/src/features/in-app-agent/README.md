@@ -38,7 +38,7 @@ Closing the drawer detaches observation without cancelling the worker run.
 - `server/router.ts`: tRPC routes for durable run start/cancel/approval, conversation snapshots and lists, and feedback.
 - `server/instrumentation.ts`: optional Langfuse tracing for agent runs, prompts, events, and errors.
 - `server/sandbox/config.ts`: sandbox provider selection and runtime configuration.
-- `server/sandbox/service.ts`: conversation-scoped sandbox session reuse, readonly file sync, and turn-end suspension.
+- `server/sandbox/service.ts`: conversation-scoped sandbox session reuse, readonly file sync, and turn-end session persistence.
 - `server/sandbox/providers/*`: provider adapters for local Docker and Lambda MicroVM sandboxes.
 - `server/sandbox/types.ts`: runtime-neutral sandbox interface used by tools/agent.
 - `constants.ts`: stable names shared across prompts, tools, persistence, and rendering.
@@ -159,7 +159,7 @@ statuses remain separate project concerns.
 
 ## Sandbox Runtime
 
-`server/sandbox/service.ts` gives the agent a conversation-scoped sandbox interface with `read`, `write`, and `edit` plus a separate turn-end callback. It reuses an existing provider session when the stored provider/session/TTL still match, otherwise it boots a fresh session and persists the new state on the conversation.
+`server/sandbox/service.ts` gives the agent a conversation-scoped sandbox interface with `read`, `write`, `edit`, and `bash`. Sessions are created lazily on the first sandbox tool call. The service reuses a live or suspended provider session identified by `providerSessionId`; if that session is gone or terminal, it boots a fresh session and persists the replacement id.
 
 Both sandbox providers target the same runtime contract from `packages/in-app-agent-sandbox-runtime`.
 
@@ -172,7 +172,9 @@ Provider contract:
 - `ensureSession({ conversationId, sessionId? })`
 - `syncReadonlyFiles({ sessionId, files })`
 - `read`, `write`, `edit`, `bash`
+- optional `probeSession({ sessionId })`, returning why a stored session is unusable
 - optional `suspendSession({ sessionId })`
+- optional `terminateSession({ sessionId })`
 
 Runtime HTTP surface:
 
@@ -185,11 +187,13 @@ Runtime HTTP surface:
 
 Sandbox state is stored on the conversation row as `providerSessionId`. The configured sandbox provider is assumed to remain stable for the lifetime of the database.
 
-Session reuse only relies on an existing live or suspended runtime instance identified by `providerSessionId`.
+Live or suspended MicroVMs keep workspace files and memory. A terminated session cannot be revived, so continuation starts a clean VM: conversation history and the reconstructed `tool_calls/` survive, but workspace files, installed packages, and process state do not.
 
-`server/router.ts` clears sandbox state before soft-deleting a conversation.
+`createInAppAgentSandbox` calls the provider's `probeSession` up front and returns `workspaceWasReset` when the stored session is gone. The worker passes that on as `sandboxWorkspaceWasReset`, which adds a run-scoped system message telling the model its earlier files are gone and that `tool_calls/` was restored. It is not a transcript message, so the user never sees it.
 
-`dangerous-docker` is development-only. Worker data-retention cleanup only tears down `lambda-microvm` sandboxes; local Docker sandbox cleanup stays in the web process where that provider is used.
+Nothing in the application terminates a MicroVM; the AWS idle policy reclaims them, suspending after 60s idle and terminating four hours after either suspension or creation. Deleting a conversation clears `providerSessionId` without terminating, so that workspace outlives the delete.
+
+`dangerous-docker` is development-only. Local Docker sandbox cleanup stays in the web process where that provider is used.
 
 ## MCP Tool Authorization
 

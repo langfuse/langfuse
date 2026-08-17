@@ -1070,6 +1070,12 @@ model PosthogIntegration {
   createdAt              DateTime                         @default(now()) @map("created_at")
   exportSource           AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
 
+  // Last deterministic customer-config fault (bad hostname) that disabled the
+  // integration. Written by the worker, surfaced in the integration settings
+  // status section, and cleared on a successful run.
+  lastError   String?   @map("last_error")
+  lastErrorAt DateTime? @map("last_error_at")
+
   @@map("posthog_integrations")
 }
 

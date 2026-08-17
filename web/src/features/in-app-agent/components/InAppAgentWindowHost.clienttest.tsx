@@ -22,7 +22,9 @@ vi.mock(
   "@/src/features/in-app-agent/components/ControlledInAppAgentWindow",
   () => ({
     ControlledInAppAgentWindow: () => (
-      <div data-in-app-agent-window-drag-handle="true" data-testid="window" />
+      <div data-in-app-agent-window-drag-handle="true" data-testid="window">
+        <textarea data-testid="composer" />
+      </div>
     ),
   }),
 );
@@ -41,6 +43,43 @@ function firePointerEvent(
 
   Object.defineProperty(event, "pointerId", { value: init.pointerId });
   fireEvent(element, event);
+}
+
+// The visual viewport is how a phone reports the on-screen keyboard: it shrinks
+// while the layout viewport (`innerHeight`) does not. jsdom implements neither
+// side, so the test owns both.
+function stubVisualViewport(layoutHeight: number) {
+  const viewport = Object.assign(new EventTarget(), {
+    height: layoutHeight,
+    offsetTop: 0,
+  });
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    writable: true,
+    value: layoutHeight,
+  });
+  Object.defineProperty(window, "visualViewport", {
+    configurable: true,
+    writable: true,
+    value: viewport,
+  });
+
+  return function resizeTo(height: number, offsetTop = 0) {
+    viewport.height = height;
+    viewport.offsetTop = offsetTop;
+    viewport.dispatchEvent(new Event("resize"));
+  };
+}
+
+function stubHandheld() {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query.includes("pointer: coarse"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
 }
 
 describe("InAppAgentWindowHost", () => {
@@ -75,6 +114,9 @@ describe("InAppAgentWindowHost", () => {
   afterEach(() => {
     document.querySelector("[data-overlay-root]")?.remove();
     vi.unstubAllGlobals();
+    // jsdom has no visual viewport, so leaving a stubbed one behind would hand
+    // the next test a phone it never asked for.
+    Reflect.deleteProperty(window, "visualViewport");
   });
 
   it("keeps geometry while open and resets it on close/reopen", () => {
@@ -136,14 +178,7 @@ describe("InAppAgentWindowHost", () => {
     // coarse-pointer clause can match. Pins that the shell asks the handheld
     // predicate, not the width-only one that sent a rotated phone back to the
     // floating window.
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn((query: string) => ({
-        matches: query.includes("pointer: coarse"),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    );
+    stubHandheld();
     mocks.open = true;
 
     const { rerender } = render(<InAppAgentWindowHost />);
@@ -161,5 +196,42 @@ describe("InAppAgentWindowHost", () => {
       "data-state",
       "closed",
     );
+  });
+
+  it("re-anchors the handheld drawer to the visible viewport on every keyboard cycle", () => {
+    stubHandheld();
+    // A phone with a 669px viewport and a 290px keyboard, as reported.
+    const resizeViewportTo = stubVisualViewport(669);
+    mocks.open = true;
+
+    render(<InAppAgentWindowHost />);
+    const drawer = document.querySelector<HTMLElement>("#in-app-agent-drawer");
+    const composer = screen.getByTestId("composer");
+
+    // Repeated cycles are the point: the reported symptom needed "a couple of
+    // times", which is a flag falling out of phase rather than one bad
+    // measurement. iOS also reports the closing keyboard in more than one step
+    // and blurs the field on the way out.
+    for (const closingSteps of [[669], [520, 669], [669]]) {
+      composer.focus();
+      resizeViewportTo(669 - 290);
+      // Above the keyboard, and the anchors — never an inline height — own it.
+      expect(drawer?.style.bottom).toBe("290px");
+      expect(drawer?.style.height).toBe("");
+
+      composer.blur();
+      for (const height of closingSteps) {
+        resizeViewportTo(height);
+      }
+      expect(drawer?.style.bottom).toBe("0px");
+      expect(drawer?.style.height).toBe("");
+    }
+
+    // Safari can also scroll the visual viewport instead of shrinking it; the
+    // drawer follows the visible band rather than the layout viewport.
+    composer.focus();
+    resizeViewportTo(669 - 290, 290);
+    expect(drawer?.style.bottom).toBe("0px");
+    expect(drawer?.style.top).toBe("max(var(--banner-offset), 290px)");
   });
 });

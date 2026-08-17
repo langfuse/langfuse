@@ -607,10 +607,21 @@
   body {
     /* Prevent pull-to-refresh and rubber-banding on the page level only */
     overscroll-behavior-y: none;
-    /* Omitting `pinch-zoom` blocks pinch and double-tap zoom at the engine
-       level, which modern iOS honors where it ignores `user-scalable=no`
-       (viewport meta lives in pages/_app.tsx). Elements that own their own
-       gestures set their own `touch-action`. */
+  }
+
+  /* The page never zooms, so a pinch belongs to the surface under it (omitting
+     `pinch-zoom` is the block; the viewport meta lives in pages/_app.tsx).
+     Naming `html, body` alone is NOT enough: WebKit ignores root-level
+     `touch-action` for page pinch, just as it ignores `user-scalable=no`, and
+     overlays portal OUT of `#__next` into the layer containers, so each needs
+     the declaration. Deliberately layered — vaul injects
+     `[data-vaul-drawer]{touch-action:none}` unlayered, which beats any layer;
+     that is stricter, so the drawer keeps owning its drag. Surfaces that own a
+     gesture set their own `touch-action` (a `touch-*` utility wins over this). */
+  html,
+  body,
+  div#__next,
+  [data-overlay-root] > [data-layer] > * {
     touch-action: pan-x pan-y;
   }
 
@@ -715,7 +726,30 @@
   }
 }
 
-/* 
+/* Tailwind's `sr-only` verbatim, plus `top: 0; left: 0`. Without them the box
+   sits at its static position, and since it is absolute, its containing block
+   is the nearest positioned ancestor — usually far outside the scroll container
+   it visually lives in. A scroll container only clips descendants it is a
+   containing block for, so an `sr-only` below the fold escaped the clip and
+   grew the app shell's scrollable overflow, scrolling the whole document.
+   Pinning it to the containing block's origin keeps it inside every box that
+   should clip it. `not-sr-only` still wins: it sets `position: static`, which
+   makes these offsets inert. */
+@utility sr-only {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/*
  * Fix for Vaul drawer blocking text selection
  * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
  * We override this for drawers that set blockTextSelection={false}

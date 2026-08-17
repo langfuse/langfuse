@@ -43,17 +43,16 @@ import {
   getSandboxInAppAgentMcpToolResultContent,
   IN_APP_AGENT_SANDBOX_TOOL_NAMES,
 } from "./tools";
+import { getToolFailureMessage } from "./toolErrors";
 
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
-const SANDBOX_CONVERSATION_WRITE_WINDOW_MS = 8 * 60 * 60 * 1000;
 
 export type SerializedInAppAgentConversation = {
   id: string;
   title: string | null;
   createdAt: Date;
   updatedAt: Date;
-  isWriteLocked: boolean;
 };
 
 export type PersistedConversationEvent = {
@@ -74,41 +73,13 @@ export function serializeConversation(
     InAppAgentConversation,
     "id" | "title" | "createdAt" | "updatedAt"
   >,
-  options?: { isWriteLocked?: boolean },
 ): SerializedInAppAgentConversation {
   return {
     id: conversation.id,
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
-    isWriteLocked: options?.isWriteLocked ?? false,
   };
-}
-
-export function isInAppAgentConversationWriteLocked(params: {
-  conversation: Pick<InAppAgentConversation, "createdAt">;
-  events: readonly Pick<PersistedConversationEvent, "event">[];
-  now?: Date;
-}) {
-  const now = params.now ?? new Date();
-  const ageMs = now.getTime() - params.conversation.createdAt.getTime();
-
-  if (ageMs <= SANDBOX_CONVERSATION_WRITE_WINDOW_MS) {
-    return false;
-  }
-
-  return params.events.some(({ event }) => {
-    if (event.type !== EventType.TOOL_CALL_START) {
-      return false;
-    }
-
-    const toolName = getString(event, "toolCallName");
-    if (!toolName) {
-      return false;
-    }
-
-    return IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName);
-  });
 }
 
 export async function getOwnedConversationOrThrow(params: {
@@ -315,6 +286,14 @@ export function createSandboxToolCallFileAccumulator(
     const draft = drafts.get(toolCall.toolCallId);
     drafts.delete(toolCall.toolCallId);
     completedToolCallIds.add(toolCall.toolCallId);
+
+    // The MCP wrapper already classified the failure onto `error`, so failures
+    // never become sandbox tool_calls files. Marking the id completed above
+    // keeps a later replayed event from writing one either.
+    if (toolCall.error !== null) {
+      return;
+    }
+
     files.push({
       path: `tool_calls/${formatSandboxToolCallTimestamp(draft?.createdAt ?? toolCall.createdAt)}_${draft?.toolName ?? toolCall.toolName}_${toolCall.toolCallId}.json`,
       content: JSON.stringify(
@@ -375,18 +354,28 @@ export function createSandboxToolCallFileAccumulator(
       return;
     }
 
+    const error = getString(event, "error") ?? null;
+    // Unwrap once and classify the result we would archive, rather than parsing
+    // the raw content here and again on the way into the file.
+    const response = parseSandboxToolCallValue(
+      getString(event, "content"),
+      getSandboxInAppAgentMcpToolResultContent,
+    );
+
     drafts.delete(toolCallId);
     completedToolCallIds.add(toolCallId);
+
+    if (getToolFailureMessage(error, response)) {
+      return;
+    }
+
     files.push({
       path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
-          response: parseSandboxToolCallValue(
-            getString(event, "content"),
-            getSandboxInAppAgentMcpToolResultContent,
-          ),
-          error: getString(event, "error") ?? null,
+          response,
+          error,
         },
         null,
         2,
