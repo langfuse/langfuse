@@ -782,7 +782,7 @@ describe("V4MigrationDetailsContent", () => {
       status: "checking",
     };
     mocks.migrationData.evals = { status: "loading", count: 0 };
-    mocks.migrationData.experiments = { status: "error" };
+    mocks.migrationData.experiments = { status: "error", result: null };
     mocks.migrationData.apis = { status: "error", count: 0 };
     mocks.migrationData.exports = { status: "loading", count: 0 };
 
