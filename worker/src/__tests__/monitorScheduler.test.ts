@@ -1,4 +1,12 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
@@ -11,7 +19,7 @@ import {
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
 import { prisma } from "@langfuse/shared/src/db";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 type MonitorStatus = "ACTIVE" | "PAUSED" | "ERROR_BAD_QUERY";
 type MonitorView =
@@ -698,5 +706,82 @@ describe("MonitorScheduler (integration)", () => {
     ).nextRunAt;
 
     expect(firstNext?.toISOString()).toBe(secondNext?.toISOString());
+  });
+});
+
+describe("MonitorScheduler (timeouts)", () => {
+  const batch = {
+    project_id: "p_timeout",
+    scheduler_batch_id: 1n,
+    run_at: now,
+    view: "OBSERVATIONS",
+    filters: [],
+    window_ms: 5n * 60_000n,
+    metrics: [{ measure: "count", aggregation: "count" }],
+    monitors: [{ monitorId: "m_timeout", metricName: "count_count" }],
+  };
+
+  const stubDb = (rows: unknown[]) => {
+    const executeRawUnsafe = vi.fn().mockResolvedValue(0);
+    const transaction = vi.fn(
+      async (fn: (tx: unknown) => Promise<unknown>, _options?: unknown) =>
+        fn({
+          $executeRawUnsafe: executeRawUnsafe,
+          $queryRaw: async () => rows,
+        }),
+    );
+    return {
+      db: { $transaction: transaction } as unknown as PrismaClient,
+      executeRawUnsafe,
+      transaction,
+    };
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("hung publish: rejects instead of stalling", async () => {
+    const { db } = stubDb([batch, { ...batch, scheduler_batch_id: 2n }]);
+    const publish = vi
+      .fn<(event: MonitorQueueEventInput) => Promise<void>>()
+      .mockImplementationOnce(() => new Promise(() => {}))
+      .mockResolvedValue(undefined);
+
+    const scheduler = new MonitorScheduler({
+      schedulerId: 0,
+      totalSchedulers: 1,
+      db,
+      publish,
+    });
+
+    const scheduled = scheduler.schedule(now);
+    const assertion = expect(scheduled).rejects.toThrow("timed out after");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await assertion;
+
+    expect(publish).toHaveBeenCalledTimes(2);
+  });
+
+  it("claim: bounds the query with a statement timeout", async () => {
+    const { db, executeRawUnsafe, transaction } = stubDb([]);
+
+    await new MonitorScheduler({
+      schedulerId: 0,
+      totalSchedulers: 1,
+      db,
+      publish: vi.fn(),
+    }).schedule(now);
+
+    expect(executeRawUnsafe).toHaveBeenCalledWith(
+      "SET LOCAL statement_timeout = 20000",
+    );
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 25_000,
+    });
   });
 });
