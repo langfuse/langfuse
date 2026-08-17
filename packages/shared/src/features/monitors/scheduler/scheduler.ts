@@ -10,12 +10,11 @@ import type { MonitorQueueEventInput } from "./types";
 /** monitorProcessorTtl bounds how long a published run can be in flight before the scheduler republishes it. */
 export const monitorProcessorTtl = 5 * 60 * 1000;
 
-const claimTimeoutMs = 20_000;
-const claimTransactionTimeoutMs = 25_000;
-const publishTimeoutMs = 5_000;
-
 /** MonitorScheduler claims and publishes due monitors for its scheduler slot. */
 export class MonitorScheduler {
+  public static readonly claimTimeoutMs = 20_000;
+  public static readonly claimTransactionTimeoutMs = 25_000;
+
   private readonly schedulerId: number;
   private readonly totalSchedulers: number;
   private readonly db: PrismaClient;
@@ -41,7 +40,7 @@ export class MonitorScheduler {
     const results = await this.db.$transaction(
       async (tx) => {
         await tx.$executeRawUnsafe(
-          `SET LOCAL statement_timeout = ${claimTimeoutMs}`,
+          `SET LOCAL statement_timeout = ${MonitorScheduler.claimTimeoutMs}`,
         );
         return tx.$queryRaw<MonitorBatchResult[]>(
           buildScheduleQuery({
@@ -51,38 +50,18 @@ export class MonitorScheduler {
           }),
         );
       },
-      { timeout: claimTransactionTimeoutMs },
+      { timeout: MonitorScheduler.claimTransactionTimeoutMs },
     );
 
     if (results.length === 0) return 0;
 
-    await withTimeout(
-      Promise.all(
-        results.map((result) =>
-          this.publish(toMonitorQueueEvent(result, scheduledAt)),
-        ),
+    await Promise.all(
+      results.map((result) =>
+        this.publish(toMonitorQueueEvent(result, scheduledAt)),
       ),
-      publishTimeoutMs,
     );
 
     return results.length;
-  }
-}
-
-/** withTimeout rejects once work outlives timeoutMs so a stalled dependency cannot hold the tick open. */
-async function withTimeout<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const abandon = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(`timed out after ${timeoutMs}ms`)),
-      timeoutMs,
-    );
-  });
-
-  try {
-    return await Promise.race([work, abandon]);
-  } finally {
-    clearTimeout(timer);
   }
 }
 

@@ -710,17 +710,6 @@ describe("MonitorScheduler (integration)", () => {
 });
 
 describe("MonitorScheduler (timeouts)", () => {
-  const batch = {
-    project_id: "p_timeout",
-    scheduler_batch_id: 1n,
-    run_at: now,
-    view: "OBSERVATIONS",
-    filters: [],
-    window_ms: 5n * 60_000n,
-    metrics: [{ measure: "count", aggregation: "count" }],
-    monitors: [{ monitorId: "m_timeout", metricName: "count_count" }],
-  };
-
   const stubDb = (rows: unknown[]) => {
     const executeRawUnsafe = vi.fn().mockResolvedValue(0);
     const transaction = vi.fn(
@@ -743,28 +732,6 @@ describe("MonitorScheduler (timeouts)", () => {
 
   afterEach(() => {
     vi.useRealTimers();
-  });
-
-  it("hung publish: rejects instead of stalling", async () => {
-    const { db } = stubDb([batch, { ...batch, scheduler_batch_id: 2n }]);
-    const publish = vi
-      .fn<(event: MonitorQueueEventInput) => Promise<void>>()
-      .mockImplementationOnce(() => new Promise(() => {}))
-      .mockResolvedValue(undefined);
-
-    const scheduler = new MonitorScheduler({
-      schedulerId: 0,
-      totalSchedulers: 1,
-      db,
-      publish,
-    });
-
-    const scheduled = scheduler.schedule(now);
-    const assertion = expect(scheduled).rejects.toThrow("timed out after");
-    await vi.advanceTimersByTimeAsync(5_000);
-    await assertion;
-
-    expect(publish).toHaveBeenCalledTimes(2);
   });
 
   it("claim: bounds the query with a statement timeout", async () => {
