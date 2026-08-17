@@ -269,6 +269,7 @@ export function EvaluatorSetupPage(
           description: "Your evaluator changes are saved.",
         });
         initialSnapshot.current = getCurrentSnapshot(state);
+        await utils.evalsV2.filterOptions.invalidate({ projectId });
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
         return;
       }
@@ -282,6 +283,7 @@ export function EvaluatorSetupPage(
       });
       capture("evaluators:create", { evaluatorType: state.type });
       initialSnapshot.current = getCurrentSnapshot(state);
+      await utils.evalsV2.filterOptions.invalidate({ projectId });
       setSavedEvaluator({
         id: evaluator.id,
         name: state.name,

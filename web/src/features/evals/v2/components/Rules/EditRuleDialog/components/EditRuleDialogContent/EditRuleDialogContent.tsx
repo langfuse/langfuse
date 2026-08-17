@@ -116,6 +116,7 @@ export function EditRuleDialogContent({
     });
     await Promise.all([
       utils.evalsV2.rules.list.invalidate({ projectId }),
+      utils.evalsV2.rules.filterOptions.invalidate({ projectId }),
       utils.evalsV2.rules.get.invalidate({ projectId, ruleId: rule.id }),
       utils.evalsV2.list.invalidate({ projectId }),
     ]);

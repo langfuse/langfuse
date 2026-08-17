@@ -131,6 +131,7 @@ export * from "./queues";
 export * from "./notifications";
 export * from "./orderByToPrisma";
 export * from "./filterToPrisma";
+export * from "./prismaFilter";
 export * from "./instrumentation";
 export * from "./logger";
 export * from "./headerPropagation";

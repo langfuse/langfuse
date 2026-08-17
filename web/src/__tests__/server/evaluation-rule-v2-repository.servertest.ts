@@ -8,14 +8,22 @@ import * as ruleRepository from "@/src/features/evals/v2/server/rules/ruleReposi
 const orgIds: string[] = [];
 let projectId = "";
 let otherProjectId = "";
+let creatorUserId = "";
 
 beforeAll(async () => {
-  const [first, second] = await Promise.all([
+  const [first, second, creator] = await Promise.all([
     createOrgProjectAndApiKey(),
     createOrgProjectAndApiKey(),
+    prisma.user.create({
+      data: {
+        name: "Rule creator",
+        email: `${randomUUID()}@example.com`,
+      },
+    }),
   ]);
   projectId = first.project.id;
   otherProjectId = second.project.id;
+  creatorUserId = creator.id;
   orgIds.push(first.org.id, second.org.id);
 });
 
@@ -30,6 +38,7 @@ afterEach(async () => {
 
 afterAll(async () => {
   await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
+  await prisma.user.delete({ where: { id: creatorUserId } });
 });
 
 function createEvaluator(targetProjectId = projectId) {
@@ -56,10 +65,12 @@ async function createRule({
   targetProjectId = projectId,
   name = `rule-${randomUUID()}`,
   evaluatorId,
+  createdByUserId = null,
 }: {
   targetProjectId?: string;
   name?: string;
   evaluatorId?: string;
+  createdByUserId?: string | null;
 } = {}) {
   return ruleRepository.createRule({
     prisma,
@@ -74,7 +85,7 @@ async function createRule({
         ? [{ evaluatorId, variableMapping: null }]
         : [],
     },
-    createdByUserId: null,
+    createdByUserId,
   });
 }
 
@@ -173,6 +184,121 @@ describe("evaluation rule v2 repository", () => {
       ).resolves.toEqual({
         rules: [expect.objectContaining({ id: older.id })],
         totalItems: 2,
+      });
+    });
+
+    it("filters rules by name, creator, and enabled state", async () => {
+      const matching = await createRule({
+        name: "Production quality rule",
+        createdByUserId: creatorUserId,
+      });
+      await Promise.all([
+        createRule({ name: "Production API rule" }),
+        createRule({
+          name: "Inactive quality rule",
+          createdByUserId: creatorUserId,
+        }).then((rule) =>
+          ruleRepository.setRuleStatus({
+            prisma,
+            projectId,
+            ruleIds: [rule.id],
+            enabled: false,
+          }),
+        ),
+        createRule({
+          targetProjectId: otherProjectId,
+          name: "Production quality rule",
+          createdByUserId: creatorUserId,
+        }),
+      ]);
+
+      const result = await ruleRepository.listRules({
+        prisma,
+        input: {
+          projectId,
+          page: 1,
+          limit: 50,
+          filter: [
+            {
+              column: "name",
+              type: "string",
+              operator: "contains",
+              value: "quality",
+            },
+            {
+              column: "creator",
+              type: "string",
+              operator: "contains",
+              value: "Rule creator",
+            },
+            { column: "enabled", type: "boolean", operator: "=", value: true },
+          ],
+        },
+      });
+
+      expect(result).toEqual({
+        rules: [expect.objectContaining({ id: matching.id })],
+        totalItems: 1,
+      });
+    });
+
+    it("filters rule names and creators using selector values", async () => {
+      const matching = await createRule({
+        name: "Selected rule",
+        createdByUserId: creatorUserId,
+      });
+      await Promise.all([
+        createRule({ name: "Other rule", createdByUserId: creatorUserId }),
+        createRule({ name: "Selected rule" }),
+      ]);
+
+      const result = await ruleRepository.listRules({
+        prisma,
+        input: {
+          projectId,
+          page: 1,
+          limit: 50,
+          filter: [
+            {
+              column: "name",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["Selected rule"],
+            },
+            {
+              column: "creator",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["Rule creator"],
+            },
+          ],
+        },
+      });
+
+      expect(result).toEqual({
+        rules: [expect.objectContaining({ id: matching.id })],
+        totalItems: 1,
+      });
+    });
+  });
+
+  describe("listRuleFilterOptions", () => {
+    it("returns distinct project-scoped names and displayed creators", async () => {
+      await Promise.all([
+        createRule({ name: "Alpha rule", createdByUserId: creatorUserId }),
+        createRule({ name: "Alpha rule" }),
+        createRule({ name: "Beta rule" }),
+        createRule({
+          targetProjectId: otherProjectId,
+          name: "Foreign rule",
+        }),
+      ]);
+
+      await expect(
+        ruleRepository.listRuleFilterOptions({ prisma, projectId }),
+      ).resolves.toEqual({
+        name: ["Alpha rule", "Beta rule"],
+        creator: ["API", "Rule creator"],
       });
     });
   });
@@ -298,7 +424,18 @@ describe("evaluation rule v2 repository", () => {
       await expect(
         ruleRepository.listSelectedRuleIds({
           prisma,
-          input: { projectId, isBatchAction: true, search: "production" },
+          input: {
+            projectId,
+            isBatchAction: true,
+            filter: [
+              {
+                column: "name",
+                type: "string",
+                operator: "contains",
+                value: "production",
+              },
+            ],
+          },
         }),
       ).resolves.toEqual([matching.id]);
       await expect(

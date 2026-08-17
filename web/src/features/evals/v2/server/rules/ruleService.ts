@@ -66,6 +66,13 @@ export class RuleService {
     return { rules: rules.map(toRuleResponse), totalItems };
   }
 
+  listFilterOptions(projectId: string) {
+    return repository.listRuleFilterOptions({
+      prisma: this.prisma,
+      projectId,
+    });
+  }
+
   async get(projectId: string, ruleId: string) {
     const rule = await repository.findRule({
       prisma: this.prisma,

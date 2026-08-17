@@ -263,6 +263,167 @@ describe("evaluator v2 repository", () => {
         totalItems: 2,
       });
     });
+
+    it("filters evaluators by name, status, type, and creator", async () => {
+      const matching = await createEvaluator({
+        name: "Production quality judge",
+        definition: llmDefinition(),
+        createdByUserId: creatorUserId,
+      });
+      await createRuleAssignment({
+        evaluatorId: matching.id,
+        status: "ACTIVE",
+      });
+      await Promise.all([
+        createEvaluator({
+          name: "Production code evaluator",
+          definition: codeDefinition(),
+          createdByUserId: creatorUserId,
+        }),
+        createEvaluator({
+          name: "Production API judge",
+          definition: llmDefinition(),
+        }),
+        createEvaluator({
+          targetProjectId: otherProjectId,
+          name: "Production quality judge",
+          definition: llmDefinition(),
+          createdByUserId: creatorUserId,
+        }),
+      ]);
+
+      const result = await evaluatorRepository.listEvaluators({
+        prisma,
+        projectId,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            column: "name",
+            type: "string",
+            operator: "contains",
+            value: "quality",
+          },
+          {
+            column: "status",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["ACTIVE"],
+          },
+          {
+            column: "type",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["LLM_AS_JUDGE"],
+          },
+          {
+            column: "creator",
+            type: "string",
+            operator: "contains",
+            value: "Evaluator creator",
+          },
+        ],
+      });
+
+      expect(result).toEqual({
+        evaluators: [expect.objectContaining({ id: matching.id })],
+        totalItems: 1,
+      });
+    });
+
+    it("filters blocked and API-created evaluators", async () => {
+      const matching = await createEvaluator({ name: "Blocked API evaluator" });
+      await prisma.evaluator.update({
+        where: { id: matching.id },
+        data: { blockedAt: new Date() },
+      });
+      await createEvaluator({ name: "Inactive API evaluator" });
+
+      const result = await evaluatorRepository.listEvaluators({
+        prisma,
+        projectId,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            column: "status",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["BLOCKED"],
+          },
+          { column: "creator", type: "string", operator: "=", value: "API" },
+        ],
+      });
+
+      expect(result).toEqual({
+        evaluators: [expect.objectContaining({ id: matching.id })],
+        totalItems: 1,
+      });
+    });
+
+    it("filters evaluator names and creators using selector values", async () => {
+      const matching = await createEvaluator({
+        name: "Selected evaluator",
+        createdByUserId: creatorUserId,
+      });
+      await Promise.all([
+        createEvaluator({
+          name: "Other evaluator",
+          createdByUserId: creatorUserId,
+        }),
+        createEvaluator({ name: "Selected evaluator" }),
+      ]);
+
+      const result = await evaluatorRepository.listEvaluators({
+        prisma,
+        projectId,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["Selected evaluator"],
+          },
+          {
+            column: "creator",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["Evaluator creator"],
+          },
+        ],
+      });
+
+      expect(result).toEqual({
+        evaluators: [expect.objectContaining({ id: matching.id })],
+        totalItems: 1,
+      });
+    });
+  });
+
+  describe("listEvaluatorFilterOptions", () => {
+    it("returns distinct project-scoped names and displayed creators", async () => {
+      await Promise.all([
+        createEvaluator({
+          name: "Alpha evaluator",
+          createdByUserId: creatorUserId,
+        }),
+        createEvaluator({ name: "Alpha evaluator" }),
+        createEvaluator({ name: "Beta evaluator" }),
+        createEvaluator({
+          targetProjectId: otherProjectId,
+          name: "Foreign evaluator",
+        }),
+      ]);
+
+      await expect(
+        evaluatorRepository.listEvaluatorFilterOptions({ prisma, projectId }),
+      ).resolves.toEqual({
+        name: ["Alpha evaluator", "Beta evaluator"],
+        creator: ["API", "Evaluator creator"],
+      });
+    });
   });
 
   describe("listEvaluatorIds", () => {
@@ -299,6 +460,41 @@ describe("evaluator v2 repository", () => {
       });
 
       expect(new Set(ids)).toEqual(new Set([first.id, second.id]));
+    });
+
+    it("filters IDs with the same filters used by select-all actions", async () => {
+      const matching = await createEvaluator({
+        definition: llmDefinition(),
+        createdByUserId: creatorUserId,
+      });
+      await Promise.all([
+        createEvaluator({
+          definition: codeDefinition(),
+          createdByUserId: creatorUserId,
+        }),
+        createEvaluator({ definition: llmDefinition() }),
+      ]);
+
+      await expect(
+        evaluatorRepository.listEvaluatorIds({
+          prisma,
+          projectId,
+          filter: [
+            {
+              column: "type",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["LLM_AS_JUDGE"],
+            },
+            {
+              column: "creator",
+              type: "string",
+              operator: "contains",
+              value: "Evaluator creator",
+            },
+          ],
+        }),
+      ).resolves.toEqual([matching.id]);
     });
 
     it("returns an empty list", async () => {

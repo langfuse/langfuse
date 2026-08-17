@@ -67,6 +67,17 @@ export const evaluatorRouter = createTRPCRouter({
       });
     }),
 
+  filterOptions: protectedProjectProcedure
+    .input(ListEvaluatorsSchema.pick({ projectId: true }))
+    .query(({ ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evalTemplate:read",
+      });
+      return serviceForContext(ctx).listFilterOptions(ctx.session.projectId);
+    }),
+
   options: protectedProjectProcedure
     .input(EvaluatorOptionsSchema)
     .query(({ input, ctx }) => {

@@ -9,6 +9,14 @@ import type {
 } from "./evaluatorTypes";
 import { EvaluatorVersionConflictError } from "./evaluatorErrors";
 import { setRuleStatus } from "../rules/ruleRepository";
+import type { FilterState } from "@langfuse/shared";
+import {
+  compilePrismaFilters,
+  stringFilterToPrisma,
+  stringOptionsFilterToPrisma,
+  type PrismaFilterColumnHandlers,
+} from "@langfuse/shared/src/server";
+import { creatorOptionsWhere, creatorWhere } from "../creatorFilterPrisma";
 
 type PrismaTransaction = Prisma.TransactionClient;
 
@@ -50,19 +58,87 @@ function versionData(
       };
 }
 
+function evaluatorWhere(params: {
+  projectId: string;
+  search?: string;
+  filter?: FilterState;
+}): Prisma.EvaluatorWhereInput {
+  const handlers = {
+    name: {
+      string: (filter) => ({ name: stringFilterToPrisma(filter) }),
+      stringOptions: (filter) => ({
+        name: stringOptionsFilterToPrisma(filter),
+      }),
+    },
+    creator: {
+      string: creatorWhere,
+      stringOptions: creatorOptionsWhere,
+    },
+    type: {
+      stringOptions: (filter) => ({
+        type:
+          filter.operator === "any of"
+            ? { in: filter.value as EvalTemplateType[] }
+            : { notIn: filter.value as EvalTemplateType[] },
+      }),
+    },
+    status: {
+      stringOptions: (filter) => {
+        const statuses: Prisma.EvaluatorWhereInput[] = filter.value.map(
+          (status) =>
+            status === "BLOCKED"
+              ? { blockedAt: { not: null } }
+              : status === "ACTIVE"
+                ? {
+                    blockedAt: null,
+                    assignments: {
+                      some: {
+                        projectId: params.projectId,
+                        evaluationRule: { status: "ACTIVE" },
+                      },
+                    },
+                  }
+                : {
+                    blockedAt: null,
+                    assignments: {
+                      none: {
+                        projectId: params.projectId,
+                        evaluationRule: { status: "ACTIVE" },
+                      },
+                    },
+                  },
+        );
+        return filter.operator === "any of"
+          ? { OR: statuses }
+          : { NOT: { OR: statuses } };
+      },
+    },
+  } satisfies Record<
+    string,
+    PrismaFilterColumnHandlers<Prisma.EvaluatorWhereInput>
+  >;
+
+  return {
+    projectId: params.projectId,
+    ...(params.search
+      ? { name: { contains: params.search, mode: "insensitive" as const } }
+      : {}),
+    AND: compilePrismaFilters<Prisma.EvaluatorWhereInput>(
+      params.filter ?? [],
+      handlers,
+    ),
+  };
+}
+
 export async function listEvaluators(params: {
   prisma: PrismaClient;
   projectId: string;
   page: number;
   limit: number;
   search?: string;
+  filter?: FilterState;
 }) {
-  const where = {
-    projectId: params.projectId,
-    ...(params.search
-      ? { name: { contains: params.search, mode: "insensitive" as const } }
-      : {}),
-  };
+  const where = evaluatorWhere(params);
   const [evaluators, totalItems] = await Promise.all([
     params.prisma.evaluator.findMany({
       where,
@@ -98,18 +174,39 @@ export async function listEvaluators(params: {
   };
 }
 
+export async function listEvaluatorFilterOptions(params: {
+  prisma: PrismaClient;
+  projectId: string;
+}) {
+  const evaluators = await params.prisma.evaluator.findMany({
+    where: { projectId: params.projectId },
+    select: {
+      name: true,
+      createdByUser: { select: { name: true, email: true } },
+    },
+  });
+
+  return {
+    name: [...new Set(evaluators.map(({ name }) => name))].sort(),
+    creator: [
+      ...new Set(
+        evaluators.map(
+          ({ createdByUser }) =>
+            createdByUser?.name ?? createdByUser?.email ?? "API",
+        ),
+      ),
+    ].sort(),
+  };
+}
+
 export async function listEvaluatorIds(params: {
   prisma: PrismaClient | PrismaTransaction;
   projectId: string;
   search?: string;
+  filter?: FilterState;
 }) {
   const evaluators = await params.prisma.evaluator.findMany({
-    where: {
-      projectId: params.projectId,
-      ...(params.search
-        ? { name: { contains: params.search, mode: "insensitive" as const } }
-        : {}),
-    },
+    where: evaluatorWhere(params),
     select: { id: true },
   });
   return evaluators.map(({ id }) => id);

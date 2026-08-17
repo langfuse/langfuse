@@ -125,6 +125,7 @@ export function CreateRuleDialogContent({
     });
     await Promise.all([
       utils.evalsV2.rules.list.invalidate({ projectId }),
+      utils.evalsV2.rules.filterOptions.invalidate({ projectId }),
       utils.evalsV2.list.invalidate({ projectId }),
       ...draft.assignments.map(({ evaluatorId }) =>
         utils.evalsV2.rules.listRulesForEvaluator.invalidate({

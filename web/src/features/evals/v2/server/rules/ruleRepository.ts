@@ -8,6 +8,12 @@ import type {
   FilterState,
   ObservationVariableMapping,
 } from "@langfuse/shared";
+import {
+  compilePrismaFilters,
+  stringFilterToPrisma,
+  stringOptionsFilterToPrisma,
+  type PrismaFilterColumnHandlers,
+} from "@langfuse/shared/src/server";
 import type {
   CreateRuleInput,
   ListRulesInput,
@@ -15,6 +21,7 @@ import type {
   RuleSelectionInput,
   UpdateRuleInput,
 } from "./ruleTypes";
+import { creatorOptionsWhere, creatorWhere } from "../creatorFilterPrisma";
 
 export type RulePrisma = PrismaClient | Prisma.TransactionClient;
 
@@ -54,7 +61,32 @@ function ruleWhere(params: {
   search?: string;
   enabled?: boolean;
   targetObjects?: EvalTargetObject[];
-}) {
+  filter?: FilterState;
+}): Prisma.EvaluationRuleWhereInput {
+  const handlers = {
+    name: {
+      string: (filter) => ({ name: stringFilterToPrisma(filter) }),
+      stringOptions: (filter) => ({
+        name: stringOptionsFilterToPrisma(filter),
+      }),
+    },
+    creator: {
+      string: creatorWhere,
+      stringOptions: creatorOptionsWhere,
+    },
+    enabled: {
+      boolean: (filter) => {
+        const enabled = filter.operator === "=" ? filter.value : !filter.value;
+        return {
+          status: enabled ? JobConfigState.ACTIVE : JobConfigState.INACTIVE,
+        };
+      },
+    },
+  } satisfies Record<
+    string,
+    PrismaFilterColumnHandlers<Prisma.EvaluationRuleWhereInput>
+  >;
+
   return {
     projectId: params.projectId,
     ...(params.search
@@ -70,6 +102,10 @@ function ruleWhere(params: {
     ...(params.targetObjects === undefined
       ? {}
       : { targetObject: { in: params.targetObjects } }),
+    AND: compilePrismaFilters<Prisma.EvaluationRuleWhereInput>(
+      params.filter ?? [],
+      handlers,
+    ),
   };
 }
 
@@ -89,6 +125,31 @@ export async function listRules(params: {
     params.prisma.evaluationRule.count({ where }),
   ]);
   return { rules, totalItems };
+}
+
+export async function listRuleFilterOptions(params: {
+  prisma: PrismaClient;
+  projectId: string;
+}) {
+  const rules = await params.prisma.evaluationRule.findMany({
+    where: { projectId: params.projectId },
+    select: {
+      name: true,
+      createdByUser: { select: { name: true, email: true } },
+    },
+  });
+
+  return {
+    name: [...new Set(rules.map(({ name }) => name))].sort(),
+    creator: [
+      ...new Set(
+        rules.map(
+          ({ createdByUser }) =>
+            createdByUser?.name ?? createdByUser?.email ?? "API",
+        ),
+      ),
+    ].sort(),
+  };
 }
 
 export function findRule(params: {

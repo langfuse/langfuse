@@ -75,6 +75,14 @@ export function parseSavedViewFromURL(
     return { viewId, tableName: TableViewPresetTableName.Experiments };
   }
 
+  if (section === "evals" && detailId === "rules") {
+    return { viewId, tableName: TableViewPresetTableName.EvaluationRules };
+  }
+
+  if (section === "evals" && !detailId) {
+    return { viewId, tableName: TableViewPresetTableName.Evaluators };
+  }
+
   return undefined;
 }
 

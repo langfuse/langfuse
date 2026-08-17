@@ -103,12 +103,46 @@ export const ActivationCostEstimatesSchema = EvaluatorIdsSchema.extend({
   { message: "Evaluator IDs must be unique", path: ["evaluatorIds"] },
 );
 
+const EvaluatorListFilterSchema = z
+  .array(singleFilter)
+  .superRefine((filters, ctx) => {
+    for (const [index, filter] of filters.entries()) {
+      const valid =
+        ((filter.column === "name" || filter.column === "creator") &&
+          (filter.type === "string" || filter.type === "stringOptions")) ||
+        ((filter.column === "status" || filter.column === "type") &&
+          filter.type === "stringOptions");
+      const validOptions =
+        filter.type !== "stringOptions" ||
+        (filter.column === "status"
+          ? filter.value.every((value) =>
+              ["ACTIVE", "INACTIVE", "BLOCKED"].includes(value),
+            )
+          : filter.column === "type"
+            ? filter.value.every((value) =>
+                Object.values(EvalTemplateType).includes(
+                  value as EvalTemplateType,
+                ),
+              )
+            : filter.column === "name" || filter.column === "creator");
+      if (!valid || !validOptions) {
+        ctx.addIssue({
+          code: "custom",
+          message: `Unsupported evaluator filter: ${filter.column}`,
+          path: [index],
+        });
+      }
+    }
+  })
+  .optional();
+
 export const DeleteEvaluatorsSchema = z.union([
   EvaluatorIdsSchema,
   z.object({
     projectId: z.string(),
     isBatchAction: z.literal(true),
     search: z.string().trim().max(200).optional(),
+    filter: EvaluatorListFilterSchema,
   }),
 ]);
 
@@ -117,6 +151,7 @@ export const ListEvaluatorsSchema = z.object({
   page: z.number().int().positive().default(1),
   limit: paginationLimitZod.optional().default(50),
   search: z.string().trim().max(200).optional(),
+  filter: EvaluatorListFilterSchema,
 });
 
 export const EvaluatorOptionsSchema = z.object({

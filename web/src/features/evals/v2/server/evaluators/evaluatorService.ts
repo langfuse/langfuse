@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import {
   EvalTemplateType,
+  type FilterState,
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
@@ -68,10 +69,23 @@ export class EvaluatorService {
     private readonly audit: (event: EvaluatorAuditEvent) => Promise<void>,
   ) {}
 
-  list(params: { projectId: string; page: number; limit: number }) {
+  list(params: {
+    projectId: string;
+    page: number;
+    limit: number;
+    search?: string;
+    filter?: FilterState;
+  }) {
     return repository.listEvaluators({
       prisma: this.prisma,
       ...params,
+    });
+  }
+
+  listFilterOptions(projectId: string) {
+    return repository.listEvaluatorFilterOptions({
+      prisma: this.prisma,
+      projectId,
     });
   }
 
@@ -273,6 +287,7 @@ export class EvaluatorService {
               prisma,
               projectId: input.projectId,
               search: input.search,
+              filter: input.filter,
             });
 
       for (const evaluatorId of ids) {

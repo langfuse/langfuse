@@ -7,7 +7,9 @@ import type {
 } from "@/src/features/evals/v2/types/rules";
 import type { ColumnOrderState, VisibilityState } from "@tanstack/react-table";
 import type { Dispatch, SetStateAction } from "react";
+import type { ComponentProps } from "react";
 import type { RowHeight } from "@/src/components/table/data-table-row-height-switch";
+import type { FilterState } from "@langfuse/shared";
 
 export function RulesTableToolbar({
   columns,
@@ -24,6 +26,8 @@ export function RulesTableToolbar({
   setColumnOrder,
   rowHeight,
   setRowHeight,
+  filterState,
+  viewConfig,
 }: {
   columns: LangfuseColumnDef<RuleTableRow>[];
   currentQuery: string | undefined;
@@ -39,6 +43,10 @@ export function RulesTableToolbar({
   setColumnOrder: Dispatch<SetStateAction<ColumnOrderState>>;
   rowHeight: RowHeight;
   setRowHeight: Dispatch<SetStateAction<RowHeight>>;
+  filterState: FilterState;
+  viewConfig: NonNullable<
+    ComponentProps<typeof DataTableToolbar<RuleTableRow, unknown>>["viewConfig"]
+  >;
 }) {
   const rowSelection = useStore(selectionStore, (state) => state.rowSelection);
   const selectAll = useStore(selectionStore, (state) => state.selectAll);
@@ -47,6 +55,9 @@ export function RulesTableToolbar({
   return (
     <DataTableToolbar
       columns={columns}
+      filterState={filterState}
+      currentSearchQuery={currentQuery}
+      viewConfig={viewConfig}
       searchConfig={{
         metadataSearchFields: ["Name"],
         currentQuery,
