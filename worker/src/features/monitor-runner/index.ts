@@ -25,6 +25,7 @@ export class MonitorRunner extends PeriodicExclusiveRunner {
       metricScope: String(schedulerId + 1),
       lockKey: `langfuse:monitor:${schedulerId}`,
       lockTtlSeconds,
+      onUnavailable: "fail",
     });
     this.schedulerId = schedulerId;
     this.totalSchedulers = totalSchedulers;
