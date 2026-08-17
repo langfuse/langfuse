@@ -28,7 +28,7 @@ export function DefinitionStep(props: DefinitionStepProps) {
     <Stepper
       number={1}
       title="Define evaluation"
-      description="Choose the judge mode, write its instructions, and define the score it returns."
+      description="Choose whether an LLM or your own code evaluates the data, then define the instructions it follows and the score it reports."
       open={props.open}
       onOpenChange={props.onOpenChange}
     >

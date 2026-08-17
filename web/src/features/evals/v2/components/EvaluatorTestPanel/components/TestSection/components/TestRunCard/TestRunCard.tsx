@@ -28,9 +28,9 @@ export function TestRunCard({
         disabledReason={disabledReason}
         onRun={onRunTest}
       />
-      <p className="text-muted-foreground text-xs">
+      <p className="text-muted-foreground text-sm">
         {selectedSampleLabel
-          ? `Sample: ${selectedSampleLabel} — pick a different row above to change it.`
+          ? `Sample: ${selectedSampleLabel}. Select a different row above to change it.`
           : "Select an observation above to use it as the test sample."}
       </p>
     </div>

@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
-import { ChevronDown, InfoIcon, Plus } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -13,11 +13,7 @@ import {
   SelectValue,
   selectTriggerClassName,
 } from "@/src/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import {
   Popover,
   PopoverContent,
@@ -51,10 +47,12 @@ const DEFAULT_MAX_VALUE = "1";
     of a permanent paragraph — keeps the label row compact. */
 function LabelWithTooltip({
   htmlFor,
+  label,
   tooltip,
   children,
 }: {
   htmlFor?: string;
+  label: string;
   tooltip: ReactNode | null;
   children: ReactNode;
 }) {
@@ -62,12 +60,7 @@ function LabelWithTooltip({
     <Label htmlFor={htmlFor} className="flex items-center gap-1.5">
       {children}
       {tooltip ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs">{tooltip}</TooltipContent>
-        </Tooltip>
+        <InfoTooltip label={`About ${label}`}>{tooltip}</InfoTooltip>
       ) : null}
     </Label>
   );
@@ -154,10 +147,11 @@ export function ScoreOutputSection({
   return (
     <div className="flex flex-col gap-2">
       <LabelWithTooltip
+        label="score output"
         tooltip={
           readOnly
             ? null
-            : "Choose the value the evaluator returns and how that value is constrained or mapped."
+            : "Use a number for continuous judgments like helpfulness. Use a category for explicit labels like correct or incorrect. Use a boolean for binary decisions like true or false."
         }
       >
         Score output
@@ -336,6 +330,7 @@ export function ScoreOutputSection({
                     variant="outline"
                     size="icon"
                     aria-label="Add category"
+                    title="Add category"
                   >
                     <Plus className="h-4 w-4" />
                   </Button>

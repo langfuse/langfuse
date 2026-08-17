@@ -353,6 +353,7 @@ export function SampleObservationSelectorBase(
         header: "Trace name",
         size: 180,
         enableHiding: true,
+        defaultHidden: true,
         cell: ({ row }) => row.original.traceName ?? "—",
       },
       {
@@ -444,7 +445,7 @@ export function SampleObservationSelectorBase(
   };
 
   return (
-    <div className="flex min-h-0 flex-col gap-6">
+    <div className="flex shrink-0 flex-col gap-6">
       <section className="flex flex-col gap-2">
         <SectionHeader
           title="Filter observations"
@@ -533,6 +534,7 @@ export function SampleObservationSelectorBase(
               setColumnVisibility={setColumnVisibility}
               columnOrder={columnOrder}
               setColumnOrder={setColumnOrder}
+              triggerSize="sm"
             />
           }
         />

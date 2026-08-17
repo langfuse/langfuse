@@ -80,4 +80,86 @@ describe("evaluator configuration validation", () => {
       mocks.getEvaluatorDefinitionConfigurationError,
     ).toHaveBeenCalledOnce();
   });
+
+  it("rejects evaluator variables that do not match the prompt", async () => {
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          prompt: "Judge {{input}} and {{output}}",
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output"],
+          variableMapping: null,
+          outputDefinition: {
+            version: 2,
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }),
+    ).rejects.toThrow("Evaluator variables must match the prompt variables");
+  });
+
+  it("rejects incomplete evaluator default mappings", async () => {
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          prompt: "Judge {{input}} and {{output}}",
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["input", "output"],
+          variableMapping: [
+            { templateVariable: "output", selectedColumnId: "output" },
+          ],
+          outputDefinition: {
+            version: 2,
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }),
+    ).rejects.toThrow("Missing mappings for evaluator variables: input");
+  });
+
+  it("rejects unsupported JSONPath expressions in variable mappings", async () => {
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          prompt: "Judge {{input}}",
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["input"],
+          variableMapping: [
+            {
+              templateVariable: "input",
+              selectedColumnId: "input",
+              jsonSelector: '$.messages[?(@.id[2] == "HumanMessage")]',
+            },
+          ],
+          outputDefinition: {
+            version: 2,
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      "Filter expressions ([?...]) are not supported and will not be applied.",
+    );
+  });
 });

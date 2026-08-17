@@ -17,7 +17,7 @@ function VariableMappingCardHeaderContent({
   return (
     <>
       <span className="text-primary-accent shrink-0 font-mono font-bold">{`{{${variable}}}`}</span>
-      <span className="text-muted-foreground shrink-0">pulls from</span>
+      <span className="text-muted-foreground shrink-0">maps to</span>
       {isUnmapped ? (
         <span className="text-dark-yellow flex min-w-0 items-center gap-1.5 font-bold">
           <TriangleAlert className="h-4 w-4 shrink-0" />

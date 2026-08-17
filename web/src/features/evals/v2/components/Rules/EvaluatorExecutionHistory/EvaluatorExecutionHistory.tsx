@@ -12,9 +12,7 @@ export function EvaluatorExecutionHistory({
 }) {
   if (traces.length === 0) {
     return (
-      <span className="text-muted-foreground text-xs">
-        No runs in the last 7 days
-      </span>
+      <span className="text-muted-foreground text-xs">No recent runs</span>
     );
   }
 

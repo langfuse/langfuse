@@ -71,7 +71,7 @@ export function ActivationCostEstimateView({
         <TableFooter className="bg-muted/30">
           <TableRow className="hover:bg-transparent">
             <TableCell density="comfortable" className="px-4 py-3 text-sm">
-              Estimated cost, 7 days
+              Estimated 7-day cost
             </TableCell>
             <TableCell
               density="comfortable"

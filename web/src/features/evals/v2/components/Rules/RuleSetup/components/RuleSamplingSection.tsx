@@ -1,12 +1,7 @@
 import { useStore } from "zustand";
-import { Info } from "lucide-react";
 
 import { Slider } from "@/src/components/ui/slider";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 
 export function RuleSamplingSection({ store }: { store: RuleSetupStore }) {
@@ -18,18 +13,10 @@ export function RuleSamplingSection({ store }: { store: RuleSetupStore }) {
       <div>
         <div className="flex items-center gap-1.5">
           <h3 className="text-sm font-bold">Sampling rate</h3>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Info
-                className="text-muted-foreground h-3.5 w-3.5 cursor-help"
-                aria-label="About sampling rate"
-              />
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">
-              The percentage of matching observations that will be evaluated.
-              Lower sampling rates reduce evaluation volume and cost.
-            </TooltipContent>
-          </Tooltip>
+          <InfoTooltip label="About sampling rate">
+            The percentage of matching observations that will be evaluated.
+            Lower sampling rates reduce evaluation volume and cost.
+          </InfoTooltip>
         </div>
         <p className="text-muted-foreground text-sm">
           Choose the share of matching observations to evaluate.

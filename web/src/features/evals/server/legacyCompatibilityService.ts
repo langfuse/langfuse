@@ -1093,7 +1093,10 @@ export class LegacyEvalCompatibilityService {
             id: assignment.id,
             scoreName: assignment.evaluationRule.name,
             targetObject: assignment.evaluationRule.targetObject,
-            variableMapping: assignment.variableMapping,
+            variableMapping:
+              assignment.variableMapping ??
+              evaluator.versions[0]?.variableMapping ??
+              [],
           })),
           nextVariables: getEvalTemplateVariables({
             type: params.definition.type,

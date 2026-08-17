@@ -150,7 +150,7 @@ function TreeRow({
           {isCurrent ? (
             <span
               className="text-primary-accent bg-primary-accent/10 shrink-0 rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
-              title={`{{${variable}}} currently pulls from here`}
+              title={`{{${variable}}} currently maps to here`}
             >
               current
             </span>

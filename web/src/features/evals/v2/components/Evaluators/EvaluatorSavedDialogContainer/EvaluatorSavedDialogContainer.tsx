@@ -209,6 +209,7 @@ export function EvaluatorSavedDialogContainer({
             }
             matchingObservations={activation.estimate.matchingObservations}
             sampling={activation.estimate.sampling ?? selectedRule.sampling}
+            descriptionAsTooltip
           />
         ) : null
       }

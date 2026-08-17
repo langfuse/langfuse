@@ -1,14 +1,9 @@
 import type { ComponentProps } from "react";
-import { InfoIcon } from "lucide-react";
 
 import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 
 export function NameStep({
@@ -34,7 +29,7 @@ export function NameStep({
     <Stepper
       number={step}
       title="Name evaluator"
-      description="Give the evaluator a clear name and explain when it should be used."
+      description="Give the evaluator a clear name (it's also used as the score name) and explain when it should be used."
       open={open}
       onOpenChange={onOpenChange}
     >
@@ -42,15 +37,10 @@ export function NameStep({
         <div className="space-y-2">
           <Label htmlFor="evaluator-name" className="flex items-center gap-1.5">
             Name
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                The evaluator name is also used as the score name for the scores
-                it produces.
-              </TooltipContent>
-            </Tooltip>
+            <InfoTooltip label="About evaluator names">
+              The evaluator name is also used as the score name for the scores
+              it produces.
+            </InfoTooltip>
           </Label>
           <AIAssistedInput
             id="evaluator-name"

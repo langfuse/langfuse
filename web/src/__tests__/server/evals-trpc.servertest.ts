@@ -10,7 +10,7 @@ import {
   JobConfigState,
   LangfuseConflictError,
 } from "@langfuse/shared";
-import { prisma, type Prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { LegacyEvalCompatibilityService } from "@/src/features/evals/server/legacyCompatibilityService";
 
@@ -804,6 +804,62 @@ describe("legacy evaluator compatibility service", () => {
         selectedColumnId: "input",
       },
     ]);
+  });
+
+  it("carries an inherited observation mapping over to a new evaluator version", async () => {
+    const { project, service } = await prepare();
+    const rule = await createLegacyRule(project.id, {
+      name: "Toxicity",
+      targetObject: EvalTargetObject.EVENT,
+    });
+    const assignment =
+      await prisma.evaluationRuleEvaluatorAssignment.findFirstOrThrow({
+        where: { evaluationRuleId: rule.id },
+        include: { evaluator: { include: { versions: true } } },
+      });
+    const inheritedMapping = [
+      {
+        templateVariable: "input",
+        selectedColumnId: "input",
+      },
+    ];
+    await prisma.evaluatorVersion.update({
+      where: { id: assignment.evaluator.versions[0]!.id },
+      data: { variableMapping: inheritedMapping },
+    });
+    await prisma.evaluationRuleEvaluatorAssignment.update({
+      where: { id: assignment.id },
+      data: { variableMapping: Prisma.DbNull },
+    });
+
+    const result = await service.saveTemplate({
+      projectId: project.id,
+      name: "Toxicity",
+      createdByUserId: null,
+      intent: {
+        type: "new-version",
+        sourceTemplateId: assignment.evaluator.versions[0]!.id,
+      },
+      definition: {
+        type: EvalTemplateType.LLM_AS_JUDGE,
+        prompt: "Judge {{input}} strictly",
+        provider: null,
+        model: null,
+        modelParams: null,
+        vars: ["input"],
+        variableMapping: null,
+        outputDefinition: numericOutputDefinition,
+      },
+    });
+
+    expect(result?.template.version).toBe(2);
+    expect(result?.updatedConfigCount).toBe(1);
+    await expect(
+      prisma.evaluationRuleEvaluatorAssignment.findUnique({
+        where: { id: assignment.id },
+        select: { variableMapping: true },
+      }),
+    ).resolves.toEqual({ variableMapping: inheritedMapping });
   });
 
   it("refuses a new version that leaves a running rule unmapped", async () => {

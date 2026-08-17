@@ -285,6 +285,32 @@ describe("RuleService", () => {
       });
     });
 
+    it("rejects incomplete explicit and inherited evaluator mappings", async () => {
+      const [explicitEvaluator, inheritedEvaluator] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(projectId, undefined, []),
+      ]);
+      const service = createService();
+
+      await expect(
+        service.create(
+          {
+            ...createInput(explicitEvaluator.id),
+            evaluatorAssignments: [
+              { evaluatorId: explicitEvaluator.id, variableMapping: [] },
+            ],
+          },
+          null,
+        ),
+      ).rejects.toThrow("Missing mappings for evaluator variables: output");
+      await expect(
+        service.create(createInput(inheritedEvaluator.id), null),
+      ).rejects.toThrow("Missing mappings for evaluator variables: output");
+      await expect(
+        prisma.evaluationRule.count({ where: { projectId } }),
+      ).resolves.toBe(0);
+    });
+
     it("creates a disabled observation rule when requested", async () => {
       const evaluator = await createEvaluator();
 

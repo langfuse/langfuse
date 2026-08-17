@@ -41,6 +41,12 @@ describe("prepareEvaluatorGallery", () => {
       search: "not grounded",
     });
 
+    expect(gallery.navigationItems).toEqual([
+      expect.objectContaining({ key: "quality", count: 1 }),
+    ]);
+    expect(gallery.navigationItems.map(({ key }) => key)).toEqual(
+      gallery.sections.map(({ key }) => key),
+    );
     expect(gallery.sections).toHaveLength(1);
     expect(gallery.sections[0]?.templates).toEqual([
       expect.objectContaining({ source: "managed", key: "hallucination" }),

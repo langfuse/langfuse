@@ -43,6 +43,7 @@ import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/component
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 
 type InitialEvaluator = {
   id: string;
@@ -70,6 +71,7 @@ export function EvaluatorSetupPage(
       },
 ) {
   const { projectId } = props;
+  const isMobile = useIsMobile();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { organization } = useProject(projectId);
   const nameAIAssistanceAvailable =
@@ -337,6 +339,60 @@ export function EvaluatorSetupPage(
     });
   };
 
+  const evaluatorEditor = (
+    <EvaluatorSetupEditor
+      projectId={projectId}
+      store={evaluatorSetupStore}
+      isEditing={Boolean(initialEvaluator)}
+      defaultModel={projectDefaultModel.defaultModel}
+      providerGroups={projectDefaultModel.providerGroups}
+      providerAdapters={projectDefaultModel.providerAdapters}
+      canSetProjectDefault={projectDefaultModel.canUpdate}
+      onConfigureProviders={projectDefaultModel.openProviderSettings}
+      onSetProjectDefault={projectDefaultModel.update.requestUpdate}
+      onStepOpenChange={setStepOpen}
+      nameAIAssistance={
+        !nameAIAssistanceAvailable
+          ? { state: "unavailable" }
+          : suggestName.isPending
+            ? { state: "generating" }
+            : { state: "idle", onGenerate: requestNameSuggestion }
+      }
+    />
+  );
+
+  const evaluatorTestPanel = (
+    <EvaluatorTestPanelContainer
+      projectId={projectId}
+      store={evaluatorSetupStore}
+      sampleSelector={
+        <SampleObservationSelectorContainer
+          store={evaluatorSetupStore}
+          projectId={projectId}
+          timeRange={absoluteTimeRange}
+          onOpenTrace={(observation) => {
+            if (observation.traceId) {
+              sampleTracePeekNavigation.openPeek(observation.traceId);
+            }
+          }}
+        />
+      }
+      onOpenSampleTrace={(observation) => {
+        if (observation.traceId) {
+          sampleTracePeekNavigation.openPeek(observation.traceId);
+        }
+      }}
+      testResult={testResult}
+      testPending={testEvaluator.isPending}
+      rawResultOpen={rawResultOpen}
+      onRawResultOpenChange={setRawResultOpen}
+      onRunTest={runTest}
+      onOpenExecutionTrace={(traceId) =>
+        sampleTracePeekNavigation.openPeek(traceId)
+      }
+    />
+  );
+
   return (
     <Page
       headerProps={{
@@ -366,6 +422,7 @@ export function EvaluatorSetupPage(
             <Button
               type="button"
               variant="outline"
+              title="Delete evaluator"
               onClick={() => setDeleteOpen(true)}
             >
               <Trash2 className="text-destructive h-4 w-4" />
@@ -374,88 +431,54 @@ export function EvaluatorSetupPage(
         ) : undefined,
       }}
     >
-      <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
-      {initialEvaluator?.blockedAt ? (
-        <div className="mx-3 mt-3">
-          <EvaluatorBlockedBanner
-            projectId={projectId}
-            blockedAt={initialEvaluator.blockedAt}
-            blockReason={initialEvaluator.blockReason}
-            blockMessage={initialEvaluator.blockMessage}
-          />
-        </div>
-      ) : null}
-      <ResizableSplitLayout
-        className="min-h-0 flex-1"
-        primaryContent={
-          <EvaluatorSetupEditor
-            projectId={projectId}
-            store={evaluatorSetupStore}
-            isEditing={Boolean(initialEvaluator)}
-            defaultModel={projectDefaultModel.defaultModel}
-            providerGroups={projectDefaultModel.providerGroups}
-            providerAdapters={projectDefaultModel.providerAdapters}
-            canSetProjectDefault={projectDefaultModel.canUpdate}
-            onConfigureProviders={projectDefaultModel.openProviderSettings}
-            onSetProjectDefault={projectDefaultModel.update.requestUpdate}
-            onStepOpenChange={setStepOpen}
-            nameAIAssistance={
-              !nameAIAssistanceAvailable
-                ? { state: "unavailable" }
-                : suggestName.isPending
-                  ? { state: "generating" }
-                  : { state: "idle", onGenerate: requestNameSuggestion }
+      <div className="flex min-h-0 flex-1 flex-col">
+        <TableHeaderControls
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+        />
+        {initialEvaluator?.blockedAt ? (
+          <div className="mx-3 mt-3">
+            <EvaluatorBlockedBanner
+              projectId={projectId}
+              blockedAt={initialEvaluator.blockedAt}
+              blockReason={initialEvaluator.blockReason}
+              blockMessage={initialEvaluator.blockMessage}
+            />
+          </div>
+        ) : null}
+        {isMobile ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div>{evaluatorEditor}</div>
+            <div className="border-t [&>aside]:h-auto">
+              {evaluatorTestPanel}
+            </div>
+          </div>
+        ) : (
+          <ResizableSplitLayout
+            className="h-auto min-h-0 flex-1"
+            primaryContent={evaluatorEditor}
+            secondaryContent={evaluatorTestPanel}
+            open={testPanelOpen}
+            defaultPrimarySize={60}
+            defaultSecondarySize={40}
+            minPrimarySize={30}
+            minSecondarySize="360px"
+            collapsedSecondarySize="48px"
+            onOpenChange={
+              evaluatorSetupStore.getState().actions.setTestPanelOpen
             }
+            persistId="evaluator-test-panel"
           />
-        }
-        secondaryContent={
-          <EvaluatorTestPanelContainer
-            projectId={projectId}
-            store={evaluatorSetupStore}
-            sampleSelector={
-              <SampleObservationSelectorContainer
-                store={evaluatorSetupStore}
-                projectId={projectId}
-                timeRange={absoluteTimeRange}
-                onOpenTrace={(observation) => {
-                  if (observation.traceId) {
-                    sampleTracePeekNavigation.openPeek(observation.traceId);
-                  }
-                }}
-              />
-            }
-            onOpenSampleTrace={(observation) => {
-              if (observation.traceId) {
-                sampleTracePeekNavigation.openPeek(observation.traceId);
-              }
-            }}
-            testResult={testResult}
-            testPending={testEvaluator.isPending}
-            rawResultOpen={rawResultOpen}
-            onRawResultOpenChange={setRawResultOpen}
-            onRunTest={runTest}
-            onOpenExecutionTrace={(traceId) =>
-              sampleTracePeekNavigation.openPeek(traceId)
-            }
-          />
-        }
-        open={testPanelOpen}
-        defaultPrimarySize={60}
-        defaultSecondarySize={40}
-        minPrimarySize={30}
-        minSecondarySize="360px"
-        collapsedSecondarySize="48px"
-        onOpenChange={evaluatorSetupStore.getState().actions.setTestPanelOpen}
-        persistId="evaluator-test-panel"
-      />
-      <EvaluatorSetupFooter
-        store={evaluatorSetupStore}
-        initialSnapshot={initialSnapshot.current}
-        isEditing={Boolean(initialEvaluator)}
-        isSaving={create.isPending || update.isPending}
-        onClose={requestClose}
-        onSave={save}
-      />
+        )}
+        <EvaluatorSetupFooter
+          store={evaluatorSetupStore}
+          initialSnapshot={initialSnapshot.current}
+          isEditing={Boolean(initialEvaluator)}
+          isSaving={create.isPending || update.isPending}
+          onClose={requestClose}
+          onSave={save}
+        />
+      </div>
       {initialEvaluator ? (
         <EvaluatorVersionHistorySheet
           open={historyOpen}
