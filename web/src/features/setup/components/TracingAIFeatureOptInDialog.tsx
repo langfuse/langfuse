@@ -10,6 +10,32 @@ import {
 } from "@/src/components/ui/dialog";
 
 const AI_FEATURES_DOCS_URL = "https://langfuse.com/security/ai-features";
+const DEBUG_LOG_ENDPOINT = "/api/internal/tracing-ai-opt-in-debug-log";
+
+const emitDebugLog = (
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data: Record<string, unknown>,
+) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  fetch(DEBUG_LOG_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+};
 
 export function TracingAIFeatureOptInDialog({
   open,
@@ -30,6 +56,14 @@ export function TracingAIFeatureOptInDialog({
     <Dialog
       open={open}
       onOpenChange={(isOpen) => {
+        // #region agent log
+        emitDebugLog(
+          "A",
+          "TracingAIFeatureOptInDialog.tsx:onOpenChange",
+          "Dialog open state changed",
+          { isOpen, isLoading, open },
+        );
+        // #endregion
         if (!isOpen && !isLoading) {
           onClose();
         }
@@ -89,7 +123,17 @@ export function TracingAIFeatureOptInDialog({
               type="button"
               variant="outline"
               disabled={isLoading}
-              onClick={onClose}
+              onClick={() => {
+                // #region agent log
+                emitDebugLog(
+                  "A",
+                  "TracingAIFeatureOptInDialog.tsx:notNowButton",
+                  "Not now button clicked",
+                  { isLoading, open },
+                );
+                // #endregion
+                onClose();
+              }}
             >
               Not now
             </Button>

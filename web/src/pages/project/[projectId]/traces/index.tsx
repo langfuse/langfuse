@@ -20,9 +20,35 @@ import { TracingAIFeatureOptInDialog } from "@/src/features/setup/components/Tra
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 const AI_OPT_IN_DISMISS_KEY_PREFIX = "langfuse:tracing-ai-opt-in-dismissed";
+const DEBUG_LOG_ENDPOINT = "/api/internal/tracing-ai-opt-in-debug-log";
 
 const getAiOptInDismissKey = (organizationId: string) =>
   `${AI_OPT_IN_DISMISS_KEY_PREFIX}:${organizationId}`;
+
+const emitDebugLog = (
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data: Record<string, unknown>,
+) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  fetch(DEBUG_LOG_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+};
 
 const hasDismissedAiOptIn = (organizationId: string) => {
   if (typeof window === "undefined") {
@@ -30,9 +56,17 @@ const hasDismissedAiOptIn = (organizationId: string) => {
   }
 
   try {
-    return (
-      localStorage.getItem(getAiOptInDismissKey(organizationId)) === "true"
+    const dismissKey = getAiOptInDismissKey(organizationId);
+    const isDismissed = localStorage.getItem(dismissKey) === "true";
+    // #region agent log
+    emitDebugLog(
+      "B",
+      "traces/index.tsx:hasDismissedAiOptIn",
+      "Read AI opt-in dismissal from localStorage",
+      { organizationId, dismissKey, isDismissed },
     );
+    // #endregion
+    return isDismissed;
   } catch {
     return false;
   }
@@ -44,7 +78,28 @@ const markAiOptInDismissed = (organizationId: string) => {
   }
 
   try {
-    localStorage.setItem(getAiOptInDismissKey(organizationId), "true");
+    const dismissKey = getAiOptInDismissKey(organizationId);
+    // #region agent log
+    emitDebugLog(
+      "C",
+      "traces/index.tsx:markAiOptInDismissed:before",
+      "Writing AI opt-in dismissal to localStorage",
+      { organizationId, dismissKey },
+    );
+    // #endregion
+    localStorage.setItem(dismissKey, "true");
+    // #region agent log
+    emitDebugLog(
+      "C",
+      "traces/index.tsx:markAiOptInDismissed:after",
+      "Wrote AI opt-in dismissal to localStorage",
+      {
+        organizationId,
+        dismissKey,
+        storedValue: localStorage.getItem(dismissKey),
+      },
+    );
+    // #endregion
   } catch {
     // Ignore localStorage write failures and keep onboarding usable.
   }
@@ -93,6 +148,17 @@ export default function Traces() {
   const updateAiFeaturesMutation = api.organizations.update.useMutation();
 
   useEffect(() => {
+    // #region agent log
+    emitDebugLog(
+      "D",
+      "traces/index.tsx:useEffect:shouldPromptForAiOptIn",
+      "Evaluating AI opt-in dialog visibility",
+      {
+        shouldPromptForAiOptIn,
+        organizationId: organization?.id ?? null,
+      },
+    );
+    // #endregion
     if (!shouldPromptForAiOptIn || !organization?.id) {
       setShowAiOptInDialog(false);
       return;
@@ -102,6 +168,17 @@ export default function Traces() {
   }, [organization?.id, shouldPromptForAiOptIn]);
 
   const dismissAiOptInDialog = useCallback(() => {
+    // #region agent log
+    emitDebugLog(
+      "A",
+      "traces/index.tsx:dismissAiOptInDialog",
+      "Dismiss handler invoked",
+      {
+        organizationId: organization?.id ?? null,
+        hasOrganizationUpdateAccess,
+      },
+    );
+    // #endregion
     if (organization?.id) {
       markAiOptInDismissed(organization.id);
     }
