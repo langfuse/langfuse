@@ -1,3 +1,4 @@
+import { LayoutGrid } from "lucide-react";
 import {
   gallerySidebarItems,
   visibleGallerySections,
@@ -79,7 +80,7 @@ describe("gallerySidebarItems", () => {
         qualitySection,
       ]),
     ).toEqual([
-      { key: "all", label: "All", count: 13 },
+      { key: "all", label: "All", icon: LayoutGrid, count: 13 },
       { key: "custom", label: "Your templates", count: 12 },
       { key: "quality", label: "Quality", count: 1 },
     ]);

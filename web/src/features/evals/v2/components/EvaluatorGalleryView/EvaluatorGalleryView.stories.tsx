@@ -142,6 +142,29 @@ const sections: GallerySection[] = [
     ],
   },
   {
+    key: "conversation",
+    label: "Conversational / Chatbots",
+    description: "Signals for chatbot-style interactions.",
+    templates: [
+      {
+        ...managedTemplate,
+        key: "language",
+        name: "Check language match",
+        icon: "languages",
+        description: "Does the reply use the language the user wrote in?",
+        categories: ["conversation"],
+      },
+      {
+        ...managedTemplate,
+        key: "user-distress",
+        name: "Detect user distress",
+        icon: "frown",
+        description: "Flag conversations where the user sounds upset or stuck.",
+        categories: ["conversation"],
+      },
+    ],
+  },
+  {
     key: "quality",
     label: "Quality",
     description: "Checks response quality.",
@@ -161,6 +184,7 @@ const defaultArgs = {
   navigationItems: [
     { key: "custom", label: "Your templates", icon: User, count: 2 },
     { key: "recommended", label: "Recommended for you", count: 3 },
+    { key: "conversation", label: "Conversational / Chatbots", count: 2 },
     { key: "quality", label: "Quality", count: 7 },
   ],
   activeSection: EVALUATOR_GALLERY_ALL_SECTION_KEY,

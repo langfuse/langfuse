@@ -1,7 +1,6 @@
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
-import { EVALUATOR_GALLERY_CATEGORY_DOT_CLASS } from "@/src/features/evals/v2/constants/evaluatorGallery";
+import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import type { GalleryNavigationItem } from "@/src/features/evals/v2/types/templateGallery";
 
 export function EvaluatorGallerySidebar({
@@ -20,7 +19,9 @@ export function EvaluatorGallerySidebar({
       </div>
       {items.map((item) => {
         const isActive = (activeSection ?? items[0]?.key) === item.key;
-        const dotClass = EVALUATOR_GALLERY_CATEGORY_DOT_CLASS[item.key];
+        const { icon: FallbackIcon, iconClassName } =
+          getGalleryCategoryPresentation(item.key);
+        const Icon = item.icon ?? FallbackIcon;
 
         return (
           <Button
@@ -36,22 +37,14 @@ export function EvaluatorGallerySidebar({
             aria-current={isActive ? "page" : undefined}
             onClick={() => onSelectSection(item.key)}
           >
-            {dotClass ? (
-              <span
-                className={cn("mr-2 h-2 w-2 shrink-0 rounded-full", dotClass)}
-              />
-            ) : null}
+            <Icon className={cn("mr-2 h-3.5 w-3.5 shrink-0", iconClassName)} />
             <span className="truncate" title={item.label}>
               {item.label}
             </span>
             {item.count !== undefined ? (
-              <Badge
-                variant="secondary"
-                size="sm"
-                className="text-muted-foreground font-regular ml-auto font-mono tabular-nums"
-              >
+              <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
                 {item.count}
-              </Badge>
+              </span>
             ) : null}
           </Button>
         );

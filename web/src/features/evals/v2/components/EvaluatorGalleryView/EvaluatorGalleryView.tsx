@@ -24,7 +24,7 @@ function GallerySkeleton() {
       <Skeleton className="h-5 w-32" />
       <div className="flex flex-col gap-2">
         {Array.from({ length: 6 }).map((_, index) => (
-          <Skeleton key={index} className="h-16 rounded-lg" />
+          <Skeleton key={index} className="h-10 rounded-md" />
         ))}
       </div>
     </div>
@@ -119,7 +119,7 @@ export function EvaluatorGalleryView({
           <div
             ref={scrollContainerRef}
             onScroll={onScroll}
-            className="flex flex-1 flex-col gap-8 overflow-y-auto py-4"
+            className="flex flex-1 flex-col gap-10 overflow-y-auto py-4"
           >
             {isLoading ? <GallerySkeleton /> : null}
             {errorMessage ? (
@@ -129,7 +129,7 @@ export function EvaluatorGalleryView({
             ) : null}
             {!isLoading && !errorMessage ? (
               hasTemplates ? (
-                <div className="flex flex-col gap-8">
+                <div className="flex flex-col gap-10">
                   {displayedSections.map((section) => (
                     <EvaluatorGallerySection
                       key={section.key}

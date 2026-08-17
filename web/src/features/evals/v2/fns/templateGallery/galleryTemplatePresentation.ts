@@ -63,14 +63,6 @@ const GALLERY_TEMPLATE_ICONS: Record<string, LucideIcon> = {
   type: Type,
 };
 
-export const GALLERY_TEMPLATE_RUNS_ON_LABELS: Record<
-  TemplateRunTarget,
-  string
-> = {
-  experiment: "Experiment",
-  "live-observations": "Live observations",
-};
-
 export type GalleryTemplatePresentation = {
   description: string | undefined;
   type: EvalTemplateType;

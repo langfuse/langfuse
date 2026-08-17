@@ -2,6 +2,7 @@ import {
   EVALUATOR_GALLERY_ALL_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
+import { GALLERY_CATEGORY_ICONS } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import type {
   GalleryNavigationItem,
   GallerySection,
@@ -31,6 +32,7 @@ export function gallerySidebarItems(
     {
       key: EVALUATOR_GALLERY_ALL_SECTION_KEY,
       label: "All",
+      icon: GALLERY_CATEGORY_ICONS[EVALUATOR_GALLERY_ALL_SECTION_KEY],
       count: allCount,
     },
     ...categoryItems,

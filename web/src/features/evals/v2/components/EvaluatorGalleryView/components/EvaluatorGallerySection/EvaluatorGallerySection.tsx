@@ -7,10 +7,10 @@ import type {
   GallerySection,
 } from "@/src/features/evals/v2/types/templateGallery";
 import {
-  EVALUATOR_GALLERY_CATEGORY_DOT_CLASS,
   EVALUATOR_GALLERY_PREVIEW_SIZE,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
+import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { getGalleryTemplateId } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
 import { cn } from "@/src/utils/tailwind";
 
@@ -33,18 +33,19 @@ export function EvaluatorGallerySection({
     ? section.templates
     : section.templates.slice(0, EVALUATOR_GALLERY_PREVIEW_SIZE);
   const totalCount = section.totalCount ?? section.templates.length;
-  const dotClass = EVALUATOR_GALLERY_CATEGORY_DOT_CLASS[section.key];
+  const { icon: Icon, iconClassName } = getGalleryCategoryPresentation(
+    section.key,
+  );
 
   return (
-    <section ref={sectionRef} className="flex scroll-mt-1 flex-col gap-2.5">
+    <section ref={sectionRef} className="flex scroll-mt-1 flex-col gap-3">
       <div className="flex items-center gap-2">
-        {dotClass ? (
-          <span className={cn("h-2 w-2 shrink-0 rounded-full", dotClass)} />
-        ) : null}
+        <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />
         <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
           {section.label}
         </h4>
-        <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
+        <div className="border-border mx-1 min-w-4 flex-1 border-t border-dashed" />
+        <span className="text-muted-foreground font-mono text-xs tabular-nums">
           {totalCount}
         </span>
       </div>
@@ -59,11 +60,12 @@ export function EvaluatorGallerySection({
           ))}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col">
           {shownTemplates.map((template) => (
             <EvaluatorTemplateRow
               key={getGalleryTemplateId(template)}
               template={template}
+              categoryKey={section.key}
               onSelect={onSelectTemplate}
             />
           ))}
@@ -72,7 +74,7 @@ export function EvaluatorGallerySection({
       {totalCount > EVALUATOR_GALLERY_PREVIEW_SIZE ? (
         <button
           type="button"
-          className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1.5 text-sm"
+          className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1.5 px-1 text-sm"
           onClick={() => onExpandedChange(!expanded)}
         >
           {expanded ? (

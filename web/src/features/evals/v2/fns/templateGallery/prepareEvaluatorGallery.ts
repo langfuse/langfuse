@@ -1,32 +1,11 @@
-import {
-  Code2,
-  FileSearch,
-  Gauge,
-  ListFilter,
-  MessagesSquare,
-  Shield,
-  Sparkles,
-  User,
-  type LucideIcon,
-} from "lucide-react";
-
 import type {
   CustomEvaluatorTemplate,
   GalleryNavigationItem,
   GallerySection,
 } from "@/src/features/evals/v2/types/templateGallery";
+import { GALLERY_CATEGORY_ICONS } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
 import { EVALUATOR_GALLERY_PROJECT_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
-
-const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  gauge: Gauge,
-  shield: Shield,
-  "file-search": FileSearch,
-  "list-filter": ListFilter,
-  "messages-square": MessagesSquare,
-  "code-2": Code2,
-  sparkles: Sparkles,
-};
 
 const RECOMMENDED_TEMPLATE_ORDER = [
   "chat-intent",
@@ -84,7 +63,7 @@ export function prepareEvaluatorGallery({
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
             label: "Your templates",
-            icon: User,
+            icon: GALLERY_CATEGORY_ICONS[EVALUATOR_GALLERY_PROJECT_SECTION_KEY],
             count: customTemplateCount,
           },
         ]
@@ -93,7 +72,7 @@ export function prepareEvaluatorGallery({
       .map((category) => ({
         key: category.key,
         label: category.label,
-        icon: CATEGORY_ICONS[category.icon],
+        icon: GALLERY_CATEGORY_ICONS[category.key],
         count: managedByCategory.get(category.key)?.length ?? 0,
       }))
       .filter(({ count }) => count > 0),

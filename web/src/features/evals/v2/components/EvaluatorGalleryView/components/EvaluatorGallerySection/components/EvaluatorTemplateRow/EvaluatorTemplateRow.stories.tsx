@@ -33,7 +33,11 @@ const managedTemplate = {
 const meta = preview.meta({ component: EvaluatorTemplateRow });
 
 export const Managed = meta.story({
-  args: { template: managedTemplate, onSelect: fn() },
+  args: {
+    template: managedTemplate,
+    categoryKey: "quality",
+    onSelect: fn(),
+  },
 });
 
 export const CustomCodeEvaluator = meta.story({
@@ -49,6 +53,7 @@ export const CustomCodeEvaluator = meta.story({
       version: 2,
       createdByUser: { name: "Ada Lovelace", email: "ada@example.com" },
     },
+    categoryKey: "custom",
     onSelect: fn(),
   },
 });
