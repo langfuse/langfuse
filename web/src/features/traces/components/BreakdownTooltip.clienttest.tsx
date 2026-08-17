@@ -24,7 +24,7 @@ describe("BreakdownTooltip", () => {
 
     const link = (
       await screen.findAllByRole("link", {
-        name: "Prices from gpt-5.6 · Priority",
+        name: "Priority Tier Pricing",
       })
     )[0]!;
     expect(link).toHaveAttribute(
@@ -54,7 +54,7 @@ describe("BreakdownTooltip", () => {
 
     expect(
       screen.queryByRole("link", {
-        name: "Prices from gpt-5.6 · Priority",
+        name: "Priority Tier Pricing",
       }),
     ).not.toBeInTheDocument();
   });
