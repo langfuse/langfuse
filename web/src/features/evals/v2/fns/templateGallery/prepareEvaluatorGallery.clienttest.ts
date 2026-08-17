@@ -53,10 +53,10 @@ describe("prepareEvaluatorGallery", () => {
     ).toEqual([
       "language",
       "chat-intent",
+      "out-of-scope-request",
       "user-disagreement",
       "all-caps",
       "user-distress",
-      "out-of-scope-request",
     ]);
   });
 
