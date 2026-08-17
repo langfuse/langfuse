@@ -13,7 +13,7 @@ export const V3_SUNSET_HUMAN = "November 16, 2026";
 
 // Shared deprecation reason — references the deprecated Langfuse v3 system
 // version (not an API version). Customer-facing wording lives here — edit once.
-const V3_NOTICE = `Langfuse v3 is deprecated; this endpoint will be removed on ${V3_SUNSET_HUMAN}.`;
+const V3_NOTICE = `On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}.`;
 
 // v4 replacement endpoints, referenced by both the message and `replacement`.
 // Placeholder style matches rateLimitUpgradePaths (<from>, <to>, filters).
