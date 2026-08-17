@@ -29,9 +29,60 @@ const SUBTREE_DURATION_TITLE =
 // Room between the bar and a metric cluster sitting outside it.
 const CLUSTER_GAP_PX = 6;
 const CLUSTER_INSET_PX = 4;
-// Icons carry no text to measure, so they get a flat reservation.
+/**
+ * The cluster's own `gap-2`. The budget has to reserve the gap the cluster
+ * actually renders with, not a smaller one: five admitted items multiply a 2px
+ * under-reservation into a clipped last item.
+ */
+const CLUSTER_ITEM_GAP_PX = 8;
+// An icon carries no text to measure, so it gets a flat reservation.
 const ICON_WIDTH_PX = 22;
-const SCORE_BADGES_WIDTH_PX = 48;
+/** `px-2.5` both sides plus the 1px border of a score chip. */
+const SCORE_CHIP_CHROME_PX = 22;
+/** `max-w-20` truncates a score's name. */
+const SCORE_NAME_MAX_PX = 80;
+/** The gap between a chip's name and its values. */
+const SCORE_NAME_GAP_PX = 4;
+
+/**
+ * What `GroupedScoreBadges` will actually take, measured rather than guessed.
+ *
+ * A flat 48px reservation was the bug: two real scores render 100-300px, so a
+ * leftover budget anywhere in between admitted the badges and then let the
+ * cluster's overflow box cut them mid-glyph — exactly the clipping this layout
+ * exists to remove, in exactly the narrow lanes it targets. The widest groups are
+ * priced, because over-reserving drops a badge (recoverable, and the title says
+ * so) while under-reserving clips one (not recoverable).
+ */
+function scoreBadgesWidth(
+  scores: NonNullable<TimelineBarProps["scores"]>,
+  measurer: TimelineBarProps["measurer"],
+  maxVisible: number,
+): number {
+  const groups = new Map<string, string[]>();
+  for (const score of scores) {
+    const value = score.stringValue ?? score.value?.toFixed(2) ?? "";
+    groups.set(score.name, [...(groups.get(score.name) ?? []), value]);
+  }
+  const widths = [...groups]
+    .map(
+      ([name, values]) =>
+        Math.min(measurer.measure(`${name}:`), SCORE_NAME_MAX_PX) +
+        SCORE_NAME_GAP_PX +
+        measurer.measure(values.join(" ")) +
+        SCORE_CHIP_CHROME_PX,
+    )
+    .sort((a, b) => b - a)
+    .slice(0, maxVisible);
+  return widths.reduce(
+    (total, width, index) =>
+      total + width + (index > 0 ? CLUSTER_ITEM_GAP_PX : 0),
+    0,
+  );
+}
+
+/** How many score groups the cluster shows before the rest are hidden. */
+const MAX_SCORE_GROUPS = 3;
 
 export function TimelineBar({
   row,
@@ -75,13 +126,27 @@ export function TimelineBar({
   // Which side the metric cluster lands on is layout()'s call, made against the
   // measured lane; we only turn it into a position. `hidden` means neither side
   // had room, so nothing is drawn rather than something drawn off the lane.
+  // `hidden` means the DURATION LABEL fitted on neither side — not that neither
+  // side has room. The cluster's other items are much narrower, so it goes to
+  // whichever side is actually roomier instead of always falling in with
+  // `after`, which in a lane like 137px is often the side with nothing left.
+  const spaceBefore = Math.max(row.x - CLUSTER_GAP_PX, 0);
+  const spaceAfter = Math.max(
+    laneWidth - (row.x + row.width + CLUSTER_GAP_PX),
+    0,
+  );
+  const placement =
+    row.labelPlacement === "hidden" && spaceBefore > spaceAfter
+      ? "before"
+      : row.labelPlacement;
+
   const clusterStyle =
-    row.labelPlacement === "before"
+    placement === "before"
       ? {
           right: `${Math.max(laneWidth - row.x + CLUSTER_GAP_PX, 0)}px`,
           maxWidth: `${Math.max(row.x - CLUSTER_GAP_PX, 0)}px`,
         }
-      : row.labelPlacement === "inside"
+      : placement === "inside"
         ? {
             left: `${row.x + CLUSTER_INSET_PX}px`,
             maxWidth: `${Math.max(row.width - CLUSTER_INSET_PX * 2, 0)}px`,
@@ -102,7 +167,7 @@ export function TimelineBar({
   let spentPx = 0;
   /** Admit a piece of the cluster, or refuse it — and charge it if admitted. */
   const fitsWidth = (widthPx: number) => {
-    const next = spentPx + widthPx + CLUSTER_GAP_PX;
+    const next = spentPx + widthPx + CLUSTER_ITEM_GAP_PX;
     if (next > budgetPx) return false;
     spentPx = next;
     return true;
@@ -138,15 +203,30 @@ export function TimelineBar({
   const showCommentIcon =
     showComments && Boolean(commentCount) && fitsWidth(ICON_WIDTH_PX);
   const showScoreBadges =
-    showScores && Boolean(scores?.length) && fitsWidth(SCORE_BADGES_WIDTH_PX);
+    showScores &&
+    Boolean(scores?.length) &&
+    fitsWidth(scoreBadgesWidth(scores!, measurer, MAX_SCORE_GROUPS));
 
-  // The full text stays reachable on hover when something had to be dropped.
+  // Everything the row HAS stays reachable on hover when anything had to be
+  // dropped — the icon and the badges included. They are admitted last, against
+  // the smallest remaining budget, so they are the likeliest to go; without this
+  // a narrow row simply did not mention that a comment or a score existed.
+  const plural = (count: number, noun: string) =>
+    `${count} ${noun}${count === 1 ? "" : "s"}`;
+  const commentText =
+    showComments && commentCount ? plural(commentCount, "comment") : null;
+  const scoreText =
+    showScores && scores?.length ? plural(scores.length, "score") : null;
   const droppedSomething =
     (durationText != null && !showDurationText) ||
     (subtreeText != null && !showSubtreeText) ||
-    (costText != null && !showCostText);
+    (costText != null && !showCostText) ||
+    (commentText != null && !showCommentIcon) ||
+    (scoreText != null && !showScoreBadges);
   const clusterTitle = droppedSomething
-    ? [durationText, subtreeText, costText].filter(Boolean).join("  ")
+    ? [durationText, subtreeText, costText, commentText, scoreText]
+        .filter(Boolean)
+        .join("  ")
     : undefined;
 
   // Draw the cluster when it has something in it. Gating it on the duration
@@ -198,7 +278,10 @@ export function TimelineBar({
         )}
         {showScoreBadges && (
           <div className="flex max-h-5 gap-1">
-            <GroupedScoreBadges scores={scores!} maxVisible={3} />
+            <GroupedScoreBadges
+              scores={scores!}
+              maxVisible={MAX_SCORE_GROUPS}
+            />
           </div>
         )}
       </div>

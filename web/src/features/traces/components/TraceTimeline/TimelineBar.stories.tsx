@@ -126,6 +126,70 @@ export const CrowdedCluster = meta.story({
     await expect(cluster.scrollWidth).toBeLessThanOrEqual(
       cluster.clientWidth + 0.5,
     );
+    // What was dropped stays reachable, counts and all: a narrow row used not to
+    // mention that a comment or a score existed at all.
+    await expect(cluster.title).toContain("3 comments");
+    await expect(cluster.title).toContain("2 scores");
+  },
+});
+
+/**
+ * Two real scores render 100-300px, not the 48px a flat reservation assumed. A
+ * lane with room for the duration and *almost* room for the badges is where that
+ * gap used to clip them mid-glyph.
+ */
+export const ScoreBadgesArePricedFromTheirContent = meta.story({
+  name: "(Test) Score Badges Are Priced From Their Content",
+  args: {
+    showScores: true,
+    scores: [
+      score("helpfulness-of-the-answer", 0.71),
+      score("factual-accuracy", 0.92),
+    ],
+    row: makeRow({ x: 60, width: 420, labelX: 486 }),
+  },
+  play: async ({ canvasElement }) => {
+    const cluster = canvasElement.querySelector<HTMLElement>(
+      "div[style*='max-width']",
+    );
+    if (!cluster) throw new Error("metric cluster not found");
+    await expect(cluster.scrollWidth).toBeLessThanOrEqual(
+      cluster.clientWidth + 0.5,
+    );
+    // Either the badges fit whole, or they are not drawn — never half-drawn.
+    const showsBadges = cluster.textContent?.includes("factual-accuracy");
+    if (showsBadges) {
+      await expect(cluster.textContent).toContain("helpfulness");
+    } else {
+      await expect(cluster.title).toContain("2 scores");
+    }
+  },
+});
+
+/**
+ * A bar hard against the right edge: the duration fits on neither side, but the
+ * space BEFORE it is wide open. The cluster belongs there, not in the 0px after.
+ */
+export const HiddenLabelUsesTheRoomierSide = meta.story({
+  name: "(Test) Hidden Label Uses The Roomier Side",
+  args: {
+    showComments: true,
+    commentCount: 4,
+    row: makeRow({ x: 600, width: 38, labelPlacement: "hidden" }),
+  },
+  play: async ({ canvasElement }) => {
+    const cluster = canvasElement.querySelector<HTMLElement>(
+      "div[style*='max-width']",
+    );
+    if (!cluster) throw new Error("the cluster went nowhere at all");
+    const box = cluster.getBoundingClientRect();
+    const bar = canvasElement
+      .querySelector<HTMLElement>("div[style*='left: 600px']")
+      ?.getBoundingClientRect();
+    if (!bar) throw new Error("no bar");
+    // Left of the bar, and inside the lane.
+    await expect(box.right).toBeLessThanOrEqual(bar.left + 0.5);
+    await expect(box.width).toBeGreaterThan(0);
   },
 });
 
