@@ -335,6 +335,23 @@ export const safeMultiDel = async (
   }
 };
 
+/**
+ * Execute multiple Redis GET operations safely in cluster mode.
+ * MGET requires all keys to hash to the same slot; fall back to per-key GET.
+ */
+export const safeMultiGet = async (
+  redis: Redis | Cluster | null,
+  keys: string[],
+): Promise<(string | null)[]> => {
+  if (!redis || keys.length === 0) return [];
+
+  if (env.REDIS_CLUSTER_ENABLED === "true") {
+    return Promise.all(keys.map(async (key: string) => redis.get(key)));
+  }
+
+  return redis.mget(keys);
+};
+
 const scanKeysForNode = async (
   client: Redis,
   pattern: string,

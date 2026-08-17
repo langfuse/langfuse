@@ -1135,7 +1135,7 @@ paths:
     post:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. In Langfuse v4, create experiment data via the SDK
+        on November 16, 2026. In Langfuse v4, create experiment data via the SDK
         experiment runner or the OpenTelemetry endpoint at POST
         /api/public/otel/v1/traces. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
@@ -1189,7 +1189,7 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. In Langfuse v4, dataset run items are replaced by
+        on November 16, 2026. In Langfuse v4, dataset run items are replaced by
         experiment items; use `GET
         /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to>`
         instead. See the [Langfuse v3 to v4 upgrade
@@ -1407,7 +1407,7 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. In Langfuse v4, dataset runs are replaced by
+        on November 16, 2026. In Langfuse v4, dataset runs are replaced by
         experiments; use GET /api/public/experiments instead. See the [Langfuse
         v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
@@ -1465,7 +1465,7 @@ paths:
     delete:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. In Langfuse v4, dataset runs are replaced by
+        on November 16, 2026. In Langfuse v4, dataset runs are replaced by
         experiments. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
@@ -1523,7 +1523,7 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. In Langfuse v4, dataset runs are replaced by
+        on November 16, 2026. In Langfuse v4, dataset runs are replaced by
         experiments; use GET /api/public/experiments instead. See the [Langfuse
         v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
@@ -1935,7 +1935,7 @@ paths:
     post:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. Send data via the OpenTelemetry endpoint at `POST
+        on November 16, 2026. Send data via the OpenTelemetry endpoint at `POST
         /api/public/otel/v1/traces` instead, see the [OpenTelemetry integration
         docs](https://langfuse.com/integrations/native/opentelemetry). See the
         [Langfuse v3 to v4 upgrade
@@ -2041,7 +2041,7 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. Use `GET /api/public/v2/metrics?query=<urlencoded
+        on November 16, 2026. Use `GET /api/public/v2/metrics?query=<urlencoded
         json query>` instead. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
@@ -2149,7 +2149,7 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. Use `GET
+        on November 16, 2026. Use `GET
         /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
         instead. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
@@ -2206,7 +2206,7 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. Use `GET
+        on November 16, 2026. Use `GET
         /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
         instead. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
@@ -5833,9 +5833,9 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint is not
-        available on Langfuse v4 and later and will be removed in a future
-        release. Use `GET /api/public/v3/scores` instead. See the [Langfuse v3
-        to v4 upgrade
+        available on Langfuse v4 and later and will be removed on November 16,
+        2026. Use `GET /api/public/v3/scores` instead. See the [Langfuse v3 to
+        v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6063,9 +6063,9 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint is not
-        available on Langfuse v4 and later and will be removed in a future
-        release. Use `GET /api/public/v3/scores` with the `id` filter instead.
-        See the [Langfuse v3 to v4 upgrade
+        available on Langfuse v4 and later and will be removed on November 16,
+        2026. Use `GET /api/public/v3/scores` with the `id` filter instead. See
+        the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6118,7 +6118,7 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. In Langfuse v4, read session data via `GET
+        on November 16, 2026. In Langfuse v4, read session data via `GET
         /api/public/v2/observations?filter=<urlencoded sessionId
         filter>&fromStartTime=<from>&toStartTime=<to>`. See the [Langfuse v3 to
         v4 upgrade
@@ -6226,7 +6226,7 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. In Langfuse v4, read session data via `GET
+        on November 16, 2026. In Langfuse v4, read session data via `GET
         /api/public/v2/observations?filter=<urlencoded sessionId
         filter>&fromStartTime=<from>&toStartTime=<to>`. See the [Langfuse v3 to
         v4 upgrade
@@ -6293,7 +6293,7 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. In Langfuse v4, read span and trace data via `GET
+        on November 16, 2026. In Langfuse v4, read span and trace data via `GET
         /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`. See
         the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
@@ -6406,7 +6406,7 @@ paths:
     get:
       description: >-
         **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        in a future release. In Langfuse v4, read span and trace data via `GET
+        on November 16, 2026. In Langfuse v4, read span and trace data via `GET
         /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`. See
         the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
@@ -8744,10 +8744,18 @@ components:
         columns of both portions are controlled by `exportFieldGroups`.
 
 
-        **Note:** `OBSERVATIONS_V2` and the enriched-observations portion of
-        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` rely on the enriched
-        observations table (Langfuse Fast Preview / v4), which is currently
-        available on Langfuse Cloud only. See https://langfuse.com/docs/v4.
+        **Note:** which sources a deployment accepts depends on how far it has
+        moved to the v4 data model. `OBSERVATIONS_V2` and the
+        enriched-observations portion of
+        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` read the enriched observations
+        table, so they require a deployment that already populates it.
+        `LEGACY_TRACES_OBSERVATIONS` and the legacy portion of
+        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` read the legacy traces and
+        observations tables, so they require a deployment that still populates
+        those. A deployment part-way through the migration populates both and
+        accepts every source. Selecting a source the deployment cannot serve is
+        rejected with `400`, rather than exporting an empty result. See
+        https://langfuse.com/docs/v4.
     BlobStorageExportFieldGroup:
       title: BlobStorageExportFieldGroup
       type: string
@@ -8836,10 +8844,12 @@ components:
           nullable: true
           description: >-
             Data to export. When omitted on update, the existing value is
-            preserved. When omitted on create: integrations on Langfuse Cloud
-            default to `OBSERVATIONS_V2`; self-hosted deployments fall back to
-            `LEGACY_TRACES_OBSERVATIONS`. Required when `exportFieldGroups` is
-            provided.
+            preserved. When omitted on create, the default is `OBSERVATIONS_V2`
+            on Langfuse Cloud, and on self-hosted deployments
+            `LEGACY_TRACES_OBSERVATIONS` — or `OBSERVATIONS_V2` where the
+            deployment no longer populates the legacy tables. The default is
+            never a source the deployment cannot serve. Required when
+            `exportFieldGroups` is provided.
 
 
             **Cloud-only project deprecation gate (effective 2026-05-20):** For

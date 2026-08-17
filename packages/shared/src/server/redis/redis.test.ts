@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Redis } from "ioredis";
 
 vi.mock("../../env", () => ({
@@ -9,7 +9,8 @@ vi.mock("../../env", () => ({
   },
 }));
 
-import { scanKeys } from "./redis";
+import { env } from "../../env";
+import { safeMultiGet, scanKeys } from "./redis";
 
 type ScanCall = [string, "MATCH", string, "COUNT", number];
 
@@ -78,5 +79,45 @@ describe("scanKeys", () => {
       "COUNT",
       1000,
     );
+  });
+});
+
+describe("safeMultiGet", () => {
+  afterEach(() => {
+    env.REDIS_CLUSTER_ENABLED = "false";
+  });
+
+  it("uses mget when cluster mode is disabled", async () => {
+    env.REDIS_CLUSTER_ENABLED = "false";
+    const mget = vi.fn(async () => ["a", null, "c"]);
+    const get = vi.fn();
+    const client = { mget, get } as unknown as Redis;
+
+    await expect(safeMultiGet(client, ["k1", "k2", "k3"])).resolves.toEqual([
+      "a",
+      null,
+      "c",
+    ]);
+    expect(mget).toHaveBeenCalledWith(["k1", "k2", "k3"]);
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("uses per-key get when cluster mode is enabled", async () => {
+    env.REDIS_CLUSTER_ENABLED = "true";
+    const mget = vi.fn();
+    const get = vi.fn(async (key: string) => `value:${key}`);
+    const client = { mget, get } as unknown as Redis;
+
+    await expect(safeMultiGet(client, ["k1", "k2"])).resolves.toEqual([
+      "value:k1",
+      "value:k2",
+    ]);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(mget).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty array for empty input", async () => {
+    const client = { mget: vi.fn(), get: vi.fn() } as unknown as Redis;
+    await expect(safeMultiGet(client, [])).resolves.toEqual([]);
   });
 });

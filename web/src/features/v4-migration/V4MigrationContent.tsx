@@ -896,7 +896,8 @@ export function V4MigrationApisSection({
         <>
           <p className="text-muted-foreground mb-2 text-sm">
             You&apos;ve called these deprecated endpoints in the last{" "}
-            {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working soon; the{" "}
+            {V4_MIGRATION_LOOKBACK_DAYS} days. Counts refresh about every 15
+            minutes and can lag live traffic. They stop working soon; the{" "}
             <ExternalLink
               href={DEPRECATED_API_MIGRATION_URL}
               analytics={{ section: "apis", link: "deprecated_api_docs" }}
@@ -940,7 +941,8 @@ export function V4MigrationApisSection({
       ) : (
         <p className="text-muted-foreground text-sm">
           No deprecated public API usage detected in the last{" "}
-          {V4_MIGRATION_LOOKBACK_DAYS} days.
+          {V4_MIGRATION_LOOKBACK_DAYS} days. This check refreshes about every 15
+          minutes.
         </p>
       )}
     </Section>
@@ -1437,7 +1439,9 @@ export function V4MigrationDetailsContent({
         </div>
         <p className="text-muted-foreground text-sm">
           SDK, instrumentation, experiment, and API checks cover activity from
-          the last {V4_MIGRATION_LOOKBACK_DAYS} days.
+          the last {V4_MIGRATION_LOOKBACK_DAYS} days. API and experiment usage
+          counts refresh about every 15 minutes, so recent calls may not appear
+          yet.
         </p>
         <div>
           <V4MigrationSdkSection
