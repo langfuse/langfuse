@@ -1,9 +1,13 @@
 import type {
+  JsonObject,
+  JsonValue,
   NormalizedIO,
   NormalizedMessage,
   NormalizedMessagePart,
+  NormalizedMessageRole,
   ObservationIOParser,
   SpanIO,
+  ToolCallPart,
   ToolDefinition,
 } from "./types";
 
@@ -28,6 +32,36 @@ type NormalizedIOAccumulator = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toJsonValue(value: unknown): JsonValue {
+  if (value === null) return null;
+  if (typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : String(value);
+  }
+  if (typeof value === "bigint") return value.toString();
+  if (Array.isArray(value)) return value.map(toJsonValue);
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        toJsonValue(nestedValue),
+      ]),
+    );
+  }
+
+  // Telemetry values should already be JSON-compatible. Preserve an explicit
+  // fallback instead of dropping an unexpected value from the custom part.
+  return value === undefined ? null : String(value);
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function nullableString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 /** Parse one JSON-string boundary. Nested values are parsed only by their owner. */
@@ -149,7 +183,7 @@ function addToolDefinition(
   };
 }
 
-function normalizeToolCall(value: unknown): NormalizedMessagePart | null {
+function normalizeToolCall(value: unknown): ToolCallPart | null {
   if (!isRecord(value)) return null;
 
   const functionCall = asRecord(value.function);
@@ -165,10 +199,13 @@ function normalizeToolCall(value: unknown): NormalizedMessagePart | null {
 
   return {
     type: "tool-call",
-    toolCallId: value.toolCallId ?? value.call_id ?? value.id ?? "",
+    toolCallId: nullableString(value.toolCallId ?? value.call_id ?? value.id),
     toolName,
-    input: parseIfString(rawInput),
+    input: toJsonValue(parseIfString(rawInput)),
     ...(typeof value.index === "number" ? { index: value.index } : {}),
+    ...(typeof value.providerExecuted === "boolean"
+      ? { providerExecuted: value.providerExecuted }
+      : {}),
   };
 }
 
@@ -190,10 +227,13 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
   if (functionResponse) {
     return {
       type: "tool-result",
-      toolCallId:
-        functionResponse.id ?? functionResponse.name ?? value.id ?? "",
-      output: parseIfString(
-        functionResponse.response ?? functionResponse.output ?? null,
+      toolCallId: nullableString(
+        functionResponse.id ?? functionResponse.name ?? value.id,
+      ),
+      output: toJsonValue(
+        parseIfString(
+          functionResponse.response ?? functionResponse.output ?? null,
+        ),
       ),
     };
   }
@@ -205,21 +245,22 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
       if (value.thought === true) {
         return {
           type: "reasoning",
-          text: value.text ?? value.content ?? "",
+          text: optionalString(value.text ?? value.content) ?? "",
         };
       }
       return {
         type: "text",
-        text: value.text ?? value.content ?? "",
+        text: optionalString(value.text ?? value.content) ?? "",
       };
     case "reasoning":
     case "thinking":
-    case "summary_text":
-      return {
-        type: "reasoning",
-        text:
-          value.text ?? value.content ?? value.thinking ?? value.summary ?? "",
-      };
+    case "summary_text": {
+      const reasoning =
+        value.text ?? value.content ?? value.thinking ?? value.summary;
+      return typeof reasoning === "string"
+        ? { type: "reasoning", text: reasoning }
+        : { type: "reasoning", data: toJsonValue(reasoning) };
+    }
     case "tool_call":
     case "tool-call":
     case "tool_use":
@@ -230,31 +271,45 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     case "tool_result":
       return {
         type: "tool-result",
-        toolCallId: value.toolCallId ?? value.call_id ?? value.id ?? "",
-        output: parseIfString(
-          value.output ??
-            value.response ??
-            value.result ??
-            value.content ??
-            null,
+        toolCallId: nullableString(
+          value.toolCallId ?? value.call_id ?? value.id,
+        ),
+        output: toJsonValue(
+          parseIfString(
+            value.output ??
+              value.response ??
+              value.result ??
+              value.content ??
+              null,
+          ),
         ),
       };
     default:
       if (typeof value.type !== "string") {
-        return { type: "json", value };
+        return { type: "data", value: toJsonValue(value) };
       }
-      return { ...value, type: value.type };
+      return {
+        type: "custom",
+        kind: value.type,
+        value: toJsonValue(value),
+      };
   }
 }
 
-function normalizeRole(message: Record<string, unknown>): string | undefined {
+function normalizeRole(
+  message: Record<string, unknown>,
+): NormalizedMessageRole | undefined {
   const rawRole = message.role ?? message.author;
   if (typeof rawRole === "string") {
     const role = rawRole.toLowerCase();
-    return role === "model" ? "assistant" : role;
+    if (role === "model") return "assistant";
+    if (["system", "developer", "user", "assistant", "tool"].includes(role)) {
+      return role as NormalizedMessageRole;
+    }
+    return "unknown";
   }
 
-  const roleByType: Record<string, string> = {
+  const roleByType: Record<string, NormalizedMessageRole> = {
     human: "user",
     ai: "assistant",
     tool: "tool",
@@ -323,8 +378,8 @@ function normalizeMessage(
   if (role === "tool" && value.tool_call_id) {
     parts.push({
       type: "tool-result",
-      toolCallId: value.tool_call_id,
-      output: parseIfString(value.content ?? null),
+      toolCallId: nullableString(value.tool_call_id),
+      output: toJsonValue(parseIfString(value.content ?? null)),
     });
   } else {
     const rawParts = Array.isArray(value.parts)
@@ -369,7 +424,15 @@ function normalizeMessage(
     appendParts(parts, reasoningValues);
   }
 
-  return parts.length > 0 ? { role, parts, source } : null;
+  return parts.length > 0
+    ? {
+        ...(optionalString(value.id) ? { id: String(value.id) } : {}),
+        ...(optionalString(value.name) ? { name: String(value.name) } : {}),
+        role,
+        parts,
+        source,
+      }
+    : null;
 }
 
 function isMessageLike(value: Record<string, unknown>): boolean {
@@ -553,7 +616,7 @@ function collectMessages(
 function getProviderMetadata(
   wrapper: Record<string, unknown>,
   definition: Record<string, unknown>,
-): Record<string, unknown> | undefined {
+): JsonObject | undefined {
   const excluded = new Set([
     "name",
     "description",
@@ -571,9 +634,9 @@ function getProviderMetadata(
     ),
   );
   const explicit = asRecord(wrapper.providerMetadata);
-  const providerMetadata = { ...inferred, ...explicit };
+  const providerMetadata = toJsonValue({ ...inferred, ...explicit });
 
-  return Object.keys(providerMetadata).length > 0
+  return isRecord(providerMetadata) && Object.keys(providerMetadata).length > 0
     ? providerMetadata
     : undefined;
 }
@@ -604,7 +667,10 @@ function normalizeToolDefinition(
     name: rawName,
     description:
       typeof rawDescription === "string" ? rawDescription : undefined,
-    inputSchema: parseIfString(rawInputSchema),
+    inputSchema:
+      rawInputSchema === undefined
+        ? undefined
+        : toJsonValue(parseIfString(rawInputSchema)),
     type: typeof value.type === "string" ? value.type : undefined,
     providerMetadata: getProviderMetadata(value, functionDefinition),
   };

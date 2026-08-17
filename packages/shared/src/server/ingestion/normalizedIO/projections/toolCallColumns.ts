@@ -1,39 +1,17 @@
-import type { NormalizedIO, NormalizedMessagePart } from "../types";
-
-type ToolCallPart = NormalizedMessagePart & {
-  type: "tool-call";
-  toolCallId: string;
-  toolName: string;
-  input: unknown;
-  index?: number;
-};
-
-function isToolCallPart(part: NormalizedMessagePart): part is ToolCallPart {
-  return (
-    part.type === "tool-call" &&
-    typeof part.toolCallId === "string" &&
-    typeof part.toolName === "string"
-  );
-}
+import type { NormalizedIO, ToolColumns } from "../types";
 
 /**
  * NormalizedIO -> ClickHouse tool-call columns. Shape matches
  * extractToolsBackend.ts's convertCallsToArrays/convertDefinitionsToMap
  * exactly, since this projection is meant to eventually replace that path.
  *
- * Not a drop-in replacement yet: dedup semantics differ (this projection
- * inherits the parser's dedup-by-toolCallId, extractToolsBackend.ts dedups
- * by `id || "${name}-${arguments}"`) — see open question Q2 in the
- * LFE-14998 interface plan. A regression test comparing both paths over real
- * fixtures is required before either path is cut over.
+ * TODO: align dedup with extractToolsBackend (it dedups by
+ * `id || "${name}-${arguments}"`; the parser dedups by toolCallId) before
+ * replacing that path.
  */
-export function toToolCallColumns(io: NormalizedIO): {
-  toolCalls: string[];
-  toolCallNames: string[];
-  toolDefinitions: Record<string, string>;
-} {
-  const toolCalls: string[] = [];
-  const toolCallNames: string[] = [];
+export function toToolColumns(io: NormalizedIO): ToolColumns {
+  const tool_calls: string[] = [];
+  const tool_call_names: string[] = [];
 
   // Calls only ever come from the output side: a tool-call part on an
   // input-tagged message is history from an earlier turn (already resolved),
@@ -42,12 +20,12 @@ export function toToolCallColumns(io: NormalizedIO): {
     if (message.source !== "output") continue;
 
     for (const part of message.parts) {
-      if (!isToolCallPart(part)) continue;
+      if (part.type !== "tool-call") continue;
 
-      toolCallNames.push(part.toolName);
-      toolCalls.push(
+      tool_call_names.push(part.toolName);
+      tool_calls.push(
         JSON.stringify({
-          id: part.toolCallId,
+          id: part.toolCallId ?? "",
           arguments: JSON.stringify(part.input ?? {}),
           type: "",
           index: part.index ?? 0,
@@ -56,9 +34,9 @@ export function toToolCallColumns(io: NormalizedIO): {
     }
   }
 
-  const toolDefinitions: Record<string, string> = {};
+  const tool_definitions: Record<string, string> = {};
   for (const definition of io.toolDefinitions) {
-    toolDefinitions[definition.name] = JSON.stringify({
+    tool_definitions[definition.name] = JSON.stringify({
       description: definition.description ?? "",
       parameters:
         definition.inputSchema !== undefined
@@ -67,5 +45,5 @@ export function toToolCallColumns(io: NormalizedIO): {
     });
   }
 
-  return { toolCalls, toolCallNames, toolDefinitions };
+  return { tool_definitions, tool_calls, tool_call_names };
 }

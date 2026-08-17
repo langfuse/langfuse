@@ -2,35 +2,15 @@ import type {
   ObservationForEval,
   ToolCallForEval,
 } from "../../../../features/evals/observationForEval";
-import type {
-  NormalizedIO,
-  NormalizedMessage,
-  NormalizedMessagePart,
-  ToolDefinition,
-} from "../types";
-
-type ToolCallPart = NormalizedMessagePart & {
-  type: "tool-call";
-  toolCallId: string;
-  toolName: string;
-  input: unknown;
-  index?: number;
-};
-
-function isToolCallPart(part: NormalizedMessagePart): part is ToolCallPart {
-  return (
-    part.type === "tool-call" &&
-    typeof part.toolCallId === "string" &&
-    typeof part.toolName === "string"
-  );
-}
+import type { NormalizedIO, NormalizedMessage, ToolDefinition } from "../types";
 
 /**
  * The 6 fields on ObservationForEval that the parser actually computes.
  * Everything else (identifiers, usage/cost, experiment fields, ...) is
  * unrelated to message/tool-call parsing and passes through from the
- * ClickHouse record unchanged — see the field table in the LFE-14998
- * interface plan (Q3).
+ * ClickHouse record unchanged.
+ *
+ * TODO: shape still being tightened; not consumed by any production path yet.
  */
 export type NormalizedEvalRecord = Omit<
   ObservationForEval,
@@ -57,6 +37,15 @@ export function toEvalRecord(
   io: NormalizedIO,
   record: ObservationForEval,
 ): NormalizedEvalRecord {
+  const {
+    input: _rawInput,
+    output: _rawOutput,
+    tool_definitions: _rawToolDefinitions,
+    tool_calls: _rawToolCalls,
+    tool_call_names: _rawToolCallNames,
+    tool_call_count: _rawToolCallCount,
+    ...passthrough
+  } = record;
   const toolCalls: ToolCallForEval[] = [];
   const input: NormalizedMessage[] = [];
   const output: NormalizedMessage[] = [];
@@ -74,10 +63,10 @@ export function toEvalRecord(
     if (message.source !== "output") continue;
 
     for (const part of message.parts) {
-      if (!isToolCallPart(part)) continue;
+      if (part.type !== "tool-call") continue;
 
       toolCalls.push({
-        id: part.toolCallId,
+        id: part.toolCallId ?? "",
         name: part.toolName,
         arguments: part.input ?? {},
         type: "",
@@ -87,7 +76,7 @@ export function toEvalRecord(
   }
 
   return {
-    ...record,
+    ...passthrough,
     input,
     output,
     toolCalls,
