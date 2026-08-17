@@ -598,6 +598,13 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("true"),
+    // Content larger than this is rendered as plain text instead of markdown,
+    // as react-markdown is too slow for large payloads.
+    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(150_000),
   },
 
   /**
@@ -935,6 +942,9 @@ export const env = createEnv({
     // Playground
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT:
       process.env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT,
+    // Markdown rendering
+    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
+      process.env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,

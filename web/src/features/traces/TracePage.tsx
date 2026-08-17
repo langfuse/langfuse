@@ -12,8 +12,6 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useEffect } from "react";
 
 export function TracePage({
   traceId,
@@ -37,16 +35,6 @@ export function TracePage({
   const hasProjectAccess = useIsAuthenticatedAndProjectMember(
     projectIdForAccessCheck,
   );
-
-  useEffect(() => {
-    if (trace.cutoffObservationsAfterMaxCount) {
-      showErrorToast(
-        "Trace truncated",
-        "This trace has too many observations for the detail view. Only a subset is shown.",
-        "WARNING",
-      );
-    }
-  }, [trace.cutoffObservationsAfterMaxCount]);
 
   if (trace.isUnauthorized)
     return <ErrorPage message="You do not have access to this trace." />;
@@ -146,7 +134,6 @@ export function TracePage({
             <TraceDetailActions
               traceId={trace.data.id}
               projectId={trace.data.projectId}
-              bookmarked={trace.data.bookmarked}
               isPublic={trace.data.public}
               name={trace.data.name}
               timestamp={timestamp}
@@ -155,13 +142,12 @@ export function TracePage({
           </>
         ),
         // Mobile compact header: the same trace actions as full-width labeled
-        // menu rows (Bookmark / Share / Delete) for the `⋯` overflow, instead
-        // of the inline icon toolbar. Trace-to-trace nav is desktop-only.
+        // menu rows (Share / Delete) for the `⋯` overflow, instead of the
+        // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
           <TraceDetailActions
             traceId={trace.data.id}
             projectId={trace.data.projectId}
-            bookmarked={trace.data.bookmarked}
             isPublic={trace.data.public}
             name={trace.data.name}
             timestamp={timestamp}
@@ -175,6 +161,7 @@ export function TracePage({
         <TraceDetailBody
           trace={trace.data}
           context={router.query.peek !== undefined ? "peek" : "fullscreen"}
+          truncatedAtObservations={trace.truncatedAtObservations}
         />
       </div>
     </Page>

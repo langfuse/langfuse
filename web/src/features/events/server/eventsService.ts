@@ -11,6 +11,7 @@ import {
   getCategoricalScoresGroupedByName,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
+  getEventsMetadataValues,
   getEventsNumericStatsByFilterColumn,
   getNumericScoresGroupedByName,
   getBooleanScoresGroupedByName,
@@ -121,6 +122,7 @@ interface GetEventFilterOptionsParams extends GetObservationsFilterOptionsParams
 type EventFilterValueOption = {
   value: string;
   count?: number;
+  displayValue?: string;
 };
 
 // Subset of event filter option columns returned by the bulk filter-options response.
@@ -139,12 +141,16 @@ const EVENT_FILTER_OPTION_COLUMNS = [
   "level",
   "environment",
   "ingestionApiKey",
+  "ingestionSdkName",
+  "ingestionSdkVersion",
+  "ingestionSource",
   "experimentDatasetId",
   "experimentId",
   "experimentName",
   "isRootObservation",
   "toolNames",
   "calledToolNames",
+  "metadataKeys",
 ] as const satisfies readonly EventFilterOptionColumn[];
 
 const EVENT_SCORE_FILTER_OPTION_COLUMNS = [
@@ -403,7 +409,13 @@ const toFilterValueOptions = (
 ): EventFilterValueOption[] =>
   items
     .filter((item) => item.column === column)
-    .map((item) => ({ value: item.value, count: item.count }));
+    .map((item) => ({
+      value: item.value,
+      count: item.count,
+      ...(item.displayValue && item.displayValue.length > 0
+        ? { displayValue: item.displayValue }
+        : {}),
+    }));
 
 const EVENT_FILTER_VALUE_ONLY_COLUMNS = new Set<EventFilterOptionColumn>([
   "traceTags",
@@ -832,6 +844,23 @@ export async function getEventFilterOptions(
         }
       : {}),
   };
+}
+
+/** getEventMetadataValues returns the most common values observed for one metadata key. */
+export async function getEventMetadataValues(
+  params: GetObservationsFilterOptionsParams & { key: string },
+): Promise<EventFilterValueOption[]> {
+  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const { projectId, key } = scopedParams;
+  const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
+
+  const rows = await getEventsMetadataValues({
+    projectId,
+    filter: eventsFilter,
+    key,
+  });
+
+  return rows.map((row) => ({ value: row.value, count: row.count }));
 }
 
 interface GetEventBatchIOParams<

@@ -7,7 +7,10 @@ import {
 import { Prisma } from "../../db";
 import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
-import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
+import {
+  buildInAppAgentApprovalDecisionEvent,
+  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
+} from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
 import type { InAppAgentPrefixedLangfuseMcpToolName } from "./tools";
 import {
@@ -216,7 +219,13 @@ export async function decideToolApproval(params: {
         projectId: params.projectId,
         conversationId: params.conversationId,
       },
-      select: { status: true, finishedAt: true, request: true },
+      select: {
+        status: true,
+        finishedAt: true,
+        claimedAt: true,
+        createdAt: true,
+        request: true,
+      },
     });
 
     if (
@@ -268,6 +277,21 @@ export async function decideToolApproval(params: {
     const parentRequest = InAppAgentRunRequestSchema.safeParse(
       parentRun.request,
     );
+    // Preserve tracing lineage across durable approval continuation runs.
+    const continuationNumber =
+      parentRequest.success && parentRequest.data.kind === "approvalDecision"
+        ? (parentRequest.data.continuationNumber ?? 1) + 1
+        : 1;
+    const rootRunId =
+      parentRequest.success && parentRequest.data.kind === "approvalDecision"
+        ? (parentRequest.data.rootRunId ?? params.parentRunId)
+        : params.parentRunId;
+    const traceStartedAt =
+      parentRequest.success &&
+      parentRequest.data.kind === "approvalDecision" &&
+      parentRequest.data.traceStartedAt
+        ? parentRequest.data.traceStartedAt
+        : (parentRun.claimedAt ?? parentRun.createdAt).toISOString();
 
     // Persist the grant in the same transaction as the exactly-once decision CAS.
     if (params.alwaysAllowToolName) {
@@ -322,6 +346,12 @@ export async function decideToolApproval(params: {
         request: {
           kind: "approvalDecision",
           parentRunId: params.parentRunId,
+          rootRunId,
+          traceStartedAt,
+          ...(parentRun.finishedAt
+            ? { approvalRequestedAt: parentRun.finishedAt.toISOString() }
+            : {}),
+          continuationNumber,
           toolCallId: params.toolCallId,
           approved: params.approved,
           context: parentRequest.success ? parentRequest.data.context : [],
@@ -355,13 +385,7 @@ export async function cancelConversationRunsInTransaction(params: {
       projectId: params.projectId,
       conversationId: params.conversationId,
       // Parked approvals have finishedAt set but remain unsettled.
-      status: {
-        in: [
-          InAppAgentRunStatus.QUEUED,
-          InAppAgentRunStatus.RUNNING,
-          InAppAgentRunStatus.AWAITING_APPROVAL,
-        ],
-      },
+      status: { in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES] },
     },
     select: { id: true, status: true },
   });
@@ -541,11 +565,7 @@ async function reconcileConversationRunsInTransaction(params: {
       projectId,
       conversationId,
       status: {
-        in: [
-          InAppAgentRunStatus.QUEUED,
-          InAppAgentRunStatus.RUNNING,
-          InAppAgentRunStatus.AWAITING_APPROVAL,
-        ],
+        in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES],
       },
     },
     select: {
@@ -592,7 +612,16 @@ async function reconcileConversationRunsInTransaction(params: {
   return reconciled;
 }
 
-function classifyStaleRun(
+/**
+ * Decide whether a non-terminal run has already missed every deadline that
+ * should have failed it. Pure: callers choose whether to act on the verdict.
+ *
+ * Reconciliation writes the verdict; read paths that only need to render a run
+ * may apply it without writing, so a dead worker does not leave a conversation
+ * spinning until someone opens it (`reconcileConversationRuns` is the only
+ * authority that persists the transition).
+ */
+export function classifyStaleRun(
   run: {
     status: string | null;
     createdAt: Date;

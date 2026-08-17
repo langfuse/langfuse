@@ -95,3 +95,23 @@ export function isActiveInAppAgentRunStatus(
 ): boolean {
   return IN_APP_AGENT_ACTIVE_RUN_STATUSES.includes(status);
 }
+
+/**
+ * Runs the user still has to deal with: executing, or parked on their decision.
+ *
+ * Wider than {@link IN_APP_AGENT_ACTIVE_RUN_STATUSES} on purpose. A parked
+ * approval sets `finishedAt`, so `finishedAt: null` finds executing runs but
+ * silently misses the one state that is literally waiting for the user.
+ */
+export const IN_APP_AGENT_UNSETTLED_RUN_STATUSES: readonly InAppAgentRunStatus[] =
+  [
+    InAppAgentRunStatus.QUEUED,
+    InAppAgentRunStatus.RUNNING,
+    InAppAgentRunStatus.AWAITING_APPROVAL,
+  ];
+
+export function isUnsettledInAppAgentRunStatus(
+  status: InAppAgentRunStatus,
+): boolean {
+  return IN_APP_AGENT_UNSETTLED_RUN_STATUSES.includes(status);
+}

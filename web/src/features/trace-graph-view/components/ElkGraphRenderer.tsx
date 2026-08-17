@@ -16,12 +16,13 @@ import {
 import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import { reportError } from "@/src/utils/reportError";
 import { type GraphCanvasData, type GraphNodeData } from "../types";
 import {
-  computeGraphLayout,
   type GraphLayout,
   type GraphLayoutDirection,
 } from "../layout/elkLayout";
+import { requestGraphLayout } from "../layout/graphLayoutWorkerClient";
 import { GraphNode } from "./GraphNode";
 
 type ElkGraphRendererProps = {
@@ -56,6 +57,7 @@ const ZOOM_STEP = 1.4;
 // Below this scale labels are unreadable noise — show only node shape + icon.
 const LABEL_HIDE_SCALE = 0.5;
 const CLICK_MOVE_THRESHOLD = 4; // px; beyond this a pointerup is a drag, not a click
+const SLOW_LAYOUT_HINT_MS = 4_000;
 
 function toPath(points: { x: number; y: number }[]): string {
   return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
@@ -117,6 +119,10 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   const [layout, setLayout] = useState<GraphLayout | null>(null);
   const [layoutError, setLayoutError] = useState(false);
   const [layoutAttempt, setLayoutAttempt] = useState(0);
+  // A layout past this point is a big graph (most finish in well under a second):
+  // say so, and say the rest of the view is still usable — the whole point of
+  // laying out off the main thread.
+  const [slowLayout, setSlowLayout] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
   // Discrete zoom derivation: labels hide below LABEL_HIDE_SCALE.
   const [compact, setCompact] = useState(false);
@@ -149,26 +155,46 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     return map;
   }, [nodeToObservationsMap, currentObservationIndices]);
 
-  // Compute layout via ELK whenever the graph changes (or a retry is asked).
+  // Lay the graph out in the layout worker whenever the graph changes (or a retry
+  // is asked). The two guards do different jobs: `abort` stops the worker's
+  // now-pointless run, `cancelled` keeps a late result from landing on a newer
+  // graph.
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     setLayout(null);
     setLayoutError(false);
     setFitted(false);
+    setSlowLayout(false);
+    const slowTimer = setTimeout(
+      () => setSlowLayout(true),
+      SLOW_LAYOUT_HINT_MS,
+    );
     // A new graph gets a fresh fit; stale hover highlighting drops too.
     overrideRef.current = null;
     setHoveredId(null);
-    computeGraphLayout(graph, nodeToObservationsMap, layoutDirection)
+    requestGraphLayout(
+      graph,
+      nodeToObservationsMap,
+      layoutDirection,
+      controller.signal,
+    )
       .then((result) => {
+        clearTimeout(slowTimer); // a landed layout is not a slow one
         if (!cancelled) setLayout(result);
       })
       .catch((error) => {
-        console.error("Graph layout failed:", error);
-        // Guarded so a superseded effect's rejection can't stomp newer state.
-        if (!cancelled) setLayoutError(true);
+        clearTimeout(slowTimer);
+        if (cancelled) return; // superseded — the rejection IS the cancellation
+        // No warnMessage: the console line must carry ELK's own reason (e.g.
+        // "too much recursion"), which is the whole diagnostic.
+        reportError(error, { area: "trace-graph-layout" });
+        setLayoutError(true);
       });
     return () => {
       cancelled = true;
+      clearTimeout(slowTimer);
+      controller.abort();
     };
   }, [graph, nodeToObservationsMap, layoutDirection, layoutAttempt]);
 
@@ -333,20 +359,31 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       ref={containerRef}
       role="group"
       aria-label="Trace agent graph"
-      className="bg-background/50 relative h-full w-full cursor-grab overflow-hidden active:cursor-grabbing"
+      // `touch-none`: d3-zoom owns pan and pinch here. Without it WebKit zooms
+      // the page instead, since `preventDefault` cannot cancel its pinch.
+      className="bg-background/50 relative h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
       onPointerDown={(e) =>
         (pointerDownPos.current = { x: e.clientX, y: e.clientY })
       }
       onClick={handleBackgroundClick}
     >
       {!layout && !layoutError && (
-        <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-sm">
-          Laying out graph…
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
+          <span>Laying out graph…</span>
+          {slowLayout && (
+            <span>
+              This is a large graph — the tree and timeline stay usable while it
+              finishes.
+            </span>
+          )}
         </div>
       )}
       {layoutError && (
-        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm">
-          <span>Could not lay out the graph.</span>
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-sm">
+          <span>
+            Could not lay out the graph. Try the tree or timeline view to
+            explore this trace.
+          </span>
           <Button
             variant="outline"
             size="sm"
@@ -360,8 +397,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
         </div>
       )}
       {layout?.tooLarge && (
-        // Budget exceeded: ELK was skipped rather than freeze the tab. No retry
-        // — it would just wedge again. Point the user at the tree/timeline.
+        // No layout: over the count ceiling, or the worker ran past its deadline
+        // and was killed. No retry — it would end the same way. Point the user at
+        // the tree/timeline instead.
         <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
           <span>
             This graph is too large to lay out
@@ -372,21 +410,23 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           </span>
           <span>
             Try the{" "}
-            {onShowExpanded ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation(); // don't treat as a canvas deselect
-                  onShowExpanded();
-                }}
-                className="text-primary underline underline-offset-2 hover:opacity-80"
-              >
-                expanded graph
-              </button>
-            ) : (
-              "expanded graph"
+            {/* The expanded graph is an alternative only from another view. */}
+            {onShowExpanded && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation(); // don't treat as a canvas deselect
+                    onShowExpanded();
+                  }}
+                  className="text-primary underline underline-offset-2 hover:opacity-80"
+                >
+                  expanded graph
+                </button>
+                ,{" "}
+              </>
             )}
-            , tree, or timeline view to explore this trace.
+            tree or timeline view to explore this trace.
           </span>
         </div>
       )}

@@ -47,7 +47,6 @@ export const TablePeekViewTraceDetail = (
     ? {
         traceId: trace.data.id,
         projectId: trace.data.projectId,
-        bookmarked: trace.data.bookmarked,
         isPublic: trace.data.public,
         shareUrl: buildTraceDetailPath({
           projectId: trace.data.projectId,
@@ -77,7 +76,11 @@ export const TablePeekViewTraceDetail = (
         ) : undefined
       }
     >
-      <TraceDetailBody trace={trace.data} context="peek" />
+      <TraceDetailBody
+        trace={trace.data}
+        context="peek"
+        truncatedAtObservations={trace.truncatedAtObservations}
+      />
     </TablePeekView>
   );
 };

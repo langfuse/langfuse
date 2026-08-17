@@ -27,6 +27,25 @@ describe("traceLevelScoreOwnerIds", () => {
     ]).toEqual(["root", "orphan"]);
   });
 
+  it("does not hand ownership to a row that only LOOKS top-level", () => {
+    // An observation merged in from outside the loaded list, whose parent is
+    // missing too, sits among the roots without being one. In v4 (no TRACE row)
+    // the roots stand in for the trace, so leaving it in would give it the
+    // trace's scores and root-only chrome.
+    const rootsWithImpostor = roots(
+      { id: "root", type: "SPAN" },
+      { id: "detached", type: "SPAN" },
+    );
+
+    expect([...traceLevelScoreOwnerIds(rootsWithImpostor, "detached")]).toEqual(
+      ["root"],
+    );
+    // A genuine root that merely fell past the cap keeps root semantics.
+    expect(
+      traceLevelScoreOwnerIds(rootsWithImpostor, null).has("detached"),
+    ).toBe(true);
+  });
+
   it("is input-sensitive: level-filtered roots would hand ownership to a promoted child", () => {
     // A level filter that hides "root" promotes "child" to the top of the
     // rendered tree. Ownership must come from the structural roots, or a

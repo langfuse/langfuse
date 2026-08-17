@@ -79,8 +79,16 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("approvalDecision"),
-    /** Provenance for debugging only; no code path queries lineage. */
+    /** Immediate parent run used to derive durable approval-chain lineage. */
     parentRunId: z.string(),
+    /** Original user-message run whose trace owns the complete approval chain. */
+    rootRunId: z.string().optional(),
+    /** Stable root trace timestamp propagated across durable continuations. */
+    traceStartedAt: z.iso.datetime({ offset: true }).optional(),
+    /** Time at which the parent run parked and began waiting for approval. */
+    approvalRequestedAt: z.iso.datetime({ offset: true }).optional(),
+    /** One-based position in the current user turn's approval continuation chain. */
+    continuationNumber: z.number().int().positive().optional(),
     toolCallId: z.string(),
     approved: z.boolean(),
     /** Inherited sanitized context; defaults for legacy continuation rows. */

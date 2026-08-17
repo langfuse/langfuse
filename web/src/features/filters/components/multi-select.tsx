@@ -25,6 +25,9 @@ import { Input } from "@/src/components/ui/input";
 import { useRef, useState, useMemo, useCallback } from "react";
 import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 
+/** compactSelectAllLimit is the most options a compact select shows Select All for. */
+const compactSelectAllLimit = 100;
+
 const getFreeTextInput = (
   isCustomSelectEnabled: boolean,
   values: string[],
@@ -44,6 +47,7 @@ export function MultiSelect({
   disabled,
   isCustomSelectEnabled = false,
   labelTruncateCutOff = 2,
+  chipsOnly = false,
 }: {
   title?: string;
   label?: string;
@@ -54,6 +58,8 @@ export function MultiSelect({
   disabled?: boolean;
   isCustomSelectEnabled?: boolean;
   labelTruncateCutOff?: number;
+  /** chipsOnly hides the placeholder/separator once values are selected, showing just the chips and chevron. */
+  chipsOnly?: boolean;
 }) {
   const selectedValues = useMemo(() => new Set(values), [values]);
   const optionValues = new Set(options.map((option) => option.value));
@@ -78,6 +84,10 @@ export function MultiSelect({
     () => mergedOptions.filter((option) => option.value.length > 0),
     [mergedOptions],
   );
+
+  const showSelectAll =
+    selectableOptions.length > 0 &&
+    !(chipsOnly && selectableOptions.length > compactSelectAllLimit);
 
   const allSelectedState = useMemo(() => {
     if (selectableOptions.length === 0) return false;
@@ -135,6 +145,33 @@ export function MultiSelect({
     return [...selectedOptions, ...customOption];
   }
 
+  const selectedBadges =
+    selectedValues.size > labelTruncateCutOff ? (
+      <Badge variant="secondary" className="rounded-sm px-1 font-normal">
+        {selectedValues.size} selected
+      </Badge>
+    ) : (
+      getSelectedOptions().map((option) => {
+        const displayValue =
+          option.displayValue ??
+          (option.value === "" ? "(empty)" : option.value);
+        return (
+          <Badge
+            variant="secondary"
+            key={option.value}
+            className={cn(
+              "min-w-0 rounded-sm px-1 font-normal",
+              option.value === "" && "italic",
+            )}
+          >
+            <span className="truncate" title={displayValue}>
+              {displayValue}
+            </span>
+          </Badge>
+        );
+      })
+    );
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -148,47 +185,31 @@ export function MultiSelect({
           )}
           disabled={disabled}
         >
-          {label ?? "Select"}
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-          {selectedValues.size > 0 && (
+          {chipsOnly && selectedValues.size > 0 ? (
             <>
-              <Separator orientation="vertical" className="mr-auto h-4" />
-              <Badge
-                variant="secondary"
-                className="rounded-sm px-1 font-normal lg:hidden"
-              >
-                {selectedValues.size}
-              </Badge>
-              <div className="hidden min-w-0 space-x-1 overflow-hidden lg:flex">
-                {selectedValues.size > labelTruncateCutOff ? (
+              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                {selectedBadges}
+              </div>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            </>
+          ) : (
+            <>
+              {label ?? "Select"}
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              {selectedValues.size > 0 && (
+                <>
+                  <Separator orientation="vertical" className="mr-auto h-4" />
                   <Badge
                     variant="secondary"
-                    className="rounded-sm px-1 font-normal"
+                    className="rounded-sm px-1 font-normal lg:hidden"
                   >
-                    {selectedValues.size} selected
+                    {selectedValues.size}
                   </Badge>
-                ) : (
-                  getSelectedOptions().map((option) => {
-                    const displayValue =
-                      option.displayValue ??
-                      (option.value === "" ? "(empty)" : option.value);
-                    return (
-                      <Badge
-                        variant="secondary"
-                        key={option.value}
-                        className={cn(
-                          "min-w-0 rounded-sm px-1 font-normal",
-                          option.value === "" && "italic",
-                        )}
-                      >
-                        <span className="truncate" title={displayValue}>
-                          {displayValue}
-                        </span>
-                      </Badge>
-                    );
-                  })
-                )}
-              </div>
+                  <div className="hidden min-w-0 space-x-1 overflow-hidden lg:flex">
+                    {selectedBadges}
+                  </div>
+                </>
+              )}
             </>
           )}
         </Button>
@@ -202,7 +223,7 @@ export function MultiSelect({
               <InputCommandEmpty>No results found.</InputCommandEmpty>
             )}
             <InputCommandGroup>
-              {selectableOptions.length > 0 && (
+              {showSelectAll && (
                 <>
                   <InputCommandItem key="select-all" onSelect={handleSelectAll}>
                     <div

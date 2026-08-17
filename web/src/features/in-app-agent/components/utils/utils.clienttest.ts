@@ -1,7 +1,18 @@
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+} from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
+  IN_APP_AGENT_SANDBOX_TOOL_NAMES,
+} from "@langfuse/shared/in-app-agent/server/tools";
+import {
   extractLangfuseDocsSources,
   getInAppAgentToolDisplayName,
+  getInAppAgentActivityProgressLabel,
+  getInAppAgentToolProgressLabel,
+  getInAppAgentToolProgressLabelResolution,
   getDrawerMessages,
   getInAppAgentError,
   isInAppAgentRateLimited,
@@ -16,6 +27,171 @@ describe("getInAppAgentToolDisplayName", () => {
     ["read", "read"],
   ])("strips a display-only namespace from %s", (toolName, expected) => {
     expect(getInAppAgentToolDisplayName(toolName)).toBe(expected);
+  });
+});
+
+const KNOWN_IN_APP_AGENT_PROGRESS_TOOLS = [
+  ...[...IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES].map(
+    (toolName) => `langfuse_${toolName}`,
+  ),
+  ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  "langfuseDocs_search",
+  "langfuseDocs_fetch",
+  "skill",
+];
+
+// Auto-parsed headlines that a human has reviewed. Add a new tool here only
+// after reading the suggested label in the failure output. Prefer an override
+// in utils.ts when the auto label is wrong.
+const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
+  langfuse_createAnnotationQueue: "Creating annotation queue",
+  langfuse_createComment: "Creating comment",
+  langfuse_createDashboard: "Creating dashboard",
+  langfuse_createDatasetRunItem: "Creating dataset run item",
+  langfuse_createEvaluationRule: "Creating evaluation rule",
+  langfuse_createModel: "Creating model",
+  langfuse_createScore: "Creating score",
+  langfuse_createScoreConfig: "Creating score config",
+  langfuse_deleteAnnotationQueueItem: "Deleting annotation queue item",
+  langfuse_deleteDashboard: "Deleting dashboard",
+  langfuse_deleteDatasetItem: "Deleting dataset item",
+  langfuse_deleteDatasetRun: "Deleting dataset run",
+  langfuse_deleteEvaluationRule: "Deleting evaluation rule",
+  langfuse_deleteEvaluator: "Deleting evaluator",
+  langfuse_deleteModel: "Deleting model",
+  langfuse_deleteScoreConfig: "Deleting score config",
+  langfuse_getAlert: "Inspecting alert",
+  langfuse_getAnnotationQueue: "Inspecting annotation queue",
+  langfuse_getAnnotationQueueItem: "Inspecting annotation queue item",
+  langfuse_getComment: "Inspecting comment",
+  langfuse_getDashboard: "Inspecting dashboard",
+  langfuse_getDataset: "Inspecting dataset",
+  langfuse_getDatasetItem: "Inspecting dataset item",
+  langfuse_getDatasetRun: "Inspecting dataset run",
+  langfuse_getEvaluationRule: "Inspecting evaluation rule",
+  langfuse_getEvaluator: "Inspecting evaluator",
+  langfuse_getMedia: "Inspecting media",
+  langfuse_getModel: "Inspecting model",
+  langfuse_getObservation: "Inspecting observation",
+  langfuse_getPrompt: "Inspecting prompt",
+  langfuse_getScore: "Inspecting score",
+  langfuse_getScoreConfig: "Inspecting score config",
+  langfuse_listAlerts: "Browsing alerts",
+  langfuse_listAnnotationQueueItems: "Browsing annotation queue items",
+  langfuse_listAnnotationQueues: "Browsing annotation queues",
+  langfuse_listComments: "Browsing comments",
+  langfuse_listDashboards: "Browsing dashboards",
+  langfuse_listDatasetItems: "Browsing dataset items",
+  langfuse_listDatasetRunItems: "Browsing dataset run items",
+  langfuse_listDatasetRuns: "Browsing dataset runs",
+  langfuse_listDatasets: "Browsing datasets",
+  langfuse_listEvaluationRules: "Browsing evaluation rules",
+  langfuse_listEvaluators: "Browsing evaluators",
+  langfuse_listExperimentItems: "Browsing experiment items",
+  langfuse_listExperiments: "Browsing experiments",
+  langfuse_listModels: "Browsing models",
+  langfuse_listObservations: "Browsing observations",
+  langfuse_listPrompts: "Browsing prompts",
+  langfuse_listScoreConfigs: "Browsing score configs",
+  langfuse_listScores: "Browsing scores",
+  langfuse_updateAnnotationQueueItem: "Updating annotation queue item",
+  langfuse_updateDashboard: "Updating dashboard",
+  langfuse_updateEvaluationRule: "Updating evaluation rule",
+  langfuse_updateScoreConfig: "Updating score config",
+  langfuse_upsertDataset: "Saving dataset",
+  langfuse_upsertDatasetItem: "Saving dataset item",
+  langfuse_upsertEvaluator: "Saving evaluator",
+};
+
+describe("getInAppAgentToolProgressLabel", () => {
+  it("requires a reviewed headline for every known tool", () => {
+    const unresolved: string[] = [];
+    const staleAccepted: string[] = [];
+
+    for (const toolName of KNOWN_IN_APP_AGENT_PROGRESS_TOOLS) {
+      const resolution = getInAppAgentToolProgressLabelResolution(toolName);
+      const acceptedAutoLabel =
+        ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS[toolName];
+
+      if (resolution.source !== "auto") {
+        if (acceptedAutoLabel !== undefined) {
+          staleAccepted.push(
+            `${toolName} is ${resolution.source} ("${resolution.label}") but still listed as accepted auto`,
+          );
+        }
+        continue;
+      }
+
+      if (acceptedAutoLabel === undefined) {
+        unresolved.push(`${toolName} → "${resolution.label}"`);
+        continue;
+      }
+
+      if (acceptedAutoLabel !== resolution.label) {
+        unresolved.push(
+          `${toolName} auto label is now "${resolution.label}" (accepted "${acceptedAutoLabel}")`,
+        );
+      }
+    }
+
+    const extraAccepted = Object.keys(
+      ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS,
+    ).filter(
+      (toolName) => !KNOWN_IN_APP_AGENT_PROGRESS_TOOLS.includes(toolName),
+    );
+
+    expect({
+      unresolved,
+      staleAccepted,
+      extraAccepted,
+    }).toEqual({
+      unresolved: [],
+      staleAccepted: [],
+      extraAccepted: [],
+    });
+  });
+
+  it.each([
+    ["docs_search", "Reading Langfuse docs"],
+    ["skill", "Learning skill"],
+    ["customThing", "Custom Thing"],
+  ])("labels %s as %s", (toolName, expected) => {
+    expect(getInAppAgentToolProgressLabel(toolName)).toBe(expected);
+  });
+
+  it("keeps one headline for consecutive tools that share a noun", () => {
+    expect(
+      getInAppAgentActivityProgressLabel([
+        "langfuse_getObservation",
+        "langfuse_listObservations",
+      ]),
+    ).toBe("Looking at observations");
+    expect(
+      getInAppAgentActivityProgressLabel(["langfuse_listObservations"]),
+    ).toBe("Browsing observations");
+    expect(
+      getInAppAgentActivityProgressLabel([
+        "langfuseDocs_search",
+        "langfuse_listObservations",
+      ]),
+    ).toBe("Browsing observations");
+    expect(
+      getInAppAgentActivityProgressLabel([
+        "langfuse_getObservationFilterValues",
+        "langfuse_getObservationFilterValues",
+      ]),
+    ).toBe("Looking up observation filters");
+  });
+
+  it("keeps a readable headline for every known tool", () => {
+    const awkward = /Looking at up\b|Propose Redirect/;
+    const labels = KNOWN_IN_APP_AGENT_PROGRESS_TOOLS.flatMap((toolName) => [
+      `${toolName} → ${getInAppAgentActivityProgressLabel([toolName])}`,
+      `${toolName}×2 → ${getInAppAgentActivityProgressLabel([toolName, toolName])}`,
+    ]);
+
+    expect(labels.filter((label) => awkward.test(label))).toEqual([]);
   });
 });
 
@@ -67,6 +243,15 @@ describe("getInAppAgentError", () => {
       type: "generic",
       message: "Assistant connection failed",
     });
+  });
+
+  it("maps a write-lock rejection to the write-lock notice", () => {
+    expect(
+      getInAppAgentError(
+        { message: IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE },
+        now,
+      ),
+    ).toEqual({ type: "write_lock" });
   });
 
   it("does not classify malformed embedded JSON as a rate limit", () => {
@@ -444,7 +629,35 @@ describe("getDrawerMessages", () => {
     expect(mappedMessages).toHaveLength(2);
   });
 
-  it("collapses consecutive reasoning messages into one thought block", () => {
+  it("forwards text timestamps and streaming state to the message renderer", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "Partial answer",
+          isLoading: true,
+          timestamp: 1_723_111_753_000,
+        },
+      ] satisfies InAppAiAgentMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "assistant-1",
+        timestamp: 1_723_111_753_000,
+        content: {
+          type: "text",
+          text: "Partial answer",
+          isStreaming: true,
+        },
+      },
+    ]);
+  });
+
+  it("keeps consecutive reasoning messages as separate thought blocks", () => {
     const mappedMessages = getDrawerMessages({
       error: null,
       isRunning: true,
@@ -483,12 +696,30 @@ describe("getDrawerMessages", () => {
         role: "assistant",
         content: {
           type: "reasoning",
-          text: "Checking recent traces before querying metrics.\n\nThe p95 spike lines up with one endpoint.",
+          text: "Checking recent traces before querying metrics.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "reasoning-2",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "The p95 spike lines up with one endpoint.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "reasoning-3",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "",
           isStreaming: true,
         },
       },
     ]);
-    expect(mappedMessages).toHaveLength(2);
+    expect(mappedMessages).toHaveLength(4);
   });
 
   it("marks reasoning complete when a run stops before assistant text arrives", () => {
@@ -583,7 +814,6 @@ describe("getDrawerMessages", () => {
         id: "tools-assistant-1",
         content: {
           type: "toolGroup",
-          isLoading: true,
         },
       },
     ]);
@@ -666,7 +896,7 @@ describe("getDrawerMessages", () => {
       },
       {
         id: "tools-assistant-1",
-        content: { type: "toolGroup", isLoading: false },
+        content: { type: "toolGroup" },
       },
       {
         id: "reasoning-2",
@@ -677,7 +907,7 @@ describe("getDrawerMessages", () => {
       },
       {
         id: "tools-assistant-2",
-        content: { type: "toolGroup", isLoading: true },
+        content: { type: "toolGroup" },
       },
     ]);
   });
@@ -743,14 +973,14 @@ describe("getDrawerMessages", () => {
       { id: "user-1" },
       {
         id: "tools-assistant-1",
-        content: { type: "toolGroup", isLoading: true },
+        content: { type: "toolGroup" },
       },
     ]);
     expect(completedMessages).toMatchObject([
       { id: "user-1" },
       {
         id: "tools-assistant-1",
-        content: { type: "toolGroup", isLoading: false },
+        content: { type: "toolGroup" },
       },
     ]);
   });
@@ -995,7 +1225,6 @@ describe("getDrawerMessages", () => {
         role: "assistant",
         content: {
           type: "toolGroup",
-          isLoading: false,
           tools: [
             {
               type: "tool",

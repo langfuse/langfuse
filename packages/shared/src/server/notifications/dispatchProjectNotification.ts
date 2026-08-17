@@ -9,6 +9,7 @@ import { QueueJobs, QueueName } from "../queues";
 import { WebhookQueue } from "../redis/webhookQueue";
 import { getAutomations } from "../repositories/automation-repository";
 import { sendBlobStorageExportFailedEmail } from "../services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
+import { sendPostHogExportFailedEmail } from "../services/email/posthogExportFailed/sendPostHogExportFailedEmail";
 import { sendEvaluatorBlockedEmail } from "../services/email/evaluatorBlocked/sendEvaluatorBlockedEmail";
 import { getProjectAdminEmails } from "../services/getProjectAdminEmails";
 import { type ProjectNotificationEvent } from "./types";
@@ -171,6 +172,16 @@ async function sendEventAdminEmails({
         env: emailEnv,
         projectName: event.projectName,
         settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/blobstorage`,
+        receiverEmails,
+        disabled: event.disabled ?? false,
+      });
+      return;
+    }
+    case "posthog-export-failed": {
+      await sendPostHogExportFailedEmail({
+        env: emailEnv,
+        projectName: event.projectName,
+        settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/posthog`,
         receiverEmails,
         disabled: event.disabled ?? false,
       });

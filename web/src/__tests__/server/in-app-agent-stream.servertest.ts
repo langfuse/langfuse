@@ -76,12 +76,31 @@ const adapterEvents = vi.hoisted(() => ({
   }),
 }));
 
+const bedrockMocks = vi.hoisted(() => ({
+  streamParts: [] as unknown[],
+  doGenerate: vi.fn(),
+  doStream: vi.fn(async () => ({
+    stream: new ReadableStream({
+      start(controller) {
+        for (const part of bedrockMocks.streamParts) {
+          controller.enqueue(part);
+        }
+        controller.close();
+      },
+    }),
+  })),
+}));
+
 const instrumentationMocks = vi.hoisted(() => {
   const instrumentation = {
     recordEvents: vi.fn(),
     recordAvailableTools: vi.fn(),
     recordToolCallApproval: vi.fn(),
+    recordToolExecutionStart: vi.fn(),
+    recordToolExecutionEnd: vi.fn(),
+    recordModelCallFinish: vi.fn(),
     recordStepFinish: vi.fn(),
+    recordStreamChunk: vi.fn(),
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),
@@ -198,7 +217,14 @@ vi.mock("@ag-ui/mastra", () => ({
 }));
 
 vi.mock("ai-sdk-amazon-bedrock-v4", () => ({
-  createAmazonBedrock: vi.fn(() => vi.fn(() => ({}))),
+  createAmazonBedrock: vi.fn(() => (modelId: string) => ({
+    specificationVersion: "v3",
+    provider: "amazon-bedrock",
+    modelId,
+    supportedUrls: {},
+    doGenerate: bedrockMocks.doGenerate,
+    doStream: bedrockMocks.doStream,
+  })),
 }));
 
 vi.mock("@aws-sdk/credential-providers", () => ({
@@ -413,7 +439,10 @@ describe("patchMastraApprovalChunks", () => {
           toolName: "bash",
           args: { command: "date" },
           isError: true,
-          result: { error: "Error: Region is missing" },
+          result: {
+            error: true,
+            message: "Error: Region is missing",
+          },
         },
       },
     ]);
@@ -456,11 +485,101 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
 describe("createAgUiStream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    bedrockMocks.streamParts = [];
     promptMocks.getPrompt.mockResolvedValue({
       name: "in-app-agent-system-prompt",
       version: 2,
       compile: promptMocks.compile,
     });
+  });
+
+  const initializeBasicTracedAgent = async (runId: string) => {
+    const { createAgUiStream } =
+      await import("@langfuse/shared/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId,
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "hello",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        } as unknown as Langfuse,
+        useLocalPrompt: false,
+        langfuseTracing: createTestTracingConfig(),
+      },
+    });
+    await readStream(stream);
+  };
+
+  it("forwards model stream parts when finish tracing throws", async () => {
+    instrumentationMocks.instrumentation.recordModelCallFinish.mockImplementationOnce(
+      () => {
+        throw new Error("tracing failed");
+      },
+    );
+    await initializeBasicTracedAgent("run-provider-finish-tracing-error");
+
+    const textPart = { type: "text-delta", id: "text-1", delta: "hello" };
+    const finishPart = {
+      type: "finish",
+      usage: {
+        inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 2, text: 2, reasoning: 0 },
+      },
+      finishReason: { unified: "stop", raw: "end_turn" },
+    };
+    bedrockMocks.streamParts = [textPart, finishPart];
+    const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
+      doStream: (options: unknown) => Promise<{
+        stream: ReadableStream<unknown>;
+      }>;
+    };
+
+    const modelResult = await model.doStream({});
+    const forwardedParts: unknown[] = [];
+    for await (const part of modelResult.stream) {
+      forwardedParts.push(part);
+    }
+
+    expect(forwardedParts).toEqual([textPart, finishPart]);
+    expect(
+      instrumentationMocks.instrumentation.recordModelCallFinish,
+    ).toHaveBeenCalledWith(finishPart);
   });
 
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {
@@ -818,6 +937,16 @@ describe("createAgUiStream", () => {
     expect(
       instrumentationMocks.instrumentation.recordStepFinish,
     ).toHaveBeenCalledWith({ usage: { inputTokens: 10, outputTokens: 5 } });
+    const onChunk = (
+      agentConfig?.defaultOptions as
+        | { onChunk?: (chunk: unknown) => void }
+        | undefined
+    )?.onChunk;
+    expect(onChunk).toEqual(expect.any(Function));
+    onChunk?.({ type: "step-start", payload: {} });
+    expect(
+      instrumentationMocks.instrumentation.recordStreamChunk,
+    ).toHaveBeenCalledWith({ type: "step-start", payload: {} });
     expect(
       instrumentationMocks.instrumentation.recordEvents.mock.calls.flatMap(
         ([events]) => (events as AgUiEvent[]).map((event) => event.type),
@@ -908,6 +1037,104 @@ describe("createAgUiStream", () => {
       maxSteps: expect.any(Number),
     });
     expect(agentConfig?.defaultOptions).not.toHaveProperty("providerOptions");
+  });
+
+  it("stamps top-level error on TOOL_CALL_RESULT from structured failure payloads", async () => {
+    const { createAgUiStream } =
+      await import("@langfuse/shared/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        { id: "user-message-1", role: "user" as const, content: "hello" },
+      ],
+      tools: [],
+      context: [],
+      state: {
+        type: "existingConversation" as const,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      },
+      forwardedProps: {},
+    };
+    const failureMessage = "MCP error -32602: invalid score config";
+    const structuredFailure = {
+      error: true,
+      message: failureMessage,
+    };
+    const persistedEvents: AgUiEvent[] = [];
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    } as unknown as Langfuse;
+
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-call-1",
+        toolCallName: "createScoreConfig",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-call-1",
+        delta: "{}",
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-call-1",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "tool-result-1",
+        toolCallId: "tool-call-1",
+        content: JSON.stringify(structuredFailure),
+        role: "tool",
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        onEvent: (event) => {
+          persistedEvents.push(event);
+        },
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+          runOverride: "run-override",
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
+        langfuseClient,
+        useLocalPrompt: false,
+      },
+    });
+
+    await readStream(stream);
+
+    expect(persistedEvents).toContainEqual({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "tool-call-1",
+      content: JSON.stringify(structuredFailure),
+      role: "tool",
+      error: failureMessage,
+    });
   });
 
   it("stops gating a tool the user approved for the conversation", async () => {
@@ -1153,11 +1380,26 @@ describe("createAgUiStream", () => {
       toolCallId: "tool-call-1",
       status: "approved",
     });
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionStart,
+    ).toHaveBeenCalledWith("tool-call-1");
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionEnd,
+    ).toHaveBeenCalledWith("tool-call-1");
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionStart.mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(
+      adapterEvents.createScoreConfigExecute.mock.invocationCallOrder[0]!,
+    );
+    expect(
+      adapterEvents.createScoreConfigExecute.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      instrumentationMocks.instrumentation.recordToolExecutionEnd.mock
+        .invocationCallOrder[0]!,
+    );
 
-    const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
-    const createScoreConfigTool =
-      getAgentTools(agentConfig)?.langfuse_createScoreConfig;
-    expect(createScoreConfigTool?.execute).toHaveBeenCalledWith(
+    expect(adapterEvents.createScoreConfigExecute).toHaveBeenCalledWith(
       {
         name: "readiness",
         dataType: "NUMERIC",
@@ -1172,6 +1414,73 @@ describe("createAgUiStream", () => {
         }),
       }),
     );
+  });
+
+  it("preserves successful and failed tool outcomes when timing tracing throws", async () => {
+    const tracingError = new Error("tool timing tracing failed");
+    instrumentationMocks.instrumentation.recordToolExecutionStart
+      .mockImplementationOnce(() => {
+        throw tracingError;
+      })
+      .mockImplementationOnce(() => {
+        throw tracingError;
+      });
+    instrumentationMocks.instrumentation.recordToolExecutionEnd
+      .mockImplementationOnce(() => {
+        throw tracingError;
+      })
+      .mockImplementationOnce(() => {
+        throw tracingError;
+      });
+    await initializeBasicTracedAgent("run-tool-timing-tracing-error");
+
+    const tool = getAgentTools(
+      vi.mocked(Agent).mock.calls.at(-1)?.[0],
+    )?.langfuse_createScoreConfig;
+    const execute = tool?.execute;
+    expect(execute).toBeTypeOf("function");
+    const toolInput = {
+      name: "readiness",
+      dataType: "NUMERIC",
+      numericMinValue: 0,
+      numericMaxValue: 1,
+    };
+    const toolContext = {
+      abortSignal: new AbortController().signal,
+      agent: {
+        toolCallId: "tool-call-1",
+        threadId: "conversation-1",
+      },
+    };
+
+    await expect(execute?.(toolInput, toolContext)).resolves.toEqual({
+      id: "score-config-1",
+      name: "readiness",
+      dataType: "NUMERIC",
+    });
+
+    const originalToolError = new Error("original tool failure");
+    adapterEvents.createScoreConfigExecute.mockRejectedValueOnce(
+      originalToolError,
+    );
+    await expect(execute?.(toolInput, toolContext)).rejects.toBe(
+      originalToolError,
+    );
+
+    const startOrder =
+      instrumentationMocks.instrumentation.recordToolExecutionStart.mock
+        .invocationCallOrder;
+    const executeOrder =
+      adapterEvents.createScoreConfigExecute.mock.invocationCallOrder;
+    const endOrder =
+      instrumentationMocks.instrumentation.recordToolExecutionEnd.mock
+        .invocationCallOrder;
+    expect(startOrder).toHaveLength(2);
+    expect(endOrder).toHaveLength(2);
+    expect(startOrder[0]).toBeLessThan(executeOrder[0]!);
+    expect(executeOrder[0]).toBeLessThan(endOrder[0]!);
+    expect(startOrder[1]).toBeLessThan(executeOrder[1]!);
+    expect(executeOrder[1]).toBeLessThan(endOrder[1]!);
   });
 
   it("persists raw silent output for approved tools while resuming with redacted content", async () => {
@@ -1301,11 +1610,30 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
+        langfuseTracing: createTestTracingConfig(),
       },
     });
     await readStream(stream);
 
     expect(onError).not.toHaveBeenCalled();
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionStart,
+    ).toHaveBeenCalledWith("tool-call-1");
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionEnd,
+    ).toHaveBeenCalledWith("tool-call-1");
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionStart.mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(
+      adapterEvents.createScoreConfigExecute.mock.invocationCallOrder[0]!,
+    );
+    expect(
+      adapterEvents.createScoreConfigExecute.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      instrumentationMocks.instrumentation.recordToolExecutionEnd.mock
+        .invocationCallOrder[0]!,
+    );
     const resumedMessages =
       (
         adapterEvents.inputs[0] as {

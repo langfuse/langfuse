@@ -16,6 +16,7 @@ import {
   SHARDED_QUEUE_BASE_NAMES,
   resolveQueueInstance,
 } from "../../queues/shardedQueueRegistry";
+import { emitV4LegacyApiUsageFreshnessMetrics } from "../v4/v4LegacyApiUsageMetrics";
 
 type DepthType = "waiting" | "failed" | "active";
 
@@ -82,6 +83,23 @@ export class QueueMetricsRunner extends PeriodicRunner {
           );
         }),
     );
+
+    // Heartbeat/cursor freshness for the v4 legacy API usage pipeline. Only
+    // when this worker consumes that queue so self-hosted deployments without
+    // the job do not emit a permanent "not fresh" signal.
+    if (registeredNames.has(QueueName.V4LegacyApiUsageQueue)) {
+      promises.push(
+        emitV4LegacyApiUsageFreshnessMetrics()
+          .then(() => undefined)
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              "Queue metrics: failed to record v4 legacy API usage freshness",
+              err,
+            );
+          }),
+      );
+    }
 
     // Non-sharded queues: only poll queues with registered workers
     for (const queueName of Object.values(QueueName)) {

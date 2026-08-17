@@ -18,8 +18,9 @@ vi.mock("posthog-js/react", () => ({
   usePostHog: () => ({ capture: captureSpy }),
 }));
 
-// Radix ScrollArea (wrapping the facet list) needs ResizeObserver, which
-// jsdom does not implement.
+// Radix ScrollArea (wrapping the facet list) needs ResizeObserver, and the
+// Add-filter picker's command list scrolls its active item into view — neither
+// of which jsdom implements.
 beforeAll(() => {
   vi.stubGlobal(
     "ResizeObserver",
@@ -29,6 +30,7 @@ beforeAll(() => {
       disconnect() {}
     },
   );
+  Element.prototype.scrollIntoView = vi.fn();
 });
 
 describe("CategoricalFacet", () => {
@@ -777,14 +779,10 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
         </TooltipProvider>,
       );
 
-      // Open the Add-filter dropdown. Radix opens the menu on the trigger's
-      // pointer-down, which jsdom doesn't synthesize reliably; the keyboard
-      // path (Enter) opens it without depending on PointerEvent support.
-      const addButton = screen.getByRole("button", { name: /Add filter/ });
-      fireEvent.keyDown(addButton, { key: "Enter" });
+      fireEvent.click(screen.getByRole("button", { name: /Add filter/ }));
 
-      const blockedItem = screen.getByRole("menuitem", { name: "Blocked" });
-      const forwardableItem = screen.getByRole("menuitem", {
+      const blockedItem = screen.getByRole("option", { name: "Blocked" });
+      const forwardableItem = screen.getByRole("option", {
         name: "Forwardable",
       });
       // Blocked column stays visible but is disabled, with the reason on hover.
@@ -796,5 +794,253 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     } finally {
       localStorage.removeItem("data-table-controls-active-only");
     }
+  });
+});
+
+describe("DataTableControls facet-name search", () => {
+  // A catalog long enough to earn the search box (the traces sidebar's shape).
+  const CATALOG: [column: string, label: string][] = [
+    ["environment", "Environment"],
+    ["name", "Trace Name"],
+    ["id", "Trace ID"],
+    ["userId", "User ID"],
+    ["sessionId", "Session ID"],
+    ["tags", "Tags"],
+    ["metadata", "Metadata"],
+    ["version", "Version"],
+    ["release", "Release"],
+    ["bookmarked", "Bookmarked"],
+    ["level", "Status"],
+    ["latency", "Latency"],
+    ["totalTokens", "Total Tokens"],
+  ];
+
+  const catalog = (activeColumns: string[] = []): CategoricalUIFilter[] =>
+    CATALOG.map(([column, label]) => ({
+      type: "categorical",
+      column,
+      label,
+      loading: false,
+      expanded: false,
+      isActive: activeColumns.includes(column),
+      isDisabled: false,
+      onReset: () => {},
+      value: activeColumns.includes(column) ? ["x"] : [],
+      options: ["x", "y"],
+      counts: new Map(),
+      onChange: () => {},
+      // enables the Select/Text mode tabs, so a text-filter draft can be typed
+      onTextFilterAdd: () => {},
+      onTextFilterRemove: () => {},
+    }));
+
+  const queryFilter = (filters: UIFilter[]): QueryFilter => ({
+    filters,
+    expanded: [],
+    onExpandedChange: () => {},
+    clearAll: () => {},
+    isFiltered: filters.some((f) => f.isActive),
+    setFilterState: () => {},
+  });
+
+  const controls = (filters: UIFilter[]) => (
+    <TooltipProvider>
+      <DataTableControls queryFilter={queryFilter(filters)} />
+    </TooltipProvider>
+  );
+
+  const searchFor = (query: string) =>
+    fireEvent.change(screen.getByLabelText("Search filters"), {
+      target: { value: query },
+    });
+
+  const labelOrder = (first: string, second: string) => {
+    const a = screen.getByText(first);
+    const b = screen.getByText(second);
+    return Boolean(
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  };
+
+  it("filters facet names immediately, and clearing restores the list with the selection intact", () => {
+    render(controls(catalog(["userId"])));
+
+    searchFor("token");
+    expect(screen.getByText("Total Tokens")).toBeVisible();
+    expect(screen.getByText("Environment")).not.toBeVisible();
+    // The query hides a facet whose name misses it even while it is filtering.
+    expect(screen.getByText("User ID")).not.toBeVisible();
+    // The column key matches too: the label's space would defeat "userid".
+    searchFor("userid");
+    expect(screen.getByText("User ID")).toBeVisible();
+    expect(screen.getByText("Trace Name")).not.toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear filter search" }),
+    );
+    expect(screen.getByText("Environment")).toBeVisible();
+    // The selection was never touched — its header summary still reads it.
+    expect(screen.getByText("x")).toBeInTheDocument();
+  });
+
+  it("reaches the no-match state with a filter active, without touching it", () => {
+    // A query hides every facet it misses, so the dead end is reachable while a
+    // filter is in force. Hiding is presentation ONLY: nothing here may reset,
+    // clear or re-apply anything, or a keystroke in the search box would change
+    // the rows on screen.
+    const mutations: string[] = [];
+    const filters = catalog(["userId"]).map((filter) => ({
+      ...filter,
+      onChange: () => mutations.push(`change:${filter.column}`),
+      onReset: () => mutations.push(`reset:${filter.column}`),
+    }));
+    const qf: QueryFilter = {
+      ...queryFilter(filters),
+      clearAll: () => mutations.push("clearAll"),
+      setFilterState: () => mutations.push("setFilterState"),
+      onExpandedChange: () => mutations.push("expand"),
+    };
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    searchFor("zzz");
+    expect(screen.getByText("User ID")).not.toBeVisible();
+    expect(screen.getByText("Environment")).not.toBeVisible();
+    expect(screen.getByText('No filters match "zzz"')).toBeInTheDocument();
+    expect(mutations).toEqual([]);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear filter search" }),
+    );
+    // Back in full, selection intact — its header summary still reads it.
+    expect(screen.getByText("User ID")).toBeVisible();
+    expect(screen.getByText("x")).toBeInTheDocument();
+    expect(mutations).toEqual([]);
+  });
+
+  it("hides a non-matching facet rather than unmounting it, so an open draft survives", () => {
+    // Facets hold uncommitted local state (a typed-but-not-added text filter, a
+    // metadata condition mid-build, a debounced numeric draft). Dropping them
+    // from the tree while someone types in the search box above would discard
+    // that silently, so the search only hides them.
+    const qf = queryFilter(catalog());
+    qf.expanded = ["environment"];
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+    // Radix Tabs commit on mouse-down; jsdom needs both events.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Text" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Text" }));
+    const draft = screen.getByPlaceholderText("Enter value...");
+    fireEvent.change(draft, { target: { value: "half-typed" } });
+
+    searchFor("token");
+    expect(screen.getByText("Environment")).not.toBeVisible();
+    // Same input node, same value: not remounted, not reset.
+    expect(screen.getByPlaceholderText("Enter value...")).toBe(draft);
+    expect(draft).toHaveValue("half-typed");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear filter search" }),
+    );
+    expect(screen.getByText("Environment")).toBeVisible();
+    expect(draft).toHaveValue("half-typed");
+  });
+
+  it("does not count typing in the search box as working the facet list", () => {
+    // The list's keydown capture marks in-list edits so the order freezes
+    // under the user's hands. Typing a query is not such an edit: an external
+    // change while searching must still re-settle the order.
+    const { rerender } = render(controls(catalog(["totalTokens"])));
+    expect(labelOrder("Total Tokens", "Environment")).toBe(true);
+
+    // "e" matches both compared facets, so only the order is under test.
+    searchFor("e");
+    expect(labelOrder("Total Tokens", "Environment")).toBe(true);
+
+    rerender(controls(catalog(["environment", "totalTokens"])));
+    expect(labelOrder("Environment", "Total Tokens")).toBe(true);
+  });
+
+  it("points the expand-all toggle at the facets the search leaves on screen", () => {
+    const expandedChanges: string[][] = [];
+    const qf = queryFilter(catalog());
+    qf.expanded = ["environment"];
+    qf.onExpandedChange = (value) => expandedChanges.push(value);
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    // Environment is expanded but a "token" query hides it, so the toggle must
+    // offer to expand what IS on screen rather than to collapse the invisible.
+    searchFor("token");
+    fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
+    // The hidden facet keeps its expansion; the visible match joins it.
+    expect(expandedChanges.at(-1)).toEqual(["environment", "totalTokens"]);
+  });
+
+  it("leaves a short sidebar without search chrome", () => {
+    render(controls(catalog().slice(0, 3)));
+
+    expect(screen.queryByLabelText("Search filters")).not.toBeInTheDocument();
+  });
+
+  it("searches the Add filter picker over the whole catalog", () => {
+    localStorage.setItem("data-table-controls-active-only", "true");
+    try {
+      render(controls(catalog(["userId"])));
+
+      // Active-only mode hands the catalog to the picker, so the list's own
+      // search box steps aside.
+      expect(screen.queryByLabelText("Search filters")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Add filter/ }));
+
+      const pickerSearch = screen.getByPlaceholderText("Search filters");
+      fireEvent.change(pickerSearch, { target: { value: "token" } });
+      expect(
+        screen.getByRole("option", { name: "Total Tokens" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("option", { name: "Environment" }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.change(pickerSearch, { target: { value: "zzz" } });
+      expect(screen.getByText(/No filters match "zzz"/)).toBeInTheDocument();
+    } finally {
+      localStorage.removeItem("data-table-controls-active-only");
+    }
+  });
+
+  it("captures facet_search once per search session, without the query text", () => {
+    captureSpy.mockClear();
+    render(controls(catalog()));
+
+    searchFor("tok");
+    searchFor("token");
+    const searchEvents = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:facet_search",
+    );
+    expect(searchEvents).toHaveLength(1);
+    expect(searchEvents[0][1]).toEqual({
+      tableName: undefined,
+      surface: "facet_list",
+      isV4: false,
+    });
+
+    // Clearing ends the session, so the next search is a new one.
+    searchFor("");
+    searchFor("latency");
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:facet_search",
+      ),
+    ).toHaveLength(2);
   });
 });

@@ -60,6 +60,8 @@ export function PricingSection({ form }: PricingSectionProps) {
     });
   };
 
+  // These compare LIVE form values, which the schema has not parsed (and so not
+  // trimmed) yet — unlike the submitted payload, where the schema owns it.
   const prefillUsageTypes = (names: string[]) => {
     const existing = new Set(
       form.getValues("usageTypes").map((row) => row.name.trim()),
