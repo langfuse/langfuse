@@ -45,7 +45,7 @@ import {
   downloadServerTraceAsJson,
 } from "../../fns/downloadTrace";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
-import { PlaybackControls } from "../PlaybackControls";
+import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -282,6 +282,7 @@ function TracePanelNavigationHeaderExpanded({
                 <Download className="mr-2 h-3.5 w-3.5" />
                 Download trace as JSON
               </DropdownMenuItem>
+              <PlaybackMenuItems />
               <DropdownMenuSeparator />
               <TraceViewOptionsMenuItems
                 isGraphViewAvailable={isGraphViewAvailable}
@@ -290,8 +291,13 @@ function TracePanelNavigationHeaderExpanded({
           </DropdownMenu>
 
           {/* Playback transport + circular time-progress ring. View-agnostic:
-              shown in both Tree and Timeline views (see PlaybackControls). */}
-          <PlaybackControls />
+              shown in both Tree and Timeline views (see PlaybackControls) — and
+              folded into the overflow menu on a narrow panel, like the tools
+              above it. Two more 28px buttons are what tipped this row over: the
+              search input collapsed to "Se" and the switch clipped. */}
+          <div className="hidden flex-row items-center @min-[360px]/navheader:flex">
+            <PlaybackControls />
+          </div>
 
           {/* Tree / Timeline segmented switch (labels collapse to icons when
               the panel is narrow — see @container/navheader). */}
