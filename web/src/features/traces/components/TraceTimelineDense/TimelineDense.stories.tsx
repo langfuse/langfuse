@@ -714,6 +714,49 @@ export const ShiftDragZoomsToABox = meta.story({
   },
 });
 
+export const AGestureTakesOverFromAFlight = meta.story({
+  name: "(Test) A Gesture Takes Over From A Flight",
+  args: {
+    roots: manySpans(150),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="dense-rowheight"]',
+      )?.textContent ?? "";
+
+    const row = canvasElement.querySelectorAll<HTMLElement>(
+      '[data-testid="timeline-dense-content"] > div',
+    )[40];
+    if (!row) throw new Error("expected a row to double-click");
+
+    // Start the 320ms focus flight, then immediately zoom out with the toolbar.
+    row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const zoomOut = canvasElement.querySelector<HTMLElement>(
+      'button[aria-label="Zoom out"]',
+    );
+    if (!zoomOut) throw new Error("no zoom-out button");
+    zoomOut.click();
+    const afterGesture = readout();
+
+    // The flight must not keep writing its own target over the gesture for the
+    // rest of its 320ms: settle, then check nothing moved after the click.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await expect(readout()).toBe(afterGesture);
+    // And it did not land on the focus target (a human-height row).
+    await expect(readout()).not.toContain("26.0px");
+  },
+});
+
 export const TooltipFollowsTheContent = meta.story({
   name: "(Test) Tooltip Follows The Content",
   args: {

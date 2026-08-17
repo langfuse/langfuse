@@ -9,6 +9,7 @@ import {
 } from "../../../src/server";
 import { ObservationType } from "../../../src/domain";
 import { observationToEvent, traceToEvent } from "./event-mirror";
+import { generationUsageCost } from "./payload";
 import { utcDayStartMs } from "./rng";
 import {
   chunk,
@@ -939,8 +940,6 @@ const run = async (
     for (const span of shape.spans) {
       const prices = span.model ? MODEL_PRICES[span.model] : null;
       const [usageIn, usageOut] = span.usage ?? [0, 0];
-      const inputCost = prices ? usageIn * prices.input : 0;
-      const outputCost = prices ? usageOut * prices.output : 0;
 
       observations.push(
         createObservation({
@@ -971,25 +970,7 @@ const run = async (
           // Explicitly empty for non-generations: the factory would otherwise
           // fill in non-empty usage and cost defaults.
           ...(prices
-            ? {
-                provided_usage_details: {
-                  input: usageIn,
-                  output: usageOut,
-                  total: usageIn + usageOut,
-                },
-                usage_details: {
-                  input: usageIn,
-                  output: usageOut,
-                  total: usageIn + usageOut,
-                },
-                provided_cost_details: { input: inputCost, output: outputCost },
-                cost_details: {
-                  input: inputCost,
-                  output: outputCost,
-                  total: inputCost + outputCost,
-                },
-                total_cost: inputCost + outputCost,
-              }
+            ? generationUsageCost(usageIn, usageOut, prices)
             : {
                 provided_usage_details: {},
                 usage_details: {},

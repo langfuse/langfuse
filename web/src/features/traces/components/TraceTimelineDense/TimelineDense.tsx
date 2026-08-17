@@ -132,6 +132,8 @@ const RAIL_WIDTH = RAIL_MAX_DEPTH * RAIL_INDENT + RAIL_SQUARE_MAX + 2;
 const GUTTER_INDENT = 14;
 /** The ItemBadge box at `isSmall`, which is square. */
 const GUTTER_ICON = 16;
+/** A name needs at least this much to be worth indenting away from. */
+const GUTTER_NAME_MIN = 48;
 /**
  * Where a level's vertical rail sits: under the CENTRE of that level's icon, so
  * the spine reads as descending from the icon that owns it. Hugging the icon's
@@ -158,7 +160,11 @@ const WHEEL_LINE_PX = 16;
 const BUTTON_ZOOM_LEVELS = 0.6;
 const DRAG_THRESHOLD_PX = 3;
 const MAX_BAR_HEIGHT = 18;
-/** Below this a row cannot hold a name, so the gutter stays a rail. */
+/**
+ * Below this a row cannot hold a name — and since a colour rail beside
+ * colour-coded bars says nothing the bars have not already said, the whole left
+ * side takes no width at all there. See `canShowNames` for the rule.
+ */
 const NAME_MIN_ROW_HEIGHT = 14;
 /** The chart never shrinks below this to make room for names, even if asked. */
 const MIN_LANE_WIDTH = 140;
@@ -455,33 +461,6 @@ export function TimelineDense({
     [prepared, compression],
   );
 
-  const zoomBy = useCallback(
-    (factor: number, xRatio: number, yRatio: number) =>
-      setViewport((from) => {
-        const { limits: live, extentOf: extent } = layoutRef.current;
-        const zoomed = zoomViewport(
-          from ? clampViewport(from, live) : fitViewport(live),
-          live,
-          { factor, xRatio, yRatio },
-        );
-        return anchorTimeToRows(zoomed, live, extent);
-      }),
-    [],
-  );
-
-  const panBy = useCallback(
-    (dxPx: number, dyPx: number) =>
-      setViewport((from) => {
-        const { limits: live, laneWidth: width } = layoutRef.current;
-        return panViewport(
-          from ? clampViewport(from, live) : fitViewport(live),
-          live,
-          { dxPx, dyPx, boxWidth: width },
-        );
-      }),
-    [],
-  );
-
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const gesture = useRef({ down: false, dragging: false, x: 0, y: 0 });
   const tween = useRef(0);
@@ -511,6 +490,55 @@ export function TimelineDense({
     extentOf,
   });
   layoutRef.current = { limits, laneWidth, railWidth, peekWidth, extentOf };
+
+  /**
+   * Zooming and re-anchoring are ONE operation, not two: `anchorTimeToRows`
+   * exists precisely so a zoom cannot land on empty air, so every zoom entry
+   * point owes it. Keeping the pair in one place is what stops a change to one
+   * gesture from quietly not applying to the other.
+   *
+   * Plain functions, not `useCallback`: they are called from event handlers, so
+   * their identity is nobody's dependency, and they read everything live from the
+   * refs above.
+   */
+  const zoomAndAnchor = (
+    from: Viewport | null,
+    options: { factor: number; xRatio: number; yRatio: number },
+  ) => {
+    const { limits: live, extentOf: extent } = layoutRef.current;
+    const zoomed = zoomViewport(
+      from ? clampViewport(from, live) : fitViewport(live),
+      live,
+      options,
+    );
+    return anchorTimeToRows(zoomed, live, extent);
+  };
+
+  // The wheel path is a stable callback — the listener attaches once — so it
+  // reaches the pair through a ref rather than closing over this render's copy.
+  const zoomAndAnchorRef = useRef(zoomAndAnchor);
+  zoomAndAnchorRef.current = zoomAndAnchor;
+
+  const zoomBy = (factor: number, xRatio: number, yRatio: number) => {
+    // A gesture takes over from a flight in progress rather than fighting it.
+    // Without this the tween's rAF loop kept writing its own interpolated target
+    // over the user's zoom for the rest of the 320ms flight — press a zoom button
+    // right after a double-click and the button did nothing.
+    cancelTween();
+    setViewport((from) => zoomAndAnchor(from, { factor, xRatio, yRatio }));
+  };
+
+  const panBy = (dxPx: number, dyPx: number) => {
+    cancelTween();
+    setViewport((from) => {
+      const { limits: live, laneWidth: width } = layoutRef.current;
+      return panViewport(
+        from ? clampViewport(from, live) : fitViewport(live),
+        live,
+        { dxPx, dyPx, boxWidth: width },
+      );
+    });
+  };
 
   // Selection is not always ours to place. The tree, a search hit, a deep link
   // and playback all select rows, and a highlight you cannot see is not a
@@ -564,19 +592,14 @@ export function TimelineDense({
   const flushGesture = useCallback(() => {
     const queued = pending.current;
     queued.frame = 0;
-    const {
-      limits: live,
-      laneWidth: width,
-      extentOf: extent,
-    } = layoutRef.current;
+    const { limits: live, laneWidth: width } = layoutRef.current;
     let next = viewportRef.current;
     if (queued.levels !== 0) {
-      next = zoomViewport(next, live, {
+      next = zoomAndAnchorRef.current(next, {
         factor: 2 ** queued.levels,
         xRatio: queued.xRatio,
         yRatio: queued.yRatio,
       });
-      next = anchorTimeToRows(next, live, extent);
     }
     if (queued.dxPx !== 0 || queued.dyPx !== 0) {
       next = panViewport(next, live, {
@@ -1346,7 +1369,21 @@ function GutterContent({
   // width, and a box of invisible squares is one DOM node per row of the trace.
   if (width <= 0) return null;
 
-  const depth = Math.min(node.depth, RAIL_MAX_DEPTH);
+  // RAIL_MAX_DEPTH exists to keep a tiny square inside a 15px rail, and applying
+  // it to the OPEN gutter flattened the tree: every node past depth 4 drew at the
+  // same indent and the same connector column in a gutter up to 168px wide. The
+  // open gutter caps on the width it actually has instead — deep traces still
+  // need a cap (a 1401-deep chain would push every name out of the box), but it
+  // is the one the gutter can afford, leaving room for the icon and a name.
+  const depth = showName
+    ? Math.min(
+        node.depth,
+        Math.max(
+          Math.floor((width - GUTTER_ICON - GUTTER_NAME_MIN) / GUTTER_INDENT),
+          0,
+        ),
+      )
+    : Math.min(node.depth, RAIL_MAX_DEPTH);
   const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
   // The square must end up INSIDE the rail, so its size and its indent are both
   // bounded by the width it has to live in — not by the row height alone.
