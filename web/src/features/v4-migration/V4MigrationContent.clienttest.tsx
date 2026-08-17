@@ -754,6 +754,49 @@ describe("V4MigrationDetailsContent", () => {
     );
   });
 
+  it("auto-expands action item sections so the guidance is visible without a click", () => {
+    // Default mock has apis count 1, so "Migrate APIs" renders as an action
+    // item. It should open on mount so users see how to proceed.
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    const apisTrigger = screen.getByText("Migrate APIs").closest("button")!;
+    // Opened by default: the first click collapses it, which is not an
+    // expansion and must not fire the engagement event.
+    fireEvent.click(apisTrigger);
+    expect(mocks.capture).not.toHaveBeenCalledWith(
+      "v4_migration:section_expanded",
+      { section: "apis" },
+    );
+    // Re-opening a section the user collapsed is a genuine expansion.
+    fireEvent.click(apisTrigger);
+    expect(
+      mocks.capture.mock.calls.filter(
+        ([name]) => name === "v4_migration:section_expanded",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("keeps the detected instrumentation summary collapsed by default", () => {
+    // Compatible-only traffic: the "Detected V4-compatible instrumentation"
+    // section is a settled summary, not a todo, so it stays collapsed.
+    mocks.migrationData.sdk = {
+      ...cleanSdkState(),
+      sdkUsageSeries: [makeSdkUsageSeries({})],
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    const detectedTrigger = screen
+      .getByText("Detected V4-compatible instrumentation")
+      .closest("button")!;
+    // Collapsed by default: the first click expands it and fires the event.
+    fireEvent.click(detectedTrigger);
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:section_expanded",
+      { section: "detected_instrumentation" },
+    );
+  });
+
   it("captures section_expanded and evidence_link_clicked in the SDK section", () => {
     const onNavigate = vi.fn();
     mocks.migrationData.sdk = {
@@ -775,14 +818,20 @@ describe("V4MigrationDetailsContent", () => {
       />,
     );
 
+    // The SDK todo auto-expands, so the first click collapses it and must not
+    // count as engagement.
+    fireEvent.click(screen.getByText("Update SDK").closest("button")!);
+    expect(mocks.capture).not.toHaveBeenCalledWith(
+      "v4_migration:section_expanded",
+      { section: "sdk" },
+    );
+
+    // Re-opening the collapsed section is a genuine expansion.
     fireEvent.click(screen.getByText("Update SDK").closest("button")!);
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:section_expanded",
       { section: "sdk" },
     );
-
-    // Collapsing must not count as engagement.
-    fireEvent.click(screen.getByText("Update SDK").closest("button")!);
     expect(
       mocks.capture.mock.calls.filter(
         ([name]) => name === "v4_migration:section_expanded",

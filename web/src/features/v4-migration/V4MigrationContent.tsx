@@ -1443,18 +1443,26 @@ export function V4MigrationDetailsContent({
           counts refresh about every 15 minutes, so recent calls may not appear
           yet.
         </p>
+        {/* Todo sections open on mount so the remediation guidance is visible
+            without an extra click — showing only a collapsed "Update SDK" row
+            left users unsure how to proceed. The settled summary line and the
+            "Detected V4-compatible instrumentation" section below stay
+            collapsed: they are confirmations, not action items. */}
         <div>
           <V4MigrationSdkSection
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
+            defaultOpen
           />
           <V4MigrationOtelSection
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
+            defaultOpen
           />
           <V4MigrationCustomInstrumentationSection
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
+            defaultOpen
           />
 
           {!evalsClean && (
@@ -1470,6 +1478,7 @@ export function V4MigrationDetailsContent({
               }
               evalsUrl={evalsUrl}
               onNavigate={onNavigate}
+              defaultOpen
             />
           )}
 
@@ -1477,6 +1486,7 @@ export function V4MigrationDetailsContent({
             <V4MigrationExperimentsSection
               state={migrationData.experiments}
               upgradePath={migrationData.experimentInstrumentationUpgradePath}
+              defaultOpen
             />
           )}
 
@@ -1484,6 +1494,7 @@ export function V4MigrationDetailsContent({
             <V4MigrationApisSection
               state={migrationData.apis}
               usage={migrationData.apiUsage}
+              defaultOpen
             />
           )}
 
@@ -1493,6 +1504,7 @@ export function V4MigrationDetailsContent({
               integrations={migrationData.legacyIntegrations}
               integrationsUrl={integrationsUrl}
               onNavigate={onNavigate}
+              defaultOpen
             />
           )}
 
