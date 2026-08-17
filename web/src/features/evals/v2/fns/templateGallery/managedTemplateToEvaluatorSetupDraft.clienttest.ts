@@ -4,20 +4,20 @@ import { managedTemplateToEvaluatorSetupDraft } from "@/src/features/evals/v2/fn
 describe("managedTemplateToEvaluatorSetupDraft", () => {
   it("prefills an LLM evaluator without persisting a model choice", () => {
     const template = MANAGED_TEMPLATES_CATALOG.templates.find(
-      ({ key }) => key === "hallucination",
+      ({ key }) => key === "answer-relevance",
     );
     expect(template).toBeDefined();
 
     expect(managedTemplateToEvaluatorSetupDraft(template!)).toMatchObject({
-      name: "Hallucination",
+      name: "Answer relevance",
       definition: {
         type: "LLM_AS_JUDGE",
         provider: null,
         model: null,
-        vars: ["query", "generation"],
+        vars: ["user_input", "assistant_output"],
         variableMapping: [
-          { templateVariable: "query", selectedColumnId: "input" },
-          { templateVariable: "generation", selectedColumnId: "output" },
+          { templateVariable: "user_input", selectedColumnId: "input" },
+          { templateVariable: "assistant_output", selectedColumnId: "output" },
         ],
       },
     });

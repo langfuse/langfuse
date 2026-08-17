@@ -86,10 +86,18 @@ export function EvaluatorTemplateCard({
       className="hover:border-primary hover:bg-accent/40 flex cursor-pointer items-center gap-3 rounded-lg border px-3.5 pt-3.5 pb-2 text-left transition-all"
     >
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="truncate text-sm font-bold" title={template.name}>
+        <div className="flex min-w-0 items-start gap-2">
+          <span
+            className="min-w-0 flex-1 truncate text-sm font-bold"
+            title={template.name}
+          >
             {template.name}
           </span>
+          <span className="shrink-0">
+            <EvaluatorTypeBadge type={type} />
+          </span>
+        </div>
+        <div className="mt-1">
           <p
             className="text-muted-foreground line-clamp-2 text-sm leading-relaxed"
             title={description}
@@ -108,9 +116,6 @@ export function EvaluatorTemplateCard({
               ))}
             </>
           ) : null}
-          <span className="ml-auto">
-            <EvaluatorTypeBadge type={type} />
-          </span>
         </div>
         {attribution ? (
           <p className="text-muted-foreground/80 mt-2 flex min-w-0 items-center gap-1.5 text-sm">
