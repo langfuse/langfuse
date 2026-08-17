@@ -35,17 +35,17 @@ describe("getInAppAgentScreenContextDescription", () => {
     {
       name: "trace list without filters",
       url: "/project/project-1/traces",
-      expected: { type: "trace-list", hasAppliedFilters: false },
+      expected: { type: "trace-list" },
     },
     {
       name: "trace list with structured filters",
       url: "/project/project-1/traces?filter=level%3BstringOptions%3B%3Bany+of%3BERROR",
-      expected: { type: "trace-list", hasAppliedFilters: true },
+      expected: { type: "trace-list" },
     },
     {
       name: "observations list with full-text search",
       url: "/project/project-1/observations?search=checkout&searchType=id",
-      expected: { type: "observations-list", hasAppliedFilters: true },
+      expected: { type: "observations-list" },
     },
     {
       name: "trace setup page",
@@ -88,12 +88,12 @@ describe("getInAppAgentScreenContextDescription", () => {
     {
       name: "sessions list",
       url: "/project/project-1/sessions",
-      expected: { type: "sessions-list", hasAppliedFilters: false },
+      expected: { type: "sessions-list" },
     },
     {
       name: "prompts list",
       url: "/project/project-1/prompts?filter=type%3BstringOptions%3B%3D%3Bchat",
-      expected: { type: "prompts-list", hasAppliedFilters: true },
+      expected: { type: "prompts-list" },
     },
     {
       name: "dataset detail",
@@ -113,7 +113,7 @@ describe("getInAppAgentScreenContextDescription", () => {
     {
       name: "datasets list",
       url: "/project/project-1/datasets",
-      expected: { type: "datasets-list", hasAppliedFilters: false },
+      expected: { type: "datasets-list" },
     },
     {
       name: "unknown project page",

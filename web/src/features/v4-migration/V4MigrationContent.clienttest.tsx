@@ -360,6 +360,32 @@ describe("V4MigrationDetailsContent", () => {
     }
   });
 
+  it("rounds estimated API call counts and keeps positive usage visible", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/traces",
+        count: 56.5,
+        lastSeen: "2026-07-23T10:37:00Z",
+      },
+      {
+        endpoint: "GET /api/public/observations",
+        count: 4.5,
+        lastSeen: "2026-07-22T10:37:00Z",
+      },
+      {
+        endpoint: "GET /api/public/traces/{id}",
+        count: 1 / 3,
+        lastSeen: "2026-07-21T10:37:00Z",
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText(/57 calls · last seen/)).toBeInTheDocument();
+    expect(screen.getByText(/5 calls · last seen/)).toBeInTheDocument();
+    expect(screen.getByText(/1 call · last seen/)).toBeInTheDocument();
+  });
+
   it("collapses clean sections into one up-to-date summary", () => {
     mocks.migrationData.apis = { status: "loaded", count: 0 };
     mocks.migrationData.exports = { status: "loaded", count: 0 };
@@ -368,6 +394,11 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
+    expect(
+      screen.getByText(
+        "SDK, instrumentation, experiment, and API checks cover activity from the last 14 days. API and experiment usage counts refresh about every 15 minutes, so recent calls may not appear yet.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         "Evals, experiments, APIs and integrations are up to date.",
@@ -811,7 +842,11 @@ describe("V4MigrationDetailsContent", () => {
         screen.getByText("Update OTel Instrumentation").closest("button")!,
       ).getByText("1"),
     ).toBeInTheDocument();
-    expect(screen.getByText(/delayed ingestion path/)).toBeInTheDocument();
+    expect(
+      screen.getByText("x-langfuse-ingestion-version: 4").closest("p"),
+    ).toHaveTextContent(
+      "Your OpenTelemetry data is using delayed ingestion. For real-time ingestion, upgrade your integration or, if you use OpenTelemetry directly, set x-langfuse-ingestion-version: 4 on your OTLP exporter. Migration guide.",
+    );
     expect(screen.getByText("openlit 1.35.4")).toBeInTheDocument();
     expect(screen.getByText("· delayed")).toBeInTheDocument();
     expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();

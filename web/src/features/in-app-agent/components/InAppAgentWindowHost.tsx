@@ -98,6 +98,14 @@ export function InAppAgentWindowHost() {
     );
   }, [isExpanded]);
 
+  // Captures the outgoing rect so the layout effect above can animate the
+  // floating <-> expanded swap from where the window actually was.
+  const handleExpandedChange = (nextIsExpanded: boolean) => {
+    previousPanelRectRef.current =
+      panelRef.current?.getBoundingClientRect() ?? null;
+    setIsExpanded(nextIsExpanded);
+  };
+
   // Geometry follows the open state: cleared on close so every open starts
   // from the default placement, initialized on open for the floating panel.
   useLayoutEffect(() => {
@@ -143,6 +151,7 @@ export function InAppAgentWindowHost() {
             onClose={() => {
               setOpen(false);
             }}
+            onExpandedChange={handleExpandedChange}
             open={open}
             panelRef={panelRef}
           >
@@ -153,11 +162,7 @@ export function InAppAgentWindowHost() {
                 onDeleteConversation={(conversation) => {
                   deleteConversationDialog.open(conversation);
                 }}
-                onExpandedChange={(nextIsExpanded) => {
-                  previousPanelRectRef.current =
-                    panelRef.current?.getBoundingClientRect() ?? null;
-                  setIsExpanded(nextIsExpanded);
-                }}
+                onExpandedChange={handleExpandedChange}
                 onClose={() => {
                   setOpen(false);
                 }}

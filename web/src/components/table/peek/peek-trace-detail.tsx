@@ -47,7 +47,6 @@ export const TablePeekViewTraceDetail = (
     ? {
         traceId: trace.data.id,
         projectId: trace.data.projectId,
-        bookmarked: trace.data.bookmarked,
         isPublic: trace.data.public,
         shareUrl: buildTraceDetailPath({
           projectId: trace.data.projectId,

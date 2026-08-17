@@ -35,11 +35,13 @@ import {
 import {
   AnalyticsIntegrationExportSource,
   validateExportSource,
+  type BlobExportWriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
+  buildExportSourceContext,
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
@@ -53,9 +55,10 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
 import { Info, ExternalLink } from "lucide-react";
@@ -74,6 +77,8 @@ export default function MixpanelIntegrationSettings() {
       enabled: hasAccess,
     },
   );
+
+  const { project } = useQueryProject();
 
   const status =
     state.isLoading || !hasAccess
@@ -121,12 +126,19 @@ export default function MixpanelIntegrationSettings() {
           <Header title="Configuration" />
           <Card className="p-3">
             <MixpanelLogo className="text-foreground mb-4 w-20" />
-            <MixpanelIntegrationSettingsForm
-              state={state.data?.config ?? undefined}
-              projectId={projectId}
-              isLoading={state.isLoading}
-              legacyWritesActive={state.data?.legacyWritesActive ?? true}
-            />
+            {!state.data || !project ? (
+              <IntegrationSettingsSkeleton />
+            ) : (
+              <MixpanelIntegrationSettingsForm
+                // Draft lifetime = entity identity, so background refetches
+                // cannot reset a draft in progress.
+                key={`${projectId}:${state.data.config ? "configured" : "new"}`}
+                state={state.data.config ?? undefined}
+                projectId={projectId}
+                writeMode={state.data.writeMode}
+                projectCreatedAt={project.createdAt}
+              />
+            )}
           </Card>
         </>
       )}
@@ -148,32 +160,27 @@ export default function MixpanelIntegrationSettings() {
 const MixpanelIntegrationSettingsForm = ({
   state,
   projectId,
-  isLoading,
-  legacyWritesActive,
+  writeMode,
+  projectCreatedAt,
 }: {
   state?: NonNullable<RouterOutput["mixpanelIntegration"]["get"]["config"]>;
   projectId: string;
-  isLoading: boolean;
-  legacyWritesActive: boolean;
+  writeMode: BlobExportWriteMode;
+  // Raw ISO string, not a Date: a Date built in the parent's JSX would be a new
+  // reference on every render and would defeat the memo below.
+  projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
   const { isBetaEnabled } = useV4Beta();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { project } = useQueryProject();
-
-  // Policy context; EVENTS is always accepted by this router, hence
-  // enrichedAvailable: true (see export-source-policy.ts).
-  const projectCreatedAt = project?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
-    () => ({
-      isCloud: isLangfuseCloud,
-      enrichedAvailable: true,
-      legacyWritesActive,
-      projectCreatedAt: projectCreatedAt
-        ? new Date(projectCreatedAt)
-        : undefined,
-    }),
-    [isLangfuseCloud, legacyWritesActive, projectCreatedAt],
+    () =>
+      buildExportSourceContext({
+        writeMode,
+        isCloud: isLangfuseCloud,
+        projectCreatedAt: new Date(projectCreatedAt),
+      }),
+    [writeMode, isLangfuseCloud, projectCreatedAt],
   );
   const legacyValidation = validateExportSource(
     AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
@@ -225,7 +232,7 @@ const MixpanelIntegrationSettingsForm = ({
   const defaultExportSource = isPostCutoffCloud
     ? AnalyticsIntegrationExportSource.EVENTS
     : (state?.exportSource ??
-      (isBetaEnabled || !legacyWritesActive
+      (isBetaEnabled || !exportSourceCtx.legacyWritesActive
         ? AnalyticsIntegrationExportSource.EVENTS
         : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS));
 
@@ -239,20 +246,7 @@ const MixpanelIntegrationSettingsForm = ({
       enabled: state?.enabled ?? false,
       exportSource: defaultExportSource,
     },
-    disabled: isLoading,
   });
-
-  useEffect(() => {
-    mixpanelForm.reset({
-      mixpanelRegion:
-        (state?.mixpanelRegion as MixpanelRegion) ??
-        MIXPANEL_REGIONS[0].subdomain,
-      mixpanelProjectToken: "",
-      enabled: state?.enabled ?? false,
-      exportSource: defaultExportSource,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
 
   const watchedExportSource = mixpanelForm.watch("exportSource");
   const watchedValidation =
@@ -437,14 +431,13 @@ const MixpanelIntegrationSettingsForm = ({
         <Button
           loading={mut.isPending}
           onClick={mixpanelForm.handleSubmit(onSubmit)}
-          disabled={isLoading}
         >
           Save
         </Button>
         <Button
           variant="ghost"
           loading={mutDelete.isPending}
-          disabled={isLoading || !!!state}
+          disabled={!state}
           onClick={() => {
             if (
               confirm(
