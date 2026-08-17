@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
+import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import {
@@ -80,6 +81,30 @@ export function TraceTimelineCompact() {
     [nodeMap, handleHover],
   );
 
+  // Cost and usage the way the tree row states them, so hovering a hairline row
+  // tells you what reading a tree row would. Same formatters, same order.
+  const factsOf = useCallback(
+    (nodeId: string) => {
+      const node = nodeMap.get(nodeId);
+      if (!node) return [];
+      const facts: string[] = [];
+      if (node.totalCost) {
+        const aggregated = node.children.length > 0 || node.type === "TRACE";
+        facts.push(
+          `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`,
+        );
+      }
+      const tokens = formatTokenCounts(
+        node.inputUsage,
+        node.outputUsage,
+        node.totalUsage,
+      );
+      if (tokens) facts.push(tokens);
+      return facts;
+    },
+    [nodeMap],
+  );
+
   return (
     <div ref={measureRef} className="h-full w-full overflow-hidden">
       {box && box.width > 0 && box.height > 0 ? (
@@ -96,6 +121,7 @@ export function TraceTimelineCompact() {
           onHover={handleHoverNode}
           activeIds={activeIds}
           playhead={playhead}
+          factsOf={factsOf}
         />
       ) : null}
     </div>

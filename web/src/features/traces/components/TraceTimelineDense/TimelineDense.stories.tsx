@@ -427,6 +427,108 @@ export const LabelsStayReadableOnBars = meta.story({
   },
 });
 
+export const LabelsKeepTheirDistance = meta.story({
+  name: "(Test) Labels Keep Their Distance",
+  args: {
+    // A long tail puts its real work hard against the right edge, which is the
+    // only way a duration label ends up on the LEFT of its bar.
+    roots: longTailTrace(),
+    box: DESKTOP,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const labels = [
+      ...canvasElement.querySelectorAll<HTMLElement>(
+        '[data-testid="timeline-dense-duration"]',
+      ),
+    ].filter((label) => label.dataset.placement !== "inside");
+    await expect(labels.length).toBeGreaterThan(0);
+
+    let sawBefore = false;
+    for (const label of labels) {
+      const bar = label.parentElement?.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      );
+      if (!bar) continue;
+      const l = label.getBoundingClientRect();
+      const b = bar.getBoundingClientRect();
+      const before = label.dataset.placement === "before";
+      sawBefore = sawBefore || before;
+      // The SAME gap on either side. A `before` label positioned from its left
+      // edge (`x - gap - measuredWidth`) spends any under-measure out of the gap
+      // and ends up flush against the bar; anchored by its right edge it cannot.
+      const gap = before ? b.left - l.right : l.left - b.right;
+      await expect(gap).toBeCloseTo(6, 0);
+    }
+    // The fixture has to actually exercise the left side, or this guards nothing.
+    await expect(sawBefore).toBe(true);
+  },
+});
+
+export const TooltipShowsCostAndTokens = meta.story({
+  name: "(Test) Tooltip Shows Cost And Tokens",
+  args: {
+    roots: manySpans(40),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+    factsOf: () => ["$0.006425", "2,100 → 380 (∑ 2,480)"],
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + rect.width * 0.7,
+        clientY: rect.top + rect.height * 0.4,
+      }),
+    );
+
+    const tooltip = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-tooltip"]',
+      );
+    await waitFor(() => expect(tooltip()).not.toBeNull());
+    const box = tooltip()!;
+
+    // At this density hover IS how a row is read, so it says what a tree row
+    // says: identity, then the metrics.
+    await expect(box.innerText).toContain("$0.006425");
+    await expect(box.innerText).toContain("2,100 → 380");
+    // And the NAME survives the extra facts. One flex row made the name the only
+    // flexible item, so cost and tokens truncated it to nothing — the one thing
+    // the hover was for.
+    const name = box.querySelector<HTMLElement>("span[title]");
+    if (!name) throw new Error("no name in the tooltip");
+    await expect(name.getBoundingClientRect().width).toBeGreaterThan(20);
+    await expect(name.innerText.length).toBeGreaterThan(0);
+
+    // Still nothing to scroll: the tooltip is clamped to the space it has.
+    await expect(surface.scrollWidth).toBeLessThanOrEqual(surface.clientWidth);
+    await expect(surface.scrollHeight).toBeLessThanOrEqual(
+      surface.clientHeight,
+    );
+  },
+});
+
 export const ZoomLandsOnContent = meta.story({
   name: "(Test) Zoom Lands On Content",
   args: {

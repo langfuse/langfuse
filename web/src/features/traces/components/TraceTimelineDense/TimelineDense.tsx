@@ -228,6 +228,13 @@ export type TimelineDenseProps = {
    */
   activeIds?: ReadonlySet<string>;
   /**
+   * Extra facts for the hover tooltip, already formatted — cost and token usage
+   * live on the app's node, not on the layout contract, and their formatters
+   * live with the app. At this density hover is how a row is read at all, so it
+   * should say what a tree row says.
+   */
+  factsOf?: (nodeId: string) => string[];
+  /**
    * The trace playhead, handed in rather than read from context: this renderer
    * takes data and nothing implicit, which is what lets Storybook mount it at
    * every size. Absent means there is no playback surface here.
@@ -260,6 +267,7 @@ export function TimelineDense({
   onHover,
   activeIds,
   playhead,
+  factsOf,
 }: TimelineDenseProps) {
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const [pointerPos, setPointerPos] = useState<{ x: number; y: number } | null>(
@@ -280,9 +288,22 @@ export function TimelineDense({
   };
 
   const prepared = useMemo(() => prepareTimeline(roots), [roots]);
-  // Rendered at 10px, so measured at 10px: layout() decides which side a label
-  // goes on, and that decision is only as good as the font it measured.
-  const measurer = useMemo(() => createTextMeasurer("10px ui-sans-serif"), []);
+  // Measured in the font the labels ACTUALLY render in, read off a probe span
+  // that carries their own size — `10px ui-sans-serif` is a guess, and the
+  // canvas resolves it to a different face than the app's system stack, ~6px
+  // narrow on a duration. layout() decides which side a label goes on, and that
+  // decision is only as good as the font it measured.
+  const [labelFont, setLabelFont] = useState<string | null>(null);
+  const labelProbeRef = useCallback((element: HTMLSpanElement | null) => {
+    if (!element) return;
+    const style = getComputedStyle(element);
+    const font = `${style.fontSize} ${style.fontFamily}`;
+    setLabelFont((previous) => (previous === font ? previous : font));
+  }, []);
+  const measurer = useMemo(
+    () => createTextMeasurer(labelFont ?? "10px ui-sans-serif"),
+    [labelFont],
+  );
   // Resolved per theme, because three of these colours flip lightness between
   // themes. `resolvedTheme` is the trigger; the probe is the answer.
   const { resolvedTheme } = useTheme();
@@ -990,6 +1011,16 @@ export function TimelineDense({
         onPointerMove={onAxisPointerMove}
         data-testid="timeline-dense-axis"
       >
+        {/* Font probe for the measurer: a label's own size, invisible and out of
+            flow so it costs no layout. */}
+        <span
+          ref={labelProbeRef}
+          aria-hidden
+          className="invisible absolute"
+          style={{ fontSize: "10px" }}
+        >
+          0
+        </span>
         <div
           className="absolute inset-y-0 overflow-hidden"
           style={{ left: `${railWidth}px`, width: `${laneWidth}px` }}
@@ -1182,8 +1213,23 @@ export function TimelineDense({
                       data-testid="timeline-dense-duration"
                       data-placement={node.labelPlacement}
                       style={{
-                        left: `${node.labelX}px`,
-                        maxWidth: `${Math.max(laneWidth - node.labelX, 0)}px`,
+                        // A `before` label is anchored by its RIGHT edge, so its
+                        // gap from the bar is exact no matter what the measurer
+                        // thought the text was worth. Positioning it from the
+                        // left needs `left = x - gap - measuredWidth`, and any
+                        // under-measure is subtracted straight out of the gap:
+                        // measured 6px narrow and the label sat flush against
+                        // the bar. `after` never had the bug — it grows away
+                        // from its anchor rather than toward it.
+                        ...(node.labelPlacement === "before"
+                          ? {
+                              right: `${Math.max(laneWidth - node.labelX - node.labelWidth, 0)}px`,
+                              maxWidth: `${Math.max(node.labelX + node.labelWidth, 0)}px`,
+                            }
+                          : {
+                              left: `${node.labelX}px`,
+                              maxWidth: `${Math.max(laneWidth - node.labelX, 0)}px`,
+                            }),
                         top: `${Math.max((rowHeight - 12) / 2, 0)}px`,
                         fontSize: "10px",
                       }}
@@ -1271,7 +1317,7 @@ export function TimelineDense({
         {/* The tooltip is what names a row when the gutter cannot. */}
         {focused && pointerPos && !dragging && pointerPos.x > gutterWidth ? (
           <div
-            className="border-border bg-background text-foreground pointer-events-none absolute z-10 flex items-center gap-1 overflow-hidden rounded border px-1.5 py-1 shadow-md"
+            className="border-border bg-background text-foreground pointer-events-none absolute z-10 flex flex-col gap-0.5 overflow-hidden rounded border px-1.5 py-1 shadow-md"
             style={{
               left:
                 pointerPos.x > contentWidth * 0.55
@@ -1300,22 +1346,30 @@ export function TimelineDense({
             }}
             data-testid="timeline-dense-tooltip"
           >
-            <span
-              className={cn(
-                "h-2 w-2 shrink-0 rounded-[1px]",
-                TYPE_COLOR[focused.type] ?? FALLBACK_COLOR,
-              )}
-            />
-            <span className="truncate" title={focused.name}>
-              {focused.name}
+            {/* Two rows, like a tree row: identity, then the metrics. One row
+                made the NAME the only flexible item, so adding cost and tokens
+                truncated it away — and the name is the thing you hovered for. */}
+            <span className="flex items-center gap-1">
+              <span
+                className={cn(
+                  "h-2 w-2 shrink-0 rounded-[1px]",
+                  TYPE_COLOR[focused.type] ?? FALLBACK_COLOR,
+                )}
+              />
+              <span className="truncate" title={focused.name}>
+                {focused.name}
+              </span>
             </span>
-            <span className="text-muted-foreground shrink-0">
-              {focused.durationMs == null
-                ? "—"
-                : formatDurationMs(focused.durationMs)}
-            </span>
-            <span className="text-muted-foreground shrink-0">
-              @{formatDurationMs(focused.startMs)}
+            <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+              <span>
+                {focused.durationMs == null
+                  ? "—"
+                  : formatDurationMs(focused.durationMs)}
+              </span>
+              <span>@{formatDurationMs(focused.startMs)}</span>
+              {factsOf?.(focused.id).map((fact) => (
+                <span key={fact}>{fact}</span>
+              ))}
             </span>
           </div>
         ) : null}
