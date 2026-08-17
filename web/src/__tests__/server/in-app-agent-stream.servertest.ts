@@ -493,12 +493,12 @@ describe("createAgUiStream", () => {
     });
   });
 
-  it("forwards Bedrock V3 stream parts and records provider finish usage", async () => {
+  const initializeBasicTracedAgent = async (runId: string) => {
     const { createAgUiStream } =
       await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
-      runId: "run-provider-finish",
+      runId,
       messages: [
         {
           id: "user-message-1",
@@ -544,6 +544,10 @@ describe("createAgUiStream", () => {
       },
     });
     await readStream(stream);
+  };
+
+  it("forwards Bedrock V3 stream parts and records provider finish usage", async () => {
+    await initializeBasicTracedAgent("run-provider-finish");
 
     const textPart = { type: "text-delta", id: "text-1", delta: "hello" };
     const finishPart = {
@@ -558,6 +562,42 @@ describe("createAgUiStream", () => {
         outputTokens: { total: 50, text: 50, reasoning: 0 },
       },
       finishReason: { unified: "tool-calls", raw: "tool_use" },
+    };
+    bedrockMocks.streamParts = [textPart, finishPart];
+    const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
+      doStream: (options: unknown) => Promise<{
+        stream: ReadableStream<unknown>;
+      }>;
+    };
+
+    const modelResult = await model.doStream({});
+    const forwardedParts: unknown[] = [];
+    for await (const part of modelResult.stream) {
+      forwardedParts.push(part);
+    }
+
+    expect(forwardedParts).toEqual([textPart, finishPart]);
+    expect(
+      instrumentationMocks.instrumentation.recordModelCallFinish,
+    ).toHaveBeenCalledWith(finishPart);
+  });
+
+  it("forwards every model stream part when finish tracing throws", async () => {
+    instrumentationMocks.instrumentation.recordModelCallFinish.mockImplementationOnce(
+      () => {
+        throw new Error("tracing failed");
+      },
+    );
+    await initializeBasicTracedAgent("run-provider-finish-tracing-error");
+
+    const textPart = { type: "text-delta", id: "text-1", delta: "hello" };
+    const finishPart = {
+      type: "finish",
+      usage: {
+        inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 2, text: 2, reasoning: 0 },
+      },
+      finishReason: { unified: "stop", raw: "end_turn" },
     };
     bedrockMocks.streamParts = [textPart, finishPart];
     const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
@@ -1382,6 +1422,18 @@ describe("createAgUiStream", () => {
     expect(
       instrumentationMocks.instrumentation.recordToolExecutionEnd,
     ).toHaveBeenCalledWith("tool-call-1");
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionStart.mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(
+      adapterEvents.createScoreConfigExecute.mock.invocationCallOrder[0]!,
+    );
+    expect(
+      adapterEvents.createScoreConfigExecute.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      instrumentationMocks.instrumentation.recordToolExecutionEnd.mock
+        .invocationCallOrder[0]!,
+    );
 
     expect(adapterEvents.createScoreConfigExecute).toHaveBeenCalledWith(
       {
@@ -1398,6 +1450,73 @@ describe("createAgUiStream", () => {
         }),
       }),
     );
+  });
+
+  it("preserves successful and failed tool outcomes when timing tracing throws", async () => {
+    const tracingError = new Error("tool timing tracing failed");
+    instrumentationMocks.instrumentation.recordToolExecutionStart
+      .mockImplementationOnce(() => {
+        throw tracingError;
+      })
+      .mockImplementationOnce(() => {
+        throw tracingError;
+      });
+    instrumentationMocks.instrumentation.recordToolExecutionEnd
+      .mockImplementationOnce(() => {
+        throw tracingError;
+      })
+      .mockImplementationOnce(() => {
+        throw tracingError;
+      });
+    await initializeBasicTracedAgent("run-tool-timing-tracing-error");
+
+    const tool = getAgentTools(
+      vi.mocked(Agent).mock.calls.at(-1)?.[0],
+    )?.langfuse_createScoreConfig;
+    const execute = tool?.execute;
+    expect(execute).toBeTypeOf("function");
+    const toolInput = {
+      name: "readiness",
+      dataType: "NUMERIC",
+      numericMinValue: 0,
+      numericMaxValue: 1,
+    };
+    const toolContext = {
+      abortSignal: new AbortController().signal,
+      agent: {
+        toolCallId: "tool-call-1",
+        threadId: "conversation-1",
+      },
+    };
+
+    await expect(execute?.(toolInput, toolContext)).resolves.toEqual({
+      id: "score-config-1",
+      name: "readiness",
+      dataType: "NUMERIC",
+    });
+
+    const originalToolError = new Error("original tool failure");
+    adapterEvents.createScoreConfigExecute.mockRejectedValueOnce(
+      originalToolError,
+    );
+    await expect(execute?.(toolInput, toolContext)).rejects.toBe(
+      originalToolError,
+    );
+
+    const startOrder =
+      instrumentationMocks.instrumentation.recordToolExecutionStart.mock
+        .invocationCallOrder;
+    const executeOrder =
+      adapterEvents.createScoreConfigExecute.mock.invocationCallOrder;
+    const endOrder =
+      instrumentationMocks.instrumentation.recordToolExecutionEnd.mock
+        .invocationCallOrder;
+    expect(startOrder).toHaveLength(2);
+    expect(endOrder).toHaveLength(2);
+    expect(startOrder[0]).toBeLessThan(executeOrder[0]!);
+    expect(executeOrder[0]).toBeLessThan(endOrder[0]!);
+    expect(startOrder[1]).toBeLessThan(executeOrder[1]!);
+    expect(executeOrder[1]).toBeLessThan(endOrder[1]!);
   });
 
   it("persists raw silent output for approved tools while resuming with redacted content", async () => {
@@ -1539,6 +1658,18 @@ describe("createAgUiStream", () => {
     expect(
       instrumentationMocks.instrumentation.recordToolExecutionEnd,
     ).toHaveBeenCalledWith("tool-call-1");
+    expect(
+      instrumentationMocks.instrumentation.recordToolExecutionStart.mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(
+      adapterEvents.createScoreConfigExecute.mock.invocationCallOrder[0]!,
+    );
+    expect(
+      adapterEvents.createScoreConfigExecute.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      instrumentationMocks.instrumentation.recordToolExecutionEnd.mock
+        .invocationCallOrder[0]!,
+    );
     const resumedMessages =
       (
         adapterEvents.inputs[0] as {

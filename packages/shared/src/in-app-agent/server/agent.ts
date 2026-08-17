@@ -33,6 +33,7 @@ import {
   filterInAppAgentAvailableLangfuseMcpTools,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
+  getToolCallId,
   hasCallableExecute,
   type CompletedInAppAgentMcpToolCall,
   type InAppAgentToolPolicy,
@@ -227,30 +228,63 @@ export async function createAgUiStream(params: {
       : undefined,
     model: params.options.awsBedrock.modelId,
   });
-  instrumentation?.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS);
+  const recordInstrumentation = (
+    operation: string,
+    callback: (
+      activeInstrumentation: NonNullable<typeof instrumentation>,
+    ) => void,
+  ) => {
+    if (!instrumentation) {
+      return;
+    }
+
+    try {
+      callback(instrumentation);
+    } catch (error) {
+      logger.warn("Failed to record in-app agent Langfuse tracing", {
+        error,
+        operation,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    }
+  };
+  recordInstrumentation("recordAvailableSkills", (instrumentation) =>
+    instrumentation.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS),
+  );
   const onStepFinish = instrumentation
     ? (event: unknown) => {
-        instrumentation.recordStepFinish?.(event);
+        recordInstrumentation("recordStepFinish", (instrumentation) =>
+          instrumentation.recordStepFinish?.(event),
+        );
       }
     : undefined;
   const onChunk = instrumentation
     ? (chunk: unknown) => {
-        instrumentation.recordStreamChunk?.(chunk);
+        recordInstrumentation("recordStreamChunk", (instrumentation) =>
+          instrumentation.recordStreamChunk?.(chunk),
+        );
       }
     : undefined;
   const onModelCallFinish = instrumentation
     ? (event: unknown) => {
-        instrumentation.recordModelCallFinish?.(event);
+        recordInstrumentation("recordModelCallFinish", (instrumentation) =>
+          instrumentation.recordModelCallFinish?.(event),
+        );
       }
     : undefined;
   const onToolExecutionStart = instrumentation
     ? (toolCallId: string) => {
-        instrumentation.recordToolExecutionStart?.(toolCallId);
+        recordInstrumentation("recordToolExecutionStart", (instrumentation) =>
+          instrumentation.recordToolExecutionStart?.(toolCallId),
+        );
       }
     : undefined;
   const onToolExecutionEnd = instrumentation
     ? (toolCallId: string) => {
-        instrumentation.recordToolExecutionEnd?.(toolCallId);
+        recordInstrumentation("recordToolExecutionEnd", (instrumentation) =>
+          instrumentation.recordToolExecutionEnd?.(toolCallId),
+        );
       }
     : undefined;
 
@@ -334,8 +368,12 @@ export async function createAgUiStream(params: {
           return;
         }
 
-        instrumentation?.endWithError(error);
-        instrumentation?.flush();
+        recordInstrumentation("endWithError", (instrumentation) =>
+          instrumentation.endWithError(error),
+        );
+        recordInstrumentation("flush", (instrumentation) =>
+          instrumentation.flush(),
+        );
         ending = true;
         closed = true;
         shouldEnqueue = false;
@@ -439,8 +477,12 @@ export async function createAgUiStream(params: {
           return;
         }
 
-        instrumentation?.end({ aborted: true });
-        instrumentation?.flush();
+        recordInstrumentation("end", (instrumentation) =>
+          instrumentation.end({ aborted: true }),
+        );
+        recordInstrumentation("flush", (instrumentation) =>
+          instrumentation.flush(),
+        );
         ending = true;
         shouldEnqueue = false;
         removeAbortHandler();
@@ -499,7 +541,9 @@ export async function createAgUiStream(params: {
         awsProfile,
         instructions,
         onToolsAvailable: (tools) =>
-          instrumentation?.recordAvailableTools?.(tools),
+          recordInstrumentation("recordAvailableTools", (instrumentation) =>
+            instrumentation.recordAvailableTools?.(tools),
+          ),
         onStepFinish,
         onChunk,
         onModelCallFinish,
@@ -613,7 +657,9 @@ export async function createAgUiStream(params: {
                 params.input,
               );
 
-              instrumentation?.recordEvents(agUiEvents);
+              recordInstrumentation("recordEvents", (instrumentation) =>
+                instrumentation.recordEvents(agUiEvents),
+              );
 
               for (const agUiEvent of agUiEvents) {
                 if (
@@ -634,10 +680,16 @@ export async function createAgUiStream(params: {
                   agUiEvent.type === EventType.RUN_STARTED &&
                   pendingSyntheticEvents.length > 0
                 ) {
-                  instrumentation?.recordToolCallApproval(
-                    runInput.toolCallApproval,
+                  recordInstrumentation(
+                    "recordToolCallApproval",
+                    (instrumentation) =>
+                      instrumentation.recordToolCallApproval(
+                        runInput.toolCallApproval,
+                      ),
                   );
-                  instrumentation?.recordEvents(pendingSyntheticEvents);
+                  recordInstrumentation("recordEvents", (instrumentation) =>
+                    instrumentation.recordEvents(pendingSyntheticEvents),
+                  );
                   for (const syntheticEvent of pendingSyntheticEvents) {
                     enqueueEvent(syntheticEvent);
                   }
@@ -657,7 +709,9 @@ export async function createAgUiStream(params: {
 
               if (streamedRunError !== null) {
                 closeController(() => {
-                  instrumentation?.flush();
+                  recordInstrumentation("flush", (instrumentation) =>
+                    instrumentation.flush(),
+                  );
                   return handleStreamedRunError();
                 });
                 return;
@@ -670,11 +724,17 @@ export async function createAgUiStream(params: {
               });
 
               const runErrorEvent = createRunErrorEvent(params.input, error);
-              instrumentation?.recordEvents([runErrorEvent]);
+              recordInstrumentation("recordEvents", (instrumentation) =>
+                instrumentation.recordEvents([runErrorEvent]),
+              );
               enqueueEvent(runErrorEvent, () =>
                 params.options.onError?.(error),
               );
-              closeController(() => instrumentation?.flush());
+              closeController(() =>
+                recordInstrumentation("flush", (instrumentation) =>
+                  instrumentation.flush(),
+                ),
+              );
             },
             complete() {
               if (ending || closed) {
@@ -689,12 +749,18 @@ export async function createAgUiStream(params: {
               closeController(
                 streamedRunError === null
                   ? () => {
-                      instrumentation?.end({});
-                      instrumentation?.flush();
+                      recordInstrumentation("end", (instrumentation) =>
+                        instrumentation.end({}),
+                      );
+                      recordInstrumentation("flush", (instrumentation) =>
+                        instrumentation.flush(),
+                      );
                       return params.options.onComplete?.();
                     }
                   : () => {
-                      instrumentation?.flush();
+                      recordInstrumentation("flush", (instrumentation) =>
+                        instrumentation.flush(),
+                      );
                       return handleStreamedRunError();
                     },
               );
@@ -718,9 +784,15 @@ export async function createAgUiStream(params: {
           });
 
           const runErrorEvent = createRunErrorEvent(params.input, error);
-          instrumentation?.recordEvents([runErrorEvent]);
+          recordInstrumentation("recordEvents", (instrumentation) =>
+            instrumentation.recordEvents([runErrorEvent]),
+          );
           enqueueEvent(runErrorEvent, () => params.options.onError?.(error));
-          closeController(() => instrumentation?.flush());
+          closeController(() =>
+            recordInstrumentation("flush", (instrumentation) =>
+              instrumentation.flush(),
+            ),
+          );
         });
     },
     cancel() {
@@ -729,8 +801,12 @@ export async function createAgUiStream(params: {
       }
 
       ending = true;
-      instrumentation?.end({ aborted: true });
-      instrumentation?.flush();
+      recordInstrumentation("end", (instrumentation) =>
+        instrumentation.end({ aborted: true }),
+      );
+      recordInstrumentation("flush", (instrumentation) =>
+        instrumentation.flush(),
+      );
       shouldEnqueue = false;
       removeAbortHandler();
       interruptAdapter?.();
@@ -830,7 +906,7 @@ function withToolExecutionTiming<TTool>(params: {
         {
           ...tool,
           execute: async (inputData: unknown, context: unknown) => {
-            const toolCallId = getExecutionToolCallId(context);
+            const toolCallId = getToolCallId(context);
             if (!toolCallId) {
               return execute(inputData, context);
             }
@@ -846,20 +922,6 @@ function withToolExecutionTiming<TTool>(params: {
       ];
     }),
   );
-}
-
-function getExecutionToolCallId(context: unknown): string | undefined {
-  if (typeof context !== "object" || context === null) {
-    return undefined;
-  }
-
-  const agent = "agent" in context ? context.agent : undefined;
-  if (typeof agent !== "object" || agent === null) {
-    return undefined;
-  }
-
-  const toolCallId = "toolCallId" in agent ? agent.toolCallId : undefined;
-  return typeof toolCallId === "string" ? toolCallId : undefined;
 }
 
 async function createMastraAdapter(params: {

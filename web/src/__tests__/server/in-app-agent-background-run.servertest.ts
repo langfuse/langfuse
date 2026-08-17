@@ -111,6 +111,7 @@ describe("in-app agent background runs", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
@@ -598,6 +599,8 @@ describe("in-app agent background runs", () => {
   });
 
   it("decides an approval exactly once and reads the tool args server-side", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-14T10:01:00.000Z"));
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const context = [
@@ -683,6 +686,8 @@ describe("in-app agent background runs", () => {
   });
 
   it("preserves context through an approved then rejected chained continuation", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-14T10:01:00.000Z"));
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const context = [
@@ -751,6 +756,7 @@ describe("in-app agent background runs", () => {
         },
       },
     });
+    vi.setSystemTime(new Date("2026-08-14T10:04:00.000Z"));
 
     const { runId: rejectedContinuationId } = await caller.decideToolApproval({
       projectId,

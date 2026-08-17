@@ -741,7 +741,10 @@ export class InAppAgentInstrumentation {
     const toolCallApproval = this.toolCallApprovals.get(toolCallId);
     const executionTimes = this.toolExecutionTimes.get(toolCallId);
     const rawStartTime = executionTimes?.startTime ?? tool.startTime;
-    const endTime = executionTimes?.endTime ?? new Date();
+    const endTime =
+      toolCallApproval === "rejected"
+        ? rawStartTime
+        : (executionTimes?.endTime ?? new Date());
     // Keep causal order: tool execution cannot start before the generation that
     // requested it finished (or the last known generation end).
     const startTime =
@@ -978,7 +981,7 @@ export class InAppAgentInstrumentation {
     }
 
     this.emitLlmGeneration(this.openLlmStep, undefined, {
-      ...(statusMessage || metadata
+      ...(!this.openLlmStep.providerFinish && (statusMessage || metadata)
         ? {
             level: "ERROR" as const,
             statusMessage:
