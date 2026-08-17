@@ -10,7 +10,12 @@ import {
   getEventsForAnalyticsIntegrations,
   getCurrentSpan,
   validateWebhookURL,
+  fetchWithSecureRedirects,
 } from "@langfuse/shared/src/server";
+import {
+  buildAnalyticsRedirectOptions,
+  rethrowIfOutboundValidationFailure,
+} from "../analyticsIntegrationEgress";
 import {
   transformTraceForPostHog,
   transformGenerationForPostHog,
@@ -52,7 +57,7 @@ type PostHogClientOptions = NonNullable<
 // calls /flags/, so only /batch/ request bodies are measured (LFE-10508).
 export const countingFetch =
   (volume: { bytes: number }): PostHogClientOptions["fetch"] =>
-  (url, options) => {
+  async (url, options) => {
     if (url.endsWith("/batch/")) {
       const body = options.body;
       if (typeof body === "string") {
@@ -68,7 +73,16 @@ export const countingFetch =
         );
       }
     }
-    return globalThis.fetch(url, options as RequestInit);
+    // Re-resolve and re-validate the destination IP at socket connect time: a
+    // host that validated as public in the pre-check can rebind to a
+    // private/loopback address before the socket opens (TOCTOU). Redirect
+    // targets are re-validated with the same URL validator.
+    const { response } = await fetchWithSecureRedirects(
+      url,
+      options as RequestInit,
+      buildAnalyticsRedirectOptions("PostHog integration"),
+    );
+    return response;
   };
 
 const processPostHogTraces = async (config: PostHogExecutionConfig) => {
@@ -422,6 +436,16 @@ export const handlePostHogIntegrationProjectJob = async (
       `[POSTHOG] PostHog integration processing complete for project ${projectId}`,
     );
   } catch (error) {
+    // A connect-time SSRF block is a permanent misconfiguration of the
+    // integration host, not a transient failure, so skip the remaining BullMQ
+    // attempts for this job rather than re-running the same hopeless send. The
+    // integration stays enabled, so the schedule re-enqueues the project next
+    // cycle, which is what lets a fixed endpoint recover on its own.
+    rethrowIfOutboundValidationFailure(error, {
+      logSubject: `[POSTHOG] Outbound send for project ${projectId}`,
+      jobSubject: `PostHog integration for project ${projectId}`,
+    });
+
     logger.error(
       `[POSTHOG] Error processing PostHog integration for project ${projectId}`,
       error,

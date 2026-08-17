@@ -27,6 +27,11 @@ export class OutboundUrlValidationError extends Error {
   }
 }
 
+// Prefix of the message thrown on DNS-resolution failure. Exported so consumers
+// can detect this failure by message when the typed `code` is lost — e.g. after
+// RedirectValidationError re-wraps the inner error by message text only.
+export const DNS_LOOKUP_FAILED_MESSAGE_PREFIX = "DNS lookup failed for";
+
 export interface OutboundUrlValidationWhitelist {
   hosts: string[];
   ips: string[];
@@ -77,7 +82,7 @@ export async function resolveHost(hostname: string): Promise<string[]> {
   if (!ips.size) {
     throw new OutboundUrlValidationError(
       "dns-lookup-failed",
-      `DNS lookup failed for ${hostname}`,
+      `${DNS_LOOKUP_FAILED_MESSAGE_PREFIX} ${hostname}`,
     );
   }
   return [...ips];
