@@ -3,6 +3,20 @@ import type { QueueBaseOptions } from "bullmq";
 import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
+import {
+  buildRedisErrorContext,
+  formatRedisErrorMessage,
+  getLastNodeError,
+} from "./redisErrorContext";
+
+const logRedisError = (
+  prefix: string,
+  error: unknown,
+  nodeAddress?: string,
+) => {
+  const context = buildRedisErrorContext(error, nodeAddress);
+  logger.error(formatRedisErrorMessage(prefix, context), context);
+};
 
 const defaultRedisOptions: Partial<RedisOptions> = {
   enableReadyCheck: true,
@@ -146,8 +160,20 @@ const createRedisClusterInstance = (
 
   const cluster = new Cluster(nodes, clusterOptions);
 
+  // The `node error` event is the only place ioredis reports which node failed.
+  let lastNodeFailure: { error: unknown; address: string } | undefined;
+  cluster.on("node error", (error: unknown, address: string) => {
+    lastNodeFailure = { error, address };
+  });
+
   cluster.on("error", (error) => {
-    logger.error("Redis cluster error", error);
+    const lastNodeError = getLastNodeError(error);
+    const nodeAddress =
+      lastNodeError !== undefined && lastNodeFailure?.error === lastNodeError
+        ? lastNodeFailure.address
+        : undefined;
+
+    logRedisError("Redis cluster error", error, nodeAddress);
   });
 
   return cluster;
@@ -200,7 +226,7 @@ const createRedisSentinelInstance = (
   });
 
   instance.on("error", (error) => {
-    logger.error("Redis sentinel error", error);
+    logRedisError("Redis sentinel error", error);
   });
 
   return instance;
@@ -248,7 +274,7 @@ export const createNewRedisInstance = (
       : null;
 
   instance?.on("error", (error) => {
-    logger.error("Redis error", error);
+    logRedisError("Redis error", error);
   });
 
   return instance;

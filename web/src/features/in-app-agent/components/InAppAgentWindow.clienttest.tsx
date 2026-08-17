@@ -7,7 +7,6 @@ import {
 } from "@testing-library/react";
 import { ScanSearch } from "lucide-react";
 import { InAppAgentRunStatus } from "@langfuse/shared";
-import { IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE } from "@langfuse/shared/in-app-agent";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   InAppAgentWindow,
@@ -47,7 +46,6 @@ const controlledAgent = vi.hoisted(() => ({
     rejectToolCall: vi.fn(),
     selectedConversationId: undefined,
     selectedConversationTitle: null,
-    selectedConversationIsWriteLocked: false,
     selectConversation: vi.fn(),
     submit: vi.fn(),
     submitFeedback: vi.fn(),
@@ -300,7 +298,6 @@ describe("ControlledInAppAgentWindow composer", () => {
     controlledAgent.value.isSelectedConversationHydrating = false;
     controlledAgent.value.isSubmitting = false;
     controlledAgent.value.pendingToolApprovals = [];
-    controlledAgent.value.selectedConversationIsWriteLocked = false;
     controlledAgent.value.selectConversation = vi.fn();
     controlledAgent.value.execution = {
       run: null,
@@ -369,63 +366,6 @@ describe("ControlledInAppAgentWindow composer", () => {
     expect(
       screen.getByRole("button", { name: /^Conversation history/ }),
     ).toBeEnabled();
-  });
-
-  it("hides a failed-run notice when the conversation is write-locked", () => {
-    controlledAgent.value.isRunning = false;
-    controlledAgent.value.selectedConversationIsWriteLocked = true;
-    controlledAgent.value.execution = {
-      run: {
-        id: "run-1",
-        status: InAppAgentRunStatus.FAILED,
-        errorCode: null,
-        cancelRequested: false,
-      },
-      isCancelling: false,
-      cancel: vi.fn(),
-    };
-
-    render(
-      <TooltipProvider>
-        <ControlledInAppAgentWindow
-          isExpanded={false}
-          onClose={vi.fn()}
-          onDeleteConversation={vi.fn()}
-          onExpandedChange={vi.fn()}
-        />
-      </TooltipProvider>,
-    );
-
-    expect(
-      screen.getByText(IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("The run failed. Try again."),
-    ).not.toBeInTheDocument();
-  });
-
-  it("locks the composer when a write-lock rejection arrives before the cached flag", () => {
-    controlledAgent.value.isRunning = false;
-    controlledAgent.value.selectedConversationIsWriteLocked = false;
-    controlledAgent.value.error = { type: "write_lock" };
-
-    render(
-      <TooltipProvider>
-        <ControlledInAppAgentWindow
-          isExpanded={false}
-          onClose={vi.fn()}
-          onDeleteConversation={vi.fn()}
-          onExpandedChange={vi.fn()}
-        />
-      </TooltipProvider>,
-    );
-
-    expect(
-      screen.getByText(IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeDisabled();
   });
 });
 

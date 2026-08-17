@@ -3,7 +3,6 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import {
   IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
-  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
 import {
@@ -1431,42 +1430,6 @@ export const Error = meta.story({
       canvas.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeEnabled();
     await expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
-  },
-});
-
-export const WriteLocked = meta.story({
-  args: {
-    error: { type: "write_lock" },
-    isConversationInteractionDisabled: true,
-    selectedConversationId: "conversation-1",
-    messages: [
-      {
-        id: "user-1",
-        role: "user",
-        content: {
-          type: "text",
-          text: "Help me inspect this trace.",
-        },
-      },
-    ],
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const alert = canvas.getByRole("alert");
-
-    await expect(alert).toHaveTextContent(
-      IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-    );
-    await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeDisabled();
-    await expect(
-      canvas.getByRole("button", { name: /^Conversation history/ }),
-    ).toBeEnabled();
-    await expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
-    await expect(
-      canvas.getByRole("button", { name: "Start new conversation" }),
-    ).toBeEnabled();
   },
 });
 
