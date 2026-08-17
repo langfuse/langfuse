@@ -112,11 +112,16 @@ const defaultInAppAgentToolPolicy = createInAppAgentToolPolicy({
   userAccess: defaultInAppAgentUserAccess,
 });
 
-async function createTestSandbox() {
+async function createTestSandbox(opts?: {
+  /** A session persisted by an earlier turn, to exercise session reuse. */
+  providerSessionId?: string;
+  /** When set, the provider reports that persisted session as already gone. */
+  sessionLostReason?: "not_found" | "terminal_state";
+}) {
   let sandboxState: {
     providerSessionId: string | null;
   } = {
-    providerSessionId: null,
+    providerSessionId: opts?.providerSessionId ?? null,
   };
   let sessionCounter = 0;
   const files = new Map<string, string>();
@@ -149,6 +154,9 @@ async function createTestSandbox() {
   };
 
   const provider: SandboxProvider = {
+    ...(opts?.sessionLostReason
+      ? { probeSession: async () => opts.sessionLostReason ?? null }
+      : {}),
     async ensureSession({ sessionId }) {
       if (sessionId && activeSessionId === sessionId) {
         return { sessionId, sandbox: sandboxSession };
@@ -911,6 +919,80 @@ describe("createAgUiStream", () => {
       maxSteps: expect.any(Number),
     });
     expect(agentConfig?.defaultOptions).not.toHaveProperty("providerOptions");
+  });
+
+  it("adds a run instruction when the persisted workspace is gone", async () => {
+    const { createAgUiStream } =
+      await import("@langfuse/shared/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        { id: "user-message-1", role: "user" as const, content: "hello" },
+      ],
+      tools: [],
+      context: [],
+      state: {
+        type: "existingConversation" as const,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      },
+      forwardedProps: {},
+    };
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    } as unknown as Langfuse;
+    const sandboxState = await createTestSandbox({
+      providerSessionId: "expired-session",
+      sessionLostReason: "terminal_state",
+    });
+
+    expect(sandboxState.workspaceWasReset).toBe(true);
+
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        awsBedrock: { modelId: "eu.anthropic.claude-opus-4-8" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+          runOverride: "run-override",
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient,
+        sandbox: sandboxState.sandbox,
+        sandboxWorkspaceWasReset: sandboxState.workspaceWasReset,
+        useLocalPrompt: false,
+      },
+    });
+
+    await readStream(stream);
+
+    // Rides on the run's system message, not the transcript or managed prompt.
+    const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0];
+    const runInstruction = (agentConfig?.defaultOptions as { system?: string })
+      ?.system;
+    expect(runInstruction).toContain("has been replaced with an empty one");
+    expect(runInstruction).toContain("restored in full");
+    expect(
+      promptMocks.compile.mock.calls.at(-1)?.[0]?.sandboxFilesystem,
+    ).not.toContain("has been replaced with an empty one");
   });
 
   it("stamps top-level error on TOOL_CALL_RESULT from structured failure payloads", async () => {

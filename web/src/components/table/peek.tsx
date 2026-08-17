@@ -7,7 +7,7 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { useIsMobile } from "@/src/hooks/use-mobile";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { getPathnameWithoutBasePath } from "@/src/utils/api";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -154,7 +154,9 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const { isBetaEnabled: isV4 } = useV4Beta();
   const itemId = router.query.peek as string | undefined;
   const isExpanded = router.query[PEEK_VIEW_PARAM] === PEEK_VIEW_EXPANDED;
-  const isMobile = useIsMobile();
+  // Handheld, not width-only: a phone in landscape is wider than `md` but is
+  // still a phone, and must get the full-screen drawer rather than the sheet.
+  const isHandheld = useIsHandheld();
 
   // Expanded is view state, owned by the peek and reflected in the URL so it is
   // shareable + survives reload. Managed here (not threaded through every table
@@ -209,7 +211,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const ignoredSelectors = props.peekEventOptions?.ignoredSelectors ?? [];
 
   // Gate the first render on mount so we never paint the desktop sheet before
-  // `useIsMobile` resolves (which would flash the wrong shell on a mobile
+  // `useIsHandheld` resolves (which would flash the wrong shell on a mobile
   // deep-link). Click-to-open is already post-mount, so it has no delay.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -245,7 +247,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       actions={props.actions}
       actionsMenu={props.actionsMenu}
       expand={
-        isMobile
+        isHandheld
           ? undefined
           : {
               isExpanded: panel.isExpanded,
@@ -279,7 +281,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // `return null` above), which is what resets the state (see README).
   return (
     <PeekTableStateProvider>
-      {isMobile ? (
+      {isHandheld ? (
         // Mobile: a vaul bottom drawer with native swipe-down dismissal.
         <Drawer
           open={!!itemId}
