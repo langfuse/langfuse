@@ -2185,8 +2185,10 @@ export class OtelIngestionProcessor {
   }
 
   /**
-   * Prepends gen_ai.system_instructions as a {role: "system", content} message,
-   * consistent with how gen_ai.system.message events are mapped.
+   * Prepends gen_ai.system_instructions onto a chat-message array.
+   * Preserves complete structured system messages (e.g. LiteLLM `{role, parts}`),
+   * concatenates canonical text instruction parts, and skips empty/unmappable
+   * values instead of string-coercing them to "[object Object]".
    * No-ops if messages already contain a system message.
    */
   private prependSystemInstructions(
@@ -2198,37 +2200,116 @@ export class OtelIngestionProcessor {
       if (!Array.isArray(messages)) return input;
 
       const hasSystemMessage = messages.some(
-        (msg: Record<string, unknown>) => msg?.role === "system",
+        (msg: unknown) =>
+          OtelIngestionProcessor.isPlainObject(msg) && msg.role === "system",
       );
       if (hasSystemMessage) return input;
 
-      let content: string;
-      try {
-        const parsed =
-          typeof systemInstructions === "string"
-            ? JSON.parse(systemInstructions)
-            : systemInstructions;
-        if (Array.isArray(parsed)) {
-          content = parsed
-            .map((p: Record<string, unknown>) =>
-              typeof p === "object" && p?.content
-                ? String(p.content)
-                : String(p),
-            )
-            .join("\n");
-        } else {
-          content = String(parsed);
-        }
-      } catch {
-        content = String(systemInstructions);
-      }
+      const systemMessages =
+        this.mapSystemInstructionsToMessages(systemInstructions);
+      if (systemMessages.length === 0) return input;
 
-      const systemMessage = { role: "system", content };
-      const merged = [systemMessage, ...messages];
+      const merged = [...systemMessages, ...messages];
       return typeof input === "string" ? JSON.stringify(merged) : merged;
     } catch {
       return input;
     }
+  }
+
+  private mapSystemInstructionsToMessages(
+    systemInstructions: unknown,
+  ): Record<string, unknown>[] {
+    const items = this.normalizeSystemInstructionItems(systemInstructions);
+    if (items.length === 0) return [];
+
+    const messages: Record<string, unknown>[] = [];
+    const pendingParts: unknown[] = [];
+
+    const flushPendingParts = () => {
+      if (pendingParts.length === 0) return;
+
+      const textParts = pendingParts.filter(
+        (part): part is string => typeof part === "string",
+      );
+      if (textParts.length === pendingParts.length) {
+        messages.push({
+          role: "system",
+          content: textParts.join("\n"),
+        });
+      } else {
+        messages.push({
+          role: "system",
+          parts: pendingParts.map((part) =>
+            typeof part === "string" ? { type: "text", content: part } : part,
+          ),
+        });
+      }
+      pendingParts.length = 0;
+    };
+
+    for (const item of items) {
+      if (typeof item === "string") {
+        if (item.length > 0) pendingParts.push(item);
+        continue;
+      }
+
+      if (!OtelIngestionProcessor.isPlainObject(item)) {
+        continue;
+      }
+
+      if (typeof item.role === "string") {
+        const hasParts = Array.isArray(item.parts);
+        const hasContent = "content" in item;
+        if (!hasParts && !hasContent) continue;
+        flushPendingParts();
+        messages.push(item);
+        continue;
+      }
+
+      if (typeof item.content === "string") {
+        if (item.content.length === 0) {
+          if (item.type && item.type !== "text") {
+            pendingParts.push(item);
+          }
+          continue;
+        }
+        if (!item.type || item.type === "text") {
+          pendingParts.push(item.content);
+          continue;
+        }
+        pendingParts.push(item);
+        continue;
+      }
+
+      if (item.content != null && typeof item.content !== "string") {
+        pendingParts.push(item);
+        continue;
+      }
+
+      if (item.type) {
+        pendingParts.push(item);
+      }
+    }
+
+    flushPendingParts();
+    return messages;
+  }
+
+  private normalizeSystemInstructionItems(value: unknown): unknown[] {
+    if (value == null) return [];
+
+    if (typeof value === "string") {
+      if (value.length === 0) return [];
+      try {
+        return this.normalizeSystemInstructionItems(JSON.parse(value));
+      } catch {
+        return value.trim().length === 0 ? [] : [value];
+      }
+    }
+
+    if (Array.isArray(value)) return value;
+    if (OtelIngestionProcessor.isPlainObject(value)) return [value];
+    return [];
   }
 
   private extractEnvironment(
