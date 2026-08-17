@@ -132,9 +132,7 @@ describe("OpenAPI deprecations", () => {
     }
   });
 
-  // The sunset date is a Langfuse Cloud commitment. Self-hosted deployments
-  // choose when to move to v4, so a message that states the date without
-  // scoping it promises a removal that will never apply to them.
+  // The date is a Cloud commitment; self-hosted is not bound by it.
   it("scopes every sunset message to Langfuse Cloud", () => {
     for (const { method, endpointPath, message } of getFernDeprecatedOperations(
       definitionDirectory,
