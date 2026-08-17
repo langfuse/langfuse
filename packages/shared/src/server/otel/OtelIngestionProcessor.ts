@@ -2463,6 +2463,11 @@ export class OtelIngestionProcessor {
 
     // Vercel AI SDK
     if (instrumentationScopeName === "ai") {
+      const providerMetadata = this.parseJsonPayload(
+        attributes["ai.response.providerMetadata"],
+      );
+      const responseServiceTier = providerMetadata?.openai?.serviceTier;
+
       return {
         maxSteps:
           "ai.settings.maxSteps" in attributes
@@ -2501,9 +2506,11 @@ export class OtelIngestionProcessor {
             ? (attributes["gen_ai.request.temperature"]?.toString() ?? null)
             : null,
         service_tier:
-          "gen_ai.request.service_tier" in attributes
-            ? (attributes["gen_ai.request.service_tier"]?.toString() ?? null)
-            : null,
+          typeof responseServiceTier === "string"
+            ? responseServiceTier
+            : "gen_ai.request.service_tier" in attributes
+              ? (attributes["gen_ai.request.service_tier"]?.toString() ?? null)
+              : null,
       };
     }
 
