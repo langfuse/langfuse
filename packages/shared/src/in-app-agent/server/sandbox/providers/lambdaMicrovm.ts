@@ -22,6 +22,10 @@ const DEFAULT_SUSPEND_AFTER_IDLE_SECONDS = 60;
 const DEFAULT_TERMINATE_AFTER_SUSPEND_SECONDS = 8 * 60 * 60;
 const DEFAULT_MAXIMUM_DURATION_SECONDS = 3_600;
 const BRIDGE_READY_TIMEOUT_MS = 30_000;
+const BRIDGE_RETRY_DELAY_MS = 500;
+const DEFAULT_OPERATION_REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_BASH_TIMEOUT_MS = 120_000;
+const OPERATION_REQUEST_GRACE_PERIOD_MS = 5_000;
 
 const LambdaMicrovmErrorSchema = z.object({
   name: z.string().optional(),
@@ -196,47 +200,58 @@ export function createLambdaMicrovmSandboxProvider(params: {
       sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
     });
 
-    const response = await fetch(
-      `${normalizeEndpoint(session.endpoint)}/sandbox`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
-          "X-aws-proxy-auth": session.authToken.value,
-        },
-        body: JSON.stringify({
-          ...operation,
-          toolCallFiles: session.toolCallFiles,
-        }),
+    const authToken = session.authToken.value;
+    const requestTimeoutMs = getOperationRequestTimeoutMs(operation);
+    return withRequestTimeout({
+      timeoutMs: requestTimeoutMs,
+      timeoutMessage: `Lambda MicroVM operation request timed out after ${requestTimeoutMs}ms`,
+      request: async (signal) => {
+        const response = await fetch(
+          `${normalizeEndpoint(session.endpoint)}/sandbox`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
+              "X-aws-proxy-auth": authToken,
+            },
+            body: JSON.stringify({
+              ...operation,
+              toolCallFiles: session.toolCallFiles,
+            }),
+            signal,
+          },
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.debug("[Lambda MicroVM Sandbox] operation request failed", {
+            sessionId,
+            operation: operation.operation,
+            endpoint: session.endpoint,
+            normalizedEndpoint: normalizeEndpoint(session.endpoint),
+            endpointPort: getEndpointPort(session.endpoint),
+            sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText,
+          });
+          throw new Error(
+            errorText ||
+              `Lambda MicroVM bridge request failed: ${response.status}`,
+          );
+        }
+
+        const result = (await response.json()) as unknown;
+        const parsedResult =
+          LambdaMicrovmOperationResultSchema.safeParse(result);
+        if (parsedResult.success) {
+          return parsedResult.data.result;
+        }
+
+        return result;
       },
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.debug("[Lambda MicroVM Sandbox] operation request failed", {
-        sessionId,
-        operation: operation.operation,
-        endpoint: session.endpoint,
-        normalizedEndpoint: normalizeEndpoint(session.endpoint),
-        endpointPort: getEndpointPort(session.endpoint),
-        sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText,
-      });
-      throw new Error(
-        errorText || `Lambda MicroVM bridge request failed: ${response.status}`,
-      );
-    }
-
-    const result = (await response.json()) as unknown;
-    const parsedResult = LambdaMicrovmOperationResultSchema.safeParse(result);
-    if (parsedResult.success) {
-      return parsedResult.data.result;
-    }
-
-    return result;
+    });
   };
 
   const createSessionSandbox = (sessionId: string): SandboxSession => ({
@@ -342,7 +357,11 @@ async function waitForBridge(params: {
   let lastError: unknown;
 
   while (Date.now() - startedAt < BRIDGE_READY_TIMEOUT_MS) {
-    const microvm = await getMicrovm(params.client, params.microvmId);
+    const microvm = await withBridgeRequestTimeout({
+      startedAt,
+      requestName: "status request",
+      request: (signal) => getMicrovm(params.client, params.microvmId, signal),
+    });
     if (!microvm) {
       throw new Error(
         `[Lambda MicroVM Sandbox] startup failed before bridge became ready: session ${params.microvmId} no longer exists`,
@@ -363,29 +382,57 @@ async function waitForBridge(params: {
         endpointPort: getEndpointPort(params.endpoint),
         sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
       });
-      const response = await fetch(
-        `${normalizeEndpoint(params.endpoint)}/health`,
-        {
-          headers: {
-            "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
-            "X-aws-proxy-auth": (await createMicrovmAuthToken(params)).value,
-          },
-        },
-      );
+      const authToken = (
+        await withBridgeRequestTimeout({
+          startedAt,
+          requestName: "auth token request",
+          request: (signal) => createMicrovmAuthToken(params, signal),
+        })
+      ).value;
 
-      if (response.ok) {
+      const healthResult = await withBridgeRequestTimeout({
+        startedAt,
+        requestName: "health probe",
+        request: async (signal) => {
+          const response = await fetch(
+            `${normalizeEndpoint(params.endpoint)}/health`,
+            {
+              headers: {
+                "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
+                "X-aws-proxy-auth": authToken,
+              },
+              signal,
+            },
+          );
+
+          return {
+            ok: response.ok,
+            status: response.status,
+            errorText: response.ok ? "" : await response.text(),
+          };
+        },
+      });
+
+      if (healthResult.ok) {
         return;
       }
 
       lastError = new Error(
-        (await response.text()) ||
-          `[Lambda MicroVM Sandbox] health probe failed with ${response.status}`,
+        healthResult.errorText ||
+          `[Lambda MicroVM Sandbox] health probe failed with ${healthResult.status}`,
       );
     } catch (error) {
       lastError = error;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    const remainingMs = getRemainingBridgeReadyMs(startedAt);
+    if (remainingMs <= 0) {
+      break;
+    }
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(BRIDGE_RETRY_DELAY_MS, remainingMs)),
+    );
   }
 
   throw lastError instanceof Error
@@ -393,11 +440,14 @@ async function waitForBridge(params: {
     : new Error("[Lambda MicroVM Sandbox] bridge did not become ready");
 }
 
-async function createMicrovmAuthToken(params: {
-  client: LambdaMicrovmsClient;
-  microvmId: string;
-  endpoint: string;
-}) {
+async function createMicrovmAuthToken(
+  params: {
+    client: LambdaMicrovmsClient;
+    microvmId: string;
+    endpoint: string;
+  },
+  abortSignal?: AbortSignal,
+) {
   const endpointPort = getEndpointPort(params.endpoint);
   logger.debug("[Lambda MicroVM Sandbox] creating auth token", {
     microvmId: params.microvmId,
@@ -413,6 +463,7 @@ async function createMicrovmAuthToken(params: {
       expirationInMinutes: DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES,
       allowedPorts: [{ allPorts: {} }],
     }),
+    abortSignal ? { abortSignal } : undefined,
   );
 
   const token =
@@ -439,11 +490,16 @@ async function createMicrovmAuthToken(params: {
   };
 }
 
-async function getMicrovm(client: LambdaMicrovmsClient, microvmId: string) {
+async function getMicrovm(
+  client: LambdaMicrovmsClient,
+  microvmId: string,
+  abortSignal?: AbortSignal,
+) {
   try {
     return readMicrovmInfo(
       await client.send(
         new GetMicrovmCommand({ microvmIdentifier: microvmId }),
+        abortSignal ? { abortSignal } : undefined,
       ),
     );
   } catch (error) {
@@ -498,6 +554,52 @@ function getEndpointPort(endpoint: string) {
   }
 
   return parsedEndpoint.protocol === "http:" ? 80 : 443;
+}
+
+function getOperationRequestTimeoutMs(operation: LambdaMicrovmOperation) {
+  return operation.operation === "bash"
+    ? (operation.timeoutMs ?? DEFAULT_BASH_TIMEOUT_MS) +
+        OPERATION_REQUEST_GRACE_PERIOD_MS
+    : DEFAULT_OPERATION_REQUEST_TIMEOUT_MS;
+}
+
+async function withRequestTimeout<T>(params: {
+  timeoutMs: number;
+  timeoutMessage: string;
+  request: (signal: AbortSignal) => Promise<T>;
+}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(new Error(params.timeoutMessage));
+  }, params.timeoutMs);
+
+  try {
+    return await params.request(controller.signal);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function withBridgeRequestTimeout<T>(params: {
+  startedAt: number;
+  requestName: string;
+  request: (signal: AbortSignal) => Promise<T>;
+}) {
+  const remainingMs = getRemainingBridgeReadyMs(params.startedAt);
+  const timeoutMessage = `Lambda MicroVM bridge ${params.requestName} timed out after ${Math.max(remainingMs, 0)}ms`;
+  if (remainingMs <= 0) {
+    throw new Error(timeoutMessage);
+  }
+
+  return withRequestTimeout({
+    timeoutMs: remainingMs,
+    timeoutMessage,
+    request: params.request,
+  });
+}
+
+function getRemainingBridgeReadyMs(startedAt: number) {
+  return BRIDGE_READY_TIMEOUT_MS - (Date.now() - startedAt);
 }
 
 function isMissingMicrovmError(error: unknown) {
