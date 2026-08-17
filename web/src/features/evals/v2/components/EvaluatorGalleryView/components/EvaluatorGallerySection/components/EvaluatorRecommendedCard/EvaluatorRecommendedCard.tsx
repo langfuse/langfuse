@@ -1,5 +1,4 @@
 import { EvaluatorGalleryMethodBadge } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
-import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
 import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
@@ -7,19 +6,16 @@ import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorRecommendedCard({
   template,
+  categoryKey,
   onSelect,
 }: {
   template: GalleryTemplate;
+  categoryKey: string;
   onSelect: (template: GalleryTemplate) => void;
 }) {
-  const {
-    description,
-    type,
-    icon: Icon,
-  } = getGalleryTemplatePresentation(template);
-  const { iconClassName } = getGalleryCategoryPresentation(
-    EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
-  );
+  const { description, type } = getGalleryTemplatePresentation(template);
+  const { icon: Icon, iconClassName } =
+    getGalleryCategoryPresentation(categoryKey);
 
   return (
     <button

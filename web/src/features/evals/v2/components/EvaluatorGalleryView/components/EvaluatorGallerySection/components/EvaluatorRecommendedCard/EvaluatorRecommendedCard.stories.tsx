@@ -34,5 +34,5 @@ const template = {
 const meta = preview.meta({ component: EvaluatorRecommendedCard });
 
 export const Default = meta.story({
-  args: { template, onSelect: fn() },
+  args: { template, categoryKey: "recommended", onSelect: fn() },
 });
