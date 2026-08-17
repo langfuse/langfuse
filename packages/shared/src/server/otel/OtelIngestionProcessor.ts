@@ -2500,6 +2500,10 @@ export class OtelIngestionProcessor {
           "gen_ai.request.temperature" in attributes
             ? (attributes["gen_ai.request.temperature"]?.toString() ?? null)
             : null,
+        service_tier:
+          "gen_ai.request.service_tier" in attributes
+            ? (attributes["gen_ai.request.service_tier"]?.toString() ?? null)
+            : null,
       };
     }
 
