@@ -160,8 +160,7 @@ const createRedisClusterInstance = (
 
   const cluster = new Cluster(nodes, clusterOptions);
 
-  // `ClusterAllFailedError.lastNodeError` carries no address, so remember the
-  // one ioredis reported for it and only reuse it for that exact error.
+  // The `node error` event is the only place ioredis reports which node failed.
   let lastNodeFailure: { error: unknown; address: string } | undefined;
   cluster.on("node error", (error: unknown, address: string) => {
     lastNodeFailure = { error, address };

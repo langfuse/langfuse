@@ -126,7 +126,6 @@ describe("safeMultiGet", () => {
   });
 });
 
-/** Mirrors ioredis' ClusterAllFailedError: fixed message, cause on lastNodeError. */
 const clusterAllFailedError = (lastNodeError: unknown) =>
   Object.assign(new Error("Failed to refresh slots cache."), {
     name: "ClusterAllFailedError",
@@ -135,7 +134,6 @@ const clusterAllFailedError = (lastNodeError: unknown) =>
 
 describe("buildRedisErrorContext", () => {
   it("lifts lastNodeError out of a ClusterAllFailedError", () => {
-    // ioredis times out `CLUSTER SLOTS` with a bare Error("timeout").
     const context = buildRedisErrorContext(
       clusterAllFailedError(new Error("timeout")),
       "10.0.1.5:6379",
@@ -220,9 +218,7 @@ describe("buildRedisErrorContext", () => {
     expect(context.lastNodeError).toBeUndefined();
   });
 
-  // The text log format in ../logger.ts renders `info.stack` and nothing else,
-  // and the JSON format exposed a top-level `stack` before this context existed.
-  // Nesting it under `error` would silently drop stacks from text logs.
+  // The text format in ../logger.ts renders `info.stack` and nothing else.
   it("keeps the stack at the top level, not nested under error", () => {
     const context = buildRedisErrorContext(
       clusterAllFailedError(new Error("timeout")),
