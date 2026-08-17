@@ -129,6 +129,10 @@ const createStableLlmEvaluatorForMcpWriteTest = async (
       type: "LLM_AS_JUDGE",
       prompt: "Judge {{input}} against {{output}}",
       outputDefinition: { version: 2, ...mcpEvalOutputDefinition },
+      variableMapping: [
+        { templateVariable: "input", selectedColumnId: "input" },
+        { templateVariable: "output", selectedColumnId: "output" },
+      ],
     },
     setup.context,
   )) as { id: string; name: string; versions: Array<{ version: number }> };
@@ -237,7 +241,10 @@ describe("MCP Write Tools", () => {
           evaluatorAssignments: [
             {
               evaluatorId: firstEvaluator.id,
-              variableMapping: [{ variable: "input", source: "input" }],
+              variableMapping: [
+                { variable: "input", source: "input" },
+                { variable: "output", source: "output" },
+              ],
             },
             { evaluatorId: secondEvaluator.id },
           ],
@@ -259,7 +266,10 @@ describe("MCP Write Tools", () => {
         evaluators: expect.arrayContaining([
           expect.objectContaining({
             evaluatorId: firstEvaluator.id,
-            variableMapping: [{ variable: "input", source: "input" }],
+            variableMapping: [
+              { variable: "input", source: "input" },
+              { variable: "output", source: "output" },
+            ],
           }),
           expect.objectContaining({
             evaluatorId: secondEvaluator.id,

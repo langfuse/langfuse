@@ -2,6 +2,7 @@ import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   EvaluationRulesResponseSchema,
+  ListEvaluationRulesBaseSchema,
   ListEvaluationRulesInputSchema,
 } from "../rule-schema";
 import { createMcpRuleService, toMcpEvaluationRule } from "../rule-service";
@@ -10,7 +11,7 @@ export const [listEvaluationRulesTool, handleListEvaluationRules] = defineTool({
   name: "listEvaluationRules",
   description:
     "List observation evaluation rules in the current Langfuse project, including all evaluator assignments. Results are paginated.",
-  baseSchema: ListEvaluationRulesInputSchema,
+  baseSchema: ListEvaluationRulesBaseSchema,
   inputSchema: ListEvaluationRulesInputSchema,
   handler: async (input, context) =>
     runMcpTool({
