@@ -35,7 +35,12 @@ export function toToolCallColumns(io: NormalizedIO): {
   const toolCalls: string[] = [];
   const toolCallNames: string[] = [];
 
+  // Calls only ever come from the output side: a tool-call part on an
+  // input-tagged message is history from an earlier turn (already resolved),
+  // not something this observation newly called
   for (const message of io.messages) {
+    if (message.source !== "output") continue;
+
     for (const part of message.parts) {
       if (!isToolCallPart(part)) continue;
 
