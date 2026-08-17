@@ -9,6 +9,7 @@ import Decimal from "decimal.js";
 import Link from "next/link";
 import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
+import { ExternalLink } from "lucide-react";
 
 export interface PriceSource {
   projectId: string;
@@ -76,6 +77,18 @@ export const BreakdownTooltip = ({
               <span className="font-bold">
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
+
+              {isCost && priceSource && (
+                <Link
+                  href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
+                  className="text-muted-foreground flex flex-row gap-1 text-xs italic underline-offset-4 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {priceSource.pricingTierName} Tier Pricing
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              )}
               {Array.isArray(details) && details.length > 0 && (
                 <span className="text-muted-foreground text-xs italic">
                   Aggregate across {details.length}{" "}
@@ -125,16 +138,6 @@ export const BreakdownTooltip = ({
                 )}
               </span>
             </div>
-
-            {isCost && priceSource && (
-              <Link
-                href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
-                className="text-muted-foreground text-xs italic underline-offset-4 hover:underline"
-              >
-                Prices from {priceSource.modelName} ·{" "}
-                {priceSource.pricingTierName}
-              </Link>
-            )}
           </div>
         </TooltipContent>
       </Tooltip>
