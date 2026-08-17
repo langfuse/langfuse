@@ -5,6 +5,18 @@ import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/search-b
 import { createEvaluatorSetupStore } from "./evaluatorSetupStore";
 
 describe("createEvaluatorSetupStore", () => {
+  it("starts new evaluator descriptions empty", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+
+    expect(store.getState().scoreOutput).toMatchObject({
+      scoreDescription: "",
+      reasoningDescription: "",
+    });
+  });
+
   it("keeps prompt and code drafts when switching evaluator type", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: null,

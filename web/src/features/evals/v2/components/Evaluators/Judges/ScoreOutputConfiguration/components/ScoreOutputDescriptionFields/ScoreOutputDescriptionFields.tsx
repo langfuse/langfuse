@@ -9,6 +9,10 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
+import {
+  DEFAULT_REASONING_DESCRIPTION,
+  DEFAULT_SCORE_DESCRIPTION,
+} from "@/src/features/evals/v2/scoreOutputDefaults";
 
 function DescriptionLabel({
   children,
@@ -80,7 +84,7 @@ export function ScoreOutputDescriptionFields({
             </DescriptionLabel>
             <Textarea
               className="min-h-16"
-              placeholder="Describe what the score represents"
+              placeholder={DEFAULT_SCORE_DESCRIPTION}
               value={scoreDescription}
               disabled={disabled}
               onChange={(event) => onScoreDescriptionChange(event.target.value)}
@@ -96,7 +100,7 @@ export function ScoreOutputDescriptionFields({
             </DescriptionLabel>
             <Textarea
               className="min-h-16"
-              placeholder="Describe what the reasoning should explain"
+              placeholder={DEFAULT_REASONING_DESCRIPTION}
               value={reasoningDescription}
               disabled={disabled}
               onChange={(event) =>

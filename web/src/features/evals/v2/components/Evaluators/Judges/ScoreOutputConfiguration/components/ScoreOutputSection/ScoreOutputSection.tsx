@@ -96,6 +96,10 @@ export function ScoreOutputSection({
     onChange({
       ...state,
       dataType,
+      shouldAllowMultipleMatches:
+        dataType === ScoreDataTypeEnum.CATEGORICAL
+          ? state.shouldAllowMultipleMatches
+          : false,
       choices:
         dataType === ScoreDataTypeEnum.CATEGORICAL && state.choices.length === 0
           ? DEFAULT_CHOICES
@@ -159,11 +163,32 @@ export function ScoreOutputSection({
         Score output
       </LabelWithTooltip>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span>
-          {state.dataType === ScoreDataTypeEnum.CATEGORICAL
-            ? "Return one"
-            : "Return a"}
-        </span>
+        <span>Return</span>
+        {state.dataType === ScoreDataTypeEnum.CATEGORICAL ? (
+          <Select
+            value={state.shouldAllowMultipleMatches ? "multiple" : "one"}
+            disabled={readOnly}
+            onValueChange={(value) =>
+              onChange({
+                ...state,
+                shouldAllowMultipleMatches: value === "multiple",
+              })
+            }
+          >
+            <SelectTrigger
+              className="w-auto min-w-24"
+              aria-label="Number of categories"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="one">one</SelectItem>
+              <SelectItem value="multiple">multiple</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <span>a</span>
+        )}
         <Select
           value={state.dataType}
           disabled={readOnly}
@@ -177,7 +202,10 @@ export function ScoreOutputSection({
           <SelectContent>
             {DATA_TYPE_OPTIONS.map((option) => (
               <SelectItem key={option.value} value={option.value}>
-                {option.label}
+                {option.value === ScoreDataTypeEnum.CATEGORICAL &&
+                state.shouldAllowMultipleMatches
+                  ? "categories"
+                  : option.label}
               </SelectItem>
             ))}
           </SelectContent>

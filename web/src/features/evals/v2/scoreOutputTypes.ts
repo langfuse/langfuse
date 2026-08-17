@@ -13,11 +13,16 @@ export type ScoreOutputFormState = {
   scoreDescription: string;
   reasoningDescription: string;
   choices: ScoreOutputChoice[];
+  shouldAllowMultipleMatches: boolean;
   minValue: string;
   maxValue: string;
 };
 
 export type ScoreOutputSelectorState = Pick<
   ScoreOutputFormState,
-  "dataType" | "choices" | "minValue" | "maxValue"
+  | "dataType"
+  | "choices"
+  | "shouldAllowMultipleMatches"
+  | "minValue"
+  | "maxValue"
 >;

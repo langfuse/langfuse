@@ -32,6 +32,7 @@ describe("prepareEvaluatorDraft", () => {
           scoreDescription: "Quality",
           reasoningDescription: "Reasoning",
           choices: [],
+          shouldAllowMultipleMatches: false,
           minValue: "0",
           maxValue: "1",
         },

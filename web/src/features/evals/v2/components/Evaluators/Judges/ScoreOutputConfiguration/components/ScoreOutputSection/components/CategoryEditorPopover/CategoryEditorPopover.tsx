@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Trash2 } from "lucide-react";
+import { InfoIcon, Trash2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -9,6 +9,11 @@ import {
   PopoverClose,
   PopoverContent,
 } from "@/src/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { type ScoreOutputChoice } from "@/src/features/evals/v2/scoreOutputTypes";
 import { cn } from "@/src/utils/tailwind";
 
@@ -57,22 +62,26 @@ export function CategoryEditorPopover({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`score-output-category-value-${idSuffix}`}>
+            <Label
+              htmlFor={`score-output-category-value-${idSuffix}`}
+              className="flex items-center gap-1.5"
+            >
               Numeric score
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Used in analytics and dashboards.
+                </TooltipContent>
+              </Tooltip>
             </Label>
             <Input
               id={`score-output-category-value-${idSuffix}`}
               type="number"
               value={choice.value}
-              aria-describedby={`score-output-category-value-description-${idSuffix}`}
               onChange={(event) => onChange({ value: event.target.value })}
             />
-            <p
-              id={`score-output-category-value-description-${idSuffix}`}
-              className="text-muted-foreground text-xs"
-            >
-              Used in analytics and dashboards.
-            </p>
           </div>
           <div
             className={cn(

@@ -1,7 +1,6 @@
 import {
   EvalTemplateTypeEnum,
   observationVariableMappingList,
-  ScoreDataTypeEnum,
   type FilterState,
   type ModelConfig,
   type EvalTemplateSourceCodeLanguage,
@@ -27,13 +26,6 @@ const DEFAULT_PROMPT = `Evaluate the quality of the response.
 
 Input: {{input}}
 Response: {{output}}`;
-
-const DEFAULT_OUTPUT = {
-  version: 2 as const,
-  dataType: ScoreDataTypeEnum.NUMERIC,
-  score: { description: "Quality score" },
-  reasoning: { description: "Reasoning for the score" },
-};
 
 function buildInitialVariableFields(
   definition: EvaluatorDefinition | null | undefined,
@@ -148,7 +140,7 @@ export function createEvaluatorSetupStore({
     scoreOutput: toScoreOutputFormState(
       initialDefinition?.type === "LLM_AS_JUDGE"
         ? initialDefinition.outputDefinition
-        : DEFAULT_OUTPUT,
+        : null,
     ),
     name: initialEvaluator?.name ?? "",
     description: initialEvaluator?.description ?? "",
