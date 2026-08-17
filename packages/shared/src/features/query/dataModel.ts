@@ -1001,7 +1001,7 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
   return {
     name: "scores_categorical",
     description:
-      "Scores are flexible objects that are used for evaluations. This view contains categorical scores.",
+      "Scores are flexible objects that are used for evaluations. This view contains categorical and text scores.",
     dimensions: {
       ...baseDimensions,
       ...createScoreSpecificDimensions("scores_categorical", version === "v2"),
@@ -1025,11 +1025,11 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
     segments: [
       {
         column: "data_type",
-        operator: "=" as const,
-        value: "CATEGORICAL",
-        type: "string" as const,
+        operator: "any of" as const,
+        value: ["CATEGORICAL", "TEXT"],
+        type: "stringOptions" as const,
       },
-    ], // Categorical
+    ], // Categorical and text
     timeDimension: "timestamp",
     baseCte: `scores scores_categorical FINAL`,
   };

@@ -20,6 +20,8 @@ import {
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import {
   getScoreFilterConfig,
   observationScopeFilter,
@@ -40,6 +42,7 @@ import {
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
+import { getScoreChartTimeRange } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -70,6 +73,12 @@ import {
   scoreLevelFromScore,
   type ScoreLevel,
 } from "@/src/components/score-tag";
+import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
+import {
+  ScoresChartView,
+  ScoresOutlierStrip,
+  useScoresChartViewState,
+} from "@/src/features/scores-chart-view";
 
 export type ScoresTableRow = {
   id: string;
@@ -205,6 +214,58 @@ export default function ScoresTable({
   // filter-option queries, which are project-wide either way.
   const isTraceScoped = Boolean(traceId);
   const rowDateRangeFilter: FilterState = isTraceScoped ? [] : dateRangeFilter;
+
+  // Open a score's trace/observation in the peek side panel instead of
+  // navigating away, mirroring the traces/observations tables. Not offered
+  // when this table is itself embedded in a trace/observation detail view
+  // (peeking the very trace you're already looking at would be redundant,
+  // and that embed already renders inside a peek panel of its own).
+  const peekEnabled = !traceId && !observationId;
+  const {
+    openPeek: openScorePeek,
+    closePeek: closeScorePeek,
+    expandPeek: expandScorePeek,
+  } = usePeekNavigation({
+    queryParams: ["observation", "display", "timestamp"],
+    extractParamsValuesFromRow: (
+      row: ScoresTableRow,
+    ): Record<string, string> =>
+      row.observationId ? { observation: row.observationId } : {},
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+      reader: "trace",
+    },
+  });
+
+  // The chart toggle only makes sense on the project-wide table — a
+  // trace/observation/user-scoped embed (trace detail, observation detail,
+  // user page) has too few scores to chart meaningfully and its filters don't
+  // fully map onto the scores-numeric view. Mirrors the same embed gate the
+  // events table uses for its chart view.
+  const chartEnabled = !traceId && !observationId && !userId;
+  const {
+    viewMode: chartViewMode,
+    setViewMode: setChartViewMode,
+    config: chartConfig,
+    setConfig: setChartConfig,
+  } = useScoresChartViewState();
+  // Charts only render when the table has a time range. Inventing a default
+  // range here would make the chart silently omit table rows.
+  const chartTimeRange = useMemo(
+    () => getScoreChartTimeRange(dateRange, new Date()),
+    [dateRange],
+  );
+  const chartActive =
+    chartEnabled && chartTimeRange !== undefined && chartViewMode === "chart";
+
+  // Drill-in from the outlier strip writes the clicked bucket as an absolute
+  // range. URL-only and deliberately NOT persisted as the project's default
+  // range — a transient zoom must not become tomorrow's baseline. Mirrors the
+  // events table's `setTimeRangeTransient`.
+  const { setTimeRange: setScoresTimeRangeTransient } = useTableDateRange(
+    projectId,
+    { persistAsDefault: false },
+  );
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
@@ -692,6 +753,10 @@ export default function ScoresTable({
             <TableLink
               path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
               value={value}
+              // Opens the trace in the peek side panel instead of navigating
+              // away; a modifier-click (cmd/ctrl, middle-click) still opens
+              // the real page in a new tab via the href above.
+              onClick={peekEnabled ? () => openScorePeek(value) : undefined}
             />
           </>
         ) : undefined;
@@ -712,6 +777,14 @@ export default function ScoresTable({
           <TableLink
             path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
             value={observationId}
+            // extractParamsValuesFromRow reads `row.observationId` (the
+            // original, not the table row wrapper) to add `?observation=`
+            // to the peek URL, focusing this observation within the trace.
+            onClick={
+              peekEnabled
+                ? () => openScorePeek(traceId, row.original)
+                : undefined
+            }
           />
         ) : undefined;
       },
@@ -1032,6 +1105,14 @@ export default function ScoresTable({
           setTimeRange={
             showControlsInPageHeader || isTraceScoped ? undefined : setTimeRange
           }
+          viewModeToggle={
+            chartEnabled && chartTimeRange ? (
+              <ViewModeToggle
+                mode={chartViewMode}
+                onModeChange={setChartViewMode}
+              />
+            ) : undefined
+          }
           multiSelect={{
             selectAll,
             setSelectAll,
@@ -1051,55 +1132,83 @@ export default function ScoresTable({
           />
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            <DataTable
-              tableName="scores"
-              columns={columns}
-              noResultsMessage={
-                <div className="flex flex-col items-center">
-                  <span>No scores found.</span>
-                  <a
-                    href="https://langfuse.com/faq/all/what-are-scores"
-                    className="text-primary pointer-events-auto italic underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    What are scores?
-                  </a>
-                </div>
-              }
-              data={
-                scores.isPending || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : scores.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: scores.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: enrichedScores ?? [],
-                      }
-              }
-              pagination={{
-                totalCount,
-                onChange: setPaginationState,
-                state: paginationState,
-              }}
-              setOrderBy={setOrderByState}
-              orderBy={orderByState}
-              rowSelection={selectedRows}
-              highlightAllRows={selectAll}
-              setRowSelection={setSelectedRows}
-              columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibility}
-              columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
-              rowHeight={rowHeight}
-            />
+            {chartEnabled && chartTimeRange && !chartActive && (
+              <ScoresOutlierStrip
+                projectId={projectId}
+                filterState={queryFilter.explicitFilterState}
+                fromTimestamp={chartTimeRange.from}
+                toTimestamp={chartTimeRange.to}
+                onSelectRange={setScoresTimeRangeTransient}
+              />
+            )}
+            {chartActive && chartTimeRange ? (
+              <ScoresChartView
+                projectId={projectId}
+                filterState={queryFilter.explicitFilterState}
+                fromTimestamp={chartTimeRange.from}
+                toTimestamp={chartTimeRange.to}
+                config={chartConfig}
+                onConfigChange={setChartConfig}
+              />
+            ) : (
+              <DataTable
+                tableName="scores"
+                columns={columns}
+                noResultsMessage={
+                  <div className="flex flex-col items-center">
+                    <span>No scores found.</span>
+                    <a
+                      href="https://langfuse.com/faq/all/what-are-scores"
+                      className="text-primary pointer-events-auto italic underline"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      What are scores?
+                    </a>
+                  </div>
+                }
+                data={
+                  scores.isPending || isViewLoading
+                    ? { isLoading: true, isError: false }
+                    : scores.isError
+                      ? {
+                          isLoading: false,
+                          isError: true,
+                          error: scores.error.message,
+                        }
+                      : {
+                          isLoading: false,
+                          isError: false,
+                          data: enrichedScores ?? [],
+                        }
+                }
+                pagination={{
+                  totalCount,
+                  onChange: setPaginationState,
+                  state: paginationState,
+                }}
+                setOrderBy={setOrderByState}
+                orderBy={orderByState}
+                rowSelection={selectedRows}
+                highlightAllRows={selectAll}
+                setRowSelection={setSelectedRows}
+                columnVisibility={columnVisibility}
+                onColumnVisibilityChange={setColumnVisibility}
+                columnOrder={columnOrder}
+                onColumnOrderChange={setColumnOrder}
+                rowHeight={rowHeight}
+              />
+            )}
           </div>
         </ResizableFilterLayout>
+        {peekEnabled && (
+          <TablePeekViewTraceDetail
+            closePeek={closeScorePeek}
+            expandPeek={expandScorePeek}
+            itemType="TRACE"
+            projectId={projectId}
+          />
+        )}
       </div>
     </DataTableControlsProvider>
   );
