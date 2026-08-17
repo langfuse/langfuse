@@ -17,7 +17,8 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "conversation",
       label: "Conversational / Chatbots",
-      description: "Signals and monitors for chatbot-style conversations.",
+      description:
+        "Signals and monitors for chatbot-style interactions between human and agent.",
       icon: "messages-square",
     },
     {
