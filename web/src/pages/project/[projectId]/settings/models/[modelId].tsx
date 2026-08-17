@@ -300,7 +300,7 @@ export default function ModelDetailPage() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-2">
+        <Card className="col-span-2 min-w-0">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Model observations</span>
@@ -315,8 +315,8 @@ export default function ModelDetailPage() {
               </Button>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex max-h-[calc(100vh-20rem)] flex-col">
+          <CardContent className="min-w-0">
+            <div className="flex h-[calc(100vh-20rem)] min-h-0 min-w-0 flex-col overflow-hidden">
               <Generations
                 projectId={projectId}
                 omittedFilter={["model"]}
