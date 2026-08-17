@@ -3,20 +3,6 @@ import { type V4MigrationSdkState } from "@/src/features/v4-migration/sdkVersion
 
 export const V4_MIGRATION_LOOKBACK_DAYS = 14;
 
-const V4_MIGRATION_LOOKBACK_MS =
-  V4_MIGRATION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
-const RANGE_BUCKET_MS = 60 * 60 * 1000;
-
-export const createV4MigrationDetectionRange = (now = Date.now()) => {
-  const toTimestamp = new Date(
-    (Math.floor(now / RANGE_BUCKET_MS) + 1) * RANGE_BUCKET_MS,
-  );
-  return {
-    fromTimestamp: new Date(toTimestamp.getTime() - V4_MIGRATION_LOOKBACK_MS),
-    toTimestamp,
-  };
-};
-
 export type MigrationCountState =
   | { status: "loading"; count: 0 }
   | { status: "error"; count: 0 }

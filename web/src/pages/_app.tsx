@@ -151,8 +151,9 @@ const MyApp: AppType<{ session: Session | null }> = ({
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
           sub-16px field; iOS ignores `user-scalable=no` for user gestures, so
-          the engine-level zoom block is `touch-action` on html/body
-          (styles/globals.css). `viewport-fit=cover` is what makes
+          the engine-level zoom block is `touch-action` on `#__next` and the
+          overlay layers — NOT on html/body, which WebKit ignores for page
+          pinch (styles/globals.css). `viewport-fit=cover` is what makes
           `env(safe-area-inset-*)` non-zero. */}
       <Head>
         <meta

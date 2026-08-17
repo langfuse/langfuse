@@ -258,29 +258,115 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       ).resolves.not.toThrow();
     });
 
-    it("get returns legacyWritesActive=false on events_only", async () => {
+    it("get returns a null config when the project has no integration", async () => {
       const { caller, project } = await prepare();
       const result = await caller.mixpanelIntegration.get({
         projectId: project.id,
       });
-      expect(result.legacyWritesActive).toBe(false);
       expect(result.config).toBeNull();
     });
+  });
 
-    it("get returns legacyWritesActive=true on dual, with config", async () => {
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
-      const { caller, project } = await prepare();
-      await caller.mixpanelIntegration.update({
-        projectId: project.id,
-        ...baseConfig,
-        exportSource: "EVENTS" as const,
-      });
-      const result = await caller.mixpanelIntegration.get({
-        projectId: project.id,
-      });
-      expect(result.legacyWritesActive).toBe(true);
-      expect(result.config?.exportSource).toBe("EVENTS");
+  // The active write mode is the only input to export-source availability.
+  // The V4 frontend preview flag and the per-user beta opt-in no longer
+  // participate, which makes two previously-unreachable combinations behave.
+  describe("enriched export sources follow the write mode alone", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    const originalPreview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     });
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = originalPreview;
+    });
+
+    // dual writes enriched rows, so the source works — it was hidden only
+    // because the frontend preview flag was off.
+    it("dual + preview opt-in disabled → EVENTS accepted", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("dual + preview opt-in disabled → TRACES_OBSERVATIONS_EVENTS accepted", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    // legacy writes no enriched rows: accepting the source here only defers
+    // the failure to export time.
+    it("legacy + preview opt-in enabled → EVENTS rejected", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("legacy + preview opt-in enabled → TRACES_OBSERVATIONS_EVENTS rejected", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("legacy → TRACES_OBSERVATIONS accepted", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    // The write mode is server-only, so the settings page can only learn it
+    // from this response.
+    it.each(["legacy", "dual", "events_only"] as const)(
+      "get returns the active write mode %s, independent of the preview opt-in",
+      async (writeMode) => {
+        (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = writeMode;
+        (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+        const { caller, project } = await prepare();
+        const result = await caller.mixpanelIntegration.get({
+          projectId: project.id,
+        });
+        expect(result.writeMode).toBe(writeMode);
+      },
+    );
   });
 
   // LFE-10148 review: the form schema's zod default must not be injected into
@@ -340,7 +426,24 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("EVENTS");
     });
 
+    // Router default for an omitted exportSource: legacy writes active ?
+    // TRACES_OBSERVATIONS : EVENTS. It deliberately differs from the
+    // settings-page default (EVENTS on dual) — a pre-existing divergence this
+    // change does not touch, pinned here so a later fix has to flip it.
     it("create without exportSource defaults to TRACES_OBSERVATIONS on dual", async () => {
+      const { caller, project } = await prepare();
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      const result = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+
+    it("create without exportSource defaults to TRACES_OBSERVATIONS on legacy", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { caller, project } = await prepare();
       await caller.mixpanelIntegration.update({
         projectId: project.id,

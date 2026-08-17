@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import * as exportSourcePolicy from "./export-source-policy";
 import {
+  areEnrichedWritesActive,
+  areLegacyWritesActive,
   getAvailableExportSources,
   isEnrichedBlobExportSource,
   isLegacyBlobExportSource,
   LEGACY_BLOB_EXPORT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
   validateExportSource,
+  type BlobExportWriteMode,
   type ExportSourceContext,
 } from "./export-source-policy";
 
@@ -183,6 +187,121 @@ describe("getAvailableExportSources", () => {
       { source: "TRACES_OBSERVATIONS_EVENTS" },
       { source: "EVENTS" },
     ]);
+  });
+});
+
+// The active write mode is the single source of truth for which export
+// sources hold data. Neither the V4 frontend preview flag nor a per-user beta
+// opt-in may re-enter this decision.
+describe("write mode drives export-source availability", () => {
+  const WRITE_MODES: readonly BlobExportWriteMode[] = [
+    "legacy",
+    "dual",
+    "events_only",
+  ];
+
+  const ctxFor = (
+    writeMode: BlobExportWriteMode,
+    over: Partial<ExportSourceContext> = {},
+  ): ExportSourceContext => ({
+    isCloud: false,
+    enrichedAvailable: areEnrichedWritesActive(writeMode),
+    legacyWritesActive: areLegacyWritesActive(writeMode),
+    ...over,
+  });
+
+  it("areEnrichedWritesActive: enriched rows exist in every mode but legacy", () => {
+    expect(areEnrichedWritesActive("legacy")).toBe(false);
+    expect(areEnrichedWritesActive("dual")).toBe(true);
+    expect(areEnrichedWritesActive("events_only")).toBe(true);
+  });
+
+  it("areLegacyWritesActive: legacy rows exist in every mode but events_only", () => {
+    expect(areLegacyWritesActive("legacy")).toBe(true);
+    expect(areLegacyWritesActive("dual")).toBe(true);
+    expect(areLegacyWritesActive("events_only")).toBe(false);
+  });
+
+  // The whole selector, per mode: legacy → legacy sources only, events_only →
+  // events only, dual → both. Anything else means a surface offers a source
+  // whose data is not being written.
+  it.each([
+    [
+      "legacy",
+      [
+        { source: "TRACES_OBSERVATIONS" },
+        {
+          source: "TRACES_OBSERVATIONS_EVENTS",
+          blockedReason: "enriched-unavailable",
+        },
+        { source: "EVENTS", blockedReason: "enriched-unavailable" },
+      ],
+    ],
+    [
+      "dual",
+      [
+        { source: "TRACES_OBSERVATIONS" },
+        { source: "TRACES_OBSERVATIONS_EVENTS" },
+        { source: "EVENTS" },
+      ],
+    ],
+    [
+      "events_only",
+      [
+        {
+          source: "TRACES_OBSERVATIONS",
+          blockedReason: "legacy-writes-disabled",
+        },
+        {
+          source: "TRACES_OBSERVATIONS_EVENTS",
+          blockedReason: "legacy-writes-disabled",
+        },
+        { source: "EVENTS" },
+      ],
+    ],
+  ] as const)(
+    "write mode %s yields exactly this availability",
+    (mode, expected) => {
+      expect(getAvailableExportSources(ctxFor(mode))).toEqual(expected);
+    },
+  );
+
+  // No special case: the combined source needs both halves, so only dual can
+  // offer it. A hand-rolled rule for it would drift from the two predicates.
+  it("TRACES_OBSERVATIONS_EVENTS requires dual, purely from the two rules", () => {
+    const ok = (mode: BlobExportWriteMode) =>
+      validateExportSource("TRACES_OBSERVATIONS_EVENTS", ctxFor(mode)).ok;
+    expect(ok("legacy")).toBe(false);
+    expect(ok("dual")).toBe(true);
+    expect(ok("events_only")).toBe(false);
+    // …and the combination is exactly "legacy AND enriched".
+    for (const mode of WRITE_MODES) {
+      expect(ok(mode)).toBe(
+        areLegacyWritesActive(mode) && areEnrichedWritesActive(mode),
+      );
+    }
+  });
+
+  // The per-user beta opt-in and the Cloud deployment flag are gone from this
+  // decision: a pre-cutoff Cloud project sees exactly what self-hosted sees.
+  it("availability is deployment-agnostic for pre-cutoff Cloud projects", () => {
+    for (const mode of WRITE_MODES) {
+      expect(
+        getAvailableExportSources(
+          ctxFor(mode, {
+            isCloud: true,
+            projectCreatedAt: PROJECT_PRE,
+            integrationCreatedAt: ROW_PRE,
+          }),
+        ),
+      ).toEqual(getAvailableExportSources(ctxFor(mode)));
+    }
+  });
+
+  // Deletion guard: the old preview-flag helper must not survive as a second,
+  // divergent answer to "is enriched available?".
+  it("no longer exports isEnrichedBlobExportAvailable", () => {
+    expect("isEnrichedBlobExportAvailable" in exportSourcePolicy).toBe(false);
   });
 });
 
