@@ -229,7 +229,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
         type: "CODE",
         language: "TYPESCRIPT",
         source:
-          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const inputText = typeof ctx.observation.input === "string" ? ctx.observation.input : "";\n  const outputText = typeof ctx.observation.output === "string" ? ctx.observation.output : "";\n  const text = outputText.trim().length > 0 ? outputText : inputText;\n\n  const letters = text.match(/[A-Za-z]/g) ?? [];\n  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];\n  const uppercaseRatio = letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;\n  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.8;\n\n  return {\n    scores: [\n      {\n        name: "All CAPS",\n        value: isAllCaps,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
+          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const text = typeof ctx.observation.input === "string" ? ctx.observation.input : "";\n\n  const letters = text.match(/[A-Za-z]/g) ?? [];\n  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];\n  const uppercaseRatio = letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;\n  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.8;\n\n  return {\n    scores: [\n      {\n        name: "All CAPS",\n        value: isAllCaps,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
       },
     },
     {
