@@ -218,7 +218,18 @@ describe("buildRedisErrorContext", () => {
 
     expect(context.failureMode).toBe("connection-reset");
     expect(context.lastNodeError).toBeUndefined();
-    expect(context.error.stack).toBeDefined();
+  });
+
+  // The text log format in ../logger.ts renders `info.stack` and nothing else,
+  // and the JSON format exposed a top-level `stack` before this context existed.
+  // Nesting it under `error` would silently drop stacks from text logs.
+  it("keeps the stack at the top level, not nested under error", () => {
+    const context = buildRedisErrorContext(
+      clusterAllFailedError(new Error("timeout")),
+    );
+
+    expect(context.stack).toContain("Failed to refresh slots cache.");
+    expect(context.error).not.toHaveProperty("stack");
   });
 
   it("does not throw on non-Error values", () => {

@@ -36,7 +36,13 @@ type RedisErrorDetails = {
 
 export type RedisErrorContext = {
   failureMode: RedisFailureMode;
-  error: RedisErrorDetails & { stack?: string };
+  /**
+   * Deliberately top-level, not nested under `error`: the text log format in
+   * `../logger.ts` only renders `info.stack`, and the JSON format already
+   * exposed a top-level `stack` before this context existed.
+   */
+  stack?: string;
+  error: RedisErrorDetails;
   /** Present only on `ClusterAllFailedError`; `node` comes from the `node error` event. */
   lastNodeError?: RedisErrorDetails & { node?: string };
 };
@@ -160,10 +166,8 @@ export const buildRedisErrorContext = (
     // Classify the node-level cause when we have one: the wrapper message is
     // the same string for every failure.
     failureMode: classifyRedisFailure(lastNodeError ?? error),
-    error: {
-      ...describeError(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    },
+    stack: error instanceof Error ? error.stack : undefined,
+    error: describeError(error),
     ...(lastNodeError !== undefined
       ? {
           // No stack: it always points into ioredis internals, and these lines
