@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
 import {
+  areEnrichedWritesActive,
+  areLegacyWritesActive,
   InvalidRequestError,
   LEGACY_BLOB_EXPORT_CUTOFF,
+  type BlobExportWriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
 
@@ -77,6 +80,61 @@ describe("assertExportSourceAllowed", () => {
         },
       }),
     ).toThrow(/events_only/);
+  });
+
+  // The write-mode gate every save path funnels through (tRPC routers and the
+  // public REST PUT). It must accept exactly what the UI offers for the mode.
+  describe("write mode gate", () => {
+    const ctxFor = (writeMode: BlobExportWriteMode): ExportSourceContext => ({
+      isCloud: false,
+      enrichedAvailable: areEnrichedWritesActive(writeMode),
+      legacyWritesActive: areLegacyWritesActive(writeMode),
+    });
+
+    const attempt = (
+      writeMode: BlobExportWriteMode,
+      nextExportSource:
+        | "TRACES_OBSERVATIONS"
+        | "TRACES_OBSERVATIONS_EVENTS"
+        | "EVENTS",
+    ) =>
+      assertExportSourceAllowed({ nextExportSource, ctx: ctxFor(writeMode) });
+
+    const cases: Array<
+      [
+        BlobExportWriteMode,
+        "TRACES_OBSERVATIONS" | "TRACES_OBSERVATIONS_EVENTS" | "EVENTS",
+        boolean,
+      ]
+    > = [
+      ["legacy", "TRACES_OBSERVATIONS", true],
+      ["legacy", "TRACES_OBSERVATIONS_EVENTS", false],
+      ["legacy", "EVENTS", false],
+      ["dual", "TRACES_OBSERVATIONS", true],
+      ["dual", "TRACES_OBSERVATIONS_EVENTS", true],
+      ["dual", "EVENTS", true],
+      ["events_only", "TRACES_OBSERVATIONS", false],
+      ["events_only", "TRACES_OBSERVATIONS_EVENTS", false],
+      ["events_only", "EVENTS", true],
+    ];
+
+    it.each(cases)("%s + %s → allowed=%s", (writeMode, source, allowed) => {
+      if (allowed) {
+        expect(() => attempt(writeMode, source)).not.toThrow();
+      } else {
+        expect(() => attempt(writeMode, source)).toThrow(InvalidRequestError);
+      }
+    });
+
+    it("keeps a persisted-but-blocked source rejected on an omitted update", () => {
+      expect(() =>
+        assertExportSourceAllowed({
+          nextExportSource: undefined,
+          persistedExportSource: "EVENTS",
+          ctx: ctxFor("legacy"),
+        }),
+      ).toThrow(InvalidRequestError);
+    });
   });
 
   it("omitted source without a persisted row is a no-op", () => {

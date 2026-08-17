@@ -48,6 +48,7 @@ import {
   evalConfigFormSchema,
   getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
+  RETIRED_TRACE_FILTER_COLUMNS,
   getTargetDisplayName,
   inferDefaultMapping,
   type LangfuseObject,
@@ -1238,6 +1239,11 @@ export const InnerEvaluatorForm = (props: {
                                     : isEventTarget(target)
                                       ? ["tags", "name", "calledToolNames"]
                                       : undefined
+                                }
+                                columnsHiddenUnlessSelected={
+                                  isTraceTarget(target)
+                                    ? RETIRED_TRACE_FILTER_COLUMNS
+                                    : undefined
                                 }
                               />
                             )}

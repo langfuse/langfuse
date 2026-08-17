@@ -4,6 +4,7 @@ import {
   BlobStorageIntegrationType,
   InvalidRequestError,
   AnalyticsIntegrationExportSource,
+  areEnrichedWritesActive,
   areLegacyWritesActive,
   validateExportSource,
   BlobStorageIntegrationFileType,
@@ -149,9 +150,8 @@ export async function upsertBlobStorageIntegration(params: {
     // Under events_only a new row must never fall back to the legacy Prisma
     // column default; force EVENTS in-transaction, deployment-agnostic
     // (see export-source-policy.ts).
-    const legacyWritesActive = areLegacyWritesActive(
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-    );
+    const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    const legacyWritesActive = areLegacyWritesActive(writeMode);
     const createExportSource =
       data.exportSource ??
       (params.forceEventsOnCreate || !legacyWritesActive
@@ -200,7 +200,7 @@ export async function upsertBlobStorageIntegration(params: {
     // transaction back. See export-source-policy.ts.
     const backstop = validateExportSource(result.exportSource, {
       isCloud: !isSelfHosted,
-      enrichedAvailable: true,
+      enrichedAvailable: areEnrichedWritesActive(writeMode),
       legacyWritesActive,
       integrationCreatedAt: params.refuseLegacyOnCreate
         ? result.createdAt

@@ -7,12 +7,14 @@ import {
 } from "@testing-library/react";
 import { ScanSearch } from "lucide-react";
 import { InAppAgentRunStatus } from "@langfuse/shared";
+import { IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE } from "@langfuse/shared/in-app-agent";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
+import type { InAppAgentError } from "./utils/utils";
 
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
@@ -20,7 +22,7 @@ const controlledAgent = vi.hoisted(() => ({
     conversations: [] as Array<{ id: string; title: string | null }>,
     activityByConversationId: new Map<string, { state: string }>(),
     attentionCount: 0,
-    error: null,
+    error: null as InAppAgentError | null,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
     isRunning: true,
@@ -46,6 +48,7 @@ const controlledAgent = vi.hoisted(() => ({
     selectedConversationId: undefined,
     selectedConversationTitle: null,
     selectedConversationIsWriteLocked: false,
+    selectConversation: vi.fn(),
     submit: vi.fn(),
     submitFeedback: vi.fn(),
   },
@@ -298,6 +301,12 @@ describe("ControlledInAppAgentWindow composer", () => {
     controlledAgent.value.isSubmitting = false;
     controlledAgent.value.pendingToolApprovals = [];
     controlledAgent.value.selectedConversationIsWriteLocked = false;
+    controlledAgent.value.selectConversation = vi.fn();
+    controlledAgent.value.execution = {
+      run: null,
+      isCancelling: false,
+      cancel: vi.fn(),
+    };
   });
 
   it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {
@@ -362,9 +371,19 @@ describe("ControlledInAppAgentWindow composer", () => {
     ).toBeEnabled();
   });
 
-  it("lets you leave a read-only conversation", () => {
+  it("hides a failed-run notice when the conversation is write-locked", () => {
     controlledAgent.value.isRunning = false;
     controlledAgent.value.selectedConversationIsWriteLocked = true;
+    controlledAgent.value.execution = {
+      run: {
+        id: "run-1",
+        status: InAppAgentRunStatus.FAILED,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      isCancelling: false,
+      cancel: vi.fn(),
+    };
 
     render(
       <TooltipProvider>
@@ -378,14 +397,35 @@ describe("ControlledInAppAgentWindow composer", () => {
     );
 
     expect(
+      screen.getByText(IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("The run failed. Try again."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("locks the composer when a write-lock rejection arrives before the cached flag", () => {
+    controlledAgent.value.isRunning = false;
+    controlledAgent.value.selectedConversationIsWriteLocked = false;
+    controlledAgent.value.error = { type: "write_lock" };
+
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByText(IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Start new conversation" }),
-    ).toBeEnabled();
-    expect(
-      screen.getByRole("button", { name: /^Conversation history/ }),
-    ).toBeEnabled();
   });
 });
 

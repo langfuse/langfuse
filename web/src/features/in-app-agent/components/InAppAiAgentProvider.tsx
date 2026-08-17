@@ -19,8 +19,8 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
@@ -86,8 +86,6 @@ const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   messages: EMPTY_MESSAGES,
@@ -1078,10 +1076,7 @@ function InAppAiAgentProviderInner({
       }
 
       if (!startsNewConversation && selectedConversationIsWriteLocked) {
-        setError({
-          type: "generic",
-          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-        });
+        setError({ type: "write_lock" });
         return false;
       }
 
@@ -1403,10 +1398,7 @@ function InAppAiAgentProviderInner({
       approvalScope: "once" | "conversation" = "once",
     ) => {
       if (selectedConversationIsWriteLocked) {
-        setError({
-          type: "generic",
-          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-        });
+        setError({ type: "write_lock" });
         return;
       }
 

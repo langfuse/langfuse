@@ -56,6 +56,7 @@ const OUTBOUND_URL_FAULTS = [
   ["invalid-encoding", "invalid_endpoint_url"],
   ["https-required", "invalid_endpoint_url"],
   ["protocol-not-allowed", "invalid_endpoint_url"],
+  ["port-not-allowed", "invalid_endpoint_url"],
   ["url-credentials-not-allowed", "invalid_endpoint_url"],
 ] as const;
 
