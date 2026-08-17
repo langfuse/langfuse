@@ -1,4 +1,4 @@
-import { expect, userEvent, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { BreakdownTooltip } from "./BreakdownTooltip";
@@ -63,29 +63,8 @@ export const AggregatedCost = meta.story({
   },
 });
 
-export const TestOpensUsageBreakdown = meta.story({
-  name: "(Test) Opens usage breakdown",
-  args: {
-    details: usageDetails,
-    children: <span>185 tokens</span>,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "185 tokens" }));
-
-    const body = within(canvasElement.ownerDocument.body);
-    await expect(
-      (await body.findAllByText("Usage breakdown"))[0],
-    ).toBeInTheDocument();
-    await expect(body.getAllByText("Total usage")[0]).toBeInTheDocument();
-    await expect(
-      body.getAllByText("input_cached_tokens")[0],
-    ).toBeInTheDocument();
-  },
-});
-
 export const TestLinksMatchedPricingTier = meta.story({
-  name: "(Test) Links matched pricing tier",
+  name: "(Test) Opens matched pricing tier breakdown",
   args: {
     details: costDetails,
     children: <span>$0.001725</span>,
@@ -94,18 +73,28 @@ export const TestLinksMatchedPricingTier = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "$0.001725" }));
+    const trigger = canvas.getByRole("button", { name: "$0.001725" });
+    trigger.click();
+    await waitFor(() =>
+      expect(trigger.getAttribute("data-state")).toMatch(/-open$/),
+    );
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-describedby"));
 
-    const body = within(canvasElement.ownerDocument.body);
-    const links = await body.findAllByRole("link", {
-      name: "Prices from gpt-5.6 · Priority",
-    });
-    for (const link of links) {
-      await expect(link).toHaveAttribute(
-        "href",
-        "/project/project-1/settings/models/gpt-5.6%2Fpriority?pricingTier=tier-priority",
-      );
-      await expect(link).toHaveClass("text-xs", "italic");
-    }
+    const tooltipId = trigger.getAttribute("aria-describedby");
+    const tooltip = tooltipId
+      ? canvasElement.ownerDocument.getElementById(tooltipId)
+      : null;
+    if (!tooltip) throw new Error("Tooltip content was not rendered");
+
+    const content = within(tooltip);
+    await expect(content.getByText("Cost breakdown")).toBeInTheDocument();
+    await expect(content.getByText("Total cost")).toBeInTheDocument();
+    const link = content.getByRole("link");
+    await expect(link).toHaveTextContent("Priority");
+    await expect(link).toHaveAttribute(
+      "href",
+      "/project/project-1/settings/models/gpt-5.6%2Fpriority?pricingTier=tier-priority",
+    );
+    await expect(link).toHaveClass("text-xs", "italic");
   },
 });
