@@ -21,9 +21,7 @@ import {
   type BackgroundExecutionRunView,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
 import { InAppAgentRunStatus } from "@langfuse/shared";
-
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
+import { isUnsettledInAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 
 function getBackgroundRunNotice(
   run: BackgroundExecutionRunView | null,
@@ -86,6 +84,7 @@ export function ControlledInAppAgentWindow(
     rejectToolCall,
     selectConversation,
     selectedConversationId,
+    selectedConversationTitle,
     selectedConversationIsWriteLocked,
     submit,
     submitFeedback,
@@ -108,7 +107,10 @@ export function ControlledInAppAgentWindow(
     shouldFlush: error !== null || isCancellingRun || shouldFlushCancelledRun,
   });
   const windowExecutionUi: InAppAgentWindowExecutionUi = {
-    notice: getBackgroundRunNotice(execution.run),
+    notice:
+      selectedConversationIsWriteLocked || error?.type === "write_lock"
+        ? null
+        : getBackgroundRunNotice(execution.run),
     stop:
       execution.run && isCancellableBackgroundRun(execution.run.status)
         ? {
@@ -122,20 +124,40 @@ export function ControlledInAppAgentWindow(
   };
   // Only a read-only conversation disables the composer outright. An assistant
   // turn -- including one paused on an approval -- blocks submission but leaves
-  // the draft editable.
+  // the draft editable. A server write-lock rejection is treated the same as
+  // the cached flag, so a stale conversation query cannot leave the composer open.
   const isConversationInteractionDisabled =
-    selectedConversationIsWriteLocked || isSelectedConversationHydrating;
+    selectedConversationIsWriteLocked ||
+    isSelectedConversationHydrating ||
+    error?.type === "write_lock";
   const isAssistantTurnInProgress =
     isRunning ||
     isAnimating ||
     isSubmitting ||
     pendingToolApprovals.length > 0 ||
     displayedPendingToolApprovals.length > 0;
+  // Settle from the durable run, not from attach/animation. A finished
+  // attached conversation can still be `isRunning` while the watch connects.
+  // A hydrated in-flight run may have no `execution.run` yet — then `isRunning`
+  // is the only signal that the turn is still open.
+  const isRunUnsettled =
+    isSubmitting ||
+    pendingToolApprovals.length > 0 ||
+    displayedPendingToolApprovals.length > 0 ||
+    (execution.run
+      ? isUnsettledInAppAgentRunStatus(execution.run.status)
+      : isRunning);
+  // Both halves are needed. The status alone stays AWAITING_APPROVAL after the
+  // user decides, until the watch reports the resumed run, which would leave the
+  // drawer claiming to wait on someone who already answered. Pending approvals
+  // alone are not enough either: an always-allowed tool carries one and keeps
+  // executing.
+  const isAwaitingApproval =
+    execution.run?.status === InAppAgentRunStatus.AWAITING_APPROVAL &&
+    (pendingToolApprovals.length > 0 ||
+      displayedPendingToolApprovals.length > 0);
   const displayError = selectedConversationIsWriteLocked
-    ? ({
-        type: "generic",
-        message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-      } as const)
+    ? ({ type: "write_lock" } as const)
     : error;
   const screenContextDescription = useMemo(
     () => getInAppAgentScreenContextDescription(router.asPath),
@@ -177,11 +199,15 @@ export function ControlledInAppAgentWindow(
     <InAppAgentWindow
       error={displayError}
       isAssistantTurnInProgress={isAssistantTurnInProgress}
+      isRunUnsettled={isRunUnsettled}
+      isAwaitingApproval={isAwaitingApproval}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
       isSelectedConversationHydrating={isSelectedConversationHydrating}
-      disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
+      disablePendingToolApprovalActions={
+        selectedConversationIsWriteLocked || error?.type === "write_lock"
+      }
       messages={drawerMessages}
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}
@@ -192,6 +218,7 @@ export function ControlledInAppAgentWindow(
       hasMoreConversations={hasMoreConversations}
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
+      selectedConversationTitle={selectedConversationTitle}
       onLoadMoreConversations={loadMoreConversations}
       onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}

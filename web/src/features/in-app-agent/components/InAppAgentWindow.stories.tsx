@@ -1,7 +1,11 @@
 import preview from "../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
@@ -22,9 +26,11 @@ import { getDrawerMessages } from "./utils/utils";
 function InAppAgentWindowStoryShell({
   children,
   isExpanded,
+  onExpandedChange,
 }: {
   children: (props: { isHeaderDragHandleEnabled: boolean }) => ReactNode;
   isExpanded: boolean;
+  onExpandedChange: (isExpanded: boolean) => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const floatingPanelHandle = useInAppAgentWindowShellPanelControl({});
@@ -38,6 +44,7 @@ function InAppAgentWindowStoryShell({
       floatingPanelHandle={floatingPanelHandle}
       isExpanded={isExpanded}
       onClose={() => undefined}
+      onExpandedChange={onExpandedChange}
       open
       panelRef={panelRef}
     >
@@ -48,18 +55,22 @@ function InAppAgentWindowStoryShell({
 
 function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
   const [isExpanded, setIsExpanded] = useState(args.isExpanded);
+  const handleExpandedChange = (isExpanded: boolean) => {
+    setIsExpanded(isExpanded);
+    args.onExpandedChange(isExpanded);
+  };
 
   return (
-    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+    <InAppAgentWindowStoryShell
+      isExpanded={isExpanded}
+      onExpandedChange={handleExpandedChange}
+    >
       {({ isHeaderDragHandleEnabled }) => (
         <InAppAgentWindow
           {...args}
           isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
           isExpanded={isExpanded}
-          onExpandedChange={(isExpanded) => {
-            setIsExpanded(isExpanded);
-            args.onExpandedChange(isExpanded);
-          }}
+          onExpandedChange={handleExpandedChange}
         />
       )}
     </InAppAgentWindowStoryShell>
@@ -69,6 +80,7 @@ function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
 const streamingSeedMessages: InAppAgentWindowMessage[] = [
   {
     id: "seed-user-1",
+    timestamp: new Date("2026-08-06T11:48:43.000Z").getTime(),
     role: "user",
     content: {
       type: "text",
@@ -77,6 +89,7 @@ const streamingSeedMessages: InAppAgentWindowMessage[] = [
   },
   {
     id: "seed-assistant-1",
+    timestamp: new Date("2026-08-06T11:49:13.000Z").getTime(),
     role: "assistant",
     content: {
       type: "text",
@@ -528,18 +541,23 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     };
   }, []);
 
+  const handleExpandedChange = (isExpanded: boolean) => {
+    setIsExpanded(isExpanded);
+    args.onExpandedChange(isExpanded);
+  };
+
   return (
-    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+    <InAppAgentWindowStoryShell
+      isExpanded={isExpanded}
+      onExpandedChange={handleExpandedChange}
+    >
       {({ isHeaderDragHandleEnabled }) => (
         <InAppAgentWindow
           {...args}
           isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
           isExpanded={isExpanded}
           messages={messages}
-          onExpandedChange={(isExpanded) => {
-            setIsExpanded(isExpanded);
-            args.onExpandedChange(isExpanded);
-          }}
+          onExpandedChange={handleExpandedChange}
           onSubmit={(input) => {
             setMessages((currentMessages) => [
               ...currentMessages,
@@ -682,6 +700,7 @@ const meta = preview.meta({
     isLoadingMoreConversations: false,
     isAssistantTurnInProgress: false,
     selectedConversationId: undefined,
+    selectedConversationTitle: null,
     onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
     onOpenConversationHistory: fn(),
@@ -705,6 +724,7 @@ const meta = preview.meta({
 export const ToolApprovalRequired = meta.story({
   args: {
     isAssistantTurnInProgress: true,
+    isAwaitingApproval: true,
     selectedConversationId: "conversation-1",
     messages: [
       {
@@ -738,6 +758,15 @@ export const ToolApprovalRequired = meta.story({
         },
       },
     ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    // The run has stopped on the approval below, so the drawer must say so
+    // rather than narrate the tool it was about to call.
+    await expect(
+      canvas.getByRole("button", { name: "Waiting for your approval…" }),
+    ).toBeVisible();
   },
 });
 
@@ -919,6 +948,350 @@ export const Conversation = meta.story({
   },
 });
 
+export const GroupedAssistantTurn = meta.story({
+  args: {
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    screenContextDescription: { type: "trace-list" },
+    messages: [
+      {
+        id: "grouped-user",
+        role: "user",
+        content: { type: "text", text: "Why did latency increase?" },
+      },
+      {
+        id: "grouped-intro",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "I will compare the slow traces with their observations.",
+        },
+      },
+      {
+        id: "grouped-reasoning",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "The slowest traces share a reranking step.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "grouped-tool",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_getObservations",
+              status: "succeeded",
+              args: JSON.stringify({ orderBy: "latency.desc", limit: 10 }),
+              result: JSON.stringify({ bottleneck: "document-reranking" }),
+            },
+          ],
+        },
+      },
+      {
+        id: "grouped-reasoning-2",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "The reranking step is slow across both outlier traces.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "grouped-tool-2",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_getTraces",
+              status: "succeeded",
+              args: JSON.stringify({ ids: ["trace-104", "trace-219"] }),
+              result: JSON.stringify({ count: 2 }),
+            },
+            {
+              type: "tool",
+              name: "langfuse_queryMetrics",
+              status: "succeeded",
+              args: JSON.stringify({ metric: "latency", aggregation: "p95" }),
+              result: JSON.stringify({ value: 5.82 }),
+            },
+          ],
+        },
+      },
+      {
+        id: "grouped-conclusion",
+        runId: "grouped-run",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The latency increase comes from document reranking. Vector search remains stable.",
+        },
+      },
+    ],
+  },
+});
+
+const progressLogSeedMessages: InAppAgentWindowMessage[] = [
+  {
+    id: "progress-user",
+    role: "user",
+    content: { type: "text", text: "What changed in yesterday's dashboards?" },
+  },
+  {
+    id: "progress-reasoning",
+    timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: "I should read the dashboards first, then list recent observations.",
+      isStreaming: false,
+    },
+  },
+  {
+    id: "progress-tools-start",
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "skill",
+          status: "succeeded",
+          args: JSON.stringify({ name: "error-analysis" }),
+          result: JSON.stringify({ ok: true }),
+        },
+        {
+          type: "tool",
+          name: "langfuseDocs_search",
+          status: "succeeded",
+          args: JSON.stringify({ query: "dashboards" }),
+          result: JSON.stringify({ hits: 2 }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_getDashboard",
+          status: "succeeded",
+          args: JSON.stringify({ dashboardId: "dash-1" }),
+          result: JSON.stringify({ name: "Latency" }),
+        },
+      ],
+    },
+  },
+  {
+    id: "progress-reasoning-2",
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: "The dashboard spike lines up with a reranking change. Checking observation volume next.",
+      isStreaming: false,
+    },
+  },
+  {
+    id: "progress-tool-latest",
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_getObservation",
+          status: "succeeded",
+          args: JSON.stringify({ observationId: "obs-1" }),
+          result: JSON.stringify({ name: "rerank" }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_listObservations",
+          status: "running",
+          args: JSON.stringify({ limit: 20 }),
+        },
+      ],
+    },
+  },
+];
+
+export const ProgressLogWorking = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: progressLogSeedMessages,
+  },
+});
+
+export const ProgressLogOpened = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: progressLogSeedMessages,
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Looking at observations" }),
+    );
+    await expect(canvas.getAllByText("Thought")).toHaveLength(2);
+    await expect(canvas.getByLabelText("skill: succeeded")).toBeVisible();
+    await expect(canvas.getByLabelText("search: succeeded")).toBeVisible();
+    await expect(
+      canvas.getByLabelText("getDashboard: succeeded"),
+    ).toBeVisible();
+    await expect(
+      canvas.getByLabelText("getObservation: succeeded"),
+    ).toBeVisible();
+    await expect(
+      canvas.getByLabelText("listObservations: running"),
+    ).toBeVisible();
+  },
+});
+
+export const ProgressLogMidTurnText = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      ...progressLogSeedMessages,
+      {
+        id: "progress-mid-turn-text",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The dashboard spike looks like reranking. Checking a few observation payloads next.",
+        },
+      },
+    ],
+  },
+});
+
+export const ProgressLogCompleted = meta.story({
+  args: {
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      ...progressLogSeedMessages.slice(0, -1),
+      {
+        id: "progress-tool-latest",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_listObservations",
+              status: "succeeded",
+              args: JSON.stringify({ limit: 20 }),
+              result: JSON.stringify({ count: 20 }),
+            },
+          ],
+        },
+      },
+      {
+        id: "progress-answer",
+        runId: "progress-run",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Yesterday's latency dashboard picked up a reranking spike. Observation volume stayed flat.",
+        },
+      },
+    ],
+  },
+});
+
+export const MultiBlockAnswer = meta.story({
+  args: {
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    screenContextDescription: { type: "trace-list" },
+    messages: [
+      {
+        id: "multiblock-user",
+        role: "user",
+        content: { type: "text", text: "What is going on with errors?" },
+      },
+      {
+        id: "multiblock-reasoning",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "I should inspect the error traces first.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "multiblock-tool",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_getTraces",
+              status: "succeeded",
+              args: JSON.stringify({ level: "ERROR", limit: 20 }),
+              result: JSON.stringify({ count: 12, synthetic: true }),
+            },
+          ],
+        },
+      },
+      {
+        id: "multiblock-analysis",
+        timestamp: new Date("2026-08-06T15:27:20.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The traces are synthetic seed data, not real traffic. Error volume is concentrated on the ingestion path.",
+          redirectAction: {
+            type: "redirectAction",
+            label: "Open error traces",
+            href: "/project/project-1/traces?level=ERROR",
+          },
+        },
+      },
+      {
+        id: "multiblock-closer",
+        runId: "multiblock-run",
+        timestamp: new Date("2026-08-06T15:27:48.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "I've prepared a link to the error-level traces.",
+        },
+      },
+    ],
+  },
+});
+
+export const LightConversation = meta.story({
+  globals: { theme: "light" },
+  args: {
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: streamingSeedMessages,
+  },
+});
+
+export const DarkConversation = meta.story({
+  globals: { theme: "dark" },
+  args: {
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: streamingSeedMessages,
+  },
+});
+
 export const Streaming = meta.story({
   args: {
     isAssistantTurnInProgress: true,
@@ -928,7 +1301,7 @@ export const Streaming = meta.story({
   render: (args) => <StreamingInAppAgentWindow {...args} />,
 });
 
-export const LoadingResponse = meta.story({
+export const Working = meta.story({
   args: {
     isAssistantTurnInProgress: true,
     messages: [
@@ -938,13 +1311,6 @@ export const LoadingResponse = meta.story({
         content: {
           type: "text",
           text: "Summarize recent ingestion errors.",
-        },
-      },
-      {
-        id: "assistant-1",
-        role: "assistant",
-        content: {
-          type: "loading",
         },
       },
     ],
@@ -1036,36 +1402,11 @@ export const LoadingAfterToolCall = meta.story({
   },
 });
 
-export const Connecting = meta.story({
-  args: {
-    isAssistantTurnInProgress: true,
-    isConversationInteractionDisabled: true,
-    messages: [
-      {
-        id: "user-1",
-        role: "user",
-        content: {
-          type: "text",
-          text: "Summarize recent ingestion errors.",
-        },
-      },
-      {
-        id: "connecting",
-        role: "assistant",
-        content: {
-          type: "loading",
-          label: "Connecting...",
-        },
-      },
-    ],
-  },
-});
-
 export const Error = meta.story({
   args: {
     error: {
       type: "generic",
-      message: "Assistant is not enabled for this user",
+      message: "Internal sandbox bridge timeout",
     },
     messages: [
       {
@@ -1077,6 +1418,55 @@ export const Error = meta.story({
         },
       },
     ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const alert = canvas.getByRole("alert");
+
+    await expect(alert).toHaveTextContent(IN_APP_AGENT_GENERIC_ERROR_MESSAGE);
+    await expect(alert).not.toHaveTextContent(
+      "Internal sandbox bridge timeout",
+    );
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+    await expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
+  },
+});
+
+export const WriteLocked = meta.story({
+  args: {
+    error: { type: "write_lock" },
+    isConversationInteractionDisabled: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Help me inspect this trace.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const alert = canvas.getByRole("alert");
+
+    await expect(alert).toHaveTextContent(
+      IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+    );
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: /^Conversation history/ }),
+    ).toBeEnabled();
+    await expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
   },
 });
 
@@ -1169,12 +1559,17 @@ export const BackgroundHint = meta.story({
       "Compare cost against last week",
     );
     await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
-    await expect(await canvas.findByRole("status")).toHaveTextContent(
-      "I keep running in the background",
-    );
+    await waitFor(() => {
+      expect(
+        canvas.getByText(/I keep running in the background/),
+      ).toBeVisible();
+    });
 
     await waitFor(
-      () => expect(canvas.queryByRole("status")).not.toBeInTheDocument(),
+      () =>
+        expect(
+          canvas.queryByText(/I keep running in the background/),
+        ).not.toBeInTheDocument(),
       { timeout: STORY_RUN_MS * 2 },
     );
   },
@@ -1196,11 +1591,6 @@ export const BackgroundRun = meta.story({
           text: "Summarize recent ingestion errors.",
         },
       },
-      {
-        id: "assistant-1",
-        role: "assistant",
-        content: { type: "loading" },
-      },
     ],
   },
 });
@@ -1216,11 +1606,6 @@ export const BackgroundRunStops = meta.story({
           type: "text",
           text: "Summarize recent ingestion errors.",
         },
-      },
-      {
-        id: "assistant-1",
-        role: "assistant",
-        content: { type: "loading" },
       },
     ],
   },
@@ -1424,9 +1809,16 @@ export const RefocusAfterSubmit = meta.story({
         },
       },
     ]);
+    const handleExpandedChange = (isExpanded: boolean) => {
+      setIsExpanded(isExpanded);
+      args.onExpandedChange(isExpanded);
+    };
 
     return (
-      <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+      <InAppAgentWindowStoryShell
+        isExpanded={isExpanded}
+        onExpandedChange={handleExpandedChange}
+      >
         {({ isHeaderDragHandleEnabled }) => (
           <InAppAgentWindow
             {...args}
@@ -1436,10 +1828,7 @@ export const RefocusAfterSubmit = meta.story({
               isConversationInteractionDisabled
             }
             messages={messages}
-            onExpandedChange={(isExpanded) => {
-              setIsExpanded(isExpanded);
-              args.onExpandedChange(isExpanded);
-            }}
+            onExpandedChange={handleExpandedChange}
             onSubmit={(input) => {
               setIsConversationInteractionDisabled(true);
               window.setTimeout(() => {
@@ -1517,19 +1906,22 @@ export const FeedbackControlsWaitForTurnEnd = meta.story({
   },
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
+    const midTurnText =
+      "I found a cluster of ingestion errors around malformed JSON payloads";
 
-    await canvas.findByText(
-      "I found a cluster of ingestion errors around malformed JSON payloads",
-    );
+    expect(canvas.queryByText(midTurnText)).not.toBeInTheDocument();
+    expect(
+      canvas.queryByRole("button", { name: "Good response" }),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByRole("button", { name: "Bad response" }),
+    ).not.toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(
-        canvas.queryByRole("button", { name: "Good response" }),
-      ).not.toBeInTheDocument();
-      expect(
-        canvas.queryByRole("button", { name: "Bad response" }),
-      ).not.toBeInTheDocument();
-    });
+    await userEvent.click(canvas.getByRole("button", { name: "Working…" }));
+    await expect(canvas.getByText(midTurnText)).toBeVisible();
+    expect(
+      canvas.queryByRole("button", { name: "Good response" }),
+    ).not.toBeInTheDocument();
   },
 });
 
@@ -1577,6 +1969,8 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
     selectedConversationId: "conversation-1",
     isAssistantTurnInProgress: false,
     onSubmitFeedback: fn(),
+    // Two projected blocks join into one answer, and only the first carries the
+    // persisted id: feedback still has to reach that source message.
     messages: [
       {
         id: "display-text-assistant-1-1",
@@ -1588,6 +1982,15 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
           text: "The errors were caused by malformed JSON payloads.",
         },
       },
+      {
+        id: "display-text-assistant-1-2",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Retrying them after the fix cleared the backlog.",
+        },
+      },
     ],
   },
   play: async ({ args, canvasElement }) => {
@@ -1595,6 +1998,10 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
     const goodResponseButton = await canvas.findByRole("button", {
       name: "Good response",
     });
+
+    await expect(
+      canvas.getAllByRole("button", { name: "Copy message" }),
+    ).toHaveLength(1);
 
     await userEvent.click(goodResponseButton);
     await expect(args.onSubmitFeedback).toHaveBeenCalledWith({
@@ -1732,6 +2139,7 @@ export const ContinuedToolResultRendersOnce = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.queryByText("Called 2 tools")).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Activity" }));
     await expect(
       canvas.getAllByLabelText("createDashboardWidget: succeeded"),
     ).toHaveLength(1);
@@ -1742,5 +2150,349 @@ export const ContinuedToolResultRendersOnce = meta.story({
     await expect(
       canvas.queryByText(/Changed by continuation/),
     ).not.toBeInTheDocument();
+  },
+});
+
+export const RedirectStaysActionableAfterMoreThinking = meta.story({
+  name: "(Test) Redirect Stays Actionable After More Thinking",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "Take me to the failing traces." },
+      },
+      {
+        id: "assistant-reasoning-1",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "The error traces view is the right destination.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-redirect",
+        role: "assistant",
+        content: {
+          type: "redirectAction",
+          label: "Open error traces",
+          href: "/project/project-1/traces?level=ERROR",
+        },
+      },
+      {
+        // A redirect tool result merges into a preceding text block rather than
+        // arriving standalone whenever there is one to merge into.
+        id: "assistant-ack",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The dashboard shows the same spike.",
+          redirectAction: {
+            type: "redirectAction",
+            label: "Open the latency dashboard",
+            href: "/project/project-1/dashboards/latency",
+          },
+        },
+      },
+      {
+        id: "assistant-reasoning-2",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "I should also explain what they will see.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: { type: "text", text: "These are all timeouts." },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    // The drawer stays collapsed, so a redirect parked inside it would be lost,
+    // whether it arrived standalone or merged into a mid-turn text block.
+    const drawer = canvas.getByRole("button", { name: /Worked for/ });
+    await expect(drawer).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      canvas.getByRole("button", { name: "Open the latency dashboard" }),
+    ).toBeVisible();
+
+    // ...and opening the drawer must not offer the same action a second time.
+    await userEvent.click(drawer);
+    await expect(
+      canvas.getAllByRole("button", { name: "Open the latency dashboard" }),
+    ).toHaveLength(1);
+  },
+});
+
+export const SourcesReachTheSettledAnswer = meta.story({
+  name: "(Test) Sources Reach The Settled Answer",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "How do I mask trace input?" },
+      },
+      {
+        id: "assistant-ack",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The docs cover masking.",
+          sources: [
+            {
+              title: "Masking",
+              url: "https://langfuse.com/docs/observability/features/masking",
+              faviconUrl: "https://langfuse.com/favicon.ico",
+            },
+          ],
+        },
+      },
+      {
+        id: "assistant-reasoning",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Now I can summarise the masking setup.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: { type: "text", text: "Set a mask function on the SDK." },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    // The citation was earned by an intermediate block that lives in the
+    // collapsed drawer; it has to travel to the answer the user is reading.
+    await userEvent.click(canvas.getByRole("button", { name: "Sources" }));
+    // The popover portals into a layer container outside the canvas.
+    const source = await screen.findByRole("link", { name: /Masking/ });
+    await waitFor(() => expect(source).toBeVisible());
+    await expect(source).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/features/masking",
+    );
+  },
+});
+
+// Enough turns to overflow the conversation viewport so real scrolling happens.
+const scrollableTranscript: InAppAgentWindowMessage[] = Array.from(
+  { length: 12 },
+  (_, index): InAppAgentWindowMessage => ({
+    id: `scroll-${index}`,
+    role: index % 2 === 0 ? "user" : "assistant",
+    content: {
+      type: "text",
+      text:
+        index % 2 === 0
+          ? `Question ${index / 2 + 1} about the latency regression.`
+          : `Finding ${(index + 1) / 2}: the reranker dominates p95 for this segment, and the effect persists across retries.`,
+    },
+  }),
+);
+
+/**
+ * The scroller is a plain overflow container with no role of its own, and
+ * `overscroll-contain` is what distinguishes it from the composer textarea.
+ */
+function getConversationViewport(canvasElement: HTMLElement) {
+  const viewport = canvasElement.querySelector<HTMLElement>(
+    ".overscroll-contain",
+  );
+
+  if (!viewport) {
+    // `globalThis` because the Error story shadows the constructor here.
+    throw new globalThis.Error("Expected the assistant conversation viewport");
+  }
+
+  return viewport;
+}
+
+// Mirrors AUTO_SCROLL_THRESHOLD_PX in the component.
+function isViewportAtBottom(viewport: HTMLElement) {
+  return (
+    viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 50
+  );
+}
+
+export const LatestReattachesAutoFollow = meta.story({
+  name: "(Test) Latest Reattaches Auto Follow",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: scrollableTranscript,
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const viewport = getConversationViewport(canvasElement);
+    const latest = { name: "Scroll to latest message" };
+
+    // Mounting pins us to the newest message, so there is nothing to catch up to.
+    await waitFor(() => expect(isViewportAtBottom(viewport)).toBe(true));
+    await expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument();
+
+    viewport.scrollTop = 0;
+    await waitFor(() =>
+      expect(canvas.getByRole("button", latest)).toBeVisible(),
+    );
+
+    await userEvent.click(canvas.getByRole("button", latest));
+
+    // The pill hides the moment we start travelling, so the smooth scroll's
+    // intermediate positions cannot make it flicker back in.
+    await expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument();
+    await waitFor(() => expect(isViewportAtBottom(viewport)).toBe(true));
+    await expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument();
+  },
+});
+
+export const LatestHidesWhenTheDrawerCollapses = meta.story({
+  name: "(Test) Latest Hides When The Drawer Collapses",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "What changed yesterday?" },
+      },
+      {
+        id: "assistant-reasoning",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          // Long enough that expanding the drawer overflows the viewport and
+          // collapsing it fits again.
+          text: Array.from(
+            { length: 40 },
+            (_, index) =>
+              `Step ${index + 1}: compare yesterday's dashboard against the trailing week.`,
+          ).join("\n"),
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Yesterday's latency dashboard picked up a reranking spike.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const viewport = getConversationViewport(canvasElement);
+    const latest = { name: "Scroll to latest message" };
+
+    const drawer = canvas.getByRole("button", { name: /Worked for/ });
+    await expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument();
+
+    // Read to the end of the opened drawer, then scroll back up. Going down
+    // first is what makes the scroll position actually change on the way up.
+    await userEvent.click(drawer);
+    await userEvent.click(canvas.getByText("Thought"));
+    viewport.scrollTop = viewport.scrollHeight;
+    await waitFor(() => expect(viewport.scrollTop).toBeGreaterThan(0));
+
+    viewport.scrollTop = 0;
+    await waitFor(() =>
+      expect(canvas.getByRole("button", latest)).toBeVisible(),
+    );
+
+    // Collapsing shrinks the transcript back under the viewport without any
+    // scroll event, so only the resize observer can retire the pill.
+    await userEvent.click(drawer);
+    await waitFor(() =>
+      expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument(),
+    );
+  },
+});
+
+export const SendingReattachesAutoFollow = meta.story({
+  name: "(Test) Sending Reattaches Auto Follow",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: scrollableTranscript,
+  },
+  render: function Render(args) {
+    const [messages, setMessages] = useState(args.messages);
+
+    return (
+      <InAppAgentWindowStoryShell
+        isExpanded={args.isExpanded}
+        onExpandedChange={args.onExpandedChange}
+      >
+        {({ isHeaderDragHandleEnabled }) => (
+          <InAppAgentWindow
+            {...args}
+            isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+            messages={messages}
+            onSubmit={(input) => {
+              // The real provider appends a placeholder behind the user
+              // message, so the newest message is not the one that was sent.
+              setMessages((currentMessages) => [
+                ...currentMessages,
+                {
+                  id: `sent-${currentMessages.length}`,
+                  role: "user",
+                  content: { type: "text", text: input },
+                },
+                {
+                  id: `connecting-${currentMessages.length}`,
+                  role: "assistant",
+                  content: { type: "loading", label: "Connecting..." },
+                },
+              ]);
+              return true;
+            }}
+          />
+        )}
+      </InAppAgentWindowStoryShell>
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const viewport = getConversationViewport(canvasElement);
+    const latest = { name: "Scroll to latest message" };
+
+    viewport.scrollTop = 0;
+    await waitFor(() =>
+      expect(canvas.getByRole("button", latest)).toBeVisible(),
+    );
+
+    await userEvent.type(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      "And the error rate?",
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+
+    // Saying something is a request to follow along again.
+    await waitFor(() =>
+      expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(isViewportAtBottom(viewport)).toBe(true));
   },
 });

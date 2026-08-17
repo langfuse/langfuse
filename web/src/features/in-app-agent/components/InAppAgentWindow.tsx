@@ -2,14 +2,18 @@
 
 import {
   type KeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import {
   ArrowRight,
+  ArrowDown,
   BotMessageSquare,
+  ChevronRight,
   History,
   Info,
   Maximize2,
@@ -18,6 +22,7 @@ import {
   Plus,
   SendHorizontal,
   Square,
+  TriangleAlert,
   Trash2,
   X,
 } from "lucide-react";
@@ -43,7 +48,13 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+  type InAppAgentMessageFeedbackValue,
+  type InAppAgentMessageSource,
+} from "@langfuse/shared/in-app-agent";
+import { deduplicateBy } from "@/src/utils/arrays";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import { ConversationActivityIndicator } from "@/src/features/in-app-agent/components/ConversationActivityIndicator";
@@ -51,9 +62,11 @@ import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
+  getInAppAgentActivityProgressLabel,
   type InAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
+import messageStyles from "./InAppAgentMessage.module.css";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -71,14 +84,24 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
-function scrollViewportToBottom(viewport: HTMLDivElement | null) {
+function isViewportNearBottom(viewport: HTMLElement) {
+  return (
+    viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <=
+    AUTO_SCROLL_THRESHOLD_PX
+  );
+}
+
+function scrollViewportToBottom(
+  viewport: HTMLDivElement | null,
+  behavior: ScrollBehavior = "auto",
+) {
   if (!viewport) {
     return;
   }
 
   viewport.scrollTo({
     top: viewport.scrollHeight,
-    behavior: "auto",
+    behavior,
   });
 }
 
@@ -183,35 +206,35 @@ function formatScreenContextNotice(
   description: InAppAgentScreenContextDescription,
 ) {
   if (description.type === "page") {
-    return "The assistant is aware of your current page.";
+    return "Current page in context";
   }
 
   if (description.type === "observation") {
-    return "The assistant is aware that you're viewing this observation.";
+    return "Current observation in context";
   }
 
   if (description.type === "trace") {
-    return "The assistant is aware that you're viewing this trace.";
+    return "Current trace in context";
   }
 
   if (description.type === "prompt") {
-    return "The assistant is aware that you're viewing this prompt.";
+    return "Current prompt in context";
   }
 
   if (description.type === "session") {
-    return "The assistant is aware that you're viewing this session.";
+    return "Current session in context";
   }
 
   if (description.type === "dataset") {
-    return "The assistant is aware that you're viewing this dataset.";
+    return "Current dataset in context";
   }
 
   if (description.type === "datasetItem") {
-    return "The assistant is aware that you're viewing this dataset item.";
+    return "Current dataset item in context";
   }
 
   if (description.type === "experimentRun") {
-    return "The assistant is aware that you're viewing this experiment run.";
+    return "Current experiment run in context";
   }
 
   if (
@@ -229,9 +252,7 @@ function formatScreenContextNotice(
       "datasets-list": "dataset",
     }[description.type];
 
-    return description.hasAppliedFilters
-      ? `The assistant is aware of this ${listLabel} view and its filters.`
-      : `The assistant is aware of this ${listLabel} view.`;
+    return `Current ${listLabel} view in context`;
   }
 
   return assertUnreachable(description);
@@ -241,9 +262,541 @@ export type InAppAgentWindowMessage = {
   id: string;
   feedbackMessageId?: string;
   runId?: string;
+  timestamp?: number;
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
 };
+
+type ConversationDisplayItem =
+  | {
+      type: "user";
+      message: InAppAgentWindowMessage;
+      hasPreviousMessage: boolean;
+    }
+  | {
+      type: "activity";
+      /** Identifies the turn, not its contents: the drawer must survive both
+       * the first activity arriving and the run settling without remounting,
+       * or an expanded drawer collapses under the user. */
+      key: string;
+      messages: InAppAgentWindowMessage[];
+      startTimestamp?: number;
+      endTimestamp?: number;
+      followsUser: boolean;
+      isInProgress: boolean;
+    }
+  | {
+      type: "assistant";
+      message: InAppAgentWindowMessage;
+      followsUser: boolean;
+      isFinalAnswer: boolean;
+    };
+
+type InAppAgentTextMessage = InAppAgentWindowMessage & {
+  content: Extract<InAppAgentMessageContent, { type: "text" }>;
+};
+
+type InAppAgentRedirectActionContent = Extract<
+  InAppAgentMessageContent,
+  { type: "redirectAction" }
+>;
+
+/**
+ * Fold a turn's answer blocks into the single bubble the user reads. Each field
+ * takes the last block that defined it, except `sources`, which arrive already
+ * unioned across the whole turn so a citation earned mid-turn is not lost.
+ */
+function joinAnswerMessages(
+  messages: InAppAgentWindowMessage[],
+  turnSources: InAppAgentMessageSource[],
+  turnRedirectAction: InAppAgentRedirectActionContent | undefined,
+): InAppAgentWindowMessage | null {
+  const textMessages = messages.filter(
+    (message): message is InAppAgentTextMessage =>
+      message.content.type === "text",
+  );
+  const lastText = textMessages.at(-1);
+
+  // A turn can end on a bare redirect with no text to attach it to.
+  if (!lastText) {
+    return messages.at(-1) ?? null;
+  }
+
+  const lastDefined = <T,>(
+    pick: (message: InAppAgentTextMessage) => T | undefined,
+  ): T | undefined =>
+    textMessages.reduce<T | undefined>(
+      (found, message) => pick(message) ?? found,
+      undefined,
+    );
+  const runId = lastDefined((message) => message.runId);
+  const feedbackMessageId = lastDefined((message) => message.feedbackMessageId);
+  const feedback = lastDefined((message) => message.content.feedback);
+
+  return {
+    ...lastText,
+    ...(runId ? { runId } : {}),
+    ...(feedbackMessageId ? { feedbackMessageId } : {}),
+    content: {
+      type: "text",
+      text: textMessages.map((message) => message.content.text).join("\n\n"),
+      ...(textMessages.some((message) => message.content.isStreaming)
+        ? { isStreaming: true }
+        : {}),
+      ...(turnSources.length > 0 ? { sources: turnSources } : {}),
+      ...(feedback ? { feedback } : {}),
+      ...(turnRedirectAction ? { redirectAction: turnRedirectAction } : {}),
+    },
+  };
+}
+
+function buildConversationDisplayItems(
+  messages: InAppAgentWindowMessage[],
+  isRunUnsettled: boolean,
+): ConversationDisplayItem[] {
+  const items: ConversationDisplayItem[] = [];
+  // A tool call awaiting approval is hoisted into its own card above the
+  // composer, and the drawer speaks for a turn that has produced nothing yet,
+  // so neither belongs in the transcript.
+  const visibleMessages = messages.flatMap((message) => {
+    if (message.content.type === "loading") {
+      return [];
+    }
+
+    if (message.content.type !== "toolGroup") {
+      return [message];
+    }
+
+    const visibleTools = message.content.tools.filter((tool) => !tool.approval);
+    if (visibleTools.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        ...message,
+        content: { ...message.content, tools: visibleTools },
+      } satisfies InAppAgentWindowMessage,
+    ];
+  });
+
+  for (let index = 0; index < visibleMessages.length; ) {
+    const message = visibleMessages[index];
+    if (!message) {
+      break;
+    }
+
+    if (message.role === "user") {
+      items.push({
+        type: "user",
+        message,
+        hasPreviousMessage: index > 0,
+      });
+      index++;
+      continue;
+    }
+
+    const turnStartIndex = index;
+    while (
+      index < visibleMessages.length &&
+      visibleMessages[index]?.role === "assistant"
+    ) {
+      index++;
+    }
+
+    const turnMessages = visibleMessages.slice(turnStartIndex, index);
+    const isInProgress = isRunUnsettled && index === visibleMessages.length;
+    const lastReasoningIndex = turnMessages.findLastIndex(
+      (turnMessage) => turnMessage.content.type === "reasoning",
+    );
+    // Trailing text is the answer; text before the turn's last thought is still
+    // work. A proposed redirect is always actionable, so it never stays behind
+    // in the drawer. Declared once, with the activity bucket as its exact
+    // complement, so no message can fall out of both.
+    const isAnswerPart = (
+      turnMessage: InAppAgentWindowMessage,
+      turnIndex: number,
+    ) =>
+      !isInProgress &&
+      (turnMessage.content.type === "redirectAction" ||
+        (turnMessage.content.type === "text" &&
+          turnIndex > lastReasoningIndex));
+    const answerMessages = turnMessages.filter(isAnswerPart);
+    const activityMessages = turnMessages.filter(
+      (turnMessage, turnIndex) => !isAnswerPart(turnMessage, turnIndex),
+    );
+    const turnSources = deduplicateBy(
+      turnMessages.flatMap((turnMessage) =>
+        turnMessage.content.type === "text"
+          ? (turnMessage.content.sources ?? [])
+          : [],
+      ),
+      (source) => source.url,
+    );
+    // A proposed redirect belongs to the turn, not to whichever block carried
+    // it: the tool result is merged into a preceding text message when there is
+    // one and emitted standalone when there is not, and either can land in the
+    // drawer.
+    const turnRedirectAction = turnMessages.reduce<
+      InAppAgentRedirectActionContent | undefined
+    >(
+      (found, turnMessage) =>
+        (turnMessage.content.type === "redirectAction"
+          ? turnMessage.content
+          : turnMessage.content.type === "text"
+            ? turnMessage.content.redirectAction
+            : undefined) ?? found,
+      undefined,
+    );
+    const joinedAnswer = joinAnswerMessages(
+      answerMessages,
+      turnSources,
+      turnRedirectAction,
+    );
+    const precedingMessage = visibleMessages[turnStartIndex - 1];
+    const followsUser = precedingMessage?.role === "user";
+
+    if (activityMessages.length > 0) {
+      items.push({
+        type: "activity",
+        key: getActivityKey(
+          followsUser ? precedingMessage?.id : turnMessages[0]?.id,
+        ),
+        messages: activityMessages,
+        startTimestamp: turnMessages.find(
+          (turnMessage) => turnMessage.timestamp !== undefined,
+        )?.timestamp,
+        endTimestamp:
+          joinedAnswer?.timestamp ?? activityMessages.at(-1)?.timestamp,
+        followsUser,
+        isInProgress,
+      });
+    }
+
+    if (joinedAnswer) {
+      items.push({
+        type: "assistant",
+        message: joinedAnswer,
+        followsUser: activityMessages.length === 0 && followsUser,
+        isFinalAnswer: !isInProgress,
+      });
+    }
+  }
+
+  const lastItem = items.at(-1);
+  if (isRunUnsettled && lastItem?.type === "user") {
+    // Same key the turn will claim once its first message lands, so the caret
+    // the user may already have opened is not torn down underneath them.
+    items.push({
+      type: "activity",
+      key: getActivityKey(lastItem.message.id),
+      messages: [],
+      followsUser: true,
+      isInProgress: true,
+    });
+  }
+
+  return items;
+}
+
+function getActivityKey(turnAnchorMessageId: string | undefined) {
+  return `activity-${turnAnchorMessageId ?? "start"}`;
+}
+
+function formatWorkedDuration(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    const parts = [`${hours}h`];
+    if (minutes > 0) {
+      parts.push(`${minutes}m`);
+    }
+    if (seconds > 0) {
+      parts.push(`${seconds}s`);
+    }
+    return parts.join(" ");
+  }
+
+  if (minutes > 0) {
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+
+  return `${totalSeconds}s`;
+}
+
+function getActivityGroupLabel({
+  durationSeconds,
+  hasDetails,
+  isAwaitingApproval,
+  isInProgress,
+  toolNames,
+}: {
+  durationSeconds: number | null;
+  hasDetails: boolean;
+  isAwaitingApproval: boolean;
+  isInProgress: boolean;
+  toolNames: string[];
+}) {
+  if (!isInProgress) {
+    return durationSeconds === null
+      ? "Activity"
+      : `Worked for ${formatWorkedDuration(durationSeconds)}`;
+  }
+
+  // The run has stopped and owes the user a decision, so it must not keep
+  // narrating the last thing it did.
+  if (isAwaitingApproval) {
+    return "Waiting for your approval…";
+  }
+
+  return hasDetails
+    ? getInAppAgentActivityProgressLabel(toolNames)
+    : "There for you in a second…";
+}
+
+function AssistantActivityGroup({
+  endTimestamp,
+  isAwaitingApproval,
+  isCompact,
+  isInProgress,
+  messages,
+  startTimestamp,
+}: {
+  endTimestamp?: number;
+  isAwaitingApproval: boolean;
+  isCompact: boolean;
+  isInProgress: boolean;
+  messages: InAppAgentWindowMessage[];
+  startTimestamp?: number;
+}) {
+  const hasDetails = messages.length > 0;
+  const [isOpen, setIsOpen] = useState(false);
+  const durationSeconds =
+    startTimestamp !== undefined && endTimestamp !== undefined
+      ? Math.max(1, Math.round((endTimestamp - startTimestamp) / 1_000))
+      : null;
+  const toolNames = messages.flatMap((message) =>
+    message.content.type === "toolGroup"
+      ? message.content.tools.map((tool) => tool.name)
+      : [],
+  );
+  const label = getActivityGroupLabel({
+    durationSeconds,
+    hasDetails,
+    isAwaitingApproval,
+    isInProgress,
+    toolNames,
+  });
+
+  return (
+    <div className="w-full">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-label={label}
+        className={cn(
+          "text-muted-foreground focus-visible:ring-ring flex w-full items-center gap-1 py-1 text-left outline-none focus-visible:ring-2",
+          isCompact ? "text-[0.775rem]" : "text-sm",
+        )}
+        onClick={() => {
+          setIsOpen((open) => !open);
+        }}
+      >
+        {/* Nothing is happening while we wait on the user, so hold the shimmer. */}
+        <span
+          className={cn(
+            isInProgress &&
+              !isAwaitingApproval &&
+              messageStyles.thinkingShimmer,
+          )}
+        >
+          {label}
+        </span>
+        <ChevronRight
+          aria-hidden="true"
+          className={cn("size-3.5 transition-transform", isOpen && "rotate-90")}
+        />
+      </button>
+      {isOpen && hasDetails ? (
+        <div className="flex flex-col gap-1 pt-2 pb-1">
+          {messages.map((message) => (
+            <InAppAgentMessage
+              key={message.id}
+              role={message.role}
+              content={message.content}
+              isCompact={isCompact}
+              isFinalAnswer={false}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Owns the conversation viewport and everything about following it: whether we
+ * are pinned to the newest message, the `Latest` escape hatch, and the smooth
+ * scroll it starts. Mount this keyed by conversation so switching gives it a
+ * fresh scroll position instead of an effect that resets one.
+ */
+function ConversationScroller({
+  children,
+  displayItems,
+}: {
+  children: ReactNode;
+  /** What is actually rendered, so the height can only change with it. Keying
+   * on the raw messages misses a turn that settles without new messages and
+   * reveals its answer. */
+  displayItems: ConversationDisplayItem[];
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  // Sticky intent to follow, which survives scrolling down through the middle
+  // of the transcript; `isAtLatest` only says whether the pill is needed.
+  const isAutoScrollAttachedRef = useRef(true);
+  const isScrollingToLatestRef = useRef(false);
+  const previousScrollTopRef = useRef(0);
+  // The newest user message, rather than the newest message: a turn often
+  // appends a placeholder after it, which would mask the send.
+  const lastUserMessageId = displayItems.findLast(
+    (item) => item.type === "user",
+  )?.message.id;
+  const [followState, setFollowState] = useState({
+    lastUserMessageId,
+    isAtLatest: true,
+  });
+  // Saying something is a request to follow along again, even from far up.
+  // Derived rather than keyed on a remount, which would take the transcript —
+  // and every drawer the user has opened — down with it.
+  const hasNewUserMessage = followState.lastUserMessageId !== lastUserMessageId;
+  const isAtLatest = hasNewUserMessage || followState.isAtLatest;
+  if (hasNewUserMessage) {
+    isAutoScrollAttachedRef.current = true;
+  }
+  const setIsAtLatest = useCallback(
+    (nextIsAtLatest: boolean) => {
+      setFollowState({ lastUserMessageId, isAtLatest: nextIsAtLatest });
+    },
+    [lastUserMessageId],
+  );
+
+  useEffect(() => {
+    if (isAutoScrollAttachedRef.current) {
+      scrollViewportToBottom(viewportRef.current);
+    }
+  }, [displayItems]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    // Content can shrink back under the viewport without a scroll event — a
+    // collapsing activity drawer does exactly that.
+    const syncIsAtLatest = () => {
+      if (isScrollingToLatestRef.current) {
+        return;
+      }
+
+      if (isViewportNearBottom(viewport)) {
+        isAutoScrollAttachedRef.current = true;
+        // The raw setter keeps this subscription off `lastUserMessageId`: a
+        // resize says nothing about which send we have caught up with.
+        setFollowState((state) => ({ ...state, isAtLatest: true }));
+      }
+    };
+
+    const observer = new ResizeObserver(syncIsAtLatest);
+    const content = viewport.firstElementChild;
+    if (content) {
+      observer.observe(content);
+    }
+    observer.observe(viewport);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <div className="relative min-h-0 flex-1">
+      <div
+        ref={viewportRef}
+        // `overscroll-contain`: the conversation is the only scroller, so its
+        // rubber-band must not chain out to whatever is behind it.
+        className="h-full overflow-y-auto overscroll-contain"
+        onScroll={(event) => {
+          const viewport = event.currentTarget;
+          const isNearBottom = isViewportNearBottom(viewport);
+          const scrolledUp =
+            viewport.scrollTop <
+            previousScrollTopRef.current - SCROLL_DIRECTION_TOLERANCE_PX;
+
+          // Our own smooth scroll emits a stream of events on the way down;
+          // only arriving, or the user overriding it, ends that.
+          if (isScrollingToLatestRef.current) {
+            if (isNearBottom) {
+              isScrollingToLatestRef.current = false;
+              isAutoScrollAttachedRef.current = true;
+              setIsAtLatest(true);
+            } else if (scrolledUp) {
+              isScrollingToLatestRef.current = false;
+              isAutoScrollAttachedRef.current = false;
+              setIsAtLatest(false);
+            }
+
+            previousScrollTopRef.current = viewport.scrollTop;
+            return;
+          }
+
+          if (scrolledUp && !isNearBottom) {
+            isAutoScrollAttachedRef.current = false;
+          } else if (isNearBottom) {
+            isAutoScrollAttachedRef.current = true;
+          }
+
+          setIsAtLatest(isNearBottom);
+          previousScrollTopRef.current = viewport.scrollTop;
+        }}
+      >
+        {children}
+      </div>
+      {/* The transcript fades into the composer gutter rather than ending on a
+          hard cut. Above the "Latest" pill in DOM order so the pill stays crisp. */}
+      <div
+        aria-hidden="true"
+        className="from-background pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-linear-to-t to-transparent"
+      />
+      {!isAtLatest ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Scroll to latest message"
+          className="bg-background absolute bottom-3 left-1/2 z-10 h-8 -translate-x-1/2 rounded-full px-3 shadow-sm"
+          onClick={() => {
+            isAutoScrollAttachedRef.current = true;
+            isScrollingToLatestRef.current = true;
+            setIsAtLatest(true);
+            const prefersReducedMotion =
+              typeof window.matchMedia === "function" &&
+              window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            scrollViewportToBottom(
+              viewportRef.current,
+              prefersReducedMotion ? "auto" : "smooth",
+            );
+          }}
+        >
+          <ArrowDown className="size-3.5" />
+          Latest
+        </Button>
+      ) : null}
+    </div>
+  );
+}
 
 export type InAppAgentWindowConversation = {
   id: string;
@@ -278,6 +831,12 @@ export type InAppAgentWindowProps = {
   executionUi: InAppAgentWindowExecutionUi;
   hasMoreConversations: boolean;
   isAssistantTurnInProgress: boolean;
+  /** True while the run itself is unfinished. Reveal animation of a finished
+   * turn must not hide the answer. Defaults to `isAssistantTurnInProgress`. */
+  isRunUnsettled?: boolean;
+  /** The run has stopped on a tool approval, so the open turn is parked on the
+   * user rather than working. */
+  isAwaitingApproval?: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isConversationInteractionDisabled: boolean;
@@ -309,6 +868,9 @@ export type InAppAgentWindowProps = {
   focusedQuickActions?: readonly InAppAgentQuickAction[];
   quickActionResetKey: string;
   selectedConversationId: string | undefined;
+  /** Titles the window. Null until the server has named the conversation,
+   * which is when the product name and its Beta tag show instead. */
+  selectedConversationTitle: string | null;
 } & InAppAgentWindowCloseButtonProps;
 
 function InAppAgentRateLimitError({
@@ -355,22 +917,40 @@ function InAppAgentRateLimitError({
   );
 }
 
-function InAppAgentGenericError({
-  error,
+function InAppAgentIssueNotice({
   isExpanded,
+  variant,
 }: {
-  error: Extract<InAppAgentError, { type: "generic" }>;
   isExpanded: boolean;
+  variant: "error" | "write_lock";
 }) {
+  const isWriteLock = variant === "write_lock";
+
   return (
-    <div
-      role="alert"
-      className={cn(
-        "border-destructive/40 dark:bg-destructive dark:border-destructive-foreground/20 bg-destructive/10 dark:text-destructive-foreground text-destructive rounded-lg border px-2 py-1",
-        isExpanded ? "text-sm" : "text-xs",
-      )}
-    >
-      {error.message}
+    <div className="shrink-0 px-2 pb-2">
+      <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
+        <p
+          role="alert"
+          className={cn(
+            "flex w-full items-center gap-2 rounded-lg border px-2 py-1",
+            isWriteLock
+              ? "border-border bg-muted/60 text-foreground"
+              : "border-destructive/40 bg-destructive/10 text-destructive",
+            isExpanded ? "text-sm" : "text-xs",
+          )}
+        >
+          {isWriteLock ? (
+            <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
+          ) : (
+            <Info aria-hidden="true" className="size-3 shrink-0" />
+          )}
+          <span className="min-w-0 flex-1">
+            {isWriteLock
+              ? IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE
+              : IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -384,6 +964,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     executionUi,
     hasMoreConversations,
     isAssistantTurnInProgress,
+    isRunUnsettled = isAssistantTurnInProgress,
+    isAwaitingApproval = false,
     isHeaderDragHandleEnabled = false,
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
@@ -405,6 +987,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     quickActionResetKey,
     screenContextDescription,
     selectedConversationId,
+    selectedConversationTitle,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
@@ -426,9 +1009,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const executionStop = executionUi.stop;
   const canStopRun = executionStop !== null && isAssistantTurnInProgress;
   const isCancellingRun = executionStop?.status === "stopping";
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const isAutoScrollAttachedRef = useRef(true);
-  const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const previousIsInputDisabledRef = useRef(isComposerDisabled);
   const previousIsAssistantTurnInProgressRef = useRef(
@@ -447,34 +1027,21 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       ? ` (${historyAttentionCount} ${historyAttentionCount === 1 ? "needs" : "need"} attention)`
       : "";
   const hasUserMessage = messages.some((message) => message.role === "user");
+  const conversationTitle = selectedConversationTitle?.trim() || null;
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
       ? message.content.tools.filter((tool) => tool.approval)
       : [],
   );
-  const visibleMessages = messages
-    .map((message) => {
-      if (message.content.type !== "toolGroup") {
-        return message;
-      }
-
-      const visibleTools = message.content.tools.filter(
-        (tool) => !tool.approval,
-      );
-
-      if (visibleTools.length === 0) {
-        return null;
-      }
-
-      return {
-        ...message,
-        content: {
-          ...message.content,
-          tools: visibleTools,
-        },
-      } satisfies InAppAgentWindowMessage;
-    })
-    .filter((message): message is InAppAgentWindowMessage => message !== null);
+  // Rebuilding every turn on each composer keystroke is wasted work: the
+  // transcript only changes when the messages or the run's settledness do.
+  const displayItems = useMemo(
+    () => buildConversationDisplayItems(messages, isRunUnsettled),
+    [messages, isRunUnsettled],
+  );
+  const hasSettledAssistantReply = displayItems.some(
+    (item) => item.type === "assistant" && item.isFinalAnswer,
+  );
 
   const backgroundHint = useInAppAgentBackgroundHint({
     isRunActive: isAssistantTurnInProgress,
@@ -498,34 +1065,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             backgroundHint.show();
           }
 
-          isAutoScrollAttachedRef.current = true;
-
           setInput((currentInput) =>
             currentInput.trim() === trimmedContent ? "" : currentInput,
           );
-
-          window.requestAnimationFrame(() => {
-            scrollViewportToBottom(viewportRef.current);
-          });
         }
       })
       .catch(() => undefined);
   };
-
-  useEffect(() => {
-    if (!isAutoScrollAttachedRef.current) {
-      return;
-    }
-
-    scrollViewportToBottom(viewportRef.current);
-  }, [messages]);
-
-  useEffect(() => {
-    isAutoScrollAttachedRef.current = true;
-    previousScrollTopRef.current = 0;
-
-    scrollViewportToBottom(viewportRef.current);
-  }, [selectedConversationId]);
 
   // Update after refs commit so setInputRef can compare the previous disabled state.
   useEffect(() => {
@@ -578,16 +1124,47 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         }
         className={cn(
           "bg-card flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
-          isHeaderDragHandleEnabled && "cursor-move touch-none select-none",
+          isHeaderDragHandleEnabled && "cursor-move touch-none",
+          // Double-click toggles, so never let it select the title instead.
+          !isHandheld && "select-none",
         )}
+        onDoubleClick={
+          isHandheld
+            ? undefined
+            : (event) => {
+                // The action cluster owns its own double-clicks.
+                if (
+                  event.target instanceof Element &&
+                  event.target.closest("button")
+                ) {
+                  return;
+                }
+
+                onExpandedChange(!isExpanded);
+              }
+        }
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p className="shrink-0 truncate text-sm font-bold" title="Assistant">
-            Assistant
-          </p>
-          <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
-            Beta
-          </span>
+          {conversationTitle ? (
+            <p
+              className="min-w-0 truncate text-sm font-bold"
+              title={conversationTitle}
+            >
+              {conversationTitle}
+            </p>
+          ) : (
+            <>
+              <p
+                className="shrink-0 truncate text-sm font-bold"
+                title="Assistant"
+              >
+                Assistant
+              </p>
+              <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
+                Beta
+              </span>
+            </>
+          )}
         </div>
         <div
           className="flex shrink-0 items-center gap-0.5"
@@ -778,30 +1355,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         </div>
       </header>
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div
-          ref={viewportRef}
-          // `overscroll-contain`: the conversation is the only scroller, so its
-          // rubber-band must not chain out to whatever is behind it.
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-          onScroll={(event) => {
-            const viewport = event.currentTarget;
-            const distanceFromBottom =
-              viewport.scrollHeight -
-              viewport.scrollTop -
-              viewport.clientHeight;
-            const isNearBottom = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
-            const scrolledUp =
-              viewport.scrollTop <
-              previousScrollTopRef.current - SCROLL_DIRECTION_TOLERANCE_PX;
-
-            if (scrolledUp && !isNearBottom) {
-              isAutoScrollAttachedRef.current = false;
-            } else if (isNearBottom) {
-              isAutoScrollAttachedRef.current = true;
-            }
-
-            previousScrollTopRef.current = viewport.scrollTop;
-          }}
+        <ConversationScroller
+          key={selectedConversationId}
+          displayItems={displayItems}
         >
           <div
             className={cn(
@@ -811,9 +1367,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             )}
           >
             {/* An empty transcript that is still loading is not an empty
-                conversation. Offering the welcome screen and its quick actions
-                mid-switch flashes the wrong thing and invites a click that
-                would start a turn in the conversation being left behind. */}
+                  conversation. Offering the welcome screen and its quick actions
+                  mid-switch flashes the wrong thing and invites a click that
+                  would start a turn in the conversation being left behind. */}
             {messages.length === 0 &&
             isSelectedConversationHydrating ? null : messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
@@ -842,48 +1398,64 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               </div>
             ) : null}
 
-            <ol className="flex w-full flex-col gap-3 pb-4">
-              {visibleMessages.map((message, index) => {
-                const hasFullWidthContent =
-                  message.content.type === "toolGroup" ||
-                  message.content.type === "redirectAction" ||
-                  message.content.type === "reasoning";
+            <ol className="flex w-full flex-col gap-1 pb-4">
+              {displayItems.map((item) => {
+                if (item.type === "user") {
+                  return (
+                    <li
+                      key={item.message.id}
+                      className={cn(
+                        "ml-auto w-fit max-w-[92%]",
+                        item.hasPreviousMessage && "mt-3",
+                      )}
+                    >
+                      <InAppAgentMessage
+                        role={item.message.role}
+                        content={item.message.content}
+                        isCompact={!isExpanded}
+                      />
+                    </li>
+                  );
+                }
 
-                const nextUserMessageIndex = visibleMessages.findIndex(
-                  (nextMessage, nextIndex) =>
-                    nextIndex > index && nextMessage.role === "user",
-                );
-                const nextTurnStartIndex =
-                  nextUserMessageIndex === -1
-                    ? visibleMessages.length
-                    : nextUserMessageIndex;
-                const isCurrentTurnInProgress =
-                  isAssistantTurnInProgress && nextUserMessageIndex === -1;
-                const isLastMessageOfTurn = visibleMessages
-                  .slice(index + 1, nextTurnStartIndex)
-                  .every((nextMessage) => nextMessage.role !== "assistant");
+                if (item.type === "activity") {
+                  return (
+                    <li
+                      key={item.key}
+                      className={cn("w-full", item.followsUser && "mt-3")}
+                    >
+                      <AssistantActivityGroup
+                        messages={item.messages}
+                        startTimestamp={item.startTimestamp}
+                        endTimestamp={item.endTimestamp}
+                        isCompact={!isExpanded}
+                        isInProgress={item.isInProgress}
+                        isAwaitingApproval={
+                          item.isInProgress && isAwaitingApproval
+                        }
+                      />
+                    </li>
+                  );
+                }
+
+                const message = item.message;
                 const feedbackRunId =
-                  message.role === "assistant" &&
-                  message.content.type === "text" &&
-                  !isCurrentTurnInProgress &&
-                  isLastMessageOfTurn
+                  message.content.type === "text" && item.isFinalAnswer
                     ? message.runId
                     : undefined;
 
                 return (
                   <li
                     key={message.id}
-                    className={cn(
-                      "max-w-[92%]",
-                      hasFullWidthContent ? "w-full" : "w-fit",
-                      message.role === "user" && "ml-auto",
-                    )}
+                    className={cn("w-full", item.followsUser && "mt-3")}
                   >
                     <InAppAgentMessage
                       role={message.role}
                       content={message.content}
                       isCompact={!isExpanded}
                       isFeedbackDisabled={isConversationInteractionDisabled}
+                      isFinalAnswer={item.isFinalAnswer}
+                      timestamp={message.timestamp}
                       onSubmitFeedback={
                         feedbackRunId
                           ? (params) =>
@@ -900,12 +1472,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 );
               })}
             </ol>
-
-            {error?.type === "generic" && (
-              <InAppAgentGenericError error={error} isExpanded={isExpanded} />
-            )}
           </div>
-        </div>
+        </ConversationScroller>
         {pendingToolCalls.length > 0 ? (
           <div
             className={cn(
@@ -935,36 +1503,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
-        <div
-          aria-hidden={isAssistantTurnInProgress}
-          className={cn(
-            "flex shrink-0 flex-col overflow-hidden transition-[max-height,opacity] duration-200 ease-out motion-reduce:transition-none",
-            isAssistantTurnInProgress
-              ? "max-h-0 opacity-0"
-              : "max-h-40 opacity-100",
-          )}
-        >
-          <div className="mb-2 px-2">
-            <div
-              className={cn(
-                "flex w-full flex-col gap-1.5",
-                isExpanded && "mx-auto max-w-3xl",
-              )}
-            >
-              <p
-                className={cn(
-                  "border-border bg-muted/60 text-foreground flex w-full items-center gap-1 rounded-lg border px-2 py-1",
-                  isExpanded ? "text-sm" : "text-xs",
-                )}
-              >
-                <Info aria-hidden="true" className="size-3 shrink-0" />
-                <span className="min-w-0 truncate" title={screenContextNotice}>
-                  {screenContextNotice}
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
         {backgroundNotice ? (
           <div className="shrink-0 px-2 pb-2">
             <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
@@ -983,6 +1521,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
+        {(error?.type === "generic" || error?.type === "write_lock") && (
+          <InAppAgentIssueNotice
+            isExpanded={isExpanded}
+            variant={error.type === "write_lock" ? "write_lock" : "error"}
+          />
+        )}
         {backgroundHint.isVisible && props.onClose ? (
           <InAppAgentBackgroundHint
             isExpanded={isExpanded}
@@ -1030,18 +1574,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
-        <div
-          className={cn(
-            "p-1.5",
-            isExpanded ? "pt-0" : "bg-card",
-            !isExpanded && hasUserMessage && "border-t",
-          )}
-        >
+        <div className={cn("p-1.5", isExpanded && "pt-0")}>
+          {/* The composer separates from the transcript by elevation, not by a
+              rule: one hairline edge, a lifted surface, and a footer band a
+              step off the input. `overflow-hidden` keeps that band inside the
+              rounded corners. */}
           <form
             className={cn(
-              "relative flex w-full items-end gap-2 rounded-md",
-              isExpanded &&
-                "mx-auto max-w-3xl cursor-text flex-col border focus-within:ring focus-within:ring-blue-500 focus-within:ring-offset-0",
+              "border-border bg-card focus-within:border-border-contrast relative flex w-full cursor-text flex-col overflow-hidden rounded-xl border shadow-sm transition-colors",
+              isExpanded && "mx-auto max-w-3xl",
             )}
             onClick={() => {
               if (isExpanded) {
@@ -1072,21 +1613,26 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               }}
               disabled={isComposerDisabled}
               aria-label="Message the assistant"
-              placeholder="Let me know what I can do for you..."
+              placeholder={
+                hasSettledAssistantReply
+                  ? "Reply..."
+                  : "Let me know what I can do for you..."
+              }
               rows={1}
-              className={cn(
-                "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
-                isExpanded
-                  ? "max-h-40 min-h-14 border-none ring-0"
-                  : "border-input max-h-40 min-h-8 px-3 py-1",
-              )}
+              className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
-            {!isExpanded &&
-              (canStopRun ? (
+            <div className="bg-muted flex min-h-9 w-full items-center justify-between gap-2 px-2 py-1.5">
+              <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+                <Info aria-hidden="true" className="size-3 shrink-0" />
+                <span className="truncate" title={screenContextNotice}>
+                  {screenContextNotice}
+                </span>
+              </p>
+              {canStopRun ? (
                 <Button
                   type="button"
-                  size="icon"
-                  className="h-8 w-8 rounded-md border"
+                  size="icon-sm"
+                  className="w-8 shrink-0 rounded-full"
                   aria-label={isCancellingRun ? "Stopping run" : "Stop run"}
                   variant="outline"
                   disabled={isCancellingRun}
@@ -1094,53 +1640,20 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     executionStop?.onStop();
                   }}
                 >
-                  <Square className="h-3 w-3" />
+                  <Square className="size-3" />
                 </Button>
               ) : (
                 <Button
                   type="submit"
-                  size="icon"
-                  className="h-8 w-8 rounded-md border"
+                  size="icon-sm"
+                  className="w-8 shrink-0 rounded-full"
                   aria-label="Send message"
-                  variant="outline"
                   disabled={isSubmitDisabled || !input.trim()}
                 >
-                  <SendHorizontal className="h-4 w-4" />
+                  <SendHorizontal className="size-3" />
                 </Button>
-              ))}
-
-            {isExpanded && (
-              <div className="flex w-full justify-end p-1">
-                {canStopRun ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-8 w-fit rounded-md px-3"
-                    aria-label={isCancellingRun ? "Stopping run" : "Stop run"}
-                    disabled={isCancellingRun}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      executionStop?.onStop();
-                    }}
-                  >
-                    {isCancellingRun ? "Stopping" : "Stop"}
-                    <Square className="ml-2 h-3 w-3" />
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    className="h-8 w-fit rounded-md px-3"
-                    aria-label="Send message"
-                    disabled={isSubmitDisabled || !input.trim()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                  >
-                    Send <SendHorizontal className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </form>
         </div>
       </div>

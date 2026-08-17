@@ -20,6 +20,7 @@ import { deleteApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
+  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
   parseInAppAgentApprovalDecisionEvent,
   type AgUiRunAgentInput,
 } from "@langfuse/shared/in-app-agent";
@@ -48,9 +49,6 @@ import { serializeInAppAgentDisplayState } from "@/src/features/in-app-agent/lib
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
 import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
-
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
 export async function getBackgroundConversationSnapshot(params: {
   prisma: PrismaClient;
@@ -240,7 +238,7 @@ export async function startBackgroundRun(params: {
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
       true,
     );
   }
@@ -405,7 +403,7 @@ export async function decideBackgroundApproval(params: {
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
       true,
     );
   }

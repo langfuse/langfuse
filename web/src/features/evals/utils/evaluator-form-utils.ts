@@ -135,6 +135,12 @@ export function getActiveJsonPathCompatibilityWarning(mappingRow: {
   return getJsonPathCompatibilityWarning(mappingRow.jsonSelector);
 }
 
+// Bookmarking is retired from the UI. Keep these ids/names in the shared
+// column list so existing bookmarked filter rows still resolve a definition,
+// but pass them to InlineFilterBuilder as hiddenUnlessSelected so only those
+// grandfathered rows can keep the column — new rows cannot pick it.
+export const RETIRED_TRACE_FILTER_COLUMNS = ["bookmarked", "⭐️"] as const;
+
 export const getTargetDisplayName = (target: string): string => {
   switch (target) {
     case "trace":

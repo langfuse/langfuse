@@ -19,8 +19,8 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
@@ -86,8 +86,6 @@ const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   messages: EMPTY_MESSAGES,
@@ -144,6 +142,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   activityByConversationId: new Map(),
   attentionCount: 0,
   selectedConversationId: undefined,
+  selectedConversationTitle: null,
   selectedConversationIsWriteLocked: false,
   loadMoreConversations: () => undefined,
   invalidateConversations: () => undefined,
@@ -205,6 +204,8 @@ type InAppAiAgentContextType = {
   /** Conversations the user still owes a look, for the launcher badge. */
   attentionCount: number;
   selectedConversationId: string | undefined;
+  /** Server-given name of the selected conversation, null until it has one. */
+  selectedConversationTitle: string | null;
   selectedConversationIsWriteLocked: boolean;
   loadMoreConversations: () => void;
   invalidateConversations: () => void;
@@ -453,6 +454,24 @@ function InAppAiAgentProviderInner({
     visibleConversationId: open ? selectedConversationId : null,
   });
 
+  // What the window titles itself by. Three sources, because no single one
+  // covers every way a conversation gets selected: the snapshot query is
+  // authoritative and runs for the selected id whatever the list has loaded,
+  // the recent list already holds the title when you pick one out of history,
+  // and the activity poll is the only one warm when a background-run
+  // notification opens a conversation the list has yet to fetch.
+  const selectedConversationTitle =
+    (conversationQuery.data?.conversation.id === selectedConversationId
+      ? conversationQuery.data.conversation.title
+      : null) ??
+    conversations.find(
+      (conversation) => conversation.id === selectedConversationId,
+    )?.title ??
+    (selectedConversationId
+      ? activityByConversationId.get(selectedConversationId)?.title
+      : null) ??
+    null;
+
   const effectivePendingToolApprovals = useMemo(() => {
     return backgroundExecutionView.pendingToolApprovals.map(
       ({ runId, approvalRequest, status }): InAppAgentPendingToolApproval => ({
@@ -559,6 +578,9 @@ function InAppAiAgentProviderInner({
         ...message,
         isLoading:
           loadingEventIds.has(message.id) ||
+          (message.feedbackMessageId
+            ? loadingEventIds.has(message.feedbackMessageId)
+            : false) ||
           (message.toolCalls?.some(
             (toolCall) =>
               toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
@@ -1054,10 +1076,7 @@ function InAppAiAgentProviderInner({
       }
 
       if (!startsNewConversation && selectedConversationIsWriteLocked) {
-        setError({
-          type: "generic",
-          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-        });
+        setError({ type: "write_lock" });
         return false;
       }
 
@@ -1379,10 +1398,7 @@ function InAppAiAgentProviderInner({
       approvalScope: "once" | "conversation" = "once",
     ) => {
       if (selectedConversationIsWriteLocked) {
-        setError({
-          type: "generic",
-          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-        });
+        setError({ type: "write_lock" });
         return;
       }
 
@@ -1497,6 +1513,7 @@ function InAppAiAgentProviderInner({
       activityByConversationId,
       attentionCount,
       selectedConversationId: selectedConversationId ?? undefined,
+      selectedConversationTitle,
       selectedConversationIsWriteLocked,
       loadMoreConversations,
       invalidateConversations,
@@ -1521,6 +1538,7 @@ function InAppAiAgentProviderInner({
       isRunning,
       isSelectedConversationHydrating,
       selectedConversationIsWriteLocked,
+      selectedConversationTitle,
       isSubmitting,
       isSelectedConversationNotFound,
       deleteConversation,

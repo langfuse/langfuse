@@ -16,6 +16,7 @@ import { validateWebhookURL } from "@langfuse/shared/src/server";
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
+  areEnrichedWritesActive,
   areLegacyWritesActive,
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -31,10 +32,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
-      // Data capability for legacy sources (see export-source-policy.ts).
-      const legacyWritesActive = areLegacyWritesActive(
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      );
+      const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
       try {
         const dbConfig = await ctx.prisma.posthogIntegration.findFirst({
           where: {
@@ -43,7 +41,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
         });
 
         if (!dbConfig) {
-          return { config: null, legacyWritesActive };
+          return { config: null, writeMode };
         }
 
         const { encryptedPosthogApiKey, exportSource, ...config } = dbConfig;
@@ -57,7 +55,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
               decrypt(encryptedPosthogApiKey),
             ),
           },
-          legacyWritesActive,
+          writeMode,
         };
       } catch (e) {
         console.error("posthog integration get", e);
@@ -110,13 +108,9 @@ export const posthogIntegrationRouter = createTRPCRouter({
         });
       }
 
-      // EVENTS is always accepted by this router, hence enrichedAvailable:
-      // true. An omitted source preserves the persisted row; on CREATE it
-      // falls back to a default that is validated like an explicit choice
-      // (LFE-9688 / LFE-10148). See export-source-policy.ts.
-      const legacyWritesActive = areLegacyWritesActive(
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      );
+      const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      const legacyWritesActive = areLegacyWritesActive(writeMode);
+      const enrichedAvailable = areEnrichedWritesActive(writeMode);
       const existingIntegration =
         await ctx.prisma.posthogIntegration.findUnique({
           where: { projectId: input.projectId },
@@ -159,7 +153,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
         persistedExportSource: existingIntegration?.exportSource,
         ctx: {
           isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-          enrichedAvailable: true,
+          enrichedAvailable,
           legacyWritesActive,
           projectCreatedAt,
         },
@@ -192,6 +186,8 @@ export const posthogIntegrationRouter = createTRPCRouter({
             // undefined → Prisma omits the column → preserves the persisted
             // value on partial updates (LFE-10296).
             exportSource: config.exportSource,
+            // lastError is deliberately left intact so the last fault stays
+            // visible until a successful run clears it.
           },
         });
 
@@ -211,7 +207,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
           });
           const validation = validateExportSource(result.exportSource, {
             isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-            enrichedAvailable: true,
+            enrichedAvailable,
             legacyWritesActive,
             projectCreatedAt: project.createdAt,
           });

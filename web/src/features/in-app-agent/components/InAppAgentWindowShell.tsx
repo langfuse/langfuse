@@ -65,6 +65,7 @@ type InAppAgentWindowShellProps = {
   floatingPanelHandle: MovableResizablePanelHandle;
   isExpanded: boolean;
   onClose: () => void;
+  onExpandedChange: (isExpanded: boolean) => void;
   open: boolean;
   panelRef: RefObject<HTMLDivElement | null>;
 };
@@ -74,6 +75,7 @@ export function InAppAgentWindowShell({
   floatingPanelHandle,
   isExpanded,
   onClose,
+  onExpandedChange,
   open,
   panelRef,
 }: InAppAgentWindowShellProps) {
@@ -161,6 +163,11 @@ export function InAppAgentWindowShell({
       ref={panelRef}
       handle={floatingPanelHandle}
       className="pointer-events-auto"
+      // The header's own `onDoubleClick` covers every other presentation; only
+      // here is the handle also a drag surface that eats the event.
+      onDragHandleDoubleClick={() => {
+        onExpandedChange(true);
+      }}
     >
       <div
         data-ignore-outside-interaction
