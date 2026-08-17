@@ -21,6 +21,10 @@ export type NormalizedMessagePart = {
 export type NormalizedMessage = {
   role: string;
   parts: NormalizedMessagePart[];
+  // Which side of the observation this message was collected from. Preserved
+  // per-message (rather than splitting NormalizedIO.messages in two) so
+  // collection order across input/output stays intact.
+  source: "input" | "output";
 };
 
 export type ToolDefinition = {

@@ -88,6 +88,7 @@ describe("normalized observation I/O", () => {
         {
           role: "user",
           parts: [{ type: "text", text: "What is the weather?" }],
+          source: "input",
         },
         {
           role: "assistant",
@@ -99,6 +100,7 @@ describe("normalized observation I/O", () => {
               input: { city: "Berlin" },
             },
           ],
+          source: "output",
         },
       ],
       toolDefinitions: [

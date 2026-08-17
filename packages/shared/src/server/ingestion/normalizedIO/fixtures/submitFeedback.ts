@@ -486,6 +486,7 @@ export const normalizedSubmitFeedback: NormalizedIO = {
           text: "What can I use Langfuse for?",
         },
       ],
+      source: "input",
     },
     {
       role: "assistant",
@@ -505,6 +506,7 @@ export const normalizedSubmitFeedback: NormalizedIO = {
           input: {},
         },
       ],
+      source: "input",
     },
     {
       role: "tool",
@@ -523,6 +525,7 @@ export const normalizedSubmitFeedback: NormalizedIO = {
           },
         },
       ],
+      source: "input",
     },
     {
       role: "assistant",
@@ -541,6 +544,7 @@ export const normalizedSubmitFeedback: NormalizedIO = {
           },
         },
       ],
+      source: "input",
     },
     {
       role: "tool",
@@ -559,6 +563,7 @@ export const normalizedSubmitFeedback: NormalizedIO = {
           },
         },
       ],
+      source: "input",
     },
     {
       role: "assistant",
@@ -568,6 +573,7 @@ export const normalizedSubmitFeedback: NormalizedIO = {
           text: "# What you can use Langfuse for\n\n## Core uses\n- Observability and tracing: Collect full traces of LLM and non-LLM steps, monitor latency/cost, group conversations into sessions, and visualize agent graphs. See the Observability overview and quickstart: [Observability overview](https://langfuse.com/docs/observability/overview), [Get started](https://langfuse.com/docs/observability/get-started).\n- Prompt management: Version, deploy via labels, collaborate, test in a playground, and link prompts to production traces. Start here: [Prompt Management overview](https://langfuse.com/docs/prompt-management/overview), [Get started](https://langfuse.com/docs/prompt-management/get-started).\n- Evaluation: Run LLM-as-a-judge, code evaluators, user feedback, manual annotation queues, and experiments/datasets to measure and improve quality in dev and prod. Learn more: [Evaluation overview](https://langfuse.com/docs/evaluation/overview), [Prompt experiments](https://langfuse.com/docs/evaluation/features/prompt-experiments), [Datasets](https://langfuse.com/docs/evaluation/features/datasets).\n\n## Platform capabilities\n- Dashboards and analytics: Build custom dashboards across traces, observations, and scores. [Custom dashboards](https://langfuse.com/docs/metrics/features/custom-dashboards).\n- API-first and exports: Query via SDKs/api, and export data to blob storage. [Public API](https://langfuse.com/docs/api-and-data-platform/features/public-api).\n- Team workflows: UI-driven review for product teams (sessions replay, annotation queues, user feedback) without code after one-time instrumentation. [Langfuse for product teams](https://langfuse.com/resources/engineering/langfuse-for-product-teams).\n- Open and extensible: Open source, self-hostable, and integrates with 100+ frameworks and providers. [Overview](https://langfuse.com/docs), [Integrations](https://langfuse.com/integrations).\n\n## See it in action\n- Explore the product with sample data: [Interactive example project](https://langfuse.com/docs/demo).\n- High-level product tour: [Langfuse Overview](https://langfuse.com/docs).\n\nSuggested follow-up: Want a 5-minute quickstart for tracing your app or for setting up prompt management?",
         },
       ],
+      source: "output",
     },
   ],
   toolDefinitions: [

@@ -286,9 +286,14 @@ function appendParts(target: NormalizedMessagePart[], values: unknown[]): void {
 function normalizeMessage(
   value: unknown,
   fallbackRole: "user" | "assistant",
+  source: "input" | "output",
 ): NormalizedMessage | null {
   if (typeof value === "string") {
-    return { role: fallbackRole, parts: [{ type: "text", text: value }] };
+    return {
+      role: fallbackRole,
+      parts: [{ type: "text", text: value }],
+      source,
+    };
   }
   if (!isRecord(value) || isToolDefinitionMessage(value)) return null;
 
@@ -297,6 +302,7 @@ function normalizeMessage(
     return normalizeMessage(
       asRecord(semanticKernelContent.message) ?? semanticKernelContent,
       fallbackRole,
+      source,
     );
   }
 
@@ -304,7 +310,7 @@ function normalizeMessage(
     ? normalizeToolCall(value)
     : null;
   if (directToolCall && !isMessageLike(value)) {
-    return { role: "assistant", parts: [directToolCall] };
+    return { role: "assistant", parts: [directToolCall], source };
   }
 
   const nestedContent = asRecord(value.content);
@@ -363,7 +369,7 @@ function normalizeMessage(
     appendParts(parts, reasoningValues);
   }
 
-  return parts.length > 0 ? { role, parts } : null;
+  return parts.length > 0 ? { role, parts, source } : null;
 }
 
 function isMessageLike(value: Record<string, unknown>): boolean {
@@ -423,6 +429,7 @@ function isToolCallLike(value: Record<string, unknown>): boolean {
 function collectMessageArray(
   values: unknown[],
   fallbackRole: "user" | "assistant",
+  source: "input" | "output",
   accumulator: NormalizedIOAccumulator,
 ): void {
   const standaloneToolCalls: NormalizedMessagePart[] = [];
@@ -432,6 +439,7 @@ function collectMessageArray(
     addMessage(accumulator, {
       role: "assistant",
       parts: standaloneToolCalls.splice(0),
+      source,
     });
   };
 
@@ -443,7 +451,7 @@ function collectMessageArray(
     }
 
     flushStandaloneToolCalls();
-    const message = normalizeMessage(value, fallbackRole);
+    const message = normalizeMessage(value, fallbackRole, source);
     if (message) addMessage(accumulator, message);
   }
 
@@ -462,13 +470,14 @@ function collectMessages(
     collectMessageArray(
       parsedValue.messages ?? value,
       fallbackRole,
+      kind,
       accumulator,
     );
     return;
   }
 
   if (!record) {
-    const message = normalizeMessage(value, fallbackRole);
+    const message = normalizeMessage(value, fallbackRole, kind);
     if (message) addMessage(accumulator, message);
     return;
   }
@@ -476,7 +485,7 @@ function collectMessages(
   let collectedNestedMessages = false;
   const messages = parsedValue.messages;
   if (messages) {
-    collectMessageArray(messages, fallbackRole, accumulator);
+    collectMessageArray(messages, fallbackRole, kind, accumulator);
     collectedNestedMessages = true;
   }
 
@@ -485,20 +494,20 @@ function collectMessages(
     const systemInstruction =
       config?.system_instruction ?? config?.systemInstruction;
     if (systemInstruction) {
-      const message = normalizeMessage(systemInstruction, "user");
+      const message = normalizeMessage(systemInstruction, "user", kind);
       if (message) addMessage(accumulator, { ...message, role: "system" });
     }
 
     const contents = Array.isArray(record.contents)
       ? record.contents
       : [record.contents];
-    collectMessageArray(contents, "user", accumulator);
+    collectMessageArray(contents, "user", kind, accumulator);
     collectedNestedMessages = true;
   }
 
   const newMessage = asRecord(record.new_message);
   if (kind === "input" && newMessage) {
-    const message = normalizeMessage(newMessage, "user");
+    const message = normalizeMessage(newMessage, "user", kind);
     if (message) addMessage(accumulator, message);
     collectedNestedMessages = true;
   }
@@ -507,7 +516,7 @@ function collectMessages(
   if (kind === "output" && candidates) {
     for (const candidate of candidates) {
       const content = asRecord(candidate)?.content;
-      const message = normalizeMessage(content, "assistant");
+      const message = normalizeMessage(content, "assistant", kind);
       if (message) addMessage(accumulator, message);
     }
     collectedNestedMessages = true;
@@ -516,7 +525,11 @@ function collectMessages(
   const choices = parseArray(record.choices);
   if (kind === "output" && choices) {
     for (const choice of choices) {
-      const message = normalizeMessage(asRecord(choice)?.message, "assistant");
+      const message = normalizeMessage(
+        asRecord(choice)?.message,
+        "assistant",
+        kind,
+      );
       if (message) addMessage(accumulator, message);
     }
     collectedNestedMessages = true;
@@ -524,15 +537,15 @@ function collectMessages(
 
   const responseOutput = parseArray(record.output);
   if (kind === "output" && responseOutput) {
-    collectMessageArray(responseOutput, "assistant", accumulator);
+    collectMessageArray(responseOutput, "assistant", kind, accumulator);
     collectedNestedMessages = true;
   }
 
   if (isMessageLike(record) || isToolCallLike(record)) {
-    const message = normalizeMessage(record, fallbackRole);
+    const message = normalizeMessage(record, fallbackRole, kind);
     if (message) addMessage(accumulator, message);
   } else if (!collectedNestedMessages) {
-    const message = normalizeMessage(record, fallbackRole);
+    const message = normalizeMessage(record, fallbackRole, kind);
     if (message) addMessage(accumulator, message);
   }
 }
