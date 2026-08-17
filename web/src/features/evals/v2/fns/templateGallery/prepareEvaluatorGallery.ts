@@ -83,7 +83,7 @@ export function prepareEvaluatorGallery({
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-            label: "Your Templates",
+            label: "Your templates",
             icon: User,
             count: customTemplateCount,
           },
@@ -103,7 +103,7 @@ export function prepareEvaluatorGallery({
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-            label: "Your Templates",
+            label: "Your templates",
             description: "Start from a template this project already created.",
             totalCount: customTemplateCount,
             templates: filteredCustom.map((template) => ({

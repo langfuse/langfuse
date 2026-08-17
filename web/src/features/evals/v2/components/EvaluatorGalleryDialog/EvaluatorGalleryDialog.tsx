@@ -12,6 +12,7 @@ import { EvaluatorGalleryView } from "@/src/features/evals/v2/components/Evaluat
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { prepareEvaluatorGallery } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorGallery";
 import {
+  EVALUATOR_GALLERY_ALL_SECTION_KEY,
   EVALUATOR_GALLERY_EXPANDED_PROJECT_LIMIT,
   EVALUATOR_GALLERY_PREVIEW_SIZE,
   EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
@@ -32,13 +33,14 @@ export function EvaluatorGalleryDialog({
   onCreateFromScratch: (type: EvalTemplateType) => void;
 }) {
   const [search, setSearch] = useState("");
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<string>(
+    EVALUATOR_GALLERY_ALL_SECTION_KEY,
+  );
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(),
   );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const sectionRefs = useRef(new Map<string, HTMLElement>());
   const projectEvaluators = api.evalsV2.list.useQuery(
     {
       projectId,
@@ -75,37 +77,9 @@ export function EvaluatorGalleryDialog({
       projectEvaluators.data?.totalItems ?? customTemplates.length,
     search,
   });
-  const setSectionRef = (key: string) => (element: HTMLElement | null) => {
-    if (element) sectionRefs.current.set(key, element);
-    else sectionRefs.current.delete(key);
-  };
-  const scrollToSection = (key: string) => {
-    if (key === navigationItems[0]?.key) {
-      scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    sectionRefs.current
-      .get(key)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-  const handleScroll = () => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const containerTop = container.getBoundingClientRect().top;
-    const atBottom =
-      container.scrollTop + container.clientHeight >=
-      container.scrollHeight - 4;
-    let current = navigationItems[0]?.key ?? null;
-    for (const item of navigationItems) {
-      const element = sectionRefs.current.get(item.key);
-      if (
-        element &&
-        (atBottom || element.getBoundingClientRect().top - containerTop <= 56)
-      ) {
-        current = item.key;
-      }
-    }
-    setActiveSection(current);
+  const selectSection = (key: string) => {
+    setActiveSection(key);
+    scrollContainerRef.current?.scrollTo({ top: 0 });
   };
   const handleExpandedChange = (key: string, expanded: boolean) => {
     setExpandedSections((current) => {
@@ -127,9 +101,9 @@ export function EvaluatorGalleryDialog({
         }}
       >
         <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
-          <DialogTitle>Configure evaluator</DialogTitle>
+          <DialogTitle>Add an evaluator</DialogTitle>
           <DialogDescription>
-            Choose a blank evaluator or start from a template.
+            Pick what you want to measure. Prompt, model and scoring come next.
           </DialogDescription>
         </DialogHeader>
         <EvaluatorGalleryView
@@ -138,15 +112,13 @@ export function EvaluatorGalleryDialog({
           searchInputRef={searchInputRef}
           navigationItems={navigationItems}
           activeSection={activeSection}
-          onSelectSection={scrollToSection}
+          onSelectSection={selectSection}
           sections={sections}
           expandedSections={expandedSections}
           onExpandedChange={handleExpandedChange}
           onSelectTemplate={onSelectTemplate}
           onCreateFromScratch={onCreateFromScratch}
-          sectionRef={setSectionRef}
           scrollContainerRef={scrollContainerRef}
-          onScroll={handleScroll}
           isLoading={projectEvaluators.isPending}
           errorMessage={
             projectEvaluators.isError

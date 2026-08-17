@@ -1,5 +1,5 @@
-import { FlaskConical } from "lucide-react";
-import { fn } from "storybook/test";
+import { User } from "lucide-react";
+import { expect, fn, userEvent } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../.storybook/preview";
 import { EvaluatorGalleryView } from "./EvaluatorGalleryView";
@@ -7,8 +7,9 @@ import type {
   GallerySection,
   GalleryTemplate,
 } from "../../types/templateGallery";
+import { EVALUATOR_GALLERY_ALL_SECTION_KEY } from "../../constants/evaluatorGallery";
 
-const template = {
+const managedTemplate = {
   source: "managed",
   key: "answer-relevance",
   name: "Answer relevance",
@@ -30,14 +31,87 @@ const template = {
   },
 } satisfies GalleryTemplate;
 
+const customTemplate = {
+  source: "custom",
+  id: "evaluator-1",
+  name: "Project exact match",
+  type: EvalTemplateTypeEnum.CODE,
+  prompt: null,
+  sourceCodeLanguage: "TYPESCRIPT",
+  updatedAt: new Date("2026-07-01"),
+  version: 2,
+  createdByUser: { name: "Ada Lovelace", email: "ada@example.com" },
+} satisfies GalleryTemplate;
+
 const sections: GallerySection[] = [
   {
-    key: "rag",
-    label: "RAG",
-    description: "Measure retrieval and answer quality.",
-    templates: Array.from({ length: 6 }, (_, index) => ({
-      ...template,
-      name: `Evaluator example ${index + 1}`,
+    key: "custom",
+    label: "Your templates",
+    description: "Start from a template this project already created.",
+    totalCount: 2,
+    templates: [
+      customTemplate,
+      { ...customTemplate, id: "evaluator-2", name: "Support classifier" },
+    ],
+  },
+  {
+    key: "recommended",
+    label: "Recommended for you",
+    description: "A curated starter set of templates.",
+    templates: [
+      {
+        ...managedTemplate,
+        key: "chat-intent",
+        name: "Classify chat intent",
+        icon: "message-square",
+        categories: ["conversation", "recommended"],
+        evaluator: {
+          ...managedTemplate.evaluator,
+          outputDefinition: {
+            version: 2,
+            dataType: "CATEGORICAL",
+            score: {
+              description: "Intent.",
+              categories: ["Billing", "Support"],
+              shouldAllowMultipleMatches: false,
+            },
+            reasoning: { description: "One sentence." },
+          },
+        },
+      },
+      {
+        ...managedTemplate,
+        key: "out-of-scope-request",
+        name: "Detect out-of-scope requests",
+        icon: "shield",
+        categories: ["conversation", "recommended"],
+        evaluator: {
+          ...managedTemplate.evaluator,
+          outputDefinition: {
+            version: 2,
+            dataType: "BOOLEAN",
+            score: { description: "Out of scope." },
+            reasoning: { description: "One sentence." },
+          },
+        },
+      },
+      {
+        ...managedTemplate,
+        key: "language",
+        name: "Detect language match",
+        icon: "languages",
+        categories: ["conversation", "recommended"],
+      },
+    ],
+  },
+  {
+    key: "quality",
+    label: "Quality",
+    description: "Checks response quality.",
+    templates: Array.from({ length: 7 }, (_, index) => ({
+      ...managedTemplate,
+      key: `quality-${index + 1}`,
+      name: `Quality evaluator ${index + 1}`,
     })),
   },
 ];
@@ -47,8 +121,12 @@ const meta = preview.meta({ component: EvaluatorGalleryView });
 const defaultArgs = {
   search: "",
   onSearchChange: fn(),
-  navigationItems: [{ key: "rag", label: "RAG", icon: FlaskConical, count: 6 }],
-  activeSection: "rag",
+  navigationItems: [
+    { key: "custom", label: "Your templates", icon: User, count: 2 },
+    { key: "recommended", label: "Recommended for you", count: 3 },
+    { key: "quality", label: "Quality", count: 7 },
+  ],
+  activeSection: EVALUATOR_GALLERY_ALL_SECTION_KEY,
   onSelectSection: fn(),
   sections,
   expandedSections: new Set<string>(),
@@ -64,11 +142,19 @@ export const Default = meta.story({
   args: defaultArgs,
 });
 
+export const YourTemplates = meta.story({
+  args: {
+    ...defaultArgs,
+    activeSection: "custom",
+  },
+});
+
 export const Loading = meta.story({
   args: {
     ...defaultArgs,
     isLoading: true,
     sections: [],
+    navigationItems: [],
   },
 });
 
@@ -77,5 +163,15 @@ export const EmptySearch = meta.story({
     ...defaultArgs,
     search: "does not exist",
     sections: [],
+    navigationItems: [],
+  },
+});
+
+export const SelectsCategory = meta.story({
+  name: "(Test) Selects a category",
+  args: defaultArgs,
+  play: async ({ canvas, args }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Quality 7" }));
+    await expect(args.onSelectSection).toHaveBeenCalledWith("quality");
   },
 });

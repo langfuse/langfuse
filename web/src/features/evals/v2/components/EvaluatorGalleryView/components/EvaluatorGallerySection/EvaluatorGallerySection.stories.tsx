@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn, userEvent } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../../../.storybook/preview";
 import { EvaluatorGallerySection } from "./EvaluatorGallerySection";
@@ -29,21 +29,38 @@ const template = {
   },
 } satisfies GalleryTemplate;
 
-const section: GallerySection = {
-  key: "rag",
-  label: "RAG",
+const listSection: GallerySection = {
+  key: "quality",
+  label: "Quality",
   description: "Measure retrieval and answer quality.",
   templates: Array.from({ length: 7 }, (_, index) => ({
     ...template,
+    key: `quality-${index + 1}`,
     name: `Evaluator example ${index + 1}`,
   })),
+};
+
+const recommendedSection: GallerySection = {
+  key: "recommended",
+  label: "Recommended for you",
+  description: "A curated starter set of templates.",
+  templates: [
+    { ...template, key: "chat-intent", name: "Classify chat intent" },
+    {
+      ...template,
+      key: "out-of-scope-request",
+      name: "Detect out-of-scope requests",
+      icon: "shield",
+    },
+    { ...template, key: "language", name: "Detect language match" },
+  ],
 };
 
 const meta = preview.meta({ component: EvaluatorGallerySection });
 
 export const Collapsed = meta.story({
   args: {
-    section,
+    section: listSection,
     expanded: false,
     onExpandedChange: fn(),
     onSelectTemplate: fn(),
@@ -52,9 +69,34 @@ export const Collapsed = meta.story({
 
 export const Expanded = meta.story({
   args: {
-    section,
+    section: listSection,
     expanded: true,
     onExpandedChange: fn(),
     onSelectTemplate: fn(),
+  },
+});
+
+export const Recommended = meta.story({
+  args: {
+    section: recommendedSection,
+    expanded: false,
+    onExpandedChange: fn(),
+    onSelectTemplate: fn(),
+  },
+});
+
+export const ExpandsLongCategory = meta.story({
+  name: "(Test) Expands a long category",
+  args: {
+    section: listSection,
+    expanded: false,
+    onExpandedChange: fn(),
+    onSelectTemplate: fn(),
+  },
+  play: async ({ canvas, args }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Show all 7 templates" }),
+    );
+    await expect(args.onExpandedChange).toHaveBeenCalledWith(true);
   },
 });

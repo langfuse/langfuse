@@ -1,0 +1,38 @@
+import { fn } from "storybook/test";
+import { EvalTemplateTypeEnum } from "@langfuse/shared";
+
+import preview from "../../../../../../../../../../.storybook/preview";
+import { EvaluatorRecommendedCard } from "./EvaluatorRecommendedCard";
+import type { GalleryTemplate } from "../../../../../../types/templateGallery";
+
+const template = {
+  source: "managed",
+  key: "chat-intent",
+  name: "Classify chat intent",
+  categories: ["conversation", "recommended"],
+  icon: "message-square",
+  description: "Classifies user questions into predefined intent buckets.",
+  maintainer: "langfuse",
+  runsOn: ["experiment", "live-observations"],
+  evaluator: {
+    type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
+    prompt: "Classify {{input}}.",
+    variables: [{ name: "input", defaultMapping: { field: "input" } }],
+    outputDefinition: {
+      version: 2,
+      dataType: "CATEGORICAL",
+      score: {
+        description: "Intent.",
+        categories: ["Billing", "Support"],
+        shouldAllowMultipleMatches: false,
+      },
+      reasoning: { description: "One sentence." },
+    },
+  },
+} satisfies GalleryTemplate;
+
+const meta = preview.meta({ component: EvaluatorRecommendedCard });
+
+export const Default = meta.story({
+  args: { template, onSelect: fn() },
+});

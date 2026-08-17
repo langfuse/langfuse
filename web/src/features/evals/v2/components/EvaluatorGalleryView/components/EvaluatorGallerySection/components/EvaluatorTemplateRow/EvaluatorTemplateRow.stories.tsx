@@ -5,7 +5,7 @@ import {
 } from "@langfuse/shared";
 
 import preview from "../../../../../../../../../../.storybook/preview";
-import { EvaluatorTemplateCard } from "./EvaluatorTemplateCard";
+import { EvaluatorTemplateRow } from "./EvaluatorTemplateRow";
 import type { GalleryTemplate } from "../../../../../../types/templateGallery";
 
 const managedTemplate = {
@@ -30,17 +30,10 @@ const managedTemplate = {
   },
 } satisfies GalleryTemplate;
 
-const meta = preview.meta({ component: EvaluatorTemplateCard });
+const meta = preview.meta({ component: EvaluatorTemplateRow });
 
 export const Managed = meta.story({
   args: { template: managedTemplate, onSelect: fn() },
-});
-
-export const PartnerMaintained = meta.story({
-  args: {
-    template: { ...managedTemplate, maintainer: "ragas" },
-    onSelect: fn(),
-  },
 });
 
 export const CustomCodeEvaluator = meta.story({

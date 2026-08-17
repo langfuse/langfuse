@@ -46,11 +46,11 @@ describe("flatStoryTitle", () => {
   it("preserves nested component groups without source-only directories", () => {
     expect(
       flatStoryTitle(
-        "/repo/web/src/features/example/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorTemplateCard/EvaluatorTemplateCard.stories.tsx",
+        "/repo/web/src/features/example/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorTemplateRow/EvaluatorTemplateRow.stories.tsx",
         groups,
       ),
     ).toBe(
-      "Features/EvaluatorGalleryView/EvaluatorGallerySection/EvaluatorTemplateCard",
+      "Features/EvaluatorGalleryView/EvaluatorGallerySection/EvaluatorTemplateRow",
     );
   });
 
