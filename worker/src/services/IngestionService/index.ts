@@ -8,6 +8,7 @@ import {
   ObservationLevel,
   PrismaClient,
   Prompt,
+  safeJsonParse,
   type JsonNested,
 } from "@langfuse/shared";
 import {
@@ -81,8 +82,12 @@ function parseUInt16(value: string | null | undefined): number | undefined {
 }
 
 function toPricingAttributeRecord(value: unknown): Record<string, string> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? convertRecordValuesToString(value as Record<string, unknown>)
+  const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
+
+  return parsedValue &&
+    typeof parsedValue === "object" &&
+    !Array.isArray(parsedValue)
+    ? convertRecordValuesToString(parsedValue as Record<string, unknown>)
     : {};
 }
 
@@ -993,6 +998,12 @@ export class IngestionService {
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
+      pricingMatchAttributes: {
+        modelParameters: toPricingAttributeRecord(
+          mergedObservationRecord.model_parameters,
+        ),
+        metadata: toPricingAttributeRecord(mergedObservationRecord.metadata),
+      },
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
