@@ -303,7 +303,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "exact-match",
-      name: "Exact match",
+      name: "Exact Match",
       category: "quality",
       icon: "equal",
       description:
