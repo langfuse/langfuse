@@ -36,7 +36,10 @@ import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
-import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import {
+  useV4UpgradeUiEnabled,
+  useV4UpgradeUiFlag,
+} from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { findCurrentInstance } from "@/src/ee/features/ui-customization/instanceLinks";
 import { api } from "@/src/utils/api";
@@ -124,6 +127,9 @@ export function AuthenticatedLayout({
   const router = useRouter();
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
+  // Account-level entry: use the raw flag (same as account settings tabs), not
+  // project-scoped force-v3 suppression.
+  const showV4Migration = useV4UpgradeUiFlag();
 
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
@@ -180,6 +186,15 @@ export function AuthenticatedLayout({
       name: "Account Settings",
       href: "/account/settings",
     },
+    ...(showV4Migration
+      ? [
+          {
+            type: "link" as const,
+            name: "v4 Migration",
+            href: "/v4-migration",
+          },
+        ]
+      : []),
     {
       type: "action" as const,
       name: "Theme",
