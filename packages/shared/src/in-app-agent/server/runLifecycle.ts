@@ -277,6 +277,7 @@ export async function decideToolApproval(params: {
     const parentRequest = InAppAgentRunRequestSchema.safeParse(
       parentRun.request,
     );
+    // Preserve tracing lineage across durable approval continuation runs.
     const continuationNumber =
       parentRequest.success && parentRequest.data.kind === "approvalDecision"
         ? (parentRequest.data.continuationNumber ?? 1) + 1

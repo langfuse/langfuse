@@ -131,13 +131,6 @@ type ToolExecutionTimes = {
   startTime?: Date;
   endTime?: Date;
 };
-// Last emitted LLM generation, so a late Mastra onStepFinish can still attach
-// usage after AG-UI complete() has already called end().
-type LastLlmGeneration = {
-  id: string;
-  step: OpenLlmStep;
-  hasUsage: boolean;
-};
 type ApprovalContinuation = {
   status: ToolCallApprovalStatus;
   continuationNumber: number;
@@ -216,7 +209,6 @@ export class InAppAgentInstrumentation {
   >();
   // Clamp tool execution windows to start at/after the last generation end.
   private lastLlmGenerationEndTime?: Date;
-  private lastLlmGeneration?: LastLlmGeneration;
 
   constructor(params: {
     input: AgUiRunAgentInput;
@@ -365,7 +357,6 @@ export class InAppAgentInstrumentation {
     }
 
     if (this.ended) {
-      this.applyLateStepFinishUsage(event);
       return;
     }
 
@@ -455,7 +446,6 @@ export class InAppAgentInstrumentation {
   // with that call's usage/model. The AG-UI event stream itself never carries usage.
   recordStepFinish(event: unknown) {
     if (this.ended) {
-      this.applyLateStepFinishUsage(event);
       return;
     }
 
@@ -832,11 +822,6 @@ export class InAppAgentInstrumentation {
     const endTime = step.providerFinishTime ?? new Date();
     this.lastLlmGenerationEndTime = endTime;
     const id = getInAppAgentLlmCallObservationId(this.runId, step.stepNumber);
-    this.lastLlmGeneration = {
-      id,
-      step,
-      hasUsage: Boolean(usageDetails),
-    };
 
     this.enqueueObservation("generation-create", {
       id,
@@ -865,49 +850,6 @@ export class InAppAgentInstrumentation {
         ...(options?.statusMessage ? { error: options.statusMessage } : {}),
       },
     });
-  }
-
-  // AG-UI complete() often runs before Mastra's last onStepFinish. end() already
-  // emitted the generation without usage; patch it so cost still lands.
-  private applyLateStepFinishUsage(event: unknown) {
-    const pending = this.lastLlmGeneration;
-    if (!pending || pending.hasUsage) {
-      return;
-    }
-
-    const eventRecord = isRecord(event) ? event : undefined;
-    const usageDetails =
-      getStepUsageDetails(eventRecord?.usage) ??
-      getStepUsageDetails(pending.step.providerFinish?.usage);
-    if (!usageDetails) {
-      return;
-    }
-
-    const finishReason =
-      getStepFinishReason(eventRecord) ??
-      getStepFinishReason(pending.step.providerFinish);
-    const model =
-      getModelIdFromStepEvent(eventRecord) ?? this.model ?? undefined;
-    const output = this.getLlmStepOutput(pending.step, eventRecord);
-
-    this.enqueueObservation("generation-update", {
-      id: pending.id,
-      traceId: this.traceId,
-      parentObservationId: this.rootObservationId,
-      name: getInAppAgentLlmCallName(model),
-      startTime: pending.step.startTime,
-      endTime: this.lastLlmGenerationEndTime ?? new Date(),
-      usageDetails,
-      level: "DEFAULT",
-      statusMessage: null,
-      ...(model ? { model } : {}),
-      ...(output !== undefined ? { output } : {}),
-      metadata: {
-        ...(finishReason ? { finish_reason: finishReason } : {}),
-      },
-    });
-    pending.hasUsage = true;
-    this.flush();
   }
 
   private getLlmStepInput(inputMessageCount: number) {

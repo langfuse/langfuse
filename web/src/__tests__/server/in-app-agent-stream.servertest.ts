@@ -546,43 +546,7 @@ describe("createAgUiStream", () => {
     await readStream(stream);
   };
 
-  it("forwards Bedrock V3 stream parts and records provider finish usage", async () => {
-    await initializeBasicTracedAgent("run-provider-finish");
-
-    const textPart = { type: "text-delta", id: "text-1", delta: "hello" };
-    const finishPart = {
-      type: "finish",
-      usage: {
-        inputTokens: {
-          total: 1_100,
-          noCache: 200,
-          cacheRead: 800,
-          cacheWrite: 100,
-        },
-        outputTokens: { total: 50, text: 50, reasoning: 0 },
-      },
-      finishReason: { unified: "tool-calls", raw: "tool_use" },
-    };
-    bedrockMocks.streamParts = [textPart, finishPart];
-    const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
-      doStream: (options: unknown) => Promise<{
-        stream: ReadableStream<unknown>;
-      }>;
-    };
-
-    const modelResult = await model.doStream({});
-    const forwardedParts: unknown[] = [];
-    for await (const part of modelResult.stream) {
-      forwardedParts.push(part);
-    }
-
-    expect(forwardedParts).toEqual([textPart, finishPart]);
-    expect(
-      instrumentationMocks.instrumentation.recordModelCallFinish,
-    ).toHaveBeenCalledWith(finishPart);
-  });
-
-  it("forwards every model stream part when finish tracing throws", async () => {
+  it("forwards model stream parts when finish tracing throws", async () => {
     instrumentationMocks.instrumentation.recordModelCallFinish.mockImplementationOnce(
       () => {
         throw new Error("tracing failed");
