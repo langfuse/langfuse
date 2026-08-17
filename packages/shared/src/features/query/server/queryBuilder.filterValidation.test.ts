@@ -327,12 +327,17 @@ describe("queryBuilder DateTime64 parameter encoding", () => {
       orderBy: null,
     } as QueryType;
 
-    const { query: compiledQuery, parameters } = await new QueryBuilder(
-      undefined,
-      "v2",
-    ).build(query, "test-project", true);
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    queryBuilder.setRootEventConditionMaxWindowHours(0);
 
-    expect(compiledQuery).toContain("DateTime64(3)");
+    const { query: compiledQuery, parameters } = await queryBuilder.build(
+      query,
+      "test-project",
+      true,
+    );
+
+    expect(compiledQuery).toContain("DateTime64(3, 'UTC')");
+    expect(compiledQuery).not.toContain(": DateTime64(3)}");
 
     const dateTimeParams = Object.entries(parameters).filter(
       ([key]) =>
@@ -342,6 +347,10 @@ describe("queryBuilder DateTime64 parameter encoding", () => {
     );
 
     expect(dateTimeParams.length).toBeGreaterThan(0);
+    expect(dateTimeParams.some(([key]) => key.startsWith("subFrom"))).toBe(
+      true,
+    );
+    expect(dateTimeParams.some(([key]) => key.startsWith("subTo"))).toBe(true);
     for (const [, value] of dateTimeParams) {
       // ClickHouse rejects numeric 0 for DateTime64(3) query parameters.
       expect(value).not.toBe(0);

@@ -9,6 +9,7 @@ import {
   createEventsCh,
   createScoresCh,
   createTraceScore,
+  DateTimeFilter,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
@@ -119,6 +120,29 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   });
 
   maybe("Basic Functionality", () => {
+    it("preserves DateTime64 filter instants outside the ClickHouse session timezone", async () => {
+      const instant = new Date("2026-08-14T23:30:00.123+02:00");
+      const applied = new DateTimeFilter({
+        clickhouseTable: "events",
+        field: "start_time",
+        operator: ">=",
+        value: instant,
+      }).apply();
+      const placeholder = applied.query.match(/\{[^}]+\}/)?.[0];
+
+      if (!placeholder) {
+        throw new Error("DateTimeFilter did not produce a query parameter");
+      }
+
+      const result = await queryClickhouse<{ timestampMs: string }>({
+        query: `SELECT toUnixTimestamp64Milli(${placeholder}) AS timestampMs`,
+        params: applied.params,
+        clickhouseSettings: { session_timezone: "Europe/Berlin" },
+      });
+
+      expect(Number(result[0]?.timestampMs)).toBe(instant.getTime());
+    });
+
     it("should apply default row_limit of 100 when not specified", async () => {
       // Create enough observations to exceed default limit
       const rowLimitTraceId = randomUUID();
@@ -247,7 +271,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
           },
         ],
         fromTimestamp: "1970-01-01T00:00:00.000Z",
-        toTimestamp: new Date().toISOString(),
+        toTimestamp: new Date(timestamp.getTime() + 10_000).toISOString(),
       };
 
       const response = await makeZodVerifiedAPICall(
@@ -257,8 +281,10 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveLength(1);
+      expect(Number(response.body.data[0]?.count_count)).toBe(
+        observationIds.length,
+      );
     });
 
     it("should support latency metrics with microsecond to millisecond conversion", async () => {

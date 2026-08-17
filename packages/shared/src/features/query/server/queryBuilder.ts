@@ -1676,8 +1676,8 @@ export class QueryBuilder {
           `SELECT ${tableAlias}.${column} FROM ${baseTable} ${tableAlias} ` +
           `WHERE ${tableAlias}.project_id = {${projP}: String} ` +
           `AND ${condition} ` +
-          `AND ${tableAlias}.${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
-          `AND ${tableAlias}.${view.timeDimension} <= {${toP}: DateTime64(3)}`;
+          `AND ${tableAlias}.${view.timeDimension} >= {${fromP}: DateTime64(3, 'UTC')} ` +
+          `AND ${tableAlias}.${view.timeDimension} <= {${toP}: DateTime64(3, 'UTC')}`;
         fromClause +=
           ` AND (${baseTable}.${column} IN (${subquery})` +
           ` OR NOT EXISTS (${subquery} LIMIT 1))`;

@@ -16,7 +16,7 @@ describe("DateTimeFilter ClickHouse parameter encoding", () => {
 
     const applied = filter.apply();
 
-    expect(applied.query).toContain("DateTime64(3)");
+    expect(applied.query).toContain("DateTime64(3, 'UTC')");
     const paramValue = Object.values(applied.params)[0];
     // ClickHouse rejects query parameter value 0 for DateTime64(3):
     // "Cannot parse DateTime: value 0 cannot be parsed as DateTime64(3)"
@@ -25,7 +25,7 @@ describe("DateTimeFilter ClickHouse parameter encoding", () => {
   });
 
   it("encodes ordinary timestamps as ClickHouse DateTime64 strings", () => {
-    const value = new Date("2026-08-14T21:30:00.123Z");
+    const value = new Date("2026-08-14T23:30:00.123+02:00");
     const filter = new DateTimeFilter({
       clickhouseTable: "traces",
       field: "timestamp",
@@ -36,6 +36,8 @@ describe("DateTimeFilter ClickHouse parameter encoding", () => {
     const applied = filter.apply();
     const paramValue = Object.values(applied.params)[0];
 
+    expect(applied.query).toContain("DateTime64(3, 'UTC')");
     expect(paramValue).toBe(convertDateToClickhouseDateTime(value));
+    expect(paramValue).toBe("2026-08-14 21:30:00.123");
   });
 });
