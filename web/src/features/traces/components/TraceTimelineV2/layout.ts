@@ -485,19 +485,27 @@ function buildTicks(context: {
     x >= -EPSILON &&
     x + TICK_LABEL_INSET_PX + measurer.measure(label) <= laneWidth;
 
+  const ticks: Tick[] = [];
+  const collides = (x: number) =>
+    ticks.some((tick) => Math.abs(tick.x - x) < minGapPx);
+
   // The far side of every collapsed gap gets a tick first. Without them a
   // compressed axis loses every nice-step label into a gap and reads as a
   // single "0ms" — and the visible jump from 95ms to 18.00s across a 28px band
   // is what explains the band to the user.
-  const ticks: Tick[] = [];
+  //
+  // These are de-overlapped against EACH OTHER too, not only against the
+  // nice-step ticks below: two gaps a few px apart — several near-instant spans
+  // between collapsed idle, or the unbuffered fallback path where spans get no
+  // label padding at all — would otherwise print their labels on top of one
+  // another.
   for (const gap of compression.gaps) {
     const x = transform.toPx(gap.compressedEnd);
     const label = formatDurationMs(gap.end);
-    if (fits(x, label)) ticks.push({ realMs: gap.end, x, label });
+    if (fits(x, label) && !collides(x)) {
+      ticks.push({ realMs: gap.end, x, label });
+    }
   }
-
-  const collides = (x: number) =>
-    ticks.some((tick) => Math.abs(tick.x - x) < minGapPx);
 
   const first = Math.ceil(realStart / step) * step;
   for (let realMs = first; realMs <= realEnd; realMs += step) {

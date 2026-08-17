@@ -334,15 +334,26 @@ export const DraggingMovesContentWithThePointer = meta.story({
   },
 });
 
-/** Compression under the user's thumb, so a story can change it mid-zoom. */
+/**
+ * Compression and the box under the user's thumb, so a story can change either
+ * one mid-zoom — both replace the coordinate space a stored view addresses.
+ */
+let resize: (width: number) => void = () => undefined;
+
 function WithCompressionToggle(props: TimelineV2Props) {
   const [compress, setCompress] = useState(props.compress);
+  const [width, setWidth] = useState(props.box.width);
+  resize = setWidth;
   return (
     <div className="flex flex-col items-start gap-1">
       <button type="button" onClick={() => setCompress((on) => !on)}>
         toggle compression
       </button>
-      <TimelineV2 {...props} compress={compress} />
+      <TimelineV2
+        {...props}
+        compress={compress}
+        box={{ ...props.box, width }}
+      />
     </div>
   );
 }
@@ -380,6 +391,20 @@ export const CompressionChangeDropsTheView = meta.story({
     const toggle = canvasElement.querySelector("button");
     if (!toggle) throw new Error("expected the compression toggle");
     await userEvent.click(toggle);
+    await waitFor(() => expect(readout()).toContain("view 0ms–"));
+
+    // A RESIZE is the same hazard: collapsed gaps are priced in physical px, so
+    // a narrower box rescales the compressed space around a window that still
+    // addresses the old one.
+    await userEvent.click(toggle); // compression back on
+    const compressedBars = canvasElement.querySelectorAll<HTMLElement>(
+      '[data-testid="timeline-v2-bar"]',
+    );
+    const last = compressedBars[compressedBars.length - 1];
+    if (!last) throw new Error("expected a bar to zoom into");
+    await userEvent.dblClick(last);
+    await waitFor(() => expect(readout()).not.toContain("view 0ms–"));
+    resize(240);
     await waitFor(() => expect(readout()).toContain("view 0ms–"));
   },
 });
