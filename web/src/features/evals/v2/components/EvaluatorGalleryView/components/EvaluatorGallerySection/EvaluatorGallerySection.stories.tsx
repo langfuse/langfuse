@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { expect, fn, userEvent } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../../../.storybook/preview";
@@ -6,6 +7,25 @@ import type {
   GallerySection,
   GalleryTemplate,
 } from "../../../../types/templateGallery";
+
+type EvaluatorGallerySectionProps = Parameters<
+  typeof EvaluatorGallerySection
+>[0];
+
+function StatefulEvaluatorGallerySection(args: EvaluatorGallerySectionProps) {
+  const [expanded, setExpanded] = useState(args.expanded);
+
+  return (
+    <EvaluatorGallerySection
+      {...args}
+      expanded={expanded}
+      onExpandedChange={(nextExpanded) => {
+        setExpanded(nextExpanded);
+        args.onExpandedChange(nextExpanded);
+      }}
+    />
+  );
+}
 
 const template = {
   source: "managed",
@@ -65,6 +85,7 @@ export const Collapsed = meta.story({
     onExpandedChange: fn(),
     onSelectTemplate: fn(),
   },
+  render: StatefulEvaluatorGallerySection,
 });
 
 export const Expanded = meta.story({
@@ -74,6 +95,7 @@ export const Expanded = meta.story({
     onExpandedChange: fn(),
     onSelectTemplate: fn(),
   },
+  render: StatefulEvaluatorGallerySection,
 });
 
 export const Recommended = meta.story({
@@ -93,10 +115,15 @@ export const ExpandsLongCategory = meta.story({
     onExpandedChange: fn(),
     onSelectTemplate: fn(),
   },
+  render: StatefulEvaluatorGallerySection,
   play: async ({ canvas, args }) => {
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all 7 templates" }),
     );
     await expect(args.onExpandedChange).toHaveBeenCalledWith(true);
+    await expect(canvas.getByText("Evaluator example 7")).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Show fewer" }),
+    ).toBeInTheDocument();
   },
 });

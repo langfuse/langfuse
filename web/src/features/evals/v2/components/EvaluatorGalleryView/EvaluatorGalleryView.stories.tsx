@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { User } from "lucide-react";
 import { expect, fn, userEvent } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
@@ -8,6 +9,42 @@ import type {
   GalleryTemplate,
 } from "../../types/templateGallery";
 import { EVALUATOR_GALLERY_ALL_SECTION_KEY } from "../../constants/evaluatorGallery";
+
+type EvaluatorGalleryViewProps = Parameters<typeof EvaluatorGalleryView>[0];
+
+function StatefulEvaluatorGalleryView(args: EvaluatorGalleryViewProps) {
+  const [search, setSearch] = useState(args.search);
+  const [activeSection, setActiveSection] = useState(args.activeSection);
+  const [expandedSections, setExpandedSections] = useState(
+    () => new Set(args.expandedSections),
+  );
+
+  return (
+    <EvaluatorGalleryView
+      {...args}
+      search={search}
+      activeSection={activeSection}
+      expandedSections={expandedSections}
+      onSearchChange={(value) => {
+        setSearch(value);
+        args.onSearchChange(value);
+      }}
+      onSelectSection={(key) => {
+        setActiveSection(key);
+        args.onSelectSection(key);
+      }}
+      onExpandedChange={(key, expanded) => {
+        setExpandedSections((current) => {
+          const next = new Set(current);
+          if (expanded) next.add(key);
+          else next.delete(key);
+          return next;
+        });
+        args.onExpandedChange(key, expanded);
+      }}
+    />
+  );
+}
 
 const managedTemplate = {
   source: "managed",
@@ -140,6 +177,7 @@ const defaultArgs = {
 
 export const Default = meta.story({
   args: defaultArgs,
+  render: StatefulEvaluatorGalleryView,
 });
 
 export const YourTemplates = meta.story({
@@ -147,6 +185,7 @@ export const YourTemplates = meta.story({
     ...defaultArgs,
     activeSection: "custom",
   },
+  render: StatefulEvaluatorGalleryView,
 });
 
 export const Loading = meta.story({
@@ -170,8 +209,18 @@ export const EmptySearch = meta.story({
 export const SelectsCategory = meta.story({
   name: "(Test) Selects a category",
   args: defaultArgs,
+  render: StatefulEvaluatorGalleryView,
   play: async ({ canvas, args }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Quality 7" }));
     await expect(args.onSelectSection).toHaveBeenCalledWith("quality");
+    await expect(
+      canvas.getByRole("heading", { name: "Quality" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("heading", { name: "Recommended for you" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("heading", { name: "Your templates" }),
+    ).not.toBeInTheDocument();
   },
 });
