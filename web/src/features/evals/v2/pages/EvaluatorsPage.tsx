@@ -155,7 +155,14 @@ export default function EvaluatorsPage() {
   const [selectionStore] = useState(() => createEvaluatorsTableStore());
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [deleteAll, setDeleteAll] = useState(false);
-  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [gallery, setGallery] = useQueryParam(
+    "gallery",
+    withDefault(StringParam, null),
+  );
+  const galleryOpen = gallery === "open";
+  const setGalleryOpen = (open: boolean) => {
+    setGallery(open ? "open" : null, "replaceIn");
+  };
   const [defaultModelPickerOpen, setDefaultModelPickerOpen] = useState(false);
   const [defaultModelConfigurationOpen, setDefaultModelConfigurationOpen] =
     useState(false);
@@ -456,6 +463,7 @@ export default function EvaluatorsPage() {
                   mode="default"
                   defaultModel={projectDefaultModel.defaultModel}
                   selectedModel={null}
+                  missingDefaultLabel="Set project default model"
                   disabled={
                     !projectDefaultModel.canUpdate ||
                     !projectDefaultModel.canRead ||

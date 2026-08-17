@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/search-bar/lib/filter-aliases";
 import { createEvaluatorSetupStore } from "./evaluatorSetupStore";
 
 describe("createEvaluatorSetupStore", () => {
   it("keeps prompt and code drafts when switching evaluator type", () => {
-    const store = createEvaluatorSetupStore({ initialEvaluator: null });
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
     const { actions } = store.getState();
 
     actions.setPrompt("Judge {{output}}");
@@ -32,6 +36,7 @@ describe("createEvaluatorSetupStore", () => {
           variableMapping: null,
         },
       },
+      mode: "edit",
     });
 
     expect(store.getState()).toMatchObject({
@@ -40,6 +45,7 @@ describe("createEvaluatorSetupStore", () => {
       description: "Checks for output",
       sourceCode: "return { score: output ? 1 : 0 };",
       sourceCodeLanguage: "TYPESCRIPT",
+      sampleFilter: [],
     });
   });
 
@@ -47,6 +53,7 @@ describe("createEvaluatorSetupStore", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: null,
       initialType: "CODE",
+      mode: "create",
     });
 
     expect(store.getState()).toMatchObject({
@@ -57,7 +64,10 @@ describe("createEvaluatorSetupStore", () => {
   });
 
   it("keeps sample filters available for the rule creation handoff", () => {
-    const store = createEvaluatorSetupStore({ initialEvaluator: null });
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
     const sampleFilter = [
       {
         column: "type",
@@ -72,8 +82,28 @@ describe("createEvaluatorSetupStore", () => {
     expect(store.getState().sampleFilter).toBe(sampleFilter);
   });
 
+  it("prefills sample filters for new evaluators", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+
+    expect(store.getState().sampleFilter).toEqual([
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+      ...EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
+    ]);
+  });
+
   it("keeps configured parameters for the selected model and resets them when the model changes", () => {
-    const store = createEvaluatorSetupStore({ initialEvaluator: null });
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
     const { actions } = store.getState();
 
     actions.configureModel(

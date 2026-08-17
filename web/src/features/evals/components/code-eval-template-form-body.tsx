@@ -1,5 +1,12 @@
-import CodeMirror, { EditorView, hoverTooltip } from "@uiw/react-codemirror";
-import { EditorState, Prec } from "@codemirror/state";
+import CodeMirror, {
+  Decoration,
+  EditorView,
+  hoverTooltip,
+  MatchDecorator,
+  ViewPlugin,
+  type ViewUpdate,
+} from "@uiw/react-codemirror";
+import { EditorState, Prec, type Extension } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { javascript } from "@codemirror/lang-javascript";
@@ -42,6 +49,7 @@ type CodeEvalTemplateFormBodyProps = {
   onSourceCodeChange: (value: string) => void;
   editable: boolean;
   validationResult: CodeEvalValidationResult | null;
+  ctxSample: string | null;
   headerAction?: ReactNode;
 };
 
@@ -64,8 +72,50 @@ const codeMirrorLayoutTheme = EditorView.theme({
     overflow: "auto",
   },
 });
+const ctxMatcher = new MatchDecorator({
+  regexp: /\bctx\b/g,
+  decorate: (add, from, to, _match, view) => {
+    const node = syntaxTree(view.state).resolveInner(from, 1);
+    if (isInsideStringOrComment(node)) return;
 
-function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
+    add(
+      from,
+      to,
+      Decoration.mark({
+        class: "cursor-help underline decoration-dotted underline-offset-2",
+        attributes: {
+          "aria-label": "Hover to preview the evaluation context",
+        },
+      }),
+    );
+  },
+});
+const ctxHoverAffordanceExtension = ViewPlugin.fromClass(
+  class {
+    decorations;
+
+    constructor(view: EditorView) {
+      this.decorations = ctxMatcher.createDeco(view);
+    }
+
+    update(update: ViewUpdate) {
+      this.decorations = ctxMatcher.updateDeco(update, this.decorations);
+    }
+  },
+  { decorations: (value) => value.decorations },
+);
+
+function createCodeEvalHoverExtension({
+  hoverDocs,
+  ctxSample,
+  languageExtension,
+  codeMirrorTheme,
+}: {
+  hoverDocs: CodeEvalHoverDocs;
+  ctxSample: string | null;
+  languageExtension: Extension;
+  codeMirrorTheme: Extension;
+}) {
   return hoverTooltip((view, pos) => {
     const line = view.state.doc.lineAt(pos);
     const text = line.text;
@@ -96,9 +146,53 @@ function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
       create() {
         const dom = document.createElement("div");
         dom.className =
-          "max-w-xl whitespace-pre-wrap rounded-md border bg-popover px-3 py-2 font-mono text-xs text-popover-foreground shadow-md";
-        dom.textContent = hoverDoc;
-        return { dom };
+          "max-h-96 max-w-xl overflow-auto overscroll-contain rounded-md border bg-popover px-3 py-2 font-mono text-xs text-popover-foreground shadow-md";
+        const documentation = document.createElement("div");
+        documentation.className = "whitespace-pre-wrap";
+        documentation.textContent = hoverDoc;
+        dom.append(documentation);
+
+        if (word !== "ctx" || !ctxSample) return { dom };
+
+        const label = document.createElement("div");
+        label.className = "mt-2 mb-1 font-sans font-bold";
+        label.textContent = "Selected sample data:";
+        dom.append(label);
+
+        const sampleContainer = document.createElement("div");
+        sampleContainer.className =
+          "min-w-0 rounded border [&_.cm-editor]:bg-transparent";
+        dom.append(sampleContainer);
+        const sampleEditor = new EditorView({
+          doc: ctxSample,
+          parent: sampleContainer,
+          extensions: [
+            languageExtension,
+            codeMirrorTheme,
+            EditorState.readOnly.of(true),
+            EditorView.editable.of(false),
+            EditorView.lineWrapping,
+            EditorView.theme({
+              "&.cm-focused": { outline: "none" },
+              ".cm-content": { padding: "0.5rem" },
+              ".cm-scroller": {
+                height: "auto",
+                overflowX: "visible",
+                overflowY: "visible",
+              },
+            }),
+          ],
+        });
+        // CodeMirror's base theme makes `.cm-scroller` independently
+        // scrollable. This embedded editor is content-sized; the surrounding
+        // tooltip is the single scroll container for both docs and sample.
+        sampleEditor.dom.style.height = "auto";
+        sampleEditor.dom.style.maxHeight = "none";
+        sampleEditor.scrollDOM.style.height = "auto";
+        sampleEditor.scrollDOM.style.maxHeight = "none";
+        sampleEditor.scrollDOM.style.overflow = "visible";
+
+        return { dom, destroy: () => sampleEditor.destroy() };
       },
     };
   });
@@ -126,6 +220,7 @@ export function CodeEvalTemplateFormBody({
   onSourceCodeChange,
   editable,
   validationResult,
+  ctxSample,
   headerAction,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
@@ -229,8 +324,13 @@ export function CodeEvalTemplateFormBody({
   );
   const codeEvalHoverExtension = useMemo(
     () =>
-      createCodeEvalHoverExtension(getCodeEvalHoverDocs(sourceCodeLanguage)),
-    [sourceCodeLanguage],
+      createCodeEvalHoverExtension({
+        hoverDocs: getCodeEvalHoverDocs(sourceCodeLanguage),
+        ctxSample,
+        languageExtension,
+        codeMirrorTheme,
+      }),
+    [codeMirrorTheme, ctxSample, languageExtension, sourceCodeLanguage],
   );
   const codeEvalCompletionExtension = useMemo(
     () => getCodeEvalCompletionExtension(sourceCodeLanguage),
@@ -243,6 +343,7 @@ export function CodeEvalTemplateFormBody({
       ...(!editable ? [EditorState.readOnly.of(true)] : []),
       languageExtension,
       codeEvalCompletionExtension,
+      ctxHoverAffordanceExtension,
       codeEvalHoverExtension,
       linterExtension,
       ...(editable
@@ -303,15 +404,15 @@ export function CodeEvalTemplateFormBody({
         className="overflow-hidden rounded-md border text-xs"
       />
       <p className="text-muted-foreground text-xs">
-        The evaluate function receives an EvaluationContext and returns an
-        EvaluationResult with one or more scores.{" "}
+        Hover over <code className="font-mono">ctx</code> to preview its type
+        and selected sample data.{" "}
         <a
           href={FUNCTION_CONTRACT_DOCS_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="underline"
         >
-          See type definitions.
+          See full type definitions.
         </a>
       </p>
     </div>

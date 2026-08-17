@@ -629,6 +629,7 @@ export const InnerEvalTemplateForm = (props: {
                 }}
                 editable={Boolean(props.isEditing)}
                 validationResult={codeValidationResult}
+                ctxSample={null}
               />
             )}
           />

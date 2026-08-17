@@ -87,6 +87,7 @@ export function EvaluatorSetupPage(
     createEvaluatorSetupStore({
       initialEvaluator: initialEvaluator ?? initialDraft,
       initialType: props.mode === "create" ? props.initialType : undefined,
+      mode: props.mode,
     }),
   );
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>

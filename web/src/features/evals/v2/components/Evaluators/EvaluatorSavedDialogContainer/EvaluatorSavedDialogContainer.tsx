@@ -46,6 +46,7 @@ export function EvaluatorSavedDialogContainer({
   const [isEstimating, setIsEstimating] = useState(false);
   const [showCostEstimate, setShowCostEstimate] = useState(false);
   const estimateRequestId = useRef(0);
+  const createRuleHandoffPending = useRef(false);
   const hasRequestedMissingCostTest = useRef(
     evaluator.hasCompletedTestCall ?? false,
   );
@@ -162,10 +163,13 @@ export function EvaluatorSavedDialogContainer({
   };
 
   const openCreateRule = () => {
+    createRuleHandoffPending.current = true;
     setDialogPhase("closing-saved");
   };
 
   const completeCreateRuleHandoff = () => {
+    if (!createRuleHandoffPending.current) return;
+    createRuleHandoffPending.current = false;
     setDialogPhase("closed");
     window.requestAnimationFrame(() => setDialogPhase("create-rule"));
   };
@@ -190,6 +194,7 @@ export function EvaluatorSavedDialogContainer({
       open={dialogPhase === "saved"}
       onOpenChange={(open) => {
         if (!open) {
+          createRuleHandoffPending.current = false;
           setDialogPhase("closed");
           finish().catch(() => undefined);
         }

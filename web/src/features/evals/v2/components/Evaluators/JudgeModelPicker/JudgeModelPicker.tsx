@@ -65,65 +65,76 @@ type JudgeModelPickerTriggerProps = Omit<
   defaultModel?: JudgeModel | null;
   selectedModel: JudgeModel | null;
   disabled: boolean;
+  missingDefaultLabel?: string;
 };
 
 export const JudgeModelPickerTrigger = forwardRef<
   HTMLButtonElement,
   JudgeModelPickerTriggerProps
->(({ mode, defaultModel, selectedModel, ...buttonProps }, forwardedRef) => {
-  const customSelectionLabel = selectedModel
-    ? `${selectedModel.provider} / ${selectedModel.model}`
-    : "Select a model...";
-  const customSelectionIsDefault =
-    mode === "custom" &&
-    selectedModel !== null &&
-    defaultModel != null &&
-    selectedModel.provider === defaultModel.provider &&
-    selectedModel.model === defaultModel.model;
+>(
+  (
+    { mode, defaultModel, selectedModel, missingDefaultLabel, ...buttonProps },
+    forwardedRef,
+  ) => {
+    const customSelectionLabel = selectedModel
+      ? `${selectedModel.provider} / ${selectedModel.model}`
+      : "Select a model";
+    const customSelectionIsDefault =
+      mode === "custom" &&
+      selectedModel !== null &&
+      defaultModel != null &&
+      selectedModel.provider === defaultModel.provider &&
+      selectedModel.model === defaultModel.model;
 
-  return (
-    <Button
-      {...buttonProps}
-      ref={forwardedRef}
-      type="button"
-      variant="outline"
-      className={cn(selectTriggerClassName, "w-fit max-w-full min-w-0")}
-    >
-      {mode === "default" ? (
-        defaultModel ? (
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              className="truncate"
-              title={`${defaultModel.provider} / ${defaultModel.model}`}
-            >
-              {defaultModel.provider} / {defaultModel.model}
+    return (
+      <Button
+        {...buttonProps}
+        ref={forwardedRef}
+        type="button"
+        variant="outline"
+        className={cn(
+          selectTriggerClassName,
+          "w-auto max-w-full min-w-0 justify-start",
+        )}
+      >
+        {mode === "default" ? (
+          defaultModel ? (
+            <span className="flex min-w-0 items-center gap-2">
+              <span
+                className="truncate"
+                title={`${defaultModel.provider} / ${defaultModel.model}`}
+              >
+                {defaultModel.provider} / {defaultModel.model}
+              </span>
+              <Badge variant="secondary" size="sm" className="shrink-0">
+                Project default
+              </Badge>
             </span>
-            <Badge variant="secondary" size="sm" className="shrink-0">
-              Project default
-            </Badge>
-          </span>
+          ) : (
+            <span className="flex items-center gap-1.5">
+              <TriangleAlert className="text-dark-yellow h-3.5 w-3.5 shrink-0" />
+              <span className="text-muted-foreground">
+                {missingDefaultLabel ?? "Select a model"}
+              </span>
+            </span>
+          )
         ) : (
-          <span className="flex items-center gap-1.5">
-            <TriangleAlert className="text-dark-yellow h-3.5 w-3.5 shrink-0" />
-            <span className="text-muted-foreground">Select a model...</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate" title={customSelectionLabel}>
+              {customSelectionLabel}
+            </span>
+            {customSelectionIsDefault ? (
+              <Badge variant="secondary" size="sm" className="shrink-0">
+                Project default
+              </Badge>
+            ) : null}
           </span>
-        )
-      ) : (
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate" title={customSelectionLabel}>
-            {customSelectionLabel}
-          </span>
-          {customSelectionIsDefault ? (
-            <Badge variant="secondary" size="sm" className="shrink-0">
-              Project default
-            </Badge>
-          ) : null}
-        </span>
-      )}
-      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-    </Button>
-  );
-});
+        )}
+        <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+    );
+  },
+);
 JudgeModelPickerTrigger.displayName = "JudgeModelPickerTrigger";
 
 /** A controlled model selection menu for evaluators and the project default. */

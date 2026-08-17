@@ -73,7 +73,7 @@ export function DefinitionStepContainer({
       onTypeChange={state.actions.setType}
       isEditing={isEditing}
       typeConfiguration={<CodeLanguageSelector store={store} />}
-      codeEditor={<CodeEditor store={store} />}
+      codeEditor={<CodeEditor projectId={projectId} store={store} />}
     />
   );
 }

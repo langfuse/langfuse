@@ -1,5 +1,9 @@
 import { useMemo } from "react";
-import { observationVariableMappingList } from "@langfuse/shared";
+import Link from "next/link";
+import {
+  observationVariableMappingList,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
@@ -8,15 +12,14 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/ui/input";
 import { EvaluatorPromptPreview } from "./EvaluatorPromptPreview";
 import { renderPromptPreviewFromObservation } from "./utils";
-import { Eye, Plus, X } from "lucide-react";
+import { ExternalLink, Eye, Plus, X } from "lucide-react";
 
-export type BatchEvaluator = Pick<
-  RouterOutputs["evals"]["jobConfigsByTarget"][number],
-  "id" | "scoreName" | "variableMapping"
-> & {
-  evalTemplate?: { name?: string | null; prompt?: string | null } | null;
+export type BatchEvaluator = {
+  id: string;
+  scoreName: string;
+  variableMapping: ObservationVariableMapping[];
+  prompt: string | null;
 };
-type ObservationPreview = RouterOutputs["observations"]["byId"];
 type EventPreview = RouterOutputs["events"]["batchIO"][number];
 
 type EvaluatorSelectionStepProps = {
@@ -25,14 +28,13 @@ type EvaluatorSelectionStepProps = {
   isQueryLoading: boolean;
   isQueryError: boolean;
   queryErrorMessage: string | undefined;
-  previewObservation: ObservationPreview | EventPreview | undefined;
+  previewObservation: EventPreview | undefined;
   isPreviewLoading: boolean;
-  evaluatorScopeLabel: "observation" | "experiment";
   selectedEvaluatorIds: string[];
   evaluatorSearchQuery: string;
   onSearchQueryChange: (query: string) => void;
   onToggleEvaluator: (evaluatorId: string) => void;
-  onCreateEvaluator?: () => void;
+  createEvaluatorHref: string;
 };
 
 export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
@@ -44,25 +46,19 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
     queryErrorMessage,
     previewObservation,
     isPreviewLoading,
-    evaluatorScopeLabel,
     selectedEvaluatorIds,
     evaluatorSearchQuery,
     onSearchQueryChange,
     onToggleEvaluator,
-    onCreateEvaluator,
+    createEvaluatorHref,
   } = props;
 
   const filteredEvaluators = useMemo(() => {
     const normalizedSearch = evaluatorSearchQuery.trim().toLowerCase();
     const filtered = normalizedSearch
-      ? eligibleEvaluators.filter((evaluator) => {
-          const templateName = evaluator.evalTemplate?.name ?? "";
-
-          return (
-            evaluator.scoreName.toLowerCase().includes(normalizedSearch) ||
-            templateName.toLowerCase().includes(normalizedSearch)
-          );
-        })
+      ? eligibleEvaluators.filter((evaluator) =>
+          evaluator.scoreName.toLowerCase().includes(normalizedSearch),
+        )
       : eligibleEvaluators;
 
     return [...filtered].sort((a, b) =>
@@ -90,7 +86,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
     }
 
     return renderPromptPreviewFromObservation({
-      prompt: evaluator.evalTemplate?.prompt,
+      prompt: evaluator.prompt,
       variableMapping: mappingResult.data,
       observation: previewObservation,
     });
@@ -110,8 +106,8 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
         ) : eligibleEvaluators.length === 0 ? (
           <Card>
             <CardContent className="text-muted-foreground p-4 text-sm">
-              No {evaluatorScopeLabel}-scoped evaluators found. Create a new{" "}
-              {evaluatorScopeLabel}-scoped evaluator and it will appear here.
+              No evaluators found. Create a new evaluator and it will appear
+              here.
             </CardContent>
           </Card>
         ) : (
@@ -183,79 +179,68 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
               </div>
             ) : (
               <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
-                {filteredEvaluators.map((item, index, array) => {
-                  const templateLabel = `Template: ${item.evalTemplate?.name ?? "Deleted template"}`;
-
-                  return (
-                    <div key={item.id}>
-                      <div
-                        className="hover:bg-muted/50 flex cursor-pointer items-center gap-2 px-2 py-1.5 transition-colors"
-                        onClick={() => onToggleEvaluator(item.id)}
+                {filteredEvaluators.map((item, index, array) => (
+                  <div key={item.id}>
+                    <div
+                      className="hover:bg-muted/50 flex cursor-pointer items-center gap-2 px-2 py-1.5 transition-colors"
+                      onClick={() => onToggleEvaluator(item.id)}
+                    >
+                      <p
+                        className="min-w-0 flex-1 truncate text-sm font-bold"
+                        title={item.scoreName}
                       >
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className="truncate text-sm font-bold"
-                            title={item.scoreName}
-                          >
-                            {item.scoreName}
-                          </p>
-                          <p
-                            className="text-muted-foreground truncate text-[11px]"
-                            title={templateLabel}
-                          >
-                            {templateLabel}
-                          </p>
-                        </div>
-                        <EvaluatorPromptPreview
-                          previewContent={getPromptPreview(item)}
-                          trigger={
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="h-7 w-7"
-                              onMouseDown={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                              }}
-                              onClick={(event) => event.stopPropagation()}
-                              aria-label={`Preview ${item.scoreName}`}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          }
-                        />
-                        <span className="mr-1">
-                          <Checkbox
-                            checked={selectedEvaluatorIds.includes(item.id)}
-                            aria-label={`Select ${item.scoreName}`}
+                        {item.scoreName}
+                      </p>
+                      <EvaluatorPromptPreview
+                        previewContent={getPromptPreview(item)}
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="h-7 w-7"
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                            }}
                             onClick={(event) => event.stopPropagation()}
-                            onCheckedChange={() => onToggleEvaluator(item.id)}
-                          />
-                        </span>
-                      </div>
-                      {index < array.length - 1 ? (
-                        <div className="border-border/50 border-b" />
-                      ) : null}
+                            aria-label={`Preview ${item.scoreName}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        }
+                      />
+                      <span className="mr-1">
+                        <Checkbox
+                          checked={selectedEvaluatorIds.includes(item.id)}
+                          aria-label={`Select ${item.scoreName}`}
+                          onClick={(event) => event.stopPropagation()}
+                          onCheckedChange={() => onToggleEvaluator(item.id)}
+                        />
+                      </span>
                     </div>
-                  );
-                })}
+                    {index < array.length - 1 ? (
+                      <div className="border-border/50 border-b" />
+                    ) : null}
+                  </div>
+                ))}
               </div>
             )}
           </div>
         )}
       </div>
 
-      {onCreateEvaluator ? (
-        <Button
-          variant="outline"
-          size="default"
-          className="h-9 w-full"
-          onClick={onCreateEvaluator}
+      <Button variant="outline" size="default" className="h-9 w-full" asChild>
+        <Link
+          href={createEvaluatorHref}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Create new Evaluator (opens in a new tab)"
         >
           <Plus className="mr-1 h-4 w-4" />
           Create new Evaluator
-        </Button>
-      ) : null}
+          <ExternalLink className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
+      </Button>
     </div>
   );
 }
