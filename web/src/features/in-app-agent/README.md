@@ -188,9 +188,9 @@ Sandbox state is stored on the conversation row as `providerSessionId`. The conf
 
 Live or suspended MicroVMs keep workspace files and memory. A terminated session cannot be revived: continuation starts a clean VM. Persisted conversation history still drives the next turn, and `tool_calls/` is reconstructed from the event log. Arbitrary workspace files, installed packages, and in-memory process state are not durable across termination.
 
-Production relies on the AWS idle policy to suspend and later terminate unused MicroVMs. Turn completion currently persists `providerSessionId` and does not call `suspendSession`. Worker data-retention cleanup tears down `lambda-microvm` sandboxes when a conversation is deleted; it does not tear them down at the end of a turn.
+When a turn starts against a session that is already gone, `createInAppAgentSandbox` detects it up front via the provider's `isSessionAvailable` probe and returns `workspaceWasReset`. The worker then appends `createSandboxWorkspaceResetMessage()` to the agent input, a `developer` message stating what was lost and that `tool_calls/` was restored. `developer` messages are dropped from the rendered transcript, so this reaches the model and not the user.
 
-`server/router.ts` clears sandbox state before soft-deleting a conversation.
+Production relies entirely on the AWS idle policy to reclaim MicroVMs: suspend after 60s idle, terminate four hours later, and terminate unconditionally four hours after creation. Nothing in the application terminates a MicroVM. Turn completion persists `providerSessionId` and does not call `suspendSession`, and deleting a conversation clears `providerSessionId` without terminating the MicroVM it pointed at, so that workspace survives until the idle policy reclaims it.
 
 `dangerous-docker` is development-only. Local Docker sandbox cleanup stays in the web process where that provider is used.
 

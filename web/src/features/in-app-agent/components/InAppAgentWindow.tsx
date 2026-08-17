@@ -824,7 +824,6 @@ export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
   /** Per-conversation attention state, for the recent-conversation indicators. */
   activityByConversationId: InAppAgentActivityByConversationId;
-  disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   executionUi: InAppAgentWindowExecutionUi;
   hasMoreConversations: boolean;
@@ -940,7 +939,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     activityByConversationId,
     conversations,
-    disablePendingToolApprovalActions = false,
     error,
     executionUi,
     hasMoreConversations,
@@ -1473,9 +1471,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   key={`${tool.approval?.id ?? tool.name}-${index}`}
                   tool={tool}
                   isCompact={!isExpanded}
-                  isDisabled={
-                    isRateLimited || disablePendingToolApprovalActions
-                  }
+                  isDisabled={isRateLimited}
                   onApproveToolCall={onApproveToolCall}
                   onAlwaysAllowToolCall={onAlwaysAllowToolCall}
                   onRejectToolCall={onRejectToolCall}

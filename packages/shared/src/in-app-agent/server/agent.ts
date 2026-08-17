@@ -142,6 +142,19 @@ When working in the sandbox filesystem, assume this layout:
 `;
 }
 
+/**
+ * Run-scoped instruction, passed as an extra system message rather than compiled
+ * into the managed prompt: it describes one turn's environment, not the agent's
+ * standing behaviour. It cannot be a transcript message, because @ag-ui/mastra
+ * forwards only assistant, user and tool messages to the model.
+ */
+const SANDBOX_WORKSPACE_RESET_INSTRUCTION = `<sandbox_workspace_reset>
+The sandbox workspace from earlier turns in this conversation expired and has been replaced with an empty one.
+- Any file you created earlier with write, edit, or bash is gone, along with installed packages and all process state.
+- "/workspace/tool_calls" has been restored in full from the conversation history, so results of earlier successful tool calls are still readable there. Failed tool calls were never stored.
+- Do not assume a path exists because you created it earlier in this conversation. Read it first, and recreate what you still need.
+</sandbox_workspace_reset>`;
+
 // Adaptive thinking is the default for every Claude model so new generations
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
@@ -193,6 +206,12 @@ type CreateAgUiStreamOptions = {
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
   sandbox?: InAppAgentSandbox;
+  /**
+   * Set when the workspace persisted by an earlier turn is already gone, so this
+   * turn starts from a clean one. Adds a run-scoped instruction, because the
+   * model's history still references files it wrote into the old workspace.
+   */
+  sandboxWorkspaceWasReset?: boolean;
 };
 
 export async function createAgUiStream(params: {
@@ -891,6 +910,9 @@ async function createMastraAdapter(params: {
       defaultOptions: {
         abortSignal: params.signal,
         maxSteps: MAX_AGENT_STEPS,
+        ...(params.options.sandboxWorkspaceWasReset
+          ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }
+          : {}),
         // Fires once per LLM call with that call's token usage; the AG-UI
         // event stream itself never carries usage.
         ...(params.onStepFinish ? { onStepFinish: params.onStepFinish } : {}),

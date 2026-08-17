@@ -1,6 +1,7 @@
 import type {
   InAppAgentSandbox,
   InAppAgentSandboxProviderType,
+  InAppAgentSandboxSessionReplacementReason,
   SandboxFile,
   SandboxProvider,
 } from "./types";
@@ -18,9 +19,45 @@ export async function createInAppAgentSandbox(params: {
 }): Promise<{
   sandbox: InAppAgentSandbox;
   onTurnEnded: () => Promise<void>;
+  /**
+   * True when a workspace persisted by an earlier turn is already gone, so this
+   * turn starts from a clean one. Callers pass this to `createAgUiStream` as
+   * `sandboxWorkspaceWasReset` so the system prompt can say so.
+   */
+  workspaceWasReset: boolean;
 }> {
   let sessionId = params.providerSessionId ?? null;
   let sessionIsKnownActive = sessionId !== null;
+
+  const recordSessionReplaced = (
+    reason: InAppAgentSandboxSessionReplacementReason,
+  ) => {
+    logger.info("In-app agent sandbox session replaced", {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.runId,
+      provider: params.providerType,
+      reason,
+    });
+    recordIncrement("langfuse.in_app_agent.sandbox.session_replaced", 1, {
+      provider: params.providerType ?? "unknown",
+      reason,
+    });
+  };
+
+  // Probe before the agent runs. `ensureSession` also detects a lost session, but
+  // only on the first sandbox tool call, which is after the model has its input.
+  // Marking the session inactive here lets `ensureSession` create fresh without
+  // paying for a second probe, so this path owns the metric for that case.
+  let workspaceWasReset = false;
+  if (sessionId && params.provider.probeSession) {
+    const lostReason = await params.provider.probeSession({ sessionId });
+    if (lostReason) {
+      workspaceWasReset = true;
+      sessionIsKnownActive = false;
+      recordSessionReplaced(lostReason);
+    }
+  }
 
   const persistState = async () => {
     await params.saveState({
@@ -46,17 +83,7 @@ export async function createInAppAgentSandbox(params: {
     });
 
     if (session.replacementReason) {
-      logger.info("In-app agent sandbox session replaced", {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        runId: params.runId,
-        provider: params.providerType,
-        reason: session.replacementReason,
-      });
-      recordIncrement("langfuse.in_app_agent.sandbox.session_replaced", 1, {
-        provider: params.providerType ?? "unknown",
-        reason: session.replacementReason,
-      });
+      recordSessionReplaced(session.replacementReason);
     }
 
     await updateSessionState(session.sessionId);
@@ -90,6 +117,7 @@ export async function createInAppAgentSandbox(params: {
 
   return {
     sandbox: createExecutionSandbox(),
+    workspaceWasReset,
     onTurnEnded: async () => {
       if (!sessionId) {
         return;

@@ -9,4 +9,3 @@ export type {
   SandboxProvider,
   SandboxSession,
 } from "./types";
-export { IN_APP_AGENT_SANDBOX_SESSION_REPLACEMENT_REASONS } from "./types";

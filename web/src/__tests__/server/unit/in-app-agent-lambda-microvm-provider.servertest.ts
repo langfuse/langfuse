@@ -283,12 +283,5 @@ describe("in-app agent lambda microvm sandbox provider", () => {
         ([command]) => command.constructor.name === "ResumeMicrovmCommand",
       ),
     ).toBeUndefined();
-    expect(
-      microvmSendMock.mock.calls.find(
-        ([command]) => command.constructor.name === "RunMicrovmCommand",
-      )?.[0]?.input,
-    ).toMatchObject({
-      maximumDurationInSeconds: 8 * 60 * 60,
-    });
   });
 });

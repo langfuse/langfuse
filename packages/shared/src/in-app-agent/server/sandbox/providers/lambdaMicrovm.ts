@@ -24,8 +24,12 @@ const DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES = 30;
 const AUTH_TOKEN_REFRESH_BUFFER_MS = 60_000;
 const DEFAULT_SANDBOX_SERVER_PORT = 5000;
 const DEFAULT_SUSPEND_AFTER_IDLE_SECONDS = 60;
-const DEFAULT_TERMINATE_AFTER_SUSPEND_SECONDS = 8 * 60 * 60;
-const DEFAULT_MAXIMUM_DURATION_SECONDS = 8 * 60 * 60;
+// How long a workspace stays resumable is min(existence from creation, suspension
+// from last activity), so these two have to agree or the larger one is unreachable
+// config. Four hours covers a working session and most approval turnarounds; the
+// API maximum for the existence cap is 28,800 (8h).
+const DEFAULT_TERMINATE_AFTER_SUSPEND_SECONDS = 4 * 60 * 60;
+const DEFAULT_MAXIMUM_DURATION_SECONDS = 4 * 60 * 60;
 const BRIDGE_READY_TIMEOUT_MS = 30_000;
 
 const LambdaMicrovmErrorSchema = z.object({
@@ -231,7 +235,7 @@ export function createLambdaMicrovmSandboxProvider(params: {
         return replaceSession(
           request.conversationId,
           request.sessionId,
-          "resume_race",
+          ready.reason,
         );
       }
 
@@ -352,6 +356,20 @@ export function createLambdaMicrovmSandboxProvider(params: {
   });
 
   return {
+    async probeSession({ sessionId }) {
+      const existing = await getMicrovm(client, sessionId);
+      const lostReason = !existing
+        ? "not_found"
+        : isTerminalMicrovmState(existing.state)
+          ? "terminal_state"
+          : null;
+      logger.debug("[Lambda MicroVM Sandbox] probed session", {
+        sessionId,
+        state: existing?.state,
+        lostReason,
+      });
+      return lostReason;
+    },
     async ensureSession({ conversationId, sessionId }) {
       const session = await ensureSession({
         conversationId,
