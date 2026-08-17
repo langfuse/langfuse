@@ -13,6 +13,9 @@
  * rejected it — density is the point, so the box decides how many rows are
  * visible, never how tall they are. Rows also stay uniform height, because
  * vertical virtualization depends on it.
+ *
+ * Production code, arriving one PR before its callers: the renderer beside it
+ * (`TimelineV2.tsx`) is a Storybook harness and says so, this is not.
  */
 
 export type PointerModality = "fine" | "coarse";

@@ -16,6 +16,9 @@
  * Total by construction: `pxPerMs` is 0 (never Infinity/NaN) for a degenerate
  * window, so every derived coordinate stays finite and collapses to the lane's
  * left edge instead of exploding.
+ *
+ * Production code, arriving one PR before its callers: the renderer beside it
+ * (`TimelineV2.tsx`) is a Storybook harness and says so, this is not.
  */
 
 export type TimeSpan = {

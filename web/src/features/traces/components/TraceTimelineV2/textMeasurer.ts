@@ -6,6 +6,9 @@
  * glyph widths per label. That is what lets `layout()` decide inside the pure
  * function whether a duration label fits in its bar or has to sit outside it —
  * a decision CSS flow currently makes, and makes wrong in a narrow lane.
+ *
+ * Production code, arriving one PR before its callers: the renderer beside it
+ * (`TimelineV2.tsx`) is a Storybook harness and says so, this is not.
  */
 
 /** Manual measurement average; used when no 2D context is available. */

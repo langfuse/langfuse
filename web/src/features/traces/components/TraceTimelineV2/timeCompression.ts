@@ -13,6 +13,9 @@
  *
  * It buys legibility by lying about proportion — the renderer must therefore
  * draw the gap markers, and tick labels must come back through `toRealMs`.
+ *
+ * Production code, arriving one PR before its callers: the renderer beside it
+ * (`TimelineV2.tsx`) is a Storybook harness and says so, this is not.
  */
 
 const COLLAPSE_THRESHOLD_RATIO = 0.05;

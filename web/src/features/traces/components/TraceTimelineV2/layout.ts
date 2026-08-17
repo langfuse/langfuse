@@ -20,6 +20,13 @@
  * tree + collapsed set) and `timeCompressionFor` (memoize on the box width)
  * both stay out of the zoom/pan loop, which then only positions the rows the
  * virtualizer has mounted (`rowRange`).
+ *
+ * **This is production code, arriving one PR before its callers.** The renderer
+ * beside it (`TimelineV2.tsx`) is a Storybook harness and says so; this file,
+ * `viewTransform`, `timeCompression`, `textMeasurer` and `density` are not. They
+ * move to `fns/timeline/` and the production timeline positions every bar,
+ * label and tick through them — so a defect here reaches users, and the sibling's
+ * "not production code" marker does not cover it.
  */
 
 import type { Density } from "./density";
