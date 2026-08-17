@@ -67,7 +67,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
   templates: [
     {
       key: "language",
-      name: "Language",
+      name: "Detect Language match",
       categories: ["conversation", "recommended"],
       icon: "languages",
       description:
@@ -104,7 +104,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "chat-intent",
-      name: "Chat Intent",
+      name: "Detect Chat Intent",
       categories: ["conversation", "recommended"],
       icon: "message-square",
       description:
@@ -145,7 +145,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "out-of-scope-request",
-      name: "Out-of-scope request",
+      name: "Detect Out-of-scope request",
       categories: ["conversation", "recommended"],
       icon: "shield",
       description:
@@ -178,7 +178,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "user-disagreement",
-      name: "User Disagreement",
+      name: "Detect User Disagreement",
       categories: ["conversation"],
       icon: "messages-square",
       description:
@@ -211,7 +211,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "all-caps",
-      name: "User frustration (ALL CAPS)",
+      name: "Detect User frustration (ALL CAPS)",
       categories: ["conversation"],
       icon: "type",
       description:
@@ -227,7 +227,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "user-distress",
-      name: "User Distress",
+      name: "Detect User Distress",
       categories: ["conversation"],
       icon: "frown",
       description:
@@ -260,7 +260,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "correctness",
-      name: "Correctness",
+      name: "Check Correctness",
       categories: ["quality"],
       icon: "circle-check",
       description:
@@ -300,7 +300,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "exact-match",
-      name: "Exact Match",
+      name: "Check if output is an Exact Match",
       categories: ["quality"],
       icon: "equal",
       description:
@@ -322,7 +322,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "keyword-match",
-      name: "Keyword match",
+      name: "Validate Keyword match",
       categories: ["quality"],
       icon: "list-checks",
       description:
@@ -344,7 +344,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "answer-relevance",
-      name: "Answer relevance",
+      name: "Check Answer relevance",
       categories: ["quality", "recommended"],
       icon: "target",
       description:
@@ -405,7 +405,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "topic-classifier",
-      name: "Topic classifier",
+      name: "Classify input topic",
       categories: ["classifier"],
       icon: "tags",
       description:
@@ -445,7 +445,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "language-classifier",
-      name: "Language classifier",
+      name: "Classify input language",
       categories: ["classifier"],
       icon: "languages",
       description:
@@ -491,7 +491,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "answer-groundedness",
-      name: "Answer Groundedness",
+      name: "Check Answer Groundedness",
       categories: ["retrieval"],
       icon: "book-open-check",
       description:
@@ -530,7 +530,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "context-precision",
-      name: "Context precision",
+      name: "Check Context precision",
       categories: ["retrieval"],
       icon: "scan-search",
       description:
@@ -569,7 +569,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "context-recall",
-      name: "Context recall",
+      name: "Check Context recall",
       categories: ["retrieval"],
       icon: "list-checks",
       description:
@@ -612,7 +612,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "pii-leakage",
-      name: "PII leakage",
+      name: "Detect PII leakage",
       categories: ["safety"],
       icon: "shield-alert",
       description:
@@ -641,7 +641,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "rule-adherence",
-      name: "Rule adherence",
+      name: "Check Rule adherence",
       categories: ["safety", "recommended"],
       icon: "shield-check",
       description:
@@ -668,7 +668,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "prompt-injection",
-      name: "Prompt injection",
+      name: "Detect Prompt injection",
       categories: ["safety"],
       icon: "shield-x",
       description:
@@ -698,7 +698,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "engineering-task-type",
-      name: "Engineering task type",
+      name: "Classify Engineering task type",
       categories: ["coding-agents"],
       icon: "code-2",
       description: "Categorizes the type of task the coding agent is used for.",
@@ -743,7 +743,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     },
     {
       key: "coding-agent-department-usage",
-      name: "Coding agent department usage",
+      name: "Classify Coding agent usage per department",
       categories: ["coding-agents"],
       icon: "building-2",
       description: "Classifies coding-agent usage into department buckets.",
