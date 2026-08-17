@@ -2,6 +2,7 @@ import { EventType } from "@ag-ui/core";
 import { getInternalTracingHandler, logger } from "../../server";
 
 import {
+  getInAppAgentConversationHistoryObservationId,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   getInAppAgentLlmCallName,
@@ -50,6 +51,8 @@ export type InAppAgentPromptMetadata = {
 };
 
 const IN_APP_AGENT_TURN_NAME = "agent-turn";
+const IN_APP_AGENT_CONVERSATION_HISTORY_NAME = "conversation-history";
+const IN_APP_AGENT_CONVERSATION_HISTORY_MESSAGE_CAP = 100;
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
 type InAppAgentTrace = ReturnType<
   InternalTracingHandler["handler"]["langfuse"]["trace"]
@@ -285,6 +288,7 @@ export class InAppAgentInstrumentation {
     // emitted during the run have a parent that already exists (avoids
     // orphans that attach to the trace as siblings of the late agent).
     this.emitRootAgentObservation({ metadata: this.metadata });
+    this.emitConversationHistoryObservation(params.input);
     this.emitApprovalWaitObservation();
   }
 
@@ -799,6 +803,25 @@ export class InAppAgentInstrumentation {
     });
   }
 
+  private emitConversationHistoryObservation(input: AgUiRunAgentInput) {
+    // Approval continuations belong to the same agent turn and must not emit
+    // duplicate conversation snapshots.
+    if (this.approvalContinuation) {
+      return;
+    }
+
+    this.enqueueObservation("span-create", {
+      id: getInAppAgentConversationHistoryObservationId(this.runId),
+      traceId: this.traceId,
+      parentObservationId: this.rootObservationId,
+      name: IN_APP_AGENT_CONVERSATION_HISTORY_NAME,
+      startTime: this.agentRunStartTime,
+      endTime: this.agentRunStartTime,
+      input: getConversationHistoryInput(input),
+      metadata: this.metadata,
+    });
+  }
+
   private emitLlmGeneration(
     step: OpenLlmStep,
     event: unknown,
@@ -1242,6 +1265,38 @@ function getCurrentTurnMessages(messages: AgUiMessage[]): AgUiMessage[] {
       message.role === "system" ||
       index >= lastUserMessageIndex,
   );
+}
+
+function getConversationHistoryInput(input: AgUiRunAgentInput): unknown {
+  return {
+    messages: getAgentRunMessages(
+      capConversationHistory(getPreviousConversationMessages(input.messages)),
+    ),
+  };
+}
+
+function getPreviousConversationMessages(
+  messages: AgUiMessage[],
+): AgUiMessage[] {
+  const lastUserMessageIndex = messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+  const priorMessages =
+    lastUserMessageIndex === -1
+      ? messages
+      : messages.slice(0, lastUserMessageIndex);
+
+  return priorMessages.filter(
+    (message) => message.role === "user" || message.role === "assistant",
+  );
+}
+
+function capConversationHistory(messages: AgUiMessage[]): AgUiMessage[] {
+  if (messages.length <= IN_APP_AGENT_CONVERSATION_HISTORY_MESSAGE_CAP) {
+    return messages;
+  }
+
+  return messages.slice(-IN_APP_AGENT_CONVERSATION_HISTORY_MESSAGE_CAP);
 }
 
 function addAvailableToolsToAgentRunInput(

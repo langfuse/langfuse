@@ -33,6 +33,12 @@ export const getInAppAgentInstrumentationObservationId = (runId: string) =>
 export const getInAppAgentInstrumentationTraceId = (runId: string) =>
   `${runId}-trace`;
 
+// Per-turn child span with prior-turn dialogue only (excludes the current
+// turn, which lives on agent-turn). Treat the observation name
+// "conversation-history" as a stable evaluator target.
+export const getInAppAgentConversationHistoryObservationId = (runId: string) =>
+  `${runId}-conversation-history`;
+
 // Per-LLM-call generation ids stay deterministic from the run so retries and
 // late flushes can address the same observation.
 export const getInAppAgentLlmCallObservationId = (

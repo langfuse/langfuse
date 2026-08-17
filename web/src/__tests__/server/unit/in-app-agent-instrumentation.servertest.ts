@@ -203,10 +203,6 @@ describe("InAppAgentInstrumentation", () => {
     )?.[1];
     expect(agentCreateBody).not.toHaveProperty("usageDetails");
     expect(agentCreateBody).not.toHaveProperty("model");
-    expect(mocks.handler.langfuse.enqueue).not.toHaveBeenCalledWith(
-      "span-create",
-      expect.anything(),
-    );
     expect(mocks.trace.update).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expectedAgentRunInput,
