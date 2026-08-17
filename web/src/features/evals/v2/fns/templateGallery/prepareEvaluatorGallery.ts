@@ -45,9 +45,6 @@ const RECOMMENDED_TEMPLATE_ORDER = [
   "chat-intent",
   "out-of-scope-request",
   "language",
-  "answer-relevance",
-  "quality-criterion",
-  "rule-adherence",
 ] as const;
 
 const RECOMMENDED_TEMPLATE_RANK = new Map<string, number>(

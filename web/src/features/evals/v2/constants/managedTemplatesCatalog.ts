@@ -68,7 +68,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "language",
       name: "Detect Language match",
-      categories: ["conversation"],
+      categories: ["conversation", "recommended"],
       icon: "languages",
       description:
         "Checks if primary language of output matches the primary language of input.",
@@ -146,7 +146,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "out-of-scope-request",
       name: "Detect Out-of-scope request",
-      categories: ["conversation"],
+      categories: ["conversation", "recommended"],
       icon: "shield",
       description:
         "Checks whether the user's request falls outside the assistant's defined role or supported scope.",
@@ -380,7 +380,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "quality-criterion",
       name: "Judge on one Quality criterion",
-      categories: ["quality", "recommended"],
+      categories: ["quality"],
       icon: "scale",
       description: "Checks whether output follows a defined quality criterion.",
       maintainer: "langfuse",

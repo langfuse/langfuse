@@ -15,12 +15,11 @@ describe("managedEvaluatorTemplateService", () => {
     expect(codeTemplates.templates.map(({ key }) => key)).toEqual([
       "exact-match",
     ]);
-    expect(recommendedTemplates.templates.map(({ key }) => key)).toContain(
+    expect(recommendedTemplates.templates.map(({ key }) => key)).toEqual([
+      "language",
       "chat-intent",
-    );
-    expect(recommendedTemplates.templates.map(({ key }) => key)).not.toContain(
-      "answer-relevance",
-    );
+      "out-of-scope-request",
+    ]);
     expect(codeTemplates.categories.length).toBeGreaterThan(0);
   });
 });
