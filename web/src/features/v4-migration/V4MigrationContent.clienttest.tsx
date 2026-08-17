@@ -776,6 +776,34 @@ describe("V4MigrationDetailsContent", () => {
     ).toHaveLength(1);
   });
 
+  it("keeps unresolved checks collapsed until they contain confirmed todos", () => {
+    mocks.migrationData.sdk = {
+      ...cleanSdkState(),
+      status: "checking",
+    };
+    mocks.migrationData.evals = { status: "loading", count: 0 };
+    mocks.migrationData.experiments = { status: "error" };
+    mocks.migrationData.apis = { status: "error", count: 0 };
+    mocks.migrationData.exports = { status: "loading", count: 0 };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    for (const [title, section] of [
+      ["Update SDK", "sdk"],
+      ["Update Evals", "evals"],
+      ["Update Experiments", "experiments"],
+      ["Migrate APIs", "apis"],
+      ["Migrate Integrations", "integrations"],
+    ] as const) {
+      // Collapsed by default: the first click is a user expansion.
+      fireEvent.click(screen.getByText(title).closest("button")!);
+      expect(mocks.capture).toHaveBeenCalledWith(
+        "v4_migration:section_expanded",
+        { section },
+      );
+    }
+  });
+
   it("keeps the detected instrumentation summary collapsed by default", () => {
     // Compatible-only traffic: the "Detected V4-compatible instrumentation"
     // section is a settled summary, not a todo, so it stays collapsed.

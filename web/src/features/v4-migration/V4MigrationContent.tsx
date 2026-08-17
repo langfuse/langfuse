@@ -1382,6 +1382,21 @@ export function V4MigrationDetailsContent({
   const exportsClean =
     migrationData.exports.status === "loaded" &&
     migrationData.exports.count === 0;
+  const sdkTodoCount = getSdkSectionState(migrationData.sdk).actionableCount;
+  const otelTodoCount = getOtelSectionState(migrationData.sdk).delayedCount;
+  const customInstrumentationTodoCount = getCustomInstrumentationSectionState(
+    migrationData.sdk,
+  ).series.length;
+  const evalsHaveTodos =
+    migrationData.evals.status === "loaded" && migrationData.evals.count > 0;
+  const experimentsHaveTodos =
+    migrationData.experiments.status === "loaded" &&
+    migrationData.experiments.result !== "not_required";
+  const apisHaveTodos =
+    migrationData.apis.status === "loaded" && migrationData.apis.count > 0;
+  const exportsHaveTodos =
+    migrationData.exports.status === "loaded" &&
+    migrationData.exports.count > 0;
   const cleanSectionLabels = [
     evalsClean ? "evals" : null,
     experimentsClean ? "experiments" : null,
@@ -1443,26 +1458,25 @@ export function V4MigrationDetailsContent({
           counts refresh about every 15 minutes, so recent calls may not appear
           yet.
         </p>
-        {/* Todo sections open on mount so the remediation guidance is visible
-            without an extra click — showing only a collapsed "Update SDK" row
-            left users unsure how to proceed. The settled summary line and the
-            "Detected V4-compatible instrumentation" section below stay
-            collapsed: they are confirmations, not action items. */}
+        {/* Sections with confirmed todos open on mount so the remediation
+            guidance is visible without an extra click. Loading, error,
+            settled-summary, and detected-compatible sections stay collapsed:
+            they do not contain confirmed action items. */}
         <div>
           <V4MigrationSdkSection
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
-            defaultOpen
+            defaultOpen={sdkTodoCount > 0}
           />
           <V4MigrationOtelSection
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
-            defaultOpen
+            defaultOpen={otelTodoCount > 0}
           />
           <V4MigrationCustomInstrumentationSection
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
-            defaultOpen
+            defaultOpen={customInstrumentationTodoCount > 0}
           />
 
           {!evalsClean && (
@@ -1478,7 +1492,7 @@ export function V4MigrationDetailsContent({
               }
               evalsUrl={evalsUrl}
               onNavigate={onNavigate}
-              defaultOpen
+              defaultOpen={evalsHaveTodos}
             />
           )}
 
@@ -1486,7 +1500,7 @@ export function V4MigrationDetailsContent({
             <V4MigrationExperimentsSection
               state={migrationData.experiments}
               upgradePath={migrationData.experimentInstrumentationUpgradePath}
-              defaultOpen
+              defaultOpen={experimentsHaveTodos}
             />
           )}
 
@@ -1494,7 +1508,7 @@ export function V4MigrationDetailsContent({
             <V4MigrationApisSection
               state={migrationData.apis}
               usage={migrationData.apiUsage}
-              defaultOpen
+              defaultOpen={apisHaveTodos}
             />
           )}
 
@@ -1504,7 +1518,7 @@ export function V4MigrationDetailsContent({
               integrations={migrationData.legacyIntegrations}
               integrationsUrl={integrationsUrl}
               onNavigate={onNavigate}
-              defaultOpen
+              defaultOpen={exportsHaveTodos}
             />
           )}
 
