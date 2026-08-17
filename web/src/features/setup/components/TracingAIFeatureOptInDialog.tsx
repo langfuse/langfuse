@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -52,6 +53,17 @@ export function TracingAIFeatureOptInDialog({
   onClose: () => void;
   onEnableAiFeatures: () => void;
 }) {
+  useEffect(() => {
+    // #region agent log
+    emitDebugLog(
+      "E",
+      "TracingAIFeatureOptInDialog.tsx:useEffect:openProp",
+      "Dialog received open prop update",
+      { open, isLoading, hasOrganizationUpdateAccess, organizationId },
+    );
+    // #endregion
+  }, [hasOrganizationUpdateAccess, isLoading, open, organizationId]);
+
   return (
     <Dialog
       open={open}
