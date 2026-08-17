@@ -359,4 +359,31 @@ describe("queryBuilder DateTime64 parameter encoding", () => {
     expect(Object.values(parameters)).toContain("1970-01-01 00:00:00.000");
     expect(Object.values(parameters)).toContain("2026-08-14 21:30:00.000");
   });
+
+  it("binds WITH FILL bounds as UTC DateTime64 parameters", async () => {
+    const query = {
+      view: "traces",
+      dimensions: [],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [],
+      timeDimension: { granularity: "day" },
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-01-02T00:00:00.000Z",
+      orderBy: null,
+    } as QueryType;
+
+    const { query: compiledQuery, parameters } = await new QueryBuilder(
+      undefined,
+      "v2",
+    ).build(query, "test-project", true);
+
+    expect(compiledQuery).toContain(
+      "toDate({fillFromDate: DateTime64(3, 'UTC')})",
+    );
+    expect(compiledQuery).toContain(
+      "toDate({fillToDate: DateTime64(3, 'UTC')})",
+    );
+    expect(parameters.fillFromDate).toBe("2025-01-01 00:00:00.000");
+    expect(parameters.fillToDate).toBe("2025-01-02 00:00:00.000");
+  });
 });

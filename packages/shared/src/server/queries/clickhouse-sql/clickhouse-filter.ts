@@ -173,6 +173,11 @@ export class NumberFilter implements Filter {
   }
 }
 
+export const bindUtcDateTimeParam = (name: string, value: Date) => ({
+  placeholder: `{${name}: DateTime64(3, 'UTC')}`,
+  value: convertDateToClickhouseDateTime(value),
+});
+
 export class DateTimeFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -197,15 +202,16 @@ export class DateTimeFilter implements Filter {
   apply(): ClickhouseFilter {
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `dateTimeFilter${uid}`;
+    const dateTimeParam = bindUtcDateTimeParam(varName, new Date(this.value));
     // Use ClickHouse DateTime string encoding rather than epoch millis.
     // ClickHouse rejects query parameter value 0 for DateTime64(3), which is
     // exactly what Date#getTime() returns for 1970-01-01T00:00:00.000Z. The
     // converter emits UTC calendar time, so declare UTC explicitly rather than
     // relying on the ClickHouse server or session timezone.
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: DateTime64(3, 'UTC')}`,
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} ${dateTimeParam.placeholder}`,
       params: {
-        [varName]: convertDateToClickhouseDateTime(new Date(this.value)),
+        [varName]: dateTimeParam.value,
       },
     };
   }
