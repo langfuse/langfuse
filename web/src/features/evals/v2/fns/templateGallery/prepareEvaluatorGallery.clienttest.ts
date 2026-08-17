@@ -43,9 +43,9 @@ describe("prepareEvaluatorGallery", () => {
         template.source === "managed" ? template.key : null,
       ),
     ).toEqual([
-      "language",
       "chat-intent",
       "out-of-scope-request",
+      "language",
       "answer-relevance",
       "quality-criterion",
       "rule-adherence",

@@ -41,6 +41,19 @@ const CONVERSATION_TEMPLATE_RANK = new Map<string, number>(
   CONVERSATION_TEMPLATE_ORDER.map((key, index) => [key, index]),
 );
 
+const RECOMMENDED_TEMPLATE_ORDER = [
+  "chat-intent",
+  "out-of-scope-request",
+  "language",
+  "answer-relevance",
+  "quality-criterion",
+  "rule-adherence",
+] as const;
+
+const RECOMMENDED_TEMPLATE_RANK = new Map<string, number>(
+  RECOMMENDED_TEMPLATE_ORDER.map((key, index) => [key, index]),
+);
+
 export function prepareEvaluatorGallery({
   customTemplates,
   customTemplateCount,
@@ -75,9 +88,19 @@ export function prepareEvaluatorGallery({
                 (CONVERSATION_TEMPLATE_RANK.get(right.key) ??
                   Number.MAX_SAFE_INTEGER),
             )
-        : managedCatalog.templates.filter((template) =>
-            template.categories.includes(category.key),
-          )
+        : category.key === "recommended"
+          ? managedCatalog.templates
+              .filter((template) => template.categories.includes(category.key))
+              .toSorted(
+                (left, right) =>
+                  (RECOMMENDED_TEMPLATE_RANK.get(left.key) ??
+                    Number.MAX_SAFE_INTEGER) -
+                  (RECOMMENDED_TEMPLATE_RANK.get(right.key) ??
+                    Number.MAX_SAFE_INTEGER),
+              )
+          : managedCatalog.templates.filter((template) =>
+              template.categories.includes(category.key),
+            )
       ).map((template) => ({ source: "managed" as const, ...template })),
     ]),
   );
