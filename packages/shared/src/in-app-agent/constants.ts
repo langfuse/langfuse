@@ -17,6 +17,9 @@ export const IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER =
 export const IN_APP_AGENT_LOCAL_SANDBOX_IMAGE =
   "langfuse-in-app-agent-sandbox:latest";
 
+export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =
+  "An error occurred. Please try again or start a new conversation.";
+
 // Observation ids stay equal to the per-turn run id so persisted messages,
 // feedback, and traced generations all point at the same Langfuse observation.
 export const getInAppAgentInstrumentationObservationId = (runId: string) =>

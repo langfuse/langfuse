@@ -13,18 +13,29 @@ import {
   type InAppAgentToolApprovalRequest,
   type ResumeForwardedProps,
 } from "../schema";
-import { createManualToolApprovalRunInput } from "./human-in-the-loop";
+import {
+  createInAppAgentMcpRunOverride,
+  createManualToolApprovalRunInput,
+} from "./human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
 } from "./instrumentation";
 import { createInAppAgentInstrumentation } from "./instrumentation";
 import {
+  parseMcpRateLimitError,
+  withMcpRateLimitWait,
+} from "./mcpRateLimitWait";
+import { getToolFailureMessage } from "./toolErrors";
+import {
   createSandboxTools,
   createRedirectActionTool,
   filterInAppAgentAvailableLangfuseMcpTools,
+  getInAppAgentMcpAllowedToolNames,
+  getInAppAgentRegistryToolName,
+  hasCallableExecute,
   type CompletedInAppAgentMcpToolCall,
-  type InAppAgentUserAccess,
+  type InAppAgentToolPolicy,
   withOptionalSilentMcpOutput,
   withInAppAgentToolApproval,
 } from "./tools";
@@ -131,6 +142,14 @@ When working in the sandbox filesystem, assume this layout:
 `;
 }
 
+/** Run-scoped, not part of the managed prompt: it describes one turn's environment. */
+const SANDBOX_WORKSPACE_RESET_INSTRUCTION = `<sandbox_workspace_reset>
+The sandbox workspace from earlier turns in this conversation expired and has been replaced with an empty one.
+- Any file you created earlier with write, edit, or bash is gone, along with installed packages and all process state.
+- "/workspace/tool_calls" has been restored in full from the conversation history, so results of earlier successful tool calls are still readable there. Failed tool calls were never stored.
+- Do not assume a path exists because you created it earlier in this conversation. Read it first, and recreate what you still need.
+</sandbox_workspace_reset>`;
+
 // Adaptive thinking is the default for every Claude model so new generations
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
@@ -171,7 +190,7 @@ type CreateAgUiStreamOptions = {
     url: string;
     publicKey: string;
     secretKey: string;
-    userAccess: InAppAgentUserAccess;
+    toolPolicy: InAppAgentToolPolicy;
     runOverride?: string;
   };
   redirectAction: {
@@ -182,6 +201,8 @@ type CreateAgUiStreamOptions = {
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
   sandbox?: InAppAgentSandbox;
+  /** Adds a run instruction telling the model its earlier workspace files are gone. */
+  sandboxWorkspaceWasReset?: boolean;
 };
 
 export async function createAgUiStream(params: {
@@ -498,14 +519,24 @@ export async function createAgUiStream(params: {
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
           currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
 
+          // Drop a one-off override after its call; standing grants remain in the policy.
+          const oneOffApprovedToolName =
+            forwardedProps?.command?.resume?.approved === true
+              ? getInAppAgentRegistryToolName(
+                  forwardedProps.command.resume.approvalRequest?.toolName,
+                )
+              : undefined;
+
           if (
-            forwardedProps?.command?.resume?.approved === true &&
-            params.options.langfuseMcp.runOverride
+            oneOffApprovedToolName &&
+            params.options.langfuseMcp.runOverride &&
+            !params.options.langfuseMcp.toolPolicy.autoApproved.has(
+              oneOffApprovedToolName,
+            )
           ) {
-            // The override is intentionally single-use: execute the approved
-            // mutating MCP tool with the first client, then rebuild the MCP
-            // client without the override so the continuation returns to the
-            // normal read-only in-app-agent policy.
+            const standingAllowedToolNames = getInAppAgentMcpAllowedToolNames(
+              params.options.langfuseMcp.toolPolicy,
+            );
 
             await currentAdapter.cleanup();
 
@@ -517,7 +548,12 @@ export async function createAgUiStream(params: {
                 ...params.options,
                 langfuseMcp: {
                   ...params.options.langfuseMcp,
-                  runOverride: undefined,
+                  runOverride:
+                    standingAllowedToolNames.length > 0
+                      ? await createInAppAgentMcpRunOverride({
+                          toolNames: standingAllowedToolNames,
+                        })
+                      : undefined,
                 },
               },
               awsProfile,
@@ -764,7 +800,31 @@ async function createMastraAdapter(params: {
   });
 
   try {
-    const { toolsets, errors } = await mcpClient.listToolsetsWithErrors();
+    // Discovery costs one `public-api` rate limit point like any other MCP
+    // request, so a busy org can be rate limited before the run has a chance to
+    // call a single tool.
+    const { toolsets, errors } = await withMcpRateLimitWait({
+      signal: params.signal,
+      logContext: {
+        operation: "listToolsets",
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      },
+      fn: async () => {
+        const result = await mcpClient.listToolsetsWithErrors();
+
+        if (
+          result.errors.langfuse &&
+          parseMcpRateLimitError(result.errors.langfuse)
+        ) {
+          throw new Error(
+            `Failed to initialize Langfuse MCP: ${result.errors.langfuse}`,
+          );
+        }
+
+        return result;
+      },
+    });
 
     if (errors.langfuse) {
       throw new Error(`Failed to initialize Langfuse MCP: ${errors.langfuse}`);
@@ -782,31 +842,39 @@ async function createMastraAdapter(params: {
     // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
     // discovery, then prefix tool names for constructor-based tools so the
     // model sees the same names that later appear in AG-UI tool-call events.
-    const tools = withInAppAgentToolApproval({
-      ...withOptionalSilentMcpOutput({
-        tools: prefixToolsetTools(
-          "langfuse",
-          filterInAppAgentAvailableLangfuseMcpTools({
-            tools: toolsets.langfuse,
-            userAccess: params.options.langfuseMcp.userAccess,
+    const tools = withInAppAgentToolApproval(
+      {
+        ...withOptionalSilentMcpOutput({
+          tools: withLangfuseMcpRateLimitWait({
+            tools: prefixToolsetTools(
+              "langfuse",
+              filterInAppAgentAvailableLangfuseMcpTools({
+                tools: toolsets.langfuse,
+                policy: params.options.langfuseMcp.toolPolicy,
+              }),
+            ),
+            signal: params.signal,
+            runId: params.input.runId,
+            threadId: params.input.threadId,
           }),
-        ),
-        sandbox: params.options.sandbox,
-        onToolCallCompleted: params.options.onMcpToolCallCompleted,
-      }),
-      ...withOptionalSilentMcpOutput({
-        tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
-        sandbox: params.options.sandbox,
-        onToolCallCompleted: params.options.onMcpToolCallCompleted,
-      }),
-      [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
-        projectId: params.options.redirectAction.projectId,
-        isV4Enabled: params.options.redirectAction.isV4Enabled,
-      }),
-      ...(params.options.sandbox
-        ? createSandboxTools(params.options.sandbox)
-        : {}),
-    });
+          sandbox: params.options.sandbox,
+          onToolCallCompleted: params.options.onMcpToolCallCompleted,
+        }),
+        ...withOptionalSilentMcpOutput({
+          tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+          sandbox: params.options.sandbox,
+          onToolCallCompleted: params.options.onMcpToolCallCompleted,
+        }),
+        [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
+          projectId: params.options.redirectAction.projectId,
+          isV4Enabled: params.options.redirectAction.isV4Enabled,
+        }),
+        ...(params.options.sandbox
+          ? createSandboxTools(params.options.sandbox)
+          : {}),
+      },
+      params.options.langfuseMcp.toolPolicy,
+    );
     params.onToolsAvailable?.(tools);
 
     const reasoningProviderOptions = getBedrockReasoningProviderOptions(
@@ -829,9 +897,13 @@ async function createMastraAdapter(params: {
       ),
       skills: LANGFUSE_IN_APP_AGENT_SKILLS,
       tools,
+      maxRetries: 2,
       defaultOptions: {
         abortSignal: params.signal,
         maxSteps: MAX_AGENT_STEPS,
+        ...(params.options.sandboxWorkspaceWasReset
+          ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }
+          : {}),
         // Fires once per LLM call with that call's token usage; the AG-UI
         // event stream itself never carries usage.
         ...(params.onStepFinish ? { onStepFinish: params.onStepFinish } : {}),
@@ -919,6 +991,44 @@ function prefixToolsetTools<TTool>(
   );
 }
 
+function withLangfuseMcpRateLimitWait<TTool>(params: {
+  tools: Record<string, TTool>;
+  signal: AbortSignal;
+  runId: string;
+  threadId: string;
+}): Record<string, TTool> {
+  return Object.fromEntries(
+    Object.entries(params.tools).map(([toolName, tool]) => {
+      if (!hasCallableExecute(tool)) {
+        return [toolName, tool];
+      }
+
+      const execute = tool.execute.bind(tool) as (
+        inputData: unknown,
+        context: unknown,
+      ) => Promise<unknown>;
+
+      return [
+        toolName,
+        {
+          ...tool,
+          execute: (inputData: unknown, context: unknown) =>
+            withMcpRateLimitWait({
+              signal: params.signal,
+              logContext: {
+                operation: "tools/call",
+                toolName,
+                runId: params.runId,
+                threadId: params.threadId,
+              },
+              fn: () => execute(inputData, context),
+            }),
+        } as TTool,
+      ];
+    }),
+  );
+}
+
 type MastraChunkProcessor = {
   handleChunk: (chunk: unknown) => boolean;
   flush: () => void;
@@ -960,11 +1070,10 @@ type MastraApprovalStreamChunk = {
 // those tools and the bridge has no case for it, so approvals would never
 // surface as on_interrupt events. Map approvals onto the suspend protocol.
 // Non-background tool-error chunks are likewise swallowed by the bridge, so
-// convert them to tool results carrying the error message as content. Note:
-// the bridge emits TOOL_CALL_RESULT without a top-level `error` field, so the
-// failure renders with the error message in the result body but a "succeeded"
-// status; the model is unaffected (Mastra's loop feeds it the real error).
-// Status fidelity is tracked as a follow-up.
+// convert them to tool results carrying a structured failure payload. The
+// bridge still emits TOOL_CALL_RESULT without a top-level `error` field;
+// normalizeAdapterEvent stamps that field from the structured payload so
+// instrumentation and persistence see an explicit failure.
 export function patchMastraApprovalChunks(adapter: MastraAgent) {
   const patchableAdapter = adapter as unknown as PatchableMastraAgent;
   const createChunkProcessor = patchableAdapter.createChunkProcessor;
@@ -1039,8 +1148,12 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
               isError: true,
               // Raw object, not pre-stringified: the bridge JSON-stringifies
               // payload.result into the event content, so a string here would
-              // double-encode.
-              result: { error: getToolErrorMessage(mastraChunk) },
+              // double-encode. Keep the same {error:true,message} shape used
+              // by schema-validation failures so detection stays structured.
+              result: {
+                error: true,
+                message: getToolErrorMessage(mastraChunk),
+              },
             },
           });
         }
@@ -1135,6 +1248,19 @@ function normalizeAdapterEvent(
         ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
       },
     ];
+  }
+
+  if (event.type === EventType.TOOL_CALL_RESULT) {
+    // Never overwrite an existing top-level error (e.g. JSON-encoded approval
+    // rejections). Only stamp when the bridge omitted the field entirely.
+    if (typeof event.error === "string" && event.error.trim()) {
+      return [event];
+    }
+
+    const failureMessage = getToolFailureMessage(undefined, event.content);
+    if (failureMessage) {
+      return [{ ...event, error: failureMessage }];
+    }
   }
 
   return [event];

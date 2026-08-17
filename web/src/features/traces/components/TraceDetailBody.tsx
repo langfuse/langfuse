@@ -16,10 +16,13 @@ export function TraceDetailBody({
   trace,
   context,
   keySuffix,
+  truncatedAtObservations,
 }: {
   trace: TraceDetailData | undefined;
   context: "peek" | "fullscreen" | "annotation";
   keySuffix?: string;
+  /** Observation cap this trace was loaded under, when it hit it. */
+  truncatedAtObservations?: number;
 }) {
   if (!trace) return <Skeleton className="h-full w-full rounded-none" />;
   return (
@@ -31,6 +34,7 @@ export function TraceDetailBody({
       projectId={trace.projectId}
       observations={trace.observations}
       context={context}
+      truncatedAtObservations={truncatedAtObservations}
     />
   );
 }

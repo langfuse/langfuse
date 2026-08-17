@@ -136,15 +136,14 @@ const formatClaudeSettings = () =>
 const formatCursorEnvironment = () =>
   JSON.stringify(
     {
+      $schema: "https://www.cursor.com/schemas/environment.schema.json",
+      name: config.cursor.environment.name,
+      user: config.cursor.environment.user,
+      build: config.cursor.environment.build,
+      install: config.cursor.environment.install ?? config.shared.setupScript,
+      start: config.cursor.environment.start,
+      ports: config.cursor.environment.ports,
       agentCanUpdateSnapshot: config.cursor.environment.agentCanUpdateSnapshot,
-      install: config.shared.setupScript,
-      terminals: [
-        {
-          name: "Development Terminal",
-          command: config.shared.devCommand,
-          description: config.shared.devTerminalDescription,
-        },
-      ],
     },
     null,
     2,

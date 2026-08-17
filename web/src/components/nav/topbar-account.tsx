@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { cn } from "@/src/utils/tailwind";
 
 /**
@@ -27,6 +28,7 @@ import { cn } from "@/src/utils/tailwind";
  */
 export const TopbarAccount = ({ className }: { className?: string }) => {
   const session = useSession();
+  const showV4Migration = useV4UpgradeUiFlag();
   const user = session.data?.user;
 
   if (!user) return null;
@@ -75,6 +77,11 @@ export const TopbarAccount = ({ className }: { className?: string }) => {
         <DropdownMenuItem asChild>
           <Link href="/account/settings">Account settings</Link>
         </DropdownMenuItem>
+        {showV4Migration ? (
+          <DropdownMenuItem asChild>
+            <Link href="/v4-migration">v4 Migration</Link>
+          </DropdownMenuItem>
+        ) : null}
         {/* ThemeToggle stops propagation itself; keep the row from closing the
             menu so the user can flip themes and keep the menu open. */}
         <DropdownMenuItem onSelect={(e) => e.preventDefault()}>

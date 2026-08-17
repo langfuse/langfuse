@@ -14,6 +14,7 @@ import {
   useCanUseInAppAgent,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
@@ -26,6 +27,10 @@ type EvaluatorMigrationDialogProps = {
   assistantPrompt: string;
   onManualUpgrade: () => void;
   onAssistantStarted: () => void;
+  /** Opens the dialog with this action already selected, skipping the
+   *  choice screen. Only honored while AI features are enabled — otherwise
+   *  the choice screen keeps owning the enable-AI and admin-handoff flows. */
+  initialAction?: SelectedMigrationAction;
 };
 
 type SelectedMigrationAction = "assistant";
@@ -40,6 +45,7 @@ export function EvaluatorMigrationDialog({
   assistantPrompt,
   onManualUpgrade,
   onAssistantStarted,
+  initialAction,
 }: EvaluatorMigrationDialogProps) {
   const canUseAssistant = useCanUseInAppAgent();
   const { organization } = useQueryProjectOrOrganization();
@@ -55,7 +61,16 @@ export function EvaluatorMigrationDialog({
   const aiFeaturesEnabled = Boolean(organization?.aiFeaturesEnabled);
   const isSingleEvaluator = scope.type === "single";
   const showAssistantOption = canUseAssistant;
+  // With AI features disabled, the choice screen's assistant option owns the
+  // enable-AI and admin-handoff side effects, so the preselect only applies
+  // once the assistant can actually start.
+  const effectiveAction =
+    selectedAction ??
+    (initialAction === "assistant" && showAssistantOption && aiFeaturesEnabled
+      ? "assistant"
+      : null);
 
+  const capture = usePostHogClientCapture();
   const startAssistant = async () => {
     const opened = openAssistant("v4_migration");
     if (!opened) return;
@@ -79,10 +94,11 @@ export function EvaluatorMigrationDialog({
   };
 
   const handleManualClick = () => {
-    if (isSingleEvaluator) {
-      onManualUpgrade();
-      return;
-    }
+    // The assistant branch is covered by in_app_agent:new_chat_started
+    // (entryPoint "v4_migration"); this event completes the funnel fork.
+    capture("v4_migration:evals_manual_upgrade_clicked", {
+      scope: isSingleEvaluator ? "single" : "bulk",
+    });
     onManualUpgrade();
   };
 
@@ -105,7 +121,7 @@ export function EvaluatorMigrationDialog({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedAction === "assistant"
+              {effectiveAction === "assistant"
                 ? "Ready to start your evaluator upgrade?"
                 : isSingleEvaluator
                   ? "How would you like to upgrade this evaluator?"
@@ -113,7 +129,7 @@ export function EvaluatorMigrationDialog({
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="gap-3">
-            {selectedAction === "assistant" ? (
+            {effectiveAction === "assistant" ? (
               <p className="text-muted-foreground text-sm">
                 {aiFeaturesEnabled
                   ? "The Assistant will review your deprecated evaluators and suggest upgrading all of them at once."
@@ -155,9 +171,8 @@ export function EvaluatorMigrationDialog({
                         "Open the evaluator upgrade form."
                       ) : (
                         <>
-                          Click evaluators with the Deprecated label to review{" "}
-                          <br />
-                          them and start each upgrade individually.
+                          Click the Upgrade now button on an evaluator to <br />
+                          review it and start each upgrade individually.
                         </>
                       )}
                     </span>
@@ -166,17 +181,21 @@ export function EvaluatorMigrationDialog({
               </>
             )}
           </DialogBody>
-          {selectedAction ? (
+          {effectiveAction ? (
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setSelectedAction(null);
-                }}
-              >
-                Back
-              </Button>
+              {/* Back returns to the choice screen; when the dialog opened
+                  preselected there is no choice screen to go back to. */}
+              {selectedAction ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedAction(null);
+                  }}
+                >
+                  Back
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 onClick={startAssistant}

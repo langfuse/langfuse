@@ -59,6 +59,14 @@ interface ProcessingNode {
 }
 
 /**
+ * Id of the synthetic TRACE node (v3 traces wrap their observations in one).
+ * Selection state travels as a plain node id, so consumers need to recognise the
+ * trace node from the id alone — without a nodeMap lookup that a capped
+ * observation list can fail.
+ */
+export const traceNodeId = (traceId: string) => `trace-${traceId}`;
+
+/**
  * Returns observation levels at or above the minimum level.
  */
 export function getObservationLevels(
@@ -421,7 +429,7 @@ function buildTraceTree(
 
     // Traditional traces: return TRACE node with no children
     const emptyTree: TreeNode = {
-      id: `trace-${trace.id}`,
+      id: traceNodeId(trace.id),
       type: "TRACE",
       name: trace.name ?? "",
       startTime: trace.timestamp,
@@ -499,7 +507,7 @@ function buildTraceTree(
 
   // Create trace root node
   const traceNode: TreeNode = {
-    id: `trace-${trace.id}`,
+    id: traceNodeId(trace.id),
     type: "TRACE",
     name: trace.name ?? "",
     startTime: trace.timestamp,

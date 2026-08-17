@@ -24,6 +24,7 @@ import {
   normalizeToolMetadataForObservation,
   normalizeEnvironment,
   DEFAULT_TRACE_ENVIRONMENT,
+  LangfuseInternalTraceEnvironment,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -2253,7 +2254,46 @@ export class OtelIngestionProcessor {
       }
     }
 
+    const openRouterEnvironment =
+      this.extractOpenRouterFailedRequestEnvironment(
+        attributes,
+        resourceAttributes,
+      );
+    if (openRouterEnvironment) {
+      return normalizeEnvironment(openRouterEnvironment);
+    }
+
     return DEFAULT_TRACE_ENVIRONMENT;
+  }
+
+  private extractOpenRouterFailedRequestEnvironment(
+    attributes: Record<string, unknown>,
+    resourceAttributes: Record<string, unknown>,
+  ): LangfuseInternalTraceEnvironment.LLMJudge | undefined {
+    if (
+      resourceAttributes["service.name"] !== "openrouter" ||
+      attributes["openrouter.source"] !== "openrouter"
+    ) {
+      return undefined;
+    }
+
+    const completion = this.parseJsonPayload(attributes["gen_ai.completion"]);
+    if (
+      !OtelIngestionProcessor.isPlainObject(completion) ||
+      completion.completion !== null ||
+      !OtelIngestionProcessor.isPlainObject(completion.rawRequest) ||
+      !OtelIngestionProcessor.isPlainObject(completion.rawRequest.trace)
+    ) {
+      return undefined;
+    }
+
+    // OpenRouter Broadcast can omit custom trace metadata when a request fails,
+    // but echoes the original request here. Recover only our reserved evaluator
+    // marker so failed judge calls cannot be scheduled as fresh evaluations.
+    return completion.rawRequest.trace.environment ===
+      LangfuseInternalTraceEnvironment.LLMJudge
+      ? LangfuseInternalTraceEnvironment.LLMJudge
+      : undefined;
   }
 
   private extractName(
@@ -2841,6 +2881,7 @@ export class OtelIngestionProcessor {
       rawUsageDetails["total_tokens"] ?? rawUsageDetails["total"];
     const cacheReadTokens =
       rawUsageDetails["cache_read.input_tokens"] ??
+      rawUsageDetails["cache_read_input_tokens"] ??
       rawUsageDetails["cache_read_tokens"] ??
       rawUsageDetails["details.cache_read_tokens"] ??
       rawUsageDetails["details.cache_read_input_tokens"] ??
@@ -2848,6 +2889,7 @@ export class OtelIngestionProcessor {
       rawUsageDetails["input_cached_tokens"];
     const cacheCreationTokens =
       rawUsageDetails["cache_creation.input_tokens"] ??
+      rawUsageDetails["cache_creation_input_tokens"] ??
       rawUsageDetails["cache_write_tokens"] ??
       rawUsageDetails["details.cache_write_tokens"] ??
       rawUsageDetails["details.cache_creation_input_tokens"] ??
@@ -2873,12 +2915,14 @@ export class OtelIngestionProcessor {
             "total_tokens",
             "total",
             "cache_read.input_tokens",
+            "cache_read_input_tokens",
             "cache_read_tokens",
             "details.cache_read_tokens",
             "details.cache_read_input_tokens",
             "prompt_details.cache_read",
             "input_cached_tokens",
             "cache_creation.input_tokens",
+            "cache_creation_input_tokens",
             "cache_write_tokens",
             "details.cache_write_tokens",
             "details.cache_creation_input_tokens",

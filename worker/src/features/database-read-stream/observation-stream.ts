@@ -29,6 +29,7 @@ import {
   eventsTracesScoresAggregation,
   toLevelAgnosticScoreFilter,
   scoreBooleansAggregation,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -53,6 +54,7 @@ type ObservationStreamProps = {
   // BatchExportQuerySchema). When true, read from the ClickHouse events table
   // instead of the legacy observations/traces tables.
   useEventsTable?: boolean;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 export const getObservationStream = async (
@@ -106,6 +108,7 @@ export const getObservationStream = async (
       return filter.column === "Start Time" && filter.type === "datetime";
     },
     clickhouseConfigs,
+    preferredClickhouseService: props.preferredClickhouseService,
   });
 
   const scoresFilter = new FilterList([
@@ -280,6 +283,7 @@ export const getObservationStream = async (
     },
     clickhouseConfigs,
     tags: { projectId },
+    preferredClickhouseService: props.preferredClickhouseService,
   });
 
   // Helper function to process a single observation row
@@ -482,6 +486,8 @@ const getObservationStreamFromEvents = async (
     ): filterItem is TimeFilter =>
       filterItem.column === "Start Time" && filterItem.type === "datetime",
     clickhouseConfigs,
+    // Same service as the values read below: a missing name is silently dropped.
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(

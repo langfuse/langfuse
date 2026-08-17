@@ -31,7 +31,12 @@ const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
   }
 
   return (
-    <TraceDetailBody trace={trace.data} context="peek" keySuffix={peekId} />
+    <TraceDetailBody
+      trace={trace.data}
+      context="peek"
+      keySuffix={peekId}
+      truncatedAtObservations={trace.truncatedAtObservations}
+    />
   );
 };
 

@@ -2,6 +2,7 @@ import { EvalTemplateType } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
+  deleteJobConfigurationWithExecutions,
   deleteEvalTemplatesByIds,
   findDefaultModelEvalTemplateIds,
   findEvalTemplateById,
@@ -103,6 +104,41 @@ describe("evaluatorRepository", () => {
       expect(ids).toContain(dependentTemplate.id);
       expect(ids).not.toContain(templateWithOwnModel.id);
       expect(ids).not.toContain(codeTemplate.id);
+    });
+  });
+
+  describe("deleteJobConfigurationWithExecutions", () => {
+    it("deletes executions before deleting their job configuration", async () => {
+      const project = await prepareProject();
+      const template = await createTemplate({
+        projectId: project.id,
+        name: "delete-config-with-executions",
+      });
+      const config = await createJobConfiguration({
+        projectId: project.id,
+        evalTemplateId: template.id,
+        scoreName: "delete-config-with-executions",
+      });
+      const execution = await prisma.jobExecution.create({
+        data: {
+          projectId: project.id,
+          jobConfigurationId: config.id,
+          status: "PENDING",
+        },
+      });
+
+      await deleteJobConfigurationWithExecutions({
+        prisma,
+        projectId: project.id,
+        jobConfigurationId: config.id,
+      });
+
+      await expect(
+        prisma.jobExecution.findUnique({ where: { id: execution.id } }),
+      ).resolves.toBeNull();
+      await expect(
+        prisma.jobConfiguration.findUnique({ where: { id: config.id } }),
+      ).resolves.toBeNull();
     });
   });
 

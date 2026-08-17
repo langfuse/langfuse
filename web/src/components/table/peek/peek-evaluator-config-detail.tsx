@@ -9,7 +9,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { V4MigrationEvaluatorUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
@@ -117,13 +116,6 @@ const PeekViewEvaluatorConfigDetail = ({
           />
         </div>
       </div>
-
-      {evaluatorRequiresMigration && evalConfig.evalTemplate && (
-        <V4MigrationEvaluatorUpdateRequiredBadge
-          projectId={projectId}
-          evaluatorId={evalConfig.id}
-        />
-      )}
 
       <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />
 

@@ -5,7 +5,6 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { Separator } from "@/src/components/ui/separator";
 import {
   V4MigrationHeaderContent,
   V4MigrationDetailsContent,
@@ -18,7 +17,7 @@ import { api } from "@/src/utils/api";
 // use deprecated features (currently Evals) and opens on arrival.
 export function V4MigrationModal() {
   const { project } = useQueryProject();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const traceLevelEvalSummary = api.v4Transition.traceLevelEvalSummary.useQuery(
     { projectId: project?.id ?? "" },
     {
@@ -55,19 +54,14 @@ function V4MigrationModalContent({
         overlayClassName="backdrop-blur-sm"
         closeOnInteractionOutside
       >
-        <DialogTitle className="sr-only">
-          {`Upgrade ${project.name} to v4`}
-        </DialogTitle>
+        <DialogTitle className="sr-only">Upgrade to v4</DialogTitle>
         <DialogBody className="gap-0 p-4">
           <V4MigrationHeaderContent
-            projectName={project.name}
-            projectId={project.id}
-            onNavigate={() => setOpen(false)}
             // Clear the dialog's floating fallback close button (top-right).
             titleRowClassName="pr-6"
+            readiness="action-needed"
           />
-          <Separator className="my-6" />
-          <div className="flex flex-col gap-6">
+          <div className="mt-6 flex flex-col gap-6">
             <V4MigrationDetailsContent
               onNavigate={() => setOpen(false)}
               projectId={project.id}
