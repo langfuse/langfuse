@@ -34,7 +34,7 @@ const maybeDescribe =
     ? describe
     : describe.skip;
 
-// LFE-10895: legacy (v3-data-model) endpoints attach a top-level `_deprecation`
+// Legacy (v3-data-model) endpoints attach a top-level `_deprecation`
 // object so coding agents get a self-correcting migration signal.
 maybeDescribe("public API deprecation signal", () => {
   let auth: string;

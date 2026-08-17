@@ -1,6 +1,6 @@
 types:
   # Migration signal attached as the top-level `_deprecation` key on responses
-  # from deprecated (legacy, pre-v4-data-model) endpoints. See LFE-10895.
+  # from deprecated (legacy, pre-v4-data-model) endpoints.
   Deprecation:
     docs: Migration signal returned by deprecated endpoints. Optional fields are omitted when they have no value.
     properties:

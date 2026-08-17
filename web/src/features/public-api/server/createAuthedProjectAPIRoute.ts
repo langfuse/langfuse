@@ -86,7 +86,7 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
-  /** Stamps a top-level `_deprecation` object onto responses (LFE-10895). */
+  /** Stamps a top-level `_deprecation` object onto responses. */
   deprecation?: ApiDeprecationInfo;
   fn: (params: {
     query: z.infer<TQuery>;
