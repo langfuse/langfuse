@@ -264,16 +264,28 @@ describe("scoreChartConfigToWidgetInput", () => {
     );
   });
 
-  it("maps the categorical dataset to the scores-categorical view and excludes TEXT", () => {
+  // The scores-categorical view's own segment already scopes to CATEGORICAL
+  // only, so no additive filter is needed (or added) here — unlike the
+  // numeric dataset, which needs one to exclude boolean scores.
+  it("maps the categorical dataset to the scores-categorical view without adding a redundant filter", () => {
     const input = build({ dataset: "categorical" });
     expect(input.view).toBe("scores-categorical");
+    expect(input.filters).toEqual([]);
+  });
+
+  // Regression: appending a dataset-scoping filter without checking for an
+  // existing one could AND two contradictory dataType filters together
+  // (e.g. the table already filtered to BOOLEAN) and always return zero
+  // rows. The numeric filter must replace, not add to, an existing one.
+  it("replaces an existing dataType filter instead of ANDing a contradictory one", () => {
+    const input = scoreChartConfigToWidgetInput({
+      config: { ...DEFAULT_SCORE_CHART_CONFIG, dataset: "numeric" },
+      filters: [
+        { column: "dataType", operator: "=", value: "BOOLEAN", type: "string" },
+      ],
+    });
     expect(input.filters).toEqual([
-      {
-        column: "dataType",
-        operator: "=",
-        value: "CATEGORICAL",
-        type: "string",
-      },
+      { column: "dataType", operator: "=", value: "NUMERIC", type: "string" },
     ]);
   });
 });

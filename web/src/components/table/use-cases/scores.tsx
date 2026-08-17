@@ -1,3 +1,4 @@
+import { type ViewVersion } from "@langfuse/shared/query";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -171,6 +172,11 @@ export default function ScoresTable({
   const { isBetaEnabled } = useV4Beta();
   // In v4beta, scores must exclusively use events-backed endpoints (no traces-table route).
   const useEventsBackedScores = isBetaEnabled;
+  // Same derivation `WidgetForm.tsx`/`ChartScores` use (`activeVersion`/
+  // `metricsVersion`) — the chart/outlier strip must read the same version
+  // as the table's own data, or a non-beta project's trace/observation
+  // breakdown would run against the events-backed view and come back empty.
+  const chartViewVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
@@ -226,7 +232,11 @@ export default function ScoresTable({
     closePeek: closeScorePeek,
     expandPeek: expandScorePeek,
   } = usePeekNavigation({
-    queryParams: ["observation", "display", "timestamp"],
+    // A stale `traceId` can already be in the URL (e.g. a v4-dialect shared
+    // link, LFE-11041); listing it clears it on open/navigate/close so it
+    // can't pin the peek to that trace instead of the one just clicked —
+    // matches the same guard `traces.tsx`/`EventsTable.tsx` already have.
+    queryParams: ["observation", "display", "timestamp", "traceId"],
     extractParamsValuesFromRow: (
       row: ScoresTableRow,
     ): Record<string, string> =>
@@ -1145,6 +1155,7 @@ export default function ScoresTable({
                 fromTimestamp={chartTimeRange.from}
                 toTimestamp={chartTimeRange.to}
                 onSelectRange={setScoresTimeRangeTransient}
+                viewVersion={chartViewVersion}
               />
             )}
             {chartActive && chartTimeRange ? (
@@ -1154,6 +1165,7 @@ export default function ScoresTable({
                 fromTimestamp={chartTimeRange.from}
                 toTimestamp={chartTimeRange.to}
                 config={chartConfig}
+                viewVersion={chartViewVersion}
                 onConfigChange={setChartConfig}
               />
             ) : (

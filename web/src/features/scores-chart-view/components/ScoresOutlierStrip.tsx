@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
+import { type ViewVersion } from "@langfuse/shared/query";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
@@ -57,12 +58,15 @@ export function ScoresOutlierStrip({
   fromTimestamp,
   toTimestamp,
   onSelectRange,
+  viewVersion,
 }: {
   projectId: string;
   filterState: FilterState;
   fromTimestamp: Date;
   toTimestamp: Date;
   onSelectRange: (range: { from: Date; to: Date }) => void;
+  /** Must match the caller's own `isBetaEnabled` check — see `ScoresChartView`'s doc comment. */
+  viewVersion: ViewVersion;
 }) {
   const capture = usePostHogClientCapture();
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
@@ -134,7 +138,7 @@ export function ScoresOutlierStrip({
   );
 
   const numericQueryResult = api.dashboard.executeQuery.useQuery(
-    { projectId, query: numericQuery, version: "v2" },
+    { projectId, query: numericQuery, version: viewVersion },
     {
       enabled: validRange && width > 0 && canApplyFilters,
       // Keep the previous bins ONLY across same-grid refetches — a
@@ -160,7 +164,7 @@ export function ScoresOutlierStrip({
   );
 
   const stringQueryResult = api.dashboard.executeQuery.useQuery(
-    { projectId, query: stringQuery, version: "v2" },
+    { projectId, query: stringQuery, version: viewVersion },
     {
       enabled: validRange && width > 0 && canApplyFilters && queryStringScores,
       meta: { silentHttpCodes: [422] },

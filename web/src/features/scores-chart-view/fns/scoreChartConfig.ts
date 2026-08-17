@@ -152,29 +152,22 @@ export const describeScoreChartConfig = (
 const CATEGORICAL_ROW_LIMIT = 20;
 
 /**
- * `scores-categorical` also carries TEXT scores (free text has no numeric
- * value either), but `CategoricalScoreChart` — the existing dashboard
- * widget this dataset mirrors — explicitly scopes to `dataType = CATEGORICAL`
- * rather than relying on the view's segment, because free text is close to
- * unique per row and doesn't group into a meaningful distribution. Match
- * that here so query building and the widget export stay in lockstep.
- */
-export const CATEGORICAL_DATA_TYPE_FILTER = {
-  column: "dataType",
-  operator: "=" as const,
-  value: "CATEGORICAL",
-  type: "string" as const,
-};
-
-/**
  * `scores-numeric` also carries BOOLEAN scores (its segment allow-lists both
  * NUMERIC and BOOLEAN — the existing "Scores" dashboard widgets rely on that
  * to show numeric-like scores together). That's fine when boolean has no
  * dataset of its own, but this feature also offers a dedicated "boolean"
- * dataset, so leaving "numeric" unscoped would silently double-count/mix in
- * boolean 0/1 values whenever both types exist and no data-type filter is
- * active. Scope it explicitly, same mechanism as the categorical filter
- * above.
+ * dataset, so leaving "numeric" unscoped would silently mix in boolean 0/1
+ * values whenever both types exist and no data-type filter is active.
+ *
+ * `scores-boolean` and `scores-categorical` need no such override — their own
+ * view segments already scope to exactly BOOLEAN and CATEGORICAL respectively
+ * (see `packages/shared/src/features/query/dataModel.ts`), so appending a
+ * second, redundant `dataType` filter here would only risk contradicting a
+ * `dataType` filter the user already set on the table (e.g. filtering to
+ * BOOLEAN while viewing the numeric chart would AND `dataType = NUMERIC`
+ * with `dataType = BOOLEAN` and return nothing). `withNumericDataTypeFilter`
+ * below strips any incoming `dataType` filter before adding NUMERIC's, so
+ * the two can never collide.
  */
 const NUMERIC_DATA_TYPE_FILTER = {
   column: "dataType",
@@ -183,14 +176,16 @@ const NUMERIC_DATA_TYPE_FILTER = {
   type: "string" as const,
 };
 
-const DATASET_DATA_TYPE_FILTER: Record<
-  ScoreChartDataset,
-  { column: string; operator: "="; value: string; type: "string" } | null
-> = {
-  numeric: NUMERIC_DATA_TYPE_FILTER,
-  boolean: null, // scores-boolean's own segment is already BOOLEAN-only.
-  categorical: CATEGORICAL_DATA_TYPE_FILTER,
-};
+const scopeFiltersToDataset = (
+  filters: FilterState,
+  dataset: ScoreChartDataset,
+): FilterState =>
+  dataset === "numeric"
+    ? [
+        ...filters.filter((f) => f.column !== "dataType"),
+        NUMERIC_DATA_TYPE_FILTER,
+      ]
+    : filters;
 
 /**
  * Builds the dashboard `QueryType` for a scores chart-view config. Mirrors
@@ -230,9 +225,7 @@ export function buildScoresChartQuery({
     view: VIEW_BY_DATASET[config.dataset],
     dimensions,
     metrics: [{ measure: metric.measure, aggregation: config.aggregation }],
-    filters: DATASET_DATA_TYPE_FILTER[config.dataset]
-      ? [...filters, DATASET_DATA_TYPE_FILTER[config.dataset]!]
-      : filters,
+    filters: scopeFiltersToDataset(filters, config.dataset),
     timeDimension: isTimeSeries ? { granularity: "auto" } : null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -345,9 +338,7 @@ export function scoreChartConfigToWidgetInput({
     metrics,
     // Matches `buildScoresChartQuery`'s per-dataset data-type scoping so
     // "Add to dashboard" saves the same scope the chart showed.
-    filters: DATASET_DATA_TYPE_FILTER[config.dataset]
-      ? [...filters, DATASET_DATA_TYPE_FILTER[config.dataset]!]
-      : filters,
+    filters: scopeFiltersToDataset(filters, config.dataset),
     chartType: config.chartType,
     chartConfig,
   };
