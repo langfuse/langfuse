@@ -68,67 +68,36 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   DB connectivity dead, see below). Whichever run gets BOTH a working
   Actions API AND live DB connectivity should verify this immediately.
 
-## 2026-08-03/08-06 (runs 12-14) — three consecutive fully-blocked runs, condensed
+## 2026-08-03 through 2026-08-17 (runs 12-17) — six consecutive fully-blocked
+   runs across five calendar days, condensed
 
-- Both hard blockers below first appeared here: `actions_list`/`actions_get`
-  (all methods, incl. plain `list_workflows`) filtered by secrecy policy on
-  every call across all three runs, and `dns.lookup('host.docker.internal')`
-  failing `EAI_AGAIN` despite `/tmp/gh-aw/db-stack-ready` existing, both
-  runs on 08-06 (including one at a HEAD that specifically claimed to fix
-  the DIFC secrecy issue — did not help). `npx`, `search_pull_requests`,
-  and `missing_tool`/`missing_data` all confirmed working throughout — the
-  block is scoped to Actions API + DB reachability, not general sandbox
-  breakage. Recommended a human check the guard-policy/DIFC config and the
-  dev-stack DNS entry directly. Zero fresh data any of the three runs; last
-  real numbers stayed at `history/2026-W31-partial-0731.json` (2026-07-31).
-
-## 2026-08-10 (run 15) — fourth consecutive fully-blocked run, both blockers unchanged
-
-- **`actions_list` still filtered**, identical error text, on
-  `list_workflow_runs` (event=merge_group/completed) AND plain
-  `list_workflows` — confirms this is a blanket resource-level block, not
-  argument-specific. **DB connectivity still `EAI_AGAIN`** on
-  `host.docker.internal` despite `/tmp/gh-aw/db-stack-ready` present.
-  `npx --version` (11.16.0) fine; `search_pull_requests` fine (ledger
-  reconfirmed empty, `total_count: 0`); no `ci-perf/*` remote branches
-  exist. This is now **4 blocked runs across 3 separate calendar days
-  (08-03, 08-06 x2, 08-10) spanning a full week** with zero change in
-  symptom — this is a standing infra/guard-policy misconfiguration, not
-  transient flakiness, and no further autonomous run can make progress on
-  timing analysis, vitest-log mining, or verifying the standing
-  `score-comparison-analytics.servertest.ts` candidate fix until a human
-  fixes at least one of the two blockers. Last real numbers now 10 days
-  stale (`history/2026-W31-partial-0731.json`, 2026-07-31); the current
-  trailing-7-day window (08-04..08-10) has zero computable data points.
-  Filed `missing_tool` (Actions API) + `missing_data` (DB connectivity) +
-  `noop` (full report) this run.
-
-## 2026-08-10 (run 16) — fifth consecutive fully-blocked run, both blockers unchanged
-
-- Re-ran the same two checks independently this run (not reused from run 15):
-  `actions_list.list_workflow_runs` (event=merge_group/completed) still
-  returns the identical secrecy-policy filter error, and a fresh
-  `actions_get.get_workflow` call on `pipeline.yml` hits the same filter —
-  confirms the block covers `actions_get` too, not just `actions_list`.
-  `node dns.lookup('host.docker.internal')` still `EAI_AGAIN`, immediately
-  after re-confirming `/tmp/gh-aw/db-stack-ready` exists and that
-  `web/../.env` DATABASE_URL/CLICKHOUSE_URL/REDIS_HOST are correctly
-  pointed at `host.docker.internal` (not a config error on our side — the
-  recipe is right, the DNS entry just isn't resolving in this sandbox).
-  Tried two additional distinct workarounds this run, both blocked at the
-  policy/permission layer rather than failing functionally:
-  `cat /etc/hosts` (sandboxed to the repo working dir only) and `WebFetch`
-  of the public `https://github.com/***REDACTED***/***REDACTED***/actions/workflows/pipeline.yml`
-  page (denied — no permission grant available in this headless run).
-  `search_pull_requests` still fine (ledger reconfirmed empty,
-  `total_count: 0`). This is **5 blocked runs across 4 separate calendar
-  days (08-03, 08-06 x2, 08-10, 08-10) spanning more than a week** — the
-  standing infra/guard-policy misconfiguration from run 15 has not been
-  fixed. Filed `missing_tool` (Actions API, now confirmed to cover both
-  `actions_list` and `actions_get`) + `missing_data` (DB connectivity) +
-  `noop` (full report) again this run. Last real numbers still 10 days
-  stale (`history/2026-W31-partial-0731.json`, 2026-07-31); trailing-7-day
-  window (08-04..08-10) still has zero computable data points.
+- Both hard blockers first appeared 08-03 and have been independently
+  re-confirmed every run since with zero change in symptom:
+  `actions_list`/`actions_get` (every method, incl. plain `list_workflows`
+  and `get_workflow`) filtered by secrecy policy on every call
+  ("not authorized to access private-scoped data"); `dns.lookup
+  ('host.docker.internal')` fails `EAI_AGAIN` despite
+  `/tmp/gh-aw/db-stack-ready` always present (confirmed not a `.env`
+  misconfig — DATABASE_URL/CLICKHOUSE_URL/REDIS_HOST already point at
+  `host.docker.internal` correctly; the DNS entry itself just doesn't
+  resolve in-sandbox). `npx` and `search_pull_requests` confirmed working
+  every run (ledger reconfirmed empty, `total_count: 0`, matches
+  `prs.json`) — the block is scoped to Actions API + DB reachability, not
+  general sandbox breakage.
+- Workarounds tried and exhausted (all policy-denied, not functionally
+  broken — don't re-try): `cat /etc/hosts` (sandboxed to repo working dir
+  only), `WebFetch` of the public pipeline.yml workflow page (no
+  permission grant in headless runs). A 08-06 HEAD that specifically
+  claimed to fix the DIFC secrecy issue did not help.
+- Net effect: zero fresh timing/vitest data for six straight runs. Last
+  real numbers frozen at `history/2026-W31-partial-0731.json` (2026-07-31)
+  — 17+ days stale as of 08-17. The standing
+  `score-comparison-analytics.servertest.ts` fix candidate (07-31 entry
+  above) remains unverified — needs a run with BOTH a working Actions API
+  AND live DB connectivity. Every run has filed `missing_tool` (Actions
+  API) + `missing_data` (DB connectivity) + `noop` (full report); a human
+  needs to check the guard-policy/DIFC config and the dev-stack DNS entry
+  directly — autonomous runs cannot self-diagnose further.
 
 ## Tooling notes (for future runs)
 
