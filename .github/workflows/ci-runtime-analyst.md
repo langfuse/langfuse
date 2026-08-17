@@ -67,7 +67,12 @@ engine:
 
 timeout-minutes: 60
 
-max-ai-credits: 3000
+# Bumped from 3000: with the Actions MCP tool actually working (rather than
+# being blocked by a secrecy-filter bug), a full weekly analysis run now
+# legitimately needs more headroom — a real run measured ~3100-3150 against
+# the old 3000 cap and was killed by "Maximum AI credits exceeded" before it
+# could finish or report anything useful.
+max-ai-credits: 4500
 
 # strict: false is required ONLY because sandbox.agent.args below is an
 # internal field. Strict mode is compile-time linting, not runtime
