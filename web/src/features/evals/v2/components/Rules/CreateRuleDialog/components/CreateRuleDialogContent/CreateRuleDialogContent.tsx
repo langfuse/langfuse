@@ -67,6 +67,7 @@ export function CreateRuleDialogContent({
             {
               evaluatorId: initialEvaluator.id,
               evaluatorName: initialEvaluator.name,
+              evaluatorType: initialEvaluator.type,
               defaultVariableMapping: initialEvaluator.defaultVariableMapping,
               variableMapping: initialEvaluator.initialVariableMapping,
             },
@@ -178,8 +179,7 @@ export function CreateRuleDialogContent({
           <DialogHeader>
             <DialogTitle>New rule</DialogTitle>
             <DialogDescription>
-              Define what data is evaluated, attach evaluators, then name the
-              rule.
+              Select which incoming observations should trigger evaluators.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>

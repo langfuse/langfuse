@@ -29,8 +29,8 @@ export function RuleFilterStep({
   return (
     <Stepper
       number={1}
-      title="Choose observations"
-      description="Filter incoming observations and preview what this rule will evaluate."
+      title="Configure rule scope"
+      description="Set filters and a sampling rate to control which incoming observations are evaluated."
     >
       <RuleSampleObservationSelector
         projectId={projectId}

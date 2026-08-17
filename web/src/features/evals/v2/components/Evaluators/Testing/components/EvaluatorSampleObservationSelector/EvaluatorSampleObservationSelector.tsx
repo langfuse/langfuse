@@ -91,8 +91,10 @@ export function EvaluatorSampleObservationSelector({
       filterDescription="Filter the observations to a representative sample for testing this evaluator."
       filterTooltip="These filters control which observations you can pick to test with."
       matchingDescription="Select an observation to test the evaluator and verify the variable mapping."
-      matchingTooltip="Observations matching the current filters and time range."
-      formatCount={(count) => `(${compactNumberFormatter(count)})`}
+      matchingTooltip="Observations matching the current filters and global time range."
+      formatCount={(count) =>
+        `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
+      }
       mapObservedOptions={preserveObservedOptions}
     />
   );

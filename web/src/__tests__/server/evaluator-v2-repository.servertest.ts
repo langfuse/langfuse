@@ -341,7 +341,10 @@ describe("evaluator v2 repository", () => {
     });
 
     it("returns limited matching options with their latest version", async () => {
-      const matching = await createEvaluator({ name: "Quality judge" });
+      const matching = await createEvaluator({
+        name: "Quality judge",
+        createdByUserId: creatorUserId,
+      });
       await Promise.all([
         createEvaluator({ name: "Unrelated" }),
         createEvaluator({
@@ -370,6 +373,11 @@ describe("evaluator v2 repository", () => {
         {
           id: matching.id,
           name: "Quality judge",
+          updatedAt: expect.any(Date),
+          createdByUser: {
+            name: "Evaluator creator",
+            email: expect.any(String),
+          },
           latestVersion: { version: 2 },
         },
       ]);

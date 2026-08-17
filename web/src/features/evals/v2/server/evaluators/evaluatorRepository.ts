@@ -144,6 +144,8 @@ export async function listEvaluatorOptions(params: {
       id: true,
       name: true,
       type: true,
+      updatedAt: true,
+      createdByUser: { select: { name: true, email: true } },
       blockedAt: true,
       versions: {
         orderBy: { version: "desc" },

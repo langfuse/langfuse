@@ -50,6 +50,7 @@ export function EditRuleDialogContent({
         return {
           evaluatorId: assignment.evaluator.id,
           evaluatorName: assignment.evaluator.name,
+          evaluatorType: assignment.evaluator.type,
           defaultVariableMapping: preparedDefault.defaultVariableMapping,
           variableMapping:
             assignment.variableMapping == null

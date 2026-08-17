@@ -1,5 +1,8 @@
 import { Check, ChevronDown, TriangleAlert, Unlink } from "lucide-react";
-import { type ObservationVariableMapping } from "@langfuse/shared";
+import type {
+  EvalTemplateType,
+  ObservationVariableMapping,
+} from "@langfuse/shared";
 import { useState } from "react";
 import { useStore } from "zustand";
 
@@ -18,12 +21,14 @@ import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 export function EvaluatorMappingRow({
   evaluatorId,
   evaluatorName,
+  evaluatorType,
   defaultVariableMapping,
   store,
   sampleObject,
 }: {
   evaluatorId: string;
   evaluatorName: string;
+  evaluatorType: EvalTemplateType;
   defaultVariableMapping: ObservationVariableMapping[];
   store: RuleSetupStore;
   sampleObject: Record<string, unknown> | null;
@@ -45,6 +50,7 @@ export function EvaluatorMappingRow({
     (state) => state.actions.detachEvaluator,
   );
   const variableMapping = useVariableMappingController();
+  const isCodeEvaluator = evaluatorType === "CODE";
   const mapping = variableMappingOverride ?? defaultVariableMapping;
   const mappings = mapping.map((entry) => ({
     variable: entry.templateVariable,
@@ -102,23 +108,25 @@ export function EvaluatorMappingRow({
                 <span className="truncate" title={evaluatorName}>
                   {evaluatorName}
                 </span>
-                <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs">
-                  {mappedVariableCount}/{mapping.length} variables mapped
-                  {allVariablesMapped ? (
-                    <Check
-                      aria-label="All variables mapped"
-                      className="text-dark-green h-3.5 w-3.5"
-                    />
-                  ) : hasInvalidMappings ? (
-                    <span
-                      aria-label="Some variables are not mapped correctly"
-                      title="Some variables are not mapped correctly"
-                      className="text-dark-yellow h-3.5 w-3.5"
-                    >
-                      <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
-                    </span>
-                  ) : null}
-                </span>
+                {!isCodeEvaluator ? (
+                  <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs">
+                    {mappedVariableCount}/{mapping.length} variables mapped
+                    {allVariablesMapped ? (
+                      <Check
+                        aria-label="All variables mapped"
+                        className="text-dark-green h-3.5 w-3.5"
+                      />
+                    ) : hasInvalidMappings ? (
+                      <span
+                        aria-label="Some variables are not mapped correctly"
+                        title="Some variables are not mapped correctly"
+                        className="text-dark-yellow h-3.5 w-3.5"
+                      >
+                        <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
               </span>
             </Button>
           </CollapsibleTrigger>
@@ -136,7 +144,9 @@ export function EvaluatorMappingRow({
         <CollapsibleContent className="border-t p-3">
           {mapping.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              This evaluator has no variables.
+              {isCodeEvaluator
+                ? "Observation data is available directly in code evaluators, so no variable mapping is required."
+                : "No variable mapping is required because this evaluator does not define prompt variables."}
             </p>
           ) : (
             <VariableMapping

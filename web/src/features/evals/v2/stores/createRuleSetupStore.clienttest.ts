@@ -9,12 +9,14 @@ describe("rule setup store", () => {
       {
         evaluatorId: "first",
         evaluatorName: "First",
+        evaluatorType: "LLM_AS_JUDGE" as const,
         defaultVariableMapping: [],
         variableMapping: null,
       },
       {
         evaluatorId: "second",
         evaluatorName: "Second",
+        evaluatorType: "LLM_AS_JUDGE" as const,
         defaultVariableMapping: [],
         variableMapping: null,
       },

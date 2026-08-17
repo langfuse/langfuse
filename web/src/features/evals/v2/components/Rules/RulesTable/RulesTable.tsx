@@ -9,6 +9,7 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -73,7 +74,7 @@ function RuleFiltersCell({ filter }: Pick<RuleTableRow, "filter">) {
       renderOverflow={({ overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" size="sm">
+            <Badge variant="secondary" size="sm" className="font-normal">
               +{overflowItemCount}
             </Badge>
           </TooltipTrigger>
@@ -108,7 +109,7 @@ function RuleEvaluatorsCell({
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" size="sm">
+            <Badge variant="secondary" size="sm" className="font-normal">
               +{overflowItemCount}
             </Badge>
           </TooltipTrigger>
@@ -275,7 +276,7 @@ export function RulesTable({
         accessorKey: "filter",
         id: "filter",
         header: "Filters",
-        size: 340,
+        size: 300,
         enableHiding: true,
         cell: ({ row }) =>
           isLegacyEvalTarget(row.original.targetObject) ? (
@@ -316,6 +317,7 @@ export function RulesTable({
         header: "Created at",
         size: 180,
         enableHiding: true,
+        defaultHidden: true,
         cell: ({ row }) => <RelativeDate date={row.original.createdAt} />,
       },
       {
@@ -347,19 +349,20 @@ export function RulesTable({
             >
               View traces <ExternalLink className="ml-1 h-3 w-3" />
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
+            <IconOnlyButton
+              icon={<Trash2 className="h-4 w-4" />}
+              label="Delete"
               aria-label={`Delete ${row.original.name}`}
-              disabled={!hasWriteAccess}
+              disabledReason={
+                hasWriteAccess
+                  ? undefined
+                  : "You don't have permission to delete this rule."
+              }
               onClick={(event) => {
                 event.stopPropagation();
                 setDeleteIds([row.original.id]);
               }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            />
           </div>
         ),
       },
@@ -387,7 +390,7 @@ export function RulesTable({
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
       <RulesTableToolbar
         columns={columns}
         currentQuery={searchQuery ?? undefined}

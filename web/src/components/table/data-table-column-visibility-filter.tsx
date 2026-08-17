@@ -406,7 +406,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
             <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
           </Button>
         </DrawerTrigger>
-        <DrawerContent overlayClassName="bg-primary/10">
+        <DrawerContent portalLayer="popover" overlayClassName="bg-primary/10">
           <div className="mx-auto w-full overflow-y-auto md:max-h-full">
             <div className="sticky top-0 z-10">
               <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-2">

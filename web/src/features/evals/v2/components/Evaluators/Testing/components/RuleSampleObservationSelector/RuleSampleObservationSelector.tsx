@@ -72,12 +72,12 @@ export function RuleSampleObservationSelector({
       leadingColumns={[]}
       resolveSelection={resolveSelection}
       getRowClassName={undefined}
-      filterDescription="Narrow the observations this rule should evaluate."
+      filterDescription="Define which incoming observations match this rule."
       filterTooltip="Only new observations matching these filters are evaluated by this rule."
       matchingDescription="The first match is used to preview attached evaluator mappings."
       matchingTooltip="Observations matching the rule filters over the last seven days."
       formatCount={(count) =>
-        `${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"}`
+        `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }
       mapObservedOptions={addRuleTagAlias}
     />

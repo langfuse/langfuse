@@ -365,6 +365,7 @@ export default function EvaluatorsPage() {
         header: "Created at",
         size: 180,
         enableHiding: true,
+        defaultHidden: true,
         cell: ({ row }) => <RelativeDate date={row.original.createdAt} />,
       },
       {
@@ -464,6 +465,8 @@ export default function EvaluatorsPage() {
                   defaultModel={projectDefaultModel.defaultModel}
                   selectedModel={null}
                   missingDefaultLabel="Set project default model"
+                  loading={projectDefaultModel.update.isPending}
+                  loadingText="Setting model..."
                   disabled={
                     !projectDefaultModel.canUpdate ||
                     !projectDefaultModel.canRead ||

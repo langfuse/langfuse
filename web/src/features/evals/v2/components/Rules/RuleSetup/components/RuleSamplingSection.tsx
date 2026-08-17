@@ -19,7 +19,7 @@ export function RuleSamplingSection({ store }: { store: RuleSetupStore }) {
           </InfoTooltip>
         </div>
         <p className="text-muted-foreground text-sm">
-          Choose the share of matching observations to evaluate.
+          Set the percentage of matching observations this rule evaluates.
         </p>
       </div>
       <Slider
