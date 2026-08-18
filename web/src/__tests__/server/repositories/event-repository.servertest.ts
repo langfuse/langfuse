@@ -68,8 +68,9 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("evaluator execution metrics", () => {
-    it("returns evaluator costs from the last seven days", async () => {
+    it("returns evaluator costs from the last seven days excluding test runs", async () => {
       const evaluatorId = randomUUID();
+      const testTraceId = randomUUID();
       const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
 
       await createEventsCh([
@@ -85,6 +86,20 @@ describe("Clickhouse Events Repository Test", () => {
           metadata_names: ["evaluator_id"],
           metadata_values: [evaluatorId],
           cost_details: { total: 20 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "SPAN",
+          metadata_names: ["evaluator_id", "evaluator_test"],
+          metadata_values: [evaluatorId, "true"],
+          cost_details: { total: 0.1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "GENERATION",
+          cost_details: { total: 0.9 },
         }),
       ]);
 

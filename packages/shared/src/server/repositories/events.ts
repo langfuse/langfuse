@@ -3413,6 +3413,8 @@ const eventMetadataValueWithFallback = (
 const hasAnyEventMetadataKey = (keys: readonly EvaluationMetadataKey[]) =>
   keys.map((key) => `has(e.metadata_names, '${key}')`).join(" OR ");
 
+const evaluatorTestEventCondition = `(has(e.metadata_names, 'evaluator_test') AND ${eventMetadataValue("evaluator_test")} = 'true') OR startsWith(e.trace_name, 'Test evaluator')`;
+
 const traceCostsByMetadata = (params: {
   projectId: string;
   metadata: Array<{ keys: readonly EvaluationMetadataKey[]; alias: string }>;
@@ -3462,9 +3464,14 @@ const getCostMetricsByMetadataIds = async <
   const traceCostsBuilder = traceCostsByMetadata({
     projectId: params.projectId,
     metadata: [{ keys: params.metadataKeys, alias: "metadata_id" }],
-  }).havingRaw("metadata_id IN ({metadataIds: Array(String)})", {
-    metadataIds: params.metadataIds,
-  });
+    additionalSelect: [
+      `countIf(${evaluatorTestEventCondition}) as test_event_count`,
+    ],
+  })
+    .havingRaw("metadata_id IN ({metadataIds: Array(String)})", {
+      metadataIds: params.metadataIds,
+    })
+    .havingRaw("test_event_count = 0");
 
   const traceCosts = traceCostsBuilder.buildWithParams();
   const queryBuilder = new CTEQueryBuilder()
@@ -3604,9 +3611,7 @@ export const getRecentEvaluatorExecutionTraces = async (
     .whereRaw("e.trace_name IN ({traceNames: Array(String)})", {
       traceNames,
     })
-    .havingRaw(
-      `countIf((has(e.metadata_names, 'evaluator_test') AND ${eventMetadataValue("evaluator_test")} = 'true') OR startsWith(e.trace_name, 'Test evaluator')) = 0`,
-    )
+    .havingRaw(`countIf(${evaluatorTestEventCondition}) = 0`)
     .orderBy("ORDER BY timestamp DESC, id DESC")
     .limitByCount(5, "trace_name");
 
