@@ -27,7 +27,7 @@ type NormalizedIOAccumulator = {
   messages: NormalizedMessage[];
   toolDefinitions: ToolDefinition[];
   toolDefinitionIndexByName: Map<string, number>;
-  toolCallKeys: Set<string>;
+  toolCallKeys: Record<"input" | "output", Set<string>>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -116,7 +116,7 @@ function createAccumulator(): NormalizedIOAccumulator {
     messages: [],
     toolDefinitions: [],
     toolDefinitionIndexByName: new Map(),
-    toolCallKeys: new Set(),
+    toolCallKeys: { input: new Set(), output: new Set() },
   };
 }
 
@@ -137,12 +137,17 @@ function addMessage(
   accumulator: NormalizedIOAccumulator,
   message: NormalizedMessage,
 ): void {
+  // Dedup tool calls within one source only. A call echoed across the
+  // input/output boundary is kept on both sides: the trace IO view renders
+  // it in both places, and the tool columns must count a call that appears
+  // in this observation's output even when the input echoes it.
+  const seenKeys = accumulator.toolCallKeys[message.source];
   const parts = message.parts.filter((part) => {
     const key = getToolCallKey(part);
     if (!key) return true;
-    if (accumulator.toolCallKeys.has(key)) return false;
+    if (seenKeys.has(key)) return false;
 
-    accumulator.toolCallKeys.add(key);
+    seenKeys.add(key);
     return true;
   });
 
