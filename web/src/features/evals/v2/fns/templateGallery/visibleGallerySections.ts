@@ -19,6 +19,10 @@ export function gallerySidebarItems(
   const categoryItems = navigationItems.filter(
     (item) => item.key !== EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
   );
+  if (categoryItems.length === 0) {
+    return [];
+  }
+
   const allCount = sections
     .filter(
       (section) => section.key !== EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,

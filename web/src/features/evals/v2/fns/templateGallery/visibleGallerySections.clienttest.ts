@@ -85,6 +85,10 @@ describe("gallerySidebarItems", () => {
       { key: "quality", label: "Quality", count: 1 },
     ]);
   });
+
+  it("returns no sidebar items when a search matches nothing", () => {
+    expect(gallerySidebarItems([], [])).toEqual([]);
+  });
 });
 
 describe("visibleGallerySections", () => {

@@ -14,4 +14,8 @@ describe("managedTemplateExpectedOutputHint", () => {
     expect(managedTemplateExpectedOutputHint("language")).toBeUndefined();
     expect(managedTemplateExpectedOutputHint(null)).toBeUndefined();
   });
+
+  it("ignores LLM template hints so a type switch cannot show the wrong shape", () => {
+    expect(managedTemplateExpectedOutputHint("correctness")).toBeUndefined();
+  });
 });

@@ -228,6 +228,15 @@ export const EmptySearch = meta.story({
     sections: [],
     navigationItems: [],
   },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByText("No templates match your search."),
+    ).toBeInTheDocument();
+    await expect(canvas.queryByText("Browse")).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: /All/ }),
+    ).not.toBeInTheDocument();
+  },
 });
 
 export const SelectsCategory = meta.story({
