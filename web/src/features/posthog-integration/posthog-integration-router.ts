@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
+import {
+  assertRacedCreateAllowed,
+  resolveAnalyticsExportSource,
+} from "@/src/features/analytics-integrations/server/analyticsExportSource";
 import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -16,11 +19,7 @@ import { validateWebhookURL } from "@langfuse/shared/src/server";
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
-  areEnrichedWritesActive,
-  areLegacyWritesActive,
-  InvalidRequestError,
   LangfuseNotFoundError,
-  validateExportSource,
 } from "@langfuse/shared";
 
 export const posthogIntegrationRouter = createTRPCRouter({
@@ -108,9 +107,6 @@ export const posthogIntegrationRouter = createTRPCRouter({
         });
       }
 
-      const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-      const legacyWritesActive = areLegacyWritesActive(writeMode);
-      const enrichedAvailable = areEnrichedWritesActive(writeMode);
       const existingIntegration =
         await ctx.prisma.posthogIntegration.findUnique({
           where: { projectId: input.projectId },
@@ -132,31 +128,11 @@ export const posthogIntegrationRouter = createTRPCRouter({
           message: "PostHog Project API Key is required",
         });
       }
-      const createDefaultExportSource = legacyWritesActive
-        ? AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
-        : AnalyticsIntegrationExportSource.EVENTS;
-      const nextExportSource =
-        input.exportSource ??
-        (existingIntegration ? undefined : createDefaultExportSource);
-      // The Cloud cutoffs need the project only for explicitly chosen (or
-      // create-defaulted) sources.
-      const projectCreatedAt = nextExportSource
-        ? (
-            await ctx.prisma.project.findUniqueOrThrow({
-              where: { id: input.projectId },
-              select: { createdAt: true },
-            })
-          ).createdAt
-        : undefined;
-      assertExportSourceAllowed({
-        nextExportSource,
-        persistedExportSource: existingIntegration?.exportSource,
-        ctx: {
-          isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-          enrichedAvailable,
-          legacyWritesActive,
-          projectCreatedAt,
-        },
+      const createDefaultExportSource = await resolveAnalyticsExportSource({
+        db: ctx.prisma,
+        projectId: input.projectId,
+        requestedExportSource: input.exportSource,
+        existingIntegration,
       });
 
       await auditLog({
@@ -191,28 +167,13 @@ export const posthogIntegrationRouter = createTRPCRouter({
           },
         });
 
-        // Race backstop (mirrors blob storage's service.ts): a concurrent
-        // delete between the pre-flight read and this upsert can flip the
-        // expected UPDATE into a CREATE carrying the unvalidated legacy
-        // default. Detectable as a createdAt change; re-validate the persisted
-        // row as an explicit choice and roll back on failure.
-        if (
-          input.exportSource === undefined &&
-          existingIntegration &&
-          result.createdAt.getTime() !== existingIntegration.createdAt.getTime()
-        ) {
-          const project = await tx.project.findUniqueOrThrow({
-            where: { id: input.projectId },
-            select: { createdAt: true },
-          });
-          const validation = validateExportSource(result.exportSource, {
-            isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-            enrichedAvailable,
-            legacyWritesActive,
-            projectCreatedAt: project.createdAt,
-          });
-          if (!validation.ok) throw new InvalidRequestError(validation.message);
-        }
+        await assertRacedCreateAllowed({
+          tx,
+          projectId: input.projectId,
+          requestedExportSource: input.exportSource,
+          existingIntegration,
+          result,
+        });
       });
     }),
   delete: protectedProjectProcedure

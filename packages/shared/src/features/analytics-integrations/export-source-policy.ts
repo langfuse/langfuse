@@ -9,8 +9,8 @@
 // The reasoning, in one place:
 //
 // - CLOUD DATE CUTOFFS ("cloud-cutoff"): Cloud projects created on or after
-//   LEGACY_BLOB_EXPORT_CUTOFF, and Cloud blob storage integration rows created
-//   on or after LEGACY_BLOB_EXPORTER_CUTOFF (including brand-new rows), cannot
+//   LEGACY_BLOB_EXPORT_CUTOFF, and Cloud integration rows created on or after
+//   their family's exporter cutoff (including brand-new rows), cannot
 //   use legacy export sources. These cutoffs are Cloud-only by design,
 //   permanently: their dates are arbitrary from a self-hosted operator's
 //   perspective (LFE-10065, LFE-10148). They apply to newly chosen values
@@ -46,23 +46,35 @@
 
 import { AnalyticsIntegrationExportSource } from "@prisma/client";
 
-// NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF / _EXPORTER_CUTOFF override the
-// defaults for local dev testing.
-const _override = process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF
-  ? new Date(process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF)
-  : null;
-export const LEGACY_BLOB_EXPORT_CUTOFF =
-  _override && !isNaN(_override.getTime())
-    ? _override
-    : new Date("2026-05-20T00:00:00.000Z");
+// An unset or unparseable override falls back to the shipped default, so a typo
+// in a local .env degrades to production behaviour rather than NaN dates.
+function cutoffFromEnv(
+  override: string | undefined,
+  fallbackIso: string,
+): Date {
+  if (!override) return new Date(fallbackIso);
+  const parsed = new Date(override);
+  return isNaN(parsed.getTime()) ? new Date(fallbackIso) : parsed;
+}
 
-const _exporterOverride = process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF
-  ? new Date(process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF)
-  : null;
-export const LEGACY_BLOB_EXPORTER_CUTOFF =
-  _exporterOverride && !isNaN(_exporterOverride.getTime())
-    ? _exporterOverride
-    : new Date("2026-06-22T00:00:00.000Z");
+// The NEXT_PUBLIC_* overrides exist for local dev testing of the cutoffs.
+export const LEGACY_BLOB_EXPORT_CUTOFF = cutoffFromEnv(
+  process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF,
+  "2026-05-20T00:00:00.000Z",
+);
+
+export const LEGACY_BLOB_EXPORTER_CUTOFF = cutoffFromEnv(
+  process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF,
+  "2026-06-22T00:00:00.000Z",
+);
+
+// PostHog/Mixpanel run their own, later exporter cutoff: their integration-level
+// gate ships after blob storage's, so reusing the blob date would retroactively
+// invalidate rows that were legitimately created on a legacy source.
+export const LEGACY_ANALYTICS_EXPORTER_CUTOFF = cutoffFromEnv(
+  process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF,
+  "2026-08-19T00:00:00.000Z",
+);
 
 // satisfies ensures each element remains a valid enum member — catches renames
 // at compile time. A new enum variant does NOT automatically error here; the
@@ -107,13 +119,16 @@ export function isLegacyBlobExportSource(
 }
 
 /**
- * Whether a blob storage integration row counts as legacy — i.e. may still use
- * legacy export sources. Applied to `BlobStorageIntegration.createdAt`.
+ * Whether an integration row counts as legacy — i.e. may still use legacy
+ * export sources. Applied to the integration row's `createdAt`.
  *
  * - `!isCloud` → `true`: self-hosted is exempt (cutoff does not apply).
  * - `null` createdAt → `false`: no existing row means a brand-new integration,
  *   which follows new-customer rules.
  * - otherwise legacy iff the row was created strictly before the cutoff.
+ *
+ * `exporterCutoff` defaults to the blob date so existing blob callers are
+ * unaffected; each integration family passes its own.
  *
  * validateExportSource expresses the integration-level cutoff through this
  * predicate; it is also exported for row-age heuristics outside the policy
@@ -122,10 +137,11 @@ export function isLegacyBlobExportSource(
 export function isLegacyBlobExporter(
   integrationCreatedAt: Date | null,
   isCloud: boolean,
+  exporterCutoff: Date = LEGACY_BLOB_EXPORTER_CUTOFF,
 ): boolean {
   if (!isCloud) return true;
   if (integrationCreatedAt == null) return false;
-  return integrationCreatedAt < LEGACY_BLOB_EXPORTER_CUTOFF;
+  return integrationCreatedAt < exporterCutoff;
 }
 
 /**
@@ -152,9 +168,10 @@ export function areEnrichedWritesActive(
  * skip their check when absent:
  * - projectCreatedAt: omit to skip the project-level Cloud cutoff (e.g. when
  *   the caller has no project in scope).
- * - integrationCreatedAt: omit to skip the integration-level Cloud cutoff
- *   (PostHog/Mixpanel have no such cutoff); pass null for "no existing row",
- *   which follows new-customer rules on Cloud.
+ * - integrationCreatedAt: omit to skip the integration-level Cloud cutoff; pass
+ *   null for "no existing row", which follows new-customer rules on Cloud.
+ * - exporterCutoff: the integration-level cutoff date. Each integration family
+ *   has its own; defaults to LEGACY_BLOB_EXPORTER_CUTOFF.
  */
 export type ExportSourceContext = {
   isCloud: boolean;
@@ -162,6 +179,7 @@ export type ExportSourceContext = {
   legacyWritesActive: boolean;
   projectCreatedAt?: Date;
   integrationCreatedAt?: Date | null;
+  exporterCutoff?: Date;
 };
 
 export type ExportSourceBlockedReason =
@@ -180,8 +198,14 @@ const ENRICHED_UNAVAILABLE_MESSAGE =
 // counted separately in logs. Customer-facing via the public REST PUT.
 const PROJECT_CUTOFF_MESSAGE =
   "Legacy export sources are not available for Cloud projects created on or after 2026-05-20. Use 'OBSERVATIONS_V2' instead.";
-const exporterCutoffMessage = () =>
-  `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`;
+// Covers both integration-level rejections: a brand-new integration (which
+// follows new-customer rules whatever today's date is) and an existing one that
+// postdates the cutoff. Worded integration-neutrally — blob storage, PostHog and
+// Mixpanel all reach it, each with its own cutoff.
+const exporterCutoffMessage = (
+  exporterCutoff: Date = LEGACY_BLOB_EXPORTER_CUTOFF,
+) =>
+  `Legacy export sources are not available on Cloud for new integrations, or for integrations created on or after ${exporterCutoff.toISOString()}. Use 'OBSERVATIONS_V2' instead.`;
 
 // Self-hosted-operator-facing: naming the env var is intentional. Worded
 // integration-neutrally since blob storage, PostHog, and Mixpanel all surface
@@ -215,12 +239,16 @@ export function validateExportSource(
     }
     if (
       ctx.integrationCreatedAt !== undefined &&
-      !isLegacyBlobExporter(ctx.integrationCreatedAt, ctx.isCloud)
+      !isLegacyBlobExporter(
+        ctx.integrationCreatedAt,
+        ctx.isCloud,
+        ctx.exporterCutoff,
+      )
     ) {
       return {
         ok: false,
         reason: "cloud-cutoff",
-        message: exporterCutoffMessage(),
+        message: exporterCutoffMessage(ctx.exporterCutoff),
       };
     }
   }
