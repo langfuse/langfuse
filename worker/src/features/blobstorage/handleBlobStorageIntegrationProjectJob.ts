@@ -49,6 +49,7 @@ import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
 import {
   BLOB_INTEGRATION_DISABLED_METRIC,
   classifyCustomerFault,
+  type CustomerFaultReason,
 } from "./isCustomerFaultError";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
@@ -1525,84 +1526,52 @@ export const handleBlobStorageIntegrationProjectJob = async (
     const isFinalAttempt =
       (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
     // The reason bucket doubles as the disable decision (defined => disable) and
-    // as the tag on the disable log + metric below.
+    // as the tag on the disable log + metric.
     const customerFaultReason = classifyCustomerFault(error);
-    const disableForCustomerFault =
-      isFinalAttempt && customerFaultReason !== undefined;
 
-    // True only for the worker that actually flips enabled true→false, so the
-    // "disabled" email (which bypasses the cooldown) is sent exactly once and
-    // never claims a state we failed to write. The atomic claim also dedups
-    // concurrent terminal failures — e.g. a scheduled run racing a manual Run
-    // Now across pods, which have distinct jobIds and so aren't queue-deduped.
-    let persistedDisable = false;
-    let disableClaimRan = false;
-    // Assume enabled when the read-back fails; worst case is today's email.
-    let enabledAfterPersist = true;
-    try {
-      const updated = await prisma.blobStorageIntegration.update({
-        where: { projectId },
-        data: {
-          lastError: errorMessage,
-          lastErrorAt: new Date(),
-          runStartedAt: null,
-        },
-      });
-      enabledAfterPersist = updated.enabled;
-      if (disableForCustomerFault) {
-        const { count } = await prisma.blobStorageIntegration.updateMany({
-          where: { projectId, enabled: true },
-          data: { enabled: false },
-        });
-        disableClaimRan = true;
-        persistedDisable = count === 1;
-        if (persistedDisable) {
-          // Tag by reason so SSRF/abuse disables (ssrf_blocked_endpoint) can be
-          // separated from customer misconfig, and a mass-disable regression is
-          // visible as a spike in the non-SSRF buckets after rollout.
-          const reason = customerFaultReason ?? "unknown";
-          recordIncrement(BLOB_INTEGRATION_DISABLED_METRIC, 1, { reason });
-          logger.warn(
-            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer fault (reason=${reason}): ${errorMessage}`,
-            { blobStorageDisableReason: reason, projectId },
-          );
-        }
-      }
-    } catch (persistError) {
-      if (isRecordNotFoundError(persistError)) {
-        // Integration deleted mid-run: nothing to persist, nobody to notify —
-        // the notification would reference a config that no longer exists.
-        // Complete the obsolete job instead of failing it.
-        logger.info(
-          `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after error: ${errorMessage}`,
-        );
-        return;
-      }
-      logger.error(
-        `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
-        persistError,
-      );
+    const outcome = await recordTerminalExportError({
+      projectId,
+      errorMessage,
+      disableReason: isFinalAttempt ? customerFaultReason : undefined,
+    });
+
+    if (outcome.kind === "integration-deleted") {
+      // Nothing to persist, nobody to notify: complete the obsolete job
+      // instead of failing it.
+      return;
     }
 
-    // Notify only after BullMQ exhausts its retries — an email on an earlier
-    // attempt fires even when a later retry succeeds, and would double up
-    // with the "disabled" email on customer faults. Skip only when a
-    // concurrent terminal failure won the disable claim (the winner already
-    // notified); if the claim never ran because persistence threw, fall back
-    // to the informational email so the failure isn't silent.
-    const lostDisableRaceToConcurrentRun =
-      disableForCustomerFault && disableClaimRan && !persistedDisable;
-    // The informational email promises a retry at the next scheduled run,
-    // which is false once the integration is disabled (a concurrent run's
-    // customer-fault disable or a user toggle mid-run) — skip it then.
-    const disabledOutFromUnderUs =
-      !disableForCustomerFault && !enabledAfterPersist;
-    if (
-      isFinalAttempt &&
-      !lostDisableRaceToConcurrentRun &&
-      !disabledOutFromUnderUs
-    ) {
-      notifyBlobStorageExportFailedInBackground(projectId, persistedDisable);
+    // Which email to send is a property of the outcome, so every case is named
+    // rather than derived from a conjunction. Only the informational variants
+    // wait for BullMQ to exhaust its retries — sent on an earlier attempt it
+    // fires even when a later retry succeeds. The disable outcomes are already
+    // terminal by construction and so don't consult the attempt count.
+    switch (outcome.kind) {
+      case "disabled-by-us":
+        // This worker flipped the integration off, so it owns the terminal
+        // "export disabled" email.
+        notifyBlobStorageExportFailedInBackground(projectId, true);
+        break;
+      case "lost-disable-race":
+        // A concurrent terminal failure disabled the integration and has
+        // already sent that email; a second one would duplicate it, and the
+        // informational variant would contradict it.
+        break;
+      case "error-recorded":
+        // The informational email promises a retry at the next scheduled run,
+        // which is false once the integration is off (a concurrent run's
+        // customer-fault disable or a user toggle mid-run) — skip it then.
+        if (isFinalAttempt && outcome.stillEnabled) {
+          notifyBlobStorageExportFailedInBackground(projectId, false);
+        }
+        break;
+      case "persist-failed":
+        // The row's state is unknown, so fall back to the informational email
+        // rather than letting the failure go out silently.
+        if (isFinalAttempt) {
+          notifyBlobStorageExportFailedInBackground(projectId, false);
+        }
+        break;
     }
 
     const chain = errorChainText(error);
@@ -1619,6 +1588,88 @@ export const handleBlobStorageIntegrationProjectJob = async (
     throw rethrown;
   }
 };
+
+// What the terminal bookkeeping for a failed run actually did. The notification
+// decision switches over these named situations instead of recombining booleans,
+// so each case an earlier revision guarded against stays individually visible.
+type TerminalExportErrorOutcome =
+  // The integration row is gone: deleted mid-run, so the job is obsolete.
+  | { kind: "integration-deleted" }
+  // Writing the failure failed for an infra reason (e.g. Postgres unavailable),
+  // leaving the row's state unknown.
+  | { kind: "persist-failed" }
+  // Failure recorded, no disable attempted — either not a customer fault, or
+  // BullMQ still has retries left. `stillEnabled` is the row's state as we wrote
+  // it: false means a concurrent disable or a user toggle landed mid-run.
+  | { kind: "error-recorded"; stillEnabled: boolean }
+  // This worker flipped enabled true→false and owns the terminal notification.
+  | { kind: "disabled-by-us" }
+  // A concurrent terminal failure won the disable claim; it notifies, not us.
+  | { kind: "lost-disable-race" };
+
+// Persists the failure and, when the caller asked for a disable, makes the
+// atomic enabled true→false claim. Returns what happened rather than reporting it
+// through mutable flags, so the caller's notification decision is total over
+// named cases. The claim dedups concurrent terminal failures — e.g. a scheduled
+// run racing a manual Run Now across pods, which have distinct jobIds and so
+// aren't queue-deduped — and guarantees the "disabled" email (which bypasses the
+// cooldown) is sent exactly once and never claims a state we failed to write.
+async function recordTerminalExportError({
+  projectId,
+  errorMessage,
+  disableReason,
+}: {
+  projectId: string;
+  errorMessage: string;
+  // Defined => disable the integration, and tag the disable log + metric.
+  disableReason: CustomerFaultReason | undefined;
+}): Promise<TerminalExportErrorOutcome> {
+  try {
+    const updated = await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: {
+        lastError: errorMessage,
+        lastErrorAt: new Date(),
+        runStartedAt: null,
+      },
+    });
+
+    if (disableReason === undefined) {
+      return { kind: "error-recorded", stillEnabled: updated.enabled };
+    }
+
+    const { count } = await prisma.blobStorageIntegration.updateMany({
+      where: { projectId, enabled: true },
+      data: { enabled: false },
+    });
+    if (count !== 1) return { kind: "lost-disable-race" };
+
+    // Tag by reason so SSRF/abuse disables (ssrf_blocked_endpoint) can be
+    // separated from customer misconfig, and a mass-disable regression is
+    // visible as a spike in the non-SSRF buckets after rollout.
+    recordIncrement(BLOB_INTEGRATION_DISABLED_METRIC, 1, {
+      reason: disableReason,
+    });
+    logger.warn(
+      `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer fault (reason=${disableReason}): ${errorMessage}`,
+      { blobStorageDisableReason: disableReason, projectId },
+    );
+    return { kind: "disabled-by-us" };
+  } catch (persistError) {
+    if (isRecordNotFoundError(persistError)) {
+      // The notification would reference a config that no longer exists.
+      logger.info(
+        `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after error: ${errorMessage}`,
+      );
+      return { kind: "integration-deleted" };
+    }
+    logger.error(
+      `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
+      persistError,
+    );
+    return { kind: "persist-failed" };
+  }
+}
 
 function notifyBlobStorageExportFailedInBackground(
   projectId: string,
