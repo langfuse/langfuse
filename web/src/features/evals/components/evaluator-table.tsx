@@ -180,6 +180,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("scoreName", {
       id: "scoreName",
       header: "Generated Score Name",
+      enableSorting: true,
       size: 320,
       cell: (row) => {
         const scoreName = row.getValue();
@@ -209,6 +210,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("status", {
       header: "Status",
       id: "status",
+      enableSorting: true,
       size: 80,
       loadingCell: <TableBadgeLoadingCell />,
       cell: (row) => {
@@ -223,6 +225,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("totalCost", {
       header: "Total Cost (7d)",
       id: "totalCost",
+      enableSorting: false,
       size: 120,
       cell: (row) => {
         const totalCost = row.getValue();
@@ -239,6 +242,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("result", {
       header: "Result",
       id: "result",
+      enableSorting: false,
       size: 150,
       cell: (row) => {
         const result = row.getValue();
@@ -253,6 +257,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("logs", {
       header: "Logs",
       id: "logs",
+      enableSorting: false,
       size: 150,
       loadingCell: <Skeleton className="h-6 w-16 rounded-md" />,
       cell: ({ row }) => {
@@ -278,6 +283,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("template", {
       id: "template",
       header: "Referenced Evaluator",
+      enableSorting: false,
       size: 200,
       loadingCell: (
         <div className="flex items-center gap-2">
@@ -314,6 +320,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "target",
       header: "Runs on",
       size: 150,
+      enableSorting: true,
       enableHiding: true,
       cell: (row) => {
         const targetObject = row.getValue();
@@ -327,6 +334,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "filter",
       header: "Filter",
       size: 200,
+      enableSorting: false,
       enableHiding: true,
       cell: (row) => {
         const filterState = row.getValue();
@@ -357,6 +365,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Id",
       id: "id",
       size: 100,
+      enableSorting: false,
       enableHiding: true,
       cell: (row) => {
         const id = row.getValue();
@@ -366,6 +375,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("actions", {
       header: "Actions",
       id: "actions",
+      enableSorting: false,
       size: 100,
       loadingCell: <TableIconButtonLoadingCell />,
       cell: ({ row }) => {

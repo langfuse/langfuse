@@ -63,6 +63,12 @@ export const evalConfigsTableCols: ColumnDefinition[] = [
   evalConfigFilterColumns[1],
   evalConfigFilterColumns[2],
   {
+    name: "Generated Score Name",
+    id: "scoreName",
+    type: "string",
+    internal: 'jc."score_name"',
+  },
+  {
     name: "Updated At",
     id: "updatedAt",
     type: "datetime",

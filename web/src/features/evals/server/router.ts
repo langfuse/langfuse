@@ -2077,12 +2077,21 @@ const generateConfigsQuery = (
 };
 
 const getEvaluatorConfigsOrderByCondition = (orderByState: OrderByState) => {
+  // Clearing a column sort sets orderBy to null. The shared helper's
+  // fallback (`t.timestamp`) is traces-specific and invalid here.
+  if (!orderByState) {
+    return orderByToPrismaSql(
+      { column: "createdAt", order: "DESC" },
+      evalConfigsTableCols,
+    );
+  }
+
   const orderByCondition = orderByToPrismaSql(
     orderByState,
     evalConfigsTableCols,
   );
 
-  if (orderByState?.column !== "status" && orderByState?.column !== "Status") {
+  if (orderByState.column !== "status" && orderByState.column !== "Status") {
     return orderByCondition;
   }
 
