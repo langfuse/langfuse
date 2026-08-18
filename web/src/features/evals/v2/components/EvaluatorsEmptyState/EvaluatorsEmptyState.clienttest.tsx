@@ -55,6 +55,35 @@ describe("EvaluatorsEmptyState", () => {
     );
   });
 
+  it("opens the topic-classifier template when the Detect Topics card is clicked", () => {
+    const onSelectTemplate = vi.fn();
+    render(
+      <EvaluatorsEmptyState
+        onSelectTemplate={onSelectTemplate}
+        onBrowseLibrary={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Set up Detect Topics" }),
+    );
+
+    expect(openAssistant).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    expect(onSelectTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "managed",
+        key: "topic-classifier",
+      }),
+    );
+    expect(capture).toHaveBeenCalledWith(
+      "evaluators:empty_state_template_select",
+      {
+        templateKey: "topic-classifier",
+      },
+    );
+  });
+
   it("falls back to the topic-classifier template when the assistant is unavailable", () => {
     agentContext.canUseAssistant = false;
     const onSelectTemplate = vi.fn();

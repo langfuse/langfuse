@@ -105,6 +105,27 @@ export const OpensDetectTopics = meta.story({
   },
 });
 
+export const SetsUpDetectTopicsFromTheTemplate = meta.story({
+  name: "(Test) Sets up Detect Topics from the managed template",
+  args: {
+    startingPoints,
+    templateCount: 21,
+    docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
+    onSelectTemplate: fn(),
+    onDetectTopics: fn(),
+    onBrowseLibrary: fn(),
+  },
+  play: async ({ canvas, args }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Set up Detect Topics" }),
+    );
+    await expect(args.onSelectTemplate).toHaveBeenCalledWith(
+      startingPoints[0]?.template,
+    );
+    await expect(args.onDetectTopics).not.toHaveBeenCalled();
+  },
+});
+
 export const SelectsAStartingPoint = meta.story({
   name: "(Test) Selects a starting-point template",
   args: {

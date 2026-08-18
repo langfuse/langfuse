@@ -38,12 +38,14 @@ function StartingPointCardHeader({
 function DetectTopicsStartingPointCard({
   startingPoint,
   onDetectTopics,
+  onSelectTemplate,
 }: {
   startingPoint: Extract<
     EvaluatorEmptyStateStartingPoint,
     { action: "detect-topics" }
   >;
   onDetectTopics: () => void;
+  onSelectTemplate: (template: GalleryTemplate) => void;
 }) {
   const { edgeClassName } = getGalleryCategoryPresentation(
     startingPoint.categoryKey,
@@ -52,25 +54,33 @@ function DetectTopicsStartingPointCard({
   return (
     <div
       className={cn(
-        "bg-background flex min-h-44 flex-col gap-3 rounded-lg border border-l-2 p-4 text-left",
+        "bg-background hover:bg-muted/40 relative flex min-h-44 flex-col rounded-lg border border-l-2 text-left transition-colors",
         edgeClassName,
       )}
     >
-      <StartingPointCardHeader startingPoint={startingPoint} />
-      <div className="mt-auto flex items-end justify-between gap-2 border-t pt-3">
-        <span className="text-muted-foreground min-w-0 text-xs">
-          {startingPoint.audience}
-        </span>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={onDetectTopics}
-          className="border-primary-accent/40 bg-primary-accent/10 text-primary-accent hover:bg-primary-accent/15 hover:text-primary-accent shrink-0 gap-1 px-2 text-xs"
-        >
-          <BotMessageSquare className="h-3 w-3" />
-          Set up with AI
-        </Button>
+      <button
+        type="button"
+        onClick={() => onSelectTemplate(startingPoint.template)}
+        aria-label={`Set up ${startingPoint.title}`}
+        className="absolute inset-0 cursor-pointer rounded-lg"
+      />
+      <div className="pointer-events-none relative flex min-h-44 flex-col gap-3 p-4">
+        <StartingPointCardHeader startingPoint={startingPoint} />
+        <div className="mt-auto flex items-end justify-between gap-2 border-t pt-3">
+          <span className="text-muted-foreground min-w-0 text-xs">
+            {startingPoint.audience}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onDetectTopics}
+            className="border-primary-accent/40 bg-primary-accent/10 text-primary-accent hover:bg-primary-accent/15 hover:text-primary-accent pointer-events-auto relative shrink-0 gap-1 px-2 text-xs"
+          >
+            <BotMessageSquare className="h-3 w-3" />
+            Set up with AI
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -187,6 +197,7 @@ export function EvaluatorsEmptyStateView({
                     key={startingPoint.template.key}
                     startingPoint={startingPoint}
                     onDetectTopics={onDetectTopics}
+                    onSelectTemplate={onSelectTemplate}
                   />
                 );
               case "select-template":
