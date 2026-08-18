@@ -592,7 +592,7 @@ describe("in-app agent background runs", () => {
     });
     expect(decisionEvent.event).toMatchObject({
       name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
-      value: { toolCallId: "tool-call-grant", scope: "conversation" },
+      value: { toolCallId: "tool-call-grant" },
     });
   });
 
