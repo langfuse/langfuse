@@ -31,23 +31,16 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import {
-  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   validateExportSource,
   type BlobExportWriteMode,
-  type ExportSourceContext,
 } from "@langfuse/shared";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
-  buildExportSourceContext,
-  getDefaultExportSource,
-  getExportSourceOptions,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-  shouldShowExportSourceField,
 } from "@/src/features/analytics-integrations/exportSource";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useAnalyticsExportSource } from "@/src/features/analytics-integrations/useAnalyticsExportSource";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -162,36 +155,20 @@ const PostHogIntegrationSettings = ({
   projectId: string;
   writeMode: BlobExportWriteMode;
   // Raw ISO string, not a Date: a Date built in the parent's JSX would be a new
-  // reference on every render and would defeat the memo below.
+  // reference on every render and would defeat the export-source memo.
   projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const integrationCreatedAt = state?.createdAt;
-  const exportSourceCtx: ExportSourceContext = useMemo(
-    () => ({
-      ...buildExportSourceContext({
-        writeMode,
-        isCloud: isLangfuseCloud,
-        projectCreatedAt: new Date(projectCreatedAt),
-        integrationCreatedAt: integrationCreatedAt
-          ? new Date(integrationCreatedAt)
-          : null,
-      }),
-      exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
-    }),
-    [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
-  );
-  const exportSourceOptions = getExportSourceOptions(
-    state?.exportSource ?? null,
+  const {
     exportSourceCtx,
-  );
-  const showExportSourceField = shouldShowExportSourceField({
+    exportSourceOptions,
+    showExportSourceField,
+    defaultExportSource,
+  } = useAnalyticsExportSource({
+    writeMode,
+    projectCreatedAt,
     persisted: state?.exportSource,
-    ctx: exportSourceCtx,
-    isBetaEnabled,
-    options: exportSourceOptions,
+    integrationCreatedAt: state?.createdAt,
   });
 
   // Blocked-save validation instead of silent rewrite (LFE-10296).
@@ -218,12 +195,6 @@ const PostHogIntegrationSettings = ({
       }),
     [exportSourceCtx, state],
   );
-
-  const defaultExportSource = getDefaultExportSource({
-    persisted: state?.exportSource,
-    ctx: exportSourceCtx,
-    isBetaEnabled,
-  });
 
   const posthogForm = useForm({
     resolver: zodResolver(formSchema),
