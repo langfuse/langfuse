@@ -22,14 +22,9 @@ describe("prepareEvaluatorEmptyState", () => {
       { key: "topic-classifier", action: "detect-topics" },
       { key: "user-disagreement", action: "select-template" },
     ]);
-    expect(
-      emptyState.startingPoints.map(({ title, categoryKey }) => ({
-        title,
-        categoryKey,
-      })),
-    ).toEqual([
-      { title: "Detect Topics", categoryKey: "classifier" },
-      { title: "Detect User Disagreement", categoryKey: "conversation" },
+    expect(emptyState.startingPoints.map(({ title }) => title)).toEqual([
+      "Detect Topics",
+      "Detect User Disagreement",
     ]);
   });
 

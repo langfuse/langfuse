@@ -7,30 +7,34 @@ import type { EvaluatorEmptyStateStartingPoint } from "@/src/features/evals/v2/f
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { cn } from "@/src/utils/tailwind";
 
-function StartingPointCardHeader({
+const recommendedCardClassName =
+  "bg-background hover:bg-muted/40 flex h-full flex-col rounded-md border p-4 text-left transition-colors";
+
+function StartingPointCardBody({
   startingPoint,
 }: {
   startingPoint: EvaluatorEmptyStateStartingPoint;
 }) {
   const { type } = getGalleryTemplatePresentation(startingPoint.template);
-  const { icon: Icon, iconClassName } = getGalleryCategoryPresentation(
-    startingPoint.categoryKey,
-  );
 
   return (
     <>
       <div className="flex items-start justify-between gap-2">
-        <Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />
+        <Sparkles className="text-dark-yellow h-4 w-4 shrink-0" />
         <EvaluatorGalleryMethodBadge type={type} />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <span className="text-sm font-bold" title={startingPoint.title}>
-          {startingPoint.title}
-        </span>
-        <p className="text-muted-foreground text-xs leading-relaxed">
-          {startingPoint.description}
-        </p>
-      </div>
+      <span
+        className="mt-3 line-clamp-2 text-base font-bold"
+        title={startingPoint.title}
+      >
+        {startingPoint.title}
+      </span>
+      <p
+        className="text-muted-foreground mt-1 line-clamp-2 text-sm leading-relaxed"
+        title={startingPoint.description}
+      >
+        {startingPoint.description}
+      </p>
     </>
   );
 }
@@ -47,29 +51,17 @@ function DetectTopicsStartingPointCard({
   onDetectTopics: () => void;
   onSelectTemplate: (template: GalleryTemplate) => void;
 }) {
-  const { edgeClassName } = getGalleryCategoryPresentation(
-    startingPoint.categoryKey,
-  );
-
   return (
-    <div
-      className={cn(
-        "bg-background hover:bg-muted/40 relative flex min-h-44 flex-col rounded-lg border border-l-2 text-left transition-colors",
-        edgeClassName,
-      )}
-    >
+    <div className={cn(recommendedCardClassName, "relative")}>
       <button
         type="button"
         onClick={() => onSelectTemplate(startingPoint.template)}
         aria-label={`Set up ${startingPoint.title}`}
-        className="absolute inset-0 cursor-pointer rounded-lg"
+        className="absolute inset-0 cursor-pointer rounded-md"
       />
-      <div className="pointer-events-none relative flex min-h-44 flex-col gap-3 p-4">
-        <StartingPointCardHeader startingPoint={startingPoint} />
-        <div className="mt-auto flex items-end justify-between gap-2 border-t pt-3">
-          <span className="text-muted-foreground min-w-0 text-xs">
-            {startingPoint.audience}
-          </span>
+      <div className="pointer-events-none relative flex h-full flex-col">
+        <StartingPointCardBody startingPoint={startingPoint} />
+        <div className="mt-auto flex justify-end pt-3">
           <Button
             type="button"
             size="sm"
@@ -96,26 +88,13 @@ function TemplateStartingPointCard({
   >;
   onSelectTemplate: (template: GalleryTemplate) => void;
 }) {
-  const { edgeClassName } = getGalleryCategoryPresentation(
-    startingPoint.categoryKey,
-  );
-
   return (
     <button
       type="button"
       onClick={() => onSelectTemplate(startingPoint.template)}
-      className={cn(
-        "bg-background hover:bg-muted/40 flex min-h-44 cursor-pointer flex-col gap-3 rounded-lg border border-l-2 p-4 text-left transition-colors",
-        edgeClassName,
-      )}
+      className={cn(recommendedCardClassName, "cursor-pointer")}
     >
-      <StartingPointCardHeader startingPoint={startingPoint} />
-      <div className="mt-auto flex items-end justify-between gap-2">
-        <span className="text-muted-foreground text-xs">
-          {startingPoint.audience}
-        </span>
-        <span className="text-xs font-bold">Set up →</span>
-      </div>
+      <StartingPointCardBody startingPoint={startingPoint} />
     </button>
   );
 }
@@ -131,7 +110,7 @@ function BrowseLibraryCard({
     <button
       type="button"
       onClick={onBrowseLibrary}
-      className="bg-muted/50 hover:bg-muted flex min-h-44 cursor-pointer flex-col gap-3 rounded-lg border p-4 text-left transition-colors"
+      className={cn(recommendedCardClassName, "cursor-pointer")}
     >
       <div className="flex items-start justify-between gap-2">
         <LayoutGrid className="text-muted-foreground h-4 w-4 shrink-0" />
@@ -139,16 +118,13 @@ function BrowseLibraryCard({
           {templateCount} templates
         </span>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <span className="text-sm font-bold">Browse all templates</span>
-        <p className="text-muted-foreground text-xs leading-relaxed">
-          Search by what you want to measure — quality, retrieval, safety,
-          classifiers, coding agents.
-        </p>
-      </div>
-      <div className="mt-auto flex items-end justify-end">
-        <span className="text-xs font-bold">Browse library →</span>
-      </div>
+      <span className="mt-3 line-clamp-2 text-base font-bold">
+        Browse all templates
+      </span>
+      <p className="text-muted-foreground mt-1 line-clamp-2 text-sm leading-relaxed">
+        Search by what you want to measure — quality, retrieval, safety,
+        classifiers, coding agents.
+      </p>
     </button>
   );
 }

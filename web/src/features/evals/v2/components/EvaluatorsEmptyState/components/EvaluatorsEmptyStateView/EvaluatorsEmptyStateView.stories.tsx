@@ -37,8 +37,6 @@ const startingPoints = [
     title: "Detect Topics",
     description:
       "Classify the requests going through your system to better understand volumes of different categories.",
-    audience: "Any application",
-    categoryKey: "classifier",
   },
   {
     action: "select-template",
@@ -68,8 +66,6 @@ const startingPoints = [
     title: "Detect User Disagreement",
     description:
       "Catch conversations with unhappy users to know which traces deserve a deeper look.",
-    audience: "Conversational apps",
-    categoryKey: "conversation",
   },
 ] satisfies EvaluatorEmptyStateStartingPoint[];
 

@@ -10,8 +10,6 @@ type EvaluatorEmptyStateStartingPointBase = {
   template: Extract<GalleryTemplate, { source: "managed" }>;
   title: string;
   description: string;
-  audience: string;
-  categoryKey: string;
 };
 
 export type EvaluatorEmptyStateStartingPoint =
@@ -43,8 +41,6 @@ function toStartingPoint(
     template: { source: "managed" as const, ...template },
     title: point.title,
     description: point.description,
-    audience: point.audience,
-    categoryKey: point.categoryKey,
   };
 
   if (point.action === "detect-topics") {
