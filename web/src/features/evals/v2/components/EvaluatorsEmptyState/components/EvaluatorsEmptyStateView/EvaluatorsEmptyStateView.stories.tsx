@@ -17,7 +17,6 @@ const startingPoints = [
       icon: "tags",
       description: "Assigns the input to one of a predefined set of topics.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
         prompt: "Classify {{input}}.",
@@ -48,7 +47,6 @@ const startingPoints = [
       icon: "messages-square",
       description: "Detects whether the user is pushing back on the assistant.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
         prompt: "Decide whether {{last_user_message}} is disagreement.",
