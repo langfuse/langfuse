@@ -21,7 +21,7 @@ const resolveInAppAgentFeedbackReporter = async ({
     select: {
       isInAppAgentKey: true,
       createdByUser: {
-        select: { id: true, email: true, name: true },
+        select: { id: true, email: true },
       },
     },
   });
@@ -33,7 +33,6 @@ const resolveInAppAgentFeedbackReporter = async ({
   return {
     userId: apiKey.createdByUser.id,
     email: apiKey.createdByUser.email,
-    name: apiKey.createdByUser.name,
   };
 };
 

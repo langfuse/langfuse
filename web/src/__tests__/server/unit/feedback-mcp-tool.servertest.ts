@@ -54,7 +54,6 @@ describe("MCP submitFeedback tool", () => {
       createdByUser: {
         id: "user-1",
         email: "ugeon.jeon@creverse.com",
-        name: "Ugeon Jeon",
       },
     });
 
@@ -71,7 +70,7 @@ describe("MCP submitFeedback tool", () => {
       select: {
         isInAppAgentKey: true,
         createdByUser: {
-          select: { id: true, email: true, name: true },
+          select: { id: true, email: true },
         },
       },
     });
@@ -82,7 +81,6 @@ describe("MCP submitFeedback tool", () => {
         reporter: {
           userId: "user-1",
           email: "ugeon.jeon@creverse.com",
-          name: "Ugeon Jeon",
         },
       }),
     );
@@ -94,7 +92,6 @@ describe("MCP submitFeedback tool", () => {
       createdByUser: {
         id: "user-1",
         email: "creator@example.com",
-        name: "Key Creator",
       },
     });
 
