@@ -1,6 +1,5 @@
 import type { NormalizedIOFixture } from "./types";
 
-/** Synthetic case adapted from the normalized output coverage in PR #14417. */
 export const outputOnlyStructuredMessageFixture = {
   name: "normalizes an output-only structured assistant message",
   spanIO: {
