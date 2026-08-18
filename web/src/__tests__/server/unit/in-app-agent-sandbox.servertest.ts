@@ -1,3 +1,4 @@
+import { EventType } from "@ag-ui/core";
 import { standardSchemaToJSONSchema } from "@mastra/core/schema";
 import { Tool } from "@mastra/core/tools";
 import { describe, expect, it } from "vitest";
@@ -337,7 +338,7 @@ describe("in-app agent sandbox", () => {
   });
 
   it("does not export failed tool calls into sandbox tool_calls files", () => {
-    const files = getSandboxToolCallFiles([
+    const files = createSandboxToolCallFileAccumulator([
       {
         createdAt: new Date("2026-07-02T12:00:00.000Z"),
         runId: "run-1",
@@ -369,7 +370,7 @@ describe("in-app agent sandbox", () => {
           }),
         },
       },
-    ]);
+    ]).getFiles();
 
     expect(files).toEqual([]);
   });

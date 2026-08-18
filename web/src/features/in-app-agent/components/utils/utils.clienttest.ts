@@ -5,7 +5,7 @@ import {
 import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
   IN_APP_AGENT_SANDBOX_TOOL_NAMES,
-} from "@langfuse/shared/in-app-agent/server/tools";
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import {
   getInAppAgentToolDisplayName,
   getInAppAgentActivityProgressLabel,
