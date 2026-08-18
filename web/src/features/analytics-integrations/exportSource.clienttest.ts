@@ -8,6 +8,7 @@ import {
 
 import {
   buildExportSourceContext,
+  getExportSourceFieldState,
   getExportSourceFormValue,
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
@@ -398,6 +399,123 @@ describe("write mode drives the settings-page selector", () => {
           }),
         ),
       ).toEqual(getExportSourceOptions(undefined, ctxFor(mode)));
+    },
+  );
+});
+
+// The pages consume only this composite, so the pieces being correct
+// individually is not enough — visibility and the default must agree.
+describe("getExportSourceFieldState", () => {
+  const ctxFor = (
+    writeMode: BlobExportWriteMode,
+    over: Partial<
+      Omit<ExportSourceContext, "enrichedAvailable" | "legacyWritesActive">
+    > = {},
+  ): ExportSourceContext =>
+    buildExportSourceContext({ writeMode, isCloud: false, ...over });
+
+  it.each<BlobExportWriteMode>(["legacy", "dual", "events_only"])(
+    "%s: a hidden selector always leaves a selectable default",
+    (mode) => {
+      const ctx = ctxFor(mode);
+      const { showField, defaultValue } = getExportSourceFieldState(
+        undefined,
+        ctx,
+      );
+      if (!showField) {
+        expect(isExportSourceSelectable(defaultValue, ctx)).toBe(true);
+      }
+    },
+  );
+
+  it("dual offers the choice, with the events source defaulted", () => {
+    const { showField, defaultValue, options } = getExportSourceFieldState(
+      undefined,
+      ctxFor("dual"),
+    );
+    expect(showField).toBe(true);
+    expect(options).toHaveLength(3);
+    expect(defaultValue).toBe(AnalyticsIntegrationExportSource.EVENTS);
+  });
+
+  it.each<[BlobExportWriteMode, AnalyticsIntegrationExportSource]>([
+    ["legacy", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS],
+    ["events_only", AnalyticsIntegrationExportSource.EVENTS],
+  ])("%s hides the selector and defaults to %s", (mode, expected) => {
+    const { showField, defaultValue } = getExportSourceFieldState(
+      undefined,
+      ctxFor(mode),
+    );
+    expect(showField).toBe(false);
+    expect(defaultValue).toBe(expected);
+  });
+
+  // Kept as the default even though unselectable: the blocked-save alert
+  // names it.
+  it("keeps the selector for a persisted source the deployment can no longer write", () => {
+    const ctx = ctxFor("events_only");
+    const { showField, defaultValue } = getExportSourceFieldState(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      ctx,
+    );
+    expect(showField).toBe(true);
+    expect(defaultValue).toBe(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    );
+    expect(isExportSourceSelectable(defaultValue, ctx)).toBe(false);
+  });
+
+  it("post-cutoff Cloud leaves only the events source to offer", () => {
+    const { showField, defaultValue } = getExportSourceFieldState(
+      undefined,
+      ctxFor("dual", {
+        isCloud: true,
+        projectCreatedAt: PROJECT_POST,
+        integrationCreatedAt: ROW_PRE,
+      }),
+    );
+    expect(showField).toBe(false);
+    expect(defaultValue).toBe(AnalyticsIntegrationExportSource.EVENTS);
+  });
+
+  // The cutoff gates newly chosen sources only. Hiding the field and pinning
+  // the events source instead would rewrite a persisted legacy source on the
+  // next save of any other field on the page.
+  it("post-cutoff Cloud keeps a persisted legacy source visible and blocked", () => {
+    const ctx = ctxFor("dual", {
+      isCloud: true,
+      projectCreatedAt: PROJECT_POST,
+      integrationCreatedAt: ROW_PRE,
+    });
+    const { showField, defaultValue, options } = getExportSourceFieldState(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      ctx,
+    );
+    expect(showField).toBe(true);
+    expect(defaultValue).toBe(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    );
+    expect(isExportSourceSelectable(defaultValue, ctx)).toBe(false);
+    expect(options.find((o) => o.value === defaultValue)?.unavailable).toBe(
+      true,
+    );
+  });
+
+  // Pre-cutoff projects are exempt from the cutoff, leaving only the write
+  // mode.
+  it.each<BlobExportWriteMode>(["legacy", "dual", "events_only"])(
+    "%s: pre-cutoff Cloud matches self-hosted",
+    (mode) => {
+      expect(
+        getExportSourceFieldState(
+          undefined,
+          ctxFor(mode, {
+            isCloud: true,
+            projectCreatedAt: PROJECT_PRE,
+            integrationCreatedAt: ROW_PRE,
+          }),
+        ),
+      ).toEqual(getExportSourceFieldState(undefined, ctxFor(mode)));
     },
   );
 });
