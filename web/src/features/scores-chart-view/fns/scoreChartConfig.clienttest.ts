@@ -254,6 +254,41 @@ describe("scoreChartConfigToWidgetInput", () => {
     expect(build({ dataset: "boolean", metric: "value" }).filters).toEqual([]);
   });
 
+  // Regression: `scopeFiltersToDataset` used to only strip/replace a
+  // conflicting `dataType` filter for the numeric dataset — boolean and
+  // categorical passed an incoming filter through unchanged, so switching
+  // the view picker to "boolean" while the table's Data Type sidebar filter
+  // was still set to NUMERIC ANDed `dataType = BOOLEAN` (the view's own
+  // segment) with `dataType = NUMERIC` and always returned zero rows.
+  it("drops a contradictory incoming dataType filter for the boolean dataset instead of ANDing it with the view's segment", () => {
+    const input = scoreChartConfigToWidgetInput({
+      config: {
+        ...DEFAULT_SCORE_CHART_CONFIG,
+        dataset: "boolean",
+        metric: "value",
+      },
+      filters: [
+        { column: "dataType", operator: "=", value: "NUMERIC", type: "string" },
+      ],
+    });
+    expect(input.filters).toEqual([]);
+  });
+
+  it("drops a contradictory incoming dataType filter for the categorical dataset instead of ANDing it with the view's segment", () => {
+    const input = scoreChartConfigToWidgetInput({
+      config: { ...DEFAULT_SCORE_CHART_CONFIG, dataset: "categorical" },
+      filters: [
+        {
+          column: "dataType",
+          operator: "=",
+          value: "BOOLEAN",
+          type: "string",
+        },
+      ],
+    });
+    expect(input.filters).toEqual([]);
+  });
+
   // Regression: a stale two-way check (`dataset === "categorical" ? ... :
   // "scores-numeric"`) used to fall the boolean dataset through to
   // scores-numeric, so "Add to dashboard" would save a widget querying the

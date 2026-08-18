@@ -233,9 +233,9 @@ export default function ScoresTable({
     expandPeek: expandScorePeek,
   } = usePeekNavigation({
     // A stale `traceId` can already be in the URL (e.g. a v4-dialect shared
-    // link, LFE-11041); listing it clears it on open/navigate/close so it
-    // can't pin the peek to that trace instead of the one just clicked —
-    // matches the same guard `traces.tsx`/`EventsTable.tsx` already have.
+    // link); listing it clears it on open/navigate/close so it can't pin
+    // the peek to that trace instead of the one just clicked — matches the
+    // same guard `traces.tsx`/`EventsTable.tsx` already have.
     queryParams: ["observation", "display", "timestamp", "traceId"],
     extractParamsValuesFromRow: (
       row: ScoresTableRow,

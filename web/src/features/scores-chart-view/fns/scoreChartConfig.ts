@@ -153,21 +153,13 @@ const CATEGORICAL_ROW_LIMIT = 20;
 
 /**
  * `scores-numeric` also carries BOOLEAN scores (its segment allow-lists both
- * NUMERIC and BOOLEAN — the existing "Scores" dashboard widgets rely on that
- * to show numeric-like scores together). That's fine when boolean has no
- * dataset of its own, but this feature also offers a dedicated "boolean"
- * dataset, so leaving "numeric" unscoped would silently mix in boolean 0/1
- * values whenever both types exist and no data-type filter is active.
- *
- * `scores-boolean` and `scores-categorical` need no such override — their own
- * view segments already scope to exactly BOOLEAN and CATEGORICAL respectively
- * (see `packages/shared/src/features/query/dataModel.ts`), so appending a
- * second, redundant `dataType` filter here would only risk contradicting a
- * `dataType` filter the user already set on the table (e.g. filtering to
- * BOOLEAN while viewing the numeric chart would AND `dataType = NUMERIC`
- * with `dataType = BOOLEAN` and return nothing). `withNumericDataTypeFilter`
- * below strips any incoming `dataType` filter before adding NUMERIC's, so
- * the two can never collide.
+ * NUMERIC and BOOLEAN), so the numeric dataset needs its own filter to
+ * exclude boolean scores. `scores-boolean`/`scores-categorical` don't need
+ * an added filter — their view segments already scope correctly — but any
+ * `dataType` filter already on the table's filter state (e.g. the sidebar
+ * set to NUMERIC while viewing the boolean chart) must still be dropped for
+ * every dataset, or it ANDs against the view's own segment and always
+ * returns zero rows.
  */
 const NUMERIC_DATA_TYPE_FILTER = {
   column: "dataType",
@@ -179,13 +171,12 @@ const NUMERIC_DATA_TYPE_FILTER = {
 const scopeFiltersToDataset = (
   filters: FilterState,
   dataset: ScoreChartDataset,
-): FilterState =>
-  dataset === "numeric"
-    ? [
-        ...filters.filter((f) => f.column !== "dataType"),
-        NUMERIC_DATA_TYPE_FILTER,
-      ]
-    : filters;
+): FilterState => {
+  const withoutDataTypeFilter = filters.filter((f) => f.column !== "dataType");
+  return dataset === "numeric"
+    ? [...withoutDataTypeFilter, NUMERIC_DATA_TYPE_FILTER]
+    : withoutDataTypeFilter;
+};
 
 /**
  * Builds the dashboard `QueryType` for a scores chart-view config. Mirrors
