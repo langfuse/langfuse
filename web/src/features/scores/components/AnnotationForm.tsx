@@ -21,7 +21,6 @@ import {
 import {
   isPresent,
   type ScoreConfigDomain,
-  type ScoreConfigCategoryDomain,
   type UpdateAnnotationScoreData,
   type CreateAnnotationScoreData,
   TEXT_SCORE_MAX_LENGTH,
@@ -33,7 +32,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { Combobox } from "@/src/components/ui/combobox";
 import { Textarea } from "@/src/components/ui/textarea";
 import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
@@ -43,7 +41,6 @@ import {
   isNumericDataType,
   isScoreUnsaved,
 } from "@/src/features/scores/lib/helpers";
-import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
@@ -65,6 +62,7 @@ import { transformToAnnotationScores } from "@/src/features/scores/lib/transform
 import { v4 as uuid } from "uuid";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+import { CategoricalScoreInput } from "@/src/features/scores/components/CategoricalScoreInput";
 import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
 import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
@@ -75,8 +73,6 @@ import {
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-
-const CHAR_CUTOFF = 6;
 
 function CommentField({
   savedComment,
@@ -161,18 +157,6 @@ function CommentField({
     </div>
   );
 }
-
-const renderSelect = (categories: ScoreConfigCategoryDomain[]) => {
-  const hasMoreThanThreeCategories = categories.length > 3;
-  const hasLongCategoryNames = categories.some(
-    ({ label }) => label.length > CHAR_CUTOFF,
-  );
-
-  return (
-    hasMoreThanThreeCategories ||
-    (categories.length > 1 && hasLongCategoryNames)
-  );
-};
 
 function AnnotateHeader({
   showSaving,
@@ -854,6 +838,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                 <DropdownMenuItemWithSecondaryAction
                   title="Manage score configs"
                   href={`/project/${scoreMetadata.projectId}/settings/scores`}
+                  target="_blank"
                   onBeforeAction={() => {
                     capture(
                       "score_configs:manage_configs_item_click",
@@ -1061,35 +1046,6 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                   </FormItem>
                                 )}
                               />
-                            ) : config.categories &&
-                              renderSelect(categories) ? (
-                              <FormField
-                                control={form.control}
-                                name={`scoreData.${index}.stringValue`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormControl>
-                                      <Combobox
-                                        name={field.name}
-                                        value={field.value ?? ""}
-                                        disabled={isInputDisabled(config)}
-                                        onValueChange={(value) => {
-                                          field.onChange(value);
-                                          handleCategoricalUpsert(index, value);
-                                        }}
-                                        options={categories.map((category) => ({
-                                          value: category.label,
-                                          disabled: category.isOutdated,
-                                        }))}
-                                        placeholder="Select category"
-                                        searchPlaceholder="Search categories..."
-                                        emptyText="No category found."
-                                      />
-                                    </FormControl>
-                                    <FormMessage className="text-xs" />
-                                  </FormItem>
-                                )}
-                              />
                             ) : (
                               <FormField
                                 control={form.control}
@@ -1097,72 +1053,19 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormControl>
-                                      <ToggleGroup
-                                        type="single"
-                                        // Horizontal roving so Radix only uses
-                                        // ←/→ between True/False, leaving ↑/↓ for
-                                        // our field navigation (no double-handling).
-                                        orientation="horizontal"
+                                      <CategoricalScoreInput
+                                        projectId={scoreMetadata.projectId}
+                                        config={config}
+                                        categories={categories}
+                                        name={field.name}
                                         value={field.value ?? ""}
                                         disabled={isInputDisabled(config)}
-                                        className={`grid grid-cols-${categories.length}`}
+                                        source={analyticsData?.source}
                                         onValueChange={(value) => {
                                           field.onChange(value);
                                           handleCategoricalUpsert(index, value);
                                         }}
-                                      >
-                                        {categories.map((category) =>
-                                          category.isOutdated ? (
-                                            <ToggleGroupItem
-                                              key={category.value}
-                                              value={category.label}
-                                              disabled
-                                              variant="outline"
-                                              className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap opacity-50"
-                                            >
-                                              <span
-                                                className="truncate"
-                                                title={category.label}
-                                              >
-                                                {category.label}
-                                              </span>
-                                              <span>{`(${category.value})`}</span>
-                                            </ToggleGroupItem>
-                                          ) : (
-                                            <ToggleGroupItem
-                                              key={category.value}
-                                              value={category.label}
-                                              variant="outline"
-                                              className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap"
-                                            >
-                                              <span
-                                                className="truncate"
-                                                title={category.label}
-                                              >
-                                                {category.label}
-                                              </span>
-                                              {(() => {
-                                                // LFE-7628: number-key hint for this
-                                                // option, shown only while the row is
-                                                // focused (CSS `group-focus-within`,
-                                                // so it tracks real focus directly).
-                                                const digit =
-                                                  (config.categories?.findIndex(
-                                                    (c) =>
-                                                      c.label ===
-                                                      category.label,
-                                                  ) ?? -1) + 1;
-                                                return digit >= 1 &&
-                                                  digit <= 9 ? (
-                                                  <KeyboardShortcut className="ml-0.5 h-3.5 min-w-3.5 px-1 text-[9px] md:hidden md:group-focus-within:inline-flex">
-                                                    {digit}
-                                                  </KeyboardShortcut>
-                                                ) : null;
-                                              })()}
-                                            </ToggleGroupItem>
-                                          ),
-                                        )}
-                                      </ToggleGroup>
+                                      />
                                     </FormControl>
                                     <FormMessage className="text-xs" />
                                   </FormItem>

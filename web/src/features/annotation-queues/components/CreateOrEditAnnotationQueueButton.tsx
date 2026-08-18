@@ -366,6 +366,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                                 );
                               }}
                               href={`/project/${projectId}/settings/scores`}
+                              target="_blank"
                               title="Manage score configs"
                             />
                           }

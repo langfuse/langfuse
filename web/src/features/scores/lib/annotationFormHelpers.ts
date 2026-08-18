@@ -61,3 +61,35 @@ export const enrichCategoryOptionsWithStaleScoreValue = (
     ...enrichedCategories,
   ];
 };
+
+export const nextCategoryValue = (
+  categories: Pick<ScoreConfigCategoryDomain, "value">[],
+): number => {
+  if (categories.length === 0) return 0;
+  return (
+    categories.reduce((max, category) => Math.max(max, category.value), 0) + 1
+  );
+};
+
+export const validateNewCategoryLabel = (
+  label: string,
+  categories: Pick<ScoreConfigCategoryDomain, "label">[],
+): string | null => {
+  const trimmed = label.trim();
+  if (!trimmed) return "Category name is required";
+  if (categories.some((category) => category.label === trimmed)) {
+    return "A category with this name already exists";
+  }
+  return null;
+};
+
+export const getAddCategoryActionLabel = (
+  search: string,
+  existingLabels: string[],
+): string => {
+  const trimmed = search.trim();
+  if (trimmed && !existingLabels.includes(trimmed)) {
+    return `Add "${trimmed}"`;
+  }
+  return "Add new category";
+};

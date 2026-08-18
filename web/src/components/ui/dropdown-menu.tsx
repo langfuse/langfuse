@@ -284,10 +284,12 @@ type DropdownMenuItemAction = {
 } & (
   | {
       href: React.ComponentProps<typeof Link>["href"];
+      target?: React.ComponentProps<typeof Link>["target"];
       onClick?: never;
     }
   | {
       href?: never;
+      target?: never;
       onClick: () => void;
     }
 );
@@ -342,6 +344,12 @@ const DropdownMenuItemWithSecondaryAction = (
       secondaryActionContent = (
         <Link
           href={secondaryAction.href}
+          target={secondaryAction.target}
+          rel={
+            secondaryAction.target === "_blank"
+              ? "noopener noreferrer"
+              : undefined
+          }
           aria-label={secondaryAction.ariaLabel}
           aria-disabled={isDisabled}
           tabIndex={isDisabled ? -1 : undefined}
@@ -407,6 +415,8 @@ const DropdownMenuItemWithSecondaryAction = (
             primaryActionRef.current = element;
           }}
           href={props.href}
+          target={props.target}
+          rel={props.target === "_blank" ? "noopener noreferrer" : undefined}
           aria-disabled={isDisabled}
           tabIndex={isDisabled ? -1 : undefined}
           className={dropdownMenuItemPrimaryActionVariants()}

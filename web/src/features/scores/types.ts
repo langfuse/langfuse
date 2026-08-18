@@ -70,7 +70,7 @@ export type AnnotationScore = {
   timestamp?: Date | null;
 };
 
-type AnalyticsData = {
+export type AnalyticsData = {
   type: "trace" | "session";
   source:
     | "TraceDetail"
