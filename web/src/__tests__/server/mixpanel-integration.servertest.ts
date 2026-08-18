@@ -732,6 +732,30 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("EVENTS");
     });
 
+    it("trying enriched is reversible: a grandfathered row may switch back to legacy", async () => {
+      // The gate keys on the row's creation date, not on its current source, so
+      // opting into enriched must not be a one-way door. Someone evaluating the
+      // enriched export needs to be able to back out while legacy still exists.
+      const { caller, project } = await prepareOldProject();
+      await seedLegacyRow(caller, project.id, ROW_PRE_ANALYTICS_CUTOFF);
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportSource: "EVENTS" as const,
+      });
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS" as const,
+        }),
+      ).resolves.not.toThrow();
+      const back = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(back.config?.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+
     it("post-cutoff row requesting a legacy source → BAD_REQUEST", async () => {
       const { caller, project } = await prepareOldProject();
       await seedLegacyRow(

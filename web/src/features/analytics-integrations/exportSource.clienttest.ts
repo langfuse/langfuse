@@ -669,4 +669,20 @@ describe("analytics settings pages: the new-integration enriched pin", () => {
       ).toBe(true);
     }
   });
+  it("a grandfathered row already on enriched still offers the way back to legacy", () => {
+    // The server allows the switch back; this is the UI half of that guarantee.
+    // If the selector were hidden once the row is on enriched, the escape hatch
+    // would exist only in the API.
+    const ctx = analyticsCloudCtx(ROW_PRE_ANALYTICS);
+    const { showField, options } = getExportSourceFieldState(
+      AnalyticsIntegrationExportSource.EVENTS,
+      ctx,
+    );
+    expect(showField).toBe(true);
+    expect(
+      options.find(
+        (o) => o.value === AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      ),
+    ).toMatchObject({ unavailable: false });
+  });
 });
