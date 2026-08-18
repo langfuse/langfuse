@@ -312,10 +312,10 @@ export class IngestionService {
       shouldEnrichUsageAndCost
         ? this.getGenerationUsage({
             projectId: eventData.projectId,
-            pricingMatchAttributes: {
+            getPricingMatchAttributes: () => ({
               modelParameters: toPricingAttributeRecord(modelParameters),
               metadata: toPricingAttributeRecord(eventData.metadata),
-            },
+            }),
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -1005,12 +1005,12 @@ export class IngestionService {
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
-      pricingMatchAttributes: {
+      getPricingMatchAttributes: () => ({
         modelParameters: toPricingAttributeRecord(
           mergedObservationRecord.model_parameters,
         ),
         metadata: toPricingAttributeRecord(mergedObservationRecord.metadata),
-      },
+      }),
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -1227,7 +1227,7 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
-    pricingMatchAttributes?: PricingTierMatchAttributes;
+    getPricingMatchAttributes?: () => PricingTierMatchAttributes;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1251,7 +1251,7 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const { projectId, observationRecord, pricingMatchAttributes } = params;
+    const { projectId, observationRecord, getPricingMatchAttributes } = params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1272,6 +1272,15 @@ export class IngestionService {
     let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
     let usage_pricing_tier_id: string | null = null;
     let usage_pricing_tier_name: string | null = null;
+    const hasAttributeBasedPricing = pricingTiers.some(
+      (tier) =>
+        !tier.isDefault &&
+        tier.conditions.some(
+          (condition) =>
+            !("usageDetailPattern" in condition) &&
+            condition.column !== "usage_details",
+        ),
+    );
 
     if (
       pricingTiers.length > 0 &&
@@ -1280,7 +1289,7 @@ export class IngestionService {
       const matchedTier = matchPricingTier(
         pricingTiers,
         final_usage_details.usage_details,
-        pricingMatchAttributes,
+        hasAttributeBasedPricing ? getPricingMatchAttributes?.() : undefined,
       );
 
       if (matchedTier) {

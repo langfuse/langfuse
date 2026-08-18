@@ -236,6 +236,16 @@ describe("IngestionService unit tests", () => {
     });
 
     expect(mocks.applyObservationFieldOverflow).not.toHaveBeenCalled();
+    const getGenerationUsage = vi.mocked(
+      (ingestionService as any).getGenerationUsage,
+    );
+    const getPricingMatchAttributes =
+      getGenerationUsage.mock.calls[0]?.[0].getPricingMatchAttributes;
+    expect(getPricingMatchAttributes).toBeTypeOf("function");
+    expect(getPricingMatchAttributes()).toEqual({
+      modelParameters: {},
+      metadata: { large: metadataValue },
+    });
     for (const table of [
       TableName.Observations,
       TableName.ObservationsBatchStaging,
