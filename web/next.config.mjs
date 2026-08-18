@@ -3,6 +3,7 @@
  * for Docker builds.
  */
 await import("./src/env.mjs");
+import { fileURLToPath } from "node:url";
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
 import { renamedRouteRedirects } from "./redirects.mjs";
@@ -100,6 +101,11 @@ const nextConfig = {
     },
   },
   turbopack: {
+    // Pin the workspace root: in a nested git worktree Next.js infers the
+    // OUTER checkout's root (outermost lockfile wins), which breaks the
+    // relative resolveAlias below. fileURLToPath, not URL.pathname — the
+    // latter percent-encodes spaces and breaks on Windows drive letters.
+    root: fileURLToPath(new URL("..", import.meta.url)),
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
     },
