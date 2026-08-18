@@ -1,7 +1,7 @@
 import { type ApiDeprecationInfo } from "@langfuse/shared";
 import { OBSERVATIONS_API_V2_DOCS_URL } from "./rateLimitUpgradePaths";
 
-// LFE-10895. Family-level deprecation signals for legacy (v3) public API
+// Family-level deprecation signals for legacy (v3) public API
 // endpoints. Attach one via the `deprecation` route-config field; the response
 // gets a top-level `_deprecation` key.
 
