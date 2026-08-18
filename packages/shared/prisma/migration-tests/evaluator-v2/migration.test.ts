@@ -29,10 +29,20 @@ const preparatoryMigration = join(
   "20260807120000_drop_job_execution_configuration_fk",
   "migration.sql",
 );
-const backfillMigration = join(
+// The evaluator v2 rollout is two migrations: the DDL creates the tables and their foreign keys,
+// and the backfill copies the legacy rows in. They are split so that the foreign keys, which lock
+// `projects` and `users` against writes while their transaction is open, do not hold that lock for
+// the duration of the backfill. Both must exist for this suite to be testing anything.
+const ddlMigration = join(
   prismaDirectory,
   "migrations",
   "20260807121000_add_evaluator_v2",
+  "migration.sql",
+);
+const backfillMigration = join(
+  prismaDirectory,
+  "migrations",
+  "20260807121500_backfill_evaluator_v2",
   "migration.sql",
 );
 const preparatoryMigrationName = basename(dirname(preparatoryMigration));
@@ -468,6 +478,9 @@ beforeAll(async () => {
     existsSync(preparatoryMigration),
     `Missing migration: ${preparatoryMigration}`,
   ).toBe(true);
+  expect(existsSync(ddlMigration), `Missing migration: ${ddlMigration}`).toBe(
+    true,
+  );
   expect(
     existsSync(backfillMigration),
     `Missing migration: ${backfillMigration}`,
