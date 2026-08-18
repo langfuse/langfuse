@@ -12,6 +12,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import {
   OnboardingCard,
   OnboardingMessage,
@@ -34,6 +35,48 @@ type NewsletterFormData = z.infer<typeof newsletterFormSchema>;
 
 const PITCH =
   "Subscribe to the Langfuse OSS email newsletter to stay informed about new features and important updates.";
+
+/**
+ * Answers the "what actually happens to my address?" question in place.
+ *
+ * Self-hosters are the audience least willing to accept an unexplained email
+ * field, so this spells out the destination, the outbound request their
+ * instance makes, and the opt-outs — including the flag their admin can set.
+ */
+function NewsletterExplainer() {
+  return (
+    <div className="flex flex-col gap-2">
+      <p>
+        By submitting your email, you will be added to the new Langfuse OSS
+        mailing list. You can expect monthly updates about all new features
+        available to self-hosted Langfuse instances.
+      </p>
+      <p>
+        You can unsubscribe from the email updates directly in the first message
+        or by contacting us.
+      </p>
+      <p>
+        This question is shown to new users, both on net-new instances and to
+        new members added to an existing organization. To sign you up, this
+        instance sends a POST request to{" "}
+        {/* break-words, not break-all: the literal moves to its own line whole
+            and only splits if it still cannot fit, e.g. on a narrow screen. */}
+        <span className="font-mono break-words">
+          https://langfuse.com/api/productUpdateSignup
+        </span>{" "}
+        to add your email to the list. If the instance is air-gapped and that
+        request fails, it shows a link to a sign-up form instead.
+      </p>
+      <p>
+        Langfuse admins can disable this question entirely by setting{" "}
+        <span className="font-mono break-words">
+          LANGFUSE_DISABLE_SIGNUP_ONBOARDING=true
+        </span>
+        .
+      </p>
+    </div>
+  );
+}
 
 /**
  * Self-hosted signup step: opt in to the Langfuse self-hosting newsletter.
@@ -120,7 +163,10 @@ export function SelfHostedNewsletterStep() {
   return (
     <OnboardingCard>
       <div className="flex flex-col gap-2">
-        <h1 className="text-xl font-bold">Stay up to date</h1>
+        <div className="flex items-center">
+          <h1 className="text-xl font-bold">Stay up to date</h1>
+          <DocPopup description={<NewsletterExplainer />} width="wide" />
+        </div>
         <p className="text-muted-foreground text-sm">{PITCH}</p>
       </div>
 

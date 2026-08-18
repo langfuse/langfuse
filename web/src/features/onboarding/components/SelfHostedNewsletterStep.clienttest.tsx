@@ -151,6 +151,33 @@ describe("SelfHostedNewsletterStep", () => {
     });
   });
 
+  it("explains where the address goes, including the opt-outs and the admin flag", async () => {
+    const { container } = render(<SelfHostedNewsletterStep />);
+
+    // The ⓘ trigger is an icon with no accessible role of its own.
+    const infoTrigger = container.querySelector(".lucide-info")?.parentElement;
+    expect(infoTrigger).toBeTruthy();
+
+    fireEvent.click(infoTrigger as Element);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Langfuse OSS mailing list/i),
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/monthly updates/i)).toBeInTheDocument();
+    expect(screen.getByText(/unsubscribe/i)).toBeInTheDocument();
+    // The outbound request and the admin opt-out are the two facts a reviewer
+    // would otherwise have to read the source to discover.
+    expect(
+      screen.getByText("https://langfuse.com/api/productUpdateSignup"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("LANGFUSE_DISABLE_SIGNUP_ONBOARDING=true"),
+    ).toBeInTheDocument();
+  });
+
   it("skips straight to completion and records the decline", async () => {
     render(<SelfHostedNewsletterStep />);
 
