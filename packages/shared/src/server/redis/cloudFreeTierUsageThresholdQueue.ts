@@ -51,10 +51,12 @@ export class CloudFreeTierUsageThresholdQueue {
         },
       );
 
+      // The legacy schedule carried data { type: "recurring" } to distinguish
+      // it from a bootstrap job that was never enabled; nothing reads it and
+      // job data has no semantics to BullMQ, so the payload is now empty.
       scheduleRecurringJob(CloudFreeTierUsageThresholdQueue.instance, {
         jobName: QueueJobs.CloudFreeTierUsageThresholdJob,
         pattern: "35 * * * *",
-        data: { type: "recurring" },
       });
 
       // Optional: Bootstrap job for immediate execution on startup
