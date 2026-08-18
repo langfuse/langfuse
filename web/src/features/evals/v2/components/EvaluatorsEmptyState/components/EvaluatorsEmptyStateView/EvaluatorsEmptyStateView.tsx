@@ -108,6 +108,14 @@ export function EvaluatorsEmptyStateView({
         <h2 className="mb-2 text-2xl font-bold">
           Turn traces into quality signals
         </h2>
+        <a
+          href={docsHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-link hover:text-link-hover mb-3 inline-block text-sm"
+        >
+          How evaluators work.
+        </a>
         <p className="text-muted-foreground text-base">
           Evaluators score your data with an LLM-as-a-judge or with code. Run
           them on production traces to catch patterns, or on dataset runs to
@@ -144,19 +152,6 @@ export function EvaluatorsEmptyStateView({
           />
         </EvaluatorRecommendedCards>
       </div>
-
-      <p className="text-muted-foreground mt-6 max-w-2xl text-center text-sm">
-        You choose where each evaluator runs. Live traces or dataset runs, and
-        test it on real data before activating.{" "}
-        <a
-          href={docsHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-link hover:text-link-hover"
-        >
-          How evaluators work.
-        </a>
-      </p>
     </div>
   );
 }
