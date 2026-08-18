@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  publishInternalTraceInputsViaOtelIngestion,
   writeInternalTraceViaOtelIngestion,
   type InternalOtelSpanInput,
 } from "./internalTraceOtelWriter";
 
 const publishToOtelIngestionQueue = vi.fn().mockResolvedValue(undefined);
+let processorConfig: Record<string, unknown> | undefined;
 
 vi.mock("./OtelIngestionProcessor", async (importOriginal) => {
   const actual =
@@ -14,6 +16,10 @@ vi.mock("./OtelIngestionProcessor", async (importOriginal) => {
     ...actual,
     OtelIngestionProcessor: class {
       publishToOtelIngestionQueue = publishToOtelIngestionQueue;
+
+      constructor(config: Record<string, unknown>) {
+        processorConfig = config;
+      }
     },
   };
 });
@@ -62,6 +68,7 @@ const processPublishedSpans = async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  processorConfig = undefined;
 });
 
 describe("writeInternalTraceViaOtelIngestion", () => {
@@ -149,5 +156,107 @@ describe("writeInternalTraceViaOtelIngestion", () => {
     });
 
     expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
+  });
+});
+
+describe("publishInternalTraceInputsViaOtelIngestion", () => {
+  it("preserves in-app trace and observation IDs through the real OTel converter", async () => {
+    const inAppTraceId = "arun_run-123-trace";
+    const rootObservationId = "arun_run-123";
+    const generationId = "arun_run-123-llm-1";
+
+    await publishInternalTraceInputsViaOtelIngestion({
+      projectId: "project-1",
+      eventInputs: [
+        {
+          projectId: "project-1",
+          traceId: inAppTraceId,
+          spanId: rootObservationId,
+          startTimeISO: START_ISO,
+          endTimeISO: END_ISO,
+          name: "agent-turn",
+          type: "SPAN",
+          environment: "langfuse-in-app-agent",
+          traceName: "agent-turn",
+          level: "ERROR",
+          statusMessage: "agent failed",
+          userId: "user-1",
+          sessionId: "conversation-1",
+          tags: ["in-app-agent"],
+          metadata: { feature: "assistant" },
+          input: '{"messages":[]}',
+          output: '{"text":"hello"}',
+          source: "in-app-agent",
+        },
+        {
+          projectId: "project-1",
+          traceId: inAppTraceId,
+          spanId: generationId,
+          parentSpanId: rootObservationId,
+          startTimeISO: START_ISO,
+          endTimeISO: END_ISO,
+          name: "invoke-model",
+          type: "GENERATION",
+          environment: "langfuse-in-app-agent",
+          metadata: {},
+          modelName: "claude-test",
+          modelParameters: { temperature: 0.2 },
+          providedUsageDetails: { input: 10, output: 5, total: 15 },
+          providedCostDetails: { input: 0.01, output: 0.02, total: 0.03 },
+          promptName: "assistant-prompt",
+          promptVersion: "3",
+          completionStartTime: START_ISO,
+          input: '{"messages":[]}',
+          output: '{"text":"hello"}',
+          source: "in-app-agent",
+        },
+      ],
+    });
+
+    expect(processorConfig).toMatchObject({
+      ingestionVersion: "4",
+      isLangfuseInternal: true,
+    });
+
+    const events = await processPublishedSpans();
+    const root = events.find(
+      (event: any) => event.spanId === rootObservationId,
+    );
+    const generation = events.find(
+      (event: any) => event.spanId === generationId,
+    );
+
+    expect(root).toMatchObject({
+      traceId: inAppTraceId,
+      spanId: rootObservationId,
+      parentSpanId: null,
+      traceName: "agent-turn",
+      userId: "user-1",
+      sessionId: "conversation-1",
+      environment: "langfuse-in-app-agent",
+      level: "ERROR",
+      statusMessage: "agent failed",
+      input: '{"messages":[]}',
+      output: '{"text":"hello"}',
+      startTimeISO: START_ISO,
+      endTimeISO: END_ISO,
+    });
+    expect(root.metadata).toMatchObject({ feature: "assistant" });
+    expect(generation).toMatchObject({
+      traceId: inAppTraceId,
+      spanId: generationId,
+      parentSpanId: rootObservationId,
+      modelName: "claude-test",
+      modelParameters: { temperature: 0.2 },
+      promptName: "assistant-prompt",
+      promptVersion: "3",
+      providedUsageDetails: { input: 10, output: 5, total: 15 },
+      providedCostDetails: { input: 0.01, output: 0.02, total: 0.03 },
+      input: '{"messages":[]}',
+      output: '{"text":"hello"}',
+      startTimeISO: START_ISO,
+      endTimeISO: END_ISO,
+      completionStartTime: START_ISO,
+    });
   });
 });

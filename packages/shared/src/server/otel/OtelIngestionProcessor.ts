@@ -197,9 +197,9 @@ export interface ResourceSpan {
       attributes?: Array<{ key: string; value: any }>;
     };
     spans?: Array<{
-      traceId: { data?: Buffer } | Buffer;
-      spanId: { data?: Buffer } | Buffer;
-      parentSpanId?: { data?: Buffer } | Buffer;
+      traceId: string | { data?: Buffer } | Buffer;
+      spanId: string | { data?: Buffer } | Buffer;
+      parentSpanId?: string | { data?: Buffer } | Buffer;
       name: string;
       kind: number;
       startTimeUnixNano?: NanoTimestamp;

@@ -547,6 +547,11 @@ export type TraceSinkParams = {
     version: number;
   };
   /**
+   * Internal ingestion path for the trace sink. The in-app agent uses the
+   * v4 OTel queue; other internal tracing consumers keep the legacy default.
+   */
+  ingestionMode?: "legacy" | "otel-v4";
+  /**
    * When provided, traced events are written directly to the events table,
    * bypassing the legacy traces/observations ingestion pipeline for the events write.
    * Used for internal tracing (prompt experiments, LLM-as-a-judge evaluations). Traced

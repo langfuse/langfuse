@@ -35,6 +35,7 @@ export type InAppAgentTracingConfig = {
   };
   runId: string;
   targetProjectId: string;
+  ingestionMode?: "legacy" | "otel-v4";
   prompt?: InAppAgentPromptMetadata;
 };
 
@@ -168,6 +169,7 @@ export function createInAppAgentInstrumentation({
       runId: tracing.runId,
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
+      ingestionMode: tracing.ingestionMode,
       prompt: tracing.prompt,
       model,
     });
@@ -179,6 +181,7 @@ export function createInAppAgentInstrumentation({
 
 export class InAppAgentInstrumentation {
   private readonly processTracedEvents: () => Promise<void>;
+  private flushPromise?: Promise<void>;
   private readonly langfuse: InAppAgentLangfuse;
   private readonly trace: InAppAgentTrace;
   private readonly runId: string;
@@ -216,6 +219,7 @@ export class InAppAgentInstrumentation {
     runId: string;
     targetProjectId: string;
     environment: string;
+    ingestionMode?: "legacy" | "otel-v4";
     prompt?: InAppAgentPromptMetadata;
     model?: string;
   }) {
@@ -260,6 +264,7 @@ export class InAppAgentInstrumentation {
       userId: params.userId,
       metadata: this.metadata,
       prompt: params.prompt,
+      ingestionMode: params.ingestionMode,
     };
     const { handler, processTracedEvents } =
       getInternalTracingHandler(traceSinkParams);
@@ -481,10 +486,12 @@ export class InAppAgentInstrumentation {
     this.ended = true;
   }
 
-  flush() {
-    this.processTracedEvents().catch((error) => {
+  flush(): Promise<void> {
+    this.flushPromise ??= this.processTracedEvents().catch((error) => {
       logger.warn("Failed to flush in-app agent Langfuse tracing", error);
     });
+
+    return this.flushPromise;
   }
 
   private recordEvent(event: AgUiEvent) {

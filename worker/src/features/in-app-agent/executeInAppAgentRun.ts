@@ -697,6 +697,7 @@ function buildTracingConfig(params: {
         targetProjectId: traceSinkParams.targetProjectId,
         environment: traceSinkParams.environment,
         runId: params.runId,
+        ingestionMode: "otel-v4" as const,
         user: {
           id: params.user.id,
           email: params.user.email,

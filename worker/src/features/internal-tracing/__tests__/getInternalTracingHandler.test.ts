@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExportLocalEvents, mockProcessEventBatch, mockWrite } = vi.hoisted(
-  () => ({
-    mockExportLocalEvents: vi.fn(),
-    mockProcessEventBatch: vi.fn(),
-    mockWrite: vi.fn(),
-  }),
-);
+const {
+  mockExportLocalEvents,
+  mockProcessEventBatch,
+  mockPublishInternalTraceInputsViaOtelIngestion,
+  mockWrite,
+} = vi.hoisted(() => ({
+  mockExportLocalEvents: vi.fn(),
+  mockProcessEventBatch: vi.fn(),
+  mockPublishInternalTraceInputsViaOtelIngestion: vi.fn(),
+  mockWrite: vi.fn(),
+}));
 
 vi.mock("langfuse-langchain", () => {
   return {
@@ -27,7 +31,16 @@ vi.mock(
   }),
 );
 
+vi.mock(
+  "../../../../../packages/shared/src/server/otel/internalTraceOtelWriter",
+  () => ({
+    publishInternalTraceInputsViaOtelIngestion:
+      mockPublishInternalTraceInputsViaOtelIngestion,
+  }),
+);
+
 import { getInternalTracingHandler } from "../../../../../packages/shared/src/server/llm/getInternalTracingHandler";
+import { env } from "../../../../../packages/shared/src/env";
 import { LangfuseInternalTraceEnvironment } from "@langfuse/shared";
 
 const traceId = "trace-123";
@@ -83,7 +96,52 @@ describe("getInternalTracingHandler", () => {
       successes: [],
       errors: [],
     });
+    mockPublishInternalTraceInputsViaOtelIngestion.mockResolvedValue(undefined);
     mockWrite.mockResolvedValue(undefined);
+  });
+
+  it("publishes v4 OTel traces without entering legacy ingestion", async () => {
+    const { processTracedEvents } = getInternalTracingHandler({
+      targetProjectId: "project-123",
+      traceId,
+      traceName: "internal-trace",
+      environment: LangfuseInternalTraceEnvironment.InAppAgent,
+      ingestionMode: "otel-v4",
+    });
+
+    await processTracedEvents();
+
+    expect(mockProcessEventBatch).not.toHaveBeenCalled();
+    expect(mockPublishInternalTraceInputsViaOtelIngestion).toHaveBeenCalledWith(
+      {
+        projectId: "project-123",
+        eventInputs: expect.any(Array),
+      },
+    );
+  });
+
+  it("skips v4 tracing instead of falling back in legacy mode", async () => {
+    const previousMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+
+    try {
+      const { processTracedEvents } = getInternalTracingHandler({
+        targetProjectId: "project-123",
+        traceId,
+        traceName: "internal-trace",
+        environment: LangfuseInternalTraceEnvironment.InAppAgent,
+        ingestionMode: "otel-v4",
+      });
+
+      await processTracedEvents();
+
+      expect(
+        mockPublishInternalTraceInputsViaOtelIngestion,
+      ).not.toHaveBeenCalled();
+      expect(mockProcessEventBatch).not.toHaveBeenCalled();
+    } finally {
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = previousMode;
+    }
   });
 
   it("disables staging propagation when direct event write is enabled", async () => {
