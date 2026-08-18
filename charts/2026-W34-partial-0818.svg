@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="Helvetica, Arial, sans-serif">
+  <style>
+    .axis { stroke: #94a3b8; stroke-width: 1; }
+    .grid { stroke: #e2e8f0; stroke-width: 1; }
+    .bar { fill: #6366f1; }
+    .bar-anom { fill: #f97316; }
+    .ref-baseline { stroke: #16a34a; stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .label { fill: #334155; font-size: 12px; }
+    .title { fill: #0f172a; font-size: 15px; font-weight: 600; }
+    .legend { fill: #475569; font-size: 11px; }
+    .val { fill: #1e293b; font-size: 11px; text-anchor: middle; }
+  </style>
+
+  <text x="20" y="24" class="title">merge-group perceived-time median, by day (2026-08-12..08-18)</text>
+  <text x="20" y="42" class="legend">Pooled weekly p50~260s, p90~700s (25 runs) -- baseline 2026-W28 p50=396s, p90=522s</text>
+
+  <!-- plot area: x=60..680, y=70..320, 0..800s scale (250px = 800s) -->
+  <line x1="60" y1="320" x2="680" y2="320" class="axis" />
+  <line x1="60" y1="70" x2="60" y2="320" class="axis" />
+  <g class="grid">
+    <line x1="60" y1="270" x2="680" y2="270" />
+    <line x1="60" y1="220" x2="680" y2="220" />
+    <line x1="60" y1="170" x2="680" y2="170" />
+    <line x1="60" y1="120" x2="680" y2="120" />
+    <line x1="60" y1="70"  x2="680" y2="70" />
+  </g>
+  <text x="52" y="323" class="label" text-anchor="end">0</text>
+  <text x="52" y="273" class="label" text-anchor="end">160</text>
+  <text x="52" y="223" class="label" text-anchor="end">320</text>
+  <text x="52" y="173" class="label" text-anchor="end">480</text>
+  <text x="52" y="123" class="label" text-anchor="end">640</text>
+  <text x="52" y="73"  class="label" text-anchor="end">800s</text>
+
+  <!-- baseline p50 (396s) reference line -->
+  <line x1="60" y1="196.25" x2="680" y2="196.25" class="ref-baseline" />
+  <text x="588" y="193" class="legend" fill="#16a34a">baseline p50 396s</text>
+
+  <!-- bars: 5 sampled days, bar width 80, gap 44 -->
+  <!-- 08-12: 336s -> height 105 -->
+  <rect x="90"  y="215"    width="80" height="105"    class="bar" />
+  <text x="130" y="208" class="val">336</text>
+  <text x="130" y="336" class="label" text-anchor="middle">08-12</text>
+
+  <!-- 08-13: 676s -> height 211.25, anomalous -->
+  <rect x="214" y="108.75" width="80" height="211.25" class="bar-anom" />
+  <text x="254" y="101" class="val">676</text>
+  <text x="254" y="336" class="label" text-anchor="middle">08-13*</text>
+
+  <!-- 08-14: 230s -->
+  <rect x="338" y="248.125" width="80" height="71.875" class="bar" />
+  <text x="378" y="241" class="val">230</text>
+  <text x="378" y="336" class="label" text-anchor="middle">08-14</text>
+
+  <!-- 08-16: 194s -->
+  <rect x="462" y="259.375" width="80" height="60.625" class="bar" />
+  <text x="502" y="252" class="val">194</text>
+  <text x="502" y="336" class="label" text-anchor="middle">08-16</text>
+
+  <!-- 08-17: 201s -->
+  <rect x="586" y="257.1875" width="80" height="62.8125" class="bar" />
+  <text x="626" y="250" class="val">201</text>
+  <text x="626" y="336" class="label" text-anchor="middle">08-17</text>
+
+  <text x="20" y="356" class="legend">* 08-13: 3 of 5 sampled runs dramatically slow (webRunTests shard up to 347s median); 08-14 also had 2/5 slow runs.</text>
+  <text x="20" y="374" class="legend">Root cause: whole-suite proportional slowdown (transform/import/tests all ~5x, same file/test counts) -- runner contention (Blacksmith), not a code regression.</text>
+  <text x="20" y="392" class="legend">Does not meet the >=50%-across-3-consecutive-days actionable threshold (only 08-13/08-14 affected, not 3 consecutive days). No PR opened this run.</text>
+</svg>

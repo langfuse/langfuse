@@ -69,35 +69,60 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   Actions API AND live DB connectivity should verify this immediately.
 
 ## 2026-08-03 through 2026-08-17 (runs 12-17) — six consecutive fully-blocked
-   runs across five calendar days, condensed
+   runs, condensed; Actions API RESOLVED 08-18 (see below)
 
-- Both hard blockers first appeared 08-03 and have been independently
-  re-confirmed every run since with zero change in symptom:
-  `actions_list`/`actions_get` (every method, incl. plain `list_workflows`
-  and `get_workflow`) filtered by secrecy policy on every call
-  ("not authorized to access private-scoped data"); `dns.lookup
-  ('host.docker.internal')` fails `EAI_AGAIN` despite
-  `/tmp/gh-aw/db-stack-ready` always present (confirmed not a `.env`
-  misconfig — DATABASE_URL/CLICKHOUSE_URL/REDIS_HOST already point at
-  `host.docker.internal` correctly; the DNS entry itself just doesn't
-  resolve in-sandbox). `npx` and `search_pull_requests` confirmed working
-  every run (ledger reconfirmed empty, `total_count: 0`, matches
-  `prs.json`) — the block is scoped to Actions API + DB reachability, not
-  general sandbox breakage.
-- Workarounds tried and exhausted (all policy-denied, not functionally
-  broken — don't re-try): `cat /etc/hosts` (sandboxed to repo working dir
-  only), `WebFetch` of the public pipeline.yml workflow page (no
-  permission grant in headless runs). A 08-06 HEAD that specifically
-  claimed to fix the DIFC secrecy issue did not help.
-- Net effect: zero fresh timing/vitest data for six straight runs. Last
-  real numbers frozen at `history/2026-W31-partial-0731.json` (2026-07-31)
-  — 17+ days stale as of 08-17. The standing
-  `score-comparison-analytics.servertest.ts` fix candidate (07-31 entry
-  above) remains unverified — needs a run with BOTH a working Actions API
-  AND live DB connectivity. Every run has filed `missing_tool` (Actions
-  API) + `missing_data` (DB connectivity) + `noop` (full report); a human
-  needs to check the guard-policy/DIFC config and the dev-stack DNS entry
-  directly — autonomous runs cannot self-diagnose further.
+- Both hard blockers first appeared 08-03: `actions_list`/`actions_get`
+  filtered by secrecy policy on every call; `dns.lookup
+  ('host.docker.internal')` failed `EAI_AGAIN` despite
+  `/tmp/gh-aw/db-stack-ready` always present. `npx` and
+  `search_pull_requests` worked throughout — block was scoped to Actions
+  API + DB reachability, not general sandbox breakage.
+- Workarounds tried and exhausted, don't re-try: `cat /etc/hosts`
+  (sandboxed to repo dir only), `WebFetch` of the public pipeline.yml page
+  (no permission grant headless). A 08-06 HEAD claiming to fix the DIFC
+  issue did not help at the time.
+- Net effect: zero fresh timing/vitest data for six straight runs
+  (08-03..08-17); last real numbers were frozen at
+  `history/2026-W31-partial-0731.json` (07-31) until 08-18. Root cause of
+  the Actions API block was never conclusively diagnosed by any run.
+
+## 2026-08-18 (run 18) — Actions API working again; full 7-day data recovered
+
+- **Actions API resolved**, first working run since 07-31 — no diagnosis
+  of *why* it started working again; watch for recurrence. `get_job_logs`
+  also confirmed working (large payloads still need saving to file + a
+  Node extraction script, see Tooling notes).
+- **DB connectivity still broken** — `host.docker.internal:5432` EAI_AGAIN,
+  confirmed via a raw `net.Socket` connect (not just `dns.lookup`).
+  Streak now spans 08-03 → 08-18 (15+ days) with zero change in symptom.
+  Blocks verification of the standing score-comparison-analytics fix
+  candidate again this run (Actions API alone isn't sufficient — both
+  must work per the verify-before-PR rule).
+- Full trailing-7-day analysis (08-12..08-18, 25 merge_group runs, 5
+  sampled days — 08-15 Sat had 0 runs). Pooled p50=260s/p90~700s vs
+  baseline p50=396/p90=522: **median is lower**, tail is heavier, driven
+  entirely by 08-13 (3/5 runs slow) and 08-14 (2/5 slow). Root-caused via
+  side-by-side vitest log comparison to whole-suite-proportional slowdown
+  (transform/import/tests all ~5x on both web and worker shards, same
+  file/test counts) — CI-runner contention (Blacksmith), not a code
+  regression. Does not meet the >=50%-across-3-consecutive-days threshold
+  (only 2 days affected) — not actionable. Full detail in
+  `history/2026-W34-partial-0818.json`.
+- **The 07-31-flagged sustained webRunTests climb (86→114.5→147s) does NOT
+  appear to be continuing** — this week's day medians are back to
+  77-96s on 4 of 5 days (08-13's 347s is the runner-contention outlier
+  above). Can't rule out that it was itself noise, given the 18-day gap
+  with zero data in between.
+- `score-comparison-analytics.servertest.ts` is still the dominant slow
+  file every sampled day (unchanged from every prior run back to 07-30) —
+  candidate fix (parallelize batch inserts, see 07-30/07-31 entry above)
+  remains valid and unverified.
+- **Flaky test recurrence**: `otelToObservationForEval.test.ts` (same
+  test, same `[retries=1]`) flagged flaky again, 3 weeks after its first
+  07-30 occurrence — now a 2-instance pattern, still low-frequency (1 of 7
+  samples this run). Worth a closer look if it recurs a 3rd time.
+- noop filed with full report; `missing_data` filed for the DB blocker
+  (no `missing_tool` needed this run since Actions API worked).
 
 ## Tooling notes (for future runs)
 
