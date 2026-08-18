@@ -107,7 +107,7 @@ export function EvaluatorGalleryView({
               }
             >
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              Blank LLM-as-a-judge
+              New LLM-as-a-judge
             </Button>
             <Button
               type="button"
@@ -116,7 +116,7 @@ export function EvaluatorGalleryView({
               onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.CODE)}
             >
               <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Blank code evaluator
+              New code evaluator
             </Button>
           </div>
 
