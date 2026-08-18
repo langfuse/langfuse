@@ -168,6 +168,7 @@ export const events = {
     "default_model_update",
     "empty_state_template_select",
     "empty_state_browse_library",
+    "empty_state_detect_topics",
   ],
   evaluation_rules: [
     "create",

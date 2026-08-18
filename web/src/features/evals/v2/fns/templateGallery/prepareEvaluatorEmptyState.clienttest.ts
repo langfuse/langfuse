@@ -1,4 +1,7 @@
-import { EVALUATOR_EMPTY_STATE_DOCS_HREF } from "@/src/features/evals/v2/constants/evaluatorEmptyState";
+import {
+  DETECT_TOPICS_ASSISTANT_PROMPT,
+  EVALUATOR_EMPTY_STATE_DOCS_HREF,
+} from "@/src/features/evals/v2/constants/evaluatorEmptyState";
 import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
 import { prepareEvaluatorEmptyState } from "./prepareEvaluatorEmptyState";
 
@@ -11,8 +14,14 @@ describe("prepareEvaluatorEmptyState", () => {
       MANAGED_TEMPLATES_CATALOG.templates.length,
     );
     expect(
-      emptyState.startingPoints.map(({ template }) => template.key),
-    ).toEqual(["topic-classifier", "user-disagreement"]);
+      emptyState.startingPoints.map(({ template, action }) => ({
+        key: template.key,
+        action,
+      })),
+    ).toEqual([
+      { key: "topic-classifier", action: "detect-topics" },
+      { key: "user-disagreement", action: "select-template" },
+    ]);
     expect(
       emptyState.startingPoints.map(({ title, categoryKey }) => ({
         title,
@@ -22,5 +31,11 @@ describe("prepareEvaluatorEmptyState", () => {
       { title: "Detect Topics", categoryKey: "recommended" },
       { title: "Detect User Disagreement", categoryKey: "conversation" },
     ]);
+  });
+
+  it("locks the Detect Topics assistant prompt used by the empty-state experiment", () => {
+    expect(DETECT_TOPICS_ASSISTANT_PROMPT).toBe(
+      "Identify 5-10 common topics in my traces and create a categorical LLM as a judge evaluator running on root observations of my traces. Make sure to add a 'other' category as well",
+    );
   });
 });

@@ -67,6 +67,14 @@ describe("in-app agent message entry point", () => {
 
     expect(
       getInAppAgentMessageEntryPointTraceMetadata([
+        { description: "message_entry_point", value: "evaluators-empty-state" },
+      ]),
+    ).toEqual({
+      message_entry_point: "evaluators-empty-state",
+    });
+
+    expect(
+      getInAppAgentMessageEntryPointTraceMetadata([
         { description: "message_entry_point", value: "not-a-real-source" },
       ]),
     ).toEqual({});

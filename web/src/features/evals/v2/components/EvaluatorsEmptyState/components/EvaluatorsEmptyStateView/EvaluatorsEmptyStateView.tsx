@@ -6,12 +6,25 @@ import type { EvaluatorEmptyStateStartingPoint } from "@/src/features/evals/v2/f
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { cn } from "@/src/utils/tailwind";
 
+function startingPointSelectHandler(
+  startingPoint: EvaluatorEmptyStateStartingPoint,
+  onDetectTopics: () => void,
+  onSelectTemplate: (template: GalleryTemplate) => void,
+) {
+  switch (startingPoint.action) {
+    case "detect-topics":
+      return onDetectTopics;
+    case "select-template":
+      return () => onSelectTemplate(startingPoint.template);
+  }
+}
+
 function StartingPointCard({
   startingPoint,
   onSelect,
 }: {
   startingPoint: EvaluatorEmptyStateStartingPoint;
-  onSelect: (template: GalleryTemplate) => void;
+  onSelect: () => void;
 }) {
   const { type } = getGalleryTemplatePresentation(startingPoint.template);
   const {
@@ -23,7 +36,7 @@ function StartingPointCard({
   return (
     <button
       type="button"
-      onClick={() => onSelect(startingPoint.template)}
+      onClick={onSelect}
       className={cn(
         "bg-background hover:bg-muted/40 flex min-h-44 cursor-pointer flex-col gap-3 rounded-lg border border-l-2 p-4 text-left transition-colors",
         edgeClassName,
@@ -89,12 +102,14 @@ export function EvaluatorsEmptyStateView({
   templateCount,
   docsHref,
   onSelectTemplate,
+  onDetectTopics,
   onBrowseLibrary,
 }: {
   startingPoints: EvaluatorEmptyStateStartingPoint[];
   templateCount: number;
   docsHref: string;
   onSelectTemplate: (template: GalleryTemplate) => void;
+  onDetectTopics: () => void;
   onBrowseLibrary: () => void;
 }) {
   const { iconClassName } = getGalleryCategoryPresentation("recommended");
@@ -122,7 +137,11 @@ export function EvaluatorsEmptyStateView({
             <StartingPointCard
               key={startingPoint.template.key}
               startingPoint={startingPoint}
-              onSelect={onSelectTemplate}
+              onSelect={startingPointSelectHandler(
+                startingPoint,
+                onDetectTopics,
+                onSelectTemplate,
+              )}
             />
           ))}
           <BrowseLibraryCard

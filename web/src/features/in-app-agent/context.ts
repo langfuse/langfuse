@@ -267,6 +267,7 @@ export function getInAppAgentQuickActionTraceMetadata(
 export const IN_APP_AGENT_MESSAGE_ENTRY_POINTS = [
   "chat",
   "add-widget-modal",
+  "evaluators-empty-state",
 ] as const;
 
 export type InAppAgentMessageEntryPoint =

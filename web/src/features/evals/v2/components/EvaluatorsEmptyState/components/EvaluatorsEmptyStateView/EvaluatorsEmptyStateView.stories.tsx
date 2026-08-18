@@ -8,6 +8,7 @@ import { EvaluatorsEmptyStateView } from "./EvaluatorsEmptyStateView";
 
 const startingPoints = [
   {
+    action: "detect-topics",
     template: {
       source: "managed",
       key: "topic-classifier",
@@ -40,6 +41,7 @@ const startingPoints = [
     categoryKey: "recommended",
   },
   {
+    action: "select-template",
     template: {
       source: "managed",
       key: "user-disagreement",
@@ -79,7 +81,27 @@ export const Default = meta.story({
     templateCount: 21,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
     onSelectTemplate: fn(),
+    onDetectTopics: fn(),
     onBrowseLibrary: fn(),
+  },
+});
+
+export const OpensDetectTopics = meta.story({
+  name: "(Test) Opens Detect Topics via the assistant action",
+  args: {
+    startingPoints,
+    templateCount: 21,
+    docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
+    onSelectTemplate: fn(),
+    onDetectTopics: fn(),
+    onBrowseLibrary: fn(),
+  },
+  play: async ({ canvas, args }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Detect Topics/ }),
+    );
+    await expect(args.onDetectTopics).toHaveBeenCalledOnce();
+    await expect(args.onSelectTemplate).not.toHaveBeenCalled();
   },
 });
 
@@ -90,15 +112,17 @@ export const SelectsAStartingPoint = meta.story({
     templateCount: 21,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
     onSelectTemplate: fn(),
+    onDetectTopics: fn(),
     onBrowseLibrary: fn(),
   },
   play: async ({ canvas, args }) => {
     await userEvent.click(
-      canvas.getByRole("button", { name: /Detect Topics/ }),
+      canvas.getByRole("button", { name: /Detect User Disagreement/ }),
     );
     await expect(args.onSelectTemplate).toHaveBeenCalledWith(
-      startingPoints[0]?.template,
+      startingPoints[1]?.template,
     );
+    await expect(args.onDetectTopics).not.toHaveBeenCalled();
   },
 });
 
@@ -109,6 +133,7 @@ export const OpensTheLibrary = meta.story({
     templateCount: 21,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
     onSelectTemplate: fn(),
+    onDetectTopics: fn(),
     onBrowseLibrary: fn(),
   },
   play: async ({ canvas, args }) => {
@@ -126,6 +151,7 @@ export const LinksToDocs = meta.story({
     templateCount: 21,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
     onSelectTemplate: fn(),
+    onDetectTopics: fn(),
     onBrowseLibrary: fn(),
   },
   play: async ({ canvas }) => {
