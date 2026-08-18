@@ -296,6 +296,15 @@ describe("IngestionService unit tests", () => {
           environment: "default",
         },
       },
+      {
+        id: "update-event-id",
+        timestamp: "2026-07-22T00:00:01.000Z",
+        type: "generation-update",
+        body: {
+          id: "observation-id",
+          metadata: {},
+        },
+      },
     ];
 
     vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(

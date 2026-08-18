@@ -83,6 +83,13 @@ function parseUInt16(value: string | null | undefined): number | undefined {
 }
 
 function toPricingAttributeRecord(value: unknown): Record<string, string> {
+  return mergePricingAttributeRecord({}, value);
+}
+
+function mergePricingAttributeRecord(
+  current: Record<string, string>,
+  value: unknown,
+): Record<string, string> {
   const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
 
   if (
@@ -90,18 +97,23 @@ function toPricingAttributeRecord(value: unknown): Record<string, string> {
     typeof parsedValue !== "object" ||
     Array.isArray(parsedValue)
   ) {
-    return {};
+    return current;
   }
 
-  return Object.fromEntries(
-    Object.entries(parsedValue).flatMap(([key, attributeValue]) =>
+  const merged = { ...current };
+  for (const [key, attributeValue] of Object.entries(parsedValue)) {
+    if (
       typeof attributeValue === "string" ||
       typeof attributeValue === "number" ||
       typeof attributeValue === "boolean"
-        ? [[key, String(attributeValue)]]
-        : [],
-    ),
-  );
+    ) {
+      merged[key] = String(attributeValue);
+    } else {
+      delete merged[key];
+    }
+  }
+
+  return merged;
 }
 
 export type EventInput = InternalTraceEventInput;
@@ -991,7 +1003,8 @@ export class IngestionService {
     };
     for (const event of timeSortedEvents) {
       if (event.body.metadata) {
-        pricingMatchAttributes.metadata = toPricingAttributeRecord(
+        pricingMatchAttributes.metadata = mergePricingAttributeRecord(
+          pricingMatchAttributes.metadata ?? {},
           event.body.metadata,
         );
       }
