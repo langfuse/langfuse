@@ -1,11 +1,11 @@
-import type { SpanIO } from "../types";
+import type { SpanIO, ToolDefinition } from "../types";
 
 import type { NormalizedIOFixture } from "./types";
 
 const inputToolCallId = "call_5iGKBMczvh1pevPChrZNGSFB";
 const outputToolCallId = "toolu_01XXtujJ3DBaYEZGzn96xpGt";
 
-const toolDefinitions = [
+const toolDefinitions: ToolDefinition[] = [
   {
     type: "function",
     name: "searchLangfuseDocs",
