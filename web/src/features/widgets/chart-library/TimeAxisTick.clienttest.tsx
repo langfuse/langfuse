@@ -18,6 +18,7 @@ describe("TimeAxisTick", () => {
         <Tick
           x={400}
           y={0}
+          index={2}
           payload={tickPayload(2, 400)}
           visibleTicksCount={3}
         />
@@ -34,6 +35,7 @@ describe("TimeAxisTick", () => {
         <Tick
           x={200}
           y={0}
+          index={1}
           payload={tickPayload(1, 200)}
           visibleTicksCount={3}
         />
