@@ -184,6 +184,11 @@ export function withOptionalSilentMcpOutput(params: {
             });
           }
 
+          // Rethrow instead of returning a structured failure: the tool-error
+          // chunk rewrite already feeds the error back as a tool result the
+          // loop continues from, executeApprovedToolCall classifies
+          // approved-tool failures from the throw, and an aborted run must
+          // unwind rather than look like one more failed tool call.
           throw error;
         }
 
@@ -200,6 +205,9 @@ export function withOptionalSilentMcpOutput(params: {
           });
         }
 
+        // Never silence a failure. A tool that reports its error in the result
+        // (the MCP `isError` convention) would otherwise be collapsed to a
+        // pointer at a tool_calls file that is deliberately not written.
         if (failureMessage || !silent) {
           return result;
         }

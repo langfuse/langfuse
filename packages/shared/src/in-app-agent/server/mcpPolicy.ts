@@ -345,6 +345,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
 export type InAppAgentLangfuseMcpToolName =
   keyof typeof IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES;
 
+/** Durable grants retain the MCP surface prefix to avoid cross-surface collisions. */
 export type InAppAgentPrefixedLangfuseMcpToolName =
   `langfuse_${InAppAgentLangfuseMcpToolName}`;
 

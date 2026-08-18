@@ -1,6 +1,7 @@
 import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
+import { safeJsonParse } from "../utils/json";
 import type { InAppAgentToolApprovalRequest } from "./schema";
 
 const MastraSuspendEventSchema = z.object({
@@ -27,18 +28,10 @@ export function parseInAppAgentInterruptEvent(
   }
 
   const value = "value" in event ? event.value : undefined;
-  const parsedValue = typeof value === "string" ? parseJson(value) : value;
+  const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
   const interrupt = MastraSuspendEventSchema.safeParse(parsedValue);
 
   return interrupt.success
     ? { ...interrupt.data, type: "tool_approval_request" }
     : undefined;
-}
-
-function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return undefined;
-  }
 }
