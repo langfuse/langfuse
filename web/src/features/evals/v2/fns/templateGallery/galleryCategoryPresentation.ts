@@ -13,7 +13,6 @@ import {
 
 import {
   EVALUATOR_GALLERY_ALL_SECTION_KEY,
-  EVALUATOR_GALLERY_CATEGORY_EDGE_CLASS,
   EVALUATOR_GALLERY_CATEGORY_ICON_CLASS,
   EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
@@ -36,7 +35,5 @@ export function getGalleryCategoryPresentation(key: string) {
     icon: GALLERY_CATEGORY_ICONS[key] ?? LayoutGrid,
     iconClassName:
       EVALUATOR_GALLERY_CATEGORY_ICON_CLASS[key] ?? "text-muted-foreground",
-    edgeClassName:
-      EVALUATOR_GALLERY_CATEGORY_EDGE_CLASS[key] ?? "border-l-muted-foreground",
   };
 }

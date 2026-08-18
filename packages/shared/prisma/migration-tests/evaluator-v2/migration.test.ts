@@ -262,7 +262,7 @@ async function seedFixture(legacyPrisma: PrismaClient) {
         updatedAt: new Date("2025-04-04"),
         projectId: "project-a",
         jobType: JobType.EVAL,
-        status: JobConfigState.INACTIVE,
+        status: JobConfigState.ACTIVE,
         evalTemplateId: "quality-v1",
         scoreName: "Old quality score",
         filter: [],
@@ -270,7 +270,7 @@ async function seedFixture(legacyPrisma: PrismaClient) {
         variableMapping: { input: "output" },
         sampling: 0.5,
         delay: 1000,
-        timeScope: ["NEW"],
+        timeScope: ["EXISTING"],
       },
       {
         id: "rule-managed",
@@ -747,6 +747,21 @@ if (existingDatabaseUrl) {
       `;
 
       expect(Number(mismatched?.count)).toBe(0);
+    });
+
+    it("disables rules that do not run on new data", async () => {
+      const [activeHistoricalRules] = await prisma.$queryRaw<
+        Array<{ count: bigint }>
+      >`
+        SELECT count(*)::bigint AS count
+        FROM job_configurations jc
+        JOIN evaluation_rules er ON er.id = jc.id
+        WHERE jc.job_type = 'EVAL'
+          AND NOT ('NEW' = ANY(COALESCE(jc.time_scope, ARRAY[]::TEXT[])))
+          AND er.status <> 'INACTIVE'
+      `;
+
+      expect(Number(activeHistoricalRules?.count)).toBe(0);
     });
   });
 } else {

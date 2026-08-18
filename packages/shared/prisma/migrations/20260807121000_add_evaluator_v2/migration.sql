@@ -130,7 +130,12 @@ INSERT INTO "evaluation_rules" (
 )
 SELECT
   jc."id", jc."created_at", jc."updated_at", jc."project_id",
-  jc."score_name", jc."status", jc."target_object", jc."filter",
+  jc."score_name",
+  CASE
+    WHEN 'NEW' = ANY(jc."time_scope") THEN jc."status"
+    ELSE 'INACTIVE'::"JobConfigState"
+  END,
+  jc."target_object", jc."filter",
   jc."sampling", jc."delay", jc."time_scope"
 FROM "job_configurations" jc
 WHERE jc."job_type" = 'EVAL'
