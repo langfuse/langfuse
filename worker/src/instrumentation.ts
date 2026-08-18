@@ -1,4 +1,5 @@
 import dd from "dd-trace";
+import { type Span } from "@opentelemetry/api";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
@@ -9,11 +10,35 @@ import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
-import { ioredisRequestHook } from "@langfuse/shared/src/server";
 import { envDetector, resourceFromAttributes } from "@opentelemetry/resources";
 import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "./env";
+
+// Mirrors API_KEY_CACHE_KEY_PREFIX in @langfuse/shared; inlined so this preload
+// never imports the server barrel, which eagerly loads ioredis before the
+// instrumentation below can patch it (no redis spans otherwise).
+const apiKeyCacheKeyPrefix = "api-key:";
+
+/** ioredisRequestHook records the Redis command on the span, redacting credentials and API key cache values. */
+function ioredisRequestHook(
+  span: Span,
+  { cmdName, cmdArgs }: { cmdName: string; cmdArgs: unknown[] },
+): void {
+  if (!Array.isArray(cmdArgs) || cmdArgs.length === 0) return;
+  const cmd = cmdName.toUpperCase();
+  if (cmd === "AUTH" || cmd === "HELLO") {
+    span.setAttribute("redis.full_command", `${cmdName} [REDACTED]`);
+    return;
+  }
+  const args = [...cmdArgs].map(String);
+  if (args[0]?.includes(apiKeyCacheKeyPrefix)) {
+    for (let i = 1; i < args.length; i++) {
+      args[i] = "[REDACTED]";
+    }
+  }
+  span.setAttribute("redis.full_command", `${cmdName} ${args.join(" ")}`);
+}
 
 dd.init({
   runtimeMetrics: true,
