@@ -3,10 +3,10 @@ import {
   FileSearch,
   Gauge,
   LayoutGrid,
+  Lightbulb,
   ListFilter,
   MessagesSquare,
   Shield,
-  Sparkles,
   User,
   type LucideIcon,
 } from "lucide-react";
@@ -21,7 +21,7 @@ import {
 export const GALLERY_CATEGORY_ICONS: Record<string, LucideIcon> = {
   [EVALUATOR_GALLERY_ALL_SECTION_KEY]: LayoutGrid,
   [EVALUATOR_GALLERY_PROJECT_SECTION_KEY]: User,
-  [EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY]: Sparkles,
+  [EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY]: Lightbulb,
   conversation: MessagesSquare,
   quality: Gauge,
   classifier: ListFilter,
