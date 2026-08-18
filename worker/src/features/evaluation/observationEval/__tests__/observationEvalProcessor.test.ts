@@ -151,7 +151,7 @@ describe("processObservationEval", () => {
       modelParams: {},
       vars: ["output"],
       variableMapping: [],
-      outputDefinition: null,
+      outputDefinition: { type: "NUMERIC" },
       sourceCode: null,
       sourceCodeLanguage: null,
     };
@@ -249,6 +249,50 @@ describe("processObservationEval", () => {
           }),
           // Pausing targets the evaluator, not the rule it ran for.
           evaluatorId: evaluator.id,
+        }),
+      );
+    });
+
+    it("passes the stable evaluator id to the code executor", async () => {
+      setupV2Job();
+      (
+        prisma.evaluationRuleEvaluatorAssignment.findFirst as Mock
+      ).mockResolvedValue({
+        ...assignment,
+        evaluator: {
+          ...evaluator,
+          type: EvalTemplateType.CODE,
+          versions: [
+            {
+              ...version,
+              prompt: null,
+              sourceCode: "return true;",
+              sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+            },
+          ],
+        },
+      });
+      const observation = createTestObservation({
+        span_id: "obs-xyz",
+        trace_id: "trace-abc",
+        project_id: projectId,
+      });
+      const deps = createMockProcessorDeps({
+        downloadObservationFromS3: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify(observation)),
+      });
+
+      await processObservationEval({
+        event: ruleEvent,
+        executionType: EvalTemplateType.CODE,
+        deps,
+      });
+
+      expect(executeCodeBasedEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          evaluatorId: evaluator.id,
+          template: expect.objectContaining({ id: version.id }),
         }),
       );
     });
@@ -585,6 +629,39 @@ describe("processObservationEval", () => {
       );
       expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
       expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+    });
+
+    it("should reject an incomplete template before execution", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        evalTemplate: createMockEvalTemplate({
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: null,
+          sourceCode: null,
+          sourceCodeLanguage: null,
+        }),
+      });
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+      const deps = createMockProcessorDeps();
+
+      await expect(
+        processObservationEval({
+          event: baseEvent,
+          executionType: EvalTemplateType.CODE,
+          deps,
+        }),
+      ).rejects.toThrow("Evaluator template is incomplete for CODE execution");
+      expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
+      expect(executeCodeBasedEvaluation).not.toHaveBeenCalled();
     });
 
     it("should cancel inactive evaluators when execution mode is omitted", async () => {

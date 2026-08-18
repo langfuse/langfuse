@@ -11,15 +11,14 @@ import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowe
 import {
   observationForEvalSchema,
   observationVariableMappingList,
-  type EvalTemplateCodeBased,
-  type EvalTemplateLlmAsAJudge,
+  type EvalTemplateWithType,
   canRunEvalRule,
-  type ObservationVariableMapping,
 } from "@langfuse/shared";
 import {
   EvalTemplateType,
   JobConfigState,
   Prisma,
+  type EvalTemplate,
   type JobConfiguration,
   type JobExecution,
 } from "@prisma/client";
@@ -221,7 +220,7 @@ export async function processObservationEval(
   // Extract variables from observation
   const parsedVariableMapping = observationVariableMappingList.parse(
     evalJobConfig.variableMapping,
-  ) as ObservationVariableMapping[];
+  );
 
   const extractedVariables = extractObservationVariables({
     observation: observationData,
@@ -260,14 +259,12 @@ export async function processObservationEval(
     deps: deps.evalExecutionDeps,
   };
 
-  // The config query filters evalTemplate.type, but Prisma does not narrow the
-  // nullable template fields from that relation predicate.
   let executionResult: EvalExecutionResult;
-  switch (params.executionType) {
+  switch (template.type) {
     case EvalTemplateType.LLM_AS_JUDGE:
       executionResult = await runLLMAsJudgeEvaluation({
         ...executionParams,
-        template: template as EvalTemplateLlmAsAJudge,
+        template,
         // A self-inflicted pause targets the evaluator, so every rule using it
         // stops; legacy executions pause their job configuration instead.
         ...(resolved.type === "v2"
@@ -278,7 +275,10 @@ export async function processObservationEval(
     case EvalTemplateType.CODE:
       executionResult = await executeCodeBasedEvaluation({
         ...executionParams,
-        template: template as EvalTemplateCodeBased,
+        template,
+        ...(resolved.type === "v2"
+          ? { evaluatorId: resolved.evaluatorId }
+          : {}),
       });
       break;
   }
@@ -409,9 +409,53 @@ async function resolveLegacyExecution(params: {
   return {
     type: "legacy" as const,
     config,
-    template: config.evalTemplate,
+    template: normalizeEvalTemplate(config.evalTemplate, params.executionType),
     organizationId: config.project.orgId,
   };
+}
+
+function normalizeEvalTemplate(
+  template: EvalTemplate,
+  executionType: ObservationEvalExecutionType,
+): EvalTemplateWithType {
+  switch (executionType) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      if (
+        template.type !== executionType ||
+        template.prompt === null ||
+        template.outputDefinition === null
+      ) {
+        throw new UnrecoverableError(
+          "Evaluator template is incomplete for LLM_AS_JUDGE execution",
+        );
+      }
+      return {
+        ...template,
+        type: executionType,
+        prompt: template.prompt,
+        outputDefinition: template.outputDefinition,
+        sourceCode: null,
+        sourceCodeLanguage: null,
+      };
+    case EvalTemplateType.CODE:
+      if (
+        template.type !== executionType ||
+        template.sourceCode === null ||
+        template.sourceCodeLanguage === null
+      ) {
+        throw new UnrecoverableError(
+          "Evaluator template is incomplete for CODE execution",
+        );
+      }
+      return {
+        ...template,
+        type: executionType,
+        prompt: null,
+        outputDefinition: null,
+        sourceCode: template.sourceCode,
+        sourceCodeLanguage: template.sourceCodeLanguage,
+      };
+  }
 }
 
 type ResolvedEvaluator = Prisma.EvaluatorGetPayload<{
@@ -460,10 +504,10 @@ function buildV2Execution(params: {
     filter: rule?.filter ?? [],
     targetObject: rule?.targetObject ?? "event",
     variableMapping,
-    sampling: rule?.sampling ?? 1,
+    sampling: rule?.sampling ?? new Prisma.Decimal(1),
     delay: rule?.delay ?? 0,
     timeScope: rule?.timeScope ?? ["NEW"],
-  } as JobConfiguration;
+  } satisfies JobConfiguration;
   const template = {
     id: version.id,
     createdAt: version.createdAt,
@@ -481,12 +525,12 @@ function buildV2Execution(params: {
     outputDefinition: version.outputDefinition,
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-  };
+  } satisfies EvalTemplate;
 
   return {
     type: "v2" as const,
     config,
-    template,
+    template: normalizeEvalTemplate(template, evaluator.type),
     organizationId,
     evaluationRuleId: rule?.id,
     assignmentId: assignment?.id,
