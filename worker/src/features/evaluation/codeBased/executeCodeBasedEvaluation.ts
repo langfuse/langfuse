@@ -17,6 +17,7 @@ import { type EvalExecutionDeps } from "../evalExecutionDeps";
 export async function executeCodeBasedEvaluation(params: {
   projectId: string;
   organizationId: string;
+  evaluatorId?: string;
   job: JobExecution;
   config: JobConfiguration;
   template: EvalTemplateCodeBased;
@@ -63,7 +64,7 @@ export async function executeCodeBasedEvaluation(params: {
         projectId: params.projectId,
         executionTraceId,
         jobExecutionId,
-        evaluator: params.template,
+        evaluator: { id: params.evaluatorId ?? params.template.id },
         version: params.template,
         extractedVariables: params.extractedVariables,
         hasExperimentContext: params.hasExperimentContext ?? false,
