@@ -110,9 +110,12 @@ const ALWAYS_KEEP_PEEK_OPEN_SELECTORS = ['[role="checkbox"]'];
  * - clicking another table row (`[data-row-index]`) switches the peeked item in
  *   place rather than closing (handled by the row's own click handler),
  * - shared selection controls and any table-specific `ignoredSelectors`
- *   (row action buttons, etc.) don't close it, and
+ *   (row action buttons, etc.) don't close it,
  * - regions that opt out via `data-ignore-outside-interaction` (e.g. the in-app
- *   assistant) never trigger a close.
+ *   assistant) never trigger a close, and
+ * - toast-layer overlays (`[data-layer="toast"]` — version-update banner,
+ *   Sonner toasts) never trigger a close: dismissing a toast is not a peek
+ *   dismiss.
  *
  * All checks run against the pointer event's `target`, not
  * `document.activeElement` — `onPointerDownOutside` fires on pointer-down,
@@ -130,6 +133,9 @@ export const shouldKeepPeekOpenOnOutsideInteraction = (
   // the panel group. This guard keeps interactions within the peek safe.
   if (target.closest("[data-peek-content]")) return true;
   if (shouldIgnoreOutsideInteraction(target)) return true;
+  // Toasts portal into a higher overlay layer than the peek, so Radix reports
+  // them as outside. Closing / clicking one must not dismiss the peek.
+  if (target.closest('[data-layer="toast"]')) return true;
   if (target.closest("[data-row-index]")) return true;
   return [...ALWAYS_KEEP_PEEK_OPEN_SELECTORS, ...ignoredSelectors].some(
     (selector) => target.closest(selector),
@@ -221,6 +227,17 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // which is what resets nested-table state when the peek closes (see README).
   if (!itemId || !mounted) return null;
 
+  const preventDismissOnKeptOpen = (event: {
+    target: EventTarget | null;
+    preventDefault: () => void;
+  }) => {
+    if (
+      shouldKeepPeekOpenOnOutsideInteraction(event.target, ignoredSelectors)
+    ) {
+      event.preventDefault();
+    }
+  };
+
   const handleOpenChange = (open: boolean) => {
     // Open is driven by row clicks / detail-page navigation; we only react to
     // close requests (Escape, swipe-down, click-outside, the close button).
@@ -291,6 +308,8 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           <DrawerContent
             size="full"
             className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
+            onPointerDownOutside={preventDismissOnKeptOpen}
+            onInteractOutside={preventDismissOnKeptOpen}
           >
             <DrawerTitle className="sr-only">{resolvedTitle}</DrawerTitle>
             <div className="flex w-full shrink-0 items-center justify-center pt-2 pb-1">
@@ -309,26 +328,8 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
               aria-describedby={undefined}
               data-peek-content=""
               style={panel.panelStyle}
-              onPointerDownOutside={(e) => {
-                if (
-                  shouldKeepPeekOpenOnOutsideInteraction(
-                    e.target,
-                    ignoredSelectors,
-                  )
-                ) {
-                  e.preventDefault();
-                }
-              }}
-              onInteractOutside={(e) => {
-                if (
-                  shouldKeepPeekOpenOnOutsideInteraction(
-                    e.target,
-                    ignoredSelectors,
-                  )
-                ) {
-                  e.preventDefault();
-                }
-              }}
+              onPointerDownOutside={preventDismissOnKeptOpen}
+              onInteractOutside={preventDismissOnKeptOpen}
               // Never close because focus moved out (e.g. into a portaled
               // popover or another input); only pointer/Escape/close-button
               // drive dismissal.

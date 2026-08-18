@@ -25,7 +25,8 @@ Dismissal:
 - **Click-outside closes**, with exceptions: a target inside the peek
   (`[data-peek-content]`) never closes it; clicking another table row
   (`[data-row-index]`) **switches** the peeked item in place; and selection
-  checkboxes / `data-ignore-outside-interaction` regions / the table's
+  checkboxes / `data-ignore-outside-interaction` regions / toast-layer overlays
+  (`[data-layer="toast"]`, e.g. the version-update banner) / the table's
   `ignoredSelectors` don't close it. Nested Radix popovers/menus opened inside
   the peek don't close it (DismissableLayer stacking).
 - **Escape**, the close button, and (mobile) swipe-down also close.
