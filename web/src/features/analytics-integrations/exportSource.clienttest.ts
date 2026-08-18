@@ -25,6 +25,16 @@ const PROJECT_PRE = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
 const PROJECT_POST = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
 const ROW_PRE = new Date(LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - MS_PER_DAY);
 
+// Self-hosted unless a case overrides it, so the two capability flags always
+// come from the real builder rather than being hand-set per case.
+const ctxFor = (
+  writeMode: BlobExportWriteMode,
+  over: Partial<
+    Omit<ExportSourceContext, "enrichedAvailable" | "legacyWritesActive">
+  > = {},
+): ExportSourceContext =>
+  buildExportSourceContext({ writeMode, isCloud: false, ...over });
+
 const cloudPreCutoff: ExportSourceContext = {
   isCloud: true,
   enrichedAvailable: true,
@@ -263,14 +273,6 @@ describe("shouldHideExportSourceSelector", () => {
 describe("write mode drives the settings-page selector", () => {
   const WRITE_MODES: BlobExportWriteMode[] = ["legacy", "dual", "events_only"];
 
-  const ctxFor = (
-    writeMode: BlobExportWriteMode,
-    over: Partial<
-      Omit<ExportSourceContext, "enrichedAvailable" | "legacyWritesActive">
-    > = {},
-  ): ExportSourceContext =>
-    buildExportSourceContext({ writeMode, isCloud: false, ...over });
-
   const selectableValues = (ctx: ExportSourceContext) =>
     getExportSourceOptions(undefined, ctx)
       .filter((o) => !o.unavailable)
@@ -406,14 +408,6 @@ describe("write mode drives the settings-page selector", () => {
 // The pages consume only this composite, so the pieces being correct
 // individually is not enough — visibility and the default must agree.
 describe("getExportSourceFieldState", () => {
-  const ctxFor = (
-    writeMode: BlobExportWriteMode,
-    over: Partial<
-      Omit<ExportSourceContext, "enrichedAvailable" | "legacyWritesActive">
-    > = {},
-  ): ExportSourceContext =>
-    buildExportSourceContext({ writeMode, isCloud: false, ...over });
-
   it.each<BlobExportWriteMode>(["legacy", "dual", "events_only"])(
     "%s: a hidden selector always leaves a selectable default",
     (mode) => {
