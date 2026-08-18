@@ -14,6 +14,18 @@ const installOverlayLayers = () => {
 };
 
 describe("Combobox footer", () => {
+  beforeAll(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
   beforeEach(() => {
     installOverlayLayers();
   });
