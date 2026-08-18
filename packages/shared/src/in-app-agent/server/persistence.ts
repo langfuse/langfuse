@@ -47,7 +47,8 @@ import { getToolFailureMessage } from "./toolErrors";
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
 
-function assertOwnedConversation(params: {
+/** Owner-only authorization with a non-enumerating failure. */
+export function assertOwnedConversation(params: {
   conversation: Pick<InAppAgentConversation, "createdByUserId" | "deletedAt">;
   userId: string;
 }): void {

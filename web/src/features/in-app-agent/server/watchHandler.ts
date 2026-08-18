@@ -1,8 +1,8 @@
 import { BaseError, ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
+import { assertOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
 import type { InAppAgentWatchFrame } from "../watchFrames";
-import { assertConversationAccess } from "./conversationAccess";
 import { watchConversationFrames } from "./watch";
 import { z } from "zod";
 
@@ -61,7 +61,7 @@ export default async function watchHandler(request: Request) {
       throw new BaseError("NotFoundError", 404, "Conversation not found", true);
     }
 
-    assertConversationAccess({
+    assertOwnedConversation({
       conversation,
       userId: user.id,
     });
