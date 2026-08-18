@@ -218,8 +218,9 @@ Human approval is separate from the MCP tool override. Shared `server/tools.ts` 
 
 Conversation-scoped grants live in `InAppAgentConversation.alwaysAllowedTools`, holding server-prefixed names such as `langfuse_createDashboardWidget`. The prefix is part of the identity, so a stored grant cannot be mistaken for a same-named tool on another MCP surface; unprefixed entries are rejected when the policy is rebuilt. Grants are written inside the same locked transaction as the approval decision in `server/runLifecycle.ts`. A one-off `Approve` writes nothing there; only `Always approve` does. The worker rebuilds the policy from the column on every run rather than trusting enqueue-time authorization. Mastra emits an interrupt, the browser asks the user, and the router records the decision for a durable worker continuation. `server/human-in-the-loop.ts` adapts Mastra's runtime interrupt payload into the Langfuse-owned `tool_approval_request` contract from `schema.ts`; the browser stores and forwards only that runtime-neutral shape.
 
-The `InAppAgentPendingToolApproval` table is not used by background execution.
-It remains temporarily so existing rows and Prisma relations stay valid.
+The legacy `in_app_agent_pending_tool_approvals` table is not used or modeled
+by background execution. It remains in the database temporarily for
+compatibility and will be cleaned up separately.
 
 Sandbox tools are separate from MCP authorization. When a sandbox provider is enabled, `server/tools.ts` adds local `read`, `write`, `edit`, and `bash` tools backed by the sandbox provider contract rather than the MCP registry.
 
