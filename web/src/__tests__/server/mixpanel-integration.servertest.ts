@@ -5,15 +5,19 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   LEGACY_ANALYTICS_EXPORTER_CUTOFF,
-  LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
-const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const PRE_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() - MS_PER_DAY,
+);
+const POST_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + MS_PER_DAY,
+);
 // Row ages derive from the cutoff constants, never from literals, so the
 // NEXT_PUBLIC_LANGFUSE_*_CUTOFF dev overrides cannot fail the suite.
 const ROW_PRE_ANALYTICS_CUTOFF = new Date(
@@ -244,7 +248,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     }
   });
 
-  // LFE-10148: events_only no longer writes the v3 tables, so legacy sources
+  // The events_only write mode no longer writes the v3 tables, so legacy sources
   // are refused by data capability, independent of Cloud date cutoffs.
   describe("events_only write-mode gate", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -393,7 +397,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     );
   });
 
-  // LFE-10148 review: the form schema's zod default must not be injected into
+  // Review: the form schema's zod default must not be injected into
   // partial updates — an omitted exportSource preserves the persisted value
   // (capability-checked only), and CREATE picks an explicit, validated default.
   describe("Mixpanel partial updates and create defaults", () => {
@@ -450,11 +454,11 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("EVENTS");
     });
 
-    // Router default for an omitted exportSource: legacy writes active ?
-    // TRACES_OBSERVATIONS : EVENTS. It deliberately differs from the
-    // settings-page default (EVENTS on dual) — a pre-existing divergence this
-    // change does not touch, pinned here so a later fix has to flip it.
-    it("create without exportSource defaults to TRACES_OBSERVATIONS on dual", async () => {
+    // Router default for an omitted exportSource comes from the shared policy's
+    // defaultExportSource, the same rule the settings page uses: enriched
+    // wherever the deployment writes it. Previously the router defaulted to
+    // TRACES_OBSERVATIONS here while the page offered EVENTS.
+    it("create without exportSource defaults to EVENTS on dual", async () => {
       const { caller, project } = await prepare();
       await caller.mixpanelIntegration.update({
         projectId: project.id,
@@ -463,7 +467,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       const result = await caller.mixpanelIntegration.get({
         projectId: project.id,
       });
-      expect(result.config?.exportSource).toBe("TRACES_OBSERVATIONS");
+      expect(result.config?.exportSource).toBe("EVENTS");
     });
 
     it("create without exportSource defaults to TRACES_OBSERVATIONS on legacy", async () => {
@@ -743,7 +747,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     });
   });
 
-  // LFE-14384: the credential is write-only — get returns only a masked
+  // The credential is write-only — get returns only a masked
   // display value; a blank token on update keeps the persisted encrypted value.
   describe("Mixpanel credential masking", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;

@@ -2,9 +2,9 @@ import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
-  assertRacedCreateAllowed,
-  resolveAnalyticsExportSource,
-} from "@/src/features/analytics-integrations/server/analyticsExportSource";
+  assertPersistedExportSourceAllowed,
+  resolveExportSource,
+} from "@/src/features/analytics-integrations/server/exportSource";
 import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -20,6 +20,7 @@ import { getDisplayCredential } from "@/src/features/analytics-integrations/serv
 import {
   AnalyticsIntegrationExportSource,
   LangfuseNotFoundError,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 
 export const posthogIntegrationRouter = createTRPCRouter({
@@ -45,7 +46,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
 
         const { encryptedPosthogApiKey, exportSource, ...config } = dbConfig;
 
-        // Write-only credential: never return the plaintext key (LFE-14384).
+        // Write-only credential: never return the plaintext key (write-only credential).
         return {
           config: {
             ...config,
@@ -118,7 +119,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
         });
 
       // Write-only credential: blank/omitted keeps the persisted encrypted
-      // value (LFE-14384).
+      // value (write-only credential).
       const encryptedPosthogApiKey = input.posthogProjectApiKey
         ? encrypt(input.posthogProjectApiKey)
         : existingIntegration?.encryptedPosthogApiKey;
@@ -128,11 +129,12 @@ export const posthogIntegrationRouter = createTRPCRouter({
           message: "PostHog Project API Key is required",
         });
       }
-      const createExportSource = await resolveAnalyticsExportSource({
+      const createExportSource = await resolveExportSource({
         db: ctx.prisma,
         projectId: input.projectId,
         requestedExportSource: input.exportSource,
         existingIntegration,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
       });
 
       await auditLog({
@@ -160,18 +162,17 @@ export const posthogIntegrationRouter = createTRPCRouter({
             posthogHostName: config.posthogHostname,
             enabled: config.enabled,
             // undefined → Prisma omits the column → preserves the persisted
-            // value on partial updates (LFE-10296).
+            // value on partial updates.
             exportSource: config.exportSource,
             // lastError is deliberately left intact so the last fault stays
             // visible until a successful run clears it.
           },
         });
 
-        await assertRacedCreateAllowed({
-          tx,
-          projectId: input.projectId,
+        assertPersistedExportSourceAllowed({
           existingIntegration,
           result,
+          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
         });
       });
     }),
