@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
-import { type ViewVersion } from "@langfuse/shared/query";
+import {
+  SCORES_LISTABLE_COUNT_VIEW,
+  type ViewVersion,
+} from "@langfuse/shared/query";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
@@ -12,15 +15,13 @@ import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashb
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ScoreOutlierStripHeader } from "@/src/features/scores-chart-view/components/ScoreOutlierStripHeader";
 import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
+import { canApplyScoreOutlierStripFilters } from "@/src/features/scores-chart-view/fns/outlierStripFilters";
 import {
-  canApplyScoreOutlierStripFilters,
-  shouldQueryStringScores,
-} from "@/src/features/scores-chart-view/fns/outlierStripFilters";
-import {
-  prepareScoreOutlierSeries,
   mergeScoreOutlierRows,
+  prepareScoreOutlierSeries,
   rowsToScoreOutlierBins,
-  scoreOutlierStripQueryMetrics,
+  scoreOutlierCountQueryMetrics,
+  scoreOutlierValueQueryMetrics,
 } from "@/src/features/scores-chart-view/fns/binning/scoreOutlierBinning";
 import {
   type ScoreOutlierAggKey,
@@ -34,17 +35,11 @@ import {
 } from "@/src/features/scores-chart-view/components/ScoreOutlierBarStrip/ScoreOutlierBarStrip";
 
 /**
- * Production container for the outlier strip ("Pulse") above the scores
- * table — the scores-table analogue of `EventsOutlierStrip`
- * (`@/src/features/events/components/outlier-strip`). Always visible. One
- * `dashboard.executeQuery` call fetches count + every registered aggregate
- * per time bucket, so switching metric or aggregation never refetches.
- * Clicking a bar narrows the table's time range to that bucket.
- *
- * Filters forward through the same `mapLegacyUiTableFilterToView` mapping
- * `ScoresChartView` uses. If the aggregate query cannot represent the
- * table's complete filter state, the query stays disabled rather than
- * reporting a partial distribution.
+ * The outlier strip ("Pulse") above the scores table — the scores-table
+ * analogue of `EventsOutlierStrip`. Runs two always-eager
+ * `dashboard.executeQuery` calls: `countQuery` (count-only, every listable
+ * score type) feeds "Count" mode, `valueQuery` (unchanged `scores-numeric`)
+ * feeds "Value" mode's avg/min/max, so switching mode never refetches.
  */
 
 /** Target horizontal pixels per bar for granularity picking. */
@@ -96,77 +91,89 @@ export function ScoresOutlierStrip({
     barSlotPx: BAR_SLOT_TARGET_PX,
   });
 
-  const numericFilters = useMemo(
-    () => mapLegacyUiTableFilterToView("scores-numeric", filterState),
-    [filterState],
-  );
-  const stringFilters = useMemo(
+  // The `scores-categorical` mapping's column names match `scores-numeric`'s
+  // and `scores-listable-count`'s own dimensions, so it's reused here too.
+  const countFilters = useMemo(
     () => mapLegacyUiTableFilterToView("scores-categorical", filterState),
     [filterState],
   );
+  const valueFilters = useMemo(
+    () => mapLegacyUiTableFilterToView("scores-numeric", filterState),
+    [filterState],
+  );
   const canApplyFilters = canApplyScoreOutlierStripFilters(filterState);
-  const queryStringScores = shouldQueryStringScores(filterState);
 
-  const numericQuery: QueryType = useMemo(
+  const countQuery: QueryType = useMemo(
     () => ({
-      view: "scores-numeric",
+      // Internal-only view, scoped to every listable score type — see its
+      // doc comment in `dataModel.ts`.
+      view: SCORES_LISTABLE_COUNT_VIEW,
       dimensions: [],
-      metrics: scoreOutlierStripQueryMetrics(),
-      filters: numericFilters,
+      metrics: scoreOutlierCountQueryMetrics(),
+      filters: countFilters,
       timeDimension: { granularity: granularity.granularity },
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
       // Must stay null: an orderBy disables the WITH FILL densification.
       orderBy: null,
     }),
-    [numericFilters, granularity.granularity, fromTimestamp, toTimestamp],
+    [countFilters, granularity.granularity, fromTimestamp, toTimestamp],
   );
 
-  const stringQuery: QueryType = useMemo(
+  const valueQuery: QueryType = useMemo(
     () => ({
-      view: "scores-categorical",
+      view: "scores-numeric",
       dimensions: [],
-      // String scores can be counted but do not have numeric value aggregates.
-      metrics: [{ measure: "count", aggregation: "count" }],
-      filters: stringFilters,
+      // Numeric/Boolean value only — the count-only query above already
+      // covers "Count" mode's true, every-type total.
+      metrics: scoreOutlierValueQueryMetrics(),
+      filters: valueFilters,
       timeDimension: { granularity: granularity.granularity },
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
       orderBy: null,
     }),
-    [stringFilters, granularity.granularity, fromTimestamp, toTimestamp],
+    [valueFilters, granularity.granularity, fromTimestamp, toTimestamp],
   );
 
-  const numericQueryResult = api.dashboard.executeQuery.useQuery(
-    { projectId, query: numericQuery, version: viewVersion },
+  // Shared by both queries' `placeholderData` below: whether a previous
+  // result's granularity still matches the current one.
+  const isSameGridAsCurrent = (
+    prevQuery: { queryKey?: unknown[] } | undefined,
+  ): boolean => {
+    const prevInput = (
+      prevQuery?.queryKey?.[1] as { input?: { query?: QueryType } } | undefined
+    )?.input?.query;
+    return (
+      !!prevInput?.timeDimension &&
+      canReuseOutlierPlaceholder(
+        { granularity: prevInput.timeDimension.granularity },
+        { granularity: granularity.granularity },
+      )
+    );
+  };
+
+  const countQueryResult = api.dashboard.executeQuery.useQuery(
+    { projectId, query: countQuery, version: viewVersion },
     {
       enabled: validRange && width > 0 && canApplyFilters,
       // Keep the previous bins ONLY across same-grid refetches — a
       // persistent band must not flash to a skeleton every interval; a grid
       // change (drill-in, Back, preset hop) shows the skeleton instead.
-      placeholderData: (prev, prevQuery) => {
-        const prevInput = (
-          prevQuery?.queryKey?.[1] as
-            | { input?: { query?: QueryType } }
-            | undefined
-        )?.input?.query;
-        if (!prev || !prevInput?.timeDimension) return undefined;
-        return canReuseOutlierPlaceholder(
-          { granularity: prevInput.timeDimension.granularity },
-          { granularity: granularity.granularity },
-        )
-          ? prev
-          : undefined;
-      },
+      placeholderData: (prev, prevQuery) =>
+        prev && isSameGridAsCurrent(prevQuery) ? prev : undefined,
       meta: { silentHttpCodes: [422] },
       trpc: { context: { skipBatch: true } },
     },
   );
 
-  const stringQueryResult = api.dashboard.executeQuery.useQuery(
-    { projectId, query: stringQuery, version: viewVersion },
+  const valueQueryResult = api.dashboard.executeQuery.useQuery(
+    { projectId, query: valueQuery, version: viewVersion },
     {
-      enabled: validRange && width > 0 && canApplyFilters && queryStringScores,
+      enabled: validRange && width > 0 && canApplyFilters,
+      // Same same-grid placeholder reuse as `countQuery` above.
+      placeholderData: (prev, prevQuery) =>
+        prev && isSameGridAsCurrent(prevQuery) ? prev : undefined,
       meta: { silentHttpCodes: [422] },
       trpc: { context: { skipBatch: true } },
     },
@@ -174,17 +181,16 @@ export function ScoresOutlierStrip({
 
   const bins = useMemo(
     () =>
-      numericQueryResult.data && (!queryStringScores || stringQueryResult.data)
+      countQueryResult.data
         ? rowsToScoreOutlierBins(
             mergeScoreOutlierRows(
-              numericQueryResult.data as ScoreOutlierQueryRow[],
-              queryStringScores
-                ? (stringQueryResult.data as ScoreOutlierQueryRow[])
-                : [],
+              countQueryResult.data as ScoreOutlierQueryRow[],
+              (valueQueryResult.data as ScoreOutlierQueryRow[] | undefined) ??
+                [],
             ),
           )
         : [],
-    [numericQueryResult.data, queryStringScores, stringQueryResult.data],
+    [countQueryResult.data, valueQueryResult.data],
   );
 
   const aggregation: ScoreOutlierAggKey =
@@ -269,16 +275,14 @@ export function ScoresOutlierStrip({
       range ? { ...range, windowKey: selectionWindowKey } : null,
     );
   const placeholderMissesGrid =
-    numericQueryResult.isPlaceholderData &&
+    countQueryResult.isPlaceholderData &&
     series.maxValue === 0 &&
     series.dense.every((bin) => bin.count === 0);
   const isLoading =
     validRange &&
     width > 0 &&
-    ((numericQueryResult.isPending && !numericQueryResult.isError) ||
-      (queryStringScores &&
-        stringQueryResult.isPending &&
-        !stringQueryResult.isError) ||
+    ((countQueryResult.isPending && !countQueryResult.isError) ||
+      (valueQueryResult.isPending && !valueQueryResult.isError) ||
       placeholderMissesGrid);
 
   return (
@@ -309,19 +313,19 @@ export function ScoresOutlierStrip({
             </div>
           ) : isLoading || width === 0 ? (
             <div className="bg-muted h-[76px] animate-pulse rounded" />
-          ) : numericQueryResult.isError ||
-            (queryStringScores && stringQueryResult.isError) ? (
+          ) : countQueryResult.isError || valueQueryResult.isError ? (
             <div className="text-muted-foreground flex h-[76px] items-center justify-center text-[11px]">
               No Data
             </div>
           ) : (
             <div
-              className={cn(
-                "min-w-0 transition-opacity",
-                numericQueryResult.isPlaceholderData &&
-                  numericQueryResult.isFetching &&
-                  "opacity-60",
-              )}
+              className={cn("min-w-0 transition-opacity", {
+                "opacity-60":
+                  (countQueryResult.isPlaceholderData &&
+                    countQueryResult.isFetching) ||
+                  (valueQueryResult.isPlaceholderData &&
+                    valueQueryResult.isFetching),
+              })}
             >
               <ScoreOutlierStripHeader
                 mode={mode}

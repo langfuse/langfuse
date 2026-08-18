@@ -62,10 +62,8 @@ export function ScoreOutlierStripHeader({
   const aggregationFocusGuard = usePointerSelectionFocusGuard();
   const def = SCORE_OUTLIER_STRIP_METRICS[mode];
 
-  // "Count" merges the numeric and string-score queries, so it covers every
-  // score type. "Value" only ever queries `scores-numeric` — categorical/text
-  // scores have no numeric value to plot — so flag that explicitly rather
-  // than leaving the drop silently smaller than "Count"'s.
+  // "Count" covers every score type; "Value" only reflects numeric/Boolean
+  // rows, so flag that explicitly rather than leaving it a silent gap.
   const valueModeInfo =
     mode === "value" ? (
       <DocPopup description="Categorical and text scores have no numeric value, so they're excluded from Value." />

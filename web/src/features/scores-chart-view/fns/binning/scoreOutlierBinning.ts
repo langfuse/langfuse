@@ -25,22 +25,28 @@ import {
 // Query metrics
 // ---------------------------------------------------------------------------
 
-/**
- * The executeQuery `metrics` array — derived from the registry so every
- * registered aggregation option is fetched in the one shared scan (switching
- * metric/aggregation in the UI never refetches). Mirrors the observations
- * strip's `outlierStripQueryMetrics`.
- */
-export const scoreOutlierStripQueryMetrics = (): {
+type ScoreOutlierQueryMetric = {
   measure: string;
   aggregation: "count" | "avg" | "min" | "max";
-}[] =>
-  Object.values(SCORE_OUTLIER_STRIP_METRICS).flatMap((def) =>
-    def.aggregations.map((agg) => ({
-      measure: def.measure,
-      aggregation: agg.queryAggregation,
-    })),
-  );
+};
+
+const queryMetricsFor = (
+  metric: ScoreOutlierMetricKey,
+): ScoreOutlierQueryMetric[] => {
+  const def = SCORE_OUTLIER_STRIP_METRICS[metric];
+  return def.aggregations.map((agg) => ({
+    measure: def.measure,
+    aggregation: agg.queryAggregation,
+  }));
+};
+
+/** "Count" mode's executeQuery `metrics`, against the count-only `scores-listable-count` view. */
+export const scoreOutlierCountQueryMetrics = (): ScoreOutlierQueryMetric[] =>
+  queryMetricsFor("count");
+
+/** "Value" mode's executeQuery `metrics`, against the unchanged `scores-numeric` view. */
+export const scoreOutlierValueQueryMetrics = (): ScoreOutlierQueryMetric[] =>
+  queryMetricsFor("value");
 
 /** Resolves an aggregation option, falling back to the metric's default. */
 export const resolveScoreOutlierAggregation = (
@@ -87,35 +93,30 @@ export const rowsToScoreOutlierBins = (
   });
 
 /**
- * Combines the count-only string-score query with numeric-score aggregates.
- * Numeric value aggregates remain numeric-only, while count covers every
- * score type represented by the two views.
+ * Combines the count query's rows with the value query's rows, keyed by
+ * time bucket. `count_count` always comes from the count rows; value
+ * columns are layered on top where present — no summing involved.
  */
 export const mergeScoreOutlierRows = (
-  numericRows: ScoreOutlierQueryRow[],
-  stringRows: ScoreOutlierQueryRow[],
+  countRows: ScoreOutlierQueryRow[],
+  valueRows: ScoreOutlierQueryRow[],
 ): ScoreOutlierQueryRow[] => {
   const rowsByTimestamp = new Map<string, ScoreOutlierQueryRow>();
 
-  for (const row of numericRows) {
+  for (const row of countRows) {
     if (typeof row.time_dimension === "string") {
       rowsByTimestamp.set(row.time_dimension, { ...row });
     }
   }
 
-  for (const row of stringRows) {
+  for (const row of valueRows) {
     if (typeof row.time_dimension !== "string") continue;
 
+    // Count rows are the only source of truth for which buckets exist; a
+    // value row with no matching count bucket is dropped, not invented.
     const existing = rowsByTimestamp.get(row.time_dimension);
     if (existing) {
-      // `executeQuery` can return `count_count` as a string (ClickHouse's
-      // UInt64 columns serialize as strings in JSON) — a `typeof ... ===
-      // "number"` check alone would treat that as 0 and could zero out (then
-      // drop, via `rowsToScoreOutlierBins`) a bucket that actually had data.
-      existing.count_count =
-        Number(existing.count_count ?? 0) + Number(row.count_count ?? 0);
-    } else {
-      rowsByTimestamp.set(row.time_dimension, { ...row });
+      Object.assign(existing, row);
     }
   }
 

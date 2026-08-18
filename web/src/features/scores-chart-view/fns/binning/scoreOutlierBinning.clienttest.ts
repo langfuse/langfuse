@@ -4,18 +4,69 @@ import {
   prepareScoreOutlierYTicks,
   resolveScoreOutlierAggregation,
   rowsToScoreOutlierBins,
-  scoreOutlierStripQueryMetrics,
+  scoreOutlierCountQueryMetrics,
+  scoreOutlierValueQueryMetrics,
 } from "@/src/features/scores-chart-view/fns/binning/scoreOutlierBinning";
 import { type ScoreOutlierBin } from "@/src/features/scores-chart-view/types";
 
-describe("scoreOutlierStripQueryMetrics", () => {
-  it("derives one query metric per registered aggregation", () => {
-    const metrics = scoreOutlierStripQueryMetrics();
-    expect(metrics).toContainEqual({ measure: "count", aggregation: "count" });
+describe("scoreOutlierCountQueryMetrics", () => {
+  it("derives one query metric per registered Count aggregation", () => {
+    const metrics = scoreOutlierCountQueryMetrics();
+    expect(metrics).toEqual([{ measure: "count", aggregation: "count" }]);
+  });
+});
+
+describe("scoreOutlierValueQueryMetrics", () => {
+  it("derives one query metric per registered Value aggregation", () => {
+    const metrics = scoreOutlierValueQueryMetrics();
     expect(metrics).toContainEqual({ measure: "value", aggregation: "avg" });
     expect(metrics).toContainEqual({ measure: "value", aggregation: "min" });
     expect(metrics).toContainEqual({ measure: "value", aggregation: "max" });
-    expect(metrics).toHaveLength(4);
+    expect(metrics).toHaveLength(3);
+  });
+});
+
+describe("mergeScoreOutlierRows", () => {
+  it("layers value columns from the value rows onto the count rows' true totals, without summing counts", () => {
+    expect(
+      mergeScoreOutlierRows(
+        [{ time_dimension: "2026-06-25T10:00:00Z", count_count: 5 }],
+        [
+          {
+            time_dimension: "2026-06-25T10:00:00Z",
+            avg_value: 0.5,
+            min_value: 0.1,
+            max_value: 0.9,
+          },
+        ],
+      ),
+    ).toEqual([
+      {
+        time_dimension: "2026-06-25T10:00:00Z",
+        count_count: 5,
+        avg_value: 0.5,
+        min_value: 0.1,
+        max_value: 0.9,
+      },
+    ]);
+  });
+
+  it("keeps a count-only bucket when the value query has no matching row (e.g. all-categorical bucket)", () => {
+    expect(
+      mergeScoreOutlierRows(
+        [{ time_dimension: "2026-06-25T10:00:00Z", count_count: 3 }],
+        [],
+      ),
+    ).toEqual([{ time_dimension: "2026-06-25T10:00:00Z", count_count: 3 }]);
+  });
+
+  it("drops a value-only row with no matching count bucket rather than fabricating a count", () => {
+    expect(
+      mergeScoreOutlierRows(
+        [],
+        [{ time_dimension: "2026-06-25T10:00:00Z", avg_value: 0.5 }],
+      ),
+    ).toEqual([]);
   });
 });
 
@@ -73,46 +124,6 @@ describe("rowsToScoreOutlierBins", () => {
       { time_dimension: "2026-06-25T10:00:00Z", count_count: 3 },
     ]);
     expect(bin.values.avg_value).toBeNull();
-  });
-});
-
-describe("mergeScoreOutlierRows", () => {
-  it("adds categorical score counts to the numeric bucket without changing numeric values", () => {
-    expect(
-      mergeScoreOutlierRows(
-        [
-          {
-            time_dimension: "2026-06-25T10:00:00Z",
-            count_count: 2,
-            avg_value: 0.5,
-          },
-        ],
-        [
-          {
-            time_dimension: "2026-06-25T10:00:00Z",
-            count_count: 3,
-          },
-        ],
-      ),
-    ).toEqual([
-      {
-        time_dimension: "2026-06-25T10:00:00Z",
-        count_count: 5,
-        avg_value: 0.5,
-      },
-    ]);
-  });
-
-  // Regression: ClickHouse UInt64 columns serialize as strings in JSON, so
-  // `count_count` can arrive as a string. A plain `typeof x === "number"`
-  // check treated that as 0, dropping real counts instead of adding them.
-  it("coerces a stringified count before adding, instead of treating it as 0", () => {
-    expect(
-      mergeScoreOutlierRows(
-        [{ time_dimension: "2026-06-25T10:00:00Z", count_count: "2" }],
-        [{ time_dimension: "2026-06-25T10:00:00Z", count_count: "3" }],
-      ),
-    ).toEqual([{ time_dimension: "2026-06-25T10:00:00Z", count_count: 5 }]);
   });
 });
 

@@ -1,7 +1,4 @@
-import {
-  canApplyScoreOutlierStripFilters,
-  shouldQueryStringScores,
-} from "@/src/features/scores-chart-view/fns/outlierStripFilters";
+import { canApplyScoreOutlierStripFilters } from "@/src/features/scores-chart-view/fns/outlierStripFilters";
 
 describe("canApplyScoreOutlierStripFilters", () => {
   it("allows an empty filter state", () => {
@@ -36,33 +33,5 @@ describe("canApplyScoreOutlierStripFilters", () => {
         },
       ]),
     ).toBe(false);
-  });
-});
-
-describe("shouldQueryStringScores", () => {
-  it("skips the string-score aggregate when the data type filter only allows numeric and Boolean scores", () => {
-    expect(
-      shouldQueryStringScores([
-        {
-          column: "dataType",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["NUMERIC", "BOOLEAN"],
-        },
-      ]),
-    ).toBe(false);
-  });
-
-  it("keeps the string-score aggregate when categorical scores can match", () => {
-    expect(
-      shouldQueryStringScores([
-        {
-          column: "dataType",
-          type: "string",
-          operator: "=",
-          value: "CATEGORICAL",
-        },
-      ]),
-    ).toBe(true);
   });
 });
