@@ -100,7 +100,7 @@ export function EvaluatorsEmptyStateView({
   const { iconClassName } = getGalleryCategoryPresentation("recommended");
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-8 py-16">
+    <div className="mx-auto flex w-full max-w-5xl flex-col items-center px-8 py-8">
       <div className="mb-8 max-w-2xl text-center">
         <h2 className="mb-2 text-2xl font-bold">
           Turn traces into quality signals
