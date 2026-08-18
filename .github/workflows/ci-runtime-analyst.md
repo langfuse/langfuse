@@ -79,29 +79,25 @@ timeout-minutes: 90
 # could finish or report anything useful.
 max-ai-credits: 4500
 
-# strict: false is required ONLY because sandbox.agent.args below is an
-# internal field. Strict mode is compile-time linting, not runtime
-# protection — everything it checks we keep manually: permissions stay
-# read-only, network stays explicit (no wildcards), the sandbox stays
-# enabled, no deprecated/XPIA fields. Re-verify that list when editing
-# this frontmatter, since the compiler no longer enforces it.
 strict: false
 
-# Open the dev-stack ports to the sandbox via this x-internal args
-# passthrough — gh-aw has no declarative knob for extra host ports (it
-# only auto-generates this flag from Actions `services:`, which our
-# compose services can't be expressed as). --allow-host-service-ports is
-# the right flag for databases: unlike --allow-host-ports it permits
-# "dangerous" ports (5432 etc.) BY DESIGN because it routes them to the
-# host gateway ONLY — so the agent must connect via host.docker.internal,
-# never localhost (provisioning rewrites the .env endpoints accordingly).
-# Ports: floci 4566, postgres 5432, redis 6379, clickhouse 8123+9000,
-# minio 9090. Schema-validated at compile; a gh-aw upgrade that drops the
-# passthrough fails loudly.
-sandbox:
-  agent:
-    id: awf
-    args: ["--allow-host-service-ports", "4566,5432,6379,8123,9000,9090"]
+# DB-backed sandbox provisioning is DISABLED for now — do not re-add a
+# docker-compose/host.docker.internal setup here until upstream fixes:
+#   - https://github.com/github/gh-aw/issues/52140
+#   - https://github.com/github/gh-aw-firewall/issues/7268
+# Root cause: gh-aw's default sandbox mode ("network-isolation") never
+# actually leaves isolation even with legacy-security/--allow-host-service-
+# ports set, and even where the flag is honored, AWF only adds the
+# host.docker.internal→host-gateway DNS mapping to the MCP gateway
+# container, never to the agent container. So every run since 2026-08-03
+# hit dns.lookup('host.docker.internal') => EAI_AGAIN 100% of the time —
+# this was never a flaky-infra problem, it structurally cannot work today.
+# Previously this section ran a host-side docker-compose stack (Postgres/
+# ClickHouse/Redis/Minio/floci) and opened `--allow-host-service-ports` on
+# the sandbox so the agent could reach it — none of that had any effect,
+# so it's removed rather than kept as dead weight. The agent now always
+# operates DB-less ("Verify changes before requesting a PR"); re-add this
+# provisioning once one of the linked issues ships a fix.
 
 network:
   allowed:
@@ -110,112 +106,6 @@ network:
     # prisma postinstall/generate downloads query engines from here; needed
     # so `pnpm install` + shared-package tests work inside the sandbox.
     - "binaries.prisma.sh"
-    # Loopback (localhost/127.0.0.1): the dev docker-compose stack is started
-    # on the host by the custom step below; the sandboxed agent reaches it on
-    # its published localhost ports to run DB-backed test suites.
-    - local
-
-# Custom steps run in the agent job on the HOST, before the AWF sandbox
-# starts — docker/sudo are available here but not inside the sandbox (the
-# socket is hidden, system paths read-only). They provision the same test
-# environment as pipeline.yml's tests-web/tests-worker jobs so the agent
-# can run DB-backed suites against 127.0.0.1 without any setup of its own.
-# Runs for assessment mode too: diagnosing a failing DB-backed test on a
-# PR branch is exactly when the stack is needed.
-# KEEP IN SYNC with pipeline.yml (env recipe, migrate version, commands).
-# No setup-node here: gh-aw's built-in "Setup Node.js" step already
-# installs node 24, and adding one with `cache: pnpm` gets merged BEFORE
-# pnpm/action-setup runs, where only the runner-image pnpm exists — a
-# wrong-store-path trap. Uncached pnpm install costs ~1 min on this
-# weekly job; determinism wins.
-steps:
-  - name: Setup pnpm (mirrors pipeline.yml)
-    uses: pnpm/action-setup@v6.0.9
-    with:
-      version: 11.10.0
-  - name: Login to Docker Hub (avoids anonymous pull rate limits; mirrors pipeline.yml)
-    # continue-on-error: if the secrets are unavailable in this environment,
-    # degrade to anonymous pulls instead of failing the run.
-    continue-on-error: true
-    uses: docker/login-action@v4.6.0
-    with:
-      username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
-      password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-  - name: Provision DB test stack (best effort, mirrors pipeline.yml test jobs)
-    # continue-on-error: an infra flake degrades the run to DB-less
-    # verification instead of killing the whole analysis. The agent must
-    # check for /tmp/gh-aw/db-stack-ready before relying on DB suites.
-    continue-on-error: true
-    run: |
-      set -euo pipefail
-      # Overlap the two slow downloads with pnpm install (like pipeline.yml).
-      # worker-tests profile adds floci (lambda endpoint for awsLambda tests).
-      # HOST_IP=0.0.0.0: publish beyond host-loopback so the sandboxed agent
-      # can reach the services through the AWF host gateway as well.
-      (set +e; COMPOSE_PROFILES=worker-tests HOST_IP=0.0.0.0 docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
-      (
-        set -e
-        curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-          --output /tmp/migrate.linux-amd64.tar.gz \
-          https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-        echo "2ac648fbd1b127b69ab5a7b33cf96212178f71e22379fc50573630c6f4c7ce18  /tmp/migrate.linux-amd64.tar.gz" | sha256sum -c -
-        tar xzf /tmp/migrate.linux-amd64.tar.gz -C /tmp
-        sudo mv /tmp/migrate /usr/bin/migrate
-      ) > /tmp/migrate-install.log 2>&1 &
-      migrate_pid=$!
-      pnpm install
-      # tests-web "Load default env" recipe (default deploy mode), then
-      # copies for worker-job parity (tests-worker reads worker/.env).
-      grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
-      {
-        echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1"
-        echo "LANGFUSE_CACHE_PROMPT_ENABLED=false"
-        echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1"
-        echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1"
-        echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100"
-        echo "ADMIN_API_KEY=admin-api-key"
-        echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test"
-        echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true"
-        echo "LANGFUSE_ENABLE_SCORES_V3_API=true"
-      } >> .env
-      # pipeline.yml passes this as a step env var; baked into the ROOT .env
-      # (which worker/vitest.config.ts loads via ../.env — worker/.env is
-      # never read by vitest) so the agent needs no env prefixes.
-      echo "LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT=http://localhost:4566" >> .env
-      cp .env web/.env
-      cp .env worker/.env
-      pnpm --filter=shared run db:generate
-      # @langfuse/shared exports point at dist/ — web and worker vitest
-      # import the BUILT package, so this build is load-bearing.
-      pnpm --filter=worker... run build
-      timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done'
-      cat /tmp/compose-up.log
-      [ "$(cat /tmp/compose-up.exit)" = "0" ]
-      wait "$migrate_pid"
-      pnpm run db:migrate
-      pnpm --filter=shared run db:seed
-      pnpm --filter=shared ch:up
-      # ClickHouse client shim via the dev container (pipeline.yml trick,
-      # avoids the ~300MB client download) for dev-tables setup.
-      sudo tee /usr/local/bin/clickhouse > /dev/null <<'CLICKHOUSE_SHIM'
-      #!/bin/bash
-      exec docker exec -i langfuse-clickhouse clickhouse "$@"
-      CLICKHOUSE_SHIM
-      sudo chmod +x /usr/local/bin/clickhouse
-      pnpm --filter=shared ch:dev-tables
-      # The sandbox reaches these services only via the host gateway
-      # (host.docker.internal) — see the sandbox.agent.args comment. The
-      # host-side steps above needed localhost, so rewrite the service
-      # endpoints (port-scoped: app URLs like :3000 must stay localhost)
-      # as the LAST provisioning action.
-      sed -E -i 's#(localhost|127\.0\.0\.1):(4566|5432|6379|8123|9000|9090)#host.docker.internal:\2#g; s#^REDIS_HOST=.*#REDIS_HOST="host.docker.internal"#' .env web/.env worker/.env
-      mkdir -p /tmp/gh-aw && touch /tmp/gh-aw/db-stack-ready
-  - name: Docker logout (drop registry credentials before the agent starts)
-    # docker login stores the token in ~/.docker/config.json, which the AWF
-    # sandbox mounts read-write into the agent container. Nothing after
-    # provisioning pulls images, so drop the credentials unconditionally.
-    if: always()
-    run: docker logout || true
 
 tools:
   github:
@@ -592,39 +482,27 @@ this layout:
 
 ## Verify changes before requesting a PR
 
-You are working in a full checkout of the repository, provisioned on the
-host before your sandbox started to mirror `pipeline.yml`'s test jobs:
-dependencies are installed (`pnpm install` already ran), `.env` (plus
-`web/.env`, `worker/.env`) carries the CI env recipe, the prisma client is
-generated, `@langfuse/shared` and `worker` are built, and the dev
-docker-compose stack (Postgres, ClickHouse, Redis, Minio, plus floci for
-the worker awsLambda tests) is up on its usual localhost ports — migrated,
-seeded, ClickHouse dev tables included. DB-backed suites (the web
-`server`/`server-isolated` projects, worker tests) are therefore runnable
-directly, with no setup of your own.
+You are working in a full checkout of the repository, but there is no
+database stack in this sandbox and none is coming this run — provisioning a
+reachable Postgres/ClickHouse/Redis stack here is currently blocked by an
+upstream gh-aw/gh-aw-firewall bug (sandboxed agents cannot reach
+`host.docker.internal`, tracked at
+https://github.com/github/gh-aw/issues/52140 and
+https://github.com/github/gh-aw-firewall/issues/7268; check those before
+assuming this changed). Always operate DB-less this run:
 
-Three boundaries:
-
-- Provisioning is best-effort: it succeeded if and only if
-  `/tmp/gh-aw/db-stack-ready` exists. Check it once before relying on
-  DB-backed suites; if absent, say so in the report and fall back to
-  DB-less verification (the DB-less commands below still work — deps and
-  builds may then be missing too, so run `pnpm install` +
-  `pnpm --filter=shared run db:generate` yourself first).
-- Connectivity: the services run on the host, and your sandbox reaches
-  them ONLY via `host.docker.internal` — the `.env` files are already
-  rewritten to those endpoints, so use them as-is and never "fix" them
-  back to `localhost` (in-sandbox localhost has no services; only an app
-  you start yourself listens there, e.g. localhost:3000). If a connection
-  to a provisioned `host.docker.internal` endpoint fails, this run's
-  infrastructure is broken: report it in the job summary and fall back to
-  DB-less verification. NEVER interpret connection-refused errors against
-  provisioned services as a test regression or flaky test — they are an
-  infra signal, not a code signal.
-- You cannot control docker itself (the socket is hidden): no restarting
-  or inspecting containers, nothing beyond the dev-stack services. The
-  e2e-tests job (Playwright browsers against the built app) stays out of
-  scope — the PR's own CI run covers it.
+- Bootstrap yourself: run `pnpm install`, then
+  `pnpm --filter=shared run db:generate`, then (after any edit under
+  `packages/shared/` or `worker/src/`) `pnpm --filter=worker... run build`.
+  None of this was pre-run for you.
+- DB-backed suites (the web `server`/`server-isolated` projects, worker
+  tests that hit Postgres/ClickHouse/Redis) cannot run here at all this
+  run. Do not attempt to reach `host.docker.internal` or `localhost` for
+  those services — nothing is listening. Any DB-backed candidate fix is
+  "not sandbox-verifiable this run" by default; say so plainly rather than
+  guessing at connectivity.
+- The e2e-tests job (Playwright browsers against the built app) stays out
+  of scope regardless — the PR's own CI run covers it.
 
 CRITICAL rebuild rule: web and worker vitest import `@langfuse/shared`
 (and worker code paths) from `dist/`, not source. After editing any file
@@ -659,8 +537,11 @@ Run the narrowest check that actually exercises your change, e.g.:
   file is covered by the PR's CI run.
 
 Optimization candidates that earlier weeks deferred as "DB-backed — not
-sandbox-verifiable" (check `notes.md`) are now verifiable; re-evaluate them
-before hunting for new ones.
+sandbox-verifiable" (check `notes.md`) remain unverifiable until
+https://github.com/github/gh-aw/issues/52140 or
+https://github.com/github/gh-aw-firewall/issues/7268 ships — don't
+re-attempt them expecting DB connectivity to work; only re-evaluate once
+you confirm one of those issues is closed.
 
 Rules:
 
