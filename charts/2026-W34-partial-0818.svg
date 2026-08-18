@@ -15,7 +15,7 @@
   </style>
 
   <text x="20" y="24" class="title">Daily merge-group medians: pipeline totals (2026-08-12..08-18)</text>
-  <text x="20" y="42" class="legend">Trailing 7 calendar days ending 2026-08-18 (08-15 Sat omitted, 0 runs). All 6 shown days are now full (&gt;=5 runs; 08-18 has 7).</text>
+  <text x="20" y="42" class="legend">Trailing 7 calendar days ending 2026-08-18 (08-15 Sat omitted, 0 runs). All 6 shown days are full (&gt;=5 runs; 08-18 has 8, recomputed exactly).</text>
 
   <!-- plot area: x=70..700, y=90..340, 0..700s scale -->
   <line x1="70" y1="340" x2="700" y2="340" class="axis" />
@@ -46,16 +46,16 @@
   <text x="700" y="358" class="label" text-anchor="middle">08-18</text>
 
   <!-- overall incl. wait (perceived) -->
-  <polyline class="line-perceived" points="70.0,220.0 196.0,98.6 322.0,257.9 448.0,270.7 574.0,268.2 700.0,270.0" />
+  <polyline class="line-perceived" points="70.0,220.0 196.0,98.6 322.0,257.9 448.0,270.7 574.0,268.2 700.0,270.4" />
   <!-- overall excl. wait (execution) -->
-  <polyline class="line-execution" points="70.0,230.7 196.0,101.8 322.0,266.1 448.0,276.1 574.0,273.6 700.0,272.9" />
+  <polyline class="line-execution" points="70.0,230.7 196.0,101.8 322.0,266.1 448.0,276.1 574.0,273.6 700.0,273.2" />
   <!-- runner wait -->
-  <polyline class="line-wait" points="70.0,331.1 196.0,336.8 322.0,334.6 448.0,334.6 574.0,334.3 700.0,335.0" />
+  <polyline class="line-wait" points="70.0,331.1 196.0,336.8 322.0,334.6 448.0,334.6 574.0,334.3 700.0,336.4" />
 
   <g>
-    <circle cx="70.0" cy="220.0" r="3.5" class="dot-perceived" /><circle cx="196.0" cy="98.6" r="3.5" class="dot-perceived" /><circle cx="322.0" cy="257.9" r="3.5" class="dot-perceived" /><circle cx="448.0" cy="270.7" r="3.5" class="dot-perceived" /><circle cx="574.0" cy="268.2" r="3.5" class="dot-perceived" /><circle cx="700.0" cy="270.0" r="3.5" class="dot-perceived" />
-    <circle cx="70.0" cy="230.7" r="3.5" class="dot-execution" /><circle cx="196.0" cy="101.8" r="3.5" class="dot-execution" /><circle cx="322.0" cy="266.1" r="3.5" class="dot-execution" /><circle cx="448.0" cy="276.1" r="3.5" class="dot-execution" /><circle cx="574.0" cy="273.6" r="3.5" class="dot-execution" /><circle cx="700.0" cy="272.9" r="3.5" class="dot-execution" />
-    <circle cx="70.0" cy="331.1" r="3.5" class="dot-wait" /><circle cx="196.0" cy="336.8" r="3.5" class="dot-wait" /><circle cx="322.0" cy="334.6" r="3.5" class="dot-wait" /><circle cx="448.0" cy="334.6" r="3.5" class="dot-wait" /><circle cx="574.0" cy="334.3" r="3.5" class="dot-wait" /><circle cx="700.0" cy="335.0" r="3.5" class="dot-wait" />
+    <circle cx="70.0" cy="220.0" r="3.5" class="dot-perceived" /><circle cx="196.0" cy="98.6" r="3.5" class="dot-perceived" /><circle cx="322.0" cy="257.9" r="3.5" class="dot-perceived" /><circle cx="448.0" cy="270.7" r="3.5" class="dot-perceived" /><circle cx="574.0" cy="268.2" r="3.5" class="dot-perceived" /><circle cx="700.0" cy="270.4" r="3.5" class="dot-perceived" />
+    <circle cx="70.0" cy="230.7" r="3.5" class="dot-execution" /><circle cx="196.0" cy="101.8" r="3.5" class="dot-execution" /><circle cx="322.0" cy="266.1" r="3.5" class="dot-execution" /><circle cx="448.0" cy="276.1" r="3.5" class="dot-execution" /><circle cx="574.0" cy="273.6" r="3.5" class="dot-execution" /><circle cx="700.0" cy="273.2" r="3.5" class="dot-execution" />
+    <circle cx="70.0" cy="331.1" r="3.5" class="dot-wait" /><circle cx="196.0" cy="336.8" r="3.5" class="dot-wait" /><circle cx="322.0" cy="334.6" r="3.5" class="dot-wait" /><circle cx="448.0" cy="334.6" r="3.5" class="dot-wait" /><circle cx="574.0" cy="334.3" r="3.5" class="dot-wait" /><circle cx="700.0" cy="336.4" r="3.5" class="dot-wait" />
   </g>
 
   <!-- legend, top-right corner, clear of data -->
@@ -69,5 +69,5 @@
   </g>
 
   <text x="20" y="378" class="legend">08-13/08-14: whole-suite proportional slowdown (~5x transform/import/tests) -- CI-runner contention (Blacksmith), not a code regression; not 3+ consecutive days, so not actionable.</text>
-  <text x="20" y="394" class="legend">08-16/08-17/08-18 form a stable ~194-201s perceived-time band (08-18 now a full 7-run day). Pooled weekly p50=227s, p90~676s (32 runs) vs baseline p50=396s, p90=522s.</text>
+  <text x="20" y="394" class="legend">08-16/08-17/08-18 form a stable ~194-201s perceived-time band (08-18 now a full 8-run day). Pooled weekly p50=224s, p90=675s (33 runs) vs baseline p50=396s, p90=522s.</text>
 </svg>

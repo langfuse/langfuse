@@ -2,78 +2,108 @@
   "isoWeek": "2026-W34",
   "kind": "partial-checkpoint",
   "analyzedAt": "2026-08-18",
-  "note": "Trailing-7-calendar-day window (08-12..08-18), spanning the tail of W33 and start of W34 -- not a clean ISO week. Same naming-collision caveat as prior checkpoints (see notes.md) applies to the isoWeek label. This is the THIRD same-day update to this file (run 20, third workflow_dispatch on 2026-08-18) -- supersedes the run-19 version, which had only 4 of 08-18's merge-group runs. 08-15 (Saturday) had 0 successful merge_group runs and is omitted; 6 days now populated (08-12,08-13,08-14,08-16,08-17,08-18) -- 08-12 through 08-17 unchanged from run 19 (5 runs each), 08-18 now has 7 runs (up from 4) and is treated as a full day under the >=5-runs rule. 32 runs total (up from 29).",
+  "note": "Trailing-7-calendar-day window (08-12..08-18), spanning the tail of W33 and start of W34 -- not a clean ISO week. Same naming-collision caveat as prior checkpoints (see notes.md) applies to the isoWeek label. This is the FOURTH same-day update to this file (run 21, fourth workflow_dispatch on 2026-08-18, and the FIRST run under the new issue-output regime -- prior runs filed noop, this one files a report issue). 08-15 (Saturday) had 0 successful merge_group runs and is omitted; 6 days populated (08-12,08-13,08-14,08-16,08-17,08-18). 08-12 through 08-17 unchanged from run 20 (5 runs each). 08-18 now has 8 runs (up from 7) and its execution/segment medians were RECOMPUTED EXACTLY this run from all 8 runs' job payloads rather than carried forward. 33 runs total.",
   "window": { "from": "2026-08-12T00:00:00Z", "to": "2026-08-18T23:59:59Z", "kind": "trailing-7-days" },
   "events": {
     "merge_group": {
-      "windowRunCount": { "note": "08-15 (Sat): 0 successful runs, omitted. 08-12,13,14,16,17: 5 runs each (unchanged from run 19). 08-18: 7 runs now (all merge-group runs completed on 08-18 as of this run, 07:24-09:36 UTC) -- up from 4 in the run-19 checkpoint. 32 runs total, all run_attempt:1 except one retry-corrected run on 08-12 (raw attempt discarded, replacement used, unchanged from prior runs)." },
+      "windowRunCount": { "note": "08-15 (Sat): 0 successful runs, omitted. 08-12,13,14,16,17: 5 runs each (unchanged from run 20). 08-18: 8 runs (07:24-10:04 UTC), up from 7 -- new run 32124629182 (perceived 191s) completed after run 20's 09:36 cutoff. 33 runs total, all run_attempt:1 except one retry-corrected run on 08-12 (raw attempt discarded, replacement used, unchanged from prior runs)." },
       "perceivedByDay": {
         "2026-08-12": { "median": 336, "values": [260, 312, 367, 336, 365] },
         "2026-08-13": { "median": 676, "values": [360, 231, 694, 711, 676], "note": "3 of 5 runs dramatically slow" },
         "2026-08-14": { "median": 230, "values": [694, 673, 230, 224, 217], "note": "2 of 5 runs slow" },
         "2026-08-16": { "median": 194, "values": [194, 196, 193, 294, 194] },
         "2026-08-17": { "median": 201, "values": [201, 195, 200, 244, 388] },
-        "2026-08-18": { "median": 196, "values": [193, 193, 194, 196, 197, 207, 207], "note": "now a full day (7 runs, was 4/partial in the run-19 checkpoint) -- same 193-207s band as 08-16/08-17, tighter than either" }
+        "2026-08-18": { "median": 195, "values": [191, 193, 193, 194, 196, 197, 207, 207], "note": "8 runs, fully recomputed this run; tightest day of the window (191-207s)" }
       },
-      "pooledWeekly": { "p50": 227, "p90": 675.7, "unit": "s", "population": "all 32 sampled runs (up from 29)" },
+      "pooledWeekly": { "p50": 224, "p90": 675.4, "unit": "s", "population": "all 33 sampled runs" },
       "executionByDay": {
-        "2026-08-12": 306, "2026-08-13": 667, "2026-08-14": 207, "2026-08-16": 179, "2026-08-17": 186, "2026-08-18": 188
+        "2026-08-12": 306, "2026-08-13": 667, "2026-08-14": 207, "2026-08-16": 179, "2026-08-17": 186, "2026-08-18": 187
       },
       "runnerWaitByDay": {
-        "2026-08-12": 25, "2026-08-13": 9, "2026-08-14": 15, "2026-08-16": 15, "2026-08-17": 16, "2026-08-18": 14
+        "2026-08-12": 25, "2026-08-13": 9, "2026-08-14": 15, "2026-08-16": 15, "2026-08-17": 16, "2026-08-18": 10,
+        "method": "median of per-run (perceived - execution), not (median perceived - median execution); the two differ slightly by construction."
       },
       "segmentsByDay": {
-        "webBuildStepMed":       { "2026-08-12": 70, "2026-08-13": 149, "2026-08-14": 51, "2026-08-16": 47, "2026-08-17": 48, "2026-08-18": 48 },
-        "webRunTestsStepMed":    { "2026-08-12": 96, "2026-08-13": 347, "2026-08-14": 82, "2026-08-16": 78, "2026-08-17": 77, "2026-08-18": 76 },
+        "webBuildStepMed":       { "2026-08-12": 70, "2026-08-13": 149, "2026-08-14": 51, "2026-08-16": 47, "2026-08-17": 48, "2026-08-18": 47.5 },
+        "webRunTestsStepMed":    { "2026-08-12": 96, "2026-08-13": 347, "2026-08-14": 82, "2026-08-16": 78, "2026-08-17": 77, "2026-08-18": 76.5 },
         "workerRunTestsStepMed": { "2026-08-12": 124, "2026-08-13": 213, "2026-08-14": 104, "2026-08-16": 98, "2026-08-17": 101, "2026-08-18": 101 },
-        "e2eTestsJobSec":        { "2026-08-12": 169, "2026-08-13": 285, "2026-08-14": 197, "2026-08-16": 172, "2026-08-17": 149, "2026-08-18": 151 }
+        "e2eTestsJobSec":        { "2026-08-12": 169, "2026-08-13": 285, "2026-08-14": 197, "2026-08-16": 172, "2026-08-17": 149, "2026-08-18": 146.5 }
       },
       "weeklyMedianOfDailyMedians": {
-        "webBuildStepMed": 48.5, "webRunTestsStepMed": 79, "workerRunTestsStepMed": 102.5, "e2eTestsJobSec": 170
-      }
+        "perceived": 215.5, "execution": 197, "runnerWait": 15,
+        "webBuildStepMed": 49.5, "webRunTestsStepMed": 80, "workerRunTestsStepMed": 102.5, "e2eTestsJobSec": 170.5
+      },
+      "buildStepCacheNote": "One 08-18 run (32111302723) recorded a 4s Build step vs 46-51s on the other seven -- a turbo cache hit. Confirms the 2026-07-07 baseline note that Build-step variance is dominated by turbo cache hit/miss and must not be chased without separating the two populations."
     }
   },
   "comparisonToBaselineAndPriorCheckpoint": {
     "baselineFile": "history/2026-W28.json (window 06-30..07-07)",
-    "priorCheckpointFile": "history/2026-W31-partial-0731.json (window 07-25..07-31, 18 days stale)",
-    "perceivedP50": "227 (pooled, 32 runs including 08-18's full 7) vs baseline 396 (-43%) vs prior-checkpoint weekday-aggregate 476 (-52%) -- lower than both references; consistent with run 18/19's conclusion, refined slightly downward now that 08-18 is a full day.",
-    "perceivedP90": "~676 vs baseline 522 (+29%) -- tail still heavier than baseline, driven entirely by the 08-13/08-14 outlier runs (unchanged conclusion from runs 18/19), not a broad shift.",
-    "webRunTestsStepMed": "79 (weekly median-of-medians, now 6 full days) vs baseline 86 (-8%, essentially flat) vs prior-checkpoint 147 (-46%) -- the sustained three-checkpoint climb flagged 07-31 (86->114.5->147) does NOT appear to be continuing; 08-18's now-complete day confirms the same 76-82s band seen on 08-14/08-16/08-17.",
-    "e2e": "170 (median-of-medians) vs baseline 232 vs prior-checkpoint 244 -- improved, within normal variation."
+    "priorCheckpointFile": "history/2026-W31-partial-0731.json (window 07-25..07-31)",
+    "perceivedP50": "224 (pooled, 33 runs) vs baseline 396 (-43%) vs prior-checkpoint weekday-aggregate 476 (-53%). Lower than both; refined marginally downward from run 20's 227 by 08-18's extra run.",
+    "perceivedP90": "675.4 vs baseline 522 (+29%) -- tail still heavier than baseline, driven entirely by the 08-13/08-14 outlier runs, not a broad shift. Unchanged conclusion.",
+    "webRunTestsStepMed": "80 (weekly median-of-medians over 6 full days) vs baseline 86 (-7%, essentially flat) vs prior-checkpoint 147 (-46%). The sustained three-checkpoint climb flagged 07-31 (86->114.5->147) is NOT continuing.",
+    "e2e": "170.5 (median-of-medians) vs baseline 232 vs prior-checkpoint 244 -- improved, within normal variation."
   },
   "intraWeekShiftCheck": {
     "rule": ">=50% across 3+ consecutive sampled days is actionable in-run",
-    "finding": "Perceived-time median by day: 336, 676, 230, 194, 201, 196 (08-12,13,14,16,17,18). Only 08-13 and 08-14 are elevated; 08-12/08-16/08-17/08-18 are all in the 194-336s band, and the three most recent days (08-16,17,18) form an even tighter 194-201s cluster now that 08-18 has 7 runs instead of 4. This is 2 affected days, not 3+ consecutive -- does NOT meet the actionable threshold. Same conclusion as runs 18 and 19; the extra 08-18 data only tightens it further."
+    "finding": "Perceived median by day: 336, 676, 230, 194, 201, 195 (08-12,13,14,16,17,18). Only 08-13 is severely elevated, with 08-12 mildly so; 08-14/16/17/18 sit in a 194-230s band and the three most recent days form a 194-201s cluster. 2 affected days, not 3+ consecutive -- does NOT meet the actionable threshold. Same conclusion as runs 18-20; 08-18's 8th run tightens it further.",
+    "segmentCrossCheck": "webRunTests by day 96, 347, 82, 78, 77, 76.5 -- monotonically settling since 08-13, no sustained climb."
   },
   "investigation": {
     "target": "08-13/08-14 outlier runs",
-    "method": "Compared vitest log output between a slow run (08-13, tests-web job, run-tests step 374s, vitest Duration 364.19s: transform 134.78s / import 1931.94s / tests 863.40s) and a fast run (08-16, tests-web job, run-tests step 77s, vitest Duration 74.89s: transform 35.23s / import 292.76s / tests 282.62s). Same 238 test files, ~4300-4400 tests both times. Reused unchanged from run 18/19 -- no new sampling performed this run.",
-    "finding": "Entire suite scaled proportionally slower (~5x across transform/import/tests) on the slow run -- not a single regressed test. Worker-shard comparison (08-13 Duration 216.21s vs 08-16 97.09s) shows the same pattern (import 437s vs 145s). Consistent with CI-runner-level resource contention (Blacksmith self-hosted runners; BLACKSMITH_RUNNER_ACQUIRE_JOB_MS/BLACKSMITH_RUNNER_MESSAGE_WAIT_MS env vars present in job logs) rather than a code-level regression.",
-    "discardedHypothesis": "The 'Failed to save: Unable to reserve cache with key Linux-turbo-tests-web-compile-...another job may be creating this cache' log line was checked and appears identically in both the fast and slow runs -- confirmed NOT a causal factor, not attributed in this report.",
-    "conclusion": "Environment/runner-infra variability, outside repo's control this run; not fixable via a ci-perf/ PR or a pipeline.yml change. Not actionable per this workflow's own rules. Not re-investigated this run (no new information changes the conclusion)."
+    "method": "Side-by-side vitest log comparison performed in run 18 (slow 08-13 tests-web run-tests 374s, vitest Duration 364.19s: transform 134.78s / import 1931.94s / tests 863.40s vs fast 08-16 run-tests 77s, Duration 74.89s: transform 35.23s / import 292.76s / tests 282.62s). Same 238 test files, ~4300-4400 tests both times. Reused unchanged this run -- no new sampling of those days performed.",
+    "finding": "Entire suite scaled proportionally slower (~5x across transform/import/tests) on the slow run -- not a single regressed test. Worker shard shows the same pattern. Consistent with CI-runner-level resource contention (Blacksmith self-hosted runners) rather than a code-level regression.",
+    "discardedHypothesis": "The 'Unable to reserve cache with key Linux-turbo-tests-web-compile-...' log line appears identically in fast and slow runs -- confirmed NOT causal.",
+    "conclusion": "Environment/runner-infra variability, outside the repo's control; not fixable via a pipeline.yml or test change. Not actionable per this workflow's rules."
+  },
+  "newFindingThisRun": {
+    "target": "web/src/features/traces/components/TraceTimelineV2/layout.clienttest.ts",
+    "landed": "2026-08-17, commit 91970f83d 'feat(trace): pure layout core for the timeline (#16124)'",
+    "evidence": "Sampled tests-web-client job 95672341601 (run 32124629182, 08-18 10:01 UTC). Immediately the #1 slowest client TEST FILE at 6.87s over just 12 tests, ahead of json-utils.clienttest.ts (6.66s over 106 tests). Its single test 'stays finite on degenerate shapes, degenerate boxes and compression' is the #1 slowest client test at 5.85s; a second test in the same file ('keeps every bar and label inside the box for every shape and width') is #4 at 995ms. The two together are ~11% of the client shard's 61.72s reported Duration.",
+    "hypothesis": "Both slow tests are nested loops over Object.entries(TIMELINE_SHAPES) x BOXES (x [false,true] for compress in the slowest one = 14 layout() calls per shape). The local run() helper calls prepareTimeline(roots, options.collapsed) on EVERY invocation, although roots and collapsed are loop-invariant within a shape -- classic repeated-per-iteration setup that could be hoisted to once per shape. TIMELINE_SHAPES includes a 'huge' shape with rowCount 10_000 (asserted in the 'positions only the mounted row window' test), and in the degenerate-shapes test layout() is called WITHOUT a rowRange, so all 10k rows are positioned on each of the 14 iterations.",
+    "status": "NOT VERIFIED, NOT PROPOSED AS A DIFF. See toolingBlockers.checkoutStaleness -- the entire TraceTimelineV2 directory is absent from the analyst's checkout, so the test cannot be run or timed here at all. Carried to next week as the top optimization candidate.",
+    "nextStep": "A run whose checkout contains TraceTimelineV2 should: (1) time the file as-is via `cd web && npx vitest run --project client src/features/traces/components/TraceTimelineV2/layout.clienttest.ts`; (2) check whether prepareTimeline's return value is mutated by layout() (if it is, hoisting is unsafe and the candidate dies); (3) if safe, hoist and re-time."
   },
   "standingCandidateFix": {
     "target": "web/src/__tests__/server/score-comparison-analytics.servertest.ts",
-    "status": "STILL NOT SANDBOX-VERIFIED. DB connectivity (host.docker.internal:5432) re-confirmed broken AGAIN this run (third check today) via dns.lookup (EAI_AGAIN) -- extends the streak first seen 2026-08-03, now confirmed on every run through 2026-08-18 (three times today) with zero change in symptom. Actions API works but DB does not, so the 'BOTH must work' precondition for verification is still unmet.",
-    "consistentEvidence": "Still the dominant slowest file across every sampled day this week (top-5, #1 on 3 of 5 days) per the original run-18 sampling; not re-sampled this run since nothing about the fix candidate changed.",
-    "recommendation": "Unchanged: whichever future run gets BOTH a working Actions API AND live DB connectivity should verify immediately."
+    "status": "STILL NOT SANDBOX-VERIFIED, and now formally out of reach. DB connectivity (host.docker.internal) re-confirmed broken this run via dns.lookup (EAI_AGAIN) -- streak unbroken 2026-08-03 -> 2026-08-18 (four checks today alone). Per the current prompt this is an upstream gh-aw/gh-aw-firewall bug (github/gh-aw#52140, github/gh-aw-firewall#7268); DB-backed candidates are 'not sandbox-verifiable' by standing policy and must NOT be re-attempted until one of those issues closes.",
+    "recommendation": "Do not re-attempt. Re-evaluate only after confirming one of the two upstream issues is closed."
   },
-  "flakyTests": [
-    { "test": "src/queues/__tests__/otelToObservationForEval.test.ts > OTEL to ObservationForEval Schema Validation > Multiple spans in single batch > should process multiple spans and all conform to schema", "retries": 1, "sampledDay": "2026-08-13", "shard": "tests-worker (mode)" }
-  ],
-  "flakyNote": "Same test flagged flaky on 2026-07-30 and again on 2026-08-18 (runs 18/19) -- now a 2-instance pattern, still low-frequency. Not re-sampled this run (no new vitest log sampling performed; reused from the run-18 sampling).",
+  "flakyTests": [],
+  "flakyNote": "Fresh sampling this run: tests-web-client job 95672341601 and tests-worker (mode) job 95672341662, both from run 32124629182 -- NEITHER printed a 'Retried tests (N):' block, i.e. zero retries in both shards. Combined with runs 18-20's sampling, otelToObservationForEval.test.ts remains a 2-instance pattern (2026-07-30 and 2026-08-13, [retries=1] both times) with NO third occurrence observed. Still watch for a 3rd.",
   "slowestTests": {
+    "webClient": [
+      { "file": "src/features/traces/components/TraceTimelineV2/layout.clienttest.ts", "sec": 6.87, "tests": 12, "rank": 1, "note": "NEW 08-17; see newFindingThisRun" },
+      { "file": "src/__tests__/json-utils.clienttest.ts", "sec": 6.66, "tests": 106, "rank": 2, "note": "DO NOT trim -- deepParseJson mutates its input in place, clone-per-parser is required (2026-07-07 finding)" },
+      { "file": "src/features/trace-graph-view/layout/elkLayout.clienttest.ts", "sec": 1.56, "tests": 12, "rank": 3 }
+    ],
     "webServer": [
-      { "file": "src/__tests__/server/score-comparison-analytics.servertest.ts", "note": "dominant across the week; see standingCandidateFix above" },
-      { "test": "score-comparison-analytics.servertest.ts > should skip FINAL and apply hash-based sampling for large matched datasets", "secRange": [2.9, 18.66], "note": "scales with overall environment slowdown, not independently regressed" }
+      { "file": "src/__tests__/server/score-comparison-analytics.servertest.ts", "note": "dominant across the week per run-18 sampling; DB-backed, unverifiable -- see standingCandidateFix" }
     ],
     "workerServer": [
-      { "test": "src/__tests__/analyticsIntegrationSsrfPinning.test.ts > blocks a validated host that resolves to a blocked IP before egress, and disables the integration", "sec": 18.05, "sampledDay": "2026-08-16", "note": "single load-bearing SSRF-timing test, consistent with prior weeks' findings on similar tests -- not investigated further, not new this run" }
+      { "file": "src/services/IngestionService/tests/IngestionService.integration.test.ts", "sec": 15.21, "tests": 57 },
+      { "file": "src/__tests__/batchExport.test.ts", "sec": 12.06, "tests": 77 },
+      { "file": "src/__tests__/evalService.test.ts", "sec": 10.14, "tests": 104 },
+      { "file": "src/features/evaluation/codeBased/awsLambdaCodeEvalDispatcher.integration.test.ts", "sec": 6.93, "tests": 5 },
+      { "file": "src/__tests__/bufferedStreamUploader.test.ts", "sec": 6.36, "tests": 40 },
+      { "note": "All DB/integration-backed; each already investigated in prior weeks and found unfit for an autonomous change. Do not re-investigate without new evidence." }
     ]
   },
-  "toolingBlockers": {
-    "resolvedThisRun": "GitHub Actions MCP (actions_list/actions_get) worked normally again this run (third working run today) -- fetched all 7 of 08-18's merge-group runs plus their job payloads to complete the day. No fresh get_job_logs calls were needed since vitest sampling was reused, not redone.",
-    "stillBroken": "DB connectivity to host.docker.internal:5432 -- EAI_AGAIN, re-confirmed this run (checked via dns.lookup). Streak: first seen 08-03, confirmed on every run since, zero change in symptom across 15+ days, including three times today."
+  "clientShardObservation": {
+    "evidence": "tests-web-client job 95672341601: 'Duration 61.72s (transform 7.79s, setup 8.43s, import 65.26s, tests 32.56s, environment 53.09s)' over 279 files / 3291 tests.",
+    "reading": "Summed-across-workers phase totals. environment (53.09s, jsdom construction per file) exceeds the actual test execution total (32.56s), and import (65.26s) exceeds it by 2x. The client shard's cost is dominated by per-file environment + module-import overhead, not by test bodies. Individual slow-test fixes therefore have a low ceiling on this shard; the structural lever is reducing per-file jsdom construction (e.g. only files that need a DOM get the jsdom environment).",
+    "status": "Observation only. Not proposed: changing the default environment for 279 files is neither small nor surgical, and correctness would need a full client-suite run to confirm. Recorded for a future week."
   },
-  "action": { "prOpened": false, "reason": "Third workflow_dispatch run on the same calendar day (2026-08-18). No ledger PRs to assess (prs.json still empty). Pulled all 7 of 08-18's own merge-group runs (up from 4 in the run-19 checkpoint) plus their job-level data to turn 08-18 into a full (>=5-run) day rather than a partial one; every other day's data and every prior conclusion (08-13/14 root-caused to CI-runner contention, standing score-comparison-analytics fix unverified due to broken DB, otelToObservationForEval flaky recurrence) reused unchanged since nothing about them could have changed within the same day. 08-18's completed data tightens rather than changes the 'no sustained intra-week shift' conclusion (194-201s across the three most recent days, previously 194-207s across the same days with less data). No new optimization candidate found or looked for this run beyond what was already surfaced today. noop filed with full report." }
+  "toolingBlockers": {
+    "actionsApi": "WORKING this run (fourth consecutive working run since resolving on 08-18). Fetched 3 pages of workflow runs plus 8 full job payloads and 3 job logs without error.",
+    "dbConnectivity": "BROKEN -- host.docker.internal EAI_AGAIN, re-confirmed this run. Streak from 08-03, 16 days. Now covered by standing DB-less policy (upstream gh-aw bug), so no longer treated as a per-run blocker to diagnose.",
+    "pnpmBinary": "`pnpm` is NOT on PATH in this sandbox (`which pnpm` -> not found); the previously-noted approval-gate hang is moot. `npx --yes pnpm@10 install --frozen-lockfile` WORKS and completed in 41.5s ('Done in 41.5s using pnpm v11.10.0'), leaving tracked files clean (`git diff --stat HEAD` empty). This is the working bootstrap recipe for future runs.",
+    "checkoutStaleness": "NEW AND IMPORTANT. The analyst's checkout (branch fix/ci-runtime-analyst-credit-budget, HEAD 4d1f32ab5) is 19 commits behind origin/main. Whole feature directories that CI is already testing can therefore be absent locally -- web/src/features/traces/components/TraceTimelineV2/ (added 08-17) does not exist in the checkout at all (`git ls-files` returns nothing), which is exactly what blocked verification of this week's best candidate. origin/main IS available as a remote-tracking ref, so file CONTENT can be read with `git show origin/main:<path>`, but the file cannot be RUN without writing newer source into the tree, which the workflow's 'never modify any repository file' constraint forbids."
+  },
+  "action": {
+    "prOpened": false,
+    "issueFiled": true,
+    "suggestedDiffIncluded": false,
+    "reason": "First run under the issue-output regime (issues.json created empty-of-prior-entries this run; legacy prs.json was and stays empty, so there were no ledger entries to follow up). Recomputed 08-18 exactly from all 8 of its merge-group runs. No regression met the actionable bar (no >=10% sustained median regression vs baseline; no >=50% shift across 3+ consecutive days). One genuinely new and strong optimization candidate was found (layout.clienttest.ts, #1 slowest client file, landed 08-17) but could NOT be verified because the file does not exist in this checkout, and the rules forbid shipping an unverified diff -- so it is documented in the issue and memory as next week's top candidate instead of being proposed."
+  }
 }

@@ -1,0 +1,31 @@
+[
+  {
+    "number": null,
+    "url": null,
+    "openedAt": "2026-08-18",
+    "title": "CI Runtime Report: 2026-08-12..08-18 (trailing 7 days)",
+    "note": "First issue under the issue-output regime (workflow switched from PR output to a single report issue, commit 4d1f32ab5). Number/url are null because the issue is created by the safe-outputs pipeline AFTER the agent finishes, so the agent cannot know them. The NEXT run must resolve this entry: find the issue via search (label ci-performance, assignee wochinge, title prefix 'CI Runtime Report:', opened 2026-08-18) and fill in number and url.",
+    "suggestedDiff": false,
+    "expectedImpact": null,
+    "baselineStats": {
+      "window": "2026-08-12..2026-08-18",
+      "mergeGroupRuns": 33,
+      "perceivedP50": 224,
+      "perceivedP90": 675.4,
+      "weeklyMedianOfDailyMedians": {
+        "perceived": 215.5,
+        "execution": 197,
+        "runnerWait": 15,
+        "webBuildStep": 49.5,
+        "webRunTestsStep": 80,
+        "workerRunTestsStep": 102.5,
+        "e2eTestsJob": 170.5
+      }
+    },
+    "appliedOnMain": false,
+    "appliedAt": null,
+    "followUps": [],
+    "lastCheckedAt": "2026-08-18",
+    "outcome": "Filed with no suggested diff. No regression met the actionable bar. One strong new optimization candidate (web/src/features/traces/components/TraceTimelineV2/layout.clienttest.ts, #1 slowest client file at 6.87s, landed 2026-08-17 in 91970f83d/#16124) was identified but could not be verified: the whole TraceTimelineV2 directory is absent from the analyst's checkout, which is 19 commits behind origin/main. Carried to next week."
+  }
+]

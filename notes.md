@@ -44,47 +44,35 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   from every `actions_list`/`actions_get` call
   ("not authorized to access private-scoped data"). `search_pull_requests`
   unaffected throughout.
-- Run 11 (07-31, branch `fix/analyst-guard-policy`) found the tools working
-  again and attributed the block to the analyst's own guard-policy config,
-  believed self-fixed. **This turned out to be wrong/incomplete — see
-  08-03 and 08-06 below: the block recurred on later runs despite that
-  fix.**
-- Run 11 also root-caused a sustained web `run tests` step regression
-  (86s baseline → 114.5s → 147s across three checkpoints) to
-  `score-comparison-analytics.servertest.ts`
-  (`web/src/__tests__/server/`): the 120,000-row test
-  (`insertLargeTraceLevelScorePairs`, L112-161) inserts via 12 SEQUENTIAL
-  `for` + `await createScoresCh(...)` batches of 20,000 rows.
-  `createScoresCh` (`packages/shared/src/server/test-utils/clickhouse-helpers.ts`)
-  is a stateless single-insert call, per-row values are independent
-  (`Math.random()`-based), and the file has zero `beforeEach`/`afterEach`
-  hooks (grep-confirmed) — safe to parallelize with `Promise.all`.
-  Precedent: `scores-api-v2.servertest.ts:104`. Same pattern applies to
-  `insertLargeIdenticalTraceLevelScores` (L163-197, smaller row counts).
-  Full detail in `history/2026-W31-partial-0731.json`.
-  **STILL NOT SANDBOX-VERIFIED as of 08-06 (run 13)** — blocked by a
-  different reason every time it's been attempted (07-31: pnpm/corepack
-  invocation hung on a never-resolving approval gate; 08-03 and 08-06:
-  DB connectivity dead, see below). Whichever run gets BOTH a working
-  Actions API AND live DB connectivity should verify this immediately.
+- Run 11 (07-31) believed the block was the analyst's own guard-policy
+  config and self-fixed; wrong — it recurred 08-03..08-17.
+- Run 11 root-caused a then-sustained web `run tests` climb (86→114.5→147s)
+  to `web/src/__tests__/server/score-comparison-analytics.servertest.ts`:
+  `insertLargeTraceLevelScorePairs` (L112-161) inserts 120,000 rows via 12
+  SEQUENTIAL `await createScoresCh(...)` batches. That helper is a
+  stateless single-insert, per-row values are independent, and the file has
+  zero `beforeEach`/`afterEach` — so `Promise.all` is safe. Precedent:
+  `scores-api-v2.servertest.ts:104`. Same for
+  `insertLargeIdenticalTraceLevelScores` (L163-197). Detail in
+  `history/2026-W31-partial-0731.json`.
+  **PARKED — do not re-attempt.** Never verified (07-31 pnpm gate; 08-03
+  onward DB dead), and DB-backed verification is now blocked upstream
+  indefinitely (see tooling notes). Also note the climb it was meant to
+  fix did NOT persist: webRunTests sat at 80s median on 08-18. Re-open
+  only if both DB access returns and the regression reappears.
 
 ## 2026-08-03 through 2026-08-17 (runs 12-17) — six consecutive fully-blocked
    runs, condensed; Actions API RESOLVED 08-18 (see below)
 
-- Both hard blockers first appeared 08-03: `actions_list`/`actions_get`
-  filtered by secrecy policy on every call; `dns.lookup
-  ('host.docker.internal')` failed `EAI_AGAIN` despite
-  `/tmp/gh-aw/db-stack-ready` always present. `npx` and
-  `search_pull_requests` worked throughout — block was scoped to Actions
-  API + DB reachability, not general sandbox breakage.
-- Workarounds tried and exhausted, don't re-try: `cat /etc/hosts`
-  (sandboxed to repo dir only), `WebFetch` of the public pipeline.yml page
-  (no permission grant headless). A 08-06 HEAD claiming to fix the DIFC
-  issue did not help at the time.
-- Net effect: zero fresh timing/vitest data for six straight runs
-  (08-03..08-17); last real numbers were frozen at
-  `history/2026-W31-partial-0731.json` (07-31) until 08-18. Root cause of
-  the Actions API block was never conclusively diagnosed by any run.
+- Two blockers from 08-03: `actions_list`/`actions_get` filtered by
+  secrecy policy on every call, and `host.docker.internal` → `EAI_AGAIN`
+  despite `/tmp/gh-aw/db-stack-ready` being present. `npx` and
+  `search_pull_requests` worked throughout, so it was never general
+  sandbox breakage. Workarounds exhausted, don't re-try: `cat /etc/hosts`,
+  `WebFetch` of the public pipeline.yml page.
+- Net effect: zero fresh data for six straight runs; numbers frozen at
+  `history/2026-W31-partial-0731.json` until 08-18. The Actions API block
+  was never conclusively diagnosed — it simply stopped on 08-18.
 
 ## 2026-08-18 (runs 18-20, three same-day workflow_dispatch triggers, condensed)
 
@@ -127,6 +115,46 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
 - All three runs: noop filed with full report; `missing_data` filed for
   the DB blocker on run 18.
 
+## 2026-08-18 (run 21) — first run of the issue-output regime
+
+- **Output contract changed**: workflow no longer opens PRs; every run
+  files exactly one issue (label `ci-performance`, assignee `wochinge`)
+  carrying the full report. `issues.json` created this run and supersedes
+  `prs.json` (which stays, empty, as the legacy record). The agent cannot
+  know the issue number it just filed — safe-outputs creates it after the
+  agent exits — so each entry lands with `number: null` and the NEXT run
+  must resolve it by searching for the issue and backfilling.
+- 08-18 grew to 8 merge-group runs; its execution/segment medians were
+  recomputed exactly from all 8 job payloads (not carried): perceived 195,
+  execution 187, wait 10, Build 47.5, webRunTests 76.5, e2e 146.5. Pooled
+  window (33 runs) p50=224, p90=675.4. No actionable regression: no >=10%
+  sustained median regression vs baseline, and the 08-13/08-14 spike is
+  2 days, not the 3+ consecutive the rule requires.
+- **NEW top optimization candidate — carried to next week**:
+  `web/src/features/traces/components/TraceTimelineV2/layout.clienttest.ts`,
+  landed 2026-08-17 (`91970f83d`, #16124), is *immediately* the #1 slowest
+  client test file (6.87s over 12 tests, vs json-utils' 6.66s over 106),
+  and owns the #1 slowest client test (5.85s, "stays finite on degenerate
+  shapes…") plus #4 (995ms). Hypothesis: its `run()` helper re-calls
+  `prepareTimeline(roots, collapsed)` on every loop iteration though both
+  args are loop-invariant, and the degenerate-shapes test runs
+  shapes x 7 boxes x 2 compress = 14 full `layout()` calls per shape with
+  no `rowRange` — so the `huge` shape's 10,000 rows are positioned 14x.
+  Before hoisting, CHECK whether `layout()` mutates `prepareTimeline`'s
+  result; if it does the candidate is dead.
+- **Why it was not proposed as a diff**: unverifiable here — see
+  checkout-staleness note below. Rules forbid shipping an unverified diff.
+- Client-shard structural observation (recorded, not proposed): the client
+  job reports `environment 53.09s` and `import 65.26s` against only
+  `tests 32.56s` over 279 files. Per-file jsdom construction + module
+  import dominate that shard, so single-test fixes have a low ceiling
+  there; the real lever is not giving every file a DOM. Too broad to be
+  a surgical one-theme change.
+- Fresh flaky sampling (client + worker shards of run 32124629182): no
+  `Retried tests` block in either → zero retries.
+  `otelToObservationForEval.test.ts` stays a 2-instance pattern
+  (07-30, 08-13); no third occurrence. Keep watching.
+
 ## Tooling notes (for future runs)
 
 - `list_workflow_runs` caps at ~30 runs/page, no `created` filter — filter
@@ -140,10 +168,30 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   `pnpm`/`corepack pnpm` (hangs on a never-resolving approval gate).
   `npx <bin>` (e.g. `npx vitest run ...`) DOES work even when bare
   `pnpm` doesn't — confirmed again 08-06.
-- Check DB connectivity early, before trusting
-  `/tmp/gh-aw/db-stack-ready`: `node -e
+- **Bootstrap recipe that actually works (confirmed 08-18, run 21)**:
+  `pnpm` is simply NOT on PATH (`which pnpm` → nothing), so the old
+  "approval-gate hang" framing is moot. Use
+  `npx --yes pnpm@10 install --frozen-lockfile` — completed in 41.5s
+  ("Done in 41.5s using pnpm v11.10.0") and left tracked files clean
+  (`git diff --stat HEAD` empty). Run it with `run_in_background` and
+  poll the output file; a foreground call exceeds the 60s bash cap.
+- **Checkout staleness — check FIRST, before picking a candidate**
+  (found 08-18, run 21): the analyst's checkout can be many commits
+  behind `origin/main` (19 that run), and whole feature directories CI
+  is already testing may be missing locally — that run's best candidate
+  (`TraceTimelineV2/`, added 08-17) did not exist in the tree at all,
+  which is what killed verification. `git rev-list --count HEAD..origin/main`
+  up front tells you how much of main's test surface you cannot run.
+  File CONTENT is still readable via `git show origin/main:<path>`
+  (origin/main is fetched), but content alone does not let you RUN the
+  test, and writing newer source into the tree is forbidden by the
+  "never modify any repository file" constraint. Practical consequence:
+  prefer candidates in files that `git ls-files` confirms are present.
+- DB connectivity is now a STANDING known-blocked condition, not a
+  per-run diagnosis: `host.docker.internal` → `EAI_AGAIN` on every run
+  from 08-03 through 08-18. Upstream: github/gh-aw#52140 and
+  github/gh-aw-firewall#7268. Do NOT re-attempt DB-backed verification
+  until one of those closes. One cheap confirmation is fine: `node -e
   "require('dns').lookup('host.docker.internal',(e,a)=>console.log(e?String(e):a))"`.
-  Failed `EAI_AGAIN` on 08-03 AND 08-06 despite the ready-marker being
-  present both times — now a recurring pattern, not a one-off.
 - `mcp__safeoutputs__missing_tool`/`missing_data` have worked cleanly since
   08-03 (the 07-31 DIFC rejection of `missing_tool` has not recurred).
