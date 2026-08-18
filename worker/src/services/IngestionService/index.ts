@@ -66,7 +66,11 @@ import {
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
-import { applyObservationFieldOverflow } from "../../features/observation-field-overflow/processObservationFieldOverflow";
+import {
+  applyLegacyObservationFieldOverflow,
+  applyObservationFieldOverflow,
+  isObservationFieldOverflowReference,
+} from "../../features/observation-field-overflow/processObservationFieldOverflow";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -269,7 +273,6 @@ export class IngestionService {
       Boolean(eventData.modelName) ||
       Object.keys(eventData.providedUsageDetails ?? {}).length > 0 ||
       Object.keys(eventData.providedCostDetails ?? {}).length > 0;
-
     // Perform lookups for prompt and model/usage enrichment
     const [prompt, generationUsage] = await Promise.all([
       // Lookup prompt by name and version
@@ -294,6 +297,7 @@ export class IngestionService {
               trace_id: eventData.traceId,
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
+              usage_details: eventData.usageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
               input,
               output,
@@ -435,8 +439,8 @@ export class IngestionService {
   /**
    * Writes an event record directly to the events_full table.
    * A materialized view auto-populates events_core from events_full.
-   * Legacy observation writes and staging-based dual writes intentionally do
-   * not use field overflow.
+   * Legacy observation and staging writes apply overflow separately after
+   * their merged record has been enriched.
    * Use createEventRecord() first to get the record, then call this to write.
    *
    * Enqueues a new record whose `event_bytes` describes the final normalized
@@ -983,10 +987,13 @@ export class IngestionService {
       projectId,
       observationRecord: mergedObservationRecord,
     });
-    const finalObservationRecord = {
+    const enrichedObservationRecord = {
       ...mergedObservationRecord,
       ...generationUsage,
     };
+    const finalObservationRecord = await applyLegacyObservationFieldOverflow(
+      enrichedObservationRecord,
+    );
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
@@ -1204,6 +1211,7 @@ export class IngestionService {
       | "id"
       | "provided_model_name"
       | "provided_usage_details"
+      | "usage_details"
       | "provided_cost_details"
       | "level"
       | "input"
@@ -1294,6 +1302,7 @@ export class IngestionService {
       ObservationRecordInsertType,
       | "project_id"
       | "provided_usage_details"
+      | "usage_details"
       | "provided_cost_details"
       | "level"
       | "input"
@@ -1327,24 +1336,45 @@ export class IngestionService {
       observationRecord.level !== ObservationLevel.ERROR
     ) {
       try {
-        let newInputCount: number | undefined;
-        let newOutputCount: number | undefined;
+        const inputIsOverflowReference = isObservationFieldOverflowReference(
+          observationRecord.input,
+        );
+        const outputIsOverflowReference = isObservationFieldOverflowReference(
+          observationRecord.output,
+        );
+        let newInputCount = inputIsOverflowReference
+          ? observationRecord.usage_details?.input
+          : undefined;
+        let newOutputCount = outputIsOverflowReference
+          ? observationRecord.usage_details?.output
+          : undefined;
         await instrumentAsync(
           {
             name: "token-count",
           },
           async (span) => {
             try {
-              [newInputCount, newOutputCount] = await Promise.all([
-                tokenCountAsync({
-                  text: observationRecord.input,
-                  model,
-                }),
-                tokenCountAsync({
-                  text: observationRecord.output,
-                  model,
-                }),
-              ]);
+              const [tokenizedInputCount, tokenizedOutputCount] =
+                await Promise.all([
+                  inputIsOverflowReference
+                    ? undefined
+                    : tokenCountAsync({
+                        text: observationRecord.input,
+                        model,
+                      }),
+                  outputIsOverflowReference
+                    ? undefined
+                    : tokenCountAsync({
+                        text: observationRecord.output,
+                        model,
+                      }),
+                ]);
+              newInputCount = inputIsOverflowReference
+                ? newInputCount
+                : tokenizedInputCount;
+              newOutputCount = outputIsOverflowReference
+                ? newOutputCount
+                : tokenizedOutputCount;
             } catch (error) {
               // No synchronous fallback: payloads that make the worker thread
               // exceed its timeout would block the event loop for minutes if
