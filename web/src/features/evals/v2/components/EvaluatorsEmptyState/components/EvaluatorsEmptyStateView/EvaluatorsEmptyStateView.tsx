@@ -4,6 +4,7 @@ import {
   EvaluatorRecommendedCard,
   EvaluatorRecommendedCardContent,
   EvaluatorRecommendedCardSurface,
+  EvaluatorRecommendedTemplateCardContent,
 } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
 import { EvaluatorRecommendedCards } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
 import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
@@ -33,7 +34,7 @@ function DetectTopicsStartingPointCard({
         className="absolute inset-0 cursor-pointer rounded-md"
       />
       <div className="pointer-events-none relative flex h-full flex-col">
-        <EvaluatorRecommendedCardContent
+        <EvaluatorRecommendedTemplateCardContent
           title={startingPoint.title}
           description={startingPoint.description}
           type={type}
@@ -69,19 +70,18 @@ function BrowseLibraryCard({
       className="h-full w-full cursor-pointer bg-transparent p-0 text-left"
     >
       <EvaluatorRecommendedCardSurface>
-        <div className="flex items-start justify-between gap-2">
-          <LayoutGrid className="text-muted-foreground h-4 w-4 shrink-0" />
-          <span className="bg-muted text-muted-foreground inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs">
-            {templateCount} templates
-          </span>
-        </div>
-        <span className="mt-3 line-clamp-2 text-base font-bold">
-          Browse all templates
-        </span>
-        <p className="text-muted-foreground mt-1 line-clamp-2 text-sm leading-relaxed">
-          Search by what you want to measure — quality, retrieval, safety,
-          classifiers, coding agents.
-        </p>
+        <EvaluatorRecommendedCardContent
+          icon={
+            <LayoutGrid className="text-muted-foreground h-4 w-4 shrink-0" />
+          }
+          badge={
+            <span className="bg-muted text-muted-foreground inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs">
+              {templateCount} templates
+            </span>
+          }
+          title="Browse all templates"
+          description="Search by what you want to measure — quality, retrieval, safety, classifiers, coding agents."
+        />
       </EvaluatorRecommendedCardSurface>
     </button>
   );

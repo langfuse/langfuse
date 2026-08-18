@@ -21,6 +21,36 @@ export function EvaluatorRecommendedCardSurface({
 }
 
 export function EvaluatorRecommendedCardContent({
+  icon,
+  badge,
+  title,
+  description,
+}: {
+  icon: ReactNode;
+  badge: ReactNode;
+  title: string;
+  description: string | undefined;
+}) {
+  return (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        {icon}
+        {badge}
+      </div>
+      <span className="mt-3 line-clamp-2 text-base font-bold" title={title}>
+        {title}
+      </span>
+      <p
+        className="text-muted-foreground mt-1 line-clamp-2 text-sm leading-relaxed"
+        title={description}
+      >
+        {description}
+      </p>
+    </>
+  );
+}
+
+export function EvaluatorRecommendedTemplateCardContent({
   title,
   description,
   type,
@@ -34,21 +64,12 @@ export function EvaluatorRecommendedCardContent({
   );
 
   return (
-    <>
-      <div className="flex items-start justify-between gap-2">
-        <Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />
-        <EvaluatorGalleryMethodBadge type={type} />
-      </div>
-      <span className="mt-3 line-clamp-2 text-base font-bold" title={title}>
-        {title}
-      </span>
-      <p
-        className="text-muted-foreground mt-1 line-clamp-2 text-sm leading-relaxed"
-        title={description}
-      >
-        {description}
-      </p>
-    </>
+    <EvaluatorRecommendedCardContent
+      icon={<Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />}
+      badge={<EvaluatorGalleryMethodBadge type={type} />}
+      title={title}
+      description={description}
+    />
   );
 }
 
@@ -68,7 +89,7 @@ export function EvaluatorRecommendedCard({
       className="h-full w-full cursor-pointer bg-transparent p-0 text-left"
     >
       <EvaluatorRecommendedCardSurface>
-        <EvaluatorRecommendedCardContent
+        <EvaluatorRecommendedTemplateCardContent
           title={template.name}
           description={description}
           type={type}
