@@ -37,15 +37,20 @@ INSERT INTO "evaluation_rules" (
   "id", "created_at", "updated_at", "project_id", "name", "status",
   "target_object", "filter", "sampling", "delay", "time_scope"
 )
+-- `job_configurations.time_scope` is nullable (it was added with a default but without NOT NULL),
+-- while `evaluation_rules.time_scope` is NOT NULL, so a single historic row holding a literal NULL
+-- would abort the whole deploy. The empty array is the value that preserves behaviour: the old
+-- scheduler matched on `timeScope has 'NEW'`, which was already false for NULL, and it keeps the
+-- status expression below on the INACTIVE branch exactly as NULL did.
 SELECT
   jc."id", jc."created_at", jc."updated_at", jc."project_id",
   jc."score_name",
   CASE
-    WHEN 'NEW' = ANY(jc."time_scope") THEN jc."status"
+    WHEN 'NEW' = ANY(COALESCE(jc."time_scope", ARRAY[]::TEXT[])) THEN jc."status"
     ELSE 'INACTIVE'::"JobConfigState"
   END,
   jc."target_object", jc."filter",
-  jc."sampling", jc."delay", jc."time_scope"
+  jc."sampling", jc."delay", COALESCE(jc."time_scope", ARRAY[]::TEXT[])
 FROM "job_configurations" jc
 WHERE jc."job_type" = 'EVAL'
 ON CONFLICT ("id") DO NOTHING;
@@ -113,7 +118,8 @@ WITH ranked_family_versions AS (
     family."model",
     family."provider",
     family."model_params",
-    family."vars",
+    -- nullable in eval_templates, NOT NULL in evaluator_versions; see the time_scope note above
+    COALESCE(family."vars", ARRAY[]::TEXT[]) AS "vars",
     CASE
       WHEN family."id" = current_template."id" THEN jc."variable_mapping"
       -- job configurations are not versioned so we don't know historic mappings
@@ -138,9 +144,16 @@ WITH ranked_family_versions AS (
   JOIN "eval_templates" current_template
     ON current_template."id" = jc."eval_template_id"
   JOIN "eval_templates" family
-    ON family."name" = current_template."name"
-    -- need `DISTINCT FROM` to handle managed templates correctly
-   AND family."project_id" IS NOT DISTINCT FROM current_template."project_id"
+    -- Managed templates have a NULL project_id and must only match other managed templates, but
+    -- `IS NOT DISTINCT FROM` is not hash- or merge-joinable: the planner would hash on name alone
+    -- and demote project_id to a join filter, so every template named X in any project gets probed
+    -- against every template named X in every other project. Cost is the sum of count(name)^2, and
+    -- template names are exactly the skewed case, since managed names get cloned per project.
+    -- COALESCE keeps the NULL-matches-NULL semantics while leaving project_id a real join key, so
+    -- this can use eval_templates_project_id_name_version_key. Projects ids are cuids, so the empty
+    -- string cannot collide with a real one.
+    ON COALESCE(family."project_id", '') = COALESCE(current_template."project_id", '')
+   AND family."name" = current_template."name"
     -- Rules always run the latest version of their evaluator, so the cap is what preserves
     -- behaviour: it makes the evaluator's newest version the template version this rule was
     -- actually running. Two rules on different versions of one family therefore get two
@@ -261,7 +274,9 @@ SELECT
   family."id" || ':' || template."id", family."id", template."version",
   template."created_at", template."prompt",
   template."partner", template."model", template."provider",
-  template."model_params", template."vars", NULL, template."output_schema",
+  template."model_params",
+  -- nullable in eval_templates, NOT NULL in evaluator_versions; see the time_scope note above
+  COALESCE(template."vars", ARRAY[]::TEXT[]), NULL, template."output_schema",
   template."source_code",
   template."source_code_language"::TEXT::"EvaluatorSourceCodeLanguage"
 FROM unattached_families family
