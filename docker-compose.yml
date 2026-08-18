@@ -3,8 +3,6 @@
 # In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000) and minio (port 9090) only.
 # All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
 # External connections from other machines will not be able to reach these services directly.
-# The Langfuse images below are served from docker.langfuse.com, a pull-through alias for Docker Hub.
-# If your environment only allows specific registries, replace it with docker.io/langfuse/... instead.
 services:
   langfuse-worker:
     image: docker.langfuse.com/langfuse/langfuse-worker:4
