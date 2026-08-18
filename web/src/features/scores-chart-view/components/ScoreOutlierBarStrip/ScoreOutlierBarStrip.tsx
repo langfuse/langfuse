@@ -536,11 +536,18 @@ export function ScoreOutlierBarStrip({
                   )}
                 </div>
                 <div className="font-bold">
-                  {previewStats.value !== null
-                    ? metricSpec.format(previewStats.value)
-                    : previewStats.count > 0
-                      ? "no data"
-                      : metricSpec.format(0)}
+                  {/* Count mode: `previewStats.count` is the span's correctly
+                      summed total; `previewStats.value` below is instead the
+                      max of per-bucket counts (a "busiest bucket" reduce that
+                      only fits avg/max, not a sum), so it's used only for the
+                      other metric/aggregations, not Count. */}
+                  {metric === "count"
+                    ? metricSpec.format(previewStats.count)
+                    : previewStats.value !== null
+                      ? metricSpec.format(previewStats.value)
+                      : previewStats.count > 0
+                        ? "no data"
+                        : metricSpec.format(0)}
                   {/* Same omission as the hover tooltip above — see its comment. */}
                 </div>
               </div>
