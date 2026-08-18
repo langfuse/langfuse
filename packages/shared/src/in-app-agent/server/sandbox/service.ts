@@ -112,6 +112,17 @@ export async function createInAppAgentSandbox(params: {
       }
 
       await persistState();
+
+      try {
+        await params.provider.suspendSession?.({ sessionId });
+      } catch (error) {
+        logger.error("In-app agent sandbox session suspend failed", {
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          sessionId,
+          error,
+        });
+      }
     },
   };
 }

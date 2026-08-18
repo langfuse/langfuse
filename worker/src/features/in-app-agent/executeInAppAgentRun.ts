@@ -495,6 +495,17 @@ export async function executeInAppAgentRun(params: {
         },
         onFinish: async () => {
           await cleanupMcpApiKeyLogged();
+
+          const reason = abortController.signal.reason as AbortReason;
+          if (reason === "fenced") {
+            // Reconciliation already admitted a newer run for this
+            // conversation, which may already be using the persisted
+            // session; suspending it here would race that run's own
+            // sandbox operations. The newer run's own onTurnEnded owns
+            // suspension instead.
+            return;
+          }
+
           await sandboxState?.onTurnEnded();
         },
         awsBedrock: {
