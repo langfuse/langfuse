@@ -15,6 +15,7 @@ import type { AgUiEvent } from "../schema";
 import type { InAppAgentPrefixedLangfuseMcpToolName } from "./tools";
 import {
   InAppAgentRunRequestSchema,
+  resolveInAppAgentRootRunId,
   type InAppAgentRunRequest,
 } from "../../features/inAppAgent/types";
 import {
@@ -282,10 +283,10 @@ export async function decideToolApproval(params: {
       parentRequest.success && parentRequest.data.kind === "approvalDecision"
         ? (parentRequest.data.continuationNumber ?? 1) + 1
         : 1;
-    const rootRunId =
-      parentRequest.success && parentRequest.data.kind === "approvalDecision"
-        ? (parentRequest.data.rootRunId ?? params.parentRunId)
-        : params.parentRunId;
+    const rootRunId = resolveInAppAgentRootRunId(
+      parentRun.request,
+      params.parentRunId,
+    );
     const traceStartedAt =
       parentRequest.success &&
       parentRequest.data.kind === "approvalDecision" &&

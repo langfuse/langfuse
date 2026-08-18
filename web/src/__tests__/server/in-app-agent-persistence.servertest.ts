@@ -11,21 +11,26 @@ import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
+import waitForExpect from "wait-for-expect";
 
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  type InAppAgentRunRequest,
   type Plan,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   generateLLMText,
+  getScoreById,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
+  getInAppAgentInstrumentationObservationId,
+  getInAppAgentInstrumentationTraceId,
 } from "@langfuse/shared/in-app-agent";
 import {
   dropEmptyAssistantMessages,
@@ -154,6 +159,7 @@ describe("in-app agent persistence", () => {
     conversationId: string;
     userId: string;
     runId?: string;
+    request?: InAppAgentRunRequest;
   }) => {
     const now = new Date();
 
@@ -168,6 +174,7 @@ describe("in-app agent persistence", () => {
         status: InAppAgentRunStatus.RUNNING,
         claimedAt: now,
         heartbeatAt: now,
+        ...(params.request ? { request: params.request } : {}),
       },
     });
   };
@@ -630,10 +637,10 @@ describe("in-app agent persistence", () => {
     }
   });
 
-  it("requires feedback run ids to match persisted assistant messages", async () => {
+  it("scores feedback on the approval-chain root run and rejects run id mismatches", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createClaimedRunFixture({
+    const rootRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -641,14 +648,31 @@ describe("in-app agent persistence", () => {
     const events = await startCompactRun({
       projectId,
       conversationId: conversation.id,
-      runId: run.id,
+      runId: rootRun.id,
       messageId: "feedback-user",
       content: "Answer me",
+    });
+    // The final answer comes from an approval continuation, but the trace it is
+    // recorded on belongs to the root run. The parent settles when it parks for
+    // approval, so only the continuation is active.
+    await finishConversationRun({ projectId, runId: rootRun.id });
+    const continuationRun = await createClaimedRunFixture({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      request: {
+        kind: "approvalDecision",
+        parentRunId: rootRun.id,
+        rootRunId: rootRun.id,
+        toolCallId: "tool-call-1",
+        approved: true,
+        context: [],
+      },
     });
     await appendAssistantText({
       projectId,
       conversationId: conversation.id,
-      runId: run.id,
+      runId: continuationRun.id,
       events,
       messageId: "feedback-assistant",
       chunks: ["Here is an answer"],
@@ -667,16 +691,37 @@ describe("in-app agent persistence", () => {
       "Feedback can only be submitted for persisted assistant messages",
     );
 
-    await expect(
-      caller.submitFeedback({
-        projectId,
-        conversationId: conversation.id,
-        messageId: "feedback-assistant",
-        runId: run.id,
-        value: null,
-        comment: null,
-      }),
-    ).resolves.toEqual({ feedback: null });
+    const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+    try {
+      (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID = projectId;
+
+      await expect(
+        caller.submitFeedback({
+          projectId,
+          conversationId: conversation.id,
+          messageId: "feedback-assistant",
+          runId: continuationRun.id,
+          value: "thumbs_up",
+          comment: null,
+        }),
+      ).resolves.toEqual({ feedback: { value: "thumbs_up", comment: null } });
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({
+          projectId,
+          scoreId: `afbs_feedback-assistant_${userId}`,
+        });
+        expect(score?.traceId).toBe(
+          getInAppAgentInstrumentationTraceId(rootRun.id),
+        );
+        expect(score?.observationId).toBe(
+          getInAppAgentInstrumentationObservationId(rootRun.id),
+        );
+      });
+    } finally {
+      (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID =
+        originalAiFeaturesProjectId;
+    }
   });
 
   it("does not reduce partial assistant content before the end event", async () => {
