@@ -185,7 +185,7 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.model_parameters).toBe("not-json");
   });
 
-  it("only includes primitive direct-event attributes for pricing", async () => {
+  it("passes direct-event attribute values to pricing", async () => {
     const ingestionService = new IngestionService(
       {} as any,
       {} as any,
@@ -238,16 +238,22 @@ describe("IngestionService unit tests", () => {
     });
     expect(getGenerationUsage).toHaveBeenCalledWith(
       expect.objectContaining({
-        pricingMatchAttributes: {
+        pricingMatchAttributeValues: {
           modelParameters: {
             service_tier: "priority",
-            temperature: "0.5",
-            stream: "true",
+            temperature: 0.5,
+            stream: true,
+            nested: { ignored: "value" },
+            list: ["ignored"],
+            nil: null,
           },
           metadata: {
             region: "us",
-            attempts: "2",
-            cached: "false",
+            attempts: 2,
+            cached: false,
+            nested: { ignored: "value" },
+            list: ["ignored"],
+            nil: null,
           },
         },
       }),
@@ -333,18 +339,28 @@ describe("IngestionService unit tests", () => {
       (ingestionService as any).getGenerationUsage,
     );
     expect(
-      getGenerationUsage.mock.calls[0]?.[0].pricingMatchAttributes,
+      getGenerationUsage.mock.calls[0]?.[0].pricingMatchAttributeValues,
     ).toEqual({
       modelParameters: {
         service_tier: "priority",
-        temperature: "0.5",
-        stream: "true",
+        temperature: 0.5,
+        stream: true,
+        nested: { ignored: "value" },
+        list: ["ignored"],
+        nil: null,
       },
-      metadata: {
-        large: metadataValue,
-        count: "2",
-        enabled: "false",
-      },
+      metadata: undefined,
+      metadataPatches: [
+        {
+          large: metadataValue,
+          count: 2,
+          enabled: false,
+          nested: { ignored: "value" },
+          list: ["ignored"],
+          nil: null,
+        },
+        {},
+      ],
     });
     for (const table of [
       TableName.Observations,

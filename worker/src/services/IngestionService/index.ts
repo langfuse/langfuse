@@ -146,6 +146,12 @@ type MergeAndWriteParams = {
   attribution: IngestionAttribution;
 };
 
+type PricingTierMatchAttributeValues = {
+  modelParameters?: unknown;
+  metadata?: unknown;
+  metadataPatches?: unknown[];
+};
+
 /**
  * Returns a new event record whose `event_bytes` value is the UTF-8 size of
  * the final JSONEachRow payload, excluding the self-referential accounting
@@ -342,9 +348,9 @@ export class IngestionService {
       shouldEnrichUsageAndCost
         ? this.getGenerationUsage({
             projectId: eventData.projectId,
-            pricingMatchAttributes: {
-              modelParameters: toPricingAttributeRecord(modelParameters),
-              metadata: toPricingAttributeRecord(eventData.metadata),
+            pricingMatchAttributeValues: {
+              modelParameters,
+              metadata: eventData.metadata,
             },
             observationRecord: {
               id: eventData.spanId,
@@ -995,25 +1001,22 @@ export class IngestionService {
     const rawOutput =
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
       clickhouseObservationRecord?.output;
-    const pricingMatchAttributes: PricingTierMatchAttributes = {
-      modelParameters: toPricingAttributeRecord(
-        clickhouseObservationRecord?.model_parameters,
-      ),
-      metadata: toPricingAttributeRecord(clickhouseObservationRecord?.metadata),
-    };
+    let pricingMatchModelParameters: unknown =
+      clickhouseObservationRecord?.model_parameters;
+    const pricingMatchMetadataPatches: unknown[] = [];
     for (const event of timeSortedEvents) {
       if (event.body.metadata) {
-        pricingMatchAttributes.metadata = mergePricingAttributeRecord(
-          pricingMatchAttributes.metadata ?? {},
-          event.body.metadata,
-        );
+        pricingMatchMetadataPatches.push(event.body.metadata);
       }
       if ("modelParameters" in event.body && event.body.modelParameters) {
-        pricingMatchAttributes.modelParameters = toPricingAttributeRecord(
-          event.body.modelParameters,
-        );
+        pricingMatchModelParameters = event.body.modelParameters;
       }
     }
+    const pricingMatchAttributeValues: PricingTierMatchAttributeValues = {
+      modelParameters: pricingMatchModelParameters,
+      metadata: clickhouseObservationRecord?.metadata,
+      metadataPatches: pricingMatchMetadataPatches,
+    };
     const normalizedTools = normalizeToolsForObservation(
       rawInput,
       rawOutput,
@@ -1058,7 +1061,7 @@ export class IngestionService {
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
-      pricingMatchAttributes,
+      pricingMatchAttributeValues,
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -1275,7 +1278,7 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
-    pricingMatchAttributes?: PricingTierMatchAttributes;
+    pricingMatchAttributeValues?: PricingTierMatchAttributeValues;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1299,7 +1302,8 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const { projectId, observationRecord, pricingMatchAttributes } = params;
+    const { projectId, observationRecord, pricingMatchAttributeValues } =
+      params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1324,6 +1328,36 @@ export class IngestionService {
       pricingTiers.length > 0 &&
       hasPricingTierUsageDetails(final_usage_details.usage_details)
     ) {
+      const attributeSources = new Set(
+        pricingTiers.flatMap((tier) =>
+          tier.isDefault
+            ? []
+            : tier.conditions.flatMap((condition) =>
+                "source" in condition ? [condition.source] : [],
+              ),
+        ),
+      );
+      let pricingMetadata: Record<string, string> = {};
+      if (attributeSources.has("metadata")) {
+        pricingMetadata = toPricingAttributeRecord(
+          pricingMatchAttributeValues?.metadata,
+        );
+        for (const patch of pricingMatchAttributeValues?.metadataPatches ??
+          []) {
+          pricingMetadata = mergePricingAttributeRecord(pricingMetadata, patch);
+        }
+      }
+      const pricingMatchAttributes: PricingTierMatchAttributes | undefined =
+        attributeSources.size > 0
+          ? {
+              modelParameters: attributeSources.has("model_parameters")
+                ? toPricingAttributeRecord(
+                    pricingMatchAttributeValues?.modelParameters,
+                  )
+                : {},
+              metadata: pricingMetadata,
+            }
+          : undefined;
       const matchedTier = matchPricingTier(
         pricingTiers,
         final_usage_details.usage_details,
