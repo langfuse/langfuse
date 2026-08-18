@@ -563,16 +563,10 @@ export default function EvaluatorsPage() {
                 </PopoverTrigger>
               </JudgeModelPicker>
             )}
-            {showOnboarding ? (
-              <Button variant="outline" onClick={() => setGalleryOpen(true)}>
-                New evaluator
-              </Button>
-            ) : (
-              <Button onClick={() => setGalleryOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                New evaluator
-              </Button>
-            )}
+            <Button onClick={() => setGalleryOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New evaluator
+            </Button>
           </div>
         ),
         tabsProps: {
