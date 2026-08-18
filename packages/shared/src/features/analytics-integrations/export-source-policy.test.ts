@@ -196,7 +196,7 @@ describe("exporterCutoff parameterization", () => {
     LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + 60 * MS_PER_DAY,
   );
 
-  type Ctx = ExportSourceContext & { exporterCutoff?: Date };
+  type Ctx = ExportSourceContext;
 
   // projectCreatedAt is pinned pre-project-cutoff throughout so the only Cloud
   // gate in play is the integration-level one.

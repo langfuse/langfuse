@@ -141,7 +141,7 @@ describe("assertExportSourceAllowed", () => {
   // through the context. A destructuring assert that drops the field would
   // silently fall back to the blob cutoff and reject a grandfathered row.
   it("forwards a context-supplied exporterCutoff instead of the blob default", () => {
-    const ctx: ExportSourceContext & { exporterCutoff?: Date } = {
+    const ctx: ExportSourceContext = {
       isCloud: true,
       enrichedAvailable: true,
       legacyWritesActive: true,

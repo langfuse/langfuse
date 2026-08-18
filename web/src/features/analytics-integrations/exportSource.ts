@@ -96,14 +96,28 @@ export function getExportSourceOptions(
  * export is always available there.
  */
 
-// Post-cutoff Cloud: the selector is hidden and the form value is pinned to
-// EVENTS. Brand-new Cloud rows land here too — they follow new-customer rules.
+// Post-cutoff Cloud: legacy sources are off the table, so a row with no
+// persisted source has no decision to make — the selector is hidden and the
+// form value is pinned to EVENTS. Brand-new Cloud rows land here too; they
+// follow new-customer rules.
 function isPostCutoffCloud(ctx: ExportSourceContext): boolean {
   const legacyValidation = validateExportSource(
     AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
     ctx,
   );
   return !legacyValidation.ok && legacyValidation.reason === "cloud-cutoff";
+}
+
+// A persisted source the context no longer allows must stay visible and stay in
+// the form: the pin decides what a *new* row gets, never what an existing row
+// silently becomes (LFE-10296). This holds for every blocked reason — including
+// the Cloud cutoffs, which a row can postdate whenever it was created after the
+// cutoff date but before the pin shipped.
+function isPersistedBlocked(
+  persisted: AnalyticsIntegrationExportSource | null | undefined,
+  ctx: ExportSourceContext,
+): boolean {
+  return persisted != null && !isExportSourceSelectable(persisted, ctx);
 }
 
 export function shouldShowExportSourceField({
@@ -117,16 +131,12 @@ export function shouldShowExportSourceField({
   isBetaEnabled: boolean;
   options: SelectableExportSourceOption[];
 }): boolean {
-  const postCutoffCloud = isPostCutoffCloud(ctx);
-  // A persisted source blocked by capability forces the field visible so the
-  // blocked-save alert has something to point at.
-  const persistedBlockedByCapability =
-    persisted != null &&
-    !postCutoffCloud &&
-    !isExportSourceSelectable(persisted, ctx);
+  const pinned = isPostCutoffCloud(ctx);
+  // Forces the field visible so the blocked-save alert has something to point
+  // at, even where the pin would otherwise hide it.
+  const persistedBlocked = isPersistedBlocked(persisted, ctx);
   return (
-    (((ctx.isCloud || isBetaEnabled) && !postCutoffCloud) ||
-      persistedBlockedByCapability) &&
+    (((ctx.isCloud || isBetaEnabled) && !pinned) || persistedBlocked) &&
     !shouldHideExportSourceSelector(options)
   );
 }
@@ -140,13 +150,11 @@ export function getDefaultExportSource({
   ctx: ExportSourceContext;
   isBetaEnabled: boolean;
 }): AnalyticsIntegrationExportSource {
+  if (persisted) return persisted;
   if (isPostCutoffCloud(ctx)) return AnalyticsIntegrationExportSource.EVENTS;
-  return (
-    persisted ??
-    (ctx.isCloud || isBetaEnabled || !ctx.legacyWritesActive
-      ? AnalyticsIntegrationExportSource.EVENTS
-      : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS)
-  );
+  return ctx.isCloud || isBetaEnabled || !ctx.legacyWritesActive
+    ? AnalyticsIntegrationExportSource.EVENTS
+    : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
 }
 
 // Blocked-save alert body per policy reason.

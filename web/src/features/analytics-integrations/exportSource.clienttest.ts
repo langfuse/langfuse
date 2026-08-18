@@ -412,7 +412,7 @@ describe("write mode drives the settings-page selector", () => {
 // what those pages build (enrichedAvailable from the write mode, the analytics
 // exporter cutoff supplied), so these assertions cover shipped behaviour.
 describe("analytics integrations: settings-page field visibility and default", () => {
-  type Ctx = ExportSourceContext & { exporterCutoff?: Date };
+  type Ctx = ExportSourceContext;
 
   // Derived from the constant, never a literal: the cutoff is overridable via
   // NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF for local testing.
@@ -477,14 +477,45 @@ describe("analytics integrations: settings-page field visibility and default", (
     ).toBe(true);
   });
 
-  it("post-cutoff Cloud integration: field hidden and pinned even with a persisted legacy source", () => {
-    const ctx = cloudCtx(ROW_POST_ANALYTICS_CUTOFF);
+  it("post-cutoff Cloud integration with no persisted source: field hidden and pinned to EVENTS", () => {
     expect(
-      derive(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS, ctx, false),
+      derive(undefined, cloudCtx(ROW_POST_ANALYTICS_CUTOFF), false),
     ).toEqual({
       show: false,
       defaulted: AnalyticsIntegrationExportSource.EVENTS,
     });
+  });
+
+  it("post-cutoff Cloud integration with a persisted legacy source: field forced visible and the persisted source kept, never rewritten", () => {
+    // Reachable: a Cloud row created after the cutoff date but before the pin
+    // shipped still defaulted to the legacy source. Pinning the form value to
+    // EVENTS here would rewrite which streams that customer exports on the next
+    // save of any unrelated field, so the persisted value wins and the save is
+    // blocked until the user picks a source themselves (LFE-10296).
+    const ctx = cloudCtx(ROW_POST_ANALYTICS_CUTOFF);
+    expect(
+      derive(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS, ctx, false),
+    ).toEqual({
+      show: true,
+      defaulted: AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    });
+    // The kept source is genuinely blocked — the form must not be saveable as-is.
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        ctx,
+      ),
+    ).toBe(false);
+    // ...and it is offered as an unavailable option, which is what the
+    // blocked-save alert points at.
+    expect(
+      getExportSourceOptions(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        ctx,
+      ).find(
+        (o) => o.value === AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      )?.unavailable,
+    ).toBe(true);
   });
 
   it("self-hosted without the beta opt-in: field hidden, default legacy (unchanged)", () => {

@@ -46,32 +46,32 @@
 
 import { AnalyticsIntegrationExportSource } from "@prisma/client";
 
-// NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF / _BLOB_EXPORTER_CUTOFF /
-// _ANALYTICS_EXPORTER_CUTOFF override the defaults for local dev testing.
-const _override = process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF
-  ? new Date(process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF)
-  : null;
-export const LEGACY_BLOB_EXPORT_CUTOFF =
-  _override && !isNaN(_override.getTime())
-    ? _override
-    : new Date("2026-05-20T00:00:00.000Z");
+// An unset or unparseable override falls back to the shipped default, so a typo
+// in a local .env degrades to production behaviour rather than NaN dates.
+function cutoffFromEnv(
+  override: string | undefined,
+  fallbackIso: string,
+): Date {
+  if (!override) return new Date(fallbackIso);
+  const parsed = new Date(override);
+  return isNaN(parsed.getTime()) ? new Date(fallbackIso) : parsed;
+}
 
-const _exporterOverride = process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF
-  ? new Date(process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF)
-  : null;
-export const LEGACY_BLOB_EXPORTER_CUTOFF =
-  _exporterOverride && !isNaN(_exporterOverride.getTime())
-    ? _exporterOverride
-    : new Date("2026-06-22T00:00:00.000Z");
+// The NEXT_PUBLIC_* overrides exist for local dev testing of the cutoffs.
+export const LEGACY_BLOB_EXPORT_CUTOFF = cutoffFromEnv(
+  process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF,
+  "2026-05-20T00:00:00.000Z",
+);
 
-const _analyticsExporterOverride = process.env
-  .NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF
-  ? new Date(process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF)
-  : null;
-export const LEGACY_ANALYTICS_EXPORTER_CUTOFF =
-  _analyticsExporterOverride && !isNaN(_analyticsExporterOverride.getTime())
-    ? _analyticsExporterOverride
-    : new Date("2026-08-15T00:00:00.000Z");
+export const LEGACY_BLOB_EXPORTER_CUTOFF = cutoffFromEnv(
+  process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF,
+  "2026-06-22T00:00:00.000Z",
+);
+
+export const LEGACY_ANALYTICS_EXPORTER_CUTOFF = cutoffFromEnv(
+  process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF,
+  "2026-08-15T00:00:00.000Z",
+);
 
 // satisfies ensures each element remains a valid enum member — catches renames
 // at compile time. A new enum variant does NOT automatically error here; the

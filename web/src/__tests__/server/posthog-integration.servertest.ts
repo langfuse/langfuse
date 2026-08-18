@@ -598,7 +598,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
       // either exporter cutoff, so the pre-flight assert allows the legacy
       // source it carries and cannot be the thing that rejects. Meanwhile the
       // DB genuinely holds no row, so the upsert lands as a CREATE — the race.
-      // If the backstop re-used this stale createdAt, or skipped itself
+      // If the backstop reused this stale createdAt, or skipped itself
       // entirely, the legacy row would be persisted.
       const spy = vi
         .spyOn(prisma.posthogIntegration, "findUnique")
