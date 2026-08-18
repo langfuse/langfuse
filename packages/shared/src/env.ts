@@ -37,6 +37,7 @@ const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
   // Same, for the integration-level cutoff (BlobStorageIntegration.createdAt).
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
+  NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
@@ -362,6 +363,7 @@ const EnvSchema = z.object({
   LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default("email"),
   LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default("name"),
   LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default("sub"),
+  LANGFUSE_CUSTOM_SSO_IMAGE_CLAIM: z.string().default("picture"),
   LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
     .number()
     .default(80e6), // 80MB
@@ -510,11 +512,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(3_600_000), // 60 minutes
-
-  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(10),
 
   LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS: z.coerce
     .number()

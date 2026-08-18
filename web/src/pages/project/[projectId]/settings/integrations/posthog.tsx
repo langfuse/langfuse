@@ -31,7 +31,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import {
-  AnalyticsIntegrationExportSource,
   validateExportSource,
   type BlobExportWriteMode,
   type ExportSourceContext,
@@ -40,12 +39,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
-  getExportSourceOptions,
+  getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-  shouldHideExportSourceSelector,
 } from "@/src/features/analytics-integrations/exportSource";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -165,7 +162,6 @@ const PostHogIntegrationSettings = ({
   projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const exportSourceCtx: ExportSourceContext = useMemo(
     () =>
@@ -176,27 +172,11 @@ const PostHogIntegrationSettings = ({
       }),
     [writeMode, isLangfuseCloud, projectCreatedAt],
   );
-  const legacyValidation = validateExportSource(
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-    exportSourceCtx,
-  );
-  // Post-cutoff Cloud projects: field hidden, form value pinned to EVENTS via
-  // the default below (LFE-9688 / 9830 behavior, unchanged).
-  const isPostCutoffCloud =
-    !legacyValidation.ok && legacyValidation.reason === "cloud-cutoff";
-  const exportSourceOptions = getExportSourceOptions(
-    state?.exportSource ?? null,
-    exportSourceCtx,
-  );
-  // Selector is beta-gated, except a persisted source blocked by capability
-  // forces it visible so the blocked-save alert has something to point at.
-  const persistedBlockedByCapability =
-    state?.exportSource != null &&
-    !isPostCutoffCloud &&
-    !isExportSourceSelectable(state.exportSource, exportSourceCtx);
-  const showExportSourceField =
-    ((isBetaEnabled && !isPostCutoffCloud) || persistedBlockedByCapability) &&
-    !shouldHideExportSourceSelector(exportSourceOptions);
+  const {
+    options: exportSourceOptions,
+    showField: showExportSourceField,
+    defaultValue: defaultExportSource,
+  } = getExportSourceFieldState(state?.exportSource, exportSourceCtx);
 
   // Blocked-save validation instead of silent rewrite (LFE-10296).
   const formSchema = useMemo(
@@ -222,13 +202,6 @@ const PostHogIntegrationSettings = ({
       }),
     [exportSourceCtx, state],
   );
-
-  const defaultExportSource = isPostCutoffCloud
-    ? AnalyticsIntegrationExportSource.EVENTS
-    : (state?.exportSource ??
-      (isBetaEnabled || !exportSourceCtx.legacyWritesActive
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS));
 
   const posthogForm = useForm({
     resolver: zodResolver(formSchema),

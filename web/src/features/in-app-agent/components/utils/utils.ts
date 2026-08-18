@@ -6,7 +6,6 @@ import { deduplicateBy } from "@/src/utils/arrays";
 import { safeJsonParse, stableJsonStringify } from "@langfuse/shared";
 import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
-  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
 } from "@langfuse/shared/in-app-agent";
 import {
@@ -20,7 +19,6 @@ import {
 
 export type InAppAgentError =
   | { type: "generic"; message: string }
-  | { type: "write_lock" }
   | { type: "rate_limit"; retryAt: number };
 
 const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
@@ -348,10 +346,6 @@ export function getInAppAgentError(
       type: "rate_limit",
       retryAt: now + rateLimitError.details.retryAfterSeconds * 1_000,
     };
-  }
-
-  if (message.includes(IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE)) {
-    return { type: "write_lock" };
   }
 
   return { type: "generic", message };

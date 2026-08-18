@@ -110,7 +110,7 @@ if (
       },
     },
     autocapture: false,
-    enable_heatmaps: false,
+    enable_heatmaps: true,
     persistence: "cookie",
   });
 }

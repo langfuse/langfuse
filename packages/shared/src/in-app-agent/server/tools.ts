@@ -776,7 +776,7 @@ export function withOptionalSilentMcpOutput(params: {
   ) as Record<string, Tool>;
 }
 
-function getToolCallId(context: unknown) {
+export function getToolCallId(context: unknown) {
   if (
     typeof context !== "object" ||
     context === null ||

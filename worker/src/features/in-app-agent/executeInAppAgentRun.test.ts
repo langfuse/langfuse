@@ -1,11 +1,12 @@
 import { randomUUID } from "crypto";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
+  ResumeForwardedPropsSchema,
 } from "@langfuse/shared/in-app-agent";
 
 vi.hoisted(() => {
@@ -54,6 +55,7 @@ const scenarioRef = vi.hoisted(() => ({
   current: undefined as AgentScenario | undefined,
   failApiKeyDelete: false,
   apiKeyDeleteCalls: 0,
+  titleInferenceCalls: 0,
 }));
 
 vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
@@ -65,6 +67,9 @@ vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
   return {
     ...actual,
     IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: 50,
+    maybeInferAndPersistConversationTitle: async () => {
+      scenarioRef.titleInferenceCalls += 1;
+    },
     createAgUiStream: async (params: {
       input: never;
       signal: AbortSignal;
@@ -203,6 +208,10 @@ const getInAppAgentApiKeys = (projectId: string) =>
 async function seedApprovedContinuation(opts?: {
   context?: Array<{ description: string; value: string }>;
   alwaysAllowedTools?: string[];
+  continuationNumber?: number;
+  rootRunId?: string;
+  traceStartedAt?: string;
+  approvalRequestedAt?: string;
 }) {
   const seeded = await seedBackgroundRun({
     alwaysAllowedTools: opts?.alwaysAllowedTools,
@@ -234,8 +243,18 @@ async function seedApprovedContinuation(opts?: {
       request: {
         kind: "approvalDecision",
         parentRunId: parentRun.id,
+        ...(opts?.rootRunId ? { rootRunId: opts.rootRunId } : {}),
+        ...(opts?.traceStartedAt
+          ? { traceStartedAt: opts.traceStartedAt }
+          : {}),
+        ...(opts?.approvalRequestedAt
+          ? { approvalRequestedAt: opts.approvalRequestedAt }
+          : {}),
         toolCallId: "tc-1",
         approved: true,
+        ...(opts?.continuationNumber
+          ? { continuationNumber: opts.continuationNumber }
+          : {}),
         ...(opts?.context ? { context: opts.context } : {}),
       },
     },
@@ -245,7 +264,24 @@ async function seedApprovedContinuation(opts?: {
 }
 
 describe("executeInAppAgentRun", () => {
+  beforeEach(() => {
+    scenarioRef.titleInferenceCalls = 0;
+  });
+
+  it("does not regenerate the conversation title after executing a user-message run", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+
+    scenarioRef.current = completingScenario;
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    expect(scenarioRef.titleInferenceCalls).toBe(0);
+  });
+
   it("passes persisted continuation context to the agent input", async () => {
+    const rootRunId = "root-run-1";
+    const traceStartedAt = "2026-08-14T10:00:00.000Z";
+    const approvalRequestedAt = "2026-08-14T10:00:05.000Z";
     const context = [
       {
         description: "current_url",
@@ -253,10 +289,25 @@ describe("executeInAppAgentRun", () => {
       },
       { description: "browser_languages", value: '["de-DE"]' },
     ];
-    const { projectId, run } = await seedApprovedContinuation({ context });
+    const { projectId, run } = await seedApprovedContinuation({
+      context,
+      continuationNumber: 3,
+      rootRunId,
+      traceStartedAt,
+      approvalRequestedAt,
+    });
 
     scenarioRef.current = async ({ input, options }) => {
       expect(input.context).toEqual(context);
+      const resume = ResumeForwardedPropsSchema.parse(input.forwardedProps)
+        .command.resume;
+      expect(resume).toMatchObject({
+        continuationNumber: 3,
+        rootRunId,
+        traceStartedAt,
+        approvalRequestedAt,
+        approvalDecidedAt: run.createdAt.toISOString(),
+      });
       await options.onComplete();
       await options.onFinish();
     };
@@ -322,7 +373,6 @@ describe("executeInAppAgentRun", () => {
     expect(finished.claimedAt).not.toBeNull();
     expect(finished.heartbeatAt).not.toBeNull();
     expect(finished.errorCode).toBeNull();
-
     // Key was minted and linked during the run, deleted and unlinked after.
     expect(keysDuringRun).toBe(1);
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);

@@ -7,6 +7,12 @@ export type InAppAgentSandboxProviderType =
   | "dangerous-docker"
   | "lambda-microvm";
 
+/** Why a persisted sandbox session could not be reused, for logs and metrics. */
+export type InAppAgentSandboxSessionReplacementReason =
+  | "not_found"
+  | "terminal_state"
+  | "resume_race";
+
 /**
  * Session-bound sandbox execution handle returned by a provider.
  * Implementations close over the backing runtime session so callers only pass
@@ -48,13 +54,24 @@ export type SandboxSession = {
  */
 export type SandboxProvider = {
   /**
+   * Why a persisted session can no longer be resumed, or `null` if it still can.
+   * Creates nothing, so a lost workspace is known before the agent runs.
+   */
+  probeSession?(params: {
+    sessionId: string;
+  }): Promise<InAppAgentSandboxSessionReplacementReason | null>;
+  /**
    * Reuses an existing sandbox session when possible or creates a new one,
    * then returns a session-bound sandbox handle for tool execution.
    */
   ensureSession(params: {
     conversationId: string;
     sessionId?: string | null;
-  }): Promise<{ sessionId: string; sandbox: SandboxSession }>;
+  }): Promise<{
+    sessionId: string;
+    sandbox: SandboxSession;
+    replacementReason?: InAppAgentSandboxSessionReplacementReason;
+  }>;
   /**
    * Persists session state for later reuse and releases any live runtime
    * resources associated with the session.

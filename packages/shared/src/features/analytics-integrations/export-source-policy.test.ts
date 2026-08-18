@@ -6,8 +6,10 @@ import {
   areLegacyWritesActive,
   getAvailableExportSources,
   isEnrichedBlobExportSource,
+  isLegacyBlobExporter,
   isLegacyBlobExportSource,
   LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
   validateExportSource,
   type BlobExportWriteMode,
@@ -329,5 +331,103 @@ describe("isLegacyBlobExportSource", () => {
     const source = "EVENTS";
     expect(isLegacyBlobExportSource(source)).toBe(false);
     expect(isEnrichedBlobExportSource(source)).toBe(true);
+  });
+});
+
+// Each integration family carries its own integration-level cutoff. Dates are
+// derived from the constants, never written as literals: both are overridable
+// via NEXT_PUBLIC_* for local testing, and a literal would silently stop
+// testing the shipped value.
+describe("per-family exporter cutoff", () => {
+  const cloud = (over: Partial<ExportSourceContext>): ExportSourceContext =>
+    ctx({ isCloud: true, projectCreatedAt: PROJECT_PRE, ...over });
+
+  it("defaults to the blob cutoff when the context omits one", () => {
+    // Grandfathered under the blob default...
+    expect(
+      reasonOf("TRACES_OBSERVATIONS", cloud({ integrationCreatedAt: ROW_PRE })),
+    ).toBeUndefined();
+    // ...and blocked once the row reaches it.
+    expect(
+      reasonOf("TRACES_OBSERVATIONS", cloud({ integrationCreatedAt: ROW_AT })),
+    ).toBe("cloud-cutoff");
+  });
+
+  it("a later context cutoff grandfathers a row the blob default would block", () => {
+    // Between the two cutoffs: blocked under the blob default, allowed under the
+    // analytics one. This is the whole point of the parameter.
+    const between = new Date(
+      LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+    );
+    expect(between < LEGACY_ANALYTICS_EXPORTER_CUTOFF).toBe(true);
+    expect(
+      reasonOf("TRACES_OBSERVATIONS", cloud({ integrationCreatedAt: between })),
+    ).toBe("cloud-cutoff");
+    expect(
+      reasonOf(
+        "TRACES_OBSERVATIONS",
+        cloud({
+          integrationCreatedAt: between,
+          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("a brand-new Cloud row is blocked under any cutoff, today's date notwithstanding", () => {
+    for (const exporterCutoff of [
+      undefined,
+      LEGACY_BLOB_EXPORTER_CUTOFF,
+      LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+    ]) {
+      expect(
+        reasonOf(
+          "TRACES_OBSERVATIONS",
+          cloud({ integrationCreatedAt: null, exporterCutoff }),
+        ),
+      ).toBe("cloud-cutoff");
+    }
+  });
+
+  it("self-hosted is exempt from every exporter cutoff", () => {
+    expect(
+      isLegacyBlobExporter(null, false, LEGACY_ANALYTICS_EXPORTER_CUTOFF),
+    ).toBe(true);
+    expect(
+      reasonOf(
+        "TRACES_OBSERVATIONS",
+        ctx({
+          isCloud: false,
+          integrationCreatedAt: null,
+          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("names the context cutoff in the rejection message, not the blob default", () => {
+    const res = validateExportSource(
+      "TRACES_OBSERVATIONS",
+      cloud({
+        integrationCreatedAt: null,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+      }),
+    );
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.message).toContain(
+      LEGACY_ANALYTICS_EXPORTER_CUTOFF.toISOString(),
+    );
+    expect(res.message).not.toContain(
+      LEGACY_BLOB_EXPORTER_CUTOFF.toISOString(),
+    );
+  });
+
+  it("the analytics cutoff postdates the blob one", () => {
+    // Guards against someone 'tidying' the analytics constant onto the blob
+    // date, which would retroactively invalidate grandfathered analytics rows.
+    expect(LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime()).toBeGreaterThan(
+      LEGACY_BLOB_EXPORTER_CUTOFF.getTime(),
+    );
   });
 });

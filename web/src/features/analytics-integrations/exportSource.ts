@@ -89,6 +89,29 @@ export function getExportSourceOptions(
   });
 }
 
+export type ExportSourceFieldState = {
+  options: SelectableExportSourceOption[];
+  showField: boolean;
+  defaultValue: AnalyticsIntegrationExportSource;
+};
+
+// Visibility and the default have to agree: a hidden selector whose default is
+// not selectable blocks every save with no field left to fix it with. Both
+// therefore derive from the same option list, with no per-context override —
+// the persisted value survives even where it can no longer be chosen, so the
+// blocked-save alert names it instead of a save quietly replacing it.
+export function getExportSourceFieldState(
+  persisted: AnalyticsIntegrationExportSource | null | undefined,
+  ctx: ExportSourceContext,
+): ExportSourceFieldState {
+  const options = getExportSourceOptions(persisted ?? null, ctx);
+  return {
+    options,
+    showField: !shouldHideExportSourceSelector(options),
+    defaultValue: getExportSourceFormValue(persisted, ctx),
+  };
+}
+
 // Blocked-save alert body per policy reason.
 const EXPORT_SOURCE_UNAVAILABLE_MESSAGES: Record<
   ExportSourceBlockedReason,

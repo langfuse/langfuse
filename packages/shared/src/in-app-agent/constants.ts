@@ -17,9 +17,6 @@ export const IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER =
 export const IN_APP_AGENT_LOCAL_SANDBOX_IMAGE =
   "langfuse-in-app-agent-sandbox:latest";
 
-export const IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "This conversation has reached the 8-hour limit. Please start a new conversation.";
-
 export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =
   "An error occurred. Please try again or start a new conversation.";
 
@@ -32,3 +29,10 @@ export const getInAppAgentInstrumentationObservationId = (runId: string) =>
 // level telemetry and feedback aggregate on the same per-turn trace.
 export const getInAppAgentInstrumentationTraceId = (runId: string) =>
   `${runId}-trace`;
+
+// Per-LLM-call generation ids stay deterministic from the run so retries and
+// late flushes can address the same observation.
+export const getInAppAgentLlmCallObservationId = (
+  runId: string,
+  stepNumber: number,
+) => `${runId}-llm-${stepNumber}`;
