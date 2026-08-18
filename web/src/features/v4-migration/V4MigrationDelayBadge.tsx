@@ -67,46 +67,49 @@ export function V4MigrationDelayBadge({
   ].filter(Boolean).length;
 
   const visible = enabled && Boolean(project) && actionablePaths > 0;
+  const projectId = project?.id;
 
   // Impression + hover exist to answer one question: do users notice the
   // badge? `shown` is the exposure denominator, `hovered` the
-  // noticed-but-not-clicked middle. Both fire at most once per mount so the
-  // ratios stay per-visit; the effect synchronizes visibility with PostHog
-  // (it can flip to true only after the SDK check resolves).
-  const shownCapturedRef = useRef(false);
-  const hoverCapturedRef = useRef(false);
+  // noticed-but-not-clicked middle. Both fire at most once per project per
+  // mount: the project switcher navigates within the same route, so the
+  // component survives the switch, and a plain once-per-mount boolean would
+  // swallow the next project's exposure (clicks with no matching shown). The
+  // effect synchronizes visibility with PostHog (it can flip to true only
+  // after the SDK check resolves).
+  const shownCapturedForRef = useRef<string | null>(null);
+  const hoverCapturedForRef = useRef<string | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (visible && !shownCapturedRef.current) {
-      shownCapturedRef.current = true;
+    if (visible && projectId && shownCapturedForRef.current !== projectId) {
+      shownCapturedForRef.current = projectId;
       capture("v4_migration:delay_badge_shown", { page });
     }
-  }, [visible, page, capture]);
+  }, [visible, projectId, page, capture]);
+  // A pending dwell timer must not outlive the badge: React removes the
+  // button without a mouseleave when `visible` flips false (SDK check turns
+  // transient, project switch), so clear on visibility changes, not only on
+  // unmount.
   useEffect(() => {
     return () => {
-      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+      }
     };
-  }, []);
+  }, [visible]);
 
   if (!visible || !project) {
     return null;
   }
 
-  const handleClick = () => {
-    if (forceV3) {
-      capture("v4_migration:delay_badge_clicked", { action: "docs", page });
-      window.open(PARTNER_INTEGRATION_FAQ_URL, "_blank", "noopener,noreferrer");
+  const handleHoverStart = () => {
+    if (hoverCapturedForRef.current === project.id || hoverTimerRef.current) {
       return;
     }
-    capture("v4_migration:delay_badge_clicked", { page });
-    openMigrationPanel({ id: project.id, name: project.name }, "delay_badge");
-  };
-
-  const handleHoverStart = () => {
-    if (hoverCapturedRef.current || hoverTimerRef.current) return;
     hoverTimerRef.current = setTimeout(() => {
       hoverTimerRef.current = null;
-      hoverCapturedRef.current = true;
+      hoverCapturedForRef.current = project.id;
       capture("v4_migration:delay_badge_hovered", { page });
     }, HOVER_DWELL_MS);
   };
@@ -116,6 +119,20 @@ export function V4MigrationDelayBadge({
       clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
     }
+  };
+
+  const handleClick = () => {
+    // A click consumes the pending dwell: `hovered` counts noticed but NOT
+    // clicked, and touch taps synthesize a mouseenter with no mouseleave, so
+    // an uncancelled timer would also count every tap as a hover.
+    handleHoverEnd();
+    if (forceV3) {
+      capture("v4_migration:delay_badge_clicked", { action: "docs", page });
+      window.open(PARTNER_INTEGRATION_FAQ_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
+    capture("v4_migration:delay_badge_clicked", { page });
+    openMigrationPanel({ id: project.id, name: project.name }, "delay_badge");
   };
 
   // The hover's action clause echoes the panel section the click opens;
