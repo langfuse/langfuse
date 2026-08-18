@@ -64,16 +64,22 @@ function buildContext(
  *
  * The returned value is always concrete, never undefined, so the CREATE payload
  * can never fall through to the legacy Prisma column default.
+ *
+ * Callers that already hold the project row (the public REST handler loads it
+ * for its org-ownership check) pass `projectCreatedAt` to skip the lookup below.
+ * The tRPC routers have no project in scope and omit it.
  */
 export async function resolveExportSource({
   db,
   projectId,
+  projectCreatedAt: prefetchedProjectCreatedAt,
   requestedExportSource,
   existingIntegration,
   exporterCutoff,
 }: {
   db: Prisma.TransactionClient;
   projectId: string;
+  projectCreatedAt?: Date;
   requestedExportSource: AnalyticsIntegrationExportSource | undefined;
   existingIntegration: ExistingIntegration | null | undefined;
   exporterCutoff?: Date;
@@ -82,17 +88,20 @@ export async function resolveExportSource({
 
   // The Cloud cutoffs need the project only when this call chooses a source —
   // an explicit request, or the create default for a row that does not exist
-  // yet. A partial update that keeps the persisted value needs no project read.
+  // yet. A partial update that keeps the persisted value needs no project date
+  // at all, so it stays undefined even when the caller prefetched one: that is
+  // what lets the cutoffs grandfather a persisted legacy value.
   const choosesSource =
     requestedExportSource !== undefined || !existingIntegration;
-  const projectCreatedAt = choosesSource
-    ? (
+  const projectCreatedAt = !choosesSource
+    ? undefined
+    : (prefetchedProjectCreatedAt ??
+      (
         await db.project.findUniqueOrThrow({
           where: { id: projectId },
           select: { createdAt: true },
         })
-      ).createdAt
-    : undefined;
+      ).createdAt);
 
   // The create default is judged by new-integration rules, hence the null
   // integrationCreatedAt: the Cloud cutoffs must not grandfather a row that

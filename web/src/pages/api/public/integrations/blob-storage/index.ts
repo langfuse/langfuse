@@ -176,6 +176,9 @@ async function handleUpsertBlobStorageIntegration(
   const createExportSource = await resolveExportSource({
     db: prisma,
     projectId: validatedData.projectId,
+    // Already loaded above for the org-ownership check; reuse it rather than
+    // making the helper re-read the same row.
+    projectCreatedAt: project.createdAt,
     requestedExportSource: internalExportSource,
     existingIntegration,
   });
