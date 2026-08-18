@@ -45,11 +45,14 @@ const ICON_WIDTH_PX = 22;
 const SCORE_CHIP_CHROME_PX = 22;
 /** `max-w-20` truncates a score's name. */
 const SCORE_NAME_MAX_PX = 80;
-/** The gap between a chip's name and its values. */
-const SCORE_NAME_GAP_PX = 4;
+/** `gap-1`, which a score chip applies between EVERY one of its flex children. */
+const SCORE_GAP_PX = 4;
+/** `gap-1` plus the value span's own `ml-1`, between two values of one name. */
+const SCORE_VALUE_SEPARATOR_PX = 8;
 /**
- * One `size-3` icon plus its gap. A value can carry BOTH a comment and metadata,
- * and they render as two separate icons.
+ * One `size-3` icon plus its gap, rounded up (the app's root font scale makes a
+ * `size-3` 10.8px). A value can carry BOTH a comment and metadata, and they
+ * render as two separate icons.
  */
 const SCORE_VALUE_ICON_PX = 16;
 /** `px-1` both sides of a ScoreTag level pill; the label itself is measured. */
@@ -68,8 +71,13 @@ const SCORE_GROUP_GAP_PX = 4;
  * exists to remove, in exactly the narrow lanes it targets. The widest groups are
  * priced, because over-reserving drops a badge (recoverable, and the title says
  * so) while under-reserving clips one (not recoverable).
+ *
+ * Every term here is one the DOM actually charges, and the gap between this sum
+ * and the rendered width is pinned in Storybook — three rounds of missing terms
+ * (a flat 48px, a flat level pill, one gap instead of one per child) all passed
+ * stories that could only see the admit-or-drop decision at one lane width.
  */
-function scoreBadgesWidth(
+export function scoreBadgesWidth(
   scores: NonNullable<TimelineBarProps["scores"]>,
   measurer: TimelineBarProps["measurer"],
   maxVisible: number,
@@ -82,16 +90,27 @@ function scoreBadgesWidth(
   const mixesLevels =
     new Set(scores.map((score) => scoreLevelFromScore(score))).size > 1;
 
+  const comma = measurer.measure(",");
+
   const widths = groups
     .map(([name, group]) => {
-      const values = group.map(
-        (score) => score.stringValue ?? score.value?.toFixed(2) ?? "",
-      );
-      // A comment and metadata are two separate icons, so they are two
-      // reservations — counting "either" under-prices a value carrying both.
-      const icons =
-        group.filter((score) => score.comment).length +
-        group.filter((score) => score.metadata).length;
+      // Each value is its own flex span: the text, one icon per comment and per
+      // metadata (a value carrying both grows two), and a comma on all but the
+      // last. Two spans are separated by the box's `gap-1` AND the span's `ml-1`.
+      const values = group.reduce((total, score, index) => {
+        const text = score.stringValue ?? score.value?.toFixed(2) ?? "";
+        const icons = (score.comment ? 1 : 0) + (score.metadata ? 1 : 0);
+        const separator =
+          index === group.length - 1
+            ? 0
+            : SCORE_GAP_PX + comma + SCORE_VALUE_SEPARATOR_PX;
+        return (
+          total +
+          measurer.measure(text) +
+          icons * SCORE_VALUE_ICON_PX +
+          separator
+        );
+      }, 0);
       // The pill spells its level out ("Observation" is not "Trace"), so it is
       // measured rather than assumed.
       const levels = mixesLevels
@@ -104,12 +123,16 @@ function scoreBadgesWidth(
           SCORE_PILL_CHROME_PX,
         0,
       );
+      // The chip is one `gap-1` flex row whose direct children are every level
+      // pill, the name, and the values box — so N pills mean N + 1 gaps. Pricing
+      // the name-to-values gap alone under-reserved a mixed-level chip by 4px
+      // per extra pill, and the cluster's overflow box cuts what it admits.
+      const gaps = (levels.length + 1) * SCORE_GAP_PX;
       return (
         Math.min(measurer.measure(`${name}:`), SCORE_NAME_MAX_PX) +
-        SCORE_NAME_GAP_PX +
-        measurer.measure(values.join(" ")) +
-        icons * SCORE_VALUE_ICON_PX +
+        values +
         pills +
+        gaps +
         SCORE_CHIP_CHROME_PX
       );
     })
@@ -126,7 +149,7 @@ function scoreBadgesWidth(
 }
 
 /** How many score groups the cluster shows before the rest are hidden. */
-const MAX_SCORE_GROUPS = 3;
+export const MAX_SCORE_GROUPS = 3;
 
 export function TimelineBar({
   row,
@@ -332,7 +355,7 @@ export function TimelineBar({
           </span>
         )}
         {showScoreBadges && (
-          <div className="flex max-h-5 gap-1">
+          <div className="flex max-h-5 gap-1" data-testid="timeline-bar-scores">
             <GroupedScoreBadges
               scores={scores!}
               maxVisible={MAX_SCORE_GROUPS}

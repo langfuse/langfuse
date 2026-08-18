@@ -1,7 +1,10 @@
 import { expect, waitFor } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
-import { TimelineBar } from "./TimelineBar";
-import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
+import { MAX_SCORE_GROUPS, TimelineBar, scoreBadgesWidth } from "./TimelineBar";
+import {
+  createTextMeasurer,
+  createTextMeasurerFrom,
+} from "../../fns/timeline/textMeasurer";
 import { resolveDensity } from "../../fns/timeline/density";
 import {
   makeRow,
@@ -209,6 +212,76 @@ export const AnnotatedMixedLevelScoresAreNeverClipped = meta.story({
     } else {
       await expect(cluster.title).toContain("2 scores");
     }
+  },
+});
+
+/**
+ * The invariant behind all of the above, asserted directly: what the cluster
+ * RESERVES for the badges is never less than what they render at.
+ *
+ * The two stories above can only catch a mispricing that changes the admit/drop
+ * decision at their one lane width, so three rounds of under-reservation
+ * (a flat 48px, a flat level pill, one gap instead of one per child) passed
+ * them. This one prices the same scores the bar prices, measures the DOM the
+ * badges actually produced, and compares the two numbers.
+ */
+// Every width-bearing feature at once: two levels in one group (two pills), two
+// values under one name (comma + separator), a value carrying BOTH a comment and
+// metadata (two icons), and a name at the truncation limit.
+const PRICED_SCORES = [
+  score("quality", 0.92, {
+    level: "observation",
+    comment: "looks right",
+    metadata: '{"model":"gpt-5.4"}',
+  }),
+  score("quality", 0.71, { level: "trace" }),
+  score("helpfulness-of-the-answer", 0.68, { level: "trace" }),
+];
+
+export const ScorePricingNeverUnderReserves = meta.story({
+  name: "(Test) Score Pricing Never Under-Reserves",
+  args: {
+    showScores: true,
+    scores: PRICED_SCORES,
+    laneWidth: 900,
+    row: makeRow({ x: 0, width: 120, labelX: 126 }),
+  },
+  play: async ({ canvasElement }) => {
+    const rendered = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>(
+        "[data-testid='timeline-bar-scores']",
+      );
+      if (!el) throw new Error("the badges were not admitted at all");
+      return el;
+    });
+    // Seed the measurer from the chip's own computed font, the way the app seeds
+    // it from a tick-label probe: pricing text against a font the DOM is not
+    // using would make this pass for the wrong reason.
+    const chipText = rendered.querySelector<HTMLElement>(
+      "div[title='quality']",
+    );
+    if (!chipText) throw new Error("no chip to read a font from");
+    const style = getComputedStyle(chipText);
+    const context = document.createElement("canvas").getContext("2d");
+    const measurer = createTextMeasurerFrom(
+      context,
+      `${style.fontSize} ${style.fontFamily}`,
+    );
+
+    const priced = scoreBadgesWidth(PRICED_SCORES, measurer, MAX_SCORE_GROUPS);
+    // Under a clipping ancestor the box would report the SMALLER of natural and
+    // available, which would make any under-price look safe. Compare against a
+    // width that is actually the badges' own.
+    await expect(rendered.scrollWidth).toBeLessThanOrEqual(
+      rendered.clientWidth,
+    );
+    const actual = rendered.getBoundingClientRect().width;
+
+    // Never below: the cluster's overflow box cuts whatever it over-admits.
+    await expect(priced).toBeGreaterThanOrEqual(actual);
+    // And within a few px above, which is what makes the line above bite: with
+    // loose slack anywhere in the sum, a whole missing term still "passes".
+    await expect(priced - actual).toBeLessThan(12);
   },
 });
 

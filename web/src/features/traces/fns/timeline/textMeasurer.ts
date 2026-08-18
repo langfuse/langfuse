@@ -75,20 +75,36 @@ export function createTextMeasurerFrom(
 
   const computeWidth = (text: string) => {
     let width = 0;
+    // Anything that is neither a digit nor a duration unit is measured as a run,
+    // not estimated per letter: callers now price arbitrary text with this
+    // (a score's name, a level label), and at 6.5px a letter `quality:` came out
+    // 13px wider than it renders — slack that hides a real under-reservation
+    // somewhere else in the same sum.
+    let run = "";
+    const flush = () => {
+      if (!run) return;
+      width += context
+        ? context.measureText(run).width
+        : run.length * PX_PER_LETTER;
+      run = "";
+    };
     for (let i = 0; i < text.length; i++) {
       const glyph = glyphs.get(text[i]!);
       if (glyph !== undefined) {
+        flush();
         width += glyph;
         continue;
       }
       const unit = unitAt(text, i);
       if (unit !== null) {
+        flush();
         width += units.get(unit) ?? unit.length * PX_PER_LETTER;
         i += unit.length - 1;
         continue;
       }
-      width += PX_PER_LETTER;
+      run += text[i]!;
     }
+    flush();
     return width;
   };
 
