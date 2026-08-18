@@ -31,11 +31,12 @@ export function EvaluatorsEmptyState({
 
   const handleDetectTopics = () => {
     if (canUseAssistant) {
+      const openedAssistant = openAssistant("evaluators_empty_state");
       capture("evaluators:empty_state_detect_topics", {
-        openedAssistant: true,
+        openedAssistant,
       });
 
-      if (!openAssistant("evaluators_empty_state")) {
+      if (!openedAssistant) {
         return;
       }
 

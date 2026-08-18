@@ -131,5 +131,11 @@ describe("EvaluatorsEmptyState", () => {
     expect(openAssistant).toHaveBeenCalledWith("evaluators_empty_state");
     expect(submit).not.toHaveBeenCalled();
     expect(onSelectTemplate).not.toHaveBeenCalled();
+    expect(capture).toHaveBeenCalledWith(
+      "evaluators:empty_state_detect_topics",
+      {
+        openedAssistant: false,
+      },
+    );
   });
 });
