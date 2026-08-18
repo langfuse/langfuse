@@ -516,7 +516,6 @@ export default function EvaluatorsPage() {
 
   return (
     <Page
-      scrollable={showOnboarding}
       headerProps={{
         title: "Evaluators",
         help: {
