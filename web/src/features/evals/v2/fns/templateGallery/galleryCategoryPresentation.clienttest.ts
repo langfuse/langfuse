@@ -11,9 +11,10 @@ describe("galleryCategoryPresentation", () => {
     }
   });
 
-  it("uses a category-colored edge for recommended cards", () => {
-    expect(getGalleryCategoryPresentation("recommended").edgeClassName).toBe(
-      "border-l-dark-yellow",
-    );
+  it("keeps recommended presentation without a colored left edge", () => {
+    expect(getGalleryCategoryPresentation("recommended")).toEqual({
+      icon: GALLERY_CATEGORY_ICONS.recommended,
+      iconClassName: "text-dark-yellow",
+    });
   });
 });

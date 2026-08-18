@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { fn, userEvent, expect } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
 import preview from "../../../../../../../../../../.storybook/preview";
@@ -34,5 +34,16 @@ const template = {
 const meta = preview.meta({ component: EvaluatorRecommendedCard });
 
 export const Default = meta.story({
-  args: { template, categoryKey: "recommended", onSelect: fn() },
+  args: { template, onSelect: fn() },
+});
+
+export const SelectsTemplate = meta.story({
+  name: "(Test) Selects a recommended template",
+  args: { template, onSelect: fn() },
+  play: async ({ canvas, args }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Classify chat intent/ }),
+    );
+    await expect(args.onSelect).toHaveBeenCalledWith(template);
+  },
 });

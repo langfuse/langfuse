@@ -114,6 +114,8 @@ export const Recommended = meta.story({
       canvas.getByText("Detect out-of-scope requests"),
     ).toBeInTheDocument();
     await expect(canvas.getByText("Detect language match")).toBeInTheDocument();
+    await expect(canvas.getAllByText("Any application")).toHaveLength(3);
+    await expect(canvas.getAllByText("Set up")).toHaveLength(3);
   },
 });
 
