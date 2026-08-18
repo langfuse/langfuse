@@ -110,8 +110,8 @@ export function EvaluatorsEmptyStateView({
         </h2>
         <p className="text-muted-foreground text-base">
           Evaluators score your data with an LLM-as-a-judge or with code. Run
-          them on a sample of production traces to catch patterns and
-          regressions, or on dataset runs to compare changes before you ship.
+          them on production traces to catch patterns, or on dataset runs to
+          evaluate changes before you ship.
         </p>
       </div>
 
