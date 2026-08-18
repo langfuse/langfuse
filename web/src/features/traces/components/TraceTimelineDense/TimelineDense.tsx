@@ -1,10 +1,14 @@
 /**
- * Throwaway renderer for the extreme-density spike.
+ * The Compact Timeline renderer, shipped behind the `compactTimeline` feature
+ * preview: `TraceTimelineCompact` measures a box and renders this inside it, and
+ * the trace panel's Timeline view is this whenever the preview is on — by
+ * default for the team, opt-in for everyone else. Real users read traces through
+ * it, so a bug here is a bug in the product.
  *
- * The question it exists to answer: in a narrow, tall layout, does killing the
- * names and the text and spending every pixel on shape make you FEEL the
- * timeline — where a 26px row with a duration label next to a 4px bar reads as
- * a list of numbers instead?
+ * The question it started as a spike to answer, and still answers: in a narrow,
+ * tall layout, does killing the names and the text and spending every pixel on
+ * shape make you FEEL the timeline — where a 26px row with a duration label next
+ * to a 4px bar reads as a list of numbers instead?
  *
  * At rest: no name gutter, a 10px rail carrying type as a small square in the
  * type's own hue, rows shrunk to fit the box, and no text at all.
@@ -41,8 +45,6 @@
  * rest) is implemented and tested in fns/timeline/focusLens.ts and deliberately
  * NOT wired up: a fisheye needs an invertible transform to hit-test correctly,
  * and absolutely-positioned rows are the wrong substrate. That is the next spike.
- *
- * Not production code.
  */
 
 import { useTheme } from "next-themes";
@@ -452,6 +454,38 @@ export function TimelineDense({
         );
   /** Last id we told the caller about, so a prefetch fires once per row. */
   const hoveredRef = useRef<string | null>(null);
+  const pointerPosRef = useRef(pointerPos);
+  pointerPosRef.current = pointerPos;
+
+  /**
+   * Tell the caller which row is under the pointer, resolved from a VIEWPORT
+   * rather than from the last pointermove: a zoom, a scroll, a zoom button and a
+   * focus flight all slide a new row under a pointer that never moved. The
+   * tooltip already follows that (`focusIndex` above re-derives every render),
+   * but the callback did not, so the row the user is looking at was the one row
+   * the caller never prefetched.
+   */
+  const notifyHover = (
+    viewport: Viewport,
+    at = pointerPosRef.current,
+  ): void => {
+    if (!at || !onHover) return;
+    const live = layoutRef.current;
+    const index = rowIndexAtOffset(
+      viewport,
+      at.y,
+      live.rowHeight,
+      live.rows.length,
+    );
+    const id = index == null ? null : live.rows[index]?.node.id;
+    if (!id || id === hoveredRef.current) return;
+    hoveredRef.current = id;
+    onHover(id);
+  };
+  // Reached through a ref from the stable callbacks below, the same way they
+  // reach the zoom pair: they attach once and must not close over this render.
+  const notifyHoverRef = useRef(notifyHover);
+  notifyHoverRef.current = notifyHover;
 
   const density: Density = useMemo(
     () => ({
@@ -535,8 +569,18 @@ export function TimelineDense({
     railWidth,
     peekWidth,
     extentOf,
+    rowHeight,
+    rows: prepared.rows,
   });
-  layoutRef.current = { limits, laneWidth, railWidth, peekWidth, extentOf };
+  layoutRef.current = {
+    limits,
+    laneWidth,
+    railWidth,
+    peekWidth,
+    extentOf,
+    rowHeight,
+    rows: prepared.rows,
+  };
 
   /**
    * Zooming and re-anchoring are ONE operation, not two: `anchorTimeToRows`
@@ -566,25 +610,37 @@ export function TimelineDense({
   const zoomAndAnchorRef = useRef(zoomAndAnchor);
   zoomAndAnchorRef.current = zoomAndAnchor;
 
+  /**
+   * The one place a viewport lands from an event handler: the ref stays
+   * authoritative for the next gesture frame, React renders it, and the row now
+   * under the pointer is re-notified. (The reveal below writes ref + state
+   * directly instead — it runs during render, where a callback must not fire.)
+   */
+  const commit = (next: Viewport) => {
+    viewportRef.current = next;
+    setViewport(next);
+    notifyHover(next);
+  };
+
   const zoomBy = (factor: number, xRatio: number, yRatio: number) => {
     // A gesture takes over from a flight in progress rather than fighting it.
     // Without this the tween's rAF loop kept writing its own interpolated target
     // over the user's zoom for the rest of the 320ms flight — press a zoom button
     // right after a double-click and the button did nothing.
     cancelTween();
-    setViewport((from) => zoomAndAnchor(from, { factor, xRatio, yRatio }));
+    commit(zoomAndAnchor(viewportRef.current, { factor, xRatio, yRatio }));
   };
 
   const panBy = (dxPx: number, dyPx: number) => {
     cancelTween();
-    setViewport((from) => {
-      const { limits: live, laneWidth: width } = layoutRef.current;
-      return panViewport(
-        from ? clampViewport(from, live) : fitViewport(live),
-        live,
-        { dxPx, dyPx, boxWidth: width },
-      );
-    });
+    const { limits: live, laneWidth: width } = layoutRef.current;
+    commit(
+      panViewport(clampViewport(viewportRef.current, live), live, {
+        dxPx,
+        dyPx,
+        boxWidth: width,
+      }),
+    );
   };
 
   // Selection is not always ours to place. The tree, a search hit, a deep link
@@ -666,6 +722,7 @@ export function TimelineDense({
     if (viewportsEqual(next, viewportRef.current)) return;
     viewportRef.current = next;
     setViewport(next);
+    notifyHoverRef.current(next);
   }, []);
 
   /** Ease-in-out, so the flight starts and lands softly. */
@@ -681,6 +738,8 @@ export function TimelineDense({
         const next = interpolateViewport(from, target, eased);
         viewportRef.current = next;
         setViewport(next);
+        // Per frame, but `hoveredRef` collapses it to one call per row crossed.
+        notifyHoverRef.current(next);
         tween.current = linear < 1 ? requestAnimationFrame(step) : 0;
       };
       tween.current = requestAnimationFrame(step);
@@ -937,17 +996,7 @@ export function TimelineDense({
       setPeeking(offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX);
     }
 
-    const index = rowIndexAtOffset(
-      current,
-      offsetY,
-      rowHeight,
-      prepared.rows.length,
-    );
-    const hoveredId = index == null ? null : prepared.rows[index]?.node.id;
-    if (hoveredId && hoveredId !== hoveredRef.current) {
-      hoveredRef.current = hoveredId;
-      onHover?.(hoveredId);
-    }
+    notifyHover(current, { x: offsetX, y: offsetY });
     setPointerPos({ x: offsetX, y: offsetY });
   };
 

@@ -363,6 +363,12 @@ export const ScrollPansPinchZooms = meta.story({
  * string would not do: Chrome returns `oklch(...)` verbatim for the tokens
  * authored in it, and reading those numbers as R, G, B turns a mid-tone into
  * near-black — which is exactly the bug this test exists to catch.
+ *
+ * Deliberately NOT `luminanceOf` from `barContrast.ts`, which is the function the
+ * component picks its tone with. A test that measures with the same function the
+ * subject decides with cannot see that function being wrong: both sides would
+ * move together and an unreadable label would pass. Keep this arm's length —
+ * these are two implementations of a fixed published formula, on purpose.
  */
 const luminance = (colour: string) => {
   const context = document.createElement("canvas").getContext("2d");
@@ -1010,7 +1016,7 @@ export const TooltipFollowsTheContent = meta.story({
     onSelect: fn(),
     onHover: fn(),
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ args, canvasElement }) => {
     const surface = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-surface"]',
     );
@@ -1046,6 +1052,15 @@ export const TooltipFollowsTheContent = meta.story({
     );
     await waitFor(() => expect(tooltip()).not.toBe(named));
     await expect(tooltip()).not.toBe("");
+
+    // The caller prefetches off `onHover`, so it has to hear about the row that
+    // arrived under the still pointer. Firing only on pointermove meant the row
+    // being read was the one row never fetched ahead: the tooltip renamed itself
+    // and the callback went on naming the row that used to be there.
+    const hovered = args.onHover as ReturnType<typeof fn>;
+    const ids = hovered.mock.calls.map((call) => call[0] as string);
+    await expect(ids.length).toBeGreaterThan(1);
+    await expect(ids[ids.length - 1]).not.toBe(ids[0]);
   },
 });
 
