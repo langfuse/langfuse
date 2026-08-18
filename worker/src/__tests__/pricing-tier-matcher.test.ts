@@ -189,9 +189,12 @@ describe("default-model-prices.json", () => {
               200,
             );
           } else {
-            expect(condition).toHaveProperty("column");
-            expect(condition).toHaveProperty("type");
+            expect(["model_parameters", "metadata"]).toContain(
+              condition.source,
+            );
             expect(condition).toHaveProperty("key");
+            expect(condition.operator).toBe("eq");
+            expect(typeof condition.value).toBe("string");
           }
         }
       }
@@ -205,9 +208,7 @@ describe("default-model-prices.json", () => {
           const pattern =
             "usageDetailPattern" in condition
               ? condition.usageDetailPattern
-              : condition.column === "usage_details"
-                ? condition.key
-                : null;
+              : null;
           if (pattern !== null) {
             expect(() => validateRegexPattern(pattern)).not.toThrow();
           }
@@ -444,10 +445,9 @@ describe("matchPricingTier", () => {
         priority: 1,
         conditions: [
           {
-            column: "model_parameters",
-            type: "stringObject",
+            source: "model_parameters",
             key: "service_tier",
-            operator: "=",
+            operator: "eq",
             value: "priority",
           },
         ],
@@ -474,10 +474,9 @@ describe("matchPricingTier", () => {
           ...tiers[1]!,
           conditions: [
             {
-              column: "metadata",
-              type: "stringObject",
+              source: "metadata",
               key: "inference_geo",
-              operator: "=",
+              operator: "eq",
               value: "us",
             },
           ],

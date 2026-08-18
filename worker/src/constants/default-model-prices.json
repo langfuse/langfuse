@@ -4202,7 +4202,7 @@
     "modelName": "gpt-5.5-2026-04-23",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.5(-2026-04-23)?)$",
     "createdAt": "2026-04-25T00:00:00.000Z",
-    "updatedAt": "2026-08-17T00:00:00.000Z",
+    "updatedAt": "2026-08-18T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4234,10 +4234,9 @@
         "priority": 1,
         "conditions": [
           {
-            "column": "model_parameters",
-            "type": "stringObject",
+            "source": "model_parameters",
             "key": "service_tier",
-            "operator": "=",
+            "operator": "eq",
             "value": "priority"
           }
         ],
@@ -4333,7 +4332,7 @@
     "modelName": "gpt-5.6-sol",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-sol)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-08-17T00:00:00.000Z",
+    "updatedAt": "2026-08-18T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4367,18 +4366,16 @@
         "priority": 1,
         "conditions": [
           {
-            "column": "model_parameters",
-            "type": "stringObject",
+            "source": "model_parameters",
             "key": "service_tier",
-            "operator": "=",
+            "operator": "eq",
             "value": "priority"
           },
           {
-            "column": "usage_details",
-            "type": "numberObject",
-            "key": "(input|cache_write)",
-            "operator": ">",
-            "value": 272000
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
           }
         ],
         "prices": {
@@ -4401,10 +4398,9 @@
         "priority": 2,
         "conditions": [
           {
-            "column": "model_parameters",
-            "type": "stringObject",
+            "source": "model_parameters",
             "key": "service_tier",
-            "operator": "=",
+            "operator": "eq",
             "value": "priority"
           }
         ],
@@ -4454,7 +4450,7 @@
     "modelName": "gpt-5.6-terra",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-terra)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-08-17T00:00:00.000Z",
+    "updatedAt": "2026-08-18T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4488,18 +4484,16 @@
         "priority": 1,
         "conditions": [
           {
-            "column": "model_parameters",
-            "type": "stringObject",
+            "source": "model_parameters",
             "key": "service_tier",
-            "operator": "=",
+            "operator": "eq",
             "value": "priority"
           },
           {
-            "column": "usage_details",
-            "type": "numberObject",
-            "key": "(input|cache_write)",
-            "operator": ">",
-            "value": 272000
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
           }
         ],
         "prices": {
@@ -4522,10 +4516,9 @@
         "priority": 2,
         "conditions": [
           {
-            "column": "model_parameters",
-            "type": "stringObject",
+            "source": "model_parameters",
             "key": "service_tier",
-            "operator": "=",
+            "operator": "eq",
             "value": "priority"
           }
         ],
@@ -4575,7 +4568,7 @@
     "modelName": "gpt-5.6-luna",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-luna)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-08-17T00:00:00.000Z",
+    "updatedAt": "2026-08-18T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4609,18 +4602,16 @@
         "priority": 1,
         "conditions": [
           {
-            "column": "model_parameters",
-            "type": "stringObject",
+            "source": "model_parameters",
             "key": "service_tier",
-            "operator": "=",
+            "operator": "eq",
             "value": "priority"
           },
           {
-            "column": "usage_details",
-            "type": "numberObject",
-            "key": "(input|cache_write)",
-            "operator": ">",
-            "value": 272000
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
           }
         ],
         "prices": {
@@ -4643,10 +4634,9 @@
         "priority": 2,
         "conditions": [
           {
-            "column": "model_parameters",
-            "type": "stringObject",
+            "source": "model_parameters",
             "key": "service_tier",
-            "operator": "=",
+            "operator": "eq",
             "value": "priority"
           }
         ],

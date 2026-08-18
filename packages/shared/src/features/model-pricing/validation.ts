@@ -57,73 +57,30 @@ const UsageDetailPatternSchema = z
     },
   );
 
-/** Existing persisted condition shape. Kept for backwards compatibility. */
-export const LegacyPricingTierConditionSchema = z.object({
+export const PricingTierUsageConditionSchema = z.object({
   usageDetailPattern: UsageDetailPatternSchema,
   operator: z.enum(["gt", "gte", "lt", "lte", "eq", "neq"]),
   value: z.number().nonnegative(),
   caseSensitive: z.boolean().default(false),
 });
 
-export const PricingTierUsageConditionSchema = z.object({
-  column: z.literal("usage_details"),
-  type: z.literal("numberObject"),
-  key: UsageDetailPatternSchema,
-  operator: z.enum(["=", ">", "<", ">=", "<=", "<>"]),
-  value: z.number().nonnegative(),
-  caseSensitive: z.boolean().optional(),
-});
-
 export const PricingTierAttributeConditionSchema = z.object({
-  column: z.enum(["model_parameters", "metadata"]),
-  type: z.literal("stringObject"),
+  source: z.enum(["model_parameters", "metadata"]),
   key: z.string().min(1, "Key cannot be empty").max(200),
-  operator: z.literal("="),
+  operator: z.literal("eq"),
   value: z.string(),
 });
 
-export const PricingTierFilterConditionSchema = z.union([
+/**
+ * Pricing-specific condition union. Usage conditions preserve their established
+ * persisted shape; observation attributes use an explicit exact-match shape.
+ */
+export const PricingTierConditionSchema = z.union([
   PricingTierUsageConditionSchema,
   PricingTierAttributeConditionSchema,
 ]);
 
-/**
- * Pricing conditions use the same column/type/key/operator/value structure as
- * FilterState. The legacy usage-only shape remains readable for saved models.
- */
-export const PricingTierConditionSchema = z.union([
-  LegacyPricingTierConditionSchema,
-  PricingTierFilterConditionSchema,
-]);
-
 export type PricingTierCondition = z.infer<typeof PricingTierConditionSchema>;
-export type PricingTierFilterCondition = z.infer<
-  typeof PricingTierFilterConditionSchema
->;
-
-export function normalizePricingTierCondition(
-  condition: PricingTierCondition,
-): PricingTierFilterCondition {
-  if (!("usageDetailPattern" in condition)) return condition;
-
-  const operator = {
-    gt: ">",
-    gte: ">=",
-    lt: "<",
-    lte: "<=",
-    eq: "=",
-    neq: "<>",
-  }[condition.operator] as "=" | ">" | "<" | ">=" | "<=" | "<>";
-
-  return {
-    column: "usage_details",
-    type: "numberObject",
-    key: condition.usageDetailPattern,
-    operator,
-    value: condition.value,
-    ...(condition.caseSensitive ? { caseSensitive: true } : {}),
-  };
-}
 
 /**
  * Pricing tier input schema (for creation - no ID)
@@ -256,11 +213,7 @@ export function validatePricingTiers(
   for (const tier of tiers) {
     for (const condition of tier.conditions) {
       const pattern =
-        "usageDetailPattern" in condition
-          ? condition.usageDetailPattern
-          : condition.column === "usage_details"
-            ? condition.key
-            : null;
+        "usageDetailPattern" in condition ? condition.usageDetailPattern : null;
       if (pattern === null) continue;
 
       try {

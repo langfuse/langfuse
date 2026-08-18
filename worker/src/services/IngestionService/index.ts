@@ -1275,11 +1275,7 @@ export class IngestionService {
     const hasAttributeBasedPricing = pricingTiers.some(
       (tier) =>
         !tier.isDefault &&
-        tier.conditions.some(
-          (condition) =>
-            !("usageDetailPattern" in condition) &&
-            condition.column !== "usage_details",
-        ),
+        tier.conditions.some((condition) => "source" in condition),
     );
 
     if (

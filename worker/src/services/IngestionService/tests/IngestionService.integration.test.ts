@@ -2607,10 +2607,9 @@ describe("Ingestion end-to-end tests", () => {
                 priority: 1,
                 conditions: [
                   {
-                    column: "model_parameters",
-                    type: "stringObject",
+                    source: "model_parameters",
                     key: "service_tier",
-                    operator: "=",
+                    operator: "eq",
                     value: "priority",
                   },
                 ],
@@ -2682,17 +2681,15 @@ describe("Ingestion end-to-end tests", () => {
                 priority: 1,
                 conditions: [
                   {
-                    column: "model_parameters",
-                    type: "stringObject",
+                    source: "model_parameters",
                     key: "service_tier",
-                    operator: "=",
+                    operator: "eq",
                     value: "priority",
                   },
                   {
-                    column: "metadata",
-                    type: "stringObject",
+                    source: "metadata",
                     key: "region",
-                    operator: "=",
+                    operator: "eq",
                     value: "us",
                   },
                 ],

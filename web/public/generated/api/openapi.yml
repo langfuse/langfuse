@@ -10546,7 +10546,7 @@ components:
         supported)
 
         - Tiered pricing: Multiple pricing tiers with conditional matching based
-        on usage patterns
+        on usage patterns or observation attributes
 
 
         The pricing tiers approach is recommended for models with usage-based
@@ -10634,14 +10634,14 @@ components:
             $ref: '#/components/schemas/PricingTier'
           description: >-
             Array of pricing tiers with conditional pricing based on usage
-            thresholds.
+            thresholds or observation attributes.
 
 
             Pricing tiers enable accurate cost tracking for models that charge
             different rates based on usage patterns
 
-            (e.g., different rates for high-volume usage, large context windows,
-            or cached tokens).
+            or request attributes (e.g., high-volume usage, large context
+            windows, cached tokens, or service tiers).
 
 
             Each model must have exactly one default tier (isDefault=true,
@@ -10679,21 +10679,21 @@ components:
     PricingTierCondition:
       title: PricingTierCondition
       oneOf:
-        - $ref: '#/components/schemas/LegacyPricingTierCondition'
-        - $ref: '#/components/schemas/PricingTierFilterCondition'
+        - $ref: '#/components/schemas/PricingTierUsageCondition'
+        - $ref: '#/components/schemas/PricingTierAttributeCondition'
       description: >-
-        Condition for matching a pricing tier. New conditions use the same
-        column/type/key/operator/value shape as Langfuse filters. The legacy
-        usage-detail shape remains accepted for backwards compatibility.
+        Condition for matching a pricing tier against usage details or exact
+        observation attributes.
 
 
-        Usage-detail conditions treat key as a regex, sum all matching usage
-        values, and compare the sum to the numeric value. Model-parameter and
-        metadata conditions match an exact top-level key and string value.
-    LegacyPricingTierCondition:
-      title: LegacyPricingTierCondition
+        Usage-detail conditions treat usageDetailPattern as a regex, sum all
+        matching usage values, and compare the sum to the numeric value.
+        Model-parameter and metadata conditions match an exact top-level key and
+        string value.
+    PricingTierUsageCondition:
+      title: PricingTierUsageCondition
       type: object
-      description: Legacy usage-detail condition retained for backwards compatibility.
+      description: Condition that sums usage details whose keys match a regex.
       properties:
         usageDetailPattern:
           type: string
@@ -10712,105 +10712,48 @@ components:
         - operator
         - value
         - caseSensitive
-    PricingTierFilterCondition:
-      title: PricingTierFilterCondition
-      oneOf:
-        - $ref: '#/components/schemas/PricingTierUsageFilterCondition'
-        - $ref: '#/components/schemas/PricingTierAttributeFilterCondition'
-      description: Filter-shaped usage-detail or attribute pricing tier condition.
-    PricingTierUsageFilterCondition:
-      title: PricingTierUsageFilterCondition
+    PricingTierAttributeCondition:
+      title: PricingTierAttributeCondition
       type: object
-      description: >-
-        Filter-shaped condition that sums usage details whose keys match a regex.
+      description: Condition that exactly matches a top-level observation attribute.
       properties:
-        column:
-          type: string
-          const: usage_details
-          description: Observation usage details.
-        type:
-          type: string
-          const: numberObject
-          description: Numeric object filter type.
-        key:
-          type: string
-          description: Regex matched against usage-detail keys.
-        operator:
-          $ref: '#/components/schemas/PricingTierUsageFilterOperator'
-          description: Numeric comparison operator.
-        value:
-          type: number
-          format: double
-          description: Numeric threshold for the summed matching usage values.
-        caseSensitive:
-          type: boolean
-          nullable: true
-          description: Optional legacy compatibility flag for usage-detail regex matching.
-      required:
-        - column
-        - type
-        - key
-        - operator
-        - value
-    PricingTierAttributeFilterCondition:
-      title: PricingTierAttributeFilterCondition
-      type: object
-      description: >-
-        Filter-shaped condition that exactly matches a top-level observation
-        attribute.
-      properties:
-        column:
-          $ref: '#/components/schemas/PricingTierAttributeFilterColumn'
+        source:
+          $ref: '#/components/schemas/PricingTierAttributeSource'
           description: Observation attribute object evaluated by this condition.
-        type:
-          type: string
-          const: stringObject
-          description: String object filter type.
         key:
           type: string
           description: Exact top-level attribute key.
         operator:
           type: string
-          const: '='
+          const: eq
           description: Exact equality operator.
         value:
           type: string
           description: Exact string attribute value.
       required:
-        - column
-        - type
+        - source
         - key
         - operator
         - value
-    PricingTierAttributeFilterColumn:
-      title: PricingTierAttributeFilterColumn
+    PricingTierAttributeSource:
+      title: PricingTierAttributeSource
       type: string
       enum:
         - model_parameters
         - metadata
-    PricingTierUsageFilterOperator:
-      title: PricingTierUsageFilterOperator
-      type: string
-      enum:
-        - '='
-        - '>'
-        - <
-        - '>='
-        - <=
-        - <>
     PricingTier:
       title: PricingTier
       type: object
       description: >-
         Pricing tier definition with conditional pricing based on usage
-        thresholds.
+        thresholds or observation attributes.
 
 
         Pricing tiers enable accurate cost tracking for LLM providers that
-        charge different rates based on usage patterns.
+        charge different rates based on usage patterns or request attributes.
 
         For example, some providers charge higher rates when context size
-        exceeds certain thresholds.
+        exceeds certain thresholds or when a priority service tier is selected.
 
 
         How tier matching works:
@@ -11001,8 +10944,9 @@ components:
             when this tier's pricing applies.
 
 
-            Each condition specifies a regex pattern, operator, and threshold
-            value for matching against usage details.
+            Conditions can compare summed matching usage details to a numeric
+            threshold, or exactly match a top-level model parameter or metadata
+            value.
         prices:
           type: object
           additionalProperties:

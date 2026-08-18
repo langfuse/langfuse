@@ -4,7 +4,6 @@ import { parsePriceInput } from "@/src/features/models/fns/parsePriceInput";
 import {
   duplicateNameIndexes,
   PricingTierConditionSchema,
-  PricingTierFilterConditionSchema,
   PricingTierInputSchema,
   tiersMissingConditions,
   validatePricingTiers,
@@ -62,7 +61,7 @@ export type FormUsageType = z.infer<typeof FormUsageTypeSchema>;
 export const FormPricingTierSchema = z.object({
   name: z.string().trim().min(1, "Tier name is required"),
   isDefault: z.boolean(),
-  conditions: z.array(PricingTierFilterConditionSchema),
+  conditions: z.array(PricingTierConditionSchema),
   prices: z.record(z.string(), z.string()),
 });
 

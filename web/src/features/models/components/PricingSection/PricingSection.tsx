@@ -19,11 +19,10 @@ type PricingSectionProps = {
 export type { PricingSectionProps };
 
 const NEW_TIER_CONDITION = {
-  column: "usage_details" as const,
-  type: "numberObject" as const,
-  key: "^input",
-  operator: ">" as const,
+  usageDetailPattern: "^input",
+  operator: "gt" as const,
   value: 0,
+  caseSensitive: false,
 };
 
 export function PricingSection({ form }: PricingSectionProps) {

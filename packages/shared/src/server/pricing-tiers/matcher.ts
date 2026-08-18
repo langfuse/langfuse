@@ -21,37 +21,15 @@ function evaluateCondition(
   attributes: PricingTierMatchAttributes,
 ): boolean {
   try {
-    if (!("usageDetailPattern" in condition)) {
-      if (condition.column !== "usage_details") {
-        const values =
-          condition.column === "model_parameters"
-            ? attributes.modelParameters
-            : attributes.metadata;
+    if ("source" in condition) {
+      const values =
+        condition.source === "model_parameters"
+          ? attributes.modelParameters
+          : attributes.metadata;
 
-        return (
-          Object.prototype.hasOwnProperty.call(values ?? {}, condition.key) &&
-          values?.[condition.key] === condition.value
-        );
-      }
-
-      const operator = {
-        "=": "eq",
-        ">": "gt",
-        "<": "lt",
-        ">=": "gte",
-        "<=": "lte",
-        "<>": "neq",
-      }[condition.operator] as "eq" | "gt" | "lt" | "gte" | "lte" | "neq";
-
-      return evaluateCondition(
-        {
-          usageDetailPattern: condition.key,
-          operator,
-          value: condition.value,
-          caseSensitive: condition.caseSensitive ?? false,
-        },
-        usageDetails,
-        attributes,
+      return (
+        Object.prototype.hasOwnProperty.call(values ?? {}, condition.key) &&
+        values?.[condition.key] === condition.value
       );
     }
 

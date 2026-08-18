@@ -770,7 +770,7 @@ types:
 
       Models can have either simple flat pricing or tiered pricing:
       - Flat pricing: Single price per usage type (legacy, but still supported)
-      - Tiered pricing: Multiple pricing tiers with conditional matching based on usage patterns
+      - Tiered pricing: Multiple pricing tiers with conditional matching based on usage patterns or observation attributes
 
       The pricing tiers approach is recommended for models with usage-based pricing variations.
       When using tiered pricing, the flat price fields (inputPrice, outputPrice, prices) are populated
@@ -818,10 +818,10 @@ types:
         type: map<string, ModelPrice>
       pricingTiers:
         docs: |
-          Array of pricing tiers with conditional pricing based on usage thresholds.
+          Array of pricing tiers with conditional pricing based on usage thresholds or observation attributes.
 
           Pricing tiers enable accurate cost tracking for models that charge different rates based on usage patterns
-          (e.g., different rates for high-volume usage, large context windows, or cached tokens).
+          or request attributes (e.g., high-volume usage, large context windows, cached tokens, or service tiers).
 
           Each model must have exactly one default tier (isDefault=true, priority=0) that serves as a fallback.
           Additional conditional tiers can be defined with specific matching criteria.
@@ -835,16 +835,16 @@ types:
 
   PricingTierCondition:
     docs: |
-      Condition for matching a pricing tier. New conditions use the same column/type/key/operator/value shape as Langfuse filters. The legacy usage-detail shape remains accepted for backwards compatibility.
+      Condition for matching a pricing tier against usage details or exact observation attributes.
 
-      Usage-detail conditions treat key as a regex, sum all matching usage values, and compare the sum to the numeric value. Model-parameter and metadata conditions match an exact top-level key and string value.
+      Usage-detail conditions treat usageDetailPattern as a regex, sum all matching usage values, and compare the sum to the numeric value. Model-parameter and metadata conditions match an exact top-level key and string value.
     discriminated: false
     union:
-      - LegacyPricingTierCondition
-      - PricingTierFilterCondition
+      - PricingTierUsageCondition
+      - PricingTierAttributeCondition
 
-  LegacyPricingTierCondition:
-    docs: Legacy usage-detail condition retained for backwards compatibility.
+  PricingTierUsageCondition:
+    docs: Condition that sums usage details whose keys match a regex.
     properties:
       usageDetailPattern:
         docs: Regex pattern matched against usage detail keys.
@@ -857,74 +857,33 @@ types:
         docs: Whether the usage-detail regex is case-sensitive.
         type: boolean
 
-  PricingTierFilterCondition:
-    docs: Filter-shaped usage-detail or attribute pricing tier condition.
-    discriminated: false
-    union:
-      - PricingTierUsageFilterCondition
-      - PricingTierAttributeFilterCondition
-
-  PricingTierUsageFilterCondition:
-    docs: Filter-shaped condition that sums usage details whose keys match a regex.
+  PricingTierAttributeCondition:
+    docs: Condition that exactly matches a top-level observation attribute.
     properties:
-      column:
-        docs: Observation usage details.
-        type: literal<"usage_details">
-      type:
-        docs: Numeric object filter type.
-        type: literal<"numberObject">
-      key:
-        docs: Regex matched against usage-detail keys.
-        type: string
-      operator:
-        docs: Numeric comparison operator.
-        type: PricingTierUsageFilterOperator
-      value:
-        docs: Numeric threshold for the summed matching usage values.
-        type: double
-      caseSensitive:
-        docs: Optional legacy compatibility flag for usage-detail regex matching.
-        type: optional<boolean>
-
-  PricingTierAttributeFilterCondition:
-    docs: Filter-shaped condition that exactly matches a top-level observation attribute.
-    properties:
-      column:
+      source:
         docs: Observation attribute object evaluated by this condition.
-        type: PricingTierAttributeFilterColumn
-      type:
-        docs: String object filter type.
-        type: literal<"stringObject">
+        type: PricingTierAttributeSource
       key:
         docs: Exact top-level attribute key.
         type: string
       operator:
         docs: Exact equality operator.
-        type: literal<"=">
+        type: literal<"eq">
       value:
         docs: Exact string attribute value.
         type: string
 
-  PricingTierAttributeFilterColumn:
+  PricingTierAttributeSource:
     enum:
       - model_parameters
       - metadata
 
-  PricingTierUsageFilterOperator:
-    enum:
-      - "="
-      - ">"
-      - "<"
-      - ">="
-      - "<="
-      - "<>"
-
   PricingTier:
     docs: |
-      Pricing tier definition with conditional pricing based on usage thresholds.
+      Pricing tier definition with conditional pricing based on usage thresholds or observation attributes.
 
-      Pricing tiers enable accurate cost tracking for LLM providers that charge different rates based on usage patterns.
-      For example, some providers charge higher rates when context size exceeds certain thresholds.
+      Pricing tiers enable accurate cost tracking for LLM providers that charge different rates based on usage patterns or request attributes.
+      For example, some providers charge higher rates when context size exceeds certain thresholds or when a priority service tier is selected.
 
       How tier matching works:
       1. Tiers are evaluated in ascending priority order (priority 1 before priority 2, etc.)
@@ -1030,7 +989,7 @@ types:
           The default tier must have an empty array (conditions=[]).
           Conditional tiers should define one or more conditions that specify when this tier's pricing applies.
 
-          Each condition specifies a regex pattern, operator, and threshold value for matching against usage details.
+          Conditions can compare summed matching usage details to a numeric threshold, or exactly match a top-level model parameter or metadata value.
         type: list<PricingTierCondition>
       prices:
         docs: |

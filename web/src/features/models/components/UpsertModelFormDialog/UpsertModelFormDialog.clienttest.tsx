@@ -78,10 +78,9 @@ const priorityTier = {
   priority: 1,
   conditions: [
     {
-      column: "model_parameters" as const,
-      type: "stringObject" as const,
+      source: "model_parameters" as const,
       key: "service_tier",
-      operator: "=" as const,
+      operator: "eq" as const,
       value: "priority",
     },
   ],
@@ -207,11 +206,10 @@ describe("UpsertModelFormDialog price editor", () => {
         priority: 1,
         conditions: [
           {
-            column: "usage_details",
-            type: "numberObject",
-            key: "^text_input",
-            operator: ">",
+            usageDetailPattern: "^text_input",
+            operator: "gt",
             value: 128000,
+            caseSensitive: false,
           },
         ],
         // The rename must not zero this tier's price for the renamed key.
@@ -224,7 +222,7 @@ describe("UpsertModelFormDialog price editor", () => {
     ]);
   });
 
-  it("preserves filter-shaped model parameter conditions when saving", async () => {
+  it("preserves model parameter conditions when saving", async () => {
     openEditDialog([defaultTier, priorityTier]);
     submit();
 
