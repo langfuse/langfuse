@@ -1525,8 +1525,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // 0-based, so the final attempt is attempts - 1.
     const isFinalAttempt =
       (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
-    // The reason bucket doubles as the disable decision (defined => disable) and
-    // as the tag on the disable log + metric.
+    // Defined => disable; also tags the disable log + metric.
     const customerFaultReason = classifyCustomerFault(error);
 
     const outcome = await recordTerminalExportError({
@@ -1536,44 +1535,33 @@ export const handleBlobStorageIntegrationProjectJob = async (
     });
 
     if (outcome.kind === "integration-deleted") {
-      // Nothing to persist, nobody to notify: complete the obsolete job
-      // instead of failing it.
-      return;
+      return; // obsolete job: complete it rather than fail it
     }
 
-    // Which email to send is a property of the outcome, so every case is named
-    // rather than derived from a conjunction. Only the informational variants
-    // wait for BullMQ to exhaust its retries — sent on an earlier attempt it
-    // fires even when a later retry succeeds. The disable outcomes are already
-    // terminal by construction and so don't consult the attempt count.
+    // Only the informational email waits for the retries to run out; sent
+    // earlier it fires even when a later attempt succeeds. A disable is already
+    // terminal, so it ignores the attempt count.
     switch (outcome.kind) {
       case "disabled-by-us":
-        // This worker flipped the integration off, so it owns the terminal
-        // "export disabled" email.
         notifyBlobStorageExportFailedInBackground(projectId, true);
         break;
       case "lost-disable-race":
-        // A concurrent terminal failure disabled the integration and has
-        // already sent that email; a second one would duplicate it, and the
-        // informational variant would contradict it.
-        break;
+        break; // the winner sent the terminal email; ours would contradict it
       case "error-recorded":
-        // The informational email promises a retry at the next scheduled run,
-        // which is false once the integration is off (a concurrent run's
-        // customer-fault disable or a user toggle mid-run) — skip it then.
+        // Skipped once the integration is off: "will retry at the next
+        // scheduled export" is no longer true.
         if (isFinalAttempt && outcome.stillEnabled) {
           notifyBlobStorageExportFailedInBackground(projectId, false);
         }
         break;
       case "persist-failed":
-        // The row's state is unknown, so fall back to the informational email
-        // rather than letting the failure go out silently.
+        // Row state unknown, so say something rather than nothing.
         if (isFinalAttempt) {
           notifyBlobStorageExportFailedInBackground(projectId, false);
         }
         break;
-      // Without this a new outcome kind would silently send no notification:
-      // a plain switch over a union is not checked for exhaustiveness.
+      // A plain switch over a union is not exhaustiveness-checked; the never
+      // assignment below is what makes a missing case fail to compile.
       default: {
         const _exhaustiveCheck: never = outcome;
         throw new Error(
@@ -1597,31 +1585,22 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 };
 
-// What the terminal bookkeeping for a failed run actually did. The notification
-// decision switches over these named situations instead of recombining booleans,
-// so each case an earlier revision guarded against stays individually visible.
+// What the terminal bookkeeping for a failed run did. Each case is a situation
+// some earlier revision guarded against, named so the notification decision can
+// switch over them instead of recombining flags.
 type TerminalExportErrorOutcome =
-  // The integration row is gone: deleted mid-run, so the job is obsolete.
-  | { kind: "integration-deleted" }
-  // Writing the failure failed for an infra reason (e.g. Postgres unavailable),
-  // leaving the row's state unknown.
-  | { kind: "persist-failed" }
-  // Failure recorded, no disable attempted — either not a customer fault, or
-  // BullMQ still has retries left. `stillEnabled` is the row's state as we wrote
-  // it: false means a concurrent disable or a user toggle landed mid-run.
+  | { kind: "integration-deleted" } // deleted mid-run: job is obsolete
+  | { kind: "persist-failed" } // write failed, so the row's state is unknown
+  // No disable attempted: not a customer fault, or retries remain. stillEnabled
+  // false means a concurrent disable or user toggle landed mid-run.
   | { kind: "error-recorded"; stillEnabled: boolean }
-  // This worker flipped enabled true→false and owns the terminal notification.
   | { kind: "disabled-by-us" }
-  // A concurrent terminal failure won the disable claim; it notifies, not us.
   | { kind: "lost-disable-race" };
 
-// Persists the failure and, when the caller asked for a disable, makes the
-// atomic enabled true→false claim. Returns what happened rather than reporting it
-// through mutable flags, so the caller's notification decision is total over
-// named cases. The claim dedups concurrent terminal failures — e.g. a scheduled
-// run racing a manual Run Now across pods, which have distinct jobIds and so
-// aren't queue-deduped — and guarantees the "disabled" email (which bypasses the
-// cooldown) is sent exactly once and never claims a state we failed to write.
+// Persists the failure and, when asked, makes the atomic enabled true→false
+// claim. That claim is what keeps the terminal email exactly-once across runs
+// racing the same fault (distinct jobIds, so not queue-deduped) and stops it
+// claiming a state we failed to write.
 async function recordTerminalExportError({
   projectId,
   errorMessage,
@@ -1629,7 +1608,6 @@ async function recordTerminalExportError({
 }: {
   projectId: string;
   errorMessage: string;
-  // Defined => disable the integration, and tag the disable log + metric.
   disableReason: CustomerFaultReason | undefined;
 }): Promise<TerminalExportErrorOutcome> {
   try {
@@ -1665,7 +1643,6 @@ async function recordTerminalExportError({
     return { kind: "disabled-by-us" };
   } catch (persistError) {
     if (isRecordNotFoundError(persistError)) {
-      // The notification would reference a config that no longer exists.
       logger.info(
         `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after error: ${errorMessage}`,
       );
