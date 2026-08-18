@@ -35,15 +35,6 @@ export function EvaluatorRecommendedCard({
       >
         {description}
       </p>
-      <div className="mt-auto flex items-center justify-between gap-2 border-t pt-3">
-        <span className="text-muted-foreground min-w-0 text-xs">
-          Any application
-        </span>
-        <span className="bg-light-yellow inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs">
-          <Sparkles className="h-3 w-3" />
-          Set up
-        </span>
-      </div>
     </button>
   );
 }
