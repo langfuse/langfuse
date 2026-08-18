@@ -25,17 +25,11 @@ import type { InAppAgentTracingConfig } from "./instrumentation";
 
 const EXPECTED_MCP_USER_AGENT = "langfuse-in-app-agent";
 
-const testBedrockModel = (
-  modelId: string,
-  authentication:
-    | { type: "default-credentials" }
-    | { type: "api-key"; apiKey: string } = { type: "default-credentials" },
-) => ({
+const testBedrockModel = (modelId: string) => ({
   provider: "bedrock" as const,
   modelId,
   titleModelId: modelId,
   region: "eu-central-1",
-  authentication,
 });
 
 // Shape of the tool entries the mocked MCP client feeds into the Agent
@@ -553,26 +547,6 @@ describe("createAgUiStream", () => {
       apiKey: "",
       credentialProvider: expect.any(Function),
     });
-  });
-
-  it("uses an explicit Bedrock API key without the default credential chain", async () => {
-    const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
-    const { fromNodeProviderChain } =
-      await import("@aws-sdk/credential-providers");
-
-    await initializeBasicTracedAgent(
-      "run-bedrock-api-key",
-      testBedrockModel("test-model", {
-        type: "api-key",
-        apiKey: "bedrock-api-key",
-      }),
-    );
-
-    expect(createAmazonBedrock).toHaveBeenCalledWith({
-      region: "eu-central-1",
-      apiKey: "bedrock-api-key",
-    });
-    expect(fromNodeProviderChain).not.toHaveBeenCalled();
   });
 
   it("forwards model stream parts when finish tracing throws", async () => {

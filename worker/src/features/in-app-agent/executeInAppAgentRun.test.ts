@@ -38,9 +38,6 @@ type AgentScenario = (ctx: {
     model: {
       provider: "bedrock";
       modelId: string;
-      authentication:
-        | { type: "default-credentials" }
-        | { type: "api-key"; apiKey: string };
     };
     awsProfile?: string;
     langfuseClient?: unknown;

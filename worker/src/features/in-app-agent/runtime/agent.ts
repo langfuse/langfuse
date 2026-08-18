@@ -942,17 +942,13 @@ async function createMastraAdapter(params: {
 }) {
   const bedrock = createAmazonBedrock({
     region: params.options.model.region,
-    ...(params.options.model.authentication.type === "api-key"
-      ? { apiKey: params.options.model.authentication.apiKey }
-      : {
-          // Explicitly suppress the SDK's AWS_BEARER_TOKEN_BEDROCK fallback:
-          // assistant auth is either the configured API key or the AWS default
-          // credential chain, never an unrelated process-level bearer token.
-          apiKey: "",
-          credentialProvider: fromNodeProviderChain(
-            params.awsProfile ? { profile: params.awsProfile } : {},
-          ),
-        }),
+    // Explicitly suppress the SDK's AWS_BEARER_TOKEN_BEDROCK fallback:
+    // assistant auth always uses the AWS default credential chain, never an
+    // unrelated process-level bearer token.
+    apiKey: "",
+    credentialProvider: fromNodeProviderChain(
+      params.awsProfile ? { profile: params.awsProfile } : {},
+    ),
   });
 
   const mcpClient = new MCPClient({

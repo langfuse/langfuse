@@ -15,7 +15,7 @@ import { randomUUID } from "crypto";
 import { vi } from "vitest";
 import waitForExpect from "wait-for-expect";
 
-import { type Plan } from "@langfuse/shared";
+import { BEDROCK_USE_DEFAULT_CREDENTIALS, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -641,11 +641,10 @@ describe("in-app agent persistence", () => {
     }
   });
 
-  it("uses the assistant Bedrock API key for conversation title generation", async () => {
+  it("uses default AWS credentials for conversation title generation", async () => {
     const originalModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
     const originalSmallModel = sharedEnv.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
     const originalRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
-    const originalApiKey = sharedEnv.LANGFUSE_IN_APP_AGENT_BEDROCK_API_KEY;
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createClaimedRunFixture({
@@ -657,7 +656,7 @@ describe("in-app agent persistence", () => {
       projectId,
       conversationId: conversation.id,
       runId: run.id,
-      messageId: "api-key-title-user",
+      messageId: "default-credentials-title-user",
       content: "Inspect latency regressions",
     });
 
@@ -665,8 +664,6 @@ describe("in-app agent persistence", () => {
       (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = "claude-sonnet";
       (sharedEnv as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = undefined;
       (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = "eu-central-1";
-      (sharedEnv as any).LANGFUSE_IN_APP_AGENT_BEDROCK_API_KEY =
-        "bedrock-api-key";
       mockGenerateLLMText.mockResolvedValue({
         text: "Inspect latency regressions",
       } as never);
@@ -682,13 +679,12 @@ describe("in-app agent persistence", () => {
       const call = mockGenerateLLMText.mock.calls[0]?.[0];
       expect(call?.model).toMatchObject({ id: "claude-sonnet" });
       expect(decrypt(call?.connection.secretKey ?? "")).toBe(
-        JSON.stringify({ apiKey: "bedrock-api-key" }),
+        BEDROCK_USE_DEFAULT_CREDENTIALS,
       );
     } finally {
       (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = originalModel;
       (sharedEnv as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalSmallModel;
       (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = originalRegion;
-      (sharedEnv as any).LANGFUSE_IN_APP_AGENT_BEDROCK_API_KEY = originalApiKey;
     }
   });
 

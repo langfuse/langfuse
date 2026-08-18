@@ -527,7 +527,7 @@ ${JSON.stringify(transcript, null, 2)}
       ],
       model: modelConfig.titleModelId,
       maxTokens: 1000,
-      connectionSecretKey: getInAppAgentModelConnectionSecret(modelConfig),
+      connectionSecretKey: getInAppAgentModelConnectionSecret(),
       traceSinkParams: params.aiTelemetryEnabled
         ? getLangfuseAITraceSinkParams({
             environment: LangfuseInternalTraceEnvironment.InAppAgent,

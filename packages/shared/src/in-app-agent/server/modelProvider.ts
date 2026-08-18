@@ -8,9 +8,6 @@ export type InAppAgentModelConfig = {
   modelId: string;
   titleModelId: string;
   region: string;
-  authentication:
-    | { type: "default-credentials" }
-    | { type: "api-key"; apiKey: string };
 };
 
 /**
@@ -34,29 +31,19 @@ export function getInAppAgentModelConfig(params?: {
 
   assertValidBedrockRegion(region);
 
-  const apiKey = env.LANGFUSE_IN_APP_AGENT_BEDROCK_API_KEY;
-
   return {
     provider: "bedrock",
     modelId,
     titleModelId: env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ?? modelId,
     region,
-    authentication: apiKey
-      ? { type: "api-key", apiKey }
-      : { type: "default-credentials" },
   };
 }
 
 /**
  * Builds the encrypted connection value consumed by the shared LLM execution
- * boundary. The API key stays an environment secret and is never persisted.
+ * boundary. Assistant Bedrock calls always use the AWS default credential
+ * chain; its resolved credentials are never persisted.
  */
-export function getInAppAgentModelConnectionSecret(
-  config: InAppAgentModelConfig,
-): string {
-  return encrypt(
-    config.authentication.type === "api-key"
-      ? JSON.stringify({ apiKey: config.authentication.apiKey })
-      : BEDROCK_USE_DEFAULT_CREDENTIALS,
-  );
+export function getInAppAgentModelConnectionSecret(): string {
+  return encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS);
 }
