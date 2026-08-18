@@ -250,17 +250,18 @@ describe("scoreChartConfigToWidgetInput", () => {
     ]);
   });
 
-  it("does not add a data-type filter for the boolean dataset (the view is already BOOLEAN-only)", () => {
-    expect(build({ dataset: "boolean", metric: "value" }).filters).toEqual([]);
+  it("adds a redundant BOOLEAN-only filter for the boolean dataset (the view is already BOOLEAN-only)", () => {
+    expect(build({ dataset: "boolean", metric: "value" }).filters).toEqual([
+      { column: "dataType", operator: "=", value: "BOOLEAN", type: "string" },
+    ]);
   });
 
-  // Regression: `scopeFiltersToDataset` used to only strip/replace a
-  // conflicting `dataType` filter for the numeric dataset — boolean and
-  // categorical passed an incoming filter through unchanged, so switching
-  // the view picker to "boolean" while the table's Data Type sidebar filter
-  // was still set to NUMERIC ANDed `dataType = BOOLEAN` (the view's own
-  // segment) with `dataType = NUMERIC` and always returned zero rows.
-  it("drops a contradictory incoming dataType filter for the boolean dataset instead of ANDing it with the view's segment", () => {
+  // The table's own Data Type filter is appended to, never replaced by, the
+  // dataset's own scoping filter: if the two conflict (e.g. the sidebar set
+  // to NUMERIC while viewing the boolean chart), they AND to zero rows and
+  // the chart shows "No data" instead of silently overriding the user's
+  // filter to show unrelated (boolean) data.
+  it("ANDs a conflicting incoming dataType filter with the boolean dataset's own scope, yielding no data rather than overriding the filter", () => {
     const input = scoreChartConfigToWidgetInput({
       config: {
         ...DEFAULT_SCORE_CHART_CONFIG,
@@ -271,10 +272,13 @@ describe("scoreChartConfigToWidgetInput", () => {
         { column: "dataType", operator: "=", value: "NUMERIC", type: "string" },
       ],
     });
-    expect(input.filters).toEqual([]);
+    expect(input.filters).toEqual([
+      { column: "dataType", operator: "=", value: "NUMERIC", type: "string" },
+      { column: "dataType", operator: "=", value: "BOOLEAN", type: "string" },
+    ]);
   });
 
-  it("drops a contradictory incoming dataType filter for the categorical dataset instead of ANDing it with the view's segment", () => {
+  it("ANDs a conflicting incoming dataType filter with the categorical dataset's own scope, yielding no data rather than overriding the filter", () => {
     const input = scoreChartConfigToWidgetInput({
       config: { ...DEFAULT_SCORE_CHART_CONFIG, dataset: "categorical" },
       filters: [
@@ -286,7 +290,15 @@ describe("scoreChartConfigToWidgetInput", () => {
         },
       ],
     });
-    expect(input.filters).toEqual([]);
+    expect(input.filters).toEqual([
+      { column: "dataType", operator: "=", value: "BOOLEAN", type: "string" },
+      {
+        column: "dataType",
+        operator: "=",
+        value: "CATEGORICAL",
+        type: "string",
+      },
+    ]);
   });
 
   // Regression: a stale two-way check (`dataset === "categorical" ? ... :
@@ -299,20 +311,24 @@ describe("scoreChartConfigToWidgetInput", () => {
     );
   });
 
-  // The scores-categorical view's own segment already scopes to CATEGORICAL
-  // only, so no additive filter is needed (or added) here — unlike the
-  // numeric dataset, which needs one to exclude boolean scores.
-  it("maps the categorical dataset to the scores-categorical view without adding a redundant filter", () => {
+  it("maps the categorical dataset to the scores-categorical view, with its own redundant CATEGORICAL-only filter", () => {
     const input = build({ dataset: "categorical" });
     expect(input.view).toBe("scores-categorical");
-    expect(input.filters).toEqual([]);
+    expect(input.filters).toEqual([
+      {
+        column: "dataType",
+        operator: "=",
+        value: "CATEGORICAL",
+        type: "string",
+      },
+    ]);
   });
 
-  // Regression: appending a dataset-scoping filter without checking for an
-  // existing one could AND two contradictory dataType filters together
-  // (e.g. the table already filtered to BOOLEAN) and always return zero
-  // rows. The numeric filter must replace, not add to, an existing one.
-  it("replaces an existing dataType filter instead of ANDing a contradictory one", () => {
+  // Regression: `scopeFiltersToDataset` used to replace an existing dataType
+  // filter for the numeric dataset instead of ANDing it, so a table filtered
+  // to BOOLEAN while viewing the numeric chart silently showed numeric data
+  // instead of the "no data" a genuinely conflicting filter should produce.
+  it("ANDs a conflicting incoming dataType filter with the numeric dataset's own scope, yielding no data rather than overriding the filter", () => {
     const input = scoreChartConfigToWidgetInput({
       config: { ...DEFAULT_SCORE_CHART_CONFIG, dataset: "numeric" },
       filters: [
@@ -320,6 +336,7 @@ describe("scoreChartConfigToWidgetInput", () => {
       ],
     });
     expect(input.filters).toEqual([
+      { column: "dataType", operator: "=", value: "BOOLEAN", type: "string" },
       { column: "dataType", operator: "=", value: "NUMERIC", type: "string" },
     ]);
   });

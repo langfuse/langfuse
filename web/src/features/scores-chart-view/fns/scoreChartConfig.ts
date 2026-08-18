@@ -153,30 +153,32 @@ const CATEGORICAL_ROW_LIMIT = 20;
 
 /**
  * `scores-numeric` also carries BOOLEAN scores (its segment allow-lists both
- * NUMERIC and BOOLEAN), so the numeric dataset needs its own filter to
- * exclude boolean scores. `scores-boolean`/`scores-categorical` don't need
- * an added filter — their view segments already scope correctly — but any
- * `dataType` filter already on the table's filter state (e.g. the sidebar
- * set to NUMERIC while viewing the boolean chart) must still be dropped for
- * every dataset, or it ANDs against the view's own segment and always
- * returns zero rows.
+ * NUMERIC and BOOLEAN), so every dataset gets its own `dataType` filter
+ * appended — numeric to exclude boolean scores, boolean/categorical
+ * redundantly with their own view segment. Appended, not replacing: if the
+ * table's own Data Type filter conflicts with the dataset (e.g. filtered to
+ * BOOLEAN while viewing the numeric chart), the two AND together to zero
+ * rows, and the chart shows "No data" — an honest answer, instead of
+ * silently overriding the user's filter to show unrelated data.
  */
-const NUMERIC_DATA_TYPE_FILTER = {
-  column: "dataType",
-  operator: "=" as const,
-  value: "NUMERIC",
-  type: "string" as const,
+const DATASET_DATA_TYPE: Record<ScoreChartDataset, string> = {
+  numeric: "NUMERIC",
+  boolean: "BOOLEAN",
+  categorical: "CATEGORICAL",
 };
 
 const scopeFiltersToDataset = (
   filters: FilterState,
   dataset: ScoreChartDataset,
-): FilterState => {
-  const withoutDataTypeFilter = filters.filter((f) => f.column !== "dataType");
-  return dataset === "numeric"
-    ? [...withoutDataTypeFilter, NUMERIC_DATA_TYPE_FILTER]
-    : withoutDataTypeFilter;
-};
+): FilterState => [
+  ...filters,
+  {
+    column: "dataType",
+    operator: "=" as const,
+    value: DATASET_DATA_TYPE[dataset],
+    type: "string" as const,
+  },
+];
 
 /**
  * Builds the dashboard `QueryType` for a scores chart-view config. Mirrors
