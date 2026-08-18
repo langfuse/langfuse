@@ -3,11 +3,20 @@ import { Decimal } from "decimal.js";
 import { z } from "zod";
 import { validateRegexPattern } from "@langfuse/shared";
 import {
+  hasPricingTierUsageDetails,
   matchPricingTier,
   type PricingTierWithPrices,
 } from "@langfuse/shared/src/server";
 import { DefaultModelPriceSchema } from "../scripts/upsertDefaultModelPrices";
 import defaultModelPrices from "../constants/default-model-prices.json";
+
+describe("hasPricingTierUsageDetails", () => {
+  it("requires at least one usage detail, including zero-valued details", () => {
+    expect(hasPricingTierUsageDetails(undefined)).toBe(false);
+    expect(hasPricingTierUsageDetails({})).toBe(false);
+    expect(hasPricingTierUsageDetails({ input: 0 })).toBe(true);
+  });
+});
 
 describe("default-model-prices.json", () => {
   it("should parse successfully with Zod schema (same validation as upsertDefaultModelPrices)", () => {

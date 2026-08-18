@@ -90,6 +90,12 @@ function evaluateConditions(
   );
 }
 
+export function hasPricingTierUsageDetails(
+  usageDetails: Record<string, number> | undefined,
+): boolean {
+  return Object.keys(usageDetails ?? {}).length > 0;
+}
+
 /**
  * Matches usage details against pricing tiers and returns applicable tier with prices
  *

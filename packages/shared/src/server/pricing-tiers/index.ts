@@ -9,4 +9,4 @@ export type {
   PricingTierWithPrices,
 } from "./types";
 
-export { matchPricingTier } from "./matcher";
+export { hasPricingTierUsageDetails, matchPricingTier } from "./matcher";

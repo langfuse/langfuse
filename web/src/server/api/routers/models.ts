@@ -18,6 +18,7 @@ import {
   clearModelCacheForProject,
   queryClickhouse,
   findModel,
+  hasPricingTierUsageDetails,
   matchPricingTier,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
@@ -439,8 +440,12 @@ export const modelRouter = createTRPCRouter({
         return { matched: false as const };
       }
 
-      // Step 2: Use the same matcher as ingestion. Empty inputs fall back to
-      // the default tier inside the matcher.
+      // Step 2: Mirror ingestion: without usage there is no priced observation
+      // and therefore no pricing tier match, even for attribute-only tiers.
+      if (!hasPricingTierUsageDetails(usageDetails)) {
+        return { matched: false as const };
+      }
+
       const matchResult = matchPricingTier(pricingTiers, usageDetails ?? {}, {
         modelParameters,
         metadata,

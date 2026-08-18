@@ -42,6 +42,7 @@ import {
   TraceUpsertQueue,
   UsageCostType,
   findModel,
+  hasPricingTierUsageDetails,
   matchPricingTier,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
@@ -92,6 +93,20 @@ function toPricingAttributeRecord(value: unknown): Record<string, string> {
 }
 
 export type EventInput = InternalTraceEventInput;
+
+function parseEventModelParameters(
+  value: EventInput["modelParameters"],
+): string | object | number | boolean | null {
+  if (!value) return {};
+  if (typeof value !== "string") return value;
+
+  try {
+    return JSON.parse(value) as string | object | number | boolean | null;
+  } catch {
+    return value;
+  }
+}
+
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
@@ -268,18 +283,9 @@ export class IngestionService {
     // fields as strings, so stringify at this schema boundary.
     const input = this.stringify(eventData.input);
     const output = this.stringify(eventData.output);
-    const modelParameters = (() => {
-      if (!eventData.modelParameters) return {};
-      if (typeof eventData.modelParameters !== "string") {
-        return eventData.modelParameters;
-      }
-
-      try {
-        return JSON.parse(eventData.modelParameters);
-      } catch {
-        return eventData.modelParameters;
-      }
-    })();
+    const modelParameters = parseEventModelParameters(
+      eventData.modelParameters,
+    );
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -387,7 +393,7 @@ export class IngestionService {
       // Model
       model_id: generationUsage?.internal_model_id || "",
       provided_model_name: eventData.modelName,
-      model_parameters: modelParameters,
+      model_parameters: this.stringify(modelParameters),
 
       // Usage & Cost
       provided_usage_details: eventData.providedUsageDetails ?? {},
@@ -1280,7 +1286,7 @@ export class IngestionService {
 
     if (
       pricingTiers.length > 0 &&
-      Object.keys(final_usage_details.usage_details ?? {}).length > 0
+      hasPricingTierUsageDetails(final_usage_details.usage_details)
     ) {
       const matchedTier = matchPricingTier(
         pricingTiers,
