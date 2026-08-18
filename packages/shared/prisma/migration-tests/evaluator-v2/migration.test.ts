@@ -703,13 +703,18 @@ if (existingDatabaseUrl) {
       expect(assignments).toBe(configurationsWithTemplates);
     });
 
-    it("creates one evaluator per project, template and variable mapping", async () => {
+    it("creates one evaluator per project, template, variable mapping and score name", async () => {
+      // score_name belongs in the key: it is what the worker writes as the score name, so two
+      // configurations that agree on project, template and mapping but disagree on score name are
+      // different evaluators. Omitting it here passes on fixtures that never vary score name
+      // within a group, but understates the expectation on real data, where a single project
+      // routinely runs one template under many score names.
       const [counts] = await prisma.$queryRaw<
         Array<{ expected: bigint; actual: bigint }>
       >`
         SELECT
           (
-            SELECT count(DISTINCT (project_id, eval_template_id, variable_mapping))
+            SELECT count(DISTINCT (project_id, eval_template_id, variable_mapping, score_name))
             FROM job_configurations
             WHERE job_type = 'EVAL' AND eval_template_id IS NOT NULL
           )::bigint AS expected,
