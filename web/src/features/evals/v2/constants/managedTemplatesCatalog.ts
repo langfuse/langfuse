@@ -68,7 +68,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "language",
       name: "Detect Language match",
-      categories: ["conversation", "recommended"],
+      categories: ["conversation"],
       icon: "languages",
       description:
         "Checks if primary language of output matches the primary language of input.",
@@ -380,7 +380,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "quality-criterion",
       name: "Judge on one Quality criterion",
-      categories: ["quality"],
+      categories: ["quality", "recommended"],
       icon: "scale",
       description: "Checks whether output follows a defined quality criterion.",
       maintainer: "langfuse",

@@ -10,7 +10,7 @@ import { EVALUATOR_GALLERY_PROJECT_SECTION_KEY } from "@/src/features/evals/v2/c
 const RECOMMENDED_TEMPLATE_ORDER = [
   "topic-classifier",
   "out-of-scope-request",
-  "language",
+  "quality-criterion",
 ] as const;
 
 const RECOMMENDED_TEMPLATE_RANK = new Map<string, number>(
