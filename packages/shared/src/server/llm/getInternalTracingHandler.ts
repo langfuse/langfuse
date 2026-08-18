@@ -4,7 +4,9 @@ import { buildInternalTraceEventInputs } from "./internalTraceEvents";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { createUnknownSdkIngestionAttribution } from "../ingestion/ingestionAttribution";
 import { logger } from "../logger";
-import { traceException } from "../instrumentation";
+import { recordIncrement, traceException } from "../instrumentation";
+import { env } from "../../env";
+import { publishInternalTraceInputsViaOtelIngestion } from "../otel/internalTraceOtelWriter";
 
 export function prepareInternalTraceEvents(params: {
   events: Array<{
@@ -76,8 +78,14 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
   handler: CallbackHandler;
   processTracedEvents: () => Promise<void>;
 } {
-  const { prompt, targetProjectId, environment, userId, eventsWriter } =
-    traceSinkParams;
+  const {
+    prompt,
+    targetProjectId,
+    environment,
+    userId,
+    eventsWriter,
+    ingestionMode = "legacy",
+  } = traceSinkParams;
   const handler = new CallbackHandler({
     _projectId: targetProjectId,
     _isLocalEventExportEnabled: true,
@@ -95,6 +103,38 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
         environment,
         prompt,
       });
+
+      if (ingestionMode === "otel-v4") {
+        if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+          recordIncrement("langfuse.internal_trace.v4_required_legacy_mode");
+          logger.warn(
+            "Skipping in-app agent tracing because v4 ingestion is disabled",
+            { projectId: targetProjectId },
+          );
+          return;
+        }
+
+        try {
+          const { eventInputs } = buildInternalTraceEventInputs({
+            processedEvents,
+            traceId: traceSinkParams.traceId,
+            projectId: targetProjectId,
+          });
+
+          await publishInternalTraceInputsViaOtelIngestion({
+            eventInputs,
+            projectId: targetProjectId,
+          });
+        } catch (writeError) {
+          traceException(writeError);
+          logger.error("Failed to publish internal traced events via OTel", {
+            error: writeError,
+            projectId: targetProjectId,
+          });
+        }
+
+        return;
+      }
 
       // Legacy write to traces/observations tables
       try {

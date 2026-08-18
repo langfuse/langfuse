@@ -244,14 +244,21 @@ export async function createAgUiStream(params: {
     operation: string,
     callback: (
       activeInstrumentation: NonNullable<typeof instrumentation>,
-    ) => void,
-  ) => {
+    ) => void | Promise<void>,
+  ): Promise<void> => {
     if (!instrumentation) {
-      return;
+      return Promise.resolve();
     }
 
     try {
-      callback(instrumentation);
+      return Promise.resolve(callback(instrumentation)).catch((error) => {
+        logger.warn("Failed to record in-app agent Langfuse tracing", {
+          error,
+          operation,
+          runId: params.input.runId,
+          threadId: params.input.threadId,
+        });
+      });
     } catch (error) {
       logger.warn("Failed to record in-app agent Langfuse tracing", {
         error,
@@ -259,6 +266,7 @@ export async function createAgUiStream(params: {
         runId: params.input.runId,
         threadId: params.input.threadId,
       });
+      return Promise.resolve();
     }
   };
   recordInstrumentation("recordAvailableSkills", (instrumentation) =>
@@ -376,7 +384,7 @@ export async function createAgUiStream(params: {
         recordInstrumentation("endWithError", (instrumentation) =>
           instrumentation.endWithError(error),
         );
-        recordInstrumentation("flush", (instrumentation) =>
+        const flushPromise = recordInstrumentation("flush", (instrumentation) =>
           instrumentation.flush(),
         );
         ending = true;
@@ -394,9 +402,15 @@ export async function createAgUiStream(params: {
         });
 
         runTerminalCallback(
-          () => params.options.onError?.(error),
-          "Error while marking agent stream as failed",
+          () => flushPromise,
+          "Error while flushing agent stream tracing after failure",
         )
+          .then(() =>
+            runTerminalCallback(
+              () => params.options.onError?.(error),
+              "Error while marking agent stream as failed",
+            ),
+          )
           .then(() =>
             runTerminalCallback(
               runOnFinish,
@@ -485,15 +499,21 @@ export async function createAgUiStream(params: {
         recordInstrumentation("end", (instrumentation) =>
           instrumentation.end({ aborted: true }),
         );
-        recordInstrumentation("flush", (instrumentation) =>
-          instrumentation.flush(),
-        );
         ending = true;
         shouldEnqueue = false;
         removeAbortHandler();
         interruptAdapter?.();
         subscription?.unsubscribe();
         eventQueue
+          .then(() =>
+            runTerminalCallback(
+              () =>
+                recordInstrumentation("flush", (instrumentation) =>
+                  instrumentation.flush(),
+                ),
+              "Error while flushing agent stream tracing after abort",
+            ),
+          )
           .then(() =>
             runTerminalCallback(
               () => params.options.onAbort?.(),
@@ -711,12 +731,11 @@ export async function createAgUiStream(params: {
               }
 
               if (streamedRunError !== null) {
-                closeController(() => {
+                closeController(() =>
                   recordInstrumentation("flush", (instrumentation) =>
                     instrumentation.flush(),
-                  );
-                  return handleStreamedRunError();
-                });
+                  ).then(() => handleStreamedRunError()),
+                );
                 return;
               }
 
@@ -755,16 +774,14 @@ export async function createAgUiStream(params: {
                       recordInstrumentation("end", (instrumentation) =>
                         instrumentation.end({}),
                       );
-                      recordInstrumentation("flush", (instrumentation) =>
+                      return recordInstrumentation("flush", (instrumentation) =>
                         instrumentation.flush(),
-                      );
-                      return params.options.onComplete?.();
+                      ).then(() => params.options.onComplete?.());
                     }
                   : () => {
-                      recordInstrumentation("flush", (instrumentation) =>
+                      return recordInstrumentation("flush", (instrumentation) =>
                         instrumentation.flush(),
-                      );
-                      return handleStreamedRunError();
+                      ).then(() => handleStreamedRunError());
                     },
               );
             },
@@ -807,14 +824,20 @@ export async function createAgUiStream(params: {
       recordInstrumentation("end", (instrumentation) =>
         instrumentation.end({ aborted: true }),
       );
-      recordInstrumentation("flush", (instrumentation) =>
-        instrumentation.flush(),
-      );
       shouldEnqueue = false;
       removeAbortHandler();
       interruptAdapter?.();
       subscription?.unsubscribe();
       eventQueue
+        .then(() =>
+          runTerminalCallback(
+            () =>
+              recordInstrumentation("flush", (instrumentation) =>
+                instrumentation.flush(),
+              ),
+            "Error while flushing agent stream tracing after cancel",
+          ),
+        )
         .then(() =>
           runTerminalCallback(
             () => params.options.onAbort?.(),
