@@ -465,7 +465,7 @@ describe("getExportSourceFieldState", () => {
     expect(isExportSourceSelectable(defaultValue, ctx)).toBe(false);
   });
 
-  it("post-cutoff Cloud hides the field and pins the events source", () => {
+  it("post-cutoff Cloud leaves only the events source to offer", () => {
     const { showField, defaultValue } = getExportSourceFieldState(
       undefined,
       ctxFor("dual", {
@@ -476,6 +476,29 @@ describe("getExportSourceFieldState", () => {
     );
     expect(showField).toBe(false);
     expect(defaultValue).toBe(AnalyticsIntegrationExportSource.EVENTS);
+  });
+
+  // The cutoff gates newly chosen sources only. Hiding the field and pinning
+  // the events source instead would rewrite a persisted legacy source on the
+  // next save of any other field on the page.
+  it("post-cutoff Cloud keeps a persisted legacy source visible and blocked", () => {
+    const ctx = ctxFor("dual", {
+      isCloud: true,
+      projectCreatedAt: PROJECT_POST,
+      integrationCreatedAt: ROW_PRE,
+    });
+    const { showField, defaultValue, options } = getExportSourceFieldState(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      ctx,
+    );
+    expect(showField).toBe(true);
+    expect(defaultValue).toBe(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    );
+    expect(isExportSourceSelectable(defaultValue, ctx)).toBe(false);
+    expect(options.find((o) => o.value === defaultValue)?.unavailable).toBe(
+      true,
+    );
   });
 
   // Pre-cutoff projects are exempt from the cutoff, leaving only the write

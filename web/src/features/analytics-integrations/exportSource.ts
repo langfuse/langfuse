@@ -96,28 +96,19 @@ export type ExportSourceFieldState = {
 };
 
 // Visibility and the default have to agree: a hidden selector whose default is
-// not selectable blocks every save with no field left to fix it with.
-//
-// Post-cutoff Cloud is the exception to shouldHideExportSourceSelector's
-// stale-source rule: the field is hidden and EVENTS pinned even when a legacy
-// source is persisted, so that value is silently replaced on save.
+// not selectable blocks every save with no field left to fix it with. Both
+// therefore derive from the same option list, with no per-context override —
+// the persisted value survives even where it can no longer be chosen, so the
+// blocked-save alert names it instead of a save quietly replacing it.
 export function getExportSourceFieldState(
   persisted: AnalyticsIntegrationExportSource | null | undefined,
   ctx: ExportSourceContext,
 ): ExportSourceFieldState {
-  const legacyValidation = validateExportSource(
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-    ctx,
-  );
-  const isPostCutoffCloud =
-    !legacyValidation.ok && legacyValidation.reason === "cloud-cutoff";
   const options = getExportSourceOptions(persisted ?? null, ctx);
   return {
     options,
-    showField: !isPostCutoffCloud && !shouldHideExportSourceSelector(options),
-    defaultValue: isPostCutoffCloud
-      ? AnalyticsIntegrationExportSource.EVENTS
-      : getExportSourceFormValue(persisted, ctx),
+    showField: !shouldHideExportSourceSelector(options),
+    defaultValue: getExportSourceFormValue(persisted, ctx),
   };
 }
 
