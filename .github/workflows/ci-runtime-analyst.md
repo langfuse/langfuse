@@ -358,11 +358,15 @@ is only the spine.
       issue; nothing actionable → noop.
 - [ ] Update all memory files, including `charts/<week>.svg` and pruned
       `notes.md`.
-- [ ] Write the FULL report — filled chart template, tables, `## Outcome`
-      section with the no-PR reasons — to the job summary, and use it as
-      the body of whatever you emit: PR, issue, or noop. This holds even
-      when you skip a fresh analysis (reuse the latest `history/*.json`
-      numbers and say so); never end an analysis run with a one-line noop
+- [ ] Write the FULL report — both filled-in `mermaid` charts (Chart 1 and
+      Chart 2, never the bare template), tables, `## Outcome` section with
+      the no-PR reasons — to the job summary, and use it as the body of
+      whatever you emit: PR, issue, or noop. Before calling that tool,
+      confirm the message you're about to submit literally contains two
+      ` ```mermaid ` blocks ("Report and graph" — final gate). This holds
+      even when you skip a fresh analysis (reuse the latest
+      `history/*.json` numbers and say so); never end an analysis run
+      with a one-line noop
       ("Report and graph").
 
 **Assessment run** (`workflow_run` — CI/CD just finished on one of your PRs):
@@ -814,6 +818,16 @@ three series in one chart, and never move the legend into the chart title
 
   Once `history/*.json` holds at least two weeks, add the same two charts
   with ISO weeks on the x-axis (weekly medians, same series and legends).
+
+**Final gate before calling any safe-output tool (`noop` included):** re-read
+the exact message string you are about to submit and confirm, mechanically,
+that it contains exactly two ` ```mermaid ` fenced code blocks (Chart 1 and
+Chart 2, filled in — not the bare template), the values table, and an
+`## Outcome` section. A report missing any of these is incomplete and must
+not be submitted as-is — go back and add the missing piece(s) first. This
+check applies identically whether the outcome is a PR, a comment, an issue,
+or `noop`; "nothing was actionable" changes the Outcome section's content,
+never whether the charts are present.
 
 Additionally, render the same weekly data as a standalone SVG chart
 (hand-write the SVG: time on x, seconds on y, one polyline per series with
