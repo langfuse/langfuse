@@ -95,19 +95,12 @@ export type ExportSourceFieldState = {
   defaultValue: AnalyticsIntegrationExportSource;
 };
 
-// Everything the three export-source fields need, derived only from deployment
-// capability and the project's Cloud cutoff.
+// Visibility and the default have to agree: a hidden selector whose default is
+// not selectable blocks every save with no field left to fix it with.
 //
-// A stale persisted source normally keeps the selector on screen, because
-// getExportSourceOptions returns it marked unavailable and a lone unavailable
-// option does not count as "no decision to make" — that is what gives the
-// blocked-save alert something to point at.
-//
-// Post-cutoff Cloud is the one case where that does not hold: the field is
-// hidden and EVENTS is pinned unconditionally, so a project whose persisted
-// source is a legacy one has it silently replaced on save with no alert. That
-// contradicts the rule above and is tracked separately rather than changed
-// here, since it is a Cloud behaviour change in its own right.
+// Post-cutoff Cloud is the exception to shouldHideExportSourceSelector's
+// stale-source rule: the field is hidden and EVENTS pinned even when a legacy
+// source is persisted, so that value is silently replaced on save.
 export function getExportSourceFieldState(
   persisted: AnalyticsIntegrationExportSource | null | undefined,
   ctx: ExportSourceContext,

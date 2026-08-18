@@ -403,10 +403,8 @@ describe("write mode drives the settings-page selector", () => {
   );
 });
 
-// The three settings pages consume only this composite, so the pieces agreeing
-// individually is not enough: visibility and the create default have to agree
-// with each other. A form mounted on a hidden selector whose default fails
-// validation blocks every save with no field to correct.
+// The pages consume only this composite, so the pieces being correct
+// individually is not enough — visibility and the default must agree.
 describe("getExportSourceFieldState", () => {
   const ctxFor = (
     writeMode: BlobExportWriteMode,
@@ -416,8 +414,6 @@ describe("getExportSourceFieldState", () => {
   ): ExportSourceContext =>
     buildExportSourceContext({ writeMode, isCloud: false, ...over });
 
-  // Whenever the selector is hidden the default must be saveable on its own,
-  // because there is no field left for the user to fix it with.
   it.each<BlobExportWriteMode>(["legacy", "dual", "events_only"])(
     "%s: a hidden selector always leaves a selectable default",
     (mode) => {
@@ -454,8 +450,8 @@ describe("getExportSourceFieldState", () => {
     expect(defaultValue).toBe(expected);
   });
 
-  // A stale persisted source keeps the selector on screen so the blocked-save
-  // alert has something to point at, and keeps the value so the alert names it.
+  // Kept as the default even though unselectable: the blocked-save alert
+  // names it.
   it("keeps the selector for a persisted source the deployment can no longer write", () => {
     const ctx = ctxFor("events_only");
     const { showField, defaultValue } = getExportSourceFieldState(
@@ -482,8 +478,8 @@ describe("getExportSourceFieldState", () => {
     expect(defaultValue).toBe(AnalyticsIntegrationExportSource.EVENTS);
   });
 
-  // Availability is a deployment property, so two members of one project must
-  // never be offered different options for the same shared config row.
+  // Pre-cutoff projects are exempt from the cutoff, leaving only the write
+  // mode.
   it.each<BlobExportWriteMode>(["legacy", "dual", "events_only"])(
     "%s: pre-cutoff Cloud matches self-hosted",
     (mode) => {
