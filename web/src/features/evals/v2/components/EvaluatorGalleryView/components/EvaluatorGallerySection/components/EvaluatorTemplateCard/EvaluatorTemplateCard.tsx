@@ -1,7 +1,6 @@
 import { formatDistanceToNowStrict } from "date-fns";
 import { Eye } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -12,7 +11,6 @@ import type {
   ExpectedOutputHint,
   GalleryTemplate,
   ManagedTemplate,
-  TemplateRunTarget,
 } from "@/src/features/evals/v2/types/templateGallery";
 import { EvaluatorTypeBadge } from "@/src/features/evals/v2/components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
@@ -21,21 +19,14 @@ import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/
 type TemplateCardContent = {
   description: string | undefined;
   type: EvalTemplateType;
-  runsOn: TemplateRunTarget[] | null;
   expectedOutputHint?: ExpectedOutputHint;
   attribution: string | null;
-};
-
-const RUNS_ON_LABELS: Record<TemplateRunTarget, string> = {
-  experiment: "Experiment",
-  "live-observations": "Live observations",
 };
 
 function managedCardContent(template: ManagedTemplate): TemplateCardContent {
   return {
     description: template.description,
     type: template.evaluator.type,
-    runsOn: template.runsOn,
     expectedOutputHint: template.expectedOutputHint,
     attribution: null,
   };
@@ -61,7 +52,6 @@ function customCardContent(
   return {
     description: template.prompt?.trim() ? template.prompt : codeFallback,
     type: template.type,
-    runsOn: null,
     expectedOutputHint: undefined,
     attribution: author ? `by ${author} · ${updated}` : `Updated ${updated}`,
   };
@@ -74,7 +64,7 @@ export function EvaluatorTemplateCard({
   template: GalleryTemplate;
   onSelect: (template: GalleryTemplate) => void;
 }) {
-  const { description, type, runsOn, expectedOutputHint, attribution } =
+  const { description, type, expectedOutputHint, attribution } =
     template.source === "managed"
       ? managedCardContent(template)
       : customCardContent(template);
@@ -105,38 +95,28 @@ export function EvaluatorTemplateCard({
             {description}
           </p>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {runsOn?.length ? (
-            <>
-              <span className="text-muted-foreground text-xs">Runs on</span>
-              {expectedOutputHint ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="text-muted-foreground hover:text-foreground inline-flex h-4 w-4 items-center justify-center">
-                      <Eye className="h-3.5 w-3.5" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-sm p-3">
-                    <p className="font-bold">Expected output shape</p>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                      {expectedOutputHint.shape}
-                    </p>
-                    {expectedOutputHint.example ? (
-                      <code className="bg-muted mt-2 block rounded px-2 py-1 text-xs whitespace-pre-wrap">
-                        {expectedOutputHint.example}
-                      </code>
-                    ) : null}
-                  </TooltipContent>
-                </Tooltip>
-              ) : null}
-              {runsOn.map((target) => (
-                <Badge key={target} variant="secondary" size="sm">
-                  {RUNS_ON_LABELS[target]}
-                </Badge>
-              ))}
-            </>
-          ) : null}
-        </div>
+        {expectedOutputHint ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground hover:text-foreground inline-flex h-4 w-4 items-center justify-center">
+                  <Eye className="h-3.5 w-3.5" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-sm p-3">
+                <p className="font-bold">Expected output shape</p>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  {expectedOutputHint.shape}
+                </p>
+                {expectedOutputHint.example ? (
+                  <code className="bg-muted mt-2 block rounded px-2 py-1 text-xs whitespace-pre-wrap">
+                    {expectedOutputHint.example}
+                  </code>
+                ) : null}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        ) : null}
         {attribution ? (
           <p className="text-muted-foreground/80 mt-2 flex min-w-0 items-center gap-1.5 text-sm">
             <span className="truncate" title={attribution}>

@@ -15,7 +15,6 @@ const template = {
   icon: "gauge",
   description: "Assess whether the answer directly addresses the question.",
   maintainer: "langfuse",
-  runsOn: ["experiment", "live-observations"],
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     prompt: "Rate the relevance of {{generation}} to {{query}}.",

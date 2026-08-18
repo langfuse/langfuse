@@ -13,8 +13,6 @@ export type EvaluatorSetupDraft = {
   definition: EvaluatorDefinition;
 };
 
-export type TemplateRunTarget = "experiment" | "live-observations";
-
 export type ExpectedOutputHint = {
   shape: string;
   example?: string;
@@ -27,7 +25,6 @@ export type ManagedTemplate = {
   icon: string;
   description: string;
   maintainer: string;
-  runsOn: TemplateRunTarget[];
   expectedOutputHint?: ExpectedOutputHint;
   evaluator:
     | {

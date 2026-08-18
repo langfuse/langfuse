@@ -73,7 +73,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks if primary language of output matches the primary language of input.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -110,7 +109,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Classifies user question into one of the predefined categories, e.g. support intent or topic area.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -151,7 +149,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether the user's request falls outside the assistant's defined role or supported scope.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -184,7 +181,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Detects whether the user is rejecting, correcting, or pushing back on the assistant's previous response.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -217,7 +213,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Detects whether user uses all capital letters, potentially indicating frustration.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
@@ -233,7 +228,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Detects whether the user shows strong frustration, anger, or profanity.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -266,7 +260,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether the output is semantically correct compared with a reference answer or expected result.",
       maintainer: "langfuse",
-      runsOn: ["experiment"],
       expectedOutputHint: {
         shape:
           "Use a reference answer in expected_output (usually a string, but object/array is also supported).",
@@ -306,7 +299,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether the output exactly matches the expected output.",
       maintainer: "langfuse",
-      runsOn: ["experiment"],
       expectedOutputHint: {
         shape:
           "expected_output must have the same value shape as output. Nested objects/arrays are supported.",
@@ -328,7 +320,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether required keywords, phrases, or entities appear in the output.",
       maintainer: "langfuse",
-      runsOn: ["experiment"],
       expectedOutputHint: {
         shape:
           "expected_output must be a JSON object with an expected_keywords string array.",
@@ -350,7 +341,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether the response actually addresses the user's question or task.",
       maintainer: "langfuse",
-      runsOn: ["experiment", "live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -384,7 +374,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       icon: "scale",
       description: "Checks whether output follows a defined quality criterion.",
       maintainer: "langfuse",
-      runsOn: ["experiment", "live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -411,7 +400,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Assigns the input, output, or conversation to one of a predefined set of topics.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -451,7 +439,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Classifies input into one of the pre-defined language categories.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -497,7 +484,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether the output is supported by the provided context and avoids unsupported claims.",
       maintainer: "langfuse",
-      runsOn: ["experiment", "live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -536,7 +522,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether the provided context is actually useful and relevant for producing the answer.",
       maintainer: "langfuse",
-      runsOn: ["experiment", "live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -575,7 +560,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether the provided context covers the information needed to support the answer.",
       maintainer: "langfuse",
-      runsOn: ["experiment", "live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -618,7 +602,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether sensitive personal information appears in the input or output.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -647,7 +630,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether the output follows a defined policy, instruction set, rubric, or formatting rule.",
       maintainer: "langfuse",
-      runsOn: ["experiment", "live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -674,7 +656,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       description:
         "Checks whether the input contains attempts of prompt injection.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -703,7 +684,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       icon: "code-2",
       description: "Categorizes the type of task the coding agent is used for.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
@@ -748,7 +728,6 @@ export const MANAGED_TEMPLATES_CATALOG = {
       icon: "building-2",
       description: "Classifies coding-agent usage into department buckets.",
       maintainer: "langfuse",
-      runsOn: ["live-observations"],
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
