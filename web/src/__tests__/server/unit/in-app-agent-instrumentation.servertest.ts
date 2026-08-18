@@ -890,8 +890,29 @@ describe("InAppAgentInstrumentation", () => {
           content: '{"name":"FOO","version":1}',
         },
       ]);
-      instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
-      instrumentation.recordStepFinish({
+      instrumentation.recordModelCallStart({
+        prompt: [
+          { role: "user", content: "hello" },
+          {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "tool-1",
+                name: "langfuse_createTextPrompt",
+                arguments: '{"name":"FOO"}',
+                type: "function",
+              },
+            ],
+          },
+          {
+            role: "tool",
+            tool_call_id: "tool-1",
+            content: { name: "FOO", version: 1 },
+          },
+        ],
+      });
+      instrumentation.recordModelStreamPart({
+        type: "finish",
         usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
       });
       instrumentation.end({});
@@ -1222,7 +1243,7 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("emits one generation per LLM step with usage on children only", () => {
+  it("emits one generation per model call with usage on children only", () => {
     const instrumentation = createInstrumentation();
     const modelName = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
 
@@ -1236,13 +1257,25 @@ describe("InAppAgentInstrumentation", () => {
       }),
     );
 
-    instrumentation.recordStreamChunk({
-      type: "step-start",
-      payload: {},
+    instrumentation.recordModelCallStart({
+      prompt: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
     });
-    instrumentation.recordStreamChunk({
+    instrumentation.recordModelStreamPart({
       type: "tool-call",
-      payload: { toolCallId: "tool-1", toolName: "listObservations" },
+      toolCallId: "tool-1",
+      toolName: "listObservations",
+      input: '{"limit":10}',
+    });
+    instrumentation.recordModelStreamPart({
+      type: "finish",
+      usage: {
+        inputTokens: 1100,
+        outputTokens: 50,
+        totalTokens: 1150,
+        cachedInputTokens: 800,
+        cacheCreationInputTokens: 100,
+      },
+      finishReason: "tool-calls",
     });
     instrumentation.recordEvents([
       {
@@ -1265,47 +1298,16 @@ describe("InAppAgentInstrumentation", () => {
         content: '{"ok":true}',
       },
     ]);
-    instrumentation.recordStreamChunk({
-      type: "tool-result",
-      payload: { toolCallId: "tool-1", toolName: "listObservations" },
-    });
-    instrumentation.recordStepFinish({
-      usage: {
-        inputTokens: 1100,
-        outputTokens: 50,
-        totalTokens: 1150,
-        cachedInputTokens: 800,
-        cacheCreationInputTokens: 100,
-      },
-      finishReason: "tool-calls",
-      text: "",
-      toolCalls: [
-        {
-          toolCallId: "tool-1",
-          toolName: "listObservations",
-          args: { limit: 10 },
-        },
-      ],
-      response: {
-        messages: [
-          {
-            role: "assistant",
-            content: "",
-            tool_calls: [{ id: "tool-1" }],
-          },
-          {
-            role: "tool",
-            tool_call_id: "tool-1",
-            content: { ok: true },
-          },
-        ],
-      },
-    });
 
-    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
-    instrumentation.recordStreamChunk({
+    instrumentation.recordModelCallStart({
+      prompt: [
+        { role: "user", content: [{ type: "text", text: "hello" }] },
+        { role: "tool", content: [{ type: "tool-result" }] },
+      ],
+    });
+    instrumentation.recordModelStreamPart({
       type: "text-delta",
-      payload: { text: "Done" },
+      delta: "Done",
     });
     instrumentation.recordEvents([
       {
@@ -1313,7 +1315,8 @@ describe("InAppAgentInstrumentation", () => {
         delta: "Done",
       },
     ]);
-    instrumentation.recordStepFinish({
+    instrumentation.recordModelStreamPart({
+      type: "finish",
       usage: {
         inputTokens: 1200,
         outputTokens: 30,
@@ -1321,7 +1324,6 @@ describe("InAppAgentInstrumentation", () => {
         cachedInputTokens: 1000,
       },
       finishReason: "stop",
-      text: "Done",
     });
     instrumentation.end({});
 
@@ -1349,7 +1351,6 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(generationCreates[0]?.[1].input.messages).toHaveLength(1);
     expect(generationCreates[0]?.[1].output).toEqual({
-      text: "",
       tool_calls: [
         {
           toolCallId: "tool-1",
@@ -1394,11 +1395,9 @@ describe("InAppAgentInstrumentation", () => {
     expect(finalAgentCreate).not.toHaveProperty("model");
   });
 
-  it("emits tools after the generation and clamps start to generation end", () => {
+  it("emits tools after the generation using actual execution timing", () => {
     const instrumentation = createInstrumentation();
-    const stepStart = new Date("2026-01-01T00:00:00.000Z");
-    const toolCallChunkA = new Date("2026-01-01T00:00:01.000Z");
-    const toolCallChunkB = new Date("2026-01-01T00:00:02.000Z");
+    const modelCallStart = new Date("2026-01-01T00:00:00.000Z");
     const agUiToolAStart = new Date("2026-01-01T00:00:01.500Z");
     const agUiToolBStart = new Date("2026-01-01T00:00:02.500Z");
     const toolAStart = new Date("2026-01-01T00:00:02.900Z");
@@ -1406,22 +1405,21 @@ describe("InAppAgentInstrumentation", () => {
     const toolAEnd = new Date("2026-01-01T00:00:03.000Z");
     const toolBEnd = new Date("2026-01-01T00:00:04.000Z");
     const providerFinish = new Date("2026-01-01T00:00:02.800Z");
-    const stepFinish = new Date("2026-01-01T00:00:04.200Z");
 
-    vi.setSystemTime(stepStart);
-    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
+    vi.setSystemTime(modelCallStart);
+    instrumentation.recordModelCallStart({ prompt: [] });
 
-    // tool-call chunks are request-time during the LLM stream — must not become
-    // tool observation startTimes (that sorted tools above the generation).
-    vi.setSystemTime(toolCallChunkA);
-    instrumentation.recordStreamChunk({
+    instrumentation.recordModelStreamPart({
       type: "tool-call",
-      payload: { toolCallId: "tool-a", toolName: "listObservations" },
+      toolCallId: "tool-a",
+      toolName: "listObservations",
+      input: "{}",
     });
-    vi.setSystemTime(toolCallChunkB);
-    instrumentation.recordStreamChunk({
+    instrumentation.recordModelStreamPart({
       type: "tool-call",
-      payload: { toolCallId: "tool-b", toolName: "getTrace" },
+      toolCallId: "tool-b",
+      toolName: "getTrace",
+      input: "{}",
     });
 
     vi.setSystemTime(agUiToolAStart);
@@ -1459,10 +1457,9 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
-    // The model stream finishes before tool execution, but Mastra only invokes
-    // onStepFinish after the tools have resolved.
     vi.setSystemTime(providerFinish);
-    instrumentation.recordModelCallFinish({
+    instrumentation.recordModelStreamPart({
+      type: "finish",
       usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
       finishReason: { unified: "tool-calls", raw: "tool_use" },
     });
@@ -1471,10 +1468,6 @@ describe("InAppAgentInstrumentation", () => {
     instrumentation.recordToolExecutionStart("tool-a");
     vi.setSystemTime(toolAEnd);
     instrumentation.recordToolExecutionEnd("tool-a");
-    instrumentation.recordStreamChunk({
-      type: "tool-result",
-      payload: { toolCallId: "tool-a", toolName: "listObservations" },
-    });
     instrumentation.recordEvents([
       {
         type: EventType.TOOL_CALL_RESULT,
@@ -1487,10 +1480,6 @@ describe("InAppAgentInstrumentation", () => {
     instrumentation.recordToolExecutionStart("tool-b");
     vi.setSystemTime(toolBEnd);
     instrumentation.recordToolExecutionEnd("tool-b");
-    instrumentation.recordStreamChunk({
-      type: "tool-result",
-      payload: { toolCallId: "tool-b", toolName: "getTrace" },
-    });
     instrumentation.recordEvents([
       {
         type: EventType.TOOL_CALL_RESULT,
@@ -1498,19 +1487,6 @@ describe("InAppAgentInstrumentation", () => {
         content: '{"b":2}',
       },
     ]);
-
-    // Tools completed during the open LLM step — deferred until step-finish.
-    expect(
-      mocks.handler.langfuse.enqueue.mock.calls.filter(
-        ([type]) => type === "tool-create",
-      ),
-    ).toHaveLength(0);
-
-    vi.setSystemTime(stepFinish);
-    instrumentation.recordStepFinish({
-      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-      finishReason: "tool-calls",
-    });
 
     const enqueueOrder = mocks.handler.langfuse.enqueue.mock.calls
       .filter(
@@ -1555,33 +1531,6 @@ describe("InAppAgentInstrumentation", () => {
     vi.useRealTimers();
   });
 
-  it("opens an LLM step on first model delta when step-start is missing", () => {
-    const instrumentation = createInstrumentation();
-    const firstDelta = new Date("2026-01-01T00:00:10.000Z");
-    const stepFinish = new Date("2026-01-01T00:00:12.000Z");
-
-    vi.setSystemTime(firstDelta);
-    instrumentation.recordStreamChunk({
-      type: "reasoning-delta",
-      payload: { text: "thinking" },
-    });
-    vi.setSystemTime(stepFinish);
-    instrumentation.recordStepFinish({
-      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-      finishReason: "stop",
-    });
-
-    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
-      "generation-create",
-      expect.objectContaining({
-        startTime: firstDelta,
-        endTime: stepFinish,
-      }),
-    );
-
-    vi.useRealTimers();
-  });
-
   it("does not force-close incomplete tools on a normal end (approval interrupt)", () => {
     const instrumentation = createInstrumentation();
 
@@ -1609,10 +1558,10 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("closes an open LLM step as ERROR when the run is aborted", () => {
+  it("closes an open model call as ERROR when the run is aborted", () => {
     const instrumentation = createInstrumentation();
 
-    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
+    instrumentation.recordModelCallStart({ prompt: [] });
     instrumentation.end({ aborted: true });
 
     expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
@@ -1633,79 +1582,22 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("emits a generation when step finish arrives without a prior step-start", () => {
-    const instrumentation = createInstrumentation();
-
-    instrumentation.recordStepFinish({
-      usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
-      finishReason: "stop",
-    });
-    instrumentation.end({});
-
-    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
-      "generation-create",
-      expect.objectContaining({
-        id: getInAppAgentLlmCallObservationId(runId, 1),
-        usageDetails: {
-          input: 100,
-          output: 10,
-          cache_read_input_tokens: 0,
-          cache_creation_input_tokens: 0,
-          total: 110,
-        },
-        model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
-      }),
-    );
-  });
-
-  it("uses provider finish usage when approval ends before step finish", () => {
-    const instrumentation = createInstrumentation();
-
-    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
-    instrumentation.recordModelCallFinish({
-      usage: {
-        inputTokens: {
-          total: 1_100,
-          noCache: 200,
-          cacheRead: 800,
-          cacheWrite: 100,
-        },
-        outputTokens: { total: 50, text: 50, reasoning: 0 },
-      },
-      finishReason: { unified: "tool-calls", raw: "tool_use" },
-    });
-    instrumentation.end({});
-
-    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
-      "generation-create",
-      expect.objectContaining({
-        id: getInAppAgentLlmCallObservationId(runId, 1),
-        model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
-        usageDetails: {
-          input: 200,
-          output: 50,
-          cache_read_input_tokens: 800,
-          cache_creation_input_tokens: 100,
-          total: 1_150,
-        },
-        metadata: expect.objectContaining({
-          finish_reason: "tool-calls",
-        }),
-      }),
-    );
-  });
-
   it("keeps a provider-finished generation successful when the run later fails", () => {
     const instrumentation = createInstrumentation();
 
-    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
+    instrumentation.recordModelCallStart({ prompt: [] });
+    instrumentation.recordModelStreamPart({
+      type: "text-delta",
+      delta: "Calling the tool",
+    });
     instrumentation.recordEvents([
       {
         type: EventType.TEXT_MESSAGE_CONTENT,
         delta: "Calling the tool",
       },
     ]);
-    instrumentation.recordModelCallFinish({
+    instrumentation.recordModelStreamPart({
+      type: "finish",
       usage: {
         inputTokens: {
           total: 1_100,
@@ -1731,9 +1623,7 @@ describe("InAppAgentInstrumentation", () => {
           output: 50,
           total: 1_150,
         }),
-        output: {
-          messages: [{ role: "assistant", content: "Calling the tool" }],
-        },
+        output: { text: "Calling the tool" },
       }),
     );
     expect(generation).not.toHaveProperty("level");
@@ -1745,20 +1635,6 @@ describe("InAppAgentInstrumentation", () => {
         level: "ERROR",
         statusMessage: "tool execution failed",
       }),
-    );
-  });
-
-  it("ignores step finish events after instrumentation ended", () => {
-    const instrumentation = createInstrumentation();
-
-    instrumentation.end({});
-    instrumentation.recordStepFinish({
-      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-    });
-
-    expect(mocks.handler.langfuse.enqueue).not.toHaveBeenCalledWith(
-      "generation-create",
-      expect.anything(),
     );
   });
 });
