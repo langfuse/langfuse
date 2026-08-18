@@ -71,10 +71,21 @@ export function makeRow(
 
 export const cost = (value: number) => new Decimal(value);
 
-/** A numeric score, as the timeline receives them: metadata already stringified. */
+/**
+ * A numeric score, as the timeline receives them: metadata already stringified.
+ *
+ * `level` and the annotation flags matter for WIDTH: a row that mixes levels
+ * grows a spelled-out pill per chip, and a value carrying a comment and metadata
+ * grows two icons — all three are things the cluster has to reserve room for.
+ */
 export function score(
   name: string,
   value: number,
+  extras: {
+    level?: "trace" | "observation";
+    comment?: string;
+    metadata?: string;
+  } = {},
 ): NonNullable<TimelineBarProps["scores"]>[number] {
   return {
     id: `score-${name}`,
@@ -86,8 +97,8 @@ export function score(
     dataType: "NUMERIC",
     source: "API",
     authorUserId: null,
-    comment: null,
-    metadata: null,
+    comment: extras.comment ?? null,
+    metadata: extras.metadata ?? null,
     configId: null,
     queueId: null,
     executionTraceId: null,
@@ -97,7 +108,8 @@ export function score(
     traceId: "trace",
     sessionId: null,
     datasetRunId: null,
-    observationId: "node",
+    // A trace-level score has no observation; that is what makes a row "mixed".
+    observationId: extras.level === "trace" ? null : "node",
     longStringValue: "",
   };
 }

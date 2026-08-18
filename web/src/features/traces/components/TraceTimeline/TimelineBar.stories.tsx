@@ -174,6 +174,44 @@ export const ScoreBadgesArePricedFromTheirContent = meta.story({
  * A bar hard against the right edge: the duration fits on neither side, but the
  * space BEFORE it is wide open. The cluster belongs there, not in the 0px after.
  */
+/**
+ * The widest a chip gets: a row that MIXES score levels grows a spelled-out pill
+ * per chip ("Observation", not a dot), and a value carrying both a comment and
+ * metadata grows two icons. Under-price any of those and the badges are admitted
+ * and then clipped — the one direction that must not happen.
+ */
+export const AnnotatedMixedLevelScoresAreNeverClipped = meta.story({
+  name: "(Test) Annotated Mixed-Level Scores Are Never Clipped",
+  args: {
+    showScores: true,
+    scores: [
+      score("quality", 0.92, {
+        level: "observation",
+        comment: "looks right",
+        metadata: '{"model":"gpt-5.4"}',
+      }),
+      score("quality", 0.71, { level: "trace" }),
+    ],
+    row: makeRow({ x: 60, width: 300, labelX: 366 }),
+  },
+  play: async ({ canvasElement }) => {
+    const cluster = canvasElement.querySelector<HTMLElement>(
+      "div[style*='max-width']",
+    );
+    if (!cluster) throw new Error("metric cluster not found");
+    // Whole or absent, never half-drawn.
+    await expect(cluster.scrollWidth).toBeLessThanOrEqual(
+      cluster.clientWidth + 0.5,
+    );
+    if (cluster.textContent?.includes("quality")) {
+      // If it was admitted, everything it brings has to fit: the level pill too.
+      await expect(cluster.innerText).toMatch(/Observation|Trace/);
+    } else {
+      await expect(cluster.title).toContain("2 scores");
+    }
+  },
+});
+
 export const HiddenLabelUsesTheRoomierSide = meta.story({
   name: "(Test) Hidden Label Uses The Roomier Side",
   args: {

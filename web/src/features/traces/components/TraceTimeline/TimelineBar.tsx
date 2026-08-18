@@ -20,7 +20,10 @@ import {
   GroupedScoreBadges,
   groupScoresByName,
 } from "@/src/components/grouped-score-badge";
-import { scoreLevelFromScore } from "@/src/components/score-tag";
+import {
+  SCORE_LEVEL_LABELS,
+  scoreLevelFromScore,
+} from "@/src/components/score-tag";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
@@ -30,10 +33,6 @@ import { isPresent } from "@langfuse/shared";
 const SUBTREE_DURATION_TITLE =
   "Subtree wall-clock duration (first start → last end)";
 
-// Room between the bar and a metric cluster: `density`'s own `labelGapPx` and
-// `labelPaddingPx`, threaded in rather than copied. These are the exact values
-// `placeLabel()` measured the placement with, so a local copy is a silent desync
-// waiting for the first change to density.
 /**
  * The cluster's own `gap-2`. The budget has to reserve the gap the cluster
  * actually renders with, not a smaller one: five admitted items multiply a 2px
@@ -48,12 +47,17 @@ const SCORE_CHIP_CHROME_PX = 22;
 const SCORE_NAME_MAX_PX = 80;
 /** The gap between a chip's name and its values. */
 const SCORE_NAME_GAP_PX = 4;
-/** A value's comment / metadata icon, when it carries one. */
+/**
+ * One `size-3` icon plus its gap. A value can carry BOTH a comment and metadata,
+ * and they render as two separate icons.
+ */
 const SCORE_VALUE_ICON_PX = 16;
-/** The full ScoreTag level pill a chip grows when a row mixes score levels. */
-const SCORE_LEVEL_PILL_PX = 46;
+/** `px-1` both sides of a ScoreTag level pill; the label itself is measured. */
+const SCORE_PILL_CHROME_PX = 8;
 /** The "+N" button for groups past `maxVisible`. */
 const SCORE_OVERFLOW_PX = 28;
+/** `gap-1` on the score-badges wrapper — not the cluster's own `gap-2`. */
+const SCORE_GROUP_GAP_PX = 4;
 
 /**
  * What `GroupedScoreBadges` will actually take, measured rather than guessed.
@@ -83,19 +87,29 @@ function scoreBadgesWidth(
       const values = group.map(
         (score) => score.stringValue ?? score.value?.toFixed(2) ?? "",
       );
-      // Each value can carry a comment or metadata icon of its own.
-      const icons = group.filter(
-        (score) => score.comment || score.metadata,
-      ).length;
+      // A comment and metadata are two separate icons, so they are two
+      // reservations — counting "either" under-prices a value carrying both.
+      const icons =
+        group.filter((score) => score.comment).length +
+        group.filter((score) => score.metadata).length;
+      // The pill spells its level out ("Observation" is not "Trace"), so it is
+      // measured rather than assumed.
       const levels = mixesLevels
-        ? new Set(group.map((score) => scoreLevelFromScore(score))).size
-        : 0;
+        ? [...new Set(group.map((score) => scoreLevelFromScore(score)))]
+        : [];
+      const pills = levels.reduce(
+        (total, level) =>
+          total +
+          measurer.measure(SCORE_LEVEL_LABELS[level]) +
+          SCORE_PILL_CHROME_PX,
+        0,
+      );
       return (
         Math.min(measurer.measure(`${name}:`), SCORE_NAME_MAX_PX) +
         SCORE_NAME_GAP_PX +
         measurer.measure(values.join(" ")) +
         icons * SCORE_VALUE_ICON_PX +
-        levels * SCORE_LEVEL_PILL_PX +
+        pills +
         SCORE_CHIP_CHROME_PX
       );
     })
@@ -106,7 +120,7 @@ function scoreBadgesWidth(
   const overflow = groups.length > maxVisible ? SCORE_OVERFLOW_PX : 0;
   return widths.reduce(
     (total, width, index) =>
-      total + width + (index > 0 ? CLUSTER_ITEM_GAP_PX : 0),
+      total + width + (index > 0 ? SCORE_GROUP_GAP_PX : 0),
     overflow,
   );
 }
@@ -131,16 +145,19 @@ export function TimelineBar({
   scores,
   density,
 }: TimelineBarProps) {
+  // Room between the bar and a metric cluster outside it, and the inset of one
+  // sitting inside: `density`'s own values, threaded in rather than copied. These
+  // are the exact numbers `placeLabel()` measured the placement with, so a local
+  // copy would be a silent desync waiting for the first change to density.
   const CLUSTER_GAP_PX = density.labelGapPx;
   const CLUSTER_INSET_PX = density.labelPaddingPx;
   const node = row.node;
 
-  // Own-span basis mirrors SpanContent: fall back to node.latency when there's
-  // no endTime (e.g. the synthetic v4 trace-root span) so tree and timeline
-  // agree. Wall-clock subtree duration is surfaced only when async descendants
-  // outlive this node's own span (LFE-10475).
-  const ownDurationMs =
-    row.durationMs ?? (node.latency ? node.latency * 1000 : undefined);
+  // `layout()` already applies the latency fallback (`hasDuration` covers it), so
+  // a second one here could only ever run when latency is absent too. Wall-clock
+  // subtree duration is surfaced only when async descendants outlive this node's
+  // own span.
+  const ownDurationMs = row.durationMs ?? undefined;
   const subtreeWallClockOverflowMs = showDuration
     ? getSubtreeDurationOverflowMs(
         ownDurationMs,
