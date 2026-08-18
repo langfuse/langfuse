@@ -66,7 +66,7 @@ const EnvSchema = z.object({
     .enum(["static", "azure_managed_identity"])
     .default("static"),
   REDIS_AZURE_CLIENT_ID: z.string().optional(),
-  REDIS_AZURE_SCOPE: z.string().optional(),
+  REDIS_AZURE_SCOPE: z.string().default("https://redis.azure.com/.default"),
   // Optional prefix for Redis keys. Used by BullMQ queues via their native prefix option
   // and by the singleton cache instance via ioredis keyPrefix. Useful for multi-tenant Redis.
   REDIS_KEY_PREFIX: z.string().nullish(),
