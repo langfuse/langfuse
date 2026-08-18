@@ -770,7 +770,7 @@ types:
 
       Models can have either simple flat pricing or tiered pricing:
       - Flat pricing: Single price per usage type (legacy, but still supported)
-      - Tiered pricing: Multiple pricing tiers with conditional matching based on usage patterns
+      - Tiered pricing: Multiple pricing tiers with conditional matching based on usage patterns or observation attributes
 
       The pricing tiers approach is recommended for models with usage-based pricing variations.
       When using tiered pricing, the flat price fields (inputPrice, outputPrice, prices) are populated
@@ -818,10 +818,10 @@ types:
         type: map<string, ModelPrice>
       pricingTiers:
         docs: |
-          Array of pricing tiers with conditional pricing based on usage thresholds.
+          Array of pricing tiers with conditional pricing based on usage thresholds or observation attributes.
 
           Pricing tiers enable accurate cost tracking for models that charge different rates based on usage patterns
-          (e.g., different rates for high-volume usage, large context windows, or cached tokens).
+          or request attributes (e.g., high-volume usage, large context windows, cached tokens, or service tiers).
 
           Each model must have exactly one default tier (isDefault=true, priority=0) that serves as a fallback.
           Additional conditional tiers can be defined with specific matching criteria.
@@ -835,54 +835,55 @@ types:
 
   PricingTierCondition:
     docs: |
-      Condition for matching a pricing tier based on usage details. Used to implement tiered pricing models where costs vary based on usage thresholds.
+      Condition for matching a pricing tier against usage details or observation attributes.
 
-      How it works:
-      1. The regex pattern matches against usage detail keys (e.g., "input_tokens", "input_cached")
-      2. Values of all matching keys are summed together
-      3. The sum is compared against the threshold value using the specified operator
-      4. All conditions in a tier must be met (AND logic) for the tier to match
+      Usage-detail conditions treat usageDetailPattern as a regex, sum all matching usage values, and compare the sum to the numeric value. Model-parameter and metadata conditions match an exact top-level key against one or more string values.
+    discriminated: false
+    union:
+      - PricingTierUsageCondition
+      - PricingTierAttributeCondition
 
-      Common use cases:
-      - Threshold-based pricing: Match when accumulated usage exceeds a certain amount
-      - Usage-type-specific pricing: Different rates for cached vs non-cached tokens, or input vs output
-      - Volume-based pricing: Different rates based on total request or token count
+  PricingTierUsageCondition:
+    docs: Condition that sums usage details whose keys match a regex.
     properties:
       usageDetailPattern:
-        docs: |
-          Regex pattern to match against usage detail keys. All matching keys' values are summed for threshold comparison.
-
-          Examples:
-          - "^input" matches "input", "input_tokens", "input_cached", etc.
-          - "^(input|prompt)" matches both "input_tokens" and "prompt_tokens"
-          - "_cache$" matches "input_cache", "output_cache", etc.
-
-          The pattern is case-insensitive by default. If no keys match, the sum is treated as zero.
+        docs: Regex pattern matched against usage detail keys.
         type: string
-      operator:
-        docs: |
-          Comparison operator to apply between the summed value and the threshold.
-
-          - gt: greater than (sum > threshold)
-          - gte: greater than or equal (sum >= threshold)
-          - lt: less than (sum < threshold)
-          - lte: less than or equal (sum <= threshold)
-          - eq: equal (sum == threshold)
-          - neq: not equal (sum != threshold)
-        type: PricingTierOperator
+      operator: PricingTierOperator
       value:
-        docs: Threshold value for comparison. For token-based pricing, this is typically the token count threshold (e.g., 200000 for a 200K token threshold).
+        docs: Numeric threshold for the summed matching usage values.
         type: double
       caseSensitive:
-        docs: Whether the regex pattern matching is case-sensitive. Default is false (case-insensitive matching).
+        docs: Whether the usage-detail regex is case-sensitive.
         type: boolean
+
+  PricingTierAttributeCondition:
+    docs: Condition that matches any configured value for a top-level observation attribute.
+    properties:
+      source:
+        docs: Observation attribute object evaluated by this condition.
+        type: PricingTierAttributeSource
+      key:
+        docs: Exact top-level attribute key.
+        type: string
+      operator:
+        docs: Membership operator.
+        type: literal<"in">
+      values:
+        docs: Accepted string attribute values. At least one value is required.
+        type: list<string>
+
+  PricingTierAttributeSource:
+    enum:
+      - model_parameters
+      - metadata
 
   PricingTier:
     docs: |
-      Pricing tier definition with conditional pricing based on usage thresholds.
+      Pricing tier definition with conditional pricing based on usage thresholds or observation attributes.
 
-      Pricing tiers enable accurate cost tracking for LLM providers that charge different rates based on usage patterns.
-      For example, some providers charge higher rates when context size exceeds certain thresholds.
+      Pricing tiers enable accurate cost tracking for LLM providers that charge different rates based on usage patterns or request attributes.
+      For example, some providers charge higher rates when context size exceeds certain thresholds or when an accelerated service tier is selected.
 
       How tier matching works:
       1. Tiers are evaluated in ascending priority order (priority 1 before priority 2, etc.)
@@ -988,7 +989,7 @@ types:
           The default tier must have an empty array (conditions=[]).
           Conditional tiers should define one or more conditions that specify when this tier's pricing applies.
 
-          Each condition specifies a regex pattern, operator, and threshold value for matching against usage details.
+          Conditions can compare summed matching usage details to a numeric threshold, or exactly match a top-level model parameter or metadata value.
         type: list<PricingTierCondition>
       prices:
         docs: |
