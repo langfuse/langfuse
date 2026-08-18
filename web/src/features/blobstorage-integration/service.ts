@@ -3,13 +3,11 @@ import {
   BlobStorageExportMode,
   BlobStorageIntegrationType,
   InvalidRequestError,
-  AnalyticsIntegrationExportSource,
-  areEnrichedWritesActive,
-  areLegacyWritesActive,
-  validateExportSource,
+  type AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
+import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server/exportSource";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import { validateBlobStorageEndpoint } from "@langfuse/shared/src/server";
@@ -58,17 +56,11 @@ export async function upsertBlobStorageIntegration(params: {
   prisma: PrismaClient;
   projectId: string;
   data: UpsertBlobStorageIntegrationInput;
-  // When true and no existing row is found inside the transaction, the CREATE
-  // branch uses EVENTS instead of the Prisma column default (TRACES_OBSERVATIONS).
-  // Evaluated inside the transaction so the row-state check and the INSERT are
-  // atomic — no TOCTOU window.
-  forceEventsOnCreate?: boolean;
-  // When true and no existing row is found inside the transaction, the CREATE
-  // branch refuses a legacy export source (throws). Evaluated in-transaction so
-  // a concurrent DELETE between the router's pre-flight read and this upsert
-  // cannot slip a new post-cutoff row in with a legacy source. Symmetric with
-  // forceEventsOnCreate; set by both the tRPC and REST paths on Cloud.
-  refuseLegacyOnCreate?: boolean;
+  // The source a CREATE lands, already validated and resolved by the caller via
+  // resolveExportSource. Always concrete, so the CREATE branch never falls
+  // through to the Prisma column default (TRACES_OBSERVATIONS). An UPDATE keeps
+  // using data.exportSource, where undefined preserves the persisted value.
+  createExportSource: AnalyticsIntegrationExportSource;
 }) {
   const { prisma, projectId, data } = params;
 
@@ -121,7 +113,14 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true, lastError: true, runStartedAt: true },
+      // createdAt/exportSource feed the post-upsert backstop below.
+      select: {
+        exportMode: true,
+        lastError: true,
+        runStartedAt: true,
+        createdAt: true,
+        exportSource: true,
+      },
     });
 
     // Require secret key for new integrations (unless using host credentials)
@@ -138,31 +137,21 @@ export async function upsertBlobStorageIntegration(params: {
     const modeChanged = existing && existing.exportMode !== data.exportMode;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
 
-    // exportSource for the CREATE payload. The !existing guard was previously
-    // here, but it created a residual TOCTOU: READ COMMITTED isolation means
+    // The CREATE payload always carries a concrete source, resolved by the
+    // caller through resolveExportSource. Applying it unconditionally (rather
+    // than behind a `!existing` guard) closes a TOCTOU: under READ COMMITTED,
     // tx.findUnique and tx.upsert take independent snapshots, so a concurrent
-    // DELETE between the two could leave createExportSource = undefined and let
+    // DELETE between the two could otherwise leave this undefined and let
     // Postgres apply the @default(TRACES_OBSERVATIONS) column default on INSERT.
-    // Dropping the guard is safe: ON CONFLICT atomically decides CREATE vs UPDATE
-    // at INSERT time regardless of what findUnique saw. UPDATE uses
-    // writeData.exportSource (undefined → Prisma omits the column → preserves
-    // the existing value), so the caller intent is always honored on both paths.
-    // Under events_only a new row must never fall back to the legacy Prisma
-    // column default; force EVENTS in-transaction, deployment-agnostic
-    // (see export-source-policy.ts).
-    const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-    const legacyWritesActive = areLegacyWritesActive(writeMode);
-    const createExportSource =
-      data.exportSource ??
-      (params.forceEventsOnCreate || !legacyWritesActive
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : undefined);
-
+    // ON CONFLICT decides CREATE vs UPDATE atomically regardless of what
+    // findUnique saw, and UPDATE uses writeData.exportSource (undefined → Prisma
+    // omits the column → preserves the existing value), so caller intent is
+    // honored on both paths.
     const result = await tx.blobStorageIntegration.upsert({
       where: { projectId },
       create: {
         ...writeData,
-        exportSource: createExportSource,
+        exportSource: params.createExportSource,
         // Parquet is the default export format; apply it when the caller omits
         // fileType on CREATE. This app-level fallback (not the Prisma column
         // default) is the source of truth for the default across every write path.
@@ -191,24 +180,15 @@ export async function upsertBlobStorageIntegration(params: {
       },
     });
 
-    // Race-free backstop over the *persisted* row. The pre-flight `existing`
-    // snapshot (and the router's pre-flight gate) are racy under READ
-    // COMMITTED: a concurrent DELETE can flip this upsert to a CREATE after
-    // those reads. `result.createdAt` reflects the actual CREATE/UPDATE
-    // outcome (CREATE → now(); UPDATE → preserved), so validating it catches a
-    // brand-new post-cutoff Cloud row born with a legacy source and rolls the
-    // transaction back. See export-source-policy.ts.
-    const backstop = validateExportSource(result.exportSource, {
-      isCloud: !isSelfHosted,
-      enrichedAvailable: areEnrichedWritesActive(writeMode),
-      legacyWritesActive,
-      integrationCreatedAt: params.refuseLegacyOnCreate
-        ? result.createdAt
-        : undefined,
+    // Race-free backstop over the row that actually landed, shared with the
+    // PostHog and Mixpanel routers. The pre-flight `existing` snapshot (and the
+    // router's pre-flight gate) are racy under READ COMMITTED: a concurrent
+    // DELETE can flip this upsert to a CREATE after those reads. Throwing here
+    // rolls the transaction back. See export-source-policy.ts.
+    assertPersistedExportSourceAllowed({
+      existingIntegration: existing,
+      result,
     });
-    if (!backstop.ok) {
-      throw new InvalidRequestError(backstop.message);
-    }
 
     return result;
   });

@@ -5,15 +5,19 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   LEGACY_ANALYTICS_EXPORTER_CUTOFF,
-  LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
-const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const PRE_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() - MS_PER_DAY,
+);
+const POST_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + MS_PER_DAY,
+);
 // Row ages derive from the cutoff constants, never from literals, so the
 // NEXT_PUBLIC_LANGFUSE_*_CUTOFF dev overrides cannot fail the suite.
 const ROW_PRE_ANALYTICS_CUTOFF = new Date(
@@ -288,7 +292,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
     }
   });
 
-  // LFE-10148: events_only no longer writes the v3 tables, so legacy sources
+  // The events_only write mode no longer writes the v3 tables, so legacy sources
   // are refused by data capability, independent of Cloud date cutoffs.
   describe("events_only write-mode gate", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -437,7 +441,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
     );
   });
 
-  // LFE-10148 review: the form schema's zod default must not be injected into
+  // Review: the form schema's zod default must not be injected into
   // partial updates — an omitted exportSource preserves the persisted value
   // (capability-checked only), and CREATE picks an explicit, validated default.
   describe("PostHog partial updates and create defaults", () => {
@@ -787,7 +791,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
     });
   });
 
-  // LFE-14384: the credential is write-only — get returns only a masked
+  // The credential is write-only — get returns only a masked
   // display value; a blank key on update keeps the persisted encrypted value.
   describe("PostHog credential masking", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
