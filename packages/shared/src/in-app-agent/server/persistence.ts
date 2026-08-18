@@ -19,10 +19,7 @@ import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
 } from "../../server/llm/langfuseAiCompletion";
-import {
-  getInAppAgentModelConfig,
-  getInAppAgentModelConnectionSecret,
-} from "./modelProvider";
+import { getInAppAgentModelConfig } from "./modelProvider";
 import { getProductBaseUrl } from "../../server/utils/baseUrl";
 import { truncate } from "../../utils/stringChecks";
 import { assertUnreachable } from "../../utils/typeChecks";
@@ -527,7 +524,6 @@ ${JSON.stringify(transcript, null, 2)}
       ],
       model: modelConfig.titleModelId,
       maxTokens: 1000,
-      connectionSecretKey: getInAppAgentModelConnectionSecret(),
       traceSinkParams: params.aiTelemetryEnabled
         ? getLangfuseAITraceSinkParams({
             environment: LangfuseInternalTraceEnvironment.InAppAgent,

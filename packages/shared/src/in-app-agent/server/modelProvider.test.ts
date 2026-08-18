@@ -1,12 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { env } from "../../env";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../interfaces/customLLMProviderConfigSchemas";
-import { decrypt } from "../../encryption";
-import {
-  getInAppAgentModelConfig,
-  getInAppAgentModelConnectionSecret,
-} from "./modelProvider";
+import { getInAppAgentModelConfig } from "./modelProvider";
 
 const originalEnvironment = {
   model: env.LANGFUSE_AWS_BEDROCK_MODEL,
@@ -35,9 +30,5 @@ describe("getInAppAgentModelConfig", () => {
       titleModelId: "eu.anthropic.claude-sonnet",
       region: "eu-central-1",
     });
-    expect(config).toBeDefined();
-    expect(decrypt(getInAppAgentModelConnectionSecret())).toBe(
-      BEDROCK_USE_DEFAULT_CREDENTIALS,
-    );
   });
 });

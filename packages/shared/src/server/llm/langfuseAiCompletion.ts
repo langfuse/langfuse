@@ -42,8 +42,6 @@ export async function generateLangfuseAIText(params: {
   messages: ChatMessage[];
   model?: string;
   maxTokens?: number;
-  /** Encrypted Bedrock credential used for an instance-managed AI feature. */
-  connectionSecretKey?: string;
   traceSinkParams?: TraceSinkParams;
   timeout?: number;
 }): Promise<string> {
@@ -67,9 +65,7 @@ export async function generateLangfuseAIText(params: {
           : {}),
       },
       connection: {
-        secretKey:
-          params.connectionSecretKey ??
-          encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+        secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
       },
       credentialSource: "langfuse",
     }),

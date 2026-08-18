@@ -1,6 +1,4 @@
-import { encrypt } from "../../encryption";
 import { env } from "../../env";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../interfaces/customLLMProviderConfigSchemas";
 import { assertValidBedrockRegion } from "../../server/llm/ai-sdk/providers/bedrock";
 
 export type InAppAgentModelConfig = {
@@ -37,13 +35,4 @@ export function getInAppAgentModelConfig(params?: {
     titleModelId: env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ?? modelId,
     region,
   };
-}
-
-/**
- * Builds the encrypted connection value consumed by the shared LLM execution
- * boundary. Assistant Bedrock calls always use the AWS default credential
- * chain; its resolved credentials are never persisted.
- */
-export function getInAppAgentModelConnectionSecret(): string {
-  return encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS);
 }
