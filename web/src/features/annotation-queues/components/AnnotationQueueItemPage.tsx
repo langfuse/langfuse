@@ -39,6 +39,7 @@ import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor"
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
 import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/object-not-found-card";
 import { useSession } from "next-auth/react";
+import { SplashScreen } from "@/src/components/ui/splash-screen";
 
 // A single row in the keyboard-shortcuts cheatsheet: label on the left, one or
 // more <KeyboardShortcut> glyphs (passed as children) on the right.
@@ -367,7 +368,12 @@ export const AnnotationQueueItemPage: React.FC<{
   }
 
   if (!relevantItem && !(itemId && seenItemIds.includes(itemId))) {
-    return <div>No more items left to annotate!</div>;
+    return (
+      <SplashScreen
+        title="All queue items processed"
+        description="There are no more items left to annotate."
+      />
+    );
   }
 
   const renderContent = () => {
