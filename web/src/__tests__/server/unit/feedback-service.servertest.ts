@@ -135,6 +135,7 @@ describe("FeedbackService", () => {
       "🏢 Org: org-1",
       "📁 Project: project-1",
     ]);
+    expect(JSON.stringify(body.blocks)).not.toContain("REPORTER");
 
     // User-authored text must stay plain_text so mentions cannot ping.
     const feedbackBlock = body.blocks.find(
@@ -277,5 +278,74 @@ describe("FeedbackService", () => {
       1,
       { source: "public-api", outcome: "sink_unconfigured" },
     );
+  });
+
+  it("includes the reporter in Slack for in-app assistant feedback", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await submitFeedback({
+      scope,
+      input: {
+        targetType: "mcp-tool" as const,
+        target: "submitFeedback",
+        feedback: "The traces table filter is confusing.",
+      },
+      source: "in-app-assistant",
+      reporter: {
+        userId: "user-1",
+        email: "ugeon.jeon@creverse.com",
+        name: "Ugeon Jeon",
+      },
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      text: string;
+      blocks: SlackBlockForTest[];
+    };
+    expect(body.text).toBe(
+      `New Langfuse feedback · In-app assistant · mcp-tool · ${result.id}`,
+    );
+
+    const fieldTexts =
+      body.blocks
+        .find((block) => Array.isArray(block.fields))
+        ?.fields?.map((field) => field.text) ?? [];
+    expect(fieldTexts).toEqual(
+      expect.arrayContaining([
+        "📬 SOURCE:\nIn-app assistant",
+        "👤 REPORTER:\nUgeon Jeon (ugeon.jeon@creverse.com)",
+      ]),
+    );
+  });
+
+  it("does not log reporter PII when the Slack sink is not configured", async () => {
+    (env as any).LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK = undefined;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      submitFeedback({
+        scope,
+        input: {
+          targetType: "docs" as const,
+          target: "/docs/mcp",
+          feedback: "Please clarify setup.",
+        },
+        source: "in-app-assistant",
+        reporter: {
+          userId: "user-1",
+          email: "reporter@example.com",
+          name: "Reporter",
+        },
+      }),
+    ).rejects.toBeInstanceOf(LangfuseConflictError);
+
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain(
+      "reporter@example.com",
+    );
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain("Reporter");
   });
 });

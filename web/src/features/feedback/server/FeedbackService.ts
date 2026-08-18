@@ -13,7 +13,13 @@ import type {
   PostFeedbackResponseType,
 } from "@/src/features/public-api/types/feedback";
 
-export type FeedbackSource = "langfuse-mcp" | "public-api";
+export type FeedbackSource = "langfuse-mcp" | "in-app-assistant" | "public-api";
+
+export type FeedbackReporter = {
+  userId: string;
+  email?: string | null;
+  name?: string | null;
+};
 
 type FeedbackContext = {
   projectId: string;
@@ -100,7 +106,19 @@ const getDataRegion = (): string =>
 
 const feedbackSourceLabel: Record<FeedbackSource, string> = {
   "langfuse-mcp": "Langfuse MCP",
+  "in-app-assistant": "In-app assistant",
   "public-api": "Public API",
+};
+
+const formatFeedbackReporterLabel = (
+  reporter: FeedbackReporter | undefined,
+): string | undefined => {
+  if (!reporter) return undefined;
+
+  const name = reporter.name?.trim();
+  const email = reporter.email?.trim();
+  if (name && email) return `${name} (${email})`;
+  return email || name || undefined;
 };
 
 const buildFeedbackSlackMessage = ({
@@ -108,12 +126,15 @@ const buildFeedbackSlackMessage = ({
   input,
   source,
   context,
+  reporter,
 }: {
   id: string;
   input: PostFeedbackBodyType;
   source: FeedbackSource;
   context: FeedbackContext;
+  reporter?: FeedbackReporter;
 }): FeedbackSlackMessage => {
+  const reporterLabel = formatFeedbackReporterLabel(reporter);
   const blocks: SlackBlock[] = [
     {
       type: "header",
@@ -130,6 +151,14 @@ const buildFeedbackSlackMessage = ({
           `📬 SOURCE:\n${feedbackSourceLabel[source]}`,
           SLACK_FIELD_TEXT_LIMIT,
         ),
+        ...(reporterLabel
+          ? [
+              plainText(
+                `👤 REPORTER:\n${reporterLabel}`,
+                SLACK_FIELD_TEXT_LIMIT,
+              ),
+            ]
+          : []),
         plainText(`🎯 TARGET:\n${input.target}`, SLACK_FIELD_TEXT_LIMIT),
         plainText(
           `🧩 TARGET TYPE:\n${input.targetType}`,
@@ -195,10 +224,12 @@ export const submitFeedback = async ({
   input,
   source,
   scope,
+  reporter,
 }: {
   input: PostFeedbackBodyType;
   source: FeedbackSource;
   scope: ApiAccessScope;
+  reporter?: FeedbackReporter;
 }): Promise<PostFeedbackResponseType> => {
   const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
     scope,
@@ -241,6 +272,7 @@ export const submitFeedback = async ({
     id,
     input,
     source,
+    reporter,
     context: {
       orgId: scope.orgId,
       projectId: scope.projectId ?? "unknown",
