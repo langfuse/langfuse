@@ -575,12 +575,16 @@ describe("MCP Read Tools", () => {
       };
 
       expect(result.schemaVersion).toBe(1);
-      expect(result.templates).toEqual([
-        expect.objectContaining({
-          key: "exact-match",
-          evaluator: expect.objectContaining({ type: "CODE" }),
-        }),
+      expect(result.templates.map(({ key }) => key)).toEqual([
+        "all-caps",
+        "exact-match",
+        "keyword-match",
       ]);
+      expect(
+        result.templates.every(
+          (template) => template.evaluator.type === "CODE",
+        ),
+      ).toBe(true);
     });
   });
 
