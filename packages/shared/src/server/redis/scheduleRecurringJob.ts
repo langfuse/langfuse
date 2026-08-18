@@ -1,6 +1,10 @@
 import type { Queue } from "bullmq";
 import { logger } from "../logger";
 
+// DO NOT REMOVE THIS FILE AND BEHAVIOUR WITHIN A MINOR LANGFUSE VERSION.
+// THIS REMOVES THE OLD REMOVER AND MAY LEAD TO DUPLICATE TRIGGERS FOR SELF-HOSTERS FOREVER.
+// HOLD BULLMQ v6 UPGRADE UNTIL LANGFUSE V5!
+
 /**
  * Registers a recurring cron job on a queue via a BullMQ job scheduler.
  *
