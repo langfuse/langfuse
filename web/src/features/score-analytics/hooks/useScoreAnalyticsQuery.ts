@@ -296,6 +296,33 @@ export function useScoreAnalyticsQuery(
       }));
     };
 
+    const normalizeBooleanTimeSeries = (
+      timeSeries: Array<{
+        timestamp: Date;
+        category: string;
+        count: number;
+      }>,
+    ) =>
+      timeSeries.flatMap((item) => {
+        const normalizedCategory = normalizeBooleanCategory(item.category);
+        return normalizedCategory
+          ? [{ ...item, category: normalizedCategory }]
+          : [];
+      });
+
+    const normalizedTimeSeriesCategorical1 = isBoolean
+      ? normalizeBooleanTimeSeries(apiData.timeSeriesCategorical1)
+      : apiData.timeSeriesCategorical1;
+    const normalizedTimeSeriesCategorical2 = isBoolean
+      ? normalizeBooleanTimeSeries(apiData.timeSeriesCategorical2)
+      : apiData.timeSeriesCategorical2;
+    const normalizedTimeSeriesCategorical1Matched = isBoolean
+      ? normalizeBooleanTimeSeries(apiData.timeSeriesCategorical1Matched)
+      : apiData.timeSeriesCategorical1Matched;
+    const normalizedTimeSeriesCategorical2Matched = isBoolean
+      ? normalizeBooleanTimeSeries(apiData.timeSeriesCategorical2Matched)
+      : apiData.timeSeriesCategorical2Matched;
+
     // Extract score2 categories for proper binning
     // When comparing two different categorical scores, score2 may have different categories
     const score2Categories = isBoolean
@@ -316,16 +343,16 @@ export function useScoreAnalyticsQuery(
     const booleanScore2Categories = score2Categories ?? booleanCategories;
     const booleanTimeSeries2 =
       isBoolean && isSameScore && mode === "two"
-        ? apiData.timeSeriesCategorical1
-        : apiData.timeSeriesCategorical2;
+        ? normalizedTimeSeriesCategorical1
+        : normalizedTimeSeriesCategorical2;
     const booleanTimeSeries2Matched =
       isBoolean && isSameScore && mode === "two"
-        ? apiData.timeSeriesCategorical1Matched
-        : apiData.timeSeriesCategorical2Matched;
+        ? normalizedTimeSeriesCategorical1Matched
+        : normalizedTimeSeriesCategorical2Matched;
 
     const distribution1 = isBoolean
       ? buildBooleanDistribution(
-          apiData.timeSeriesCategorical1,
+          normalizedTimeSeriesCategorical1,
           booleanCategories,
         )
       : categories
@@ -360,7 +387,7 @@ export function useScoreAnalyticsQuery(
 
     const distribution1Matched = isBoolean
       ? buildBooleanDistribution(
-          apiData.timeSeriesCategorical1Matched,
+          normalizedTimeSeriesCategorical1Matched,
           booleanCategories,
         )
       : categories
@@ -478,7 +505,7 @@ export function useScoreAnalyticsQuery(
     const score1ModeMetrics = !isNumeric
       ? calculateModeMetrics({
           distribution: isBoolean ? distribution1 : apiData.distribution1,
-          timeSeries: apiData.timeSeriesCategorical1,
+          timeSeries: normalizedTimeSeriesCategorical1,
           totalCount: apiData.counts.score1Total,
         })
       : null;
@@ -489,12 +516,12 @@ export function useScoreAnalyticsQuery(
         ? isSameScore
           ? calculateModeMetrics({
               distribution: isBoolean ? distribution1 : apiData.distribution1, // Reuse Score 1 data
-              timeSeries: apiData.timeSeriesCategorical1, // Reuse Score 1 data
+              timeSeries: normalizedTimeSeriesCategorical1, // Reuse Score 1 data
               totalCount: apiData.counts.score2Total,
             })
           : calculateModeMetrics({
               distribution: isBoolean ? distribution2 : apiData.distribution2,
-              timeSeries: apiData.timeSeriesCategorical2,
+              timeSeries: normalizedTimeSeriesCategorical2,
               totalCount: apiData.counts.score2Total,
             })
         : null;
@@ -534,28 +561,28 @@ export function useScoreAnalyticsQuery(
     }
 
     const categoricalTimeSeries1 = fillCategoricalTimeSeriesGaps(
-      apiData.timeSeriesCategorical1,
+      normalizedTimeSeriesCategorical1,
       fromTimestamp,
       toTimestamp,
       interval,
     );
 
     const categoricalTimeSeries2 = fillCategoricalTimeSeriesGaps(
-      apiData.timeSeriesCategorical2,
+      normalizedTimeSeriesCategorical2,
       fromTimestamp,
       toTimestamp,
       interval,
     );
 
     const categoricalTimeSeries1Matched = fillCategoricalTimeSeriesGaps(
-      apiData.timeSeriesCategorical1Matched,
+      normalizedTimeSeriesCategorical1Matched,
       fromTimestamp,
       toTimestamp,
       interval,
     );
 
     const categoricalTimeSeries2Matched = fillCategoricalTimeSeriesGaps(
-      apiData.timeSeriesCategorical2Matched,
+      normalizedTimeSeriesCategorical2Matched,
       fromTimestamp,
       toTimestamp,
       interval,
