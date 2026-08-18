@@ -185,6 +185,67 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.model_parameters).toBe("not-json");
   });
 
+  it("only includes primitive direct-event attributes for pricing", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const getGenerationUsage = vi
+      .spyOn(ingestionService as any, "getGenerationUsage")
+      .mockResolvedValue({});
+
+    await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "primitive-pricing-attributes",
+        type: "GENERATION",
+        environment: "default",
+        startTimeISO: "2026-08-18T00:00:00.000Z",
+        endTimeISO: "2026-08-18T00:00:01.000Z",
+        modelName: "model-name",
+        modelParameters: {
+          service_tier: "priority",
+          temperature: 0.5,
+          stream: true,
+          nested: { ignored: "value" },
+          list: ["ignored"],
+          nil: null,
+        },
+        metadata: {
+          region: "us",
+          attempts: 2,
+          cached: false,
+          nested: { ignored: "value" },
+          list: ["ignored"],
+          nil: null,
+        },
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(getGenerationUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pricingMatchAttributes: {
+          modelParameters: {
+            service_tier: "priority",
+            temperature: "0.5",
+            stream: "true",
+          },
+          metadata: {
+            region: "us",
+            attempts: "2",
+            cached: "false",
+          },
+        },
+      }),
+    );
+  });
+
   it("does not overflow legacy observation or dual-write staging records", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
@@ -208,7 +269,22 @@ describe("IngestionService unit tests", () => {
           startTime: timestamp,
           input,
           output,
-          metadata: { large: metadataValue },
+          metadata: {
+            large: metadataValue,
+            count: 2,
+            enabled: false,
+            nested: { ignored: "value" },
+            list: ["ignored"],
+            nil: null,
+          },
+          modelParameters: {
+            service_tier: "priority",
+            temperature: 0.5,
+            stream: true,
+            nested: { ignored: "value" },
+            list: ["ignored"],
+            nil: null,
+          },
           environment: "default",
         },
       },
@@ -239,12 +315,19 @@ describe("IngestionService unit tests", () => {
     const getGenerationUsage = vi.mocked(
       (ingestionService as any).getGenerationUsage,
     );
-    const getPricingMatchAttributes =
-      getGenerationUsage.mock.calls[0]?.[0].getPricingMatchAttributes;
-    expect(getPricingMatchAttributes).toBeTypeOf("function");
-    expect(getPricingMatchAttributes()).toEqual({
-      modelParameters: {},
-      metadata: { large: metadataValue },
+    expect(
+      getGenerationUsage.mock.calls[0]?.[0].pricingMatchAttributes,
+    ).toEqual({
+      modelParameters: {
+        service_tier: "priority",
+        temperature: "0.5",
+        stream: "true",
+      },
+      metadata: {
+        large: metadataValue,
+        count: "2",
+        enabled: "false",
+      },
     });
     for (const table of [
       TableName.Observations,

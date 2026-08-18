@@ -85,11 +85,23 @@ function parseUInt16(value: string | null | undefined): number | undefined {
 function toPricingAttributeRecord(value: unknown): Record<string, string> {
   const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
 
-  return parsedValue &&
-    typeof parsedValue === "object" &&
-    !Array.isArray(parsedValue)
-    ? convertRecordValuesToString(parsedValue as Record<string, unknown>)
-    : {};
+  if (
+    !parsedValue ||
+    typeof parsedValue !== "object" ||
+    Array.isArray(parsedValue)
+  ) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(parsedValue).flatMap(([key, attributeValue]) =>
+      typeof attributeValue === "string" ||
+      typeof attributeValue === "number" ||
+      typeof attributeValue === "boolean"
+        ? [[key, String(attributeValue)]]
+        : [],
+    ),
+  );
 }
 
 export type EventInput = InternalTraceEventInput;
@@ -318,10 +330,10 @@ export class IngestionService {
       shouldEnrichUsageAndCost
         ? this.getGenerationUsage({
             projectId: eventData.projectId,
-            getPricingMatchAttributes: () => ({
+            pricingMatchAttributes: {
               modelParameters: toPricingAttributeRecord(modelParameters),
               metadata: toPricingAttributeRecord(eventData.metadata),
-            }),
+            },
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -967,6 +979,24 @@ export class IngestionService {
     const rawOutput =
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
       clickhouseObservationRecord?.output;
+    const pricingMatchAttributes: PricingTierMatchAttributes = {
+      modelParameters: toPricingAttributeRecord(
+        clickhouseObservationRecord?.model_parameters,
+      ),
+      metadata: toPricingAttributeRecord(clickhouseObservationRecord?.metadata),
+    };
+    for (const event of timeSortedEvents) {
+      if (event.body.metadata) {
+        pricingMatchAttributes.metadata = toPricingAttributeRecord(
+          event.body.metadata,
+        );
+      }
+      if ("modelParameters" in event.body && event.body.modelParameters) {
+        pricingMatchAttributes.modelParameters = toPricingAttributeRecord(
+          event.body.modelParameters,
+        );
+      }
+    }
     const normalizedTools = normalizeToolsForObservation(
       rawInput,
       rawOutput,
@@ -1011,12 +1041,7 @@ export class IngestionService {
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
-      getPricingMatchAttributes: () => ({
-        modelParameters: toPricingAttributeRecord(
-          mergedObservationRecord.model_parameters,
-        ),
-        metadata: toPricingAttributeRecord(mergedObservationRecord.metadata),
-      }),
+      pricingMatchAttributes,
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -1233,7 +1258,7 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
-    getPricingMatchAttributes?: () => PricingTierMatchAttributes;
+    pricingMatchAttributes?: PricingTierMatchAttributes;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1257,7 +1282,7 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const { projectId, observationRecord, getPricingMatchAttributes } = params;
+    const { projectId, observationRecord, pricingMatchAttributes } = params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1278,12 +1303,6 @@ export class IngestionService {
     let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
     let usage_pricing_tier_id: string | null = null;
     let usage_pricing_tier_name: string | null = null;
-    const hasAttributeBasedPricing = pricingTiers.some(
-      (tier) =>
-        !tier.isDefault &&
-        tier.conditions.some((condition) => "source" in condition),
-    );
-
     if (
       pricingTiers.length > 0 &&
       hasPricingTierUsageDetails(final_usage_details.usage_details)
@@ -1291,7 +1310,7 @@ export class IngestionService {
       const matchedTier = matchPricingTier(
         pricingTiers,
         final_usage_details.usage_details,
-        hasAttributeBasedPricing ? getPricingMatchAttributes?.() : undefined,
+        pricingMatchAttributes,
       );
 
       if (matchedTier) {
