@@ -43,7 +43,8 @@
 - The in-app-agent runtime lives in shared:
   `@langfuse/shared/in-app-agent` is the client-safe contracts entry;
   its `AgUiRunAgentInput` is a compile-time-only execution contract;
-  `@langfuse/shared/in-app-agent/server` (and per-module subpaths) is
+  `@langfuse/shared/in-app-agent` also owns the browser-safe durable interrupt
+  parser. `@langfuse/shared/in-app-agent/server` (and per-module subpaths) is
   server-only. Web keeps only the thin adapters in
   `src/features/in-app-agent/` (router and UI), plus the authenticated watch
   route in `src/app/api/in-app-agent/watch/`.

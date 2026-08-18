@@ -18,6 +18,7 @@ import {
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   getInAppAgentInstrumentationTraceId,
+  parseInAppAgentInterruptEvent,
   type AgUiEvent,
   type AgUiRunAgentInput,
   type InAppAgentToolApprovalRequest,
@@ -39,7 +40,6 @@ import {
   createInAppAgentToolPolicy,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
-  parseInAppAgentInterruptEvent,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
   type InAppAgentUserAccess,

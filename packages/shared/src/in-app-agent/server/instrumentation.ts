@@ -20,7 +20,7 @@ import {
   normalizeToolOutput,
   parseJsonOrString,
 } from "./toolErrors";
-import type { InAppAgentUserAccess } from "./tools";
+import type { InAppAgentUserAccess } from "./mcpPolicy";
 import { assertUnreachable } from "../../utils/typeChecks";
 
 export type InAppAgentTracingConfig = {
