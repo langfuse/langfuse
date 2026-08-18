@@ -31,6 +31,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import {
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   validateExportSource,
   type BlobExportWriteMode,
   type ExportSourceContext,
@@ -163,14 +164,20 @@ const PostHogIntegrationSettings = ({
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const integrationCreatedAt = state?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
-    () =>
-      buildExportSourceContext({
+    () => ({
+      ...buildExportSourceContext({
         writeMode,
         isCloud: isLangfuseCloud,
         projectCreatedAt: new Date(projectCreatedAt),
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
       }),
-    [writeMode, isLangfuseCloud, projectCreatedAt],
+      exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+    }),
+    [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
   );
   const {
     options: exportSourceOptions,

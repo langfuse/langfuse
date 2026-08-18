@@ -128,7 +128,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
           message: "PostHog Project API Key is required",
         });
       }
-      const createDefaultExportSource = await resolveAnalyticsExportSource({
+      const createExportSource = await resolveAnalyticsExportSource({
         db: ctx.prisma,
         projectId: input.projectId,
         requestedExportSource: input.exportSource,
@@ -153,7 +153,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
             posthogHostName: config.posthogHostname,
             encryptedPosthogApiKey,
             enabled: config.enabled,
-            exportSource: config.exportSource ?? createDefaultExportSource,
+            exportSource: createExportSource,
           },
           update: {
             encryptedPosthogApiKey,
@@ -170,7 +170,6 @@ export const posthogIntegrationRouter = createTRPCRouter({
         await assertRacedCreateAllowed({
           tx,
           projectId: input.projectId,
-          requestedExportSource: input.exportSource,
           existingIntegration,
           result,
         });

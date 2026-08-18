@@ -115,7 +115,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           message: "Mixpanel Project Token is required",
         });
       }
-      const createDefaultExportSource = await resolveAnalyticsExportSource({
+      const createExportSource = await resolveAnalyticsExportSource({
         db: ctx.prisma,
         projectId: input.projectId,
         requestedExportSource: input.exportSource,
@@ -140,7 +140,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
             mixpanelRegion: config.mixpanelRegion,
             encryptedMixpanelProjectToken,
             enabled: config.enabled,
-            exportSource: config.exportSource ?? createDefaultExportSource,
+            exportSource: createExportSource,
           },
           update: {
             encryptedMixpanelProjectToken,
@@ -155,7 +155,6 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         await assertRacedCreateAllowed({
           tx,
           projectId: input.projectId,
-          requestedExportSource: input.exportSource,
           existingIntegration,
           result,
         });
