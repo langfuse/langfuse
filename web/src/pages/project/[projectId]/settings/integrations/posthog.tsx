@@ -166,17 +166,16 @@ const PostHogIntegrationSettings = ({
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const integrationCreatedAt = state?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
-    () => ({
-      ...buildExportSourceContext({
+    () =>
+      buildExportSourceContext({
         writeMode,
         isCloud: isLangfuseCloud,
         projectCreatedAt: new Date(projectCreatedAt),
         integrationCreatedAt: integrationCreatedAt
           ? new Date(integrationCreatedAt)
           : null,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
       }),
-      exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
-    }),
     [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
   );
   const {

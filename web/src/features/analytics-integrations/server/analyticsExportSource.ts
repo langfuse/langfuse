@@ -53,11 +53,9 @@ function buildContext(
 
 /**
  * Validates the requested source (throwing InvalidRequestError when blocked)
- * and returns the value the upsert's CREATE branch should carry.
- *
- * That value prefers the persisted source over the new-row default, because a
- * concurrent delete can turn the upsert into a CREATE that was meant as an
- * UPDATE; assertRacedCreateAllowed then judges whatever landed.
+ * and returns the value the upsert's CREATE branch should carry. That value
+ * prefers the persisted source, because a concurrent delete can turn an upsert
+ * meant as an UPDATE into a CREATE; assertRacedCreateAllowed judges what lands.
  */
 export async function resolveAnalyticsExportSource({
   db,
@@ -71,9 +69,8 @@ export async function resolveAnalyticsExportSource({
   existingIntegration: ExistingAnalyticsIntegration | null | undefined;
 }): Promise<AnalyticsIntegrationExportSource> {
   const deployment = readDeployment();
-  // On Cloud a new row is pinned to enriched events regardless of write mode:
-  // the legacy source is not available to it, so defaulting to it would only
-  // produce a rejection.
+  // On Cloud the legacy source is unavailable to a new row, so defaulting to it
+  // would only produce a rejection.
   const createDefaultExportSource =
     deployment.isCloud || !deployment.legacyWritesActive
       ? AnalyticsIntegrationExportSource.EVENTS
@@ -113,13 +110,12 @@ export async function resolveAnalyticsExportSource({
 /**
  * In-transaction backstop (mirrors blob storage's service.ts). The pre-flight
  * read is racy: a concurrent delete can flip the expected UPDATE into a CREATE.
- * A changed createdAt detects that, and the row is then re-validated as the
- * brand-new row it is — not as the grandfathered one the pre-flight read saw.
+ * A changed createdAt detects that, and the row is re-validated as the brand-new
+ * row it is — not as the grandfathered one the pre-flight read saw.
  *
- * This runs whether or not the request named a source. An explicit source is
- * validated up front against the *existing* row's age, so a raced create leaves
- * it judged by the wrong row: the pre-flight read grandfathered an old row that
- * no longer exists.
+ * This runs whether or not the request named a source: an explicit source is
+ * also validated against the existing row's age, so a raced create leaves it
+ * judged by a row that no longer exists.
  */
 export async function assertRacedCreateAllowed({
   tx,

@@ -14,18 +14,16 @@ import { env } from "@/src/env.mjs";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
 const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
-// Integration row ages derive from the cutoff constants, never from literals, so
-// the NEXT_PUBLIC_LANGFUSE_*_CUTOFF dev overrides cannot turn a supported
-// override into a suite failure.
+// Row ages derive from the cutoff constants, never from literals, so the
+// NEXT_PUBLIC_LANGFUSE_*_CUTOFF dev overrides cannot fail the suite.
 const ROW_PRE_ANALYTICS_CUTOFF = new Date(
   LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
 );
 const ROW_POST_ANALYTICS_CUTOFF = new Date(
   LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
 );
-// The raced-CREATE pre-flight row must be grandfathered under BOTH exporter
-// cutoffs, so the pre-flight assert provably cannot be the thing that rejects
-// and only the in-transaction backstop can.
+// Grandfathered under BOTH exporter cutoffs, so the pre-flight assert provably
+// cannot be what rejects — only the in-transaction backstop can.
 const RACED_PREFLIGHT_CREATED_AT = new Date(
   Math.min(
     LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime(),
@@ -139,9 +137,8 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
   };
 
   // A pre-cutoff project no longer buys a *new* integration the right to a
-  // legacy source: brand-new Cloud integrations are pinned to enriched events.
-  // The project cutoff is still grandfathered for integrations that already
-  // exist — covered in "Cloud new-integration enriched pin" below.
+  // legacy source. Existing integrations stay grandfathered — see
+  // "Cloud new-integration enriched pin" below.
   it("Cloud + pre-cutoff project + legacy source on create → BAD_REQUEST", async () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
@@ -534,8 +531,8 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     });
 
     // Both raced-CREATE cases below share one shape and differ only in whether
-    // the caller sent an explicit exportSource. That single difference is the
-    // point: the real settings form always sends one (it lives in the form's
+    // the caller sent an explicit exportSource. That difference is the point:
+    // the real settings form always sends one (it lives in the form's
     // defaultValues and onSubmit spreads every value), so a backstop that only
     // runs when the field is omitted never runs in production.
     const expectRacedCreateRejected = async (
@@ -543,19 +540,14 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     ) => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       const { caller, project } = await prepare();
-      // Pre-cutoff project, so the project-level gate cannot fire. The only
-      // thing left that can reject is the backstop judging the CREATE on its
-      // own terms.
+      // Pre-cutoff project, so the project-level gate cannot fire either.
       await prisma.project.update({
         where: { id: project.id },
         data: { createdAt: PRE_CUTOFF },
       });
-      // The pre-flight read sees a row old enough to be grandfathered under
-      // either exporter cutoff, so the pre-flight assert allows the legacy
-      // source it carries and cannot be the thing that rejects. Meanwhile the
-      // DB genuinely holds no row, so the upsert lands as a CREATE — the race.
-      // If the backstop reused this stale createdAt, or skipped itself
-      // entirely, the legacy row would be persisted.
+      // The pre-flight read sees a grandfathered row and allows the legacy
+      // source; the DB holds no row, so the upsert lands as a CREATE. Reusing
+      // the stale createdAt, or skipping the backstop, persists a legacy row.
       const spy = vi
         .spyOn(prisma.mixpanelIntegration, "findUnique")
         .mockResolvedValueOnce({
@@ -609,10 +601,11 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     });
   });
 
-  // New Cloud analytics integrations land on the enriched events source and
-  // cannot be moved off it. Integrations that already existed before the
-  // analytics exporter cutoff are grandfathered: they keep their legacy source
-  // and may opt into enriched, but are never rewritten behind the user's back.
+  // New Cloud integrations land on the enriched events source and cannot be
+  // moved off it. Rows created before the analytics exporter cutoff are
+  // grandfathered: they keep their legacy source and may opt into enriched, but
+  // are never rewritten behind the user's back. Self-hosted is exempt — the
+  // create defaults above still pass unchanged.
   describe("Cloud new-integration enriched pin", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
@@ -676,22 +669,6 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("EVENTS");
     });
 
-    it("create with an explicit legacy source → BAD_REQUEST", async () => {
-      const { caller, project } = await prepareOldProject();
-      await expect(
-        caller.mixpanelIntegration.update({
-          projectId: project.id,
-          ...baseConfig,
-          exportSource: "TRACES_OBSERVATIONS" as const,
-        }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-      expect(
-        await prisma.mixpanelIntegration.findUnique({
-          where: { projectId: project.id },
-        }),
-      ).toBeNull();
-    });
-
     it("pre-cutoff row with a persisted legacy source: omitted source is preserved, not rewritten", async () => {
       const { caller, project } = await prepareOldProject();
       await seedLegacyRow(caller, project.id, ROW_PRE_ANALYTICS_CUTOFF);
@@ -709,10 +686,13 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.enabled).toBe(false);
     });
 
-    it("pre-cutoff row may re-assert its legacy source and may switch to enriched", async () => {
+    it("pre-cutoff row may re-assert legacy, opt into enriched, and switch back", async () => {
+      // The gate keys on the row's creation date, not its current source, so
+      // trying enriched must not be a one-way door: someone evaluating it needs
+      // to be able to back out while legacy still exists. The row also predates
+      // the analytics cutoff while postdating the blob one, so this catches an
+      // adapter that forwards the blob cutoff by mistake.
       const { caller, project } = await prepareOldProject();
-      // The row predates the analytics cutoff but postdates the blob one, so
-      // this also catches an adapter that forwards the blob cutoff by mistake.
       await seedLegacyRow(caller, project.id, ROW_PRE_ANALYTICS_CUTOFF);
       await expect(
         caller.mixpanelIntegration.update({
@@ -726,34 +706,19 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
         ...baseConfig,
         exportSource: "EVENTS" as const,
       });
-      const result = await caller.mixpanelIntegration.get({
-        projectId: project.id,
-      });
-      expect(result.config?.exportSource).toBe("EVENTS");
-    });
-
-    it("trying enriched is reversible: a grandfathered row may switch back to legacy", async () => {
-      // The gate keys on the row's creation date, not on its current source, so
-      // opting into enriched must not be a one-way door. Someone evaluating the
-      // enriched export needs to be able to back out while legacy still exists.
-      const { caller, project } = await prepareOldProject();
-      await seedLegacyRow(caller, project.id, ROW_PRE_ANALYTICS_CUTOFF);
+      expect(
+        (await caller.mixpanelIntegration.get({ projectId: project.id })).config
+          ?.exportSource,
+      ).toBe("EVENTS");
       await caller.mixpanelIntegration.update({
         projectId: project.id,
         ...baseConfig,
-        exportSource: "EVENTS" as const,
+        exportSource: "TRACES_OBSERVATIONS" as const,
       });
-      await expect(
-        caller.mixpanelIntegration.update({
-          projectId: project.id,
-          ...baseConfig,
-          exportSource: "TRACES_OBSERVATIONS" as const,
-        }),
-      ).resolves.not.toThrow();
-      const back = await caller.mixpanelIntegration.get({
-        projectId: project.id,
-      });
-      expect(back.config?.exportSource).toBe("TRACES_OBSERVATIONS");
+      expect(
+        (await caller.mixpanelIntegration.get({ projectId: project.id })).config
+          ?.exportSource,
+      ).toBe("TRACES_OBSERVATIONS");
     });
 
     it("post-cutoff row requesting a legacy source → BAD_REQUEST", async () => {
@@ -775,53 +740,6 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
         projectId: project.id,
       });
       expect(result.config?.exportSource).toBe("EVENTS");
-    });
-
-    it("self-hosted on the legacy write mode is untouched by the pin", async () => {
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
-      const { caller, project } = await prepareOldProject();
-      await caller.mixpanelIntegration.update({
-        projectId: project.id,
-        ...baseConfig,
-      });
-      const created = await caller.mixpanelIntegration.get({
-        projectId: project.id,
-      });
-      expect(created.config?.exportSource).toBe("TRACES_OBSERVATIONS");
-      // The legacy source stays an explicit, re-assertable choice — the pin
-      // neither rewrites it nor locks the field. (Enriched is unavailable on
-      // this write mode for a separate reason: the events table is not written.)
-      await expect(
-        caller.mixpanelIntegration.update({
-          projectId: project.id,
-          ...baseConfig,
-          exportSource: "TRACES_OBSERVATIONS" as const,
-        }),
-      ).resolves.not.toThrow();
-    });
-
-    it("self-hosted on a write mode that serves enriched may still switch to it", async () => {
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
-      const { caller, project } = await prepareOldProject();
-      await caller.mixpanelIntegration.update({
-        projectId: project.id,
-        ...baseConfig,
-      });
-      const created = await caller.mixpanelIntegration.get({
-        projectId: project.id,
-      });
-      expect(created.config?.exportSource).toBe("TRACES_OBSERVATIONS");
-      await caller.mixpanelIntegration.update({
-        projectId: project.id,
-        ...baseConfig,
-        exportSource: "EVENTS" as const,
-      });
-      const switched = await caller.mixpanelIntegration.get({
-        projectId: project.id,
-      });
-      expect(switched.config?.exportSource).toBe("EVENTS");
     });
   });
 
