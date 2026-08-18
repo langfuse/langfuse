@@ -47,14 +47,12 @@ import { getToolFailureMessage } from "./toolErrors";
 
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
-const SANDBOX_CONVERSATION_WRITE_WINDOW_MS = 8 * 60 * 60 * 1000;
 
 export type SerializedInAppAgentConversation = {
   id: string;
   title: string | null;
   createdAt: Date;
   updatedAt: Date;
-  isWriteLocked: boolean;
 };
 
 export type PersistedConversationEvent = {
@@ -75,41 +73,13 @@ export function serializeConversation(
     InAppAgentConversation,
     "id" | "title" | "createdAt" | "updatedAt"
   >,
-  options?: { isWriteLocked?: boolean },
 ): SerializedInAppAgentConversation {
   return {
     id: conversation.id,
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
-    isWriteLocked: options?.isWriteLocked ?? false,
   };
-}
-
-export function isInAppAgentConversationWriteLocked(params: {
-  conversation: Pick<InAppAgentConversation, "createdAt">;
-  events: readonly Pick<PersistedConversationEvent, "event">[];
-  now?: Date;
-}) {
-  const now = params.now ?? new Date();
-  const ageMs = now.getTime() - params.conversation.createdAt.getTime();
-
-  if (ageMs <= SANDBOX_CONVERSATION_WRITE_WINDOW_MS) {
-    return false;
-  }
-
-  return params.events.some(({ event }) => {
-    if (event.type !== EventType.TOOL_CALL_START) {
-      return false;
-    }
-
-    const toolName = getString(event, "toolCallName");
-    if (!toolName) {
-      return false;
-    }
-
-    return IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName);
-  });
 }
 
 export async function getOwnedConversationOrThrow(params: {
