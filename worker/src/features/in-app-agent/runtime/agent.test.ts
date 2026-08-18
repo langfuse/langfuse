@@ -25,6 +25,19 @@ import type { InAppAgentTracingConfig } from "./instrumentation";
 
 const EXPECTED_MCP_USER_AGENT = "langfuse-in-app-agent";
 
+const testBedrockModel = (
+  modelId: string,
+  authentication:
+    | { type: "default-credentials" }
+    | { type: "api-key"; apiKey: string } = { type: "default-credentials" },
+) => ({
+  provider: "bedrock" as const,
+  modelId,
+  titleModelId: modelId,
+  region: "eu-central-1",
+  authentication,
+});
+
 // Shape of the tool entries the mocked MCP client feeds into the Agent
 // constructor. `Agent`'s own `tools` type is a `DynamicArgument` union that
 // does not allow property access, so tests read it through this view.
@@ -472,7 +485,10 @@ describe("createAgUiStream", () => {
     });
   });
 
-  const initializeBasicTracedAgent = async (runId: string) => {
+  const initializeBasicTracedAgent = async (
+    runId: string,
+    model = testBedrockModel("test-model"),
+  ) => {
     const { createAgUiStream } = await import("./agent");
     const input = {
       threadId: "conversation-1",
@@ -506,7 +522,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "test-model" },
+        model,
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -523,6 +539,41 @@ describe("createAgUiStream", () => {
     });
     await readStream(stream);
   };
+
+  it("uses the AWS default credential chain without a bearer-token fallback", async () => {
+    const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
+    const { fromNodeProviderChain } =
+      await import("@aws-sdk/credential-providers");
+
+    await initializeBasicTracedAgent("run-default-bedrock-auth");
+
+    expect(fromNodeProviderChain).toHaveBeenCalledWith({});
+    expect(createAmazonBedrock).toHaveBeenCalledWith({
+      region: "eu-central-1",
+      apiKey: "",
+      credentialProvider: expect.any(Function),
+    });
+  });
+
+  it("uses an explicit Bedrock API key without the default credential chain", async () => {
+    const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
+    const { fromNodeProviderChain } =
+      await import("@aws-sdk/credential-providers");
+
+    await initializeBasicTracedAgent(
+      "run-bedrock-api-key",
+      testBedrockModel("test-model", {
+        type: "api-key",
+        apiKey: "bedrock-api-key",
+      }),
+    );
+
+    expect(createAmazonBedrock).toHaveBeenCalledWith({
+      region: "eu-central-1",
+      apiKey: "bedrock-api-key",
+    });
+    expect(fromNodeProviderChain).not.toHaveBeenCalled();
+  });
 
   it("forwards model stream parts when finish tracing throws", async () => {
     instrumentationMocks.instrumentation.recordModelStreamPart
@@ -685,9 +736,7 @@ describe("createAgUiStream", () => {
           eventOrder.push(`persist:${event.type}`);
           await Promise.resolve();
         },
-        awsBedrock: {
-          modelId: "eu.anthropic.claude-opus-4-8",
-        },
+        model: testBedrockModel("eu.anthropic.claude-opus-4-8"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -973,9 +1022,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: {
-          modelId: "meta.llama3-70b-instruct-v1:0",
-        },
+        model: testBedrockModel("meta.llama3-70b-instruct-v1:0"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1046,7 +1093,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "eu.anthropic.claude-opus-4-8" },
+        model: testBedrockModel("eu.anthropic.claude-opus-4-8"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1143,7 +1190,7 @@ describe("createAgUiStream", () => {
         onEvent: (event) => {
           persistedEvents.push(event);
         },
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1215,7 +1262,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "eu.anthropic.claude-opus-4-8" },
+        model: testBedrockModel("eu.anthropic.claude-opus-4-8"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1263,7 +1310,7 @@ describe("createAgUiStream", () => {
         onEvent: (event) => {
           persistedEvents.push(event);
         },
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1550,7 +1597,7 @@ describe("createAgUiStream", () => {
         onEvent: (event) => {
           persistedEvents.push(event);
         },
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1627,7 +1674,7 @@ describe("createAgUiStream", () => {
           persistedEvents.push(event);
         },
         onError,
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1791,7 +1838,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1872,7 +1919,7 @@ describe("createAgUiStream", () => {
           persistedEvents.push(event);
         },
         onComplete,
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -2021,7 +2068,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -2109,7 +2156,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",

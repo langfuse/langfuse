@@ -50,6 +50,7 @@ import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
+import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -182,11 +183,8 @@ type CreateAgUiStreamOptions = {
   onAbort?: () => void | Promise<void>;
   onError?: (error: unknown) => void | Promise<void>;
   onFinish?: () => void | Promise<void>;
-  awsBedrock: {
-    region?: string;
-    profile?: string;
-    modelId: string;
-  };
+  model: InAppAgentModelConfig;
+  awsProfile?: string;
   langfuseMcp: {
     url: string;
     publicKey: string;
@@ -198,7 +196,7 @@ type CreateAgUiStreamOptions = {
     projectId: string;
     isV4Enabled: boolean;
   };
-  langfuseClient: Langfuse;
+  langfuseClient?: Langfuse;
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
   sandbox?: InAppAgentSandbox;
@@ -212,7 +210,7 @@ export async function createAgUiStream(params: {
   options: CreateAgUiStreamOptions;
 }) {
   const encoder = new TextEncoder();
-  const awsProfile = params.options.awsBedrock.profile;
+  const awsProfile = params.options.awsProfile;
 
   const langfuseMcpAuthHeader = `Basic ${Buffer.from(
     `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
@@ -236,7 +234,7 @@ export async function createAgUiStream(params: {
     tracing: params.options.langfuseTracing
       ? { ...params.options.langfuseTracing, prompt }
       : undefined,
-    model: params.options.awsBedrock.modelId,
+    model: params.options.model.modelId,
   });
   const recordInstrumentation = (
     operation: string,
@@ -846,15 +844,17 @@ type ExecutableInAppAgentTool = {
   toModelOutput?: (output: unknown) => unknown | PromiseLike<unknown>;
 };
 
-type BedrockLanguageModel = ReturnType<ReturnType<typeof createAmazonBedrock>>;
+type InAppAgentLanguageModel = ReturnType<
+  ReturnType<typeof createAmazonBedrock>
+>;
 
 function withModelTracing(
-  model: BedrockLanguageModel,
+  model: InAppAgentLanguageModel,
   callbacks: {
     onStart?: (options: unknown) => void;
     onStreamPart?: (part: unknown) => void;
   },
-): BedrockLanguageModel {
+): InAppAgentLanguageModel {
   if (!callbacks.onStart && !callbacks.onStreamPart) {
     return model;
   }
@@ -941,12 +941,18 @@ async function createMastraAdapter(params: {
   onToolExecutionEnd?: (toolCallId: string) => void;
 }) {
   const bedrock = createAmazonBedrock({
-    ...(params.options.awsBedrock.region
-      ? { region: params.options.awsBedrock.region }
-      : {}),
-    credentialProvider: fromNodeProviderChain(
-      params.awsProfile ? { profile: params.awsProfile } : {},
-    ),
+    region: params.options.model.region,
+    ...(params.options.model.authentication.type === "api-key"
+      ? { apiKey: params.options.model.authentication.apiKey }
+      : {
+          // Explicitly suppress the SDK's AWS_BEARER_TOKEN_BEDROCK fallback:
+          // assistant auth is either the configured API key or the AWS default
+          // credential chain, never an unrelated process-level bearer token.
+          apiKey: "",
+          credentialProvider: fromNodeProviderChain(
+            params.awsProfile ? { profile: params.awsProfile } : {},
+          ),
+        }),
   });
 
   const mcpClient = new MCPClient({
@@ -1061,7 +1067,7 @@ async function createMastraAdapter(params: {
     params.onToolsAvailable?.(tools);
 
     const reasoningProviderOptions = getBedrockReasoningProviderOptions(
-      params.options.awsBedrock.modelId,
+      params.options.model.modelId,
     );
 
     // @ag-ui/mastra currently forwards only assistant, user, and tool
@@ -1071,9 +1077,7 @@ async function createMastraAdapter(params: {
     // guidance on resumed runs.
     let developerGuidance: string | undefined;
     const model = withModelTracing(
-      bedrock(
-        params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
-      ),
+      bedrock(params.options.model.modelId as Parameters<typeof bedrock>[0]),
       {
         onStart: params.onModelCallStart,
         onStreamPart: params.onModelStreamPart,
@@ -1373,7 +1377,7 @@ function getToolErrorMessage(chunk: MastraApprovalStreamChunk): string {
 }
 
 async function getSystemPromptInstructions(params: {
-  langfuseClient: Langfuse;
+  langfuseClient?: Langfuse;
   useLocalPrompt: boolean;
   variables: {
     currentDate: string;
@@ -1395,6 +1399,10 @@ async function getSystemPromptInstructions(params: {
         version: 1,
       },
     };
+  }
+
+  if (!params.langfuseClient) {
+    throw new Error("Managed assistant prompt client is not configured");
   }
 
   const prompt = await params.langfuseClient.getPrompt(
