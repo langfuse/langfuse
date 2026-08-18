@@ -58,6 +58,44 @@ const scenarioRef = vi.hoisted(() => ({
   titleInferenceCalls: 0,
 }));
 
+// Disabled by default (mirrors the rest of this suite's mocked agent
+// execution); a test flips `enabled` to exercise sandbox suspension.
+const sandboxRef = vi.hoisted(() => ({
+  enabled: false,
+  suspendedSessionIds: [] as string[],
+}));
+
+vi.mock(
+  "@langfuse/shared/in-app-agent/server/sandbox/config",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@langfuse/shared/in-app-agent/server/sandbox/config")
+      >();
+
+    return {
+      ...actual,
+      getDefaultInAppAgentSandboxProviderType: () =>
+        sandboxRef.enabled ? "lambda-microvm" : null,
+      createInAppAgentSandboxProvider: async () => ({
+        ensureSession: async ({ sessionId }: { sessionId: string | null }) => ({
+          sessionId: sessionId ?? "provider-session-1",
+          sandbox: {
+            read: async () => ({ path: "notes.txt", content: null }),
+            write: async () => ({ path: "notes.txt", bytesWritten: 0 }),
+            edit: async () => ({ path: "notes.txt", replaced: false }),
+            bash: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
+            syncReadonlyFiles: async () => {},
+          },
+        }),
+        suspendSession: async ({ sessionId }: { sessionId: string }) => {
+          sandboxRef.suspendedSessionIds.push(sessionId);
+        },
+      }),
+    };
+  },
+);
+
 vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
   const actual =
     await importOriginal<
@@ -266,6 +304,8 @@ async function seedApprovedContinuation(opts?: {
 describe("executeInAppAgentRun", () => {
   beforeEach(() => {
     scenarioRef.titleInferenceCalls = 0;
+    sandboxRef.enabled = false;
+    sandboxRef.suspendedSessionIds = [];
   });
 
   it("does not regenerate the conversation title after executing a user-message run", async () => {
@@ -516,8 +556,13 @@ describe("executeInAppAgentRun", () => {
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
   });
 
-  it("stops writing when fenced: an externally reconciled run keeps its recorded outcome", async () => {
-    const { projectId, run } = await seedBackgroundRun();
+  it("stops writing when fenced: an externally reconciled run keeps its recorded outcome, and does not suspend a session a newer run may already own", async () => {
+    sandboxRef.enabled = true;
+    const { projectId, conversation, run } = await seedBackgroundRun();
+    await prisma.inAppAgentConversation.update({
+      where: { id_projectId: { id: conversation.id, projectId } },
+      data: { providerSessionId: "provider-session-1" },
+    });
 
     scenarioRef.current = async ({ signal, options }) => {
       // Simulate read-side reconciliation flipping the run away mid-loop.
@@ -546,6 +591,9 @@ describe("executeInAppAgentRun", () => {
     expect(fenced.errorCode).toBe("worker_lost");
     expect(fenced.errorMessage).toBe("The run was interrupted.");
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+    // A newer run already claimed ownership of the conversation; suspending
+    // here could race that run's own sandbox operations on the same session.
+    expect(sandboxRef.suspendedSessionIds).toEqual([]);
   });
 
   it("finishes an approved continuation without a persisted tool result as FAILED (outcome_unknown)", async () => {
