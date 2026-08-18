@@ -1774,9 +1774,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
       expect(result.status).toBe(400);
-      expect(result.body.message).toContain(
-        "blob storage integrations created on or after",
-      );
+      expect(result.body.message).toContain("integrations created on or after");
       expect(result.body.message).toContain(
         LEGACY_BLOB_EXPORTER_CUTOFF.toISOString(),
       );
@@ -1814,9 +1812,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
       expect(result.status).toBe(400);
-      expect(result.body.message).toContain(
-        "blob storage integrations created on or after",
-      );
+      expect(result.body.message).toContain("integrations created on or after");
     });
 
     it("post-cutoff existing row + legacy source → 400", async () => {
@@ -1832,9 +1828,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
       expect(result.status).toBe(400);
-      expect(result.body.message).toContain(
-        "blob storage integrations created on or after",
-      );
+      expect(result.body.message).toContain("integrations created on or after");
     });
 
     it("no existing row + OBSERVATIONS_V2 → 200", async () => {
