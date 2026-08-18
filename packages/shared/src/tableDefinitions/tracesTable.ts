@@ -71,7 +71,7 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: '"level"',
@@ -81,6 +81,7 @@ export const tracesOnlyCols: ColumnDefinition[] = [
       { value: "WARNING" },
       { value: "ERROR" },
     ] as { value: ObservationLevelType }[],
+    aliases: ["Level"],
   },
   {
     name: "Tags",

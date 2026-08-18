@@ -800,7 +800,7 @@ export default function ObservationsTable({
     {
       accessorKey: "level",
       id: "level",
-      header: "Level",
+      header: "Status",
       size: 100,
       headerTooltip: {
         description:

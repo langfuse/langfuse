@@ -39,6 +39,9 @@ describe("displayNameForFilterColumn", () => {
     ["isRootObservation", "Is Root Observation"],
     ["userId", "User"],
     ["calledToolNames", "Tool Names (Called)"],
+    ["level", "Status"],
+    ["Level", "Status"],
+    ["Status", "Status"],
   ])("resolves %s to %s", (column, expected) => {
     expect(displayNameForFilterColumn(column)).toBe(expected);
   });

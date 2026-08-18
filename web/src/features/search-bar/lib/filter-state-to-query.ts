@@ -30,6 +30,9 @@ const COLUMN_ID_BY_KEY = new Map<string, string>();
 for (const col of eventsTableCols) {
   COLUMN_ID_BY_KEY.set(col.id.toLowerCase(), col.id);
   COLUMN_ID_BY_KEY.set(col.name.toLowerCase(), col.id);
+  for (const alias of col.aliases ?? []) {
+    COLUMN_ID_BY_KEY.set(alias.toLowerCase(), col.id);
+  }
 }
 
 function columnIdOf(column: string): string | null {

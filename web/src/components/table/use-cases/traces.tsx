@@ -1061,7 +1061,7 @@ export default function TracesTable({
     {
       accessorKey: "level",
       id: "level",
-      header: "Level",
+      header: "Status",
       size: 75,
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
