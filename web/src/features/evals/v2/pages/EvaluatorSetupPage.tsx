@@ -44,6 +44,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
+import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 
 type InitialEvaluator = {
   id: string;
@@ -210,21 +211,23 @@ export function EvaluatorSetupPage(
       trpcErrorToast(error);
     },
   });
-  const suggestName = api.evalsV2.suggestName.useMutation({
-    onSuccess: (suggested) => {
-      if (suggested) evaluatorSetupStore.getState().actions.setName(suggested);
-    },
-  });
+  const suggestName = api.evalsV2.suggestName.useMutation();
 
-  const requestNameSuggestion = () => {
-    if (!nameAIAssistanceAvailable) return;
+  const requestNameSuggestion = async () => {
+    if (!nameAIAssistanceAvailable) return null;
     hasRequestedName.current = true;
     const state = evaluatorSetupStore.getState();
     const nameDefinition =
       state.type === "LLM_AS_JUDGE"
         ? { type: state.type, prompt: state.prompt }
         : { type: state.type, sourceCode: state.sourceCode };
-    suggestName.mutate({ projectId, definition: nameDefinition });
+    const suggested = await suggestName.mutateAsync({
+      projectId,
+      definition: nameDefinition,
+    });
+    const name = suggested?.trim() || null;
+    if (name) state.actions.setName(name);
+    return name;
   };
 
   const setStepOpen = (step: number, open: boolean) => {
@@ -238,7 +241,7 @@ export function EvaluatorSetupPage(
       !state.name &&
       !hasRequestedName.current
     ) {
-      requestNameSuggestion();
+      requestNameSuggestion().catch(trpcErrorToast);
     }
   };
 
@@ -252,15 +255,22 @@ export function EvaluatorSetupPage(
   };
 
   const save = async () => {
-    const state = evaluatorSetupStore.getState();
-    const { definition } = prepareEvaluatorDraft(state);
-    if (!definition || !state.name.trim()) return;
     try {
+      let state = evaluatorSetupStore.getState();
+      const name = await prepareNameForSave({
+        currentName: state.name,
+        generateName: nameAIAssistanceAvailable ? requestNameSuggestion : null,
+        setName: state.actions.setName,
+      });
+      state = evaluatorSetupStore.getState();
+      const { definition } = prepareEvaluatorDraft(state);
+      if (!definition || !name) return;
+
       if (initialEvaluator) {
         const evaluator = await update.mutateAsync({
           projectId,
           evaluatorId: initialEvaluator.id,
-          name: state.name,
+          name,
           description: state.description || null,
           definition,
         });
@@ -278,7 +288,7 @@ export function EvaluatorSetupPage(
       const evaluator = await create.mutateAsync({
         projectId,
         evaluatorId,
-        name: state.name,
+        name,
         description: state.description || null,
         definition,
       });
@@ -287,7 +297,7 @@ export function EvaluatorSetupPage(
       await utils.evalsV2.filterOptions.invalidate({ projectId });
       setSavedEvaluator({
         id: evaluator.id,
-        name: state.name,
+        name,
         type: state.type,
         defaultVariableMapping: observationVariableMappingList
           .catch([])
@@ -359,7 +369,10 @@ export function EvaluatorSetupPage(
           ? { state: "unavailable" }
           : suggestName.isPending
             ? { state: "generating" }
-            : { state: "idle", onGenerate: requestNameSuggestion }
+            : {
+                state: "idle",
+                onGenerate: () => requestNameSuggestion().catch(trpcErrorToast),
+              }
       }
     />
   );
@@ -477,7 +490,10 @@ export function EvaluatorSetupPage(
           store={evaluatorSetupStore}
           initialSnapshot={initialSnapshot.current}
           isEditing={Boolean(initialEvaluator)}
-          isSaving={create.isPending || update.isPending}
+          isSaving={
+            create.isPending || update.isPending || suggestName.isPending
+          }
+          nameAIAssistanceAvailable={nameAIAssistanceAvailable}
           onClose={requestClose}
           onSave={save}
         />

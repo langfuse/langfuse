@@ -144,7 +144,7 @@ export function createEvaluatorSetupStore({
     ),
     name: initialEvaluator?.name ?? "",
     description: initialEvaluator?.description ?? "",
-    openSteps: { 1: true, 2: true, 3: false },
+    openSteps: { 1: true, 2: true, 3: true },
     variableFields: buildInitialVariableFields(initialDefinition),
     activeMapping: null,
     modelPickerOpen: false,
