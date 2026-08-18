@@ -652,6 +652,14 @@ describe("in-app agent persistence", () => {
       messageId: "feedback-user",
       content: "Answer me",
     });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: rootRun.id,
+      events,
+      messageId: "plain-assistant",
+      chunks: ["Answering directly"],
+    });
     // The final answer comes from an approval continuation, but the trace it is
     // recorded on belongs to the root run. The parent settles when it parks for
     // approval, so only the continuation is active.
@@ -706,17 +714,39 @@ describe("in-app agent persistence", () => {
         }),
       ).resolves.toEqual({ feedback: { value: "thumbs_up", comment: null } });
 
-      await waitForExpect(async () => {
-        const score = await getScoreById({
+      await expect(
+        caller.submitFeedback({
           projectId,
-          scoreId: `afbs_feedback-assistant_${userId}`,
-        });
-        expect(score?.traceId).toBe(
-          getInAppAgentInstrumentationTraceId(rootRun.id),
-        );
-        expect(score?.observationId).toBe(
-          getInAppAgentInstrumentationObservationId(rootRun.id),
-        );
+          conversationId: conversation.id,
+          messageId: "plain-assistant",
+          runId: rootRun.id,
+          value: "thumbs_down",
+          comment: null,
+        }),
+      ).resolves.toEqual({ feedback: { value: "thumbs_down", comment: null } });
+
+      // Both the continuation's answer and the root run's own answer score onto
+      // the single trace the agent turn was recorded on.
+      await waitForExpect(async () => {
+        const [continuationScore, plainScore] = await Promise.all([
+          getScoreById({
+            projectId,
+            scoreId: `afbs_feedback-assistant_${userId}`,
+          }),
+          getScoreById({
+            projectId,
+            scoreId: `afbs_plain-assistant_${userId}`,
+          }),
+        ]);
+
+        for (const score of [continuationScore, plainScore]) {
+          expect(score?.traceId).toBe(
+            getInAppAgentInstrumentationTraceId(rootRun.id),
+          );
+          expect(score?.observationId).toBe(
+            getInAppAgentInstrumentationObservationId(rootRun.id),
+          );
+        }
       });
     } finally {
       (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID =
