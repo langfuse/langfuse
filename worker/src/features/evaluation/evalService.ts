@@ -184,12 +184,42 @@ type CreateEvalJobsParams = {
     }
 );
 
+// Only what toTraceEvalConfig reads. Selecting the evaluator wholesale would carry its prompt
+// and source code (up to 256KB) into a query that runs per trace.
+const traceRuleSelect = {
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  projectId: true,
+  status: true,
+  targetObject: true,
+  filter: true,
+  sampling: true,
+  delay: true,
+  timeScope: true,
+  assignments: {
+    orderBy: { createdAt: "asc" },
+    select: {
+      variableMapping: true,
+      evaluator: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          blockedAt: true,
+          versions: {
+            orderBy: { version: "desc" },
+            take: 1,
+            select: { id: true, variableMapping: true },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.EvaluationRuleSelect;
+
 type TraceRule = Prisma.EvaluationRuleGetPayload<{
-  include: {
-    assignments: {
-      include: { evaluator: { include: { versions: true } } };
-    };
-  };
+  select: typeof traceRuleSelect;
 }>;
 
 type TraceEvalConfig = JobConfiguration & {
@@ -263,19 +293,16 @@ export const createEvalJobs = async ({
       ...(enforcedJobTimeScope
         ? { timeScope: { has: enforcedJobTimeScope } }
         : {}),
-    },
-    include: {
+      // `some` picks which rules load, not which assignments. Filtering the nested assignments
+      // would shrink a two-evaluator rule to the one assignment toTraceEvalConfig then runs.
       assignments: {
-        orderBy: { createdAt: "asc" },
-        include: {
-          evaluator: {
-            include: {
-              versions: { orderBy: { version: "desc" }, take: 1 },
-            },
-          },
+        some: {
+          projectId: event.projectId,
+          evaluator: { blockedAt: null, type: EvalTemplateType.LLM_AS_JUDGE },
         },
       },
     },
+    select: traceRuleSelect,
   });
   const configs = rules.flatMap((rule) => {
     const config = toTraceEvalConfig(rule);
