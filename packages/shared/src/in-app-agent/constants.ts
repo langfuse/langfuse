@@ -39,8 +39,3 @@ export const getInAppAgentLlmCallObservationId = (
   runId: string,
   stepNumber: number,
 ) => `${runId}-llm-${stepNumber}`;
-
-// Prefer the model id in the tree (matches pricing + readability). Fall back
-// when a step finishes without a known model.
-export const getInAppAgentLlmCallName = (modelId?: string) =>
-  modelId?.trim() || "llm-call";

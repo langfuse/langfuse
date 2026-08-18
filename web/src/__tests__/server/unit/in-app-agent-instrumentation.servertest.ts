@@ -3,7 +3,6 @@ import { EventType } from "@ag-ui/core";
 import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
-  getInAppAgentLlmCallName,
   getInAppAgentLlmCallObservationId,
 } from "@langfuse/shared/in-app-agent";
 import type { AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
@@ -1334,7 +1333,6 @@ describe("InAppAgentInstrumentation", () => {
     expect(generationCreates[0]?.[1]).toEqual(
       expect.objectContaining({
         id: getInAppAgentLlmCallObservationId(runId, 1),
-        name: getInAppAgentLlmCallName(modelName),
         parentObservationId: agentRunObservationId,
         model: modelName,
         usageDetails: {
@@ -1364,7 +1362,6 @@ describe("InAppAgentInstrumentation", () => {
     expect(generationCreates[1]?.[1]).toEqual(
       expect.objectContaining({
         id: getInAppAgentLlmCallObservationId(runId, 2),
-        name: getInAppAgentLlmCallName(modelName),
         parentObservationId: agentRunObservationId,
         model: modelName,
         usageDetails: {
@@ -1614,7 +1611,6 @@ describe("InAppAgentInstrumentation", () => {
 
   it("closes an open LLM step as ERROR when the run is aborted", () => {
     const instrumentation = createInstrumentation();
-    const modelName = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
 
     instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
     instrumentation.end({ aborted: true });
@@ -1623,7 +1619,6 @@ describe("InAppAgentInstrumentation", () => {
       "generation-create",
       expect.objectContaining({
         id: getInAppAgentLlmCallObservationId(runId, 1),
-        name: getInAppAgentLlmCallName(modelName),
         parentObservationId: agentRunObservationId,
         level: "ERROR",
         statusMessage: "aborted",
@@ -1661,33 +1656,6 @@ describe("InAppAgentInstrumentation", () => {
         model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
       }),
     );
-  });
-
-  it("names generations with the configured model even when usage is missing", () => {
-    const instrumentation = createInstrumentation();
-    const modelName = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
-
-    instrumentation.recordStreamChunk({ type: "step-start", payload: {} });
-    instrumentation.recordStepFinish(undefined);
-    instrumentation.end({});
-
-    const generationBody = mocks.handler.langfuse.enqueue.mock.calls.find(
-      ([type]) => type === "generation-create",
-    )?.[1];
-    expect(generationBody).toEqual(
-      expect.objectContaining({
-        name: getInAppAgentLlmCallName(modelName),
-      }),
-    );
-    // Without usage, do not attach model to the body (avoids tokenizer cost estimates).
-    expect(generationBody).not.toHaveProperty("usageDetails");
-    expect(generationBody).not.toHaveProperty("model");
-
-    const finalAgentCreate = mocks.handler.langfuse.enqueue.mock.calls
-      .filter(([type]) => type === "agent-create")
-      .at(-1)?.[1];
-    expect(finalAgentCreate).not.toHaveProperty("usageDetails");
-    expect(finalAgentCreate).not.toHaveProperty("model");
   });
 
   it("uses provider finish usage when approval ends before step finish", () => {

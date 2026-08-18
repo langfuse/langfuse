@@ -4,7 +4,6 @@ import { getInternalTracingHandler, logger } from "../../server";
 import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
-  getInAppAgentLlmCallName,
   getInAppAgentLlmCallObservationId,
 } from "../constants";
 import {
@@ -50,6 +49,7 @@ export type InAppAgentPromptMetadata = {
 };
 
 const IN_APP_AGENT_TURN_NAME = "agent-turn";
+const IN_APP_AGENT_LLM_CALL_NAME = "invoke-model";
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
 type InAppAgentTrace = ReturnType<
   InternalTracingHandler["handler"]["langfuse"]["trace"]
@@ -827,7 +827,7 @@ export class InAppAgentInstrumentation {
       id,
       traceId: this.traceId,
       parentObservationId: this.rootObservationId,
-      name: getInAppAgentLlmCallName(model),
+      name: IN_APP_AGENT_LLM_CALL_NAME,
       startTime: step.startTime,
       endTime,
       completionStartTime: step.completionStartTime ?? step.startTime,
