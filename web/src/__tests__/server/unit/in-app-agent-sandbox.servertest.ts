@@ -127,6 +127,82 @@ describe("in-app agent sandbox", () => {
     });
   });
 
+  it("suspends the provider session when a turn ends", async () => {
+    const sandboxSession = {
+      async syncReadonlyFiles() {},
+      async read() {
+        return { path: "notes.txt", content: null };
+      },
+      async write() {
+        return { path: "notes.txt", bytesWritten: 0 };
+      },
+      async edit() {
+        return { path: "notes.txt", replaced: false };
+      },
+      async bash() {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    };
+    const suspendedSessionIds: string[] = [];
+    const provider = {
+      async ensureSession() {
+        return { sessionId: "session-1", sandbox: sandboxSession };
+      },
+      async suspendSession({ sessionId }: { sessionId: string }) {
+        suspendedSessionIds.push(sessionId);
+      },
+    };
+    const sandbox = await createInAppAgentSandbox({
+      conversationId: "conversation-1",
+      projectId: "project-1",
+      provider,
+      getToolCallFiles: async () => [],
+      saveState: async () => {},
+    });
+
+    await sandbox.sandbox.write({ path: "notes.txt", content: "hello" });
+    await sandbox.onTurnEnded();
+
+    expect(suspendedSessionIds).toEqual(["session-1"]);
+  });
+
+  it("does not throw when suspending the provider session fails", async () => {
+    const sandboxSession = {
+      async syncReadonlyFiles() {},
+      async read() {
+        return { path: "notes.txt", content: null };
+      },
+      async write() {
+        return { path: "notes.txt", bytesWritten: 0 };
+      },
+      async edit() {
+        return { path: "notes.txt", replaced: false };
+      },
+      async bash() {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    };
+    const provider = {
+      async ensureSession() {
+        return { sessionId: "session-1", sandbox: sandboxSession };
+      },
+      async suspendSession() {
+        throw new Error("provider unavailable");
+      },
+    };
+    const sandbox = await createInAppAgentSandbox({
+      conversationId: "conversation-1",
+      projectId: "project-1",
+      provider,
+      getToolCallFiles: async () => [],
+      saveState: async () => {},
+    });
+
+    await sandbox.sandbox.write({ path: "notes.txt", content: "hello" });
+
+    await expect(sandbox.onTurnEnded()).resolves.toBeUndefined();
+  });
+
   it("syncs same-turn silent tool output into sandbox tool-call files", async () => {
     const files = new Map<string, string>();
     const toolCallFiles = createSandboxToolCallFileAccumulator([]);
