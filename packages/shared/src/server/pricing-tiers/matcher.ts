@@ -13,7 +13,7 @@ import type {
 /**
  * Evaluates a single condition against usage details or observation attributes.
  * Usage conditions sum keys matching the regex; attribute conditions compare an
- * exact top-level key and value.
+ * exact top-level key against the configured values.
  */
 function evaluateCondition(
   condition: PricingTierCondition,
@@ -27,10 +27,12 @@ function evaluateCondition(
           ? attributes.modelParameters
           : attributes.metadata;
 
-      return (
-        Object.prototype.hasOwnProperty.call(values ?? {}, condition.key) &&
-        values?.[condition.key] === condition.value
-      );
+      if (!Object.prototype.hasOwnProperty.call(values ?? {}, condition.key)) {
+        return false;
+      }
+
+      const attributeValue = values?.[condition.key];
+      return condition.values.includes(attributeValue ?? "");
     }
 
     // Build regex with case sensitivity flag

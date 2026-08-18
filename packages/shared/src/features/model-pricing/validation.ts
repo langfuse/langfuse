@@ -67,8 +67,8 @@ export const PricingTierUsageConditionSchema = z.object({
 export const PricingTierAttributeConditionSchema = z.object({
   source: z.enum(["model_parameters", "metadata"]),
   key: z.string().min(1, "Key cannot be empty").max(200),
-  operator: z.literal("eq"),
-  value: z.string(),
+  operator: z.literal("in"),
+  values: z.array(z.string().min(1, "Value cannot be empty")).min(1),
 });
 
 /**

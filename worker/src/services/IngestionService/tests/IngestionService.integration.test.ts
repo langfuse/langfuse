@@ -2609,8 +2609,8 @@ describe("Ingestion end-to-end tests", () => {
                   {
                     source: "model_parameters",
                     key: "service_tier",
-                    operator: "eq",
-                    value: "priority",
+                    operator: "in",
+                    values: ["priority"],
                   },
                 ],
                 prices: {
@@ -2683,14 +2683,14 @@ describe("Ingestion end-to-end tests", () => {
                   {
                     source: "model_parameters",
                     key: "service_tier",
-                    operator: "eq",
-                    value: "priority",
+                    operator: "in",
+                    values: ["priority"],
                   },
                   {
                     source: "metadata",
                     key: "region",
-                    operator: "eq",
-                    value: "us",
+                    operator: "in",
+                    values: ["us"],
                   },
                 ],
                 prices: {

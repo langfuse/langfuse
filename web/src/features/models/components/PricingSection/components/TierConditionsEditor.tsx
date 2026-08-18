@@ -110,8 +110,8 @@ export function TierConditionsEditor({
                     replaceCondition(conditionIndex, {
                       source: nextSource as "model_parameters" | "metadata",
                       key: "",
-                      operator: "eq",
-                      value: "",
+                      operator: "in",
+                      values: [""],
                     });
                   }
                 }}
@@ -164,63 +164,84 @@ export function TierConditionsEditor({
 
             {/* Operator + Value */}
             <div className="grid grid-cols-2 gap-2">
-              <FormField
-                control={form.control}
-                name={`pricingTiers.${tierIndex}.conditions.${conditionIndex}.operator`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Operator</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {isUsageCondition ? (
-                          <>
-                            <SelectItem value="gt">
-                              &gt; (greater than)
-                            </SelectItem>
-                            <SelectItem value="gte">
-                              &gt;= (greater or equal)
-                            </SelectItem>
-                            <SelectItem value="lt">&lt; (less than)</SelectItem>
-                            <SelectItem value="lte">
-                              &lt;= (less or equal)
-                            </SelectItem>
-                            <SelectItem value="eq">= (equals)</SelectItem>
-                            <SelectItem value="neq">!= (not equals)</SelectItem>
-                          </>
-                        ) : (
+              {isUsageCondition ? (
+                <FormField
+                  control={form.control}
+                  name={`pricingTiers.${tierIndex}.conditions.${conditionIndex}.operator`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Operator</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gt">
+                            &gt; (greater than)
+                          </SelectItem>
+                          <SelectItem value="gte">
+                            &gt;= (greater or equal)
+                          </SelectItem>
+                          <SelectItem value="lt">&lt; (less than)</SelectItem>
+                          <SelectItem value="lte">
+                            &lt;= (less or equal)
+                          </SelectItem>
                           <SelectItem value="eq">= (equals)</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                          <SelectItem value="neq">!= (not equals)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormItem>
+                  <FormLabel>Operator</FormLabel>
+                  <Input disabled value="in (any of)" />
+                </FormItem>
+              )}
 
               <FormField
                 control={form.control}
-                name={`pricingTiers.${tierIndex}.conditions.${conditionIndex}.value`}
+                name={`pricingTiers.${tierIndex}.conditions.${conditionIndex}.${isUsageCondition ? "value" : "values"}`}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Value</FormLabel>
+                    <FormLabel>
+                      {isUsageCondition ? "Value" : "Values"}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         type={isUsageCondition ? "number" : "text"}
                         {...field}
-                        value={field.value as string | number}
+                        value={
+                          !isUsageCondition
+                            ? ((field.value as string[]) ?? []).join(", ")
+                            : (field.value as string | number)
+                        }
+                        placeholder={
+                          !isUsageCondition ? "fast, priority" : undefined
+                        }
                         onChange={(e) =>
                           field.onChange(
                             isUsageCondition
                               ? parseFloat(e.target.value)
-                              : e.target.value,
+                              : e.target.value
+                                  .split(",")
+                                  .map((value) => value.trim()),
                           )
                         }
                       />
                     </FormControl>
                     <FormMessage />
+                    {!isUsageCondition && (
+                      <FormDescription>
+                        Comma-separated exact values. All other tier conditions
+                        still apply.
+                      </FormDescription>
+                    )}
                   </FormItem>
                 )}
               />

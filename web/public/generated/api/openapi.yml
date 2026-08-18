@@ -10682,14 +10682,14 @@ components:
         - $ref: '#/components/schemas/PricingTierUsageCondition'
         - $ref: '#/components/schemas/PricingTierAttributeCondition'
       description: >-
-        Condition for matching a pricing tier against usage details or exact
+        Condition for matching a pricing tier against usage details or
         observation attributes.
 
 
         Usage-detail conditions treat usageDetailPattern as a regex, sum all
         matching usage values, and compare the sum to the numeric value.
-        Model-parameter and metadata conditions match an exact top-level key and
-        string value.
+        Model-parameter and metadata conditions match an exact top-level key
+        against one or more string values.
     PricingTierUsageCondition:
       title: PricingTierUsageCondition
       type: object
@@ -10715,7 +10715,9 @@ components:
     PricingTierAttributeCondition:
       title: PricingTierAttributeCondition
       type: object
-      description: Condition that exactly matches a top-level observation attribute.
+      description: >-
+        Condition that matches any configured value for a top-level observation
+        attribute.
       properties:
         source:
           $ref: '#/components/schemas/PricingTierAttributeSource'
@@ -10725,16 +10727,18 @@ components:
           description: Exact top-level attribute key.
         operator:
           type: string
-          const: eq
-          description: Exact equality operator.
-        value:
-          type: string
-          description: Exact string attribute value.
+          const: in
+          description: Membership operator.
+        values:
+          type: array
+          items:
+            type: string
+          description: Accepted string attribute values. At least one value is required.
       required:
         - source
         - key
         - operator
-        - value
+        - values
     PricingTierAttributeSource:
       title: PricingTierAttributeSource
       type: string
@@ -10753,7 +10757,8 @@ components:
         charge different rates based on usage patterns or request attributes.
 
         For example, some providers charge higher rates when context size
-        exceeds certain thresholds or when a priority service tier is selected.
+        exceeds certain thresholds or when an accelerated service tier is
+        selected.
 
 
         How tier matching works:

@@ -4229,15 +4229,15 @@
       },
       {
         "id": "af5ffdbd-411b-4215-ae86-bfc0d9c9817e",
-        "name": "Priority",
+        "name": "Fast mode",
         "isDefault": false,
         "priority": 1,
         "conditions": [
           {
             "source": "model_parameters",
             "key": "service_tier",
-            "operator": "eq",
-            "value": "priority"
+            "operator": "in",
+            "values": ["fast", "priority"]
           }
         ],
         "prices": {
@@ -4361,15 +4361,15 @@
       },
       {
         "id": "54bb424a-ac97-4316-93b2-1b3a46a79f71",
-        "name": "Priority Large Context (>272K)",
+        "name": "Fast mode · Large context (>272K)",
         "isDefault": false,
         "priority": 1,
         "conditions": [
           {
             "source": "model_parameters",
             "key": "service_tier",
-            "operator": "eq",
-            "value": "priority"
+            "operator": "in",
+            "values": ["fast", "priority"]
           },
           {
             "usageDetailPattern": "(input|cache_write)",
@@ -4393,15 +4393,15 @@
       },
       {
         "id": "26ef382b-df27-4a55-ad8c-dedea29d76ee",
-        "name": "Priority",
+        "name": "Fast mode",
         "isDefault": false,
         "priority": 2,
         "conditions": [
           {
             "source": "model_parameters",
             "key": "service_tier",
-            "operator": "eq",
-            "value": "priority"
+            "operator": "in",
+            "values": ["fast", "priority"]
           }
         ],
         "prices": {
@@ -4479,15 +4479,15 @@
       },
       {
         "id": "9ca35f10-4a56-4cb0-9ca6-0ae9c57deeee",
-        "name": "Priority Large Context (>272K)",
+        "name": "Fast mode · Large context (>272K)",
         "isDefault": false,
         "priority": 1,
         "conditions": [
           {
             "source": "model_parameters",
             "key": "service_tier",
-            "operator": "eq",
-            "value": "priority"
+            "operator": "in",
+            "values": ["fast", "priority"]
           },
           {
             "usageDetailPattern": "(input|cache_write)",
@@ -4511,15 +4511,15 @@
       },
       {
         "id": "9ff3bb71-f328-4cee-81b8-6b767871d820",
-        "name": "Priority",
+        "name": "Fast mode",
         "isDefault": false,
         "priority": 2,
         "conditions": [
           {
             "source": "model_parameters",
             "key": "service_tier",
-            "operator": "eq",
-            "value": "priority"
+            "operator": "in",
+            "values": ["fast", "priority"]
           }
         ],
         "prices": {
@@ -4597,15 +4597,15 @@
       },
       {
         "id": "5ab18b8b-86aa-4077-9f3c-a4ea6f8a37c8",
-        "name": "Priority Large Context (>272K)",
+        "name": "Fast mode · Large context (>272K)",
         "isDefault": false,
         "priority": 1,
         "conditions": [
           {
             "source": "model_parameters",
             "key": "service_tier",
-            "operator": "eq",
-            "value": "priority"
+            "operator": "in",
+            "values": ["fast", "priority"]
           },
           {
             "usageDetailPattern": "(input|cache_write)",
@@ -4629,15 +4629,15 @@
       },
       {
         "id": "079cdd36-4c31-4df3-9e4b-38074becb0b4",
-        "name": "Priority",
+        "name": "Fast mode",
         "isDefault": false,
         "priority": 2,
         "conditions": [
           {
             "source": "model_parameters",
             "key": "service_tier",
-            "operator": "eq",
-            "value": "priority"
+            "operator": "in",
+            "values": ["fast", "priority"]
           }
         ],
         "prices": {

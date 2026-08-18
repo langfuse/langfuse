@@ -105,23 +105,42 @@ describe("validation methods", () => {
       expect(result.valid).toBe(true);
     });
 
-    it("accepts pricing-specific attribute conditions", () => {
+    it("accepts attribute membership conditions", () => {
       const result = PricingTierInputSchema.safeParse({
-        name: "Priority",
+        name: "Fast mode",
         isDefault: false,
         priority: 1,
         conditions: [
           {
             source: "model_parameters",
             key: "service_tier",
-            operator: "eq",
-            value: "priority",
+            operator: "in",
+            values: ["fast", "priority"],
           },
         ],
         prices: { input: 6.0, output: 30.0 },
       });
 
       expect(result.success).toBe(true);
+    });
+
+    it("rejects empty attribute membership conditions", () => {
+      const result = PricingTierInputSchema.safeParse({
+        name: "Fast mode",
+        isDefault: false,
+        priority: 1,
+        conditions: [
+          {
+            source: "model_parameters",
+            key: "service_tier",
+            operator: "in",
+            values: [],
+          },
+        ],
+        prices: { input: 6.0, output: 30.0 },
+      });
+
+      expect(result.success).toBe(false);
     });
 
     it("rejects generic filter-shaped pricing conditions", () => {

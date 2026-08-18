@@ -835,9 +835,9 @@ types:
 
   PricingTierCondition:
     docs: |
-      Condition for matching a pricing tier against usage details or exact observation attributes.
+      Condition for matching a pricing tier against usage details or observation attributes.
 
-      Usage-detail conditions treat usageDetailPattern as a regex, sum all matching usage values, and compare the sum to the numeric value. Model-parameter and metadata conditions match an exact top-level key and string value.
+      Usage-detail conditions treat usageDetailPattern as a regex, sum all matching usage values, and compare the sum to the numeric value. Model-parameter and metadata conditions match an exact top-level key against one or more string values.
     discriminated: false
     union:
       - PricingTierUsageCondition
@@ -858,7 +858,7 @@ types:
         type: boolean
 
   PricingTierAttributeCondition:
-    docs: Condition that exactly matches a top-level observation attribute.
+    docs: Condition that matches any configured value for a top-level observation attribute.
     properties:
       source:
         docs: Observation attribute object evaluated by this condition.
@@ -867,11 +867,11 @@ types:
         docs: Exact top-level attribute key.
         type: string
       operator:
-        docs: Exact equality operator.
-        type: literal<"eq">
-      value:
-        docs: Exact string attribute value.
-        type: string
+        docs: Membership operator.
+        type: literal<"in">
+      values:
+        docs: Accepted string attribute values. At least one value is required.
+        type: list<string>
 
   PricingTierAttributeSource:
     enum:
@@ -883,7 +883,7 @@ types:
       Pricing tier definition with conditional pricing based on usage thresholds or observation attributes.
 
       Pricing tiers enable accurate cost tracking for LLM providers that charge different rates based on usage patterns or request attributes.
-      For example, some providers charge higher rates when context size exceeds certain thresholds or when a priority service tier is selected.
+      For example, some providers charge higher rates when context size exceeds certain thresholds or when an accelerated service tier is selected.
 
       How tier matching works:
       1. Tiers are evaluated in ascending priority order (priority 1 before priority 2, etc.)

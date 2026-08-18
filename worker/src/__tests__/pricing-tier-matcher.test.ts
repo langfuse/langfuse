@@ -184,9 +184,8 @@ describe("default-model-prices.json", () => {
 
         for (const condition of tier.conditions) {
           expect(condition).toHaveProperty("operator");
-          expect(condition).toHaveProperty("value");
-
           if ("usageDetailPattern" in condition) {
+            expect(condition).toHaveProperty("value");
             expect(["gt", "gte", "lt", "lte", "eq", "neq"]).toContain(
               condition.operator,
             );
@@ -202,8 +201,10 @@ describe("default-model-prices.json", () => {
               condition.source,
             );
             expect(condition).toHaveProperty("key");
-            expect(condition.operator).toBe("eq");
-            expect(typeof condition.value).toBe("string");
+            expect(condition.operator).toBe("in");
+            expect(condition.values).toEqual(
+              expect.arrayContaining([expect.any(String)]),
+            );
           }
         }
       }
@@ -320,8 +321,8 @@ describe("default-model-prices.json", () => {
       expect(model, modelName).toBeDefined();
       expect(model!.pricingTiers.map((tier) => tier.name)).toEqual([
         "Standard",
-        "Priority Large Context (>272K)",
-        "Priority",
+        "Fast mode · Large context (>272K)",
+        "Fast mode",
         "Large Context (>272K)",
       ]);
 
@@ -380,7 +381,15 @@ describe("default-model-prices.json", () => {
         { cache_write_tokens: 272001 },
         { modelParameters: { service_tier: "priority" } },
       )?.pricingTierName,
-    ).toBe("Priority Large Context (>272K)");
+    ).toBe("Fast mode · Large context (>272K)");
+
+    expect(
+      matchPricingTier(
+        tiers,
+        { cache_write_tokens: 272001 },
+        { modelParameters: { service_tier: "fast" } },
+      )?.pricingTierName,
+    ).toBe("Fast mode · Large context (>272K)");
 
     expect(
       matchPricingTier(
@@ -388,8 +397,48 @@ describe("default-model-prices.json", () => {
         { input: 1000 },
         { modelParameters: { service_tier: "priority" } },
       )?.pricingTierName,
-    ).toBe("Priority");
+    ).toBe("Fast mode");
+
+    expect(
+      matchPricingTier(
+        tiers,
+        { input: 1000 },
+        { modelParameters: { service_tier: "fast" } },
+      )?.pricingTierName,
+    ).toBe("Fast mode");
   });
+
+  it.each(["fast", "priority"])(
+    "should match GPT-5.5 Fast mode for the %s service tier value",
+    (serviceTier) => {
+      const model = defaultModelPrices.find(
+        (candidate) => candidate.modelName === "gpt-5.5-2026-04-23",
+      );
+      expect(model).toBeDefined();
+
+      const tiers: PricingTierWithPrices[] = model!.pricingTiers.map(
+        (tier) => ({
+          id: tier.id,
+          name: tier.name,
+          isDefault: tier.isDefault,
+          priority: tier.priority,
+          conditions: tier.conditions,
+          prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+            usageType,
+            price: new Decimal(price),
+          })),
+        }),
+      );
+
+      expect(
+        matchPricingTier(
+          tiers,
+          { input: 1000 },
+          { modelParameters: { service_tier: serviceTier } },
+        )?.pricingTierName,
+      ).toBe("Fast mode");
+    },
+  );
 });
 
 describe("validateRegexPattern", () => {
@@ -456,8 +505,8 @@ describe("matchPricingTier", () => {
           {
             source: "model_parameters",
             key: "service_tier",
-            operator: "eq",
-            value: "priority",
+            operator: "in",
+            values: ["priority"],
           },
         ],
         prices: [{ usageType: "input", price: new Decimal("0.0000125") }],
@@ -485,8 +534,8 @@ describe("matchPricingTier", () => {
             {
               source: "metadata",
               key: "inference_geo",
-              operator: "eq",
-              value: "us",
+              operator: "in",
+              values: ["us"],
             },
           ],
         },
@@ -510,6 +559,55 @@ describe("matchPricingTier", () => {
         {
           modelParameters: { different_key: "priority" },
         },
+      );
+
+      expect(result?.pricingTierId).toBe("tier-default");
+    });
+
+    it.each(["fast", "priority"])(
+      "matches any configured attribute value for %s",
+      (serviceTier) => {
+        const result = matchPricingTier(
+          [
+            tiers[0]!,
+            {
+              ...tiers[1]!,
+              conditions: [
+                {
+                  source: "model_parameters",
+                  key: "service_tier",
+                  operator: "in",
+                  values: ["fast", "priority"],
+                },
+              ],
+            },
+          ],
+          { input: 12 },
+          { modelParameters: { service_tier: serviceTier } },
+        );
+
+        expect(result?.pricingTierId).toBe("tier-priority");
+      },
+    );
+
+    it("falls back when an attribute value is outside the configured set", () => {
+      const result = matchPricingTier(
+        [
+          tiers[0]!,
+          {
+            ...tiers[1]!,
+            conditions: [
+              {
+                source: "model_parameters",
+                key: "service_tier",
+                operator: "in",
+                values: ["fast", "priority"],
+              },
+            ],
+          },
+        ],
+        { input: 12 },
+        { modelParameters: { service_tier: "standard" } },
       );
 
       expect(result?.pricingTierId).toBe("tier-default");
