@@ -40,14 +40,12 @@
 - Use narrower subpaths such as `@langfuse/shared/src/env` or
   `@langfuse/shared/encryption` only when that focused surface is the clearest
   dependency.
-- The in-app-agent runtime lives in shared:
-  `@langfuse/shared/in-app-agent` is the client-safe contracts entry;
-  its `AgUiRunAgentInput` is a compile-time-only execution contract;
-  `@langfuse/shared/in-app-agent` also owns the browser-safe durable interrupt
-  parser. `@langfuse/shared/in-app-agent/server` (and per-module subpaths) is
-  server-only. Web keeps only the thin adapters in
-  `src/features/in-app-agent/` (router and UI), plus the authenticated watch
-  route in `src/app/api/in-app-agent/watch/`.
+- The in-app-agent execution runtime lives in the worker. Shared exposes its
+  durable browser-safe contracts plus explicit server-only persistence,
+  lifecycle, policy, tool-result, compaction, and prompt subpaths. Web owns the
+  UI, IDs, feedback/source/rate-limit schemas, conversation access, tRPC run
+  adapters, snapshot construction, watch framing/service, and the authenticated
+  watch route in `src/app/api/in-app-agent/watch/`.
 - See `../packages/shared/AGENTS.md` for the full shared export map and what
   each entrypoint contains.
 - For the higher-level platform topology across web, worker, Postgres,

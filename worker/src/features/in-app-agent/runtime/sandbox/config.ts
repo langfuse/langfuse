@@ -1,8 +1,9 @@
 import { createLambdaMicrovmSandboxProvider } from "./providers/lambdaMicrovm";
 import type { InAppAgentSandboxProviderType, SandboxProvider } from "./types";
-import { env } from "../../../env";
-import { IN_APP_AGENT_LOCAL_SANDBOX_IMAGE } from "../../constants";
-import { assertUnreachable } from "../../../utils/typeChecks";
+import { env } from "../../../../env";
+import { assertUnreachable } from "@langfuse/shared";
+
+const IN_APP_AGENT_LOCAL_SANDBOX_IMAGE = "langfuse-in-app-agent-sandbox:latest";
 
 export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProviderType | null {
   const providerType = env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER ?? null;

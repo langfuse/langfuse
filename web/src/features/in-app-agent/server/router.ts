@@ -17,7 +17,7 @@ import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
 } from "@langfuse/shared/in-app-agent";
-import { InAppAgentMessageFeedbackValueSchema } from "@langfuse/shared/in-app-agent";
+import { InAppAgentMessageFeedbackValueSchema } from "../schema";
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
 import {
   createTRPCRouter,

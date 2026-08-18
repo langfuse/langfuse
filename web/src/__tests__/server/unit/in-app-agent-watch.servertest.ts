@@ -1,11 +1,13 @@
 import { EventType } from "@ag-ui/core";
 import { describe, expect, it, vi } from "vitest";
 
-import { InAppAgentRunStatus } from "../../index";
-import type { PrismaClient } from "../../db";
-import { IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE } from "../constants";
-import type { InAppAgentWatchFrame } from "../backgroundWatch";
-import { watchConversationFrames } from "./watch";
+import type { PrismaClient } from "@langfuse/shared/src/db";
+import {
+  IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
+  InAppAgentRunStatus,
+} from "@langfuse/shared/in-app-agent";
+import type { InAppAgentWatchFrame } from "@/src/features/in-app-agent/watchFrames";
+import { watchConversationFrames } from "@/src/features/in-app-agent/server/watch";
 
 /**
  * The framing rules are what these tests protect, so the data source is a

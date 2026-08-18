@@ -1,5 +1,5 @@
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
-import { createInAppAgentMcpRunOverride } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import { createInAppAgentMcpRunOverride } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { getInAppAgentContext } from "@/src/pages/api/public/mcp";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";

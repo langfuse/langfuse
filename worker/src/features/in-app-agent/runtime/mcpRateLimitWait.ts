@@ -1,22 +1,13 @@
-import { logger } from "../../server";
-import { InAppAgentRateLimitErrorResponseSchema } from "../schema";
+import { InAppAgentRateLimitErrorResponseSchema } from "@langfuse/shared/in-app-agent";
+import { logger } from "@langfuse/shared/src/server";
 
-/**
- * Total time a single MCP operation may spend waiting out `rate_limited`
- * responses. Sized so a full Hobby `public-api` window (`retryAfterSeconds: 60`)
- * can still be waited out within one operation.
- */
+/** Total time a single MCP operation may spend waiting out rate limits. */
 export const IN_APP_AGENT_MCP_RATE_LIMIT_WAIT_BUDGET_MS = 60_000;
 
 type McpRateLimitError = {
   retryAfterSeconds: number;
 };
 
-/**
- * Recognizes the public API `rate_limited` payload wherever the MCP transport
- * surfaces it: as a structured value, as a thrown `Error`, or embedded as JSON
- * in an error string (`Failed to initialize Langfuse MCP: ...`).
- */
 export function parseMcpRateLimitError(
   error: unknown,
 ): McpRateLimitError | null {
@@ -47,12 +38,10 @@ function parseEmbeddedRateLimitError(message: string) {
       );
 
       if (parsed.success) {
-        return {
-          retryAfterSeconds: parsed.data.details.retryAfterSeconds,
-        };
+        return { retryAfterSeconds: parsed.data.details.retryAfterSeconds };
       }
     } catch {
-      // The transport prefixes JSON with error context, so try the next object.
+      // The transport prefixes JSON with error context.
     }
 
     startIndex = message.indexOf("{", startIndex + 1);
@@ -61,13 +50,6 @@ function parseEmbeddedRateLimitError(message: string) {
   return null;
 }
 
-/**
- * Retries a single MCP operation while the public API answers `rate_limited`,
- * sleeping exactly as long as the response asks for. The server escalates
- * `retryAfterSeconds` as its window empties, so there is no local backoff
- * ladder. A wait longer than the remaining budget fails immediately instead of
- * sleeping and hoping.
- */
 export async function withMcpRateLimitWait<T>(params: {
   fn: () => Promise<T>;
   signal?: AbortSignal;

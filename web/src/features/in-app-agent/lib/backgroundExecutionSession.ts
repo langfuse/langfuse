@@ -1,16 +1,17 @@
 import type { AgentSubscriber } from "@ag-ui/client";
 
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
 import type {
-  AgUiRunAgentInput,
+  AgUiContext,
   AgUiMessage,
   InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
-  createInAppAgentMessageId,
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
   parseInAppAgentInterruptEvent,
 } from "@langfuse/shared/in-app-agent";
+import { createInAppAgentMessageId } from "../ids";
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
   createInAppAgentDisplayState,
@@ -21,7 +22,7 @@ import {
 
 export type BackgroundExecutionRunCommand = {
   message: string;
-  context: AgUiRunAgentInput["context"];
+  context: AgUiContext;
 };
 
 export type ApprovalDecision = {
@@ -84,7 +85,7 @@ type BackgroundExecutionAgent = {
   addMessage(message: AgUiMessage): void;
   setMessages(messages: AgUiMessage[]): void;
   subscribe(subscriber: AgentSubscriber): { unsubscribe(): void };
-  runAgent(input: { context: AgUiRunAgentInput["context"] }): Promise<unknown>;
+  runAgent(input: { context: AgUiContext }): Promise<unknown>;
   connectAgent(): Promise<unknown>;
   abortRun(): void;
   setCursor(cursor: number): void;

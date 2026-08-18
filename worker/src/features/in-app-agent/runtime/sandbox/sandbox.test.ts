@@ -1,13 +1,15 @@
 import { EventType } from "@ag-ui/core";
-import { standardSchemaToJSONSchema } from "@mastra/core/schema";
+import {
+  standardSchemaToJSONSchema,
+  toStandardSchema,
+} from "@mastra/core/schema";
 import { Tool } from "@mastra/core/tools";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { createSandboxToolCallFileAccumulator } from "@langfuse/shared/in-app-agent/server/persistence";
-import { createInAppAgentSandbox } from "@langfuse/shared/in-app-agent/server/sandbox";
-import { withOptionalSilentMcpOutput } from "@langfuse/shared/in-app-agent/server/tools";
-import { listObservationsTool } from "@/src/features/mcp/features/observations/tools/listObservations";
+import { createInAppAgentSandbox } from ".";
+import { withOptionalSilentMcpOutput } from "../tools";
 
 // Only presence matters for the tests below: it is what makes
 // withOptionalSilentMcpOutput advertise the `silent` parameter.
@@ -191,8 +193,12 @@ describe("in-app agent sandbox", () => {
         listObservations: {
           ...new Tool({
             id: "listObservations",
-            description: listObservationsTool.description,
-            inputSchema: listObservationsTool.inputSchema,
+            description: "List observations",
+            inputSchema: toStandardSchema({
+              type: "object",
+              additionalProperties: false,
+              properties: { limit: { type: "number" } },
+            }),
             execute: async (input) => {
               receivedInput = input;
               return { data: [] };

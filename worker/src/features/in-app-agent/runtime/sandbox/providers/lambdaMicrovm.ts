@@ -10,7 +10,7 @@ import {
   TerminateMicrovmCommand,
   type RunMicrovmCommandInput,
 } from "@aws-sdk/client-lambda-microvms";
-import { logger } from "../../../../server";
+import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 import type {
