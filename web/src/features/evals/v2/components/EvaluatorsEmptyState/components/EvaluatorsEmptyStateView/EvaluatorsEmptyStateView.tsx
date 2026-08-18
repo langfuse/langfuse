@@ -1,4 +1,5 @@
-import { LayoutGrid, Sparkles } from "lucide-react";
+import { BotMessageSquare, LayoutGrid, Sparkles } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
 import { EvaluatorGalleryMethodBadge } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
 import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
@@ -6,42 +7,18 @@ import type { EvaluatorEmptyStateStartingPoint } from "@/src/features/evals/v2/f
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { cn } from "@/src/utils/tailwind";
 
-function startingPointSelectHandler(
-  startingPoint: EvaluatorEmptyStateStartingPoint,
-  onDetectTopics: () => void,
-  onSelectTemplate: (template: GalleryTemplate) => void,
-) {
-  switch (startingPoint.action) {
-    case "detect-topics":
-      return onDetectTopics;
-    case "select-template":
-      return () => onSelectTemplate(startingPoint.template);
-  }
-}
-
-function StartingPointCard({
+function StartingPointCardHeader({
   startingPoint,
-  onSelect,
 }: {
   startingPoint: EvaluatorEmptyStateStartingPoint;
-  onSelect: () => void;
 }) {
   const { type } = getGalleryTemplatePresentation(startingPoint.template);
-  const {
-    icon: Icon,
-    iconClassName,
-    edgeClassName,
-  } = getGalleryCategoryPresentation(startingPoint.categoryKey);
+  const { icon: Icon, iconClassName } = getGalleryCategoryPresentation(
+    startingPoint.categoryKey,
+  );
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        "bg-background hover:bg-muted/40 flex min-h-44 cursor-pointer flex-col gap-3 rounded-lg border border-l-2 p-4 text-left transition-colors",
-        edgeClassName,
-      )}
-    >
+    <>
       <div className="flex items-start justify-between gap-2">
         <Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />
         <EvaluatorGalleryMethodBadge type={type} />
@@ -54,6 +31,75 @@ function StartingPointCard({
           {startingPoint.description}
         </p>
       </div>
+    </>
+  );
+}
+
+function DetectTopicsStartingPointCard({
+  startingPoint,
+  onDetectTopics,
+}: {
+  startingPoint: Extract<
+    EvaluatorEmptyStateStartingPoint,
+    { action: "detect-topics" }
+  >;
+  onDetectTopics: () => void;
+}) {
+  const { edgeClassName } = getGalleryCategoryPresentation(
+    startingPoint.categoryKey,
+  );
+
+  return (
+    <div
+      className={cn(
+        "bg-background flex min-h-44 flex-col gap-3 rounded-lg border border-l-2 p-4 text-left",
+        edgeClassName,
+      )}
+    >
+      <StartingPointCardHeader startingPoint={startingPoint} />
+      <div className="mt-auto flex items-end justify-between gap-2 border-t pt-3">
+        <span className="text-muted-foreground min-w-0 text-xs">
+          {startingPoint.audience}
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onDetectTopics}
+          className="border-primary-accent/40 bg-primary-accent/10 text-primary-accent hover:bg-primary-accent/15 hover:text-primary-accent shrink-0 gap-1 px-2 text-xs"
+        >
+          <BotMessageSquare className="h-3 w-3" />
+          Set up with AI
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function TemplateStartingPointCard({
+  startingPoint,
+  onSelectTemplate,
+}: {
+  startingPoint: Extract<
+    EvaluatorEmptyStateStartingPoint,
+    { action: "select-template" }
+  >;
+  onSelectTemplate: (template: GalleryTemplate) => void;
+}) {
+  const { edgeClassName } = getGalleryCategoryPresentation(
+    startingPoint.categoryKey,
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelectTemplate(startingPoint.template)}
+      className={cn(
+        "bg-background hover:bg-muted/40 flex min-h-44 cursor-pointer flex-col gap-3 rounded-lg border border-l-2 p-4 text-left transition-colors",
+        edgeClassName,
+      )}
+    >
+      <StartingPointCardHeader startingPoint={startingPoint} />
       <div className="mt-auto flex items-end justify-between gap-2">
         <span className="text-muted-foreground text-xs">
           {startingPoint.audience}
@@ -133,17 +179,26 @@ export function EvaluatorsEmptyStateView({
           Recommended starting points
         </h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {startingPoints.map((startingPoint) => (
-            <StartingPointCard
-              key={startingPoint.template.key}
-              startingPoint={startingPoint}
-              onSelect={startingPointSelectHandler(
-                startingPoint,
-                onDetectTopics,
-                onSelectTemplate,
-              )}
-            />
-          ))}
+          {startingPoints.map((startingPoint) => {
+            switch (startingPoint.action) {
+              case "detect-topics":
+                return (
+                  <DetectTopicsStartingPointCard
+                    key={startingPoint.template.key}
+                    startingPoint={startingPoint}
+                    onDetectTopics={onDetectTopics}
+                  />
+                );
+              case "select-template":
+                return (
+                  <TemplateStartingPointCard
+                    key={startingPoint.template.key}
+                    startingPoint={startingPoint}
+                    onSelectTemplate={onSelectTemplate}
+                  />
+                );
+            }
+          })}
           <BrowseLibraryCard
             templateCount={templateCount}
             onBrowseLibrary={onBrowseLibrary}

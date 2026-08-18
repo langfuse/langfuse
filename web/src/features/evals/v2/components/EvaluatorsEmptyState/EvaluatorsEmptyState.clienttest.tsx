@@ -37,7 +37,7 @@ describe("EvaluatorsEmptyState", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Detect Topics/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Set up with AI" }));
 
     await waitFor(() => {
       expect(submit).toHaveBeenCalledWith(DETECT_TOPICS_ASSISTANT_PROMPT, {
@@ -65,7 +65,7 @@ describe("EvaluatorsEmptyState", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Detect Topics/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Set up with AI" }));
 
     expect(openAssistant).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
@@ -97,7 +97,7 @@ describe("EvaluatorsEmptyState", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Detect Topics/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Set up with AI" }));
 
     expect(openAssistant).toHaveBeenCalledWith("evaluators_empty_state");
     expect(submit).not.toHaveBeenCalled();

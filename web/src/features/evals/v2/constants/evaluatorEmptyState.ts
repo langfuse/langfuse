@@ -12,7 +12,7 @@ export const EVALUATOR_EMPTY_STATE_STARTING_POINTS = [
     description:
       "Classify the requests going through your system to better understand volumes of different categories.",
     audience: "Any application",
-    categoryKey: "recommended",
+    categoryKey: "classifier",
   },
   {
     action: "select-template",

@@ -28,7 +28,7 @@ describe("prepareEvaluatorEmptyState", () => {
         categoryKey,
       })),
     ).toEqual([
-      { title: "Detect Topics", categoryKey: "recommended" },
+      { title: "Detect Topics", categoryKey: "classifier" },
       { title: "Detect User Disagreement", categoryKey: "conversation" },
     ]);
   });

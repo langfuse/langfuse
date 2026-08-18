@@ -38,7 +38,7 @@ const startingPoints = [
     description:
       "Classify the requests going through your system to better understand volumes of different categories.",
     audience: "Any application",
-    categoryKey: "recommended",
+    categoryKey: "classifier",
   },
   {
     action: "select-template",
@@ -98,7 +98,7 @@ export const OpensDetectTopics = meta.story({
   },
   play: async ({ canvas, args }) => {
     await userEvent.click(
-      canvas.getByRole("button", { name: /Detect Topics/ }),
+      canvas.getByRole("button", { name: "Set up with AI" }),
     );
     await expect(args.onDetectTopics).toHaveBeenCalledOnce();
     await expect(args.onSelectTemplate).not.toHaveBeenCalled();
