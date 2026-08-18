@@ -262,24 +262,17 @@ export async function createAgUiStream(params: {
   recordInstrumentation("recordAvailableSkills", (instrumentation) =>
     instrumentation.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS),
   );
-  const onStepFinish = instrumentation
-    ? (event: unknown) => {
-        recordInstrumentation("recordStepFinish", (instrumentation) =>
-          instrumentation.recordStepFinish?.(event),
+  const onModelCallStart = instrumentation
+    ? (options: unknown) => {
+        recordInstrumentation("recordModelCallStart", (instrumentation) =>
+          instrumentation.recordModelCallStart?.(options),
         );
       }
     : undefined;
-  const onChunk = instrumentation
-    ? (chunk: unknown) => {
-        recordInstrumentation("recordStreamChunk", (instrumentation) =>
-          instrumentation.recordStreamChunk?.(chunk),
-        );
-      }
-    : undefined;
-  const onModelCallFinish = instrumentation
-    ? (event: unknown) => {
-        recordInstrumentation("recordModelCallFinish", (instrumentation) =>
-          instrumentation.recordModelCallFinish?.(event),
+  const onModelStreamPart = instrumentation
+    ? (part: unknown) => {
+        recordInstrumentation("recordModelStreamPart", (instrumentation) =>
+          instrumentation.recordModelStreamPart?.(part),
         );
       }
     : undefined;
@@ -554,9 +547,8 @@ export async function createAgUiStream(params: {
           recordInstrumentation("recordAvailableTools", (instrumentation) =>
             instrumentation.recordAvailableTools?.(tools),
           ),
-        onStepFinish,
-        onChunk,
-        onModelCallFinish,
+        onModelCallStart,
+        onModelStreamPart,
         onToolExecutionStart,
         onToolExecutionEnd,
       })
@@ -626,9 +618,8 @@ export async function createAgUiStream(params: {
               },
               awsProfile,
               instructions,
-              onStepFinish,
-              onChunk,
-              onModelCallFinish,
+              onModelCallStart,
+              onModelStreamPart,
               onToolExecutionStart,
               onToolExecutionEnd,
             });
@@ -857,11 +848,14 @@ type ExecutableInAppAgentTool = {
 
 type BedrockLanguageModel = ReturnType<ReturnType<typeof createAmazonBedrock>>;
 
-function withModelCallFinish(
+function withModelTracing(
   model: BedrockLanguageModel,
-  onFinish?: (event: unknown) => void,
+  callbacks: {
+    onStart?: (options: unknown) => void;
+    onStreamPart?: (part: unknown) => void;
+  },
 ): BedrockLanguageModel {
-  if (!onFinish) {
+  if (!callbacks.onStart && !callbacks.onStreamPart) {
     return model;
   }
 
@@ -872,6 +866,7 @@ function withModelCallFinish(
     supportedUrls: model.supportedUrls,
     doGenerate: (options) => model.doGenerate(options),
     doStream: async (options) => {
+      callbacks.onStart?.(options);
       const result = await model.doStream(options);
 
       return {
@@ -879,9 +874,7 @@ function withModelCallFinish(
         stream: result.stream.pipeThrough(
           new TransformStream({
             transform(part, controller) {
-              if (part.type === "finish") {
-                onFinish(part);
-              }
+              callbacks.onStreamPart?.(part);
               controller.enqueue(part);
             },
           }),
@@ -942,9 +935,8 @@ async function createMastraAdapter(params: {
   awsProfile?: string;
   instructions: string;
   onToolsAvailable?: (tools: Record<string, unknown>) => void;
-  onStepFinish?: (event: unknown) => void;
-  onChunk?: (chunk: unknown) => void;
-  onModelCallFinish?: (event: unknown) => void;
+  onModelCallStart?: (options: unknown) => void;
+  onModelStreamPart?: (part: unknown) => void;
   onToolExecutionStart?: (toolCallId: string) => void;
   onToolExecutionEnd?: (toolCallId: string) => void;
 }) {
@@ -1078,11 +1070,14 @@ async function createMastraAdapter(params: {
     // instruction channel so the model receives the same higher-priority
     // guidance on resumed runs.
     let developerGuidance: string | undefined;
-    const model = withModelCallFinish(
+    const model = withModelTracing(
       bedrock(
         params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
       ),
-      params.onModelCallFinish,
+      {
+        onStart: params.onModelCallStart,
+        onStreamPart: params.onModelStreamPart,
+      },
     );
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
@@ -1099,11 +1094,6 @@ async function createMastraAdapter(params: {
         ...(params.options.sandboxWorkspaceWasReset
           ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }
           : {}),
-        // Fires once per LLM call with that call's token usage; the AG-UI
-        // event stream itself never carries usage.
-        ...(params.onStepFinish ? { onStepFinish: params.onStepFinish } : {}),
-        // Tool execution windows (and optional step-start timing bookmarks).
-        ...(params.onChunk ? { onChunk: params.onChunk } : {}),
         ...(reasoningProviderOptions
           ? { providerOptions: reasoningProviderOptions }
           : {}),

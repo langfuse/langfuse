@@ -98,9 +98,8 @@ const instrumentationMocks = vi.hoisted(() => {
     recordToolCallApproval: vi.fn(),
     recordToolExecutionStart: vi.fn(),
     recordToolExecutionEnd: vi.fn(),
-    recordModelCallFinish: vi.fn(),
-    recordStepFinish: vi.fn(),
-    recordStreamChunk: vi.fn(),
+    recordModelCallStart: vi.fn(),
+    recordModelStreamPart: vi.fn(),
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),
@@ -555,11 +554,11 @@ describe("createAgUiStream", () => {
   };
 
   it("forwards model stream parts when finish tracing throws", async () => {
-    instrumentationMocks.instrumentation.recordModelCallFinish.mockImplementationOnce(
-      () => {
+    instrumentationMocks.instrumentation.recordModelStreamPart
+      .mockImplementationOnce(() => undefined)
+      .mockImplementationOnce(() => {
         throw new Error("tracing failed");
-      },
-    );
+      });
     await initializeBasicTracedAgent("run-provider-finish-tracing-error");
 
     const textPart = { type: "text-delta", id: "text-1", delta: "hello" };
@@ -578,7 +577,8 @@ describe("createAgUiStream", () => {
       }>;
     };
 
-    const modelResult = await model.doStream({});
+    const options = { prompt: [] };
+    const modelResult = await model.doStream(options);
     const forwardedParts: unknown[] = [];
     for await (const part of modelResult.stream) {
       forwardedParts.push(part);
@@ -586,8 +586,14 @@ describe("createAgUiStream", () => {
 
     expect(forwardedParts).toEqual([textPart, finishPart]);
     expect(
-      instrumentationMocks.instrumentation.recordModelCallFinish,
-    ).toHaveBeenCalledWith(finishPart);
+      instrumentationMocks.instrumentation.recordModelCallStart,
+    ).toHaveBeenCalledWith(options);
+    expect(
+      instrumentationMocks.instrumentation.recordModelStreamPart,
+    ).toHaveBeenNthCalledWith(1, textPart);
+    expect(
+      instrumentationMocks.instrumentation.recordModelStreamPart,
+    ).toHaveBeenNthCalledWith(2, finishPart);
   });
 
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {
@@ -935,26 +941,6 @@ describe("createAgUiStream", () => {
       }),
       model: "eu.anthropic.claude-opus-4-8",
     });
-    const onStepFinish = (
-      agentConfig?.defaultOptions as
-        | { onStepFinish?: (event: unknown) => void }
-        | undefined
-    )?.onStepFinish;
-    expect(onStepFinish).toEqual(expect.any(Function));
-    onStepFinish?.({ usage: { inputTokens: 10, outputTokens: 5 } });
-    expect(
-      instrumentationMocks.instrumentation.recordStepFinish,
-    ).toHaveBeenCalledWith({ usage: { inputTokens: 10, outputTokens: 5 } });
-    const onChunk = (
-      agentConfig?.defaultOptions as
-        | { onChunk?: (chunk: unknown) => void }
-        | undefined
-    )?.onChunk;
-    expect(onChunk).toEqual(expect.any(Function));
-    onChunk?.({ type: "step-start", payload: {} });
-    expect(
-      instrumentationMocks.instrumentation.recordStreamChunk,
-    ).toHaveBeenCalledWith({ type: "step-start", payload: {} });
     expect(
       instrumentationMocks.instrumentation.recordEvents.mock.calls.flatMap(
         ([events]) => (events as AgUiEvent[]).map((event) => event.type),

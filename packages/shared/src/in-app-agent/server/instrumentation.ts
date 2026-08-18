@@ -1,4 +1,5 @@
 import { EventType } from "@ag-ui/core";
+import { Buffer } from "node:buffer";
 import { getInternalTracingHandler, logger } from "../../server";
 
 import {
@@ -116,16 +117,20 @@ type AgentRunToolSpan = {
   failureMessage?: string;
   parentMessageId?: string;
 };
-// Lightweight bookmark for the in-flight Mastra step. Generations are emitted
-// from onStepFinish (which carries usage); this only supplies start timing and
-// the input-message boundary for context-growth visibility.
-type OpenLlmStep = {
-  stepNumber: number;
+type ModelToolCall = {
+  toolCallId: string;
+  toolName: string;
+  args: unknown;
+};
+type OpenModelCall = {
+  callNumber: number;
   startTime: Date;
-  inputMessageCount: number;
+  input: unknown;
   completionStartTime?: Date;
-  providerFinish?: Record<string, unknown>;
-  providerFinishTime?: Date;
+  textDeltas: string[];
+  toolCalls: ModelToolCall[];
+  modelId?: string;
+  streamErrorMessage?: string;
 };
 type ToolExecutionTimes = {
   startTime?: Date;
@@ -198,17 +203,8 @@ export class InAppAgentInstrumentation {
   private pendingThinking: AgentRunThinkingPart[] = [];
   private ended = false;
   private readonly model?: string;
-  private nextStepNumber = 0;
-  private openLlmStep?: OpenLlmStep;
-  // Tools that finished while an LLM step was still open. Emit after the
-  // generation so the tree sorts model → tools (tool-call chunks arrive during
-  // the LLM stream, before onStepFinish).
-  private readonly deferredToolCompletions = new Map<
-    string,
-    AgentRunToolSpan
-  >();
-  // Clamp tool execution windows to start at/after the last generation end.
-  private lastLlmGenerationEndTime?: Date;
+  private nextModelCallNumber = 0;
+  private openModelCall?: OpenModelCall;
 
   constructor(params: {
     input: AgUiRunAgentInput;
@@ -348,120 +344,73 @@ export class InAppAgentInstrumentation {
     this.toolExecutionTimes.set(toolCallId, times);
   }
 
-  // Bedrock's V3 stream emits exact usage before Mastra executes tools. Keep
-  // it on the open step as a fallback because approval suspension can end the
-  // run without Mastra ever invoking onStepFinish.
-  recordModelCallFinish(event: unknown) {
-    if (!isRecord(event)) {
-      return;
-    }
-
+  recordModelCallStart(options: unknown) {
     if (this.ended) {
       return;
     }
 
     const now = new Date();
-    this.ensureOpenLlmStep(now);
-    if (this.openLlmStep) {
-      this.openLlmStep.providerFinish = event;
-      this.openLlmStep.providerFinishTime = now;
-    }
+    this.openModelCall = {
+      callNumber: this.openModelCall?.callNumber ?? ++this.nextModelCallNumber,
+      startTime: this.openModelCall?.startTime ?? now,
+      input: getModelCallInput(options),
+      textDeltas: [],
+      toolCalls: [],
+    };
   }
 
-  // Mastra stream chunks: step-start (or first model delta) bookmarks the LLM
-  // window; tool-result ends tool execution. Do not treat tool-call chunks as
-  // execution start — they fire while the model is still streaming.
-  // Usage and output still come from recordStepFinish.
-  recordStreamChunk(chunk: unknown) {
-    if (this.ended || !isRecord(chunk)) {
+  recordModelStreamPart(part: unknown) {
+    if (this.ended || !this.openModelCall || !isRecord(part)) {
       return;
     }
 
-    const type = chunk.type;
+    const type = part.type;
     if (typeof type !== "string") {
       return;
     }
 
-    const payload = isRecord(chunk.payload) ? chunk.payload : {};
     const now = new Date();
 
-    if (type === "step-start") {
-      // A prior step should have been closed by onStepFinish. If not, emit it
-      // as an error so we never silently drop a generation.
-      if (this.openLlmStep) {
-        const providerFinish = this.openLlmStep.providerFinish;
-        this.emitLlmGeneration(
-          this.openLlmStep,
-          undefined,
-          providerFinish
-            ? undefined
-            : {
-                level: "ERROR",
-                statusMessage: "LLM step closed by a subsequent step-start",
-              },
-        );
-        this.flushDeferredToolCompletions();
+    if (type === "text-delta" || type === "reasoning-delta") {
+      this.openModelCall.completionStartTime ??= now;
+      if (type === "text-delta" && typeof part.delta === "string") {
+        this.openModelCall.textDeltas.push(part.delta);
       }
-
-      this.openLlmStep = {
-        stepNumber: ++this.nextStepNumber,
-        startTime: now,
-        inputMessageCount: this.agentRunOutputMessages.length,
-      };
       return;
     }
 
-    // tool-call means "model requested this tool", not "tool started".
-    // Ensure an LLM step is open so missing step-start still gets a real window.
     if (type === "tool-call") {
-      this.ensureOpenLlmStep(now);
-      return;
-    }
-
-    if (type === "tool-result" || type === "tool-error") {
-      const toolCallId = getStringValue(payload.toolCallId);
-      if (!toolCallId) {
-        return;
+      const toolCallId = getStringValue(part.toolCallId);
+      const toolName = getStringValue(part.toolName);
+      if (toolCallId && toolName) {
+        this.openModelCall.toolCalls.push({
+          toolCallId,
+          toolName,
+          args:
+            typeof part.input === "string"
+              ? parseJsonOrString(part.input)
+              : part.input,
+        });
       }
-
-      const times = this.toolExecutionTimes.get(toolCallId) ?? {};
-      times.endTime ??= now;
-      this.toolExecutionTimes.set(toolCallId, times);
       return;
     }
 
-    if (
-      type === "text-delta" ||
-      type === "reasoning-delta" ||
-      type === "reasoning"
-    ) {
-      this.ensureOpenLlmStep(now);
-      if (this.openLlmStep) {
-        this.openLlmStep.completionStartTime ??= now;
-      }
-    }
-  }
-
-  // Receives Mastra's per-LLM-call onStepFinish event and emits one generation
-  // with that call's usage/model. The AG-UI event stream itself never carries usage.
-  recordStepFinish(event: unknown) {
-    if (this.ended) {
+    if (type === "error") {
+      this.openModelCall.streamErrorMessage = getErrorMessage(part.error);
       return;
     }
 
-    const step =
-      this.openLlmStep ??
-      ({
-        stepNumber: ++this.nextStepNumber,
-        // Prefer a non-zero window when step-start never arrived: backdate to
-        // the last generation end (or run start) so tools do not sort above us.
-        startTime: this.lastLlmGenerationEndTime ?? this.agentRunStartTime,
-        inputMessageCount: this.agentRunOutputMessages.length,
-      } satisfies OpenLlmStep);
+    if (type === "response-metadata") {
+      this.openModelCall.modelId = getStringValue(part.modelId);
+      return;
+    }
 
-    this.emitLlmGeneration(step, event);
-    this.openLlmStep = undefined;
-    this.flushDeferredToolCompletions();
+    if (type !== "finish") {
+      return;
+    }
+
+    this.emitModelGeneration(this.openModelCall, part, now);
+    this.openModelCall = undefined;
   }
 
   recordAvailableSkills(skills: unknown[]) {
@@ -487,7 +436,7 @@ export class InAppAgentInstrumentation {
     }
 
     const message = error instanceof Error ? error.message : String(error);
-    this.endOpenLlmStep({ error: message }, message);
+    this.endOpenModelCall(message);
     this.endOpenToolSpans({ error: message }, message);
     this.flushTrailingThinking();
     this.emitRootAgentObservation({
@@ -512,9 +461,9 @@ export class InAppAgentInstrumentation {
     }
 
     if (params?.aborted) {
-      this.endOpenLlmStep({ aborted: true }, "aborted");
+      this.endOpenModelCall("aborted");
     } else {
-      this.endOpenLlmStep();
+      this.endOpenModelCall("Model call ended before provider finish");
     }
     this.endOpenToolSpans(params?.aborted ? { aborted: true } : undefined);
     this.flushTrailingThinking();
@@ -701,14 +650,6 @@ export class InAppAgentInstrumentation {
       return;
     }
 
-    // Tool-call args/results often arrive while the LLM step is still open.
-    // Hold the observation until step-finish so the tree sorts generation → tools.
-    if (this.openLlmStep) {
-      this.deferredToolCompletions.set(toolCallId, tool);
-      this.toolSpans.delete(toolCallId);
-      return;
-    }
-
     this.createToolObservation(toolCallId, tool);
     this.toolSpans.delete(toolCallId);
   }
@@ -735,22 +676,16 @@ export class InAppAgentInstrumentation {
       toolCallApproval === "rejected"
         ? rawStartTime
         : (executionTimes?.endTime ?? new Date());
-    // Keep causal order: tool execution cannot start before the generation that
-    // requested it finished (or the last known generation end).
     const startTime =
-      this.lastLlmGenerationEndTime &&
-      rawStartTime.getTime() < this.lastLlmGenerationEndTime.getTime()
-        ? this.lastLlmGenerationEndTime
-        : rawStartTime;
+      rawStartTime.getTime() > endTime.getTime() ? endTime : rawStartTime;
     const body: ObservationBody = {
       id: toolCallId,
       traceId: this.traceId,
       parentObservationId: this.rootObservationId,
       name: tool.name,
-      startTime: startTime.getTime() > endTime.getTime() ? endTime : startTime,
+      startTime,
       endTime,
-      completionStartTime:
-        startTime.getTime() > endTime.getTime() ? endTime : startTime,
+      completionStartTime: startTime,
       input,
       output,
       ...(failureMessage
@@ -799,40 +734,42 @@ export class InAppAgentInstrumentation {
     });
   }
 
-  private emitLlmGeneration(
-    step: OpenLlmStep,
-    event: unknown,
+  private emitModelGeneration(
+    call: OpenModelCall,
+    finish: Record<string, unknown> | undefined,
+    endTime: Date,
     options?: {
       level?: "ERROR";
       statusMessage?: string;
     },
   ) {
-    const eventRecord = isRecord(event) ? event : undefined;
-    const providerFinish = step.providerFinish;
-    const usageDetails =
-      getStepUsageDetails(eventRecord?.usage) ??
-      getStepUsageDetails(providerFinish?.usage);
-    const finishReason =
-      getStepFinishReason(eventRecord) ?? getStepFinishReason(providerFinish);
-    const model =
-      getModelIdFromStepEvent(eventRecord) ?? this.model ?? undefined;
-    // Mastra can delay onStepFinish until after requested tools execute. The
-    // raw provider finish is the actual model boundary and keeps the following
-    // tool's execute() window intact instead of clamping it to zero duration.
-    const endTime = step.providerFinishTime ?? new Date();
-    this.lastLlmGenerationEndTime = endTime;
-    const id = getInAppAgentLlmCallObservationId(this.runId, step.stepNumber);
+    const usageDetails = getModelUsageDetails(finish?.usage);
+    const finishReason = getModelFinishReason(finish);
+    const model = call.modelId ?? this.model;
+    const id = getInAppAgentLlmCallObservationId(this.runId, call.callNumber);
+    const text = call.textDeltas.join("");
+    const output =
+      text || call.toolCalls.length > 0
+        ? {
+            ...(text ? { text } : {}),
+            ...(call.toolCalls.length > 0
+              ? { tool_calls: call.toolCalls }
+              : {}),
+          }
+        : undefined;
 
     this.enqueueObservation("generation-create", {
       id,
       traceId: this.traceId,
       parentObservationId: this.rootObservationId,
       name: IN_APP_AGENT_LLM_CALL_NAME,
-      startTime: step.startTime,
+      startTime: call.startTime,
       endTime,
-      completionStartTime: step.completionStartTime ?? step.startTime,
-      input: this.getLlmStepInput(step.inputMessageCount),
-      output: this.getLlmStepOutput(step, eventRecord),
+      ...(call.completionStartTime
+        ? { completionStartTime: call.completionStartTime }
+        : {}),
+      input: call.input,
+      output,
       // Model only travels with usage so Langfuse does not invent tokenizer-
       // estimated costs for generations that never reported tokens.
       ...(usageDetails
@@ -850,19 +787,6 @@ export class InAppAgentInstrumentation {
         ...(options?.statusMessage ? { error: options.statusMessage } : {}),
       },
     });
-  }
-
-  private getLlmStepInput(inputMessageCount: number) {
-    const base = isRecord(this.agentRunInput) ? this.agentRunInput : {};
-    const baseMessages = Array.isArray(base.messages) ? base.messages : [];
-
-    return {
-      ...base,
-      messages: [
-        ...baseMessages,
-        ...this.agentRunOutputMessages.slice(0, inputMessageCount),
-      ],
-    };
   }
 
   private getTraceInput() {
@@ -890,52 +814,17 @@ export class InAppAgentInstrumentation {
     };
   }
 
-  private getLlmStepOutput(
-    step: OpenLlmStep,
-    event: Record<string, unknown> | undefined,
-  ) {
-    const text = typeof event?.text === "string" ? event.text : undefined;
-    const toolCalls = Array.isArray(event?.toolCalls)
-      ? event.toolCalls
-      : undefined;
-    if (text !== undefined || toolCalls?.length) {
-      return {
-        ...(text !== undefined ? { text } : {}),
-        ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
-      };
-    }
-
-    const response = isRecord(event?.response) ? event.response : undefined;
-    if (Array.isArray(response?.messages) && response.messages.length > 0) {
-      return { messages: response.messages };
-    }
-
-    const messages = this.agentRunOutputMessages.slice(step.inputMessageCount);
-    return messages.length > 0 ? { messages } : undefined;
-  }
-
-  private endOpenLlmStep(
-    metadata?: Record<string, unknown>,
-    statusMessage?: string,
-  ) {
-    if (!this.openLlmStep) {
+  private endOpenModelCall(statusMessage: string) {
+    if (!this.openModelCall) {
       return;
     }
 
-    this.emitLlmGeneration(this.openLlmStep, undefined, {
-      ...(!this.openLlmStep.providerFinish && (statusMessage || metadata)
-        ? {
-            level: "ERROR" as const,
-            statusMessage:
-              statusMessage ??
-              (typeof metadata?.error === "string"
-                ? metadata.error
-                : "LLM step closed before step finish"),
-          }
-        : {}),
+    const message = this.openModelCall.streamErrorMessage ?? statusMessage;
+    this.emitModelGeneration(this.openModelCall, undefined, new Date(), {
+      level: "ERROR",
+      statusMessage: message,
     });
-    this.openLlmStep = undefined;
-    this.flushDeferredToolCompletions();
+    this.openModelCall = undefined;
   }
 
   private endOpenToolSpans(
@@ -962,34 +851,6 @@ export class InAppAgentInstrumentation {
         statusMessage,
       });
       this.toolSpans.delete(toolCallId);
-    }
-
-    // endOpenLlmStep() has already drained completed tools before this method
-    // runs; keep the unconditional flush to preserve that lifecycle invariant.
-    this.flushDeferredToolCompletions();
-  }
-
-  private ensureOpenLlmStep(now: Date) {
-    if (this.openLlmStep) {
-      return;
-    }
-
-    this.openLlmStep = {
-      stepNumber: ++this.nextStepNumber,
-      startTime: now,
-      inputMessageCount: this.agentRunOutputMessages.length,
-    };
-  }
-
-  private flushDeferredToolCompletions() {
-    if (this.deferredToolCompletions.size === 0) {
-      return;
-    }
-
-    const deferred = [...this.deferredToolCompletions.entries()];
-    this.deferredToolCompletions.clear();
-    for (const [toolCallId, tool] of deferred) {
-      this.createToolObservation(toolCallId, tool);
     }
   }
 
@@ -1421,7 +1282,31 @@ function getFiniteNumber(value: unknown): number | undefined {
     : undefined;
 }
 
-function getStepUsageDetails(
+function getModelCallInput(options: unknown): unknown {
+  if (!isRecord(options)) {
+    return undefined;
+  }
+
+  const input = {
+    messages: options.prompt,
+    maxOutputTokens: options.maxOutputTokens,
+    temperature: options.temperature,
+    stopSequences: options.stopSequences,
+    topP: options.topP,
+    topK: options.topK,
+    presencePenalty: options.presencePenalty,
+    frequencyPenalty: options.frequencyPenalty,
+    responseFormat: options.responseFormat,
+    seed: options.seed,
+    tools: options.tools,
+    toolChoice: options.toolChoice,
+    providerOptions: options.providerOptions,
+  };
+
+  return toSerializableJson(input);
+}
+
+function getModelUsageDetails(
   usage: unknown,
 ): Record<string, number> | undefined {
   if (!isRecord(usage)) {
@@ -1454,7 +1339,7 @@ function getStepUsageDetails(
     0;
   const uncachedInputTokens = getFiniteNumber(nestedInputTokens?.noCache);
 
-  // Mastra's inputTokens includes cache reads/writes, while Langfuse model
+  // Provider inputTokens includes cache reads/writes, while Langfuse model
   // prices bill `input` as non-cached input tokens with separate cache keys.
   return {
     input:
@@ -1469,7 +1354,7 @@ function getStepUsageDetails(
   };
 }
 
-function getStepFinishReason(
+function getModelFinishReason(
   event: Record<string, unknown> | undefined,
 ): string | undefined {
   if (!event) {
@@ -1485,29 +1370,6 @@ function getStepFinishReason(
     return (
       getStringValue(finishReason.unified) ?? getStringValue(finishReason.raw)
     );
-  }
-
-  return isRecord(event.stepResult)
-    ? getStringValue(event.stepResult.reason)
-    : undefined;
-}
-
-function getModelIdFromStepEvent(
-  event: Record<string, unknown> | undefined,
-): string | undefined {
-  if (!event) {
-    return undefined;
-  }
-
-  if (isRecord(event.model)) {
-    const modelId = getStringValue(event.model.modelId);
-    if (modelId) {
-      return modelId;
-    }
-  }
-
-  if (isRecord(event.response)) {
-    return getStringValue(event.response.modelId);
   }
 
   return undefined;
@@ -1528,6 +1390,14 @@ function toSerializableJson(
   seen = new WeakSet<object>(),
   depth = 0,
 ): unknown {
+  if (value instanceof URL) {
+    return value.toString();
+  }
+
+  if (value instanceof Uint8Array) {
+    return Buffer.from(value).toString("base64");
+  }
+
   if (value === null || typeof value === "string") {
     return value;
   }
@@ -1569,7 +1439,10 @@ function toSerializableJson(
   seen.add(value);
 
   const entries = Object.entries(value).flatMap(([key, item]) => {
-    const serializableItem = toSerializableJson(item, seen, depth + 1);
+    const serializableItem =
+      key === "data" && item instanceof Uint8Array
+        ? `data:${getStringValue(value.mediaType) ?? "application/octet-stream"};base64,${Buffer.from(item).toString("base64")}`
+        : toSerializableJson(item, seen, depth + 1);
 
     return serializableItem === undefined
       ? []
@@ -1591,4 +1464,12 @@ function parseJsonOrUndefined(value: string): unknown {
 
 function getStringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return typeof error === "string" ? error : "Model stream failed";
 }
