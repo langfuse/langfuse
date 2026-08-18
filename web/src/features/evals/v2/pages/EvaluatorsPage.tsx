@@ -16,7 +16,7 @@ import {
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
-import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
+import { EvaluatorsEmptyState } from "../components/EvaluatorsEmptyState/EvaluatorsEmptyState";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EvaluatorActionsCell } from "../components/Evaluators/EvaluatorActionsCell/EvaluatorActionsCell";
@@ -63,8 +63,15 @@ import {
   evaluatorTableFilterConfig,
   evaluatorTableFilterOptions,
 } from "../constants/tableFilterColumns";
+import type { GalleryTemplate } from "../types/templateGallery";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
+
+function evaluatorCreateHref(projectId: string, template: GalleryTemplate) {
+  return template.source === "managed"
+    ? `/project/${projectId}/evals/new?template=${encodeURIComponent(template.key)}`
+    : `/project/${projectId}/evals/new?evaluatorId=${encodeURIComponent(template.id)}`;
+}
 
 function RelativeDate({ date }: { date: Date }) {
   return (
@@ -509,6 +516,7 @@ export default function EvaluatorsPage() {
 
   return (
     <Page
+      scrollable={showOnboarding}
       headerProps={{
         title: "Evaluators",
         help: {
@@ -517,47 +525,55 @@ export default function EvaluatorsPage() {
         },
         actionButtonsRight: (
           <div className="flex gap-2">
-            <JudgeModelPicker
-              purpose="projectDefault"
-              open={defaultModelPickerOpen}
-              defaultModel={projectDefaultModel.defaultModel}
-              providerGroups={projectDefaultModel.providerGroups}
-              onOpenChange={setDefaultModelPickerOpen}
-              onSelectProjectDefault={(model) => {
-                const connection = projectDefaultModel.connections.find(
-                  ({ provider }) => provider === model.provider,
-                );
-                if (!connection) return;
-                projectDefaultModel.update.requestUpdate({
-                  ...model,
-                  adapter: connection.adapter,
-                  modelParams: {},
-                });
-              }}
-              onConfigureProviders={projectDefaultModel.openProviderSettings}
-              onConfigureModel={() => setDefaultModelConfigurationOpen(true)}
-            >
-              <PopoverTrigger asChild>
-                <JudgeModelPickerTrigger
-                  mode="default"
-                  defaultModel={projectDefaultModel.defaultModel}
-                  selectedModel={null}
-                  missingDefaultLabel="Set project default model"
-                  loading={projectDefaultModel.update.isPending}
-                  loadingText="Setting model..."
-                  disabled={
-                    !projectDefaultModel.canUpdate ||
-                    !projectDefaultModel.canRead ||
-                    projectDefaultModel.connectionsPending ||
-                    projectDefaultModel.update.isPending
-                  }
-                />
-              </PopoverTrigger>
-            </JudgeModelPicker>
-            <Button onClick={() => setGalleryOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              New evaluator
-            </Button>
+            {showOnboarding ? null : (
+              <JudgeModelPicker
+                purpose="projectDefault"
+                open={defaultModelPickerOpen}
+                defaultModel={projectDefaultModel.defaultModel}
+                providerGroups={projectDefaultModel.providerGroups}
+                onOpenChange={setDefaultModelPickerOpen}
+                onSelectProjectDefault={(model) => {
+                  const connection = projectDefaultModel.connections.find(
+                    ({ provider }) => provider === model.provider,
+                  );
+                  if (!connection) return;
+                  projectDefaultModel.update.requestUpdate({
+                    ...model,
+                    adapter: connection.adapter,
+                    modelParams: {},
+                  });
+                }}
+                onConfigureProviders={projectDefaultModel.openProviderSettings}
+                onConfigureModel={() => setDefaultModelConfigurationOpen(true)}
+              >
+                <PopoverTrigger asChild>
+                  <JudgeModelPickerTrigger
+                    mode="default"
+                    defaultModel={projectDefaultModel.defaultModel}
+                    selectedModel={null}
+                    missingDefaultLabel="Set project default model"
+                    loading={projectDefaultModel.update.isPending}
+                    loadingText="Setting model..."
+                    disabled={
+                      !projectDefaultModel.canUpdate ||
+                      !projectDefaultModel.canRead ||
+                      projectDefaultModel.connectionsPending ||
+                      projectDefaultModel.update.isPending
+                    }
+                  />
+                </PopoverTrigger>
+              </JudgeModelPicker>
+            )}
+            {showOnboarding ? (
+              <Button variant="outline" onClick={() => setGalleryOpen(true)}>
+                New evaluator
+              </Button>
+            ) : (
+              <Button onClick={() => setGalleryOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                New evaluator
+              </Button>
+            )}
           </div>
         ),
         tabsProps: {
@@ -567,12 +583,11 @@ export default function EvaluatorsPage() {
       }}
     >
       {showOnboarding ? (
-        <EvaluatorsOnboarding
-          projectId={projectId}
-          createEvaluatorAction={{
-            label: "Create Evaluator",
-            onClick: () => setGalleryOpen(true),
+        <EvaluatorsEmptyState
+          onSelectTemplate={(template) => {
+            router.push(evaluatorCreateHref(projectId, template));
           }}
+          onBrowseLibrary={() => setGalleryOpen(true)}
         />
       ) : (
         <DataTableControlsProvider
@@ -707,11 +722,7 @@ export default function EvaluatorsPage() {
         open={galleryOpen}
         onOpenChange={setGalleryOpen}
         onSelectTemplate={(template) => {
-          router.push(
-            template.source === "managed"
-              ? `/project/${projectId}/evals/new?template=${encodeURIComponent(template.key)}`
-              : `/project/${projectId}/evals/new?evaluatorId=${encodeURIComponent(template.id)}`,
-          );
+          router.push(evaluatorCreateHref(projectId, template));
         }}
         onCreateFromScratch={(type) => {
           router.push(

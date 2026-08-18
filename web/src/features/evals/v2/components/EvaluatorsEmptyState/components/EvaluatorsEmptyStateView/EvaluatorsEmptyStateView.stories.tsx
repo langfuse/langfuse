@@ -1,0 +1,136 @@
+import { expect, fn, userEvent } from "storybook/test";
+import { EvalTemplateTypeEnum } from "@langfuse/shared";
+
+import preview from "../../../../../../../../.storybook/preview";
+import { EVALUATOR_EMPTY_STATE_DOCS_HREF } from "@/src/features/evals/v2/constants/evaluatorEmptyState";
+import type { EvaluatorEmptyStateStartingPoint } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorEmptyState";
+import { EvaluatorsEmptyStateView } from "./EvaluatorsEmptyStateView";
+
+const startingPoints = [
+  {
+    template: {
+      source: "managed",
+      key: "topic-classifier",
+      name: "Classify input topic",
+      categories: ["classifier"],
+      icon: "tags",
+      description: "Assigns the input to one of a predefined set of topics.",
+      maintainer: "langfuse",
+      runsOn: ["live-observations"],
+      evaluator: {
+        type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
+        prompt: "Classify {{input}}.",
+        variables: [{ name: "input", defaultMapping: { field: "input" } }],
+        outputDefinition: {
+          version: 2,
+          dataType: "CATEGORICAL",
+          score: {
+            description: "Topic.",
+            categories: ["support", "other"],
+            shouldAllowMultipleMatches: false,
+          },
+          reasoning: { description: "One sentence." },
+        },
+      },
+    },
+    title: "Detect Topics",
+    description:
+      "Classify the requests going through your system to better understand volumes of different categories.",
+    audience: "Any application",
+    categoryKey: "recommended",
+  },
+  {
+    template: {
+      source: "managed",
+      key: "user-disagreement",
+      name: "Detect User Disagreement",
+      categories: ["conversation"],
+      icon: "messages-square",
+      description: "Detects whether the user is pushing back on the assistant.",
+      maintainer: "langfuse",
+      runsOn: ["live-observations"],
+      evaluator: {
+        type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
+        prompt: "Decide whether {{last_user_message}} is disagreement.",
+        variables: [
+          { name: "last_user_message", defaultMapping: { field: "input" } },
+        ],
+        outputDefinition: {
+          version: 2,
+          dataType: "BOOLEAN",
+          score: { description: "True if disagreement is present." },
+          reasoning: { description: "One sentence." },
+        },
+      },
+    },
+    title: "Detect User Disagreement",
+    description:
+      "Catch conversations with unhappy users to know which traces deserve a deeper look.",
+    audience: "Conversational apps",
+    categoryKey: "conversation",
+  },
+] satisfies EvaluatorEmptyStateStartingPoint[];
+
+const meta = preview.meta({ component: EvaluatorsEmptyStateView });
+
+export const Default = meta.story({
+  args: {
+    startingPoints,
+    templateCount: 21,
+    docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
+    onSelectTemplate: fn(),
+    onBrowseLibrary: fn(),
+  },
+});
+
+export const SelectsAStartingPoint = meta.story({
+  name: "(Test) Selects a starting-point template",
+  args: {
+    startingPoints,
+    templateCount: 21,
+    docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
+    onSelectTemplate: fn(),
+    onBrowseLibrary: fn(),
+  },
+  play: async ({ canvas, args }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Detect Topics/ }),
+    );
+    await expect(args.onSelectTemplate).toHaveBeenCalledWith(
+      startingPoints[0]?.template,
+    );
+  },
+});
+
+export const OpensTheLibrary = meta.story({
+  name: "(Test) Opens the template library",
+  args: {
+    startingPoints,
+    templateCount: 21,
+    docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
+    onSelectTemplate: fn(),
+    onBrowseLibrary: fn(),
+  },
+  play: async ({ canvas, args }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Browse all templates/ }),
+    );
+    await expect(args.onBrowseLibrary).toHaveBeenCalledOnce();
+  },
+});
+
+export const LinksToDocs = meta.story({
+  name: "(Test) Links to the evaluators overview docs",
+  args: {
+    startingPoints,
+    templateCount: 21,
+    docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
+    onSelectTemplate: fn(),
+    onBrowseLibrary: fn(),
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByRole("link", { name: "How evaluators work." }),
+    ).toHaveAttribute("href", EVALUATOR_EMPTY_STATE_DOCS_HREF);
+  },
+});
