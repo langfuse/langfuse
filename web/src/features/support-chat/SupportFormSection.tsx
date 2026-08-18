@@ -198,7 +198,7 @@ export function SupportFormSection({
   const [sev1ConfirmOpen, setSev1ConfirmOpen] = useState(false);
 
   const { initialTopic } = useSupportDrawer();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const productFeatureTopics = TopicGroups["Product Features"].filter(
     (topic) => topic !== "V4 Migration" || v4UpgradeUiEnabled,
   );

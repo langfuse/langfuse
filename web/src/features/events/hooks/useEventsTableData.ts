@@ -9,6 +9,7 @@ import {
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 import {
   removeAppRootDefaultFilter,
@@ -135,11 +136,10 @@ export function useEventsTableData({
     appRootFallbackQuery.isSuccess &&
     appRootFallbackQuery.data.observations.length > 0;
 
+  // Built from the rows on screen, placeholder or not: while the row query is
+  // showing the previous page the payload — and therefore the I/O query key —
+  // is the previous one too, so the cells keep the I/O they already have.
   const batchIOPayload = useMemo(() => {
-    if (activeObservations.isPlaceholderData) {
-      return null;
-    }
-
     const validObservations =
       activeObservations.data?.observations?.filter(
         (o) => o.id && o.traceId && o.startTime,
@@ -170,12 +170,7 @@ export function useEventsTableData({
         ? { truncated: false as const, ioCharLimit }
         : {}),
     };
-  }, [
-    activeObservations.data?.observations,
-    activeObservations.isPlaceholderData,
-    projectId,
-    ioCharLimit,
-  ]);
+  }, [activeObservations.data?.observations, projectId, ioCharLimit]);
 
   // Fetch I/O data
   const ioDataQuery = api.events.batchIO.useQuery(batchIOPayload!, {
@@ -184,7 +179,11 @@ export function useEventsTableData({
       rowsEnabled && activeObservations.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
+    placeholderData: (prev) => prev,
   });
+
+  // I/O lands one query behind the rows.
+  const isIoPending = usePendingRowIds(ioDataQuery);
 
   // Extract error information for display (only from observations.all, not batchIO)
   const error = activeObservations.error;
@@ -199,7 +198,10 @@ export function useEventsTableData({
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    if (activeObservations.isLoading || activeObservations.isPlaceholderData) {
+    // Placeholder data is the previous key's rows: report them as loaded so a
+    // filter/page/sort change keeps them on screen. "loading" now means the
+    // table has nothing to show at all.
+    if (activeObservations.isPending) {
       return { status: "loading" as const, rows: undefined };
     }
 
@@ -217,8 +219,7 @@ export function useEventsTableData({
       ioDataQuery.data,
     );
   }, [
-    activeObservations.isLoading,
-    activeObservations.isPlaceholderData,
+    activeObservations.isPending,
     activeObservations.isError,
     activeObservations.data?.observations,
     ioDataQuery.data,
@@ -229,6 +230,7 @@ export function useEventsTableData({
   const totalCountQuery = api.events.countAll.useQuery(getCountPayload, {
     enabled: selectAll,
     refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
   });
 
   const totalCount = selectAll
@@ -296,7 +298,12 @@ export function useEventsTableData({
 
   return {
     observations: joinedData,
-    dataUpdatedAt: activeObservations.dataUpdatedAt,
+    /**
+     * A fetch over the visible rows — drives the progress bar, not a skeleton.
+     * Deliberately excludes the select-all count query: it touches no row on
+     * screen, and `isTotalCountLoading` already covers its own UI.
+     */
+    isFetching: activeObservations.isFetching || ioDataQuery.isFetching,
     totalCount,
     uniqueTraceCount,
     isTotalCountLoading,
@@ -304,7 +311,7 @@ export function useEventsTableData({
     hasMore,
     addToQueueMutation,
     handleAddToAnnotationQueue,
-    ioLoading: ioDataQuery.isLoading,
+    isIoPending,
     error,
     errorHttpStatus,
     isSilencedError,

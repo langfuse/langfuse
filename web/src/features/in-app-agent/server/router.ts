@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   InvalidRequestError,
+  resolveInAppAgentRootRunId,
   ScoreDataTypeEnum,
   ScoreSourceEnum,
   TEXT_SCORE_MAX_LENGTH,
@@ -38,6 +39,7 @@ import {
   decideBackgroundApproval,
   deleteBackgroundConversation,
   getBackgroundConversationSnapshot,
+  serializeConversationLatestRun,
   startBackgroundRun,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
 
@@ -93,6 +95,10 @@ const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
 const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
+  // Each row carries its newest run summary for the activity poll and badges.
+  // Activity clients request the newest page only (see
+  // IN_APP_AGENT_ACTIVITY_LIST_LIMIT); quieter conversations outside that
+  // window are an accepted attention gap for now.
   listConversations: protectedProjectProcedure
     .input(
       z.object({
@@ -127,15 +133,37 @@ export const inAppAgentRouter = createTRPCRouter({
         },
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take: input.limit + 1,
+        relationLoadStrategy: "join",
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          updatedAt: true,
+          runs: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              errorCode: true,
+              cancelRequestedAt: true,
+              createdAt: true,
+              claimedAt: true,
+              heartbeatAt: true,
+              finishedAt: true,
+            },
+          },
+        },
       });
 
       const page = conversations.slice(0, input.limit);
       const lastConversation = page.at(-1);
 
       return {
-        conversations: page.map((conversation) =>
-          serializeConversation(conversation),
-        ),
+        conversations: page.map((conversation) => ({
+          ...serializeConversation(conversation),
+          latestRun: serializeConversationLatestRun(conversation.runs[0]),
+        })),
         nextCursor:
           conversations.length > input.limit && lastConversation
             ? {
@@ -373,15 +401,26 @@ export const inAppAgentRouter = createTRPCRouter({
       const scoreProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
       if (projectAvailability.aiTelemetryEnabled && scoreProjectId) {
+        // Approval continuations trace onto the root run, so score the root too.
+        const run = await ctx.prisma.inAppAgentRun.findUnique({
+          where: {
+            id_projectId: { id: input.runId, projectId: input.projectId },
+          },
+          select: { request: true },
+        });
+        const telemetryRunId = resolveInAppAgentRootRunId(
+          run?.request,
+          input.runId,
+        );
+
         await upsertScore({
           id: scoreId,
           timestamp: convertDateToClickhouseDateTime(now),
           project_id: scoreProjectId,
           environment: IN_APP_AGENT_FEEDBACK_ENVIRONMENT,
-          trace_id: getInAppAgentInstrumentationTraceId(input.runId),
-          observation_id: getInAppAgentInstrumentationObservationId(
-            input.runId,
-          ),
+          trace_id: getInAppAgentInstrumentationTraceId(telemetryRunId),
+          observation_id:
+            getInAppAgentInstrumentationObservationId(telemetryRunId),
           session_id: input.conversationId,
           name: IN_APP_AGENT_FEEDBACK_SCORE_NAME,
           value: input.value === "thumbs_up" ? 1 : 0,

@@ -47,6 +47,7 @@ const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
   // Same, for the integration-level cutoff (BlobStorageIntegration.createdAt).
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
+  NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
@@ -157,6 +158,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
     .enum(["auto", "true", "false"])
     .default("auto"),
+  CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: z
+    .enum(["auto", "true", "false"])
+    .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
     .number()
     .default(32_000_000_000), // ~32GB
@@ -230,6 +234,11 @@ const EnvSchema = z.object({
     .nonnegative()
     .default(5_000),
   LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+  // Has no effect in events_only mode, where the v3 experience cannot work.
+  LANGFUSE_FORCE_V3_EXPERIENCE: z
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
@@ -379,9 +388,18 @@ const EnvSchema = z.object({
   LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default("email"),
   LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default("name"),
   LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default("sub"),
+  LANGFUSE_CUSTOM_SSO_IMAGE_CLAIM: z.string().default("picture"),
   LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
     .number()
     .default(80e6), // 80MB
+  // How many observations the trace detail view loads (startTime ASC, so the
+  // chronological tail is what a bigger trace loses). Also a crash guard: the
+  // client builds one node per observation before it renders.
+  LANGFUSE_MAX_OBSERVATIONS_PER_TRACE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000),
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
@@ -519,11 +537,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(3_600_000), // 60 minutes
-
-  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(10),
 
   LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS: z.coerce
     .number()

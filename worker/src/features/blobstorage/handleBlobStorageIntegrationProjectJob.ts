@@ -1,7 +1,7 @@
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job } from "bullmq";
-import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
   TQueueJobTypes,
@@ -51,6 +51,7 @@ import {
   BLOB_INTEGRATION_DISABLED_METRIC,
   classifyCustomerFault,
 } from "./isCustomerFaultError";
+import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
@@ -60,10 +61,8 @@ import {
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
-  isEnrichedBlobExportAvailable,
-  isEnrichedBlobExportSource,
-  isLegacyBlobExportSource,
-  isLegacyBlobExporter,
+  isLegacyExportSource,
+  isLegacyExporter,
   resolveBlobExportTuning,
   DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES,
 } from "@langfuse/shared";
@@ -72,7 +71,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
-import { env, v4AllowPreviewOptIn } from "../../env";
+import { env } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import {
@@ -93,7 +92,7 @@ export const BlobExportFormat = {
   CSV_GZIP: "csv-gzip",
   JSONL_RAW: "jsonl-raw",
   JSONL_GZIP: "jsonl-gzip",
-  // LFE-10463: ClickHouse-native columnar export; compression is internal to
+  // ClickHouse-native columnar export; compression is internal to
   // Parquet, so there is no separate raw/gzip split.
   PARQUET: "parquet",
 } as const;
@@ -441,7 +440,7 @@ const processBlobStorageExport = async (config: {
       span.setAttribute("blob.config.rawPassthrough", config.rawPassthrough);
 
       // Event-loop delay during the stream: if it spikes, lock renewal can't
-      // fire and the job re-enqueues as stalled (LFE-10063). Torn down below.
+      // fire and the job re-enqueues as stalled. Torn down below.
       const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
       eventLoopDelay.enable();
 
@@ -475,7 +474,7 @@ const processBlobStorageExport = async (config: {
         const parquetEligible =
           config.fileType === BlobStorageIntegrationFileType.PARQUET;
 
-        // Raw passthrough (LFE-10402) is opt-in per project and only valid for
+        // Raw passthrough is opt-in per project and only valid for
         // JSONL output of the enriched-observation tables — the only formats
         // where ClickHouse FORMAT JSONEachRow bytes map 1:1 to the file. Any
         // other request falls back to the standard path. The integration-level
@@ -577,7 +576,7 @@ const processBlobStorageExport = async (config: {
         let fileStream: Readable;
 
         if (parquetEligible) {
-          // LFE-10463: stream raw FORMAT Parquet bytes straight to upload — no JS
+          // Stream raw FORMAT Parquet bytes straight to upload — no JS
           // parse/enrich/serialize, no gzip, no row counting (binary has no row
           // boundaries, so sourceStats.rows stays 0). Field-group projection,
           // latency ms→s, and dropped price columns are baked into the SQL. The
@@ -1115,7 +1114,7 @@ const writeBlobExportManifest = async (params: {
   );
 };
 
-// LFE-10896: drop a plain-text deprecation notice into the export destination
+// Drop a plain-text deprecation notice into the export destination
 // for legacy-source projects. Best-effort — a failure to write the notice must
 // not fail the export run, so it is called after the manifest commit point and
 // swallows its own error.
@@ -1167,13 +1166,6 @@ const removeBlobExportDeprecationNotice = async (params: {
     );
   }
 };
-
-// LFE-14894: the integration can be deleted while a run is in flight; a row
-// write racing that delete throws P2025, which must mark the job obsolete
-// rather than fail it.
-const isRecordNotFoundError = (error: unknown): boolean =>
-  error instanceof Prisma.PrismaClientKnownRequestError &&
-  error.code === "P2025";
 
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
@@ -1283,27 +1275,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
-  // Legacy-source deprecation is a Cloud policy (see blob-export-gate.ts:
-  // isLegacyBlobExportAllowed / isLegacyBlobExporter both exempt self-hosted),
-  // so the deprecation notice below is Cloud-only too.
+  // Legacy-source deprecation is a Cloud policy (isLegacyExporter exempts
+  // self-hosted), so the deprecation notice below is Cloud-only too.
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   try {
-    // Fail loudly rather than export from unpopulated tables when an enriched
-    // source survives on a deployment without the enriched path, e.g. after a
-    // V4-preview rollback. The catch persists lastError and notifies admins
-    // (LFE-10296).
-    if (
-      isEnrichedBlobExportSource(blobStorageIntegration.exportSource) &&
-      !isEnrichedBlobExportAvailable(isCloud, v4AllowPreviewOptIn(env))
-    ) {
-      throw new Error(
-        "The configured export source includes enriched observations, but enriched export is not available on this deployment. Select a different export source in the blob storage integration settings, or re-enable enriched export (V4 preview opt-in) on this deployment.",
-      );
-    }
-
-    // Write-mode guard, both directions (LFE-10148, LFE-11009); the catch
-    // persists lastError and notifies admins.
+    // The catch persists lastError and notifies admins.
     assertExportSourceWritable(
       blobStorageIntegration.exportSource,
       "Select the enriched export source (OBSERVATIONS_V2) in the blob storage integration settings.",
@@ -1462,7 +1439,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     // Cloud-only v3-deprecation notice; both sides best-effort (never fail the run).
     if (isCloud) {
-      if (isLegacyBlobExportSource(blobStorageIntegration.exportSource)) {
+      if (isLegacyExportSource(blobStorageIntegration.exportSource)) {
         await writeBlobExportDeprecationNotice({
           storageService,
           prefix: blobStorageIntegration.prefix || undefined,
@@ -1472,7 +1449,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         // Gate cleanup on "old enough to have written a notice": otherwise every
         // enriched-only export adds a needless per-run s3:DeleteObject on the
         // destination, which is write-only for many customers.
-        isLegacyBlobExporter(blobStorageIntegration.createdAt, isCloud)
+        isLegacyExporter(blobStorageIntegration.createdAt, isCloud)
       ) {
         await removeBlobExportDeprecationNotice({
           storageService,

@@ -21,6 +21,7 @@ export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningE
 export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
 export * from "./services/email/commentMention/sendCommentMentionEmail";
 export * from "./services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
+export * from "./services/email/posthogExportFailed/sendPostHogExportFailedEmail";
 export * from "./services/PromptService";
 export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
@@ -104,6 +105,7 @@ export * from "./redis/batchExport";
 export * from "./redis/batchActionQueue";
 export * from "./redis/ingestionQueue";
 export * from "./redis/postHogIntegrationQueue";
+export * from "./redis/v4LegacyApiUsageQueue";
 export * from "./redis/postHogIntegrationProcessingQueue";
 export * from "./redis/mixpanelIntegrationQueue";
 export * from "./redis/mixpanelIntegrationProcessingQueue";
@@ -174,6 +176,8 @@ export * from "./utils/headerUtils";
 export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./deletionGuard";
+export * from "./forceV3Experience";
+export * from "./v4/legacyApiUsage";
 export * from "./analytics-integrations/types";
 
 // Re-annotate these deprecated routing wrappers at the public server barrel.

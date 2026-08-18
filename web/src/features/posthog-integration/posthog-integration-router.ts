@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
+import {
+  assertPersistedExportSourceAllowed,
+  resolveExportSource,
+} from "@/src/features/analytics-integrations/server/exportSource";
 import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -16,10 +19,8 @@ import { validateWebhookURL } from "@langfuse/shared/src/server";
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
-  areLegacyWritesActive,
-  InvalidRequestError,
   LangfuseNotFoundError,
-  validateExportSource,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 
 export const posthogIntegrationRouter = createTRPCRouter({
@@ -31,10 +32,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
-      // Data capability for legacy sources (see export-source-policy.ts).
-      const legacyWritesActive = areLegacyWritesActive(
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      );
+      const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
       try {
         const dbConfig = await ctx.prisma.posthogIntegration.findFirst({
           where: {
@@ -43,12 +41,12 @@ export const posthogIntegrationRouter = createTRPCRouter({
         });
 
         if (!dbConfig) {
-          return { config: null, legacyWritesActive };
+          return { config: null, writeMode };
         }
 
         const { encryptedPosthogApiKey, exportSource, ...config } = dbConfig;
 
-        // Write-only credential: never return the plaintext key (LFE-14384).
+        // Write-only credential: never return the plaintext key (write-only credential).
         return {
           config: {
             ...config,
@@ -57,7 +55,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
               decrypt(encryptedPosthogApiKey),
             ),
           },
-          legacyWritesActive,
+          writeMode,
         };
       } catch (e) {
         console.error("posthog integration get", e);
@@ -110,13 +108,6 @@ export const posthogIntegrationRouter = createTRPCRouter({
         });
       }
 
-      // EVENTS is always accepted by this router, hence enrichedAvailable:
-      // true. An omitted source preserves the persisted row; on CREATE it
-      // falls back to a default that is validated like an explicit choice
-      // (LFE-9688 / LFE-10148). See export-source-policy.ts.
-      const legacyWritesActive = areLegacyWritesActive(
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      );
       const existingIntegration =
         await ctx.prisma.posthogIntegration.findUnique({
           where: { projectId: input.projectId },
@@ -128,7 +119,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
         });
 
       // Write-only credential: blank/omitted keeps the persisted encrypted
-      // value (LFE-14384).
+      // value (write-only credential).
       const encryptedPosthogApiKey = input.posthogProjectApiKey
         ? encrypt(input.posthogProjectApiKey)
         : existingIntegration?.encryptedPosthogApiKey;
@@ -138,31 +129,12 @@ export const posthogIntegrationRouter = createTRPCRouter({
           message: "PostHog Project API Key is required",
         });
       }
-      const createDefaultExportSource = legacyWritesActive
-        ? AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
-        : AnalyticsIntegrationExportSource.EVENTS;
-      const nextExportSource =
-        input.exportSource ??
-        (existingIntegration ? undefined : createDefaultExportSource);
-      // The Cloud cutoffs need the project only for explicitly chosen (or
-      // create-defaulted) sources.
-      const projectCreatedAt = nextExportSource
-        ? (
-            await ctx.prisma.project.findUniqueOrThrow({
-              where: { id: input.projectId },
-              select: { createdAt: true },
-            })
-          ).createdAt
-        : undefined;
-      assertExportSourceAllowed({
-        nextExportSource,
-        persistedExportSource: existingIntegration?.exportSource,
-        ctx: {
-          isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-          enrichedAvailable: true,
-          legacyWritesActive,
-          projectCreatedAt,
-        },
+      const createExportSource = await resolveExportSource({
+        db: ctx.prisma,
+        projectId: input.projectId,
+        requestedExportSource: input.exportSource,
+        existingIntegration,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
       });
 
       await auditLog({
@@ -183,40 +155,25 @@ export const posthogIntegrationRouter = createTRPCRouter({
             posthogHostName: config.posthogHostname,
             encryptedPosthogApiKey,
             enabled: config.enabled,
-            exportSource: config.exportSource ?? createDefaultExportSource,
+            exportSource: createExportSource,
           },
           update: {
             encryptedPosthogApiKey,
             posthogHostName: config.posthogHostname,
             enabled: config.enabled,
             // undefined → Prisma omits the column → preserves the persisted
-            // value on partial updates (LFE-10296).
+            // value on partial updates.
             exportSource: config.exportSource,
+            // lastError is deliberately left intact so the last fault stays
+            // visible until a successful run clears it.
           },
         });
 
-        // Race backstop (mirrors blob storage's service.ts): a concurrent
-        // delete between the pre-flight read and this upsert can flip the
-        // expected UPDATE into a CREATE carrying the unvalidated legacy
-        // default. Detectable as a createdAt change; re-validate the persisted
-        // row as an explicit choice and roll back on failure.
-        if (
-          input.exportSource === undefined &&
-          existingIntegration &&
-          result.createdAt.getTime() !== existingIntegration.createdAt.getTime()
-        ) {
-          const project = await tx.project.findUniqueOrThrow({
-            where: { id: input.projectId },
-            select: { createdAt: true },
-          });
-          const validation = validateExportSource(result.exportSource, {
-            isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-            enrichedAvailable: true,
-            legacyWritesActive,
-            projectCreatedAt: project.createdAt,
-          });
-          if (!validation.ok) throw new InvalidRequestError(validation.message);
-        }
+        assertPersistedExportSourceAllowed({
+          existingIntegration,
+          result,
+          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+        });
       });
     }),
   delete: protectedProjectProcedure

@@ -32,10 +32,10 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-/** @type {typeof import("typescript")} */
-const ts = require("typescript");
+/** @type {typeof import("@typescript/typescript6")} */
+const ts = require("@typescript/typescript6");
 
-/** @typedef {import("typescript").TextChange} TextChange */
+/** @typedef {import("@typescript/typescript6").TextChange} TextChange */
 /** @typedef {{ from: string, to: string, isDir: boolean, sibling: boolean }} Move */
 
 const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -380,7 +380,7 @@ const dropFile = (p) => {
   projectVersion++;
 };
 
-/** @type {import("typescript").LanguageServiceHost} */
+/** @type {import("@typescript/typescript6").LanguageServiceHost} */
 const lsHost = {
   getScriptFileNames: () => [...scriptFileNames],
   getScriptVersion: (f) => String(versions.get(norm(f)) ?? 0),
@@ -439,7 +439,7 @@ console.log(
 
 // --- compute the rewrites ----------------------------------------------------
 const formatOptions = ts.getDefaultFormatCodeSettings("\n");
-/** @type {import("typescript").UserPreferences} */
+/** @type {import("@typescript/typescript6").UserPreferences} */
 const preferences = { quotePreference: "double" };
 
 /** @type {Map<string, string>} moved-file new abs path -> its content before the batch */
@@ -525,9 +525,9 @@ function moduleSpecifiers(fileName, text) {
     true,
     fileName.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
-  /** @type {import("typescript").StringLiteralLike[]} */
+  /** @type {import("@typescript/typescript6").StringLiteralLike[]} */
   const nodes = [];
-  /** @type {(n: import("typescript").Node) => void} */
+  /** @type {(n: import("@typescript/typescript6").Node) => void} */
   const visit = (n) => {
     if (
       (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
@@ -565,7 +565,7 @@ function moduleSpecifiers(fileName, text) {
   };
 }
 
-/** @type {import("typescript").ModuleResolutionHost} */
+/** @type {import("@typescript/typescript6").ModuleResolutionHost} */
 const overlayResolutionHost = {
   fileExists: (f) => lsHost.fileExists(f),
   readFile: (f) => lsHost.readFile(f),

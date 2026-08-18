@@ -12,7 +12,7 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
+import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import {
@@ -28,11 +28,9 @@ import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   AnalyticsIntegrationExportSource,
-  areLegacyWritesActive,
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   InvalidRequestError,
-  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 
 const getAuditLogErrorType = (error: unknown) =>
@@ -75,16 +73,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         scope: "integrations:CRUD",
       });
       try {
-        const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-        const isEnrichedExportAvailable = isEnrichedBlobExportAvailable(
-          isCloud,
-          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
-        );
-        // Data capability for legacy sources (see export-source-policy.ts).
-        const legacyWritesActive = areLegacyWritesActive(
-          env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-        );
-
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
             projectId: input.projectId,
@@ -96,8 +84,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
         return {
           config: config ?? null,
-          isEnrichedExportAvailable,
-          legacyWritesActive,
+          writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
         };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);
@@ -131,42 +118,20 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           scope: "integrations:CRUD",
         });
 
-        const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-        const isV4PreviewEnabled =
-          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
-
         const existingIntegration =
           await ctx.prisma.blobStorageIntegration.findUnique({
             where: { projectId: input.projectId },
             select: { createdAt: true, exportSource: true },
           });
 
-        // Cloud cutoffs gate explicit values only (the project is fetched just
-        // for them); an omitted source preserves the row, and CREATE is covered
-        // by forceEventsOnCreate below. See export-source-policy.ts.
-        const projectCreatedAt = input.exportSource
-          ? (
-              await ctx.prisma.project.findUniqueOrThrow({
-                where: { id: input.projectId },
-                select: { createdAt: true },
-              })
-            ).createdAt
-          : undefined;
-        assertExportSourceAllowed({
-          nextExportSource: input.exportSource,
-          persistedExportSource: existingIntegration?.exportSource,
-          ctx: {
-            isCloud,
-            enrichedAvailable: isEnrichedBlobExportAvailable(
-              isCloud,
-              isV4PreviewEnabled,
-            ),
-            legacyWritesActive: areLegacyWritesActive(
-              env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-            ),
-            projectCreatedAt,
-            integrationCreatedAt: existingIntegration?.createdAt ?? null,
-          },
+        // Validates the requested source and resolves what a CREATE should
+        // carry. Shared with the PostHog and Mixpanel routers and the public
+        // REST handler, so every write path agrees. See export-source-policy.ts.
+        const createExportSource = await resolveExportSource({
+          db: ctx.prisma,
+          projectId: input.projectId,
+          requestedExportSource: input.exportSource,
+          existingIntegration,
         });
 
         await auditLog({
@@ -181,11 +146,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         return await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
-          // Mirror the REST handler: substitute EVENTS for an omitted source on
-          // a new Cloud row, and refuse a legacy source if a concurrent DELETE
-          // flips this upsert to CREATE.
-          forceEventsOnCreate: input.exportSource === undefined && isCloud,
-          refuseLegacyOnCreate: isCloud,
+          createExportSource,
           data: {
             type: rest.type,
             bucketName: rest.bucketName,

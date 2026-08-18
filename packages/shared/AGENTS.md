@@ -55,7 +55,8 @@
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
-  client-safe in-app-agent contracts (AG-UI schemas, constants, id helpers).
+  client-safe in-app-agent contracts (AG-UI schemas, constants, id helpers,
+  and durable interrupt parsing shared by browser and server runtimes).
   `AgUiRunAgentInput` is a compile-time-only execution contract; there is no
   runtime input or browser runtime-state schema. Never re-export server code
   here.
@@ -154,6 +155,11 @@ the same PR.
 
 - Keep backward compatibility in queue payloads when possible during rolling
   deployments.
+- Register recurring cron jobs through
+  `src/server/redis/scheduleRecurringJob.ts` (BullMQ job schedulers), never
+  via the deprecated `Queue.add(name, data, { repeat })` API. When changing a
+  cron pattern, append the old pattern to `previousPatterns` so the legacy
+  md5-keyed schedule is cleaned up on boot.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
 - Avoid exposing server-only modules through `src/index.ts` if they must remain
   frontend-safe.

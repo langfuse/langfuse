@@ -412,6 +412,9 @@ export const env = createEnv({
       .date()
       .optional()
       .transform((date) => (date ? new Date(date) : null)),
+    // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
+    // Unset disables the endpoint (it 500s) rather than leaving it open.
+    CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -572,6 +575,7 @@ export const env = createEnv({
       .optional(),
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
+    NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
@@ -595,6 +599,13 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("true"),
+    // Content larger than this is rendered as plain text instead of markdown,
+    // as react-markdown is too slow for large payloads.
+    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(150_000),
   },
 
   /**
@@ -620,6 +631,8 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF,
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF:
       process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF,
+    NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF:
+      process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     NEXT_PUBLIC_PREVIEW_PR_URL: process.env.NEXT_PUBLIC_PREVIEW_PR_URL,
     NEXT_PUBLIC_PREVIEW_PR_AUTHOR: process.env.NEXT_PUBLIC_PREVIEW_PR_AUTHOR,
@@ -932,6 +945,9 @@ export const env = createEnv({
     // Playground
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT:
       process.env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT,
+    // Markdown rendering
+    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
+      process.env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
@@ -946,6 +962,8 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+    CLICKHOUSE_BILLING_METRICS_API_KEY:
+      process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,

@@ -75,3 +75,14 @@ export const DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING = [
     type: "boolean" as const,
   },
 ];
+
+// v3 SDKs do not set the app-root marker. Their top-level observations are
+// identified by having no parent observation.
+export const DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING_V3 = [
+  {
+    column: "parentObservationId",
+    operator: "is null" as const,
+    value: "" as const,
+    type: "null" as const,
+  },
+];

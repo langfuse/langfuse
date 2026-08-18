@@ -23,16 +23,25 @@ import type {
 } from "./instrumentation";
 import { createInAppAgentInstrumentation } from "./instrumentation";
 import {
+  parseMcpRateLimitError,
+  withMcpRateLimitWait,
+} from "./mcpRateLimitWait";
+import { getToolFailureMessage } from "./toolErrors";
+import {
   createSandboxTools,
   createRedirectActionTool,
+  getToolCallId,
+  hasCallableExecute,
+  withOptionalSilentMcpOutput,
+} from "./tools";
+import type { CompletedInAppAgentMcpToolCall } from "./toolResults";
+import {
   filterInAppAgentAvailableLangfuseMcpTools,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
-  type CompletedInAppAgentMcpToolCall,
   type InAppAgentToolPolicy,
-  withOptionalSilentMcpOutput,
   withInAppAgentToolApproval,
-} from "./tools";
+} from "./mcpPolicy";
 import { toPublicEvent } from "./watch";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
@@ -136,6 +145,14 @@ When working in the sandbox filesystem, assume this layout:
 `;
 }
 
+/** Run-scoped, not part of the managed prompt: it describes one turn's environment. */
+const SANDBOX_WORKSPACE_RESET_INSTRUCTION = `<sandbox_workspace_reset>
+The sandbox workspace from earlier turns in this conversation expired and has been replaced with an empty one.
+- Any file you created earlier with write, edit, or bash is gone, along with installed packages and all process state.
+- "/workspace/tool_calls" has been restored in full from the conversation history, so results of earlier successful tool calls are still readable there. Failed tool calls were never stored.
+- Do not assume a path exists because you created it earlier in this conversation. Read it first, and recreate what you still need.
+</sandbox_workspace_reset>`;
+
 // Adaptive thinking is the default for every Claude model so new generations
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
@@ -187,6 +204,8 @@ type CreateAgUiStreamOptions = {
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
   sandbox?: InAppAgentSandbox;
+  /** Adds a run instruction telling the model its earlier workspace files are gone. */
+  sandboxWorkspaceWasReset?: boolean;
 };
 
 export async function createAgUiStream(params: {
@@ -221,10 +240,56 @@ export async function createAgUiStream(params: {
       : undefined,
     model: params.options.awsBedrock.modelId,
   });
-  instrumentation?.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS);
-  const onStepFinish = instrumentation
-    ? (event: unknown) => {
-        instrumentation.recordStepFinish?.(event);
+  const recordInstrumentation = (
+    operation: string,
+    callback: (
+      activeInstrumentation: NonNullable<typeof instrumentation>,
+    ) => void,
+  ) => {
+    if (!instrumentation) {
+      return;
+    }
+
+    try {
+      callback(instrumentation);
+    } catch (error) {
+      logger.warn("Failed to record in-app agent Langfuse tracing", {
+        error,
+        operation,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    }
+  };
+  recordInstrumentation("recordAvailableSkills", (instrumentation) =>
+    instrumentation.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS),
+  );
+  const onModelCallStart = instrumentation
+    ? (options: unknown) => {
+        recordInstrumentation("recordModelCallStart", (instrumentation) =>
+          instrumentation.recordModelCallStart?.(options),
+        );
+      }
+    : undefined;
+  const onModelStreamPart = instrumentation
+    ? (part: unknown) => {
+        recordInstrumentation("recordModelStreamPart", (instrumentation) =>
+          instrumentation.recordModelStreamPart?.(part),
+        );
+      }
+    : undefined;
+  const onToolExecutionStart = instrumentation
+    ? (toolCallId: string) => {
+        recordInstrumentation("recordToolExecutionStart", (instrumentation) =>
+          instrumentation.recordToolExecutionStart?.(toolCallId),
+        );
+      }
+    : undefined;
+  const onToolExecutionEnd = instrumentation
+    ? (toolCallId: string) => {
+        recordInstrumentation("recordToolExecutionEnd", (instrumentation) =>
+          instrumentation.recordToolExecutionEnd?.(toolCallId),
+        );
       }
     : undefined;
 
@@ -308,8 +373,12 @@ export async function createAgUiStream(params: {
           return;
         }
 
-        instrumentation?.endWithError(error);
-        instrumentation?.flush();
+        recordInstrumentation("endWithError", (instrumentation) =>
+          instrumentation.endWithError(error),
+        );
+        recordInstrumentation("flush", (instrumentation) =>
+          instrumentation.flush(),
+        );
         ending = true;
         closed = true;
         shouldEnqueue = false;
@@ -413,8 +482,12 @@ export async function createAgUiStream(params: {
           return;
         }
 
-        instrumentation?.end({ aborted: true });
-        instrumentation?.flush();
+        recordInstrumentation("end", (instrumentation) =>
+          instrumentation.end({ aborted: true }),
+        );
+        recordInstrumentation("flush", (instrumentation) =>
+          instrumentation.flush(),
+        );
         ending = true;
         shouldEnqueue = false;
         removeAbortHandler();
@@ -473,8 +546,13 @@ export async function createAgUiStream(params: {
         awsProfile,
         instructions,
         onToolsAvailable: (tools) =>
-          instrumentation?.recordAvailableTools?.(tools),
-        onStepFinish,
+          recordInstrumentation("recordAvailableTools", (instrumentation) =>
+            instrumentation.recordAvailableTools?.(tools),
+          ),
+        onModelCallStart,
+        onModelStreamPart,
+        onToolExecutionStart,
+        onToolExecutionEnd,
       })
         .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
@@ -542,7 +620,10 @@ export async function createAgUiStream(params: {
               },
               awsProfile,
               instructions,
-              onStepFinish,
+              onModelCallStart,
+              onModelStreamPart,
+              onToolExecutionStart,
+              onToolExecutionEnd,
             });
 
             if (ending || closed || params.signal.aborted) {
@@ -579,7 +660,9 @@ export async function createAgUiStream(params: {
                 params.input,
               );
 
-              instrumentation?.recordEvents(agUiEvents);
+              recordInstrumentation("recordEvents", (instrumentation) =>
+                instrumentation.recordEvents(agUiEvents),
+              );
 
               for (const agUiEvent of agUiEvents) {
                 if (
@@ -600,10 +683,16 @@ export async function createAgUiStream(params: {
                   agUiEvent.type === EventType.RUN_STARTED &&
                   pendingSyntheticEvents.length > 0
                 ) {
-                  instrumentation?.recordToolCallApproval(
-                    runInput.toolCallApproval,
+                  recordInstrumentation(
+                    "recordToolCallApproval",
+                    (instrumentation) =>
+                      instrumentation.recordToolCallApproval(
+                        runInput.toolCallApproval,
+                      ),
                   );
-                  instrumentation?.recordEvents(pendingSyntheticEvents);
+                  recordInstrumentation("recordEvents", (instrumentation) =>
+                    instrumentation.recordEvents(pendingSyntheticEvents),
+                  );
                   for (const syntheticEvent of pendingSyntheticEvents) {
                     enqueueEvent(syntheticEvent);
                   }
@@ -623,7 +712,9 @@ export async function createAgUiStream(params: {
 
               if (streamedRunError !== null) {
                 closeController(() => {
-                  instrumentation?.flush();
+                  recordInstrumentation("flush", (instrumentation) =>
+                    instrumentation.flush(),
+                  );
                   return handleStreamedRunError();
                 });
                 return;
@@ -636,11 +727,17 @@ export async function createAgUiStream(params: {
               });
 
               const runErrorEvent = createRunErrorEvent(params.input, error);
-              instrumentation?.recordEvents([runErrorEvent]);
+              recordInstrumentation("recordEvents", (instrumentation) =>
+                instrumentation.recordEvents([runErrorEvent]),
+              );
               enqueueEvent(runErrorEvent, () =>
                 params.options.onError?.(error),
               );
-              closeController(() => instrumentation?.flush());
+              closeController(() =>
+                recordInstrumentation("flush", (instrumentation) =>
+                  instrumentation.flush(),
+                ),
+              );
             },
             complete() {
               if (ending || closed) {
@@ -655,12 +752,18 @@ export async function createAgUiStream(params: {
               closeController(
                 streamedRunError === null
                   ? () => {
-                      instrumentation?.end({});
-                      instrumentation?.flush();
+                      recordInstrumentation("end", (instrumentation) =>
+                        instrumentation.end({}),
+                      );
+                      recordInstrumentation("flush", (instrumentation) =>
+                        instrumentation.flush(),
+                      );
                       return params.options.onComplete?.();
                     }
                   : () => {
-                      instrumentation?.flush();
+                      recordInstrumentation("flush", (instrumentation) =>
+                        instrumentation.flush(),
+                      );
                       return handleStreamedRunError();
                     },
               );
@@ -684,9 +787,15 @@ export async function createAgUiStream(params: {
           });
 
           const runErrorEvent = createRunErrorEvent(params.input, error);
-          instrumentation?.recordEvents([runErrorEvent]);
+          recordInstrumentation("recordEvents", (instrumentation) =>
+            instrumentation.recordEvents([runErrorEvent]),
+          );
           enqueueEvent(runErrorEvent, () => params.options.onError?.(error));
-          closeController(() => instrumentation?.flush());
+          closeController(() =>
+            recordInstrumentation("flush", (instrumentation) =>
+              instrumentation.flush(),
+            ),
+          );
         });
     },
     cancel() {
@@ -695,8 +804,12 @@ export async function createAgUiStream(params: {
       }
 
       ending = true;
-      instrumentation?.end({ aborted: true });
-      instrumentation?.flush();
+      recordInstrumentation("end", (instrumentation) =>
+        instrumentation.end({ aborted: true }),
+      );
+      recordInstrumentation("flush", (instrumentation) =>
+        instrumentation.flush(),
+      );
       shouldEnqueue = false;
       removeAbortHandler();
       interruptAdapter?.();
@@ -735,6 +848,87 @@ type ExecutableInAppAgentTool = {
   toModelOutput?: (output: unknown) => unknown | PromiseLike<unknown>;
 };
 
+type BedrockLanguageModel = ReturnType<ReturnType<typeof createAmazonBedrock>>;
+
+function withModelTracing(
+  model: BedrockLanguageModel,
+  callbacks: {
+    onStart?: (options: unknown) => void;
+    onStreamPart?: (part: unknown) => void;
+  },
+): BedrockLanguageModel {
+  if (!callbacks.onStart && !callbacks.onStreamPart) {
+    return model;
+  }
+
+  return {
+    specificationVersion: model.specificationVersion,
+    provider: model.provider,
+    modelId: model.modelId,
+    supportedUrls: model.supportedUrls,
+    doGenerate: (options) => model.doGenerate(options),
+    doStream: async (options) => {
+      callbacks.onStart?.(options);
+      const result = await model.doStream(options);
+
+      return {
+        ...result,
+        stream: result.stream.pipeThrough(
+          new TransformStream({
+            transform(part, controller) {
+              callbacks.onStreamPart?.(part);
+              controller.enqueue(part);
+            },
+          }),
+        ),
+      };
+    },
+  };
+}
+
+function withToolExecutionTiming<TTool>(params: {
+  tools: Record<string, TTool>;
+  onStart?: (toolCallId: string) => void;
+  onEnd?: (toolCallId: string) => void;
+}): Record<string, TTool> {
+  if (!params.onStart && !params.onEnd) {
+    return params.tools;
+  }
+
+  return Object.fromEntries(
+    Object.entries(params.tools).map(([toolName, tool]) => {
+      if (!hasCallableExecute(tool)) {
+        return [toolName, tool];
+      }
+
+      const execute = tool.execute.bind(tool) as (
+        inputData: unknown,
+        context: unknown,
+      ) => Promise<unknown>;
+
+      return [
+        toolName,
+        {
+          ...tool,
+          execute: async (inputData: unknown, context: unknown) => {
+            const toolCallId = getToolCallId(context);
+            if (!toolCallId) {
+              return execute(inputData, context);
+            }
+
+            params.onStart?.(toolCallId);
+            try {
+              return await execute(inputData, context);
+            } finally {
+              params.onEnd?.(toolCallId);
+            }
+          },
+        } as TTool,
+      ];
+    }),
+  );
+}
+
 async function createMastraAdapter(params: {
   input: AgUiRunAgentInput;
   signal: AbortSignal;
@@ -743,7 +937,10 @@ async function createMastraAdapter(params: {
   awsProfile?: string;
   instructions: string;
   onToolsAvailable?: (tools: Record<string, unknown>) => void;
-  onStepFinish?: (event: unknown) => void;
+  onModelCallStart?: (options: unknown) => void;
+  onModelStreamPart?: (part: unknown) => void;
+  onToolExecutionStart?: (toolCallId: string) => void;
+  onToolExecutionEnd?: (toolCallId: string) => void;
 }) {
   const bedrock = createAmazonBedrock({
     ...(params.options.awsBedrock.region
@@ -784,7 +981,31 @@ async function createMastraAdapter(params: {
   });
 
   try {
-    const { toolsets, errors } = await mcpClient.listToolsetsWithErrors();
+    // Discovery costs one `public-api` rate limit point like any other MCP
+    // request, so a busy org can be rate limited before the run has a chance to
+    // call a single tool.
+    const { toolsets, errors } = await withMcpRateLimitWait({
+      signal: params.signal,
+      logContext: {
+        operation: "listToolsets",
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      },
+      fn: async () => {
+        const result = await mcpClient.listToolsetsWithErrors();
+
+        if (
+          result.errors.langfuse &&
+          parseMcpRateLimitError(result.errors.langfuse)
+        ) {
+          throw new Error(
+            `Failed to initialize Langfuse MCP: ${result.errors.langfuse}`,
+          );
+        }
+
+        return result;
+      },
+    });
 
     if (errors.langfuse) {
       throw new Error(`Failed to initialize Langfuse MCP: ${errors.langfuse}`);
@@ -802,34 +1023,43 @@ async function createMastraAdapter(params: {
     // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
     // discovery, then prefix tool names for constructor-based tools so the
     // model sees the same names that later appear in AG-UI tool-call events.
-    const tools = withInAppAgentToolApproval(
-      {
-        ...withOptionalSilentMcpOutput({
-          tools: prefixToolsetTools(
-            "langfuse",
-            filterInAppAgentAvailableLangfuseMcpTools({
-              tools: toolsets.langfuse,
-              policy: params.options.langfuseMcp.toolPolicy,
+    const tools = withToolExecutionTiming({
+      tools: withInAppAgentToolApproval(
+        {
+          ...withOptionalSilentMcpOutput({
+            tools: withLangfuseMcpRateLimitWait({
+              tools: prefixToolsetTools(
+                "langfuse",
+                filterInAppAgentAvailableLangfuseMcpTools({
+                  tools: toolsets.langfuse,
+                  policy: params.options.langfuseMcp.toolPolicy,
+                }),
+              ),
+              signal: params.signal,
+              runId: params.input.runId,
+              threadId: params.input.threadId,
             }),
-          ),
-          sandbox: params.options.sandbox,
-          onToolCallCompleted: params.options.onMcpToolCallCompleted,
-        }),
-        ...withOptionalSilentMcpOutput({
-          tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
-          sandbox: params.options.sandbox,
-          onToolCallCompleted: params.options.onMcpToolCallCompleted,
-        }),
-        [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
-          projectId: params.options.redirectAction.projectId,
-          isV4Enabled: params.options.redirectAction.isV4Enabled,
-        }),
-        ...(params.options.sandbox
-          ? createSandboxTools(params.options.sandbox)
-          : {}),
-      },
-      params.options.langfuseMcp.toolPolicy,
-    );
+            sandbox: params.options.sandbox,
+            onToolCallCompleted: params.options.onMcpToolCallCompleted,
+          }),
+          ...withOptionalSilentMcpOutput({
+            tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+            sandbox: params.options.sandbox,
+            onToolCallCompleted: params.options.onMcpToolCallCompleted,
+          }),
+          [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
+            projectId: params.options.redirectAction.projectId,
+            isV4Enabled: params.options.redirectAction.isV4Enabled,
+          }),
+          ...(params.options.sandbox
+            ? createSandboxTools(params.options.sandbox)
+            : {}),
+        },
+        params.options.langfuseMcp.toolPolicy,
+      ),
+      onStart: params.onToolExecutionStart,
+      onEnd: params.onToolExecutionEnd,
+    });
     params.onToolsAvailable?.(tools);
 
     const reasoningProviderOptions = getBedrockReasoningProviderOptions(
@@ -842,22 +1072,30 @@ async function createMastraAdapter(params: {
     // instruction channel so the model receives the same higher-priority
     // guidance on resumed runs.
     let developerGuidance: string | undefined;
+    const model = withModelTracing(
+      bedrock(
+        params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
+      ),
+      {
+        onStart: params.onModelCallStart,
+        onStreamPart: params.onModelStreamPart,
+      },
+    );
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
       instructions: () =>
         [params.instructions, developerGuidance].filter(Boolean).join("\n\n"),
-      model: bedrock(
-        params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
-      ),
+      model,
       skills: LANGFUSE_IN_APP_AGENT_SKILLS,
       tools,
+      maxRetries: 2,
       defaultOptions: {
         abortSignal: params.signal,
         maxSteps: MAX_AGENT_STEPS,
-        // Fires once per LLM call with that call's token usage; the AG-UI
-        // event stream itself never carries usage.
-        ...(params.onStepFinish ? { onStepFinish: params.onStepFinish } : {}),
+        ...(params.options.sandboxWorkspaceWasReset
+          ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }
+          : {}),
         ...(reasoningProviderOptions
           ? { providerOptions: reasoningProviderOptions }
           : {}),
@@ -942,6 +1180,44 @@ function prefixToolsetTools<TTool>(
   );
 }
 
+function withLangfuseMcpRateLimitWait<TTool>(params: {
+  tools: Record<string, TTool>;
+  signal: AbortSignal;
+  runId: string;
+  threadId: string;
+}): Record<string, TTool> {
+  return Object.fromEntries(
+    Object.entries(params.tools).map(([toolName, tool]) => {
+      if (!hasCallableExecute(tool)) {
+        return [toolName, tool];
+      }
+
+      const execute = tool.execute.bind(tool) as (
+        inputData: unknown,
+        context: unknown,
+      ) => Promise<unknown>;
+
+      return [
+        toolName,
+        {
+          ...tool,
+          execute: (inputData: unknown, context: unknown) =>
+            withMcpRateLimitWait({
+              signal: params.signal,
+              logContext: {
+                operation: "tools/call",
+                toolName,
+                runId: params.runId,
+                threadId: params.threadId,
+              },
+              fn: () => execute(inputData, context),
+            }),
+        } as TTool,
+      ];
+    }),
+  );
+}
+
 type MastraChunkProcessor = {
   handleChunk: (chunk: unknown) => boolean;
   flush: () => void;
@@ -983,11 +1259,10 @@ type MastraApprovalStreamChunk = {
 // those tools and the bridge has no case for it, so approvals would never
 // surface as on_interrupt events. Map approvals onto the suspend protocol.
 // Non-background tool-error chunks are likewise swallowed by the bridge, so
-// convert them to tool results carrying the error message as content. Note:
-// the bridge emits TOOL_CALL_RESULT without a top-level `error` field, so the
-// failure renders with the error message in the result body but a "succeeded"
-// status; the model is unaffected (Mastra's loop feeds it the real error).
-// Status fidelity is tracked as a follow-up.
+// convert them to tool results carrying a structured failure payload. The
+// bridge still emits TOOL_CALL_RESULT without a top-level `error` field;
+// normalizeAdapterEvent stamps that field from the structured payload so
+// instrumentation and persistence see an explicit failure.
 export function patchMastraApprovalChunks(adapter: MastraAgent) {
   const patchableAdapter = adapter as unknown as PatchableMastraAgent;
   const createChunkProcessor = patchableAdapter.createChunkProcessor;
@@ -1062,8 +1337,12 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
               isError: true,
               // Raw object, not pre-stringified: the bridge JSON-stringifies
               // payload.result into the event content, so a string here would
-              // double-encode.
-              result: { error: getToolErrorMessage(mastraChunk) },
+              // double-encode. Keep the same {error:true,message} shape used
+              // by schema-validation failures so detection stays structured.
+              result: {
+                error: true,
+                message: getToolErrorMessage(mastraChunk),
+              },
             },
           });
         }
@@ -1158,6 +1437,19 @@ function normalizeAdapterEvent(
         ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
       },
     ];
+  }
+
+  if (event.type === EventType.TOOL_CALL_RESULT) {
+    // Never overwrite an existing top-level error (e.g. JSON-encoded approval
+    // rejections). Only stamp when the bridge omitted the field entirely.
+    if (typeof event.error === "string" && event.error.trim()) {
+      return [event];
+    }
+
+    const failureMessage = getToolFailureMessage(undefined, event.content);
+    if (failureMessage) {
+      return [{ ...event, error: failureMessage }];
+    }
   }
 
   return [event];

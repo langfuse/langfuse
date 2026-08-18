@@ -1,13 +1,26 @@
 import { EventType } from "@ag-ui/core";
+import { Buffer } from "node:buffer";
 import { getInternalTracingHandler, logger } from "../../server";
 
 import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
+  getInAppAgentLlmCallObservationId,
 } from "../constants";
-import type { AgUiEvent, AgUiMessage, AgUiRunAgentInput } from "../schema";
+import {
+  ResumeForwardedPropsSchema,
+  type AgUiEvent,
+  type AgUiMessage,
+  type AgUiRunAgentInput,
+} from "../schema";
 import { compactTextMessageChunks } from "./eventCompaction";
-import type { InAppAgentUserAccess } from "./tools";
+import {
+  getToolFailureMessage,
+  isRecord,
+  normalizeToolOutput,
+  parseJsonOrString,
+} from "./toolErrors";
+import type { InAppAgentUserAccess } from "./mcpPolicy";
 import { assertUnreachable } from "../../utils/typeChecks";
 
 export type InAppAgentTracingConfig = {
@@ -37,11 +50,11 @@ export type InAppAgentPromptMetadata = {
 };
 
 const IN_APP_AGENT_TURN_NAME = "agent-turn";
+const IN_APP_AGENT_LLM_CALL_NAME = "invoke-model";
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
 type InAppAgentTrace = ReturnType<
   InternalTracingHandler["handler"]["langfuse"]["trace"]
 >;
-type InAppAgentGeneration = ReturnType<InAppAgentTrace["generation"]>;
 type InAppAgentLangfuse = InternalTracingHandler["handler"]["langfuse"];
 type AgentRunToolCall = {
   id: string;
@@ -76,21 +89,64 @@ type AgentRunChatMessage = {
   tool_calls?: AgentRunToolCall[];
   tool_call_id?: string;
 };
-type ToolObservationBody = {
+type ObservationBody = {
   id: string;
   traceId: string;
-  parentObservationId: string | null;
+  parentObservationId?: string | null;
   name: string;
   startTime: Date;
   endTime: Date;
-  completionStartTime: Date;
+  completionStartTime?: Date;
   input?: unknown;
   output?: unknown;
-  level?: "ERROR";
-  statusMessage?: string;
+  model?: string;
+  usageDetails?: Record<string, number>;
+  level?: "DEFAULT" | "ERROR";
+  statusMessage?: string | null;
   metadata?: Record<string, unknown>;
+  promptName?: string;
+  promptVersion?: number;
 };
 type ToolCallApprovalStatus = "approved" | "rejected";
+type AgentRunToolSpan = {
+  name: string;
+  startTime: Date;
+  args: string;
+  argsComplete: boolean;
+  output?: unknown;
+  failureMessage?: string;
+  parentMessageId?: string;
+};
+type ModelToolCall = {
+  toolCallId: string;
+  toolName: string;
+  args: unknown;
+};
+type OpenModelCall = {
+  callNumber: number;
+  startTime: Date;
+  input: unknown;
+  completionStartTime?: Date;
+  textDeltas: string[];
+  toolCalls: ModelToolCall[];
+  modelId?: string;
+  streamErrorMessage?: string;
+};
+type ToolExecutionTimes = {
+  startTime?: Date;
+  endTime?: Date;
+};
+type ApprovalContinuation = {
+  status: ToolCallApprovalStatus;
+  continuationNumber: number;
+  rootRunId: string;
+  toolCallId: string;
+  toolName: string;
+  traceStartedAt?: Date;
+  approvalRequestedAt?: Date;
+  approvalDecidedAt?: Date;
+  metadata: Record<string, unknown>;
+};
 
 export function createInAppAgentInstrumentation({
   input,
@@ -125,34 +181,30 @@ export class InAppAgentInstrumentation {
   private readonly processTracedEvents: () => Promise<void>;
   private readonly langfuse: InAppAgentLangfuse;
   private readonly trace: InAppAgentTrace;
-  private readonly agentRun: InAppAgentGeneration;
+  private readonly runId: string;
+  private readonly traceId: string;
+  private readonly rootObservationId: string;
+  private readonly traceStartTime: Date;
+  private readonly agentRunStartTime: Date;
   private agentRunInput: unknown;
+  private readonly approvalContinuation?: ApprovalContinuation;
   private readonly prompt?: InAppAgentPromptMetadata;
-  private readonly toolSpans = new Map<
-    string,
-    {
-      name: string;
-      startTime: Date;
-      args: string;
-      argsComplete: boolean;
-      output?: unknown;
-      parentMessageId?: string;
-    }
-  >();
+  private readonly toolSpans = new Map<string, AgentRunToolSpan>();
   private readonly toolCallApprovals = new Map<
     string,
     ToolCallApprovalStatus
   >();
+  private readonly toolExecutionTimes = new Map<string, ToolExecutionTimes>();
   private readonly metadata: Record<string, unknown>;
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
   private readonly agentRunToolCalls: AgentRunToolCall[] = [];
   private output = "";
   private currentReasoning = "";
   private pendingThinking: AgentRunThinkingPart[] = [];
-  private completionStartTime?: Date;
   private ended = false;
   private readonly model?: string;
-  private usageDetails?: Record<string, number>;
+  private nextModelCallNumber = 0;
+  private openModelCall?: OpenModelCall;
 
   constructor(params: {
     input: AgUiRunAgentInput;
@@ -167,6 +219,7 @@ export class InAppAgentInstrumentation {
     prompt?: InAppAgentPromptMetadata;
     model?: string;
   }) {
+    this.approvalContinuation = getApprovalContinuation(params.input);
     this.metadata = {
       ...params.metadata,
       ...(params.userEmail ? { langfuse_user_email: params.userEmail } : {}),
@@ -180,14 +233,28 @@ export class InAppAgentInstrumentation {
             prompt_version: params.prompt.version,
           }
         : {}),
+      ...(this.approvalContinuation
+        ? {
+            approval_continuation_count:
+              this.approvalContinuation.continuationNumber,
+          }
+        : {}),
     };
     this.agentRunInput = getAgentRunInput(params.input);
     this.prompt = params.prompt;
     this.model = params.model;
+    this.runId = params.runId;
+    const rootRunId = this.approvalContinuation?.rootRunId ?? params.runId;
+    this.traceId = getInAppAgentInstrumentationTraceId(rootRunId);
+    this.rootObservationId =
+      getInAppAgentInstrumentationObservationId(rootRunId);
+    this.agentRunStartTime = new Date();
+    this.traceStartTime =
+      this.approvalContinuation?.traceStartedAt ?? this.agentRunStartTime;
 
     const traceSinkParams = {
       targetProjectId: params.targetProjectId,
-      traceId: getInAppAgentInstrumentationTraceId(params.runId),
+      traceId: this.traceId,
       traceName: IN_APP_AGENT_TURN_NAME,
       environment: params.environment,
       userId: params.userId,
@@ -200,26 +267,21 @@ export class InAppAgentInstrumentation {
     this.langfuse = handler.langfuse;
 
     this.trace = this.langfuse.trace({
-      id: getInAppAgentInstrumentationTraceId(params.runId),
+      id: this.traceId,
       name: IN_APP_AGENT_TURN_NAME,
       userId: params.userId,
       sessionId: params.input.threadId,
-      input: this.agentRunInput,
+      timestamp: this.traceStartTime,
+      input: this.getTraceInput(),
       metadata: this.metadata,
       tags: ["in-app-agent"],
     });
-    this.agentRun = this.trace.generation({
-      id: getInAppAgentInstrumentationObservationId(params.input.runId),
-      name: IN_APP_AGENT_TURN_NAME,
-      input: this.agentRunInput,
-      metadata: this.metadata,
-      ...(params.prompt
-        ? {
-            promptName: params.prompt.name,
-            promptVersion: params.prompt.version,
-          }
-        : {}),
-    });
+
+    // Create the root observation immediately so tool/generation children
+    // emitted during the run have a parent that already exists (avoids
+    // orphans that attach to the trace as siblings of the late agent).
+    this.emitRootAgentObservation({ metadata: this.metadata });
+    this.emitApprovalWaitObservation();
   }
 
   recordEvents(events: AgUiEvent[]) {
@@ -262,48 +324,93 @@ export class InAppAgentInstrumentation {
     this.toolCallApprovals.set(approval.toolCallId, approval.status);
   }
 
-  // Receives Mastra's per-LLM-call onStepFinish event and accumulates its
-  // token usage onto the agent-turn generation, since the AG-UI event stream
-  // itself never carries usage.
-  recordStepFinish(event: unknown) {
+  recordToolExecutionStart(toolCallId: string) {
     if (this.ended) {
       return;
     }
 
-    const usage = isRecord(event) ? event.usage : undefined;
-    if (!isRecord(usage)) {
+    const times = this.toolExecutionTimes.get(toolCallId) ?? {};
+    times.startTime ??= new Date();
+    this.toolExecutionTimes.set(toolCallId, times);
+  }
+
+  recordToolExecutionEnd(toolCallId: string) {
+    if (this.ended) {
       return;
     }
 
-    const inputTokens = getFiniteNumber(usage.inputTokens);
-    const outputTokens = getFiniteNumber(usage.outputTokens);
-    if (inputTokens === undefined && outputTokens === undefined) {
+    const times = this.toolExecutionTimes.get(toolCallId) ?? {};
+    times.endTime ??= new Date();
+    this.toolExecutionTimes.set(toolCallId, times);
+  }
+
+  recordModelCallStart(options: unknown) {
+    if (this.ended) {
       return;
     }
 
-    const cacheReadTokens = getFiniteNumber(usage.cachedInputTokens) ?? 0;
-    const cacheWriteTokens =
-      getFiniteNumber(usage.cacheCreationInputTokens) ?? 0;
-    const totals = (this.usageDetails ??= {
-      input: 0,
-      output: 0,
-      cache_read_input_tokens: 0,
-      cache_creation_input_tokens: 0,
-      total: 0,
-    });
+    const now = new Date();
+    this.openModelCall = {
+      callNumber: this.openModelCall?.callNumber ?? ++this.nextModelCallNumber,
+      startTime: this.openModelCall?.startTime ?? now,
+      input: getModelCallInput(options),
+      textDeltas: [],
+      toolCalls: [],
+    };
+  }
 
-    // Mastra's inputTokens includes cache reads/writes, while Langfuse model
-    // prices bill `input` as non-cached input tokens with separate cache keys.
-    totals.input += Math.max(
-      0,
-      (inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens,
-    );
-    totals.output += outputTokens ?? 0;
-    totals.cache_read_input_tokens += cacheReadTokens;
-    totals.cache_creation_input_tokens += cacheWriteTokens;
-    totals.total +=
-      getFiniteNumber(usage.totalTokens) ??
-      (inputTokens ?? 0) + (outputTokens ?? 0);
+  recordModelStreamPart(part: unknown) {
+    if (this.ended || !this.openModelCall || !isRecord(part)) {
+      return;
+    }
+
+    const type = part.type;
+    if (typeof type !== "string") {
+      return;
+    }
+
+    const now = new Date();
+
+    if (type === "text-delta" || type === "reasoning-delta") {
+      this.openModelCall.completionStartTime ??= now;
+      if (type === "text-delta" && typeof part.delta === "string") {
+        this.openModelCall.textDeltas.push(part.delta);
+      }
+      return;
+    }
+
+    if (type === "tool-call") {
+      const toolCallId = getStringValue(part.toolCallId);
+      const toolName = getStringValue(part.toolName);
+      if (toolCallId && toolName) {
+        this.openModelCall.toolCalls.push({
+          toolCallId,
+          toolName,
+          args:
+            typeof part.input === "string"
+              ? parseJsonOrString(part.input)
+              : part.input,
+        });
+      }
+      return;
+    }
+
+    if (type === "error") {
+      this.openModelCall.streamErrorMessage = getErrorMessage(part.error);
+      return;
+    }
+
+    if (type === "response-metadata") {
+      this.openModelCall.modelId = getStringValue(part.modelId);
+      return;
+    }
+
+    if (type !== "finish") {
+      return;
+    }
+
+    this.emitModelGeneration(this.openModelCall, part, now);
+    this.openModelCall = undefined;
   }
 
   recordAvailableSkills(skills: unknown[]) {
@@ -329,35 +436,22 @@ export class InAppAgentInstrumentation {
     }
 
     const message = error instanceof Error ? error.message : String(error);
+    this.endOpenModelCall(message);
     this.endOpenToolSpans({ error: message }, message);
     this.flushTrailingThinking();
-    this.agentRun.update({
-      name: IN_APP_AGENT_TURN_NAME,
-      input: this.agentRunInput,
-      output: this.getAgentRunOutput(),
-      ...(this.completionStartTime
-        ? { completionStartTime: this.completionStartTime }
-        : {}),
-      ...this.getAgentRunUsage(),
+    this.emitRootAgentObservation({
       level: "ERROR",
       statusMessage: message,
       metadata: {
         ...this.metadata,
         error: message,
       },
-      ...(this.prompt
-        ? {
-            promptName: this.prompt.name,
-            promptVersion: this.prompt.version,
-          }
-        : {}),
     });
     this.trace.update({
-      input: this.agentRunInput,
+      input: this.getTraceInput(),
       output: this.getAgentRunOutput(),
       metadata: { ...this.metadata, error: message },
     });
-    this.agentRun.end();
     this.ended = true;
   }
 
@@ -366,6 +460,11 @@ export class InAppAgentInstrumentation {
       return;
     }
 
+    if (params?.aborted) {
+      this.endOpenModelCall("aborted");
+    } else {
+      this.endOpenModelCall("Model call ended before provider finish");
+    }
     this.endOpenToolSpans(params?.aborted ? { aborted: true } : undefined);
     this.flushTrailingThinking();
     const metadata = {
@@ -373,28 +472,12 @@ export class InAppAgentInstrumentation {
       ...(params?.aborted ? { aborted: true } : {}),
       ...(params?.result ? { result: params.result } : {}),
     };
-    this.agentRun.update({
-      name: IN_APP_AGENT_TURN_NAME,
-      input: this.agentRunInput,
-      output: this.getAgentRunOutput(),
-      ...(this.completionStartTime
-        ? { completionStartTime: this.completionStartTime }
-        : {}),
-      ...this.getAgentRunUsage(),
-      metadata,
-      ...(this.prompt
-        ? {
-            promptName: this.prompt.name,
-            promptVersion: this.prompt.version,
-          }
-        : {}),
-    });
+    this.emitRootAgentObservation({ metadata });
     this.trace.update({
-      input: this.agentRunInput,
+      input: this.getTraceInput(),
       output: this.getAgentRunOutput(),
       metadata,
     });
-    this.agentRun.end();
     this.ended = true;
   }
 
@@ -508,6 +591,8 @@ export class InAppAgentInstrumentation {
 
     const name =
       typeof event.toolCallName === "string" ? event.toolCallName : "tool-call";
+    // Execution start = AG-UI tool-call start (or later clamp to generation end).
+    // Mastra tool-call chunks are request-time and must not set this.
     this.toolSpans.set(event.toolCallId, {
       name,
       startTime: new Date(),
@@ -541,6 +626,7 @@ export class InAppAgentInstrumentation {
     const tool = this.toolSpans.get(event.toolCallId);
     if (tool) {
       tool.output = event.content;
+      tool.failureMessage = getToolFailureMessage(event.error, event.content);
       this.endToolSpanIfComplete(event.toolCallId, tool);
     }
   }
@@ -559,17 +645,7 @@ export class InAppAgentInstrumentation {
     this.endToolSpanIfComplete(event.toolCallId, tool);
   }
 
-  private endToolSpanIfComplete(
-    toolCallId: string,
-    tool: {
-      name: string;
-      startTime: Date;
-      args: string;
-      argsComplete: boolean;
-      output?: unknown;
-      parentMessageId?: string;
-    },
-  ) {
+  private endToolSpanIfComplete(toolCallId: string, tool: AgentRunToolSpan) {
     if (!tool.argsComplete || tool.output === undefined) {
       return;
     }
@@ -580,14 +656,7 @@ export class InAppAgentInstrumentation {
 
   private createToolObservation(
     toolCallId: string,
-    tool: {
-      name: string;
-      startTime: Date;
-      args: string;
-      argsComplete: boolean;
-      output?: unknown;
-      parentMessageId?: string;
-    },
+    tool: AgentRunToolSpan,
     options?: {
       metadata?: Record<string, unknown>;
       statusMessage?: string;
@@ -596,21 +665,31 @@ export class InAppAgentInstrumentation {
     const input = parseJsonOrUndefined(tool.args);
     const output =
       tool.output === undefined ? undefined : normalizeToolOutput(tool.output);
-    const isError = options?.statusMessage !== undefined || isToolError(output);
+    const failureMessage =
+      options?.statusMessage ??
+      tool.failureMessage ??
+      getToolFailureMessage(undefined, output);
     const toolCallApproval = this.toolCallApprovals.get(toolCallId);
-    const body: ToolObservationBody = {
+    const executionTimes = this.toolExecutionTimes.get(toolCallId);
+    const rawStartTime = executionTimes?.startTime ?? tool.startTime;
+    const endTime =
+      toolCallApproval === "rejected"
+        ? rawStartTime
+        : (executionTimes?.endTime ?? new Date());
+    const startTime =
+      rawStartTime.getTime() > endTime.getTime() ? endTime : rawStartTime;
+    const body: ObservationBody = {
       id: toolCallId,
-      traceId: this.agentRun.traceId,
-      parentObservationId: this.agentRun.observationId,
+      traceId: this.traceId,
+      parentObservationId: this.rootObservationId,
       name: tool.name,
-      startTime: tool.startTime,
-      endTime: new Date(),
-      completionStartTime: tool.startTime,
+      startTime,
+      endTime,
+      completionStartTime: startTime,
       input,
       output,
-      ...(isError ? { level: "ERROR" } : {}),
-      ...(options?.statusMessage
-        ? { statusMessage: options.statusMessage }
+      ...(failureMessage
+        ? { level: "ERROR", statusMessage: failureMessage }
         : {}),
       metadata: {
         ...(options?.metadata ?? {}),
@@ -625,38 +704,162 @@ export class InAppAgentInstrumentation {
 
     this.recordToolCall(toolCallId, tool, output);
     this.toolCallApprovals.delete(toolCallId);
+    this.toolExecutionTimes.delete(toolCallId);
 
-    (
-      this.langfuse as unknown as {
-        enqueue: (type: string, body: ToolObservationBody) => void;
-      }
-    ).enqueue("tool-create", body);
+    this.enqueueObservation("tool-create", body);
   }
 
-  // Model is only set alongside provided usage; on its own it would make
-  // ingestion tokenize the agent-turn input/output into estimated usage.
-  private getAgentRunUsage() {
-    if (!this.usageDetails) {
-      return {};
+  private emitRootAgentObservation(params: {
+    metadata: Record<string, unknown>;
+    level?: "ERROR";
+    statusMessage?: string;
+  }) {
+    this.enqueueObservation("agent-create", {
+      id: this.rootObservationId,
+      traceId: this.traceId,
+      name: IN_APP_AGENT_TURN_NAME,
+      startTime: this.traceStartTime,
+      endTime: new Date(),
+      input: this.getTraceInput(),
+      output: this.getAgentRunOutput(),
+      metadata: params.metadata,
+      ...(this.prompt
+        ? {
+            promptName: this.prompt.name,
+            promptVersion: this.prompt.version,
+          }
+        : {}),
+      ...(params.level ? { level: params.level } : {}),
+      ...(params.statusMessage ? { statusMessage: params.statusMessage } : {}),
+    });
+  }
+
+  private emitModelGeneration(
+    call: OpenModelCall,
+    finish: Record<string, unknown> | undefined,
+    endTime: Date,
+    options?: {
+      level?: "ERROR";
+      statusMessage?: string;
+    },
+  ) {
+    const usageDetails = getModelUsageDetails(finish?.usage);
+    const finishReason = getModelFinishReason(finish);
+    const model = call.modelId ?? this.model;
+    const id = getInAppAgentLlmCallObservationId(this.runId, call.callNumber);
+    const text = call.textDeltas.join("");
+    const output =
+      text || call.toolCalls.length > 0
+        ? {
+            ...(text ? { text } : {}),
+            ...(call.toolCalls.length > 0
+              ? { tool_calls: call.toolCalls }
+              : {}),
+          }
+        : undefined;
+
+    this.enqueueObservation("generation-create", {
+      id,
+      traceId: this.traceId,
+      parentObservationId: this.rootObservationId,
+      name: IN_APP_AGENT_LLM_CALL_NAME,
+      startTime: call.startTime,
+      endTime,
+      ...(call.completionStartTime
+        ? { completionStartTime: call.completionStartTime }
+        : {}),
+      input: call.input,
+      output,
+      // Model only travels with usage so Langfuse does not invent tokenizer-
+      // estimated costs for generations that never reported tokens.
+      ...(usageDetails
+        ? {
+            usageDetails,
+            ...(model ? { model } : {}),
+          }
+        : {}),
+      ...(options?.level ? { level: options.level } : {}),
+      ...(options?.statusMessage
+        ? { statusMessage: options.statusMessage }
+        : {}),
+      metadata: {
+        ...(finishReason ? { finish_reason: finishReason } : {}),
+        ...(options?.statusMessage ? { error: options.statusMessage } : {}),
+      },
+    });
+  }
+
+  private getTraceInput() {
+    if (!this.approvalContinuation || !isRecord(this.agentRunInput)) {
+      return this.agentRunInput;
     }
 
+    const messages = Array.isArray(this.agentRunInput.messages)
+      ? this.agentRunInput.messages.filter((message) => {
+          if (!isRecord(message)) {
+            return false;
+          }
+
+          return (
+            message.role === "developer" ||
+            message.role === "system" ||
+            message.role === "user"
+          );
+        })
+      : [];
+
     return {
-      usageDetails: this.usageDetails,
-      ...(this.model ? { model: this.model } : {}),
+      ...this.agentRunInput,
+      messages,
     };
+  }
+
+  private endOpenModelCall(statusMessage: string) {
+    if (!this.openModelCall) {
+      return;
+    }
+
+    const message = this.openModelCall.streamErrorMessage ?? statusMessage;
+    this.emitModelGeneration(this.openModelCall, undefined, new Date(), {
+      level: "ERROR",
+      statusMessage: message,
+    });
+    this.openModelCall = undefined;
   }
 
   private endOpenToolSpans(
     metadata?: Record<string, unknown>,
     statusMessage?: string,
   ) {
+    // Approval interrupts complete the stream without a tool result. Drop those
+    // incomplete spans — the generation already records the tool_call request,
+    // and the continuation run emits the real tool observation after approval.
+    const forceClose =
+      Boolean(statusMessage) ||
+      Boolean(metadata?.aborted) ||
+      Boolean(metadata?.error);
+
     for (const [toolCallId, tool] of this.toolSpans.entries()) {
+      if (tool.output === undefined && !forceClose) {
+        this.toolSpans.delete(toolCallId);
+        this.toolExecutionTimes.delete(toolCallId);
+        continue;
+      }
+
       this.createToolObservation(toolCallId, tool, {
         metadata,
         statusMessage,
       });
       this.toolSpans.delete(toolCallId);
     }
+  }
+
+  private enqueueObservation(type: string, body: ObservationBody) {
+    (
+      this.langfuse as unknown as {
+        enqueue: (type: string, body: ObservationBody) => void;
+      }
+    ).enqueue(type, body);
   }
 
   // Reasoning that no assistant message followed (e.g. aborted or errored
@@ -700,7 +903,6 @@ export class InAppAgentInstrumentation {
 
   private recordAssistantText(delta: string) {
     this.output += delta;
-    this.completionStartTime ??= new Date();
 
     const thinking = this.takePendingThinking();
     const lastMessage = this.agentRunOutputMessages.at(-1);
@@ -729,8 +931,6 @@ export class InAppAgentInstrumentation {
     },
     output: unknown,
   ) {
-    this.completionStartTime ??= tool.startTime;
-
     const toolCall: AgentRunToolCall = {
       id: toolCallId,
       name: tool.name,
@@ -757,18 +957,121 @@ export class InAppAgentInstrumentation {
   }
 
   private getAgentRunOutput() {
-    if (this.agentRunOutputMessages.length === 0) {
+    const priorMessages =
+      this.approvalContinuation && isRecord(this.agentRunInput)
+        ? getPriorAgentRunOutputMessages(this.agentRunInput.messages)
+        : [];
+    const messages = [...priorMessages, ...this.agentRunOutputMessages];
+
+    if (messages.length === 0) {
       return undefined;
     }
 
+    const priorToolCalls = priorMessages.flatMap(
+      (message) => message.tool_calls ?? [],
+    );
+    const toolCalls = [...priorToolCalls, ...this.agentRunToolCalls];
+
     return {
-      messages: this.agentRunOutputMessages,
+      messages,
       ...(this.output ? { text: this.output } : {}),
-      ...(this.agentRunToolCalls.length > 0
-        ? { tool_calls: this.agentRunToolCalls }
-        : {}),
+      ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
     };
   }
+
+  private emitApprovalWaitObservation() {
+    const continuation = this.approvalContinuation;
+    if (!continuation) {
+      return;
+    }
+
+    const requestedAt =
+      continuation.approvalRequestedAt ??
+      continuation.approvalDecidedAt ??
+      this.agentRunStartTime;
+    const decidedAt = continuation.approvalDecidedAt ?? this.agentRunStartTime;
+    const endTime =
+      decidedAt.getTime() < requestedAt.getTime() ? requestedAt : decidedAt;
+
+    this.enqueueObservation("span-create", {
+      id: `${this.runId}-approval-wait`,
+      traceId: this.traceId,
+      parentObservationId: this.rootObservationId,
+      name: `waiting for user approval for tool ${continuation.toolName}`,
+      startTime: requestedAt,
+      endTime,
+      input: {
+        tool_call_id: continuation.toolCallId,
+        tool_name: continuation.toolName,
+      },
+      output: `User ${continuation.status} tool ${continuation.toolName}`,
+      metadata: continuation.metadata,
+    });
+  }
+}
+
+function getApprovalContinuation(
+  input: AgUiRunAgentInput,
+): ApprovalContinuation | undefined {
+  const forwardedProps = ResumeForwardedPropsSchema.safeParse(
+    input.forwardedProps,
+  );
+
+  if (!forwardedProps.success) {
+    return undefined;
+  }
+
+  const {
+    approved,
+    approvalRequest,
+    continuationNumber = 1,
+    rootRunId = approvalRequest.runId,
+    traceStartedAt,
+    approvalRequestedAt,
+    approvalDecidedAt,
+  } = forwardedProps.data.command.resume;
+  const status = approved ? "approved" : "rejected";
+
+  return {
+    status,
+    continuationNumber,
+    rootRunId,
+    toolCallId: approvalRequest.toolCallId,
+    toolName: approvalRequest.toolName,
+    ...(traceStartedAt ? { traceStartedAt: new Date(traceStartedAt) } : {}),
+    ...(approvalRequestedAt
+      ? { approvalRequestedAt: new Date(approvalRequestedAt) }
+      : {}),
+    ...(approvalDecidedAt
+      ? { approvalDecidedAt: new Date(approvalDecidedAt) }
+      : {}),
+    metadata: {
+      continuation_type: "tool_approval",
+      continuation_number: continuationNumber,
+      parent_run_id: approvalRequest.runId,
+      approval_status: status,
+      approval_tool_call_id: approvalRequest.toolCallId,
+      approval_tool_name: approvalRequest.toolName,
+      ...(approvalRequestedAt
+        ? { approval_requested_at: approvalRequestedAt }
+        : {}),
+      ...(approvalDecidedAt ? { approval_decided_at: approvalDecidedAt } : {}),
+    },
+  };
+}
+
+function getPriorAgentRunOutputMessages(
+  messages: unknown,
+): AgentRunChatMessage[] {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+
+  return messages.filter(
+    (message): message is AgentRunChatMessage =>
+      isRecord(message) &&
+      (message.role === "assistant" || message.role === "tool"),
+  );
 }
 
 function getAgentRunInput(input: AgUiRunAgentInput): unknown {
@@ -973,36 +1276,103 @@ function parseContextValue(description: string, value: string): unknown {
   return parsed;
 }
 
-function normalizeToolOutput(output: unknown): unknown {
-  const parsedOutput =
-    typeof output === "string" ? parseJsonOrString(output) : output;
-
-  if (!isRecord(parsedOutput) || !Array.isArray(parsedOutput.content)) {
-    return parsedOutput;
-  }
-
-  const firstContent: unknown = parsedOutput.content[0];
-
-  if (
-    parsedOutput.content.length !== 1 ||
-    !isRecord(firstContent) ||
-    firstContent.type !== "text" ||
-    typeof firstContent.text !== "string"
-  ) {
-    return parsedOutput;
-  }
-
-  return parseJsonOrString(firstContent.text);
-}
-
-function isToolError(output: unknown): boolean {
-  return isRecord(output) && output.error === true;
-}
-
 function getFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function getModelCallInput(options: unknown): unknown {
+  if (!isRecord(options)) {
+    return undefined;
+  }
+
+  const input = {
+    messages: options.prompt,
+    maxOutputTokens: options.maxOutputTokens,
+    temperature: options.temperature,
+    stopSequences: options.stopSequences,
+    topP: options.topP,
+    topK: options.topK,
+    presencePenalty: options.presencePenalty,
+    frequencyPenalty: options.frequencyPenalty,
+    responseFormat: options.responseFormat,
+    seed: options.seed,
+    tools: options.tools,
+    toolChoice: options.toolChoice,
+    providerOptions: options.providerOptions,
+  };
+
+  return toSerializableJson(input);
+}
+
+function getModelUsageDetails(
+  usage: unknown,
+): Record<string, number> | undefined {
+  if (!isRecord(usage)) {
+    return undefined;
+  }
+
+  const nestedInputTokens = isRecord(usage.inputTokens)
+    ? usage.inputTokens
+    : undefined;
+  const nestedOutputTokens = isRecord(usage.outputTokens)
+    ? usage.outputTokens
+    : undefined;
+  const inputTokens =
+    getFiniteNumber(usage.inputTokens) ??
+    getFiniteNumber(nestedInputTokens?.total);
+  const outputTokens =
+    getFiniteNumber(usage.outputTokens) ??
+    getFiniteNumber(nestedOutputTokens?.total);
+  if (inputTokens === undefined && outputTokens === undefined) {
+    return undefined;
+  }
+
+  const cacheReadTokens =
+    getFiniteNumber(usage.cachedInputTokens) ??
+    getFiniteNumber(nestedInputTokens?.cacheRead) ??
+    0;
+  const cacheWriteTokens =
+    getFiniteNumber(usage.cacheCreationInputTokens) ??
+    getFiniteNumber(nestedInputTokens?.cacheWrite) ??
+    0;
+  const uncachedInputTokens = getFiniteNumber(nestedInputTokens?.noCache);
+
+  // Provider inputTokens includes cache reads/writes, while Langfuse model
+  // prices bill `input` as non-cached input tokens with separate cache keys.
+  return {
+    input:
+      uncachedInputTokens ??
+      Math.max(0, (inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens),
+    output: outputTokens ?? 0,
+    cache_read_input_tokens: cacheReadTokens,
+    cache_creation_input_tokens: cacheWriteTokens,
+    total:
+      getFiniteNumber(usage.totalTokens) ??
+      (inputTokens ?? 0) + (outputTokens ?? 0),
+  };
+}
+
+function getModelFinishReason(
+  event: Record<string, unknown> | undefined,
+): string | undefined {
+  if (!event) {
+    return undefined;
+  }
+
+  const finishReason = event.finishReason;
+  if (typeof finishReason === "string") {
+    return finishReason;
+  }
+
+  if (isRecord(finishReason)) {
+    return (
+      getStringValue(finishReason.unified) ?? getStringValue(finishReason.raw)
+    );
+  }
+
+  return undefined;
 }
 
 function getSerializableToolParameters(tool: Record<string, unknown>): unknown {
@@ -1020,6 +1390,14 @@ function toSerializableJson(
   seen = new WeakSet<object>(),
   depth = 0,
 ): unknown {
+  if (value instanceof URL) {
+    return value.toString();
+  }
+
+  if (value instanceof Uint8Array) {
+    return Buffer.from(value).toString("base64");
+  }
+
   if (value === null || typeof value === "string") {
     return value;
   }
@@ -1061,7 +1439,10 @@ function toSerializableJson(
   seen.add(value);
 
   const entries = Object.entries(value).flatMap(([key, item]) => {
-    const serializableItem = toSerializableJson(item, seen, depth + 1);
+    const serializableItem =
+      key === "data" && item instanceof Uint8Array
+        ? `data:${getStringValue(value.mediaType) ?? "application/octet-stream"};base64,${Buffer.from(item).toString("base64")}`
+        : toSerializableJson(item, seen, depth + 1);
 
     return serializableItem === undefined
       ? []
@@ -1081,22 +1462,14 @@ function parseJsonOrUndefined(value: string): unknown {
   return parseJsonOrString(value);
 }
 
-function parseJsonOrString(value: string): unknown {
-  if (!value) {
-    return value;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function getStringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return typeof error === "string" ? error : "Model stream failed";
 }
