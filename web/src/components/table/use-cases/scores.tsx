@@ -499,24 +499,40 @@ export default function ScoresTable({
     orderBy: orderByState,
   };
 
+  // In chart mode the table is hidden and the chart runs its own aggregate
+  // query — don't also run the row/count/metrics fetches below, matching
+  // `EventsTable.tsx`'s `rowsEnabled: !chartActive`.
+
   // Base data — v3 (existing, unchanged)
   const scoresV3 = api.scores.all.useQuery(getAllPayload, {
-    enabled: !environmentFilterOptions.isLoading && !useEventsBackedScores,
+    enabled:
+      !environmentFilterOptions.isLoading &&
+      !useEventsBackedScores &&
+      !chartActive,
   });
 
   // Base data — v4 (no traces JOIN)
   const scoresV4 = api.scores.allFromEvents.useQuery(getAllPayload, {
-    enabled: !environmentFilterOptions.isLoading && useEventsBackedScores,
+    enabled:
+      !environmentFilterOptions.isLoading &&
+      useEventsBackedScores &&
+      !chartActive,
   });
 
   const scores = useEventsBackedScores ? scoresV4 : scoresV3;
 
   // Count — v3 vs v4
   const countV3 = api.scores.countAll.useQuery(getCountPayload, {
-    enabled: !environmentFilterOptions.isLoading && !useEventsBackedScores,
+    enabled:
+      !environmentFilterOptions.isLoading &&
+      !useEventsBackedScores &&
+      !chartActive,
   });
   const countV4 = api.scores.countAllFromEvents.useQuery(getCountPayload, {
-    enabled: !environmentFilterOptions.isLoading && useEventsBackedScores,
+    enabled:
+      !environmentFilterOptions.isLoading &&
+      useEventsBackedScores &&
+      !chartActive,
   });
   const totalScoreCountQuery = useEventsBackedScores ? countV4 : countV3;
 
@@ -535,7 +551,8 @@ export default function ScoresTable({
       ],
     },
     {
-      enabled: scoresV4.data !== undefined && useEventsBackedScores,
+      enabled:
+        scoresV4.data !== undefined && useEventsBackedScores && !chartActive,
     },
   );
 

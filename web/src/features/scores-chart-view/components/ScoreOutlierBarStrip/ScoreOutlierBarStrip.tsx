@@ -496,11 +496,11 @@ export function ScoreOutlierBarStrip({
                 : hovered.count > 0
                   ? "no data"
                   : metricSpec.format(0)}
-              {metric !== "count" && (
-                <span className="text-muted-foreground ml-1.5 font-normal">
-                  · {hovered.count} scores
-                </span>
-              )}
+              {/* No "· N scores" suffix here in Value mode: `hovered.count` is
+                  the every-listable-type total (from the count-only query),
+                  while the value itself only ever reflects NUMERIC/Boolean
+                  rows (from a separate query) — showing them together would
+                  misleadingly imply the value was computed over that count. */}
             </div>
           </div>
         </Layer>
@@ -541,11 +541,7 @@ export function ScoreOutlierBarStrip({
                     : previewStats.count > 0
                       ? "no data"
                       : metricSpec.format(0)}
-                  {metric !== "count" && (
-                    <span className="text-muted-foreground ml-1.5 font-normal">
-                      · {previewStats.count} scores
-                    </span>
-                  )}
+                  {/* Same omission as the hover tooltip above — see its comment. */}
                 </div>
               </div>
               <button
