@@ -120,7 +120,8 @@ export function DashboardWidget({
    */
   onPasteWidget?: (anchor: WidgetPlacement) => void;
   /**
-   * Duplicates this widget (new widget row seeded from `widget`) next to it.
+   * Duplicates this widget (new widget row seeded from `widget`) next to this
+   * tile. Passed only on editable (non-locked) dashboards.
    */
   onDuplicateWidget?: (
     anchor: WidgetPlacement,
