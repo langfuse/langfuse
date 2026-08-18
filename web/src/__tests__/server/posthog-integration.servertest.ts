@@ -498,11 +498,11 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("EVENTS");
     });
 
-    // Router default for an omitted exportSource: legacy writes active ?
-    // TRACES_OBSERVATIONS : EVENTS. It deliberately differs from the
-    // settings-page default (EVENTS on dual) — a pre-existing divergence this
-    // change does not touch, pinned here so a later fix has to flip it.
-    it("create without exportSource defaults to TRACES_OBSERVATIONS on dual", async () => {
+    // Router default for an omitted exportSource comes from the shared policy's
+    // defaultExportSource, the same rule the settings page uses: enriched
+    // wherever the deployment writes it. Previously the router defaulted to
+    // TRACES_OBSERVATIONS here while the page offered EVENTS.
+    it("create without exportSource defaults to EVENTS on dual", async () => {
       const { caller, project } = await prepare();
       await caller.posthogIntegration.update({
         projectId: project.id,
@@ -511,7 +511,7 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
       const result = await caller.posthogIntegration.get({
         projectId: project.id,
       });
-      expect(result.config?.exportSource).toBe("TRACES_OBSERVATIONS");
+      expect(result.config?.exportSource).toBe("EVENTS");
     });
 
     it("create without exportSource defaults to TRACES_OBSERVATIONS on legacy", async () => {
