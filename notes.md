@@ -86,63 +86,46 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   `history/2026-W31-partial-0731.json` (07-31) until 08-18. Root cause of
   the Actions API block was never conclusively diagnosed by any run.
 
-## 2026-08-18 (run 18) — Actions API working again; full 7-day data recovered
+## 2026-08-18 (runs 18-20, three same-day workflow_dispatch triggers, condensed)
 
-- **Actions API resolved**, first working run since 07-31 — no diagnosis
-  of *why* it started working again; watch for recurrence. `get_job_logs`
-  also confirmed working (large payloads still need saving to file + a
-  Node extraction script, see Tooling notes).
-- **DB connectivity still broken** — `host.docker.internal:5432` EAI_AGAIN,
-  confirmed via a raw `net.Socket` connect (not just `dns.lookup`).
-  Streak now spans 08-03 → 08-18 (15+ days) with zero change in symptom.
+- Run 18: **Actions API resolved**, first working run since 07-31 (no
+  diagnosis of *why*; watch for recurrence). `get_job_logs` also
+  confirmed working. **DB connectivity still broken** —
+  `host.docker.internal:5432` EAI_AGAIN, streak spans 08-03 → 08-18
+  (15+ days), reconfirmed on all three runs today (twice more on 19/20).
   Blocks verification of the standing score-comparison-analytics fix
-  candidate again this run (Actions API alone isn't sufficient — both
-  must work per the verify-before-PR rule).
-- Full trailing-7-day analysis (08-12..08-18, 25 merge_group runs, 5
-  sampled days — 08-15 Sat had 0 runs). Pooled p50=260s/p90~700s vs
-  baseline p50=396/p90=522: **median is lower**, tail is heavier, driven
-  entirely by 08-13 (3/5 runs slow) and 08-14 (2/5 slow). Root-caused via
-  side-by-side vitest log comparison to whole-suite-proportional slowdown
-  (transform/import/tests all ~5x on both web and worker shards, same
-  file/test counts) — CI-runner contention (Blacksmith), not a code
-  regression. Does not meet the >=50%-across-3-consecutive-days threshold
-  (only 2 days affected) — not actionable. Full detail in
-  `history/2026-W34-partial-0818.json`.
-- **The 07-31-flagged sustained webRunTests climb (86→114.5→147s) does NOT
-  appear to be continuing** — this week's day medians are back to
-  77-96s on 4 of 5 days (08-13's 347s is the runner-contention outlier
-  above). Can't rule out that it was itself noise, given the 18-day gap
-  with zero data in between.
-- `score-comparison-analytics.servertest.ts` is still the dominant slow
-  file every sampled day (unchanged from every prior run back to 07-30) —
-  candidate fix (parallelize batch inserts, see 07-30/07-31 entry above)
-  remains valid and unverified.
-- **Flaky test recurrence**: `otelToObservationForEval.test.ts` (same
-  test, same `[retries=1]`) flagged flaky again, 3 weeks after its first
-  07-30 occurrence — now a 2-instance pattern, still low-frequency (1 of 7
-  samples this run). Worth a closer look if it recurs a 3rd time.
-- noop filed with full report; `missing_data` filed for the DB blocker
-  (no `missing_tool` needed this run since Actions API worked).
-
-## 2026-08-18 (run 19, second workflow_dispatch same day) — filled the 08-18 chart gap, no new findings
-
-- Same-day re-trigger of run 18. Ledger (`prs.json`) still empty, so no
-  assessment-loop work. Reused run 18's vitest sampling and 08-12..08-17
-  day data unchanged; the only new work was pulling 08-18's own
-  merge-group runs (4 by this point in the day) to fill the gap run 18
-  left in the trailing-7-day chart window.
-- 08-18's 4 runs (perceived 193-207s, webRunTests 75-79s) land squarely in
-  the same stable band as 08-16/08-17 — reinforces, doesn't change, run
-  18's conclusion that no sustained (>=3-day) intra-week shift exists and
-  the 08-13/08-14 spike was CI-runner contention, not a code regression.
-- DB connectivity (`host.docker.internal:5432`) re-checked and still
-  EAI_AGAIN — same broken state as every run since 08-03, now confirmed
-  twice in one day. Standing score-comparison-analytics.servertest.ts fix
-  remains unverified for the same reason as run 18.
-- Updated `history/2026-W34-partial-0818.json` in place (same file,
-  supersedes the run-18 version) rather than writing a new checkpoint
-  file, since this is the same calendar day and same trailing-7-day
-  window, just with one more day of data filled in.
+  every run (Actions API alone isn't sufficient — both must work).
+- Full trailing-7-day analysis (08-12..08-18). Runs 19 and 20 each added
+  more of 08-18's own merge-group runs (4, then 7 — now a full >=5-run
+  day) as the day progressed; final pooled figures (32 runs): p50=227s,
+  p90~676s vs baseline p50=396/p90=522 — **median lower, tail heavier**,
+  driven entirely by 08-13 (3/5 runs slow) and 08-14 (2/5 slow).
+  Root-caused via side-by-side vitest log comparison to whole-suite
+  proportional slowdown (transform/import/tests all ~5x on both web and
+  worker shards, same file/test counts) — CI-runner contention
+  (Blacksmith), not a code regression. Only 2 days affected, not the 3+
+  consecutive needed to act. 08-16/08-17/08-18 settled into a tight
+  194-201s band. Full detail in `history/2026-W34-partial-0818.json`
+  (updated in place by all three runs, same precedent for
+  `charts/2026-W34-partial-0818.svg` — no new checkpoint files created
+  for same-day re-triggers).
+- **The 07-31-flagged sustained webRunTests climb (86→114.5→147s) does
+  NOT appear to be continuing** — day medians settled at 76-96s on 5 of
+  6 days (08-13's 347s is the runner-contention outlier above). Can't
+  rule out it was itself noise, given the 18-day zero-data gap before it.
+- `score-comparison-analytics.servertest.ts` still the dominant slow
+  file every sampled day (unchanged since 07-30) — candidate fix
+  (parallelize batch inserts, see 07-30/07-31 entry) remains valid and
+  unverified.
+- **Flaky test recurrence**: `otelToObservationForEval.test.ts` flagged
+  flaky again (07-30 and 08-18, `[retries=1]` both times) — 2-instance
+  pattern, still low-frequency. Watch for a 3rd occurrence.
+- **Process note**: once a day's run count already meets the >=5-run
+  threshold, a further same-day re-trigger has nothing new to compute
+  (all days full, ledger empty, DB still blocked) — confirm-nothing-
+  changed is the highest-value use of that run's budget.
+- All three runs: noop filed with full report; `missing_data` filed for
+  the DB blocker on run 18.
 
 ## Tooling notes (for future runs)
 
