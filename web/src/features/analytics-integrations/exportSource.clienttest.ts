@@ -1,5 +1,6 @@
 import {
   AnalyticsIntegrationExportSource,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   LEGACY_BLOB_EXPORT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
   type BlobExportWriteMode,
@@ -540,5 +541,132 @@ describe("getExportSourceUnavailableMessage", () => {
     const message = getExportSourceUnavailableMessage("legacy-writes-disabled");
     expect(message).toContain("LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only");
     expect(message).not.toContain("no longer available for this project");
+  });
+});
+
+// The analytics settings pages supply an integration-level cutoff on top of what
+// buildExportSourceContext derives, so these contexts mirror what those pages
+// actually build. Row ages derive from the constant, never from literals: it is
+// overridable via NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF.
+describe("analytics settings pages: the new-integration enriched pin", () => {
+  const ROW_PRE_ANALYTICS = new Date(
+    LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
+  );
+  const ROW_POST_ANALYTICS = new Date(
+    LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+  );
+
+  const analyticsCloudCtx = (
+    integrationCreatedAt: Date | null,
+  ): ExportSourceContext => ({
+    ...buildExportSourceContext({
+      writeMode: "dual",
+      isCloud: true,
+      // Pre-cutoff project, so the only Cloud gate in play is the
+      // integration-level one.
+      projectCreatedAt: PROJECT_PRE,
+      integrationCreatedAt,
+    }),
+    exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+  });
+
+  it("brand-new Cloud integration: selector hidden, pinned to the enriched source", () => {
+    const { showField, defaultValue, options } = getExportSourceFieldState(
+      undefined,
+      analyticsCloudCtx(null),
+    );
+    expect(showField).toBe(false);
+    expect(defaultValue).toBe(AnalyticsIntegrationExportSource.EVENTS);
+    // Hidden because there is genuinely nothing to choose, not because the
+    // choice was suppressed.
+    expect(options.map((o) => o.value)).toEqual([
+      AnalyticsIntegrationExportSource.EVENTS,
+    ]);
+  });
+
+  it("grandfathered pre-cutoff Cloud integration: selector shown, legacy source kept and still selectable", () => {
+    const ctx = analyticsCloudCtx(ROW_PRE_ANALYTICS);
+    const { showField, defaultValue } = getExportSourceFieldState(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      ctx,
+    );
+    expect(showField).toBe(true);
+    expect(defaultValue).toBe(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    );
+    // A real choice, not a dead end: the user may opt into enriched, and is
+    // neither forced to nor rewritten.
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        ctx,
+      ),
+    ).toBe(true);
+    expect(
+      isExportSourceSelectable(AnalyticsIntegrationExportSource.EVENTS, ctx),
+    ).toBe(true);
+  });
+
+  it("post-cutoff Cloud integration on a legacy source: selector forced visible, source kept, never rewritten", () => {
+    // Reachable: a Cloud row created after the cutoff date but before this gate
+    // shipped still carries the legacy source. Pinning the form value to the
+    // enriched source here would change which streams that integration exports
+    // on the next save of any unrelated field (LFE-10296).
+    const ctx = analyticsCloudCtx(ROW_POST_ANALYTICS);
+    const { showField, defaultValue, options } = getExportSourceFieldState(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      ctx,
+    );
+    expect(showField).toBe(true);
+    expect(defaultValue).toBe(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    );
+    // Kept, but genuinely blocked — the form must not be saveable as-is, and the
+    // blocked-save alert points at this option.
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        ctx,
+      ),
+    ).toBe(false);
+    expect(
+      options.find(
+        (o) => o.value === AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      )?.unavailable,
+    ).toBe(true);
+  });
+
+  it("the pin keys on the analytics cutoff, not the blob one", () => {
+    // A row between the two cutoffs: pinned if the blob date leaked in,
+    // grandfathered under the analytics date the pages actually pass.
+    const between = new Date(
+      LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+    );
+    expect(between < LEGACY_ANALYTICS_EXPORTER_CUTOFF).toBe(true);
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        analyticsCloudCtx(between),
+      ),
+    ).toBe(true);
+  });
+
+  it("self-hosted is untouched by the pin whatever the row age", () => {
+    for (const integrationCreatedAt of [null, ROW_POST_ANALYTICS]) {
+      const ctx: ExportSourceContext = {
+        ...buildExportSourceContext({
+          writeMode: "dual",
+          isCloud: false,
+          integrationCreatedAt,
+        }),
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+      };
+      expect(
+        isExportSourceSelectable(
+          AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+          ctx,
+        ),
+      ).toBe(true);
+    }
   });
 });

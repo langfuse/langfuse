@@ -33,6 +33,7 @@ import {
   type MixpanelRegion,
 } from "@/src/features/mixpanel-integration/types";
 import {
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   validateExportSource,
   type BlobExportWriteMode,
   type ExportSourceContext,
@@ -169,14 +170,20 @@ const MixpanelIntegrationSettingsForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const integrationCreatedAt = state?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
-    () =>
-      buildExportSourceContext({
+    () => ({
+      ...buildExportSourceContext({
         writeMode,
         isCloud: isLangfuseCloud,
         projectCreatedAt: new Date(projectCreatedAt),
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
       }),
-    [writeMode, isLangfuseCloud, projectCreatedAt],
+      exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+    }),
+    [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
   );
   const {
     options: exportSourceOptions,
