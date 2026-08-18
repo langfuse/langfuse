@@ -66,8 +66,11 @@
   processor.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
-  `@langfuse/shared/src/server/ee/ingestionMasking`, and
-  `@langfuse/shared/src/utils/chatml`.
+  `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/utils/chatml`, and
+  `@langfuse/shared/src/server/instrumentation/ioredisRequestHook` (an
+  ioredis-free leaf so OTel preloads can import the hook without the server
+  barrel eagerly loading ioredis before instrumentation patches it).
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in
