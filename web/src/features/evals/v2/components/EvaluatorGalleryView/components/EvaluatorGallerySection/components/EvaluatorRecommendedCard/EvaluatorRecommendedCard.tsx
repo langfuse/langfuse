@@ -14,25 +14,31 @@ export function EvaluatorRecommendedCard({
   onSelect: (template: GalleryTemplate) => void;
 }) {
   const { description, type } = getGalleryTemplatePresentation(template);
-  const { icon: Icon, iconClassName } =
-    getGalleryCategoryPresentation(categoryKey);
+  const {
+    icon: Icon,
+    iconClassName,
+    edgeClassName,
+  } = getGalleryCategoryPresentation(categoryKey);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(template)}
-      className="border-dark-yellow/30 bg-light-yellow hover:border-dark-yellow/60 flex min-h-44 cursor-pointer flex-col gap-3 rounded-xl border p-5 text-left shadow-xs transition-colors"
+      className={cn(
+        "bg-background hover:bg-muted/40 flex min-h-28 cursor-pointer flex-col gap-2 rounded-lg border border-l-2 p-3 text-left transition-colors",
+        edgeClassName,
+      )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />
+      <div className="flex items-start justify-between gap-2">
+        <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />
         <EvaluatorGalleryMethodBadge type={type} />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <span className="text-sm font-bold" title={template.name}>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="truncate text-sm font-bold" title={template.name}>
           {template.name}
         </span>
         <p
-          className="text-muted-foreground line-clamp-3 text-sm leading-relaxed"
+          className="text-muted-foreground line-clamp-2 text-xs leading-relaxed"
           title={description}
         >
           {description}

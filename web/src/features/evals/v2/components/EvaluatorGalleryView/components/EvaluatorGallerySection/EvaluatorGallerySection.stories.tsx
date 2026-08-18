@@ -105,6 +105,16 @@ export const Recommended = meta.story({
     onExpandedChange: fn(),
     onSelectTemplate: fn(),
   },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByRole("heading", { name: "Recommended for you" }),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText("Classify chat intent")).toBeInTheDocument();
+    await expect(
+      canvas.getByText("Detect out-of-scope requests"),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText("Detect language match")).toBeInTheDocument();
+  },
 });
 
 export const ExpandsLongCategory = meta.story({

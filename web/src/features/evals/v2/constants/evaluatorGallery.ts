@@ -15,3 +15,13 @@ export const EVALUATOR_GALLERY_CATEGORY_ICON_CLASS: Record<string, string> = {
   safety: "text-dark-red",
   "coding-agents": "text-dark-green",
 };
+
+export const EVALUATOR_GALLERY_CATEGORY_EDGE_CLASS: Record<string, string> = {
+  [EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY]: "border-l-dark-yellow",
+  conversation: "border-l-dark-violet",
+  quality: "border-l-dark-yellow",
+  classifier: "border-l-dark-blue",
+  retrieval: "border-l-dark-teal",
+  safety: "border-l-dark-red",
+  "coding-agents": "border-l-dark-green",
+};
