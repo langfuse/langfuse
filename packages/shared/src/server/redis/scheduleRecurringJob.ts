@@ -2,8 +2,12 @@ import type { Queue } from "bullmq";
 import { logger } from "../logger";
 
 // DO NOT REMOVE THIS FILE AND BEHAVIOUR WITHIN A MINOR LANGFUSE VERSION.
-// THIS REMOVES THE OLD REMOVER AND MAY LEAD TO DUPLICATE TRIGGERS FOR SELF-HOSTERS FOREVER.
-// HOLD BULLMQ v6 UPGRADE UNTIL LANGFUSE V5!
+// THE CLEANUP BELOW DELETES THE OLD md5-KEYED REPEAT SCHEDULES; WITHOUT IT,
+// SELF-HOSTERS UPGRADING FROM A LEGACY-SCHEDULING VERSION GET DUPLICATE CRON
+// TRIGGERS FOREVER (bullmq v6 workers keep iterating stranded md5-keyed
+// chains; only manual Redis cleanup stops them).
+// HOLD THE BULLMQ v6 UPGRADE UNTIL LANGFUSE V5: v6 deletes
+// Queue.removeRepeatable(), which this cleanup requires.
 
 /**
  * Registers a recurring cron job on a queue via a BullMQ job scheduler.
