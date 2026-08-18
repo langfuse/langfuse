@@ -55,7 +55,7 @@ export function EvaluatorGallerySection({
               {totalCount}
             </span>
           </div>
-          <div className="border-muted-foreground/30 border-t border-dashed" />
+          <div className="border-t" />
         </div>
       )}
       {isRecommended ? (
