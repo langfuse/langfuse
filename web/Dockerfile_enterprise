@@ -1,0 +1,195 @@
+# WizOS build image has shell/npm; hardened runtime image has no shell/apk.
+ARG WIZOS_NODE_BUILDER_IMAGE=816069167615.dkr.ecr.eu-west-1.amazonaws.com/wizos-node:24
+ARG WIZOS_NODE_RUNTIME_IMAGE=816069167615.dkr.ecr.eu-west-1.amazonaws.com/wizos-node:24-hardened
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_BUILDER_IMAGE} AS build-base
+# Pin turbo to avoid nondeterministic prune output from future patch releases.
+RUN npm install turbo@2.9.18 --global
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN npm install pnpm@11.4.0 --global
+
+# Throwaway stage: only the paths COPY'd out of it reach the hardened runtime,
+# so npm does not need cleanup here.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_BUILDER_IMAGE} AS runtime-deps
+WORKDIR /app
+# No bin launcher ships to the runtime: the shell-less entrypoint.mjs runs the
+# prisma CLI via node and this package's build/index.js directly.
+RUN npm install -g --no-package-lock --no-save prisma@6.19.3 && \
+    mkdir -p ./node_modules/dd-trace
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+# Nested strategy keeps dd-trace's deps inside node_modules/dd-trace so the
+# runner's single-directory COPY ships them too.
+RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
+    npm install --no-package-lock --no-save --install-strategy=nested dd-trace@5.109.0; \
+    fi
+
+FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
+ARG TARGETOS
+ARG TARGETARCH
+ENV CGO_ENABLED=0 \
+    GOBIN=/out \
+    GOOS=${TARGETOS} \
+    GOARCH=${TARGETARCH}
+# Build only the ClickHouse migrate CLI Langfuse uses at runtime.
+# compile this ourselves instead of downloading the upstream release
+# because prebuilt bins bundle many unused drivers and thus inherit CVEs
+# eg.: https://github.com/golang-migrate/migrate/issues/1357
+RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
+    github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+
+FROM --platform=${BUILDPLATFORM} ${WIZOS_NODE_BUILDER_IMAGE} AS dumb-init-builder
+ARG TARGETARCH
+ARG DUMB_INIT_VERSION=1.2.5
+RUN case "${TARGETARCH}" in \
+      amd64) dumb_init_arch=x86_64; dumb_init_sha256=e874b55f3279ca41415d290c512a7ba9d08f98041b28ae7c2acb19a545f1c4df ;; \
+      arm64) dumb_init_arch=aarch64; dumb_init_sha256=b7d648f97154a99c539b63c55979cd29f005f88430fb383007fe3458340b795e ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    dumb_init_file="dumb-init_${DUMB_INIT_VERSION}_${dumb_init_arch}" && \
+    wget -O "/tmp/${dumb_init_file}" "https://github.com/Yelp/dumb-init/releases/download/v${DUMB_INIT_VERSION}/${dumb_init_file}" && \
+    echo "${dumb_init_sha256}  /tmp/${dumb_init_file}" | sha256sum -c - && \
+    mv "/tmp/${dumb_init_file}" /usr/bin/dumb-init && \
+    chmod 755 /usr/bin/dumb-init
+
+FROM --platform=${BUILDPLATFORM} ${WIZOS_NODE_BUILDER_IMAGE} AS timezone-data
+RUN apk add --no-cache tzdata
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
+
+WORKDIR /app
+
+COPY . .
+RUN turbo prune --scope=web --docker
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS builder
+
+WORKDIR /app
+
+# First install the dependencies (as they change less often)
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=pruner /app/out/json/ .
+
+RUN pnpm install --frozen-lockfile
+
+ENV DOCKER_BUILD 1
+ENV NEXT_MANUAL_SIG_HANDLE true
+
+# Allows the CI docker build smoke test to skip the Next.js type check that
+# the lint job already runs (`pnpm run typecheck`). Release builds do not set
+# this and still fail on TypeScript errors.
+ARG NEXT_IGNORE_BUILD_ERRORS
+ENV NEXT_IGNORE_BUILD_ERRORS=$NEXT_IGNORE_BUILD_ERRORS
+
+# pass public variables in build step
+ARG NEXT_PUBLIC_PLAIN_APP_ID
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ENV NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ARG NEXT_PUBLIC_DEMO_ORG_ID
+ENV NEXT_PUBLIC_DEMO_ORG_ID=$NEXT_PUBLIC_DEMO_ORG_ID
+ARG NEXT_PUBLIC_DEMO_PROJECT_ID
+ENV NEXT_PUBLIC_DEMO_PROJECT_ID=$NEXT_PUBLIC_DEMO_PROJECT_ID
+ARG NEXT_PUBLIC_SIGN_UP_DISABLED
+ENV NEXT_PUBLIC_SIGN_UP_DISABLED=$NEXT_PUBLIC_SIGN_UP_DISABLED
+ARG NEXT_PUBLIC_POSTHOG_KEY
+ENV NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY
+ARG NEXT_PUBLIC_POSTHOG_HOST
+ENV NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST
+ARG NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE
+ENV NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE=$NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE
+ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT
+ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=$NEXT_PUBLIC_SENTRY_ENVIRONMENT
+ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
+
+# Sentry already needs to be set on build time to upload sourcemaps
+# This must not be set for OSS releases as we would share our Sentry secret.
+ARG SENTRY_AUTH_TOKEN
+ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
+ARG SENTRY_ORG
+ENV SENTRY_ORG=$SENTRY_ORG
+ARG SENTRY_PROJECT
+ENV SENTRY_PROJECT=$SENTRY_PROJECT
+
+# Accept build id as NEXT_PUBLIC_BUILD_ID
+ARG NEXT_PUBLIC_BUILD_ID
+ENV NEXT_PUBLIC_BUILD_ID=$NEXT_PUBLIC_BUILD_ID
+ENV SENTRY_RELEASE=$NEXT_PUBLIC_BUILD_ID
+
+# Copy source code of isolated subworkspace
+COPY --from=pruner /app/out/full/ .
+
+# remove middleware.ts if it exists - not needed in self-hosted environments
+RUN rm -f ./web/src/middleware.ts
+
+# Next.js collects completely anonymous telemetry data about general usage.
+# Learn more here: https://nextjs.org/telemetry
+# Uncomment the following line in case you want to disable telemetry during the build.
+ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_MANUAL_SIG_HANDLE true
+# set the CI flag to true to get CI specific logs
+ENV CI true
+
+RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
+
+# Production image, copy all the files and run next
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_RUNTIME_IMAGE} AS runner
+
+WORKDIR /app
+
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ENV NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+
+ENV NODE_ENV production
+# Uncomment the following line in case you want to disable telemetry during runtime.
+ENV NEXT_TELEMETRY_DISABLED 1
+# Needed to re-enable validation of environment variables during runtime
+ENV DOCKER_BUILD 0
+# Set NEXT_MANUAL_SIG_HANDLE for runtime
+ENV NEXT_MANUAL_SIG_HANDLE true
+# Use UTC by default while keeping named time zones available.
+ENV TZ=UTC
+
+# Copy runtime-only tools/data from throwaway stages; the runtime image stays
+# shell-less, so everything below is either data or invoked directly by
+# node/dumb-init without a shell.
+COPY --from=dumb-init-builder /usr/bin/dumb-init /bin/dumb-init
+COPY --from=timezone-data /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=runtime-deps /usr/local/lib/node_modules/prisma /usr/local/lib/node_modules/prisma
+COPY --from=runtime-deps /app/node_modules/dd-trace ./node_modules/dd-trace
+COPY --from=migrate-builder /out/migrate /bin/migrate
+
+# BUILD_ID changes every commit; keep it below the stable tool layers so it
+# does not invalidate their build cache.
+ARG NEXT_PUBLIC_BUILD_ID
+ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
+
+COPY --from=builder --chown=1001:1001 /app/web/next.config.mjs .
+COPY --from=builder --chown=1001:1001 /app/web/package.json .
+
+# Automatically leverage output traces to reduce image size
+# https://nextjs.org/docs/advanced-features/output-file-tracing
+COPY --from=builder --chown=1001:1001 /app/web/.next/standalone ./
+COPY --from=builder --chown=1001:1001 /app/web/.next/static ./web/.next/static
+COPY --from=builder --chown=1001:1001 /app/web/public ./web/public
+
+COPY --from=builder --chown=1001:1001 /app/packages/shared/prisma ./packages/shared/prisma
+COPY --from=builder --chown=1001:1001 /app/packages/shared/clickhouse ./packages/shared/clickhouse
+
+COPY --chown=1001:1001 ./web/entrypoint.mjs ./web/entrypoint.mjs
+COPY --chown=1001:1001 ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql
+
+USER 1001:1001
+
+# Default port to 3000
+ENV PORT 3000
+
+# The hardened enterprise runtime has no /bin/sh; invoke the Node entrypoint directly.
+ENTRYPOINT ["/bin/dumb-init", "--", "node", "./web/entrypoint.mjs"]
+
+# startup command - entrypoint.mjs injects dd-trace when
+# NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
+CMD ["node", "./web/server.js", "--keepAliveTimeout", "110000"]
