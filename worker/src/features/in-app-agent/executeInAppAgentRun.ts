@@ -39,7 +39,6 @@ import {
   createInAppAgentToolPolicy,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
-  maybeInferAndPersistConversationTitle,
   parseInAppAgentInterruptEvent,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
@@ -257,6 +256,17 @@ export async function executeInAppAgentRun(params: {
               command: {
                 resume: {
                   approved: request.approved,
+                  continuationNumber: request.continuationNumber ?? 1,
+                  ...(request.rootRunId
+                    ? { rootRunId: request.rootRunId }
+                    : {}),
+                  ...(request.traceStartedAt
+                    ? { traceStartedAt: request.traceStartedAt }
+                    : {}),
+                  ...(request.approvalRequestedAt
+                    ? { approvalRequestedAt: request.approvalRequestedAt }
+                    : {}),
+                  approvalDecidedAt: run.createdAt.toISOString(),
                   approvalRequest,
                 },
               },
@@ -436,19 +446,6 @@ export async function executeInAppAgentRun(params: {
             interruptRequest
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }
               : { status: InAppAgentRunStatus.SUCCEEDED },
-          );
-          await maybeInferAndPersistConversationTitle({
-            prisma,
-            projectId,
-            conversationId: conversation.id,
-            userId: run.triggeredByUserId!,
-            aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
-          }).catch((error) =>
-            logger.error("Failed to infer in-app agent conversation title", {
-              error,
-              projectId,
-              runId,
-            }),
           );
         },
         onAbort: async () => {

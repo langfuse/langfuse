@@ -29,6 +29,7 @@ import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 import type * as SharedServerModule from "@langfuse/shared/src/server";
+import type * as PersistenceModule from "@langfuse/shared/in-app-agent/server/persistence";
 
 const enqueuedJobs: Array<{ name: string; payload: unknown; jobId?: string }> =
   [];
@@ -37,6 +38,22 @@ let enqueueShouldFail = false;
 const rateLimitMocks = vi.hoisted(() => ({
   rateLimitRequest: vi.fn(),
 }));
+
+const persistenceMocks = vi.hoisted(() => ({
+  maybeInferAndPersistConversationTitle: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@langfuse/shared/in-app-agent/server/persistence", async () => {
+  const actual = await vi.importActual<typeof PersistenceModule>(
+    "@langfuse/shared/in-app-agent/server/persistence",
+  );
+
+  return {
+    ...actual,
+    maybeInferAndPersistConversationTitle:
+      persistenceMocks.maybeInferAndPersistConversationTitle,
+  };
+});
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual<typeof SharedServerModule>(
@@ -85,6 +102,7 @@ describe("in-app agent background runs", () => {
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
     enqueuedJobs.length = 0;
     enqueueShouldFail = false;
+    persistenceMocks.maybeInferAndPersistConversationTitle.mockClear();
     rateLimitMocks.rateLimitRequest.mockResolvedValue({
       isRateLimited: () => false,
       res: undefined,
@@ -92,6 +110,7 @@ describe("in-app agent background runs", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
@@ -289,6 +308,9 @@ describe("in-app agent background runs", () => {
         }),
       }),
     ]);
+    expect(
+      persistenceMocks.maybeInferAndPersistConversationTitle,
+    ).toHaveBeenCalledOnce();
   });
 
   it("rejects a second submit while a run is active without duplicating anything", async () => {
@@ -576,6 +598,8 @@ describe("in-app agent background runs", () => {
   });
 
   it("decides an approval exactly once and reads the tool args server-side", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-14T10:01:00.000Z"));
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const context = [
@@ -585,12 +609,14 @@ describe("in-app agent background runs", () => {
       },
       { description: "user_name", value: "Agent User" },
     ];
+    const parkedAt = new Date("2026-08-14T10:00:05.000Z");
     const parkedRunId = await parkRunForApproval({
       projectId,
       conversationId: conversation.id,
       userId,
       toolCallId: "tool-call-1",
       context,
+      parkedAt,
     });
 
     const { runId: continuationRunId } = await caller.decideToolApproval({
@@ -615,6 +641,10 @@ describe("in-app agent background runs", () => {
     expect(continuation.request).toMatchObject({
       kind: "approvalDecision",
       parentRunId: parkedRunId,
+      rootRunId: parkedRunId,
+      traceStartedAt: parkedRun.createdAt.toISOString(),
+      approvalRequestedAt: parkedAt.toISOString(),
+      continuationNumber: 1,
       toolCallId: "tool-call-1",
       approved: true,
       context,
@@ -655,6 +685,8 @@ describe("in-app agent background runs", () => {
   });
 
   it("preserves context through an approved then rejected chained continuation", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-14T10:01:00.000Z"));
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const context = [
@@ -681,13 +713,26 @@ describe("in-app agent background runs", () => {
       approved: true,
     });
 
+    const approvedContinuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: approvedContinuationId, projectId },
+    });
+    expect(approvedContinuation.request).toMatchObject({
+      kind: "approvalDecision",
+      parentRunId: initialRunId,
+      rootRunId: initialRunId,
+      traceStartedAt: expect.any(String),
+      approvalRequestedAt: expect.any(String),
+      continuationNumber: 1,
+    });
+
+    const secondParkedAt = new Date("2026-08-14T10:03:00.000Z");
     await prisma.inAppAgentRun.update({
       where: {
         id_projectId: { id: approvedContinuationId, projectId },
       },
       data: {
         status: InAppAgentRunStatus.AWAITING_APPROVAL,
-        finishedAt: new Date(),
+        finishedAt: secondParkedAt,
       },
     });
     await prisma.inAppAgentEvent.create({
@@ -710,6 +755,7 @@ describe("in-app agent background runs", () => {
         },
       },
     });
+    vi.setSystemTime(new Date("2026-08-14T10:04:00.000Z"));
 
     const { runId: rejectedContinuationId } = await caller.decideToolApproval({
       projectId,
@@ -725,6 +771,11 @@ describe("in-app agent background runs", () => {
     expect(rejectedContinuation.request).toMatchObject({
       kind: "approvalDecision",
       parentRunId: approvedContinuationId,
+      rootRunId: initialRunId,
+      traceStartedAt: (approvedContinuation.request as Record<string, unknown>)
+        .traceStartedAt,
+      approvalRequestedAt: secondParkedAt.toISOString(),
+      continuationNumber: 2,
       toolCallId: "tool-call-2",
       approved: false,
       context,
