@@ -5,6 +5,7 @@ import {
 import { createTool, Tool } from "@mastra/core/tools";
 import type { InAppAgentSandbox } from "./sandbox";
 import { assertUnreachable } from "@langfuse/shared";
+import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import {
   buildDashboardsPath,
   buildDashboardWidgetPath,
@@ -24,7 +25,6 @@ import {
   buildTracesPath,
 } from "@langfuse/shared/src/server";
 import z from "zod";
-import { getToolFailureMessage } from "./toolErrors";
 import {
   ObservationLevelDomain,
   TABLE_AGGREGATION_OPTIONS,

@@ -91,6 +91,10 @@
       "import": "./dist/src/in-app-agent/server/toolResults.js",
       "require": "./dist/src/in-app-agent/server/toolResults.js"
     },
+    "./in-app-agent/server/toolErrors": {
+      "import": "./dist/src/in-app-agent/server/toolErrors.js",
+      "require": "./dist/src/in-app-agent/server/toolErrors.js"
+    },
     "./in-app-agent/server/systemPrompt": {
       "import": "./dist/src/in-app-agent/server/systemPrompt.js",
       "require": "./dist/src/in-app-agent/server/systemPrompt.js"

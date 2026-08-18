@@ -239,6 +239,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  // The ambient host profile takes precedence over the agent-specific default
+  // so local developer credentials win when both are configured.
+  AWS_PROFILE: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])

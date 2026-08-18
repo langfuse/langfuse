@@ -12,10 +12,10 @@ import {
   AgUiMessageSchema,
   type AgUiMessage,
   InAppAgentRedirectActionToolResultSchema,
+  InAppAgentRateLimitErrorResponseSchema,
 } from "@langfuse/shared/in-app-agent";
 import {
   InAppAgentMessageFeedbackSchema,
-  InAppAgentRateLimitErrorResponseSchema,
   type InAppAgentMessageSource,
   InAppAgentMessageSourceSchema,
 } from "../../schema";

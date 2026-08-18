@@ -8,15 +8,15 @@ import {
   getInAppAgentLlmCallObservationId,
 } from "@langfuse/shared/in-app-agent";
 import type { AgUiEvent, AgUiMessage } from "@langfuse/shared/in-app-agent";
-import { ResumeForwardedPropsSchema, type AgUiRunAgentInput } from "./types";
-import { compactTextMessageChunks } from "@langfuse/shared/in-app-agent/server/eventCompaction";
-import type { InAppAgentUserAccess } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import {
   getToolFailureMessage,
   isRecord,
   normalizeToolOutput,
   parseJsonOrString,
-} from "./toolErrors";
+} from "@langfuse/shared/in-app-agent/server/toolErrors";
+import { ResumeForwardedPropsSchema, type AgUiRunAgentInput } from "./types";
+import { compactTextMessageChunks } from "@langfuse/shared/in-app-agent/server/eventCompaction";
+import type { InAppAgentUserAccess } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { assertUnreachable } from "@langfuse/shared";
 
 export type InAppAgentTracingConfig = {

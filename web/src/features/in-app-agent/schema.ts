@@ -24,13 +24,6 @@ export type InAppAgentUiMessage = AgUiMessage & {
   feedback?: InAppAgentMessageFeedback;
 };
 
-export const InAppAgentRateLimitErrorResponseSchema = z.object({
-  code: z.literal("rate_limited"),
-  details: z.object({
-    retryAfterSeconds: z.number().int().positive(),
-  }),
-});
-
 const AbsoluteHttpUrlSchema = z.string().transform((value, ctx) => {
   let parsedUrl: URL;
 

@@ -328,9 +328,6 @@ export async function decideToolApproval(params: {
         toolCallId: params.toolCallId,
         approved: params.approved,
         decidedByUserId: params.decidedByUserId,
-        ...(params.alwaysAllowToolName
-          ? { scope: "conversation" as const }
-          : {}),
       }),
     });
 

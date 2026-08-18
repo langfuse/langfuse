@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
+import { env } from "../../env";
 
 const createConversationId = () => `aconv_${randomUUID()}`;
 const createRunId = () => `arun_${randomUUID()}`;
@@ -34,6 +35,9 @@ type AgentScenario = (ctx: {
   };
   signal: AbortSignal;
   options: {
+    awsBedrock: {
+      profile?: string;
+    };
     langfuseMcp: {
       toolPolicy: {
         available: ReadonlySet<string>;
@@ -277,6 +281,32 @@ describe("executeInAppAgentRun", () => {
     await executeInAppAgentRun({ projectId, runId: run.id });
 
     expect(scenarioRef.titleInferenceCalls).toBe(0);
+  });
+
+  it("prefers the ambient AWS profile over the configured agent profile", async () => {
+    const workerEnv = env as {
+      AWS_PROFILE?: string;
+      LANGFUSE_IN_APP_AGENT_AWS_PROFILE?: string;
+    };
+    const originalAwsProfile = workerEnv.AWS_PROFILE;
+    const originalConfiguredProfile =
+      workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
+    workerEnv.AWS_PROFILE = "developer-profile";
+    workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = "playground";
+
+    const { projectId, run } = await seedBackgroundRun();
+    scenarioRef.current = async ({ options }) => {
+      expect(options.awsBedrock.profile).toBe("developer-profile");
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    try {
+      await executeInAppAgentRun({ projectId, runId: run.id });
+    } finally {
+      workerEnv.AWS_PROFILE = originalAwsProfile;
+      workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = originalConfiguredProfile;
+    }
   });
 
   it("passes persisted continuation context to the agent input", async () => {

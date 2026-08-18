@@ -11,6 +11,7 @@ import {
   type AgUiEvent,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
+import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
 import { createManualToolApprovalRunInput } from "./human-in-the-loop";
 import type {
@@ -22,7 +23,6 @@ import {
   parseMcpRateLimitError,
   withMcpRateLimitWait,
 } from "./mcpRateLimitWait";
-import { getToolFailureMessage } from "./toolErrors";
 import {
   createSandboxTools,
   createRedirectActionTool,
