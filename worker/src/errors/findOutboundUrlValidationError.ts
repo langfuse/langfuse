@@ -34,10 +34,11 @@ const OUTBOUND_VALIDATION_ERROR_NAMES = new Set([
 ]);
 
 // A resolver hiccup is not a policy block: the host may be legitimate and the
-// next attempt may succeed, so it must stay retryable. RedirectValidationError
-// re-wraps the inner failure by message only — no code, no cause — so a DNS
-// failure on a redirect hop is recognisable only by its message text. The
-// substring is imported from the throw site so the two stay in sync.
+// next attempt may succeed, so it must stay retryable. A DNS failure on a
+// redirect hop arrives as RedirectValidationError, which restates the reason in
+// its own message and keeps the coded original as `cause`; matching the message
+// keeps this check independent of how deeply the chain is wrapped. The substring
+// is imported from the throw site so the two stay in sync.
 const isTransientDnsFailure = (error: Error): boolean =>
   (error as { code?: unknown }).code === "dns-lookup-failed" ||
   error.message.includes(DNS_LOOKUP_FAILED_MESSAGE_PREFIX);

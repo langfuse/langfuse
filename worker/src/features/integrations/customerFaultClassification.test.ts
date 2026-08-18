@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { OutboundUrlValidationError } from "@langfuse/shared/src/server";
+import {
+  OutboundUrlValidationError,
+  RedirectValidationError,
+} from "@langfuse/shared/src/server";
 import {
   classifyCustomerFault,
   isCustomerFaultError,
@@ -196,6 +199,43 @@ describe("isCustomerFaultError", () => {
       );
       expect(isCustomerFaultError(err)).toBe(false);
       expect(isCustomerFaultError(wrapped(err))).toBe(false);
+    });
+
+    it("classifies an SSRF block raised on a redirect hop as customer_fault", () => {
+      // The rejection the analytics exporters actually hit in production: the
+      // configured host answers with a 3xx whose target is a blocked host. The
+      // typed code reaches this classifier only through the redirect error's
+      // `cause`; without it the fault reads as unclassifiable and the
+      // integration stays enabled, retrying the same blocked hop every cycle.
+      const redirectBlock = new RedirectValidationError(
+        "Blocked hostname detected",
+        "http://169.254.169.254/latest/meta-data/",
+        0,
+        new OutboundUrlValidationError(
+          "blocked-hostname",
+          "Blocked hostname detected",
+        ),
+      );
+      expect(classifyCustomerFault(wrapped(redirectBlock))).toBe(
+        "ssrf_blocked_endpoint",
+      );
+    });
+
+    it("keeps a dns-lookup-failed on a redirect hop out of customer_fault", () => {
+      // Same wrapper, transient inner code: reaching the inner error through
+      // `cause` must not turn a resolver hiccup into a permanent disable.
+      const redirectDnsFailure = new RedirectValidationError(
+        "DNS lookup failed for host.example",
+        "https://host.example/batch/",
+        0,
+        new OutboundUrlValidationError(
+          "dns-lookup-failed",
+          "DNS lookup failed for host.example",
+        ),
+      );
+      expect(
+        classifyCustomerFault(wrapped(redirectDnsFailure)),
+      ).toBeUndefined();
     });
 
     it("classifies a validation rejection re-wrapped with guidance (code preserved) as customer_fault", () => {

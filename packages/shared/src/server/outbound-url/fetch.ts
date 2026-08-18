@@ -11,16 +11,30 @@ const SENSITIVE_REDIRECT_HEADERS = new Set([
 ]);
 
 /**
- * Custom error for redirect validation failures
+ * Custom error for redirect validation failures.
+ *
+ * `cause` is required, not optional: consumers classify a rejection off the
+ * inner error's typed `code` (see OutboundUrlValidationErrorCode), and folding
+ * the inner failure into this message alone silently drops that code. An
+ * integration whose redirect target is a blocked host then reads as
+ * unclassifiable rather than as the customer-config fault it is, and stays
+ * enabled to retry the same blocked hop on every scheduled run.
+ *
+ * Passed through the `Error` options bag so `cause` lands as a NON-enumerable
+ * property: a structured logger copies every enumerable field of an error into
+ * its log line, and the rejected target embedded in the inner message may carry
+ * userinfo credentials from a `Location` header.
  */
 export class RedirectValidationError extends Error {
   constructor(
     message: string,
     public redirectUrl: string,
     public redirectDepth: number,
+    cause: unknown,
   ) {
     super(
       `Redirect validation failed at depth ${redirectDepth} for url ${redirectUrl}: ${message}`,
+      { cause },
     );
     this.name = "RedirectValidationError";
   }
@@ -239,6 +253,7 @@ export async function fetchWithSecureRedirects(
           error instanceof Error ? error.message : "Validation failed",
           redirectUrl,
           redirectDepth,
+          error,
         );
       }
     }

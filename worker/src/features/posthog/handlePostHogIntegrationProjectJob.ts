@@ -444,13 +444,15 @@ export const handlePostHogIntegrationProjectJob = async (
     ).slice(0, 1000);
 
     if (reason === undefined) {
-      // A connect-time SSRF block is a permanent misconfiguration of the
-      // integration host, not a transient failure, so skip the remaining BullMQ
-      // attempts for this job. Only reached for blocks the classifier above does
-      // not own (e.g. a rejected redirect target): a blocked hostname/IP is a
-      // customer fault and disables the integration instead. The integration
-      // stays enabled here, so the schedule re-enqueues the project next cycle,
-      // which is what lets a fixed endpoint recover on its own.
+      // Defensive fallback for a validation failure the classifier does not
+      // recognise. Every OutboundUrlValidationErrorCode that exists today either
+      // classifies above and disables the integration — including one raised on
+      // a redirect hop, which reaches the classifier through the redirect
+      // error's `cause` — or is transient (dns-lookup-failed), which this helper
+      // deliberately leaves on the retry path. So nothing should reach here; a
+      // future uncoded block stays terminal rather than retried, because a policy
+      // block cannot succeed on the next attempt, and leaves the integration
+      // enabled so a corrected endpoint recovers on the next scheduled run.
       rethrowIfOutboundValidationFailure(error, {
         logSubject: `[POSTHOG] Outbound send for project ${projectId}`,
         jobSubject: `PostHog integration for project ${projectId}`,
