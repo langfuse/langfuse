@@ -1134,10 +1134,12 @@ paths:
   /api/public/dataset-run-items:
     post:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, create experiment data via the SDK
-        experiment runner or the OpenTelemetry endpoint at POST
-        /api/public/otel/v1/traces. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, create
+        experiment data via the SDK experiment runner or the OpenTelemetry
+        endpoint at POST /api/public/otel/v1/traces. Self-hosted deployments are
+        unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -1188,11 +1190,13 @@ paths:
       deprecated: true
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, dataset run items are replaced by
-        experiment items; use `GET
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        run items are replaced by experiment items; use `GET
         /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to>`
-        instead. See the [Langfuse v3 to v4 upgrade
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -1406,10 +1410,12 @@ paths:
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, dataset runs are replaced by
-        experiments; use GET /api/public/experiments instead. See the [Langfuse
-        v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        runs are replaced by experiments; use GET /api/public/experiments
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -1464,9 +1470,11 @@ paths:
       deprecated: true
     delete:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, dataset runs are replaced by
-        experiments. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        runs are replaced by experiments. Self-hosted deployments are unaffected
+        by this date; the endpoint becomes unavailable when they upgrade to
+        Langfuse v4. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -1522,10 +1530,12 @@ paths:
   /api/public/datasets/{datasetName}/runs:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, dataset runs are replaced by
-        experiments; use GET /api/public/experiments instead. See the [Langfuse
-        v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        runs are replaced by experiments; use GET /api/public/experiments
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -1934,11 +1944,14 @@ paths:
   /api/public/ingestion:
     post:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. Send data via the OpenTelemetry endpoint at `POST
-        /api/public/otel/v1/traces` instead, see the [OpenTelemetry integration
-        docs](https://langfuse.com/integrations/native/opentelemetry). See the
-        [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Send data via the
+        OpenTelemetry endpoint at `POST /api/public/otel/v1/traces` instead, see
+        the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry).
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -2040,9 +2053,12 @@ paths:
   /api/public/metrics:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. Use `GET /api/public/v2/metrics?query=<urlencoded
-        json query>` instead. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v2/metrics?query=<urlencoded json query>` instead.
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -2148,10 +2164,12 @@ paths:
   /api/public/observations/{observationId}:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. Use `GET
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
         /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
-        instead. See the [Langfuse v3 to v4 upgrade
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -2205,10 +2223,12 @@ paths:
   /api/public/observations:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. Use `GET
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
         /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
-        instead. See the [Langfuse v3 to v4 upgrade
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -5832,10 +5852,11 @@ paths:
   /api/public/v2/scores:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint is not
-        available on Langfuse v4 and later and will be removed on November 16,
-        2026. Use `GET /api/public/v3/scores` instead. See the [Langfuse v3 to
-        v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v3/scores` instead. Self-hosted deployments are unaffected
+        by this date; the endpoint becomes unavailable when they upgrade to
+        Langfuse v4. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6062,10 +6083,12 @@ paths:
   /api/public/v2/scores/{scoreId}:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint is not
-        available on Langfuse v4 and later and will be removed on November 16,
-        2026. Use `GET /api/public/v3/scores` with the `id` filter instead. See
-        the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v3/scores` with the `id` filter instead. Self-hosted
+        deployments are unaffected by this date; the endpoint becomes
+        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6117,11 +6140,13 @@ paths:
   /api/public/sessions:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, read session data via `GET
-        /api/public/v2/observations?filter=<urlencoded sessionId
-        filter>&fromStartTime=<from>&toStartTime=<to>`. See the [Langfuse v3 to
-        v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read
+        session data via `GET /api/public/v2/observations?filter=<urlencoded
+        sessionId filter>&fromStartTime=<from>&toStartTime=<to>`. Self-hosted
+        deployments are unaffected by this date; the endpoint becomes
+        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6225,11 +6250,13 @@ paths:
   /api/public/sessions/{sessionId}:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, read session data via `GET
-        /api/public/v2/observations?filter=<urlencoded sessionId
-        filter>&fromStartTime=<from>&toStartTime=<to>`. See the [Langfuse v3 to
-        v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read
+        session data via `GET /api/public/v2/observations?filter=<urlencoded
+        sessionId filter>&fromStartTime=<from>&toStartTime=<to>`. Self-hosted
+        deployments are unaffected by this date; the endpoint becomes
+        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6292,10 +6319,13 @@ paths:
   /api/public/traces/{traceId}:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, read span and trace data via `GET
-        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`. See
-        the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read span
+        and trace data via `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6405,10 +6435,13 @@ paths:
   /api/public/traces:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, read span and trace data via `GET
-        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`. See
-        the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read span
+        and trace data via `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 

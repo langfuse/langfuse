@@ -4,8 +4,14 @@ import { getInternalTracingHandler, logger } from "../../server";
 import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
+  getInAppAgentLlmCallObservationId,
 } from "../constants";
-import type { AgUiEvent, AgUiMessage, AgUiRunAgentInput } from "../schema";
+import {
+  ResumeForwardedPropsSchema,
+  type AgUiEvent,
+  type AgUiMessage,
+  type AgUiRunAgentInput,
+} from "../schema";
 import { compactTextMessageChunks } from "./eventCompaction";
 import {
   getToolFailureMessage,
@@ -43,11 +49,11 @@ export type InAppAgentPromptMetadata = {
 };
 
 const IN_APP_AGENT_TURN_NAME = "agent-turn";
+const IN_APP_AGENT_LLM_CALL_NAME = "invoke-model";
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
 type InAppAgentTrace = ReturnType<
   InternalTracingHandler["handler"]["langfuse"]["trace"]
 >;
-type InAppAgentGeneration = ReturnType<InAppAgentTrace["generation"]>;
 type InAppAgentLangfuse = InternalTracingHandler["handler"]["langfuse"];
 type AgentRunToolCall = {
   id: string;
@@ -82,19 +88,23 @@ type AgentRunChatMessage = {
   tool_calls?: AgentRunToolCall[];
   tool_call_id?: string;
 };
-type ToolObservationBody = {
+type ObservationBody = {
   id: string;
   traceId: string;
-  parentObservationId: string | null;
+  parentObservationId?: string | null;
   name: string;
   startTime: Date;
   endTime: Date;
-  completionStartTime: Date;
+  completionStartTime?: Date;
   input?: unknown;
   output?: unknown;
-  level?: "ERROR";
-  statusMessage?: string;
+  model?: string;
+  usageDetails?: Record<string, number>;
+  level?: "DEFAULT" | "ERROR";
+  statusMessage?: string | null;
   metadata?: Record<string, unknown>;
+  promptName?: string;
+  promptVersion?: number;
 };
 type ToolCallApprovalStatus = "approved" | "rejected";
 type AgentRunToolSpan = {
@@ -105,6 +115,32 @@ type AgentRunToolSpan = {
   output?: unknown;
   failureMessage?: string;
   parentMessageId?: string;
+};
+// Lightweight bookmark for the in-flight Mastra step. Generations are emitted
+// from onStepFinish (which carries usage); this only supplies start timing and
+// the input-message boundary for context-growth visibility.
+type OpenLlmStep = {
+  stepNumber: number;
+  startTime: Date;
+  inputMessageCount: number;
+  completionStartTime?: Date;
+  providerFinish?: Record<string, unknown>;
+  providerFinishTime?: Date;
+};
+type ToolExecutionTimes = {
+  startTime?: Date;
+  endTime?: Date;
+};
+type ApprovalContinuation = {
+  status: ToolCallApprovalStatus;
+  continuationNumber: number;
+  rootRunId: string;
+  toolCallId: string;
+  toolName: string;
+  traceStartedAt?: Date;
+  approvalRequestedAt?: Date;
+  approvalDecidedAt?: Date;
+  metadata: Record<string, unknown>;
 };
 
 export function createInAppAgentInstrumentation({
@@ -140,24 +176,39 @@ export class InAppAgentInstrumentation {
   private readonly processTracedEvents: () => Promise<void>;
   private readonly langfuse: InAppAgentLangfuse;
   private readonly trace: InAppAgentTrace;
-  private readonly agentRun: InAppAgentGeneration;
+  private readonly runId: string;
+  private readonly traceId: string;
+  private readonly rootObservationId: string;
+  private readonly traceStartTime: Date;
+  private readonly agentRunStartTime: Date;
   private agentRunInput: unknown;
+  private readonly approvalContinuation?: ApprovalContinuation;
   private readonly prompt?: InAppAgentPromptMetadata;
   private readonly toolSpans = new Map<string, AgentRunToolSpan>();
   private readonly toolCallApprovals = new Map<
     string,
     ToolCallApprovalStatus
   >();
+  private readonly toolExecutionTimes = new Map<string, ToolExecutionTimes>();
   private readonly metadata: Record<string, unknown>;
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
   private readonly agentRunToolCalls: AgentRunToolCall[] = [];
   private output = "";
   private currentReasoning = "";
   private pendingThinking: AgentRunThinkingPart[] = [];
-  private completionStartTime?: Date;
   private ended = false;
   private readonly model?: string;
-  private usageDetails?: Record<string, number>;
+  private nextStepNumber = 0;
+  private openLlmStep?: OpenLlmStep;
+  // Tools that finished while an LLM step was still open. Emit after the
+  // generation so the tree sorts model → tools (tool-call chunks arrive during
+  // the LLM stream, before onStepFinish).
+  private readonly deferredToolCompletions = new Map<
+    string,
+    AgentRunToolSpan
+  >();
+  // Clamp tool execution windows to start at/after the last generation end.
+  private lastLlmGenerationEndTime?: Date;
 
   constructor(params: {
     input: AgUiRunAgentInput;
@@ -172,6 +223,7 @@ export class InAppAgentInstrumentation {
     prompt?: InAppAgentPromptMetadata;
     model?: string;
   }) {
+    this.approvalContinuation = getApprovalContinuation(params.input);
     this.metadata = {
       ...params.metadata,
       ...(params.userEmail ? { langfuse_user_email: params.userEmail } : {}),
@@ -185,14 +237,28 @@ export class InAppAgentInstrumentation {
             prompt_version: params.prompt.version,
           }
         : {}),
+      ...(this.approvalContinuation
+        ? {
+            approval_continuation_count:
+              this.approvalContinuation.continuationNumber,
+          }
+        : {}),
     };
     this.agentRunInput = getAgentRunInput(params.input);
     this.prompt = params.prompt;
     this.model = params.model;
+    this.runId = params.runId;
+    const rootRunId = this.approvalContinuation?.rootRunId ?? params.runId;
+    this.traceId = getInAppAgentInstrumentationTraceId(rootRunId);
+    this.rootObservationId =
+      getInAppAgentInstrumentationObservationId(rootRunId);
+    this.agentRunStartTime = new Date();
+    this.traceStartTime =
+      this.approvalContinuation?.traceStartedAt ?? this.agentRunStartTime;
 
     const traceSinkParams = {
       targetProjectId: params.targetProjectId,
-      traceId: getInAppAgentInstrumentationTraceId(params.runId),
+      traceId: this.traceId,
       traceName: IN_APP_AGENT_TURN_NAME,
       environment: params.environment,
       userId: params.userId,
@@ -205,26 +271,21 @@ export class InAppAgentInstrumentation {
     this.langfuse = handler.langfuse;
 
     this.trace = this.langfuse.trace({
-      id: getInAppAgentInstrumentationTraceId(params.runId),
+      id: this.traceId,
       name: IN_APP_AGENT_TURN_NAME,
       userId: params.userId,
       sessionId: params.input.threadId,
-      input: this.agentRunInput,
+      timestamp: this.traceStartTime,
+      input: this.getTraceInput(),
       metadata: this.metadata,
       tags: ["in-app-agent"],
     });
-    this.agentRun = this.trace.generation({
-      id: getInAppAgentInstrumentationObservationId(params.input.runId),
-      name: IN_APP_AGENT_TURN_NAME,
-      input: this.agentRunInput,
-      metadata: this.metadata,
-      ...(params.prompt
-        ? {
-            promptName: params.prompt.name,
-            promptVersion: params.prompt.version,
-          }
-        : {}),
-    });
+
+    // Create the root observation immediately so tool/generation children
+    // emitted during the run have a parent that already exists (avoids
+    // orphans that attach to the trace as siblings of the late agent).
+    this.emitRootAgentObservation({ metadata: this.metadata });
+    this.emitApprovalWaitObservation();
   }
 
   recordEvents(events: AgUiEvent[]) {
@@ -267,48 +328,140 @@ export class InAppAgentInstrumentation {
     this.toolCallApprovals.set(approval.toolCallId, approval.status);
   }
 
-  // Receives Mastra's per-LLM-call onStepFinish event and accumulates its
-  // token usage onto the agent-turn generation, since the AG-UI event stream
-  // itself never carries usage.
+  recordToolExecutionStart(toolCallId: string) {
+    if (this.ended) {
+      return;
+    }
+
+    const times = this.toolExecutionTimes.get(toolCallId) ?? {};
+    times.startTime ??= new Date();
+    this.toolExecutionTimes.set(toolCallId, times);
+  }
+
+  recordToolExecutionEnd(toolCallId: string) {
+    if (this.ended) {
+      return;
+    }
+
+    const times = this.toolExecutionTimes.get(toolCallId) ?? {};
+    times.endTime ??= new Date();
+    this.toolExecutionTimes.set(toolCallId, times);
+  }
+
+  // Bedrock's V3 stream emits exact usage before Mastra executes tools. Keep
+  // it on the open step as a fallback because approval suspension can end the
+  // run without Mastra ever invoking onStepFinish.
+  recordModelCallFinish(event: unknown) {
+    if (!isRecord(event)) {
+      return;
+    }
+
+    if (this.ended) {
+      return;
+    }
+
+    const now = new Date();
+    this.ensureOpenLlmStep(now);
+    if (this.openLlmStep) {
+      this.openLlmStep.providerFinish = event;
+      this.openLlmStep.providerFinishTime = now;
+    }
+  }
+
+  // Mastra stream chunks: step-start (or first model delta) bookmarks the LLM
+  // window; tool-result ends tool execution. Do not treat tool-call chunks as
+  // execution start — they fire while the model is still streaming.
+  // Usage and output still come from recordStepFinish.
+  recordStreamChunk(chunk: unknown) {
+    if (this.ended || !isRecord(chunk)) {
+      return;
+    }
+
+    const type = chunk.type;
+    if (typeof type !== "string") {
+      return;
+    }
+
+    const payload = isRecord(chunk.payload) ? chunk.payload : {};
+    const now = new Date();
+
+    if (type === "step-start") {
+      // A prior step should have been closed by onStepFinish. If not, emit it
+      // as an error so we never silently drop a generation.
+      if (this.openLlmStep) {
+        const providerFinish = this.openLlmStep.providerFinish;
+        this.emitLlmGeneration(
+          this.openLlmStep,
+          undefined,
+          providerFinish
+            ? undefined
+            : {
+                level: "ERROR",
+                statusMessage: "LLM step closed by a subsequent step-start",
+              },
+        );
+        this.flushDeferredToolCompletions();
+      }
+
+      this.openLlmStep = {
+        stepNumber: ++this.nextStepNumber,
+        startTime: now,
+        inputMessageCount: this.agentRunOutputMessages.length,
+      };
+      return;
+    }
+
+    // tool-call means "model requested this tool", not "tool started".
+    // Ensure an LLM step is open so missing step-start still gets a real window.
+    if (type === "tool-call") {
+      this.ensureOpenLlmStep(now);
+      return;
+    }
+
+    if (type === "tool-result" || type === "tool-error") {
+      const toolCallId = getStringValue(payload.toolCallId);
+      if (!toolCallId) {
+        return;
+      }
+
+      const times = this.toolExecutionTimes.get(toolCallId) ?? {};
+      times.endTime ??= now;
+      this.toolExecutionTimes.set(toolCallId, times);
+      return;
+    }
+
+    if (
+      type === "text-delta" ||
+      type === "reasoning-delta" ||
+      type === "reasoning"
+    ) {
+      this.ensureOpenLlmStep(now);
+      if (this.openLlmStep) {
+        this.openLlmStep.completionStartTime ??= now;
+      }
+    }
+  }
+
+  // Receives Mastra's per-LLM-call onStepFinish event and emits one generation
+  // with that call's usage/model. The AG-UI event stream itself never carries usage.
   recordStepFinish(event: unknown) {
     if (this.ended) {
       return;
     }
 
-    const usage = isRecord(event) ? event.usage : undefined;
-    if (!isRecord(usage)) {
-      return;
-    }
+    const step =
+      this.openLlmStep ??
+      ({
+        stepNumber: ++this.nextStepNumber,
+        // Prefer a non-zero window when step-start never arrived: backdate to
+        // the last generation end (or run start) so tools do not sort above us.
+        startTime: this.lastLlmGenerationEndTime ?? this.agentRunStartTime,
+        inputMessageCount: this.agentRunOutputMessages.length,
+      } satisfies OpenLlmStep);
 
-    const inputTokens = getFiniteNumber(usage.inputTokens);
-    const outputTokens = getFiniteNumber(usage.outputTokens);
-    if (inputTokens === undefined && outputTokens === undefined) {
-      return;
-    }
-
-    const cacheReadTokens = getFiniteNumber(usage.cachedInputTokens) ?? 0;
-    const cacheWriteTokens =
-      getFiniteNumber(usage.cacheCreationInputTokens) ?? 0;
-    const totals = (this.usageDetails ??= {
-      input: 0,
-      output: 0,
-      cache_read_input_tokens: 0,
-      cache_creation_input_tokens: 0,
-      total: 0,
-    });
-
-    // Mastra's inputTokens includes cache reads/writes, while Langfuse model
-    // prices bill `input` as non-cached input tokens with separate cache keys.
-    totals.input += Math.max(
-      0,
-      (inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens,
-    );
-    totals.output += outputTokens ?? 0;
-    totals.cache_read_input_tokens += cacheReadTokens;
-    totals.cache_creation_input_tokens += cacheWriteTokens;
-    totals.total +=
-      getFiniteNumber(usage.totalTokens) ??
-      (inputTokens ?? 0) + (outputTokens ?? 0);
+    this.emitLlmGeneration(step, event);
+    this.openLlmStep = undefined;
+    this.flushDeferredToolCompletions();
   }
 
   recordAvailableSkills(skills: unknown[]) {
@@ -334,35 +487,22 @@ export class InAppAgentInstrumentation {
     }
 
     const message = error instanceof Error ? error.message : String(error);
+    this.endOpenLlmStep({ error: message }, message);
     this.endOpenToolSpans({ error: message }, message);
     this.flushTrailingThinking();
-    this.agentRun.update({
-      name: IN_APP_AGENT_TURN_NAME,
-      input: this.agentRunInput,
-      output: this.getAgentRunOutput(),
-      ...(this.completionStartTime
-        ? { completionStartTime: this.completionStartTime }
-        : {}),
-      ...this.getAgentRunUsage(),
+    this.emitRootAgentObservation({
       level: "ERROR",
       statusMessage: message,
       metadata: {
         ...this.metadata,
         error: message,
       },
-      ...(this.prompt
-        ? {
-            promptName: this.prompt.name,
-            promptVersion: this.prompt.version,
-          }
-        : {}),
     });
     this.trace.update({
-      input: this.agentRunInput,
+      input: this.getTraceInput(),
       output: this.getAgentRunOutput(),
       metadata: { ...this.metadata, error: message },
     });
-    this.agentRun.end();
     this.ended = true;
   }
 
@@ -371,6 +511,11 @@ export class InAppAgentInstrumentation {
       return;
     }
 
+    if (params?.aborted) {
+      this.endOpenLlmStep({ aborted: true }, "aborted");
+    } else {
+      this.endOpenLlmStep();
+    }
     this.endOpenToolSpans(params?.aborted ? { aborted: true } : undefined);
     this.flushTrailingThinking();
     const metadata = {
@@ -378,28 +523,12 @@ export class InAppAgentInstrumentation {
       ...(params?.aborted ? { aborted: true } : {}),
       ...(params?.result ? { result: params.result } : {}),
     };
-    this.agentRun.update({
-      name: IN_APP_AGENT_TURN_NAME,
-      input: this.agentRunInput,
-      output: this.getAgentRunOutput(),
-      ...(this.completionStartTime
-        ? { completionStartTime: this.completionStartTime }
-        : {}),
-      ...this.getAgentRunUsage(),
-      metadata,
-      ...(this.prompt
-        ? {
-            promptName: this.prompt.name,
-            promptVersion: this.prompt.version,
-          }
-        : {}),
-    });
+    this.emitRootAgentObservation({ metadata });
     this.trace.update({
-      input: this.agentRunInput,
+      input: this.getTraceInput(),
       output: this.getAgentRunOutput(),
       metadata,
     });
-    this.agentRun.end();
     this.ended = true;
   }
 
@@ -513,6 +642,8 @@ export class InAppAgentInstrumentation {
 
     const name =
       typeof event.toolCallName === "string" ? event.toolCallName : "tool-call";
+    // Execution start = AG-UI tool-call start (or later clamp to generation end).
+    // Mastra tool-call chunks are request-time and must not set this.
     this.toolSpans.set(event.toolCallId, {
       name,
       startTime: new Date(),
@@ -570,6 +701,14 @@ export class InAppAgentInstrumentation {
       return;
     }
 
+    // Tool-call args/results often arrive while the LLM step is still open.
+    // Hold the observation until step-finish so the tree sorts generation → tools.
+    if (this.openLlmStep) {
+      this.deferredToolCompletions.set(toolCallId, tool);
+      this.toolSpans.delete(toolCallId);
+      return;
+    }
+
     this.createToolObservation(toolCallId, tool);
     this.toolSpans.delete(toolCallId);
   }
@@ -590,14 +729,28 @@ export class InAppAgentInstrumentation {
       tool.failureMessage ??
       getToolFailureMessage(undefined, output);
     const toolCallApproval = this.toolCallApprovals.get(toolCallId);
-    const body: ToolObservationBody = {
+    const executionTimes = this.toolExecutionTimes.get(toolCallId);
+    const rawStartTime = executionTimes?.startTime ?? tool.startTime;
+    const endTime =
+      toolCallApproval === "rejected"
+        ? rawStartTime
+        : (executionTimes?.endTime ?? new Date());
+    // Keep causal order: tool execution cannot start before the generation that
+    // requested it finished (or the last known generation end).
+    const startTime =
+      this.lastLlmGenerationEndTime &&
+      rawStartTime.getTime() < this.lastLlmGenerationEndTime.getTime()
+        ? this.lastLlmGenerationEndTime
+        : rawStartTime;
+    const body: ObservationBody = {
       id: toolCallId,
-      traceId: this.agentRun.traceId,
-      parentObservationId: this.agentRun.observationId,
+      traceId: this.traceId,
+      parentObservationId: this.rootObservationId,
       name: tool.name,
-      startTime: tool.startTime,
-      endTime: new Date(),
-      completionStartTime: tool.startTime,
+      startTime: startTime.getTime() > endTime.getTime() ? endTime : startTime,
+      endTime,
+      completionStartTime:
+        startTime.getTime() > endTime.getTime() ? endTime : startTime,
       input,
       output,
       ...(failureMessage
@@ -616,38 +769,236 @@ export class InAppAgentInstrumentation {
 
     this.recordToolCall(toolCallId, tool, output);
     this.toolCallApprovals.delete(toolCallId);
+    this.toolExecutionTimes.delete(toolCallId);
 
-    (
-      this.langfuse as unknown as {
-        enqueue: (type: string, body: ToolObservationBody) => void;
-      }
-    ).enqueue("tool-create", body);
+    this.enqueueObservation("tool-create", body);
   }
 
-  // Model is only set alongside provided usage; on its own it would make
-  // ingestion tokenize the agent-turn input/output into estimated usage.
-  private getAgentRunUsage() {
-    if (!this.usageDetails) {
-      return {};
-    }
+  private emitRootAgentObservation(params: {
+    metadata: Record<string, unknown>;
+    level?: "ERROR";
+    statusMessage?: string;
+  }) {
+    this.enqueueObservation("agent-create", {
+      id: this.rootObservationId,
+      traceId: this.traceId,
+      name: IN_APP_AGENT_TURN_NAME,
+      startTime: this.traceStartTime,
+      endTime: new Date(),
+      input: this.getTraceInput(),
+      output: this.getAgentRunOutput(),
+      metadata: params.metadata,
+      ...(this.prompt
+        ? {
+            promptName: this.prompt.name,
+            promptVersion: this.prompt.version,
+          }
+        : {}),
+      ...(params.level ? { level: params.level } : {}),
+      ...(params.statusMessage ? { statusMessage: params.statusMessage } : {}),
+    });
+  }
+
+  private emitLlmGeneration(
+    step: OpenLlmStep,
+    event: unknown,
+    options?: {
+      level?: "ERROR";
+      statusMessage?: string;
+    },
+  ) {
+    const eventRecord = isRecord(event) ? event : undefined;
+    const providerFinish = step.providerFinish;
+    const usageDetails =
+      getStepUsageDetails(eventRecord?.usage) ??
+      getStepUsageDetails(providerFinish?.usage);
+    const finishReason =
+      getStepFinishReason(eventRecord) ?? getStepFinishReason(providerFinish);
+    const model =
+      getModelIdFromStepEvent(eventRecord) ?? this.model ?? undefined;
+    // Mastra can delay onStepFinish until after requested tools execute. The
+    // raw provider finish is the actual model boundary and keeps the following
+    // tool's execute() window intact instead of clamping it to zero duration.
+    const endTime = step.providerFinishTime ?? new Date();
+    this.lastLlmGenerationEndTime = endTime;
+    const id = getInAppAgentLlmCallObservationId(this.runId, step.stepNumber);
+
+    this.enqueueObservation("generation-create", {
+      id,
+      traceId: this.traceId,
+      parentObservationId: this.rootObservationId,
+      name: IN_APP_AGENT_LLM_CALL_NAME,
+      startTime: step.startTime,
+      endTime,
+      completionStartTime: step.completionStartTime ?? step.startTime,
+      input: this.getLlmStepInput(step.inputMessageCount),
+      output: this.getLlmStepOutput(step, eventRecord),
+      // Model only travels with usage so Langfuse does not invent tokenizer-
+      // estimated costs for generations that never reported tokens.
+      ...(usageDetails
+        ? {
+            usageDetails,
+            ...(model ? { model } : {}),
+          }
+        : {}),
+      ...(options?.level ? { level: options.level } : {}),
+      ...(options?.statusMessage
+        ? { statusMessage: options.statusMessage }
+        : {}),
+      metadata: {
+        ...(finishReason ? { finish_reason: finishReason } : {}),
+        ...(options?.statusMessage ? { error: options.statusMessage } : {}),
+      },
+    });
+  }
+
+  private getLlmStepInput(inputMessageCount: number) {
+    const base = isRecord(this.agentRunInput) ? this.agentRunInput : {};
+    const baseMessages = Array.isArray(base.messages) ? base.messages : [];
 
     return {
-      usageDetails: this.usageDetails,
-      ...(this.model ? { model: this.model } : {}),
+      ...base,
+      messages: [
+        ...baseMessages,
+        ...this.agentRunOutputMessages.slice(0, inputMessageCount),
+      ],
     };
+  }
+
+  private getTraceInput() {
+    if (!this.approvalContinuation || !isRecord(this.agentRunInput)) {
+      return this.agentRunInput;
+    }
+
+    const messages = Array.isArray(this.agentRunInput.messages)
+      ? this.agentRunInput.messages.filter((message) => {
+          if (!isRecord(message)) {
+            return false;
+          }
+
+          return (
+            message.role === "developer" ||
+            message.role === "system" ||
+            message.role === "user"
+          );
+        })
+      : [];
+
+    return {
+      ...this.agentRunInput,
+      messages,
+    };
+  }
+
+  private getLlmStepOutput(
+    step: OpenLlmStep,
+    event: Record<string, unknown> | undefined,
+  ) {
+    const text = typeof event?.text === "string" ? event.text : undefined;
+    const toolCalls = Array.isArray(event?.toolCalls)
+      ? event.toolCalls
+      : undefined;
+    if (text !== undefined || toolCalls?.length) {
+      return {
+        ...(text !== undefined ? { text } : {}),
+        ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
+      };
+    }
+
+    const response = isRecord(event?.response) ? event.response : undefined;
+    if (Array.isArray(response?.messages) && response.messages.length > 0) {
+      return { messages: response.messages };
+    }
+
+    const messages = this.agentRunOutputMessages.slice(step.inputMessageCount);
+    return messages.length > 0 ? { messages } : undefined;
+  }
+
+  private endOpenLlmStep(
+    metadata?: Record<string, unknown>,
+    statusMessage?: string,
+  ) {
+    if (!this.openLlmStep) {
+      return;
+    }
+
+    this.emitLlmGeneration(this.openLlmStep, undefined, {
+      ...(!this.openLlmStep.providerFinish && (statusMessage || metadata)
+        ? {
+            level: "ERROR" as const,
+            statusMessage:
+              statusMessage ??
+              (typeof metadata?.error === "string"
+                ? metadata.error
+                : "LLM step closed before step finish"),
+          }
+        : {}),
+    });
+    this.openLlmStep = undefined;
+    this.flushDeferredToolCompletions();
   }
 
   private endOpenToolSpans(
     metadata?: Record<string, unknown>,
     statusMessage?: string,
   ) {
+    // Approval interrupts complete the stream without a tool result. Drop those
+    // incomplete spans — the generation already records the tool_call request,
+    // and the continuation run emits the real tool observation after approval.
+    const forceClose =
+      Boolean(statusMessage) ||
+      Boolean(metadata?.aborted) ||
+      Boolean(metadata?.error);
+
     for (const [toolCallId, tool] of this.toolSpans.entries()) {
+      if (tool.output === undefined && !forceClose) {
+        this.toolSpans.delete(toolCallId);
+        this.toolExecutionTimes.delete(toolCallId);
+        continue;
+      }
+
       this.createToolObservation(toolCallId, tool, {
         metadata,
         statusMessage,
       });
       this.toolSpans.delete(toolCallId);
     }
+
+    // endOpenLlmStep() has already drained completed tools before this method
+    // runs; keep the unconditional flush to preserve that lifecycle invariant.
+    this.flushDeferredToolCompletions();
+  }
+
+  private ensureOpenLlmStep(now: Date) {
+    if (this.openLlmStep) {
+      return;
+    }
+
+    this.openLlmStep = {
+      stepNumber: ++this.nextStepNumber,
+      startTime: now,
+      inputMessageCount: this.agentRunOutputMessages.length,
+    };
+  }
+
+  private flushDeferredToolCompletions() {
+    if (this.deferredToolCompletions.size === 0) {
+      return;
+    }
+
+    const deferred = [...this.deferredToolCompletions.entries()];
+    this.deferredToolCompletions.clear();
+    for (const [toolCallId, tool] of deferred) {
+      this.createToolObservation(toolCallId, tool);
+    }
+  }
+
+  private enqueueObservation(type: string, body: ObservationBody) {
+    (
+      this.langfuse as unknown as {
+        enqueue: (type: string, body: ObservationBody) => void;
+      }
+    ).enqueue(type, body);
   }
 
   // Reasoning that no assistant message followed (e.g. aborted or errored
@@ -691,7 +1042,6 @@ export class InAppAgentInstrumentation {
 
   private recordAssistantText(delta: string) {
     this.output += delta;
-    this.completionStartTime ??= new Date();
 
     const thinking = this.takePendingThinking();
     const lastMessage = this.agentRunOutputMessages.at(-1);
@@ -720,8 +1070,6 @@ export class InAppAgentInstrumentation {
     },
     output: unknown,
   ) {
-    this.completionStartTime ??= tool.startTime;
-
     const toolCall: AgentRunToolCall = {
       id: toolCallId,
       name: tool.name,
@@ -748,18 +1096,121 @@ export class InAppAgentInstrumentation {
   }
 
   private getAgentRunOutput() {
-    if (this.agentRunOutputMessages.length === 0) {
+    const priorMessages =
+      this.approvalContinuation && isRecord(this.agentRunInput)
+        ? getPriorAgentRunOutputMessages(this.agentRunInput.messages)
+        : [];
+    const messages = [...priorMessages, ...this.agentRunOutputMessages];
+
+    if (messages.length === 0) {
       return undefined;
     }
 
+    const priorToolCalls = priorMessages.flatMap(
+      (message) => message.tool_calls ?? [],
+    );
+    const toolCalls = [...priorToolCalls, ...this.agentRunToolCalls];
+
     return {
-      messages: this.agentRunOutputMessages,
+      messages,
       ...(this.output ? { text: this.output } : {}),
-      ...(this.agentRunToolCalls.length > 0
-        ? { tool_calls: this.agentRunToolCalls }
-        : {}),
+      ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
     };
   }
+
+  private emitApprovalWaitObservation() {
+    const continuation = this.approvalContinuation;
+    if (!continuation) {
+      return;
+    }
+
+    const requestedAt =
+      continuation.approvalRequestedAt ??
+      continuation.approvalDecidedAt ??
+      this.agentRunStartTime;
+    const decidedAt = continuation.approvalDecidedAt ?? this.agentRunStartTime;
+    const endTime =
+      decidedAt.getTime() < requestedAt.getTime() ? requestedAt : decidedAt;
+
+    this.enqueueObservation("span-create", {
+      id: `${this.runId}-approval-wait`,
+      traceId: this.traceId,
+      parentObservationId: this.rootObservationId,
+      name: `waiting for user approval for tool ${continuation.toolName}`,
+      startTime: requestedAt,
+      endTime,
+      input: {
+        tool_call_id: continuation.toolCallId,
+        tool_name: continuation.toolName,
+      },
+      output: `User ${continuation.status} tool ${continuation.toolName}`,
+      metadata: continuation.metadata,
+    });
+  }
+}
+
+function getApprovalContinuation(
+  input: AgUiRunAgentInput,
+): ApprovalContinuation | undefined {
+  const forwardedProps = ResumeForwardedPropsSchema.safeParse(
+    input.forwardedProps,
+  );
+
+  if (!forwardedProps.success) {
+    return undefined;
+  }
+
+  const {
+    approved,
+    approvalRequest,
+    continuationNumber = 1,
+    rootRunId = approvalRequest.runId,
+    traceStartedAt,
+    approvalRequestedAt,
+    approvalDecidedAt,
+  } = forwardedProps.data.command.resume;
+  const status = approved ? "approved" : "rejected";
+
+  return {
+    status,
+    continuationNumber,
+    rootRunId,
+    toolCallId: approvalRequest.toolCallId,
+    toolName: approvalRequest.toolName,
+    ...(traceStartedAt ? { traceStartedAt: new Date(traceStartedAt) } : {}),
+    ...(approvalRequestedAt
+      ? { approvalRequestedAt: new Date(approvalRequestedAt) }
+      : {}),
+    ...(approvalDecidedAt
+      ? { approvalDecidedAt: new Date(approvalDecidedAt) }
+      : {}),
+    metadata: {
+      continuation_type: "tool_approval",
+      continuation_number: continuationNumber,
+      parent_run_id: approvalRequest.runId,
+      approval_status: status,
+      approval_tool_call_id: approvalRequest.toolCallId,
+      approval_tool_name: approvalRequest.toolName,
+      ...(approvalRequestedAt
+        ? { approval_requested_at: approvalRequestedAt }
+        : {}),
+      ...(approvalDecidedAt ? { approval_decided_at: approvalDecidedAt } : {}),
+    },
+  };
+}
+
+function getPriorAgentRunOutputMessages(
+  messages: unknown,
+): AgentRunChatMessage[] {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+
+  return messages.filter(
+    (message): message is AgentRunChatMessage =>
+      isRecord(message) &&
+      (message.role === "assistant" || message.role === "tool"),
+  );
 }
 
 function getAgentRunInput(input: AgUiRunAgentInput): unknown {
@@ -968,6 +1419,98 @@ function getFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function getStepUsageDetails(
+  usage: unknown,
+): Record<string, number> | undefined {
+  if (!isRecord(usage)) {
+    return undefined;
+  }
+
+  const nestedInputTokens = isRecord(usage.inputTokens)
+    ? usage.inputTokens
+    : undefined;
+  const nestedOutputTokens = isRecord(usage.outputTokens)
+    ? usage.outputTokens
+    : undefined;
+  const inputTokens =
+    getFiniteNumber(usage.inputTokens) ??
+    getFiniteNumber(nestedInputTokens?.total);
+  const outputTokens =
+    getFiniteNumber(usage.outputTokens) ??
+    getFiniteNumber(nestedOutputTokens?.total);
+  if (inputTokens === undefined && outputTokens === undefined) {
+    return undefined;
+  }
+
+  const cacheReadTokens =
+    getFiniteNumber(usage.cachedInputTokens) ??
+    getFiniteNumber(nestedInputTokens?.cacheRead) ??
+    0;
+  const cacheWriteTokens =
+    getFiniteNumber(usage.cacheCreationInputTokens) ??
+    getFiniteNumber(nestedInputTokens?.cacheWrite) ??
+    0;
+  const uncachedInputTokens = getFiniteNumber(nestedInputTokens?.noCache);
+
+  // Mastra's inputTokens includes cache reads/writes, while Langfuse model
+  // prices bill `input` as non-cached input tokens with separate cache keys.
+  return {
+    input:
+      uncachedInputTokens ??
+      Math.max(0, (inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens),
+    output: outputTokens ?? 0,
+    cache_read_input_tokens: cacheReadTokens,
+    cache_creation_input_tokens: cacheWriteTokens,
+    total:
+      getFiniteNumber(usage.totalTokens) ??
+      (inputTokens ?? 0) + (outputTokens ?? 0),
+  };
+}
+
+function getStepFinishReason(
+  event: Record<string, unknown> | undefined,
+): string | undefined {
+  if (!event) {
+    return undefined;
+  }
+
+  const finishReason = event.finishReason;
+  if (typeof finishReason === "string") {
+    return finishReason;
+  }
+
+  if (isRecord(finishReason)) {
+    return (
+      getStringValue(finishReason.unified) ?? getStringValue(finishReason.raw)
+    );
+  }
+
+  return isRecord(event.stepResult)
+    ? getStringValue(event.stepResult.reason)
+    : undefined;
+}
+
+function getModelIdFromStepEvent(
+  event: Record<string, unknown> | undefined,
+): string | undefined {
+  if (!event) {
+    return undefined;
+  }
+
+  if (isRecord(event.model)) {
+    const modelId = getStringValue(event.model.modelId);
+    if (modelId) {
+      return modelId;
+    }
+  }
+
+  if (isRecord(event.response)) {
+    return getStringValue(event.response.modelId);
+  }
+
+  return undefined;
 }
 
 function getSerializableToolParameters(tool: Record<string, unknown>): unknown {

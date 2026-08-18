@@ -154,6 +154,11 @@ the same PR.
 
 - Keep backward compatibility in queue payloads when possible during rolling
   deployments.
+- Register recurring cron jobs through
+  `src/server/redis/scheduleRecurringJob.ts` (BullMQ job schedulers), never
+  via the deprecated `Queue.add(name, data, { repeat })` API. When changing a
+  cron pattern, append the old pattern to `previousPatterns` so the legacy
+  md5-keyed schedule is cleaned up on boot.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
 - Avoid exposing server-only modules through `src/index.ts` if they must remain
   frontend-safe.
