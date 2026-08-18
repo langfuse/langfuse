@@ -12,22 +12,9 @@ import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/
 export type GalleryTemplatePresentation = {
   description: string | undefined;
   type: EvalTemplateType;
-  returnTypeLabel: string | null;
   runsOn: TemplateRunTarget[] | null;
   attribution: string | null;
 };
-
-function managedReturnTypeLabel(
-  evaluator: ManagedTemplate["evaluator"],
-): string | null {
-  if (evaluator.type !== EvalTemplateTypeEnum.LLM_AS_JUDGE) {
-    return null;
-  }
-
-  return "dataType" in evaluator.outputDefinition
-    ? evaluator.outputDefinition.dataType
-    : null;
-}
 
 function managedPresentation(
   template: ManagedTemplate,
@@ -35,7 +22,6 @@ function managedPresentation(
   return {
     description: template.description,
     type: template.evaluator.type,
-    returnTypeLabel: managedReturnTypeLabel(template.evaluator),
     runsOn: template.runsOn,
     attribution: null,
   };
@@ -59,7 +45,6 @@ function customPresentation(
   return {
     description: template.prompt?.trim() ? template.prompt : codeFallback,
     type: template.type,
-    returnTypeLabel: null,
     runsOn: null,
     attribution: author ? `by ${author} · ${updated}` : `Updated ${updated}`,
   };

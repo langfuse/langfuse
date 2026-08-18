@@ -77,24 +77,6 @@ export function EvaluatorGalleryView({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-b px-4 py-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.LLM_AS_JUDGE)}
-        >
-          <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-          Blank LLM-as-a-judge
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.CODE)}
-        >
-          <Code2 className="mr-1.5 h-3.5 w-3.5" />
-          Blank code evaluator
-        </Button>
-      </div>
       <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
         {sidebarItems.length > 0 ? (
           <EvaluatorGallerySidebar
@@ -105,15 +87,37 @@ export function EvaluatorGalleryView({
         ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-4 pb-0">
-          <div className="relative shrink-0 border-b pb-4">
-            <Search className="text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2" />
-            <Input
-              ref={searchInputRef}
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search what you want to measure."
-              className="pl-8"
-            />
+          <div className="flex shrink-0 items-center gap-2 border-b pb-3">
+            <div className="relative min-w-0 flex-1">
+              <Search className="text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2" />
+              <Input
+                ref={searchInputRef}
+                value={search}
+                onChange={(event) => onSearchChange(event.target.value)}
+                placeholder="Search what you want to measure."
+                className="pl-8"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="shrink-0 gap-1.5"
+              onClick={() =>
+                onCreateFromScratch(EvalTemplateTypeEnum.LLM_AS_JUDGE)
+              }
+            >
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              Blank LLM-as-a-judge
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="shrink-0 gap-1.5"
+              onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.CODE)}
+            >
+              <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Blank code evaluator
+            </Button>
           </div>
 
           <div

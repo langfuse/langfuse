@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn } from "storybook/test";
 import {
   EvalTemplateSourceCodeLanguageEnum,
   EvalTemplateTypeEnum,
@@ -35,8 +35,11 @@ const meta = preview.meta({ component: EvaluatorTemplateRow });
 export const Managed = meta.story({
   args: {
     template: managedTemplate,
-    categoryKey: "quality",
     onSelect: fn(),
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Answer relevance")).toBeInTheDocument();
+    await expect(canvas.queryByText("NUMERIC")).not.toBeInTheDocument();
   },
 });
 
@@ -53,7 +56,6 @@ export const CustomCodeEvaluator = meta.story({
       version: 2,
       createdByUser: { name: "Ada Lovelace", email: "ada@example.com" },
     },
-    categoryKey: "custom",
     onSelect: fn(),
   },
 });

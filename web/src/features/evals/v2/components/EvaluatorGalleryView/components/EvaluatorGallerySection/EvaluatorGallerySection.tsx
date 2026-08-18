@@ -75,7 +75,6 @@ export function EvaluatorGallerySection({
             <EvaluatorTemplateRow
               key={getGalleryTemplateId(template)}
               template={template}
-              categoryKey={section.key}
               onSelect={onSelectTemplate}
             />
           ))}

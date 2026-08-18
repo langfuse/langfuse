@@ -236,6 +236,9 @@ export const EmptySearch = meta.story({
     await expect(
       canvas.queryByRole("button", { name: /All/ }),
     ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Blank LLM-as-a-judge" }),
+    ).toBeInTheDocument();
   },
 });
 

@@ -14,11 +14,7 @@ export function EvaluatorRecommendedCard({
   onSelect: (template: GalleryTemplate) => void;
 }) {
   const { description, type } = getGalleryTemplatePresentation(template);
-  const {
-    icon: Icon,
-    iconClassName,
-    edgeClassName,
-  } = getGalleryCategoryPresentation(categoryKey);
+  const { edgeClassName } = getGalleryCategoryPresentation(categoryKey);
 
   return (
     <button
@@ -30,20 +26,17 @@ export function EvaluatorRecommendedCard({
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />
-        <EvaluatorGalleryMethodBadge type={type} />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="truncate text-sm font-bold" title={template.name}>
           {template.name}
         </span>
-        <p
-          className="text-muted-foreground line-clamp-2 text-xs leading-relaxed"
-          title={description}
-        >
-          {description}
-        </p>
+        <EvaluatorGalleryMethodBadge type={type} />
       </div>
+      <p
+        className="text-muted-foreground line-clamp-2 text-xs leading-relaxed"
+        title={description}
+      >
+        {description}
+      </p>
     </button>
   );
 }
