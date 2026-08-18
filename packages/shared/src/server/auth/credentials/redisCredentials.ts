@@ -1,10 +1,7 @@
 import type { Redis } from "ioredis";
 import { env } from "../../../env";
 import { logger } from "../../logger";
-import {
-  AZURE_REDIS_SCOPE,
-  AzureManagedIdentityCredentialProvider,
-} from "./azureManagedIdentity";
+import { AzureManagedIdentityCredentialProvider } from "./azureManagedIdentity";
 import { RefreshingTokenManager } from "./RefreshingTokenManager";
 import type { ManagedAccessToken, ManagedCredentialProvider } from "./types";
 
@@ -13,7 +10,7 @@ export function getRedisManagedCredentialProviderFromEnv(): ManagedCredentialPro
   switch (env.REDIS_AUTH_METHOD) {
     case "azure_managed_identity":
       return new AzureManagedIdentityCredentialProvider({
-        scope: env.REDIS_AZURE_SCOPE ?? AZURE_REDIS_SCOPE,
+        scope: env.REDIS_AZURE_SCOPE,
         username: env.REDIS_USERNAME ?? undefined,
         clientId: env.REDIS_AZURE_CLIENT_ID ?? undefined,
       });

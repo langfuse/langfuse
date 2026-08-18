@@ -24,7 +24,7 @@ const envMock = vi.hoisted(() => ({
     REDIS_AUTH_METHOD: "static" as "static" | "azure_managed_identity",
     REDIS_USERNAME: undefined as string | undefined | null,
     REDIS_AZURE_CLIENT_ID: undefined as string | undefined,
-    REDIS_AZURE_SCOPE: undefined as string | undefined,
+    REDIS_AZURE_SCOPE: "https://redis.azure.com/.default" as string,
   },
 }));
 vi.mock("../../../env", () => envMock);
@@ -73,7 +73,7 @@ beforeEach(() => {
   envMock.env.REDIS_AUTH_METHOD = "static";
   envMock.env.REDIS_USERNAME = undefined;
   envMock.env.REDIS_AZURE_CLIENT_ID = undefined;
-  envMock.env.REDIS_AZURE_SCOPE = undefined;
+  envMock.env.REDIS_AZURE_SCOPE = "https://redis.azure.com/.default";
 });
 
 afterEach(() => {
@@ -204,12 +204,20 @@ describe("getRedisManagedCredentialProviderFromEnv", () => {
     expect(getRedisManagedCredentialProviderFromEnv()).toBeNull();
   });
 
-  it("builds an Azure provider with the object-id username and scope default", () => {
+  it("builds an Azure provider with the object-id username and scope default", async () => {
     envMock.env.REDIS_AUTH_METHOD = "azure_managed_identity";
     envMock.env.REDIS_USERNAME = "object-id-xyz";
+    azureMocks.defaultGetToken.mockResolvedValue({
+      token: "scoped-token",
+      expiresOnTimestamp: Date.now() + ONE_HOUR,
+    });
     const provider = getRedisManagedCredentialProviderFromEnv();
     expect(provider).toBeInstanceOf(AzureManagedIdentityCredentialProvider);
     expect(provider?.name).toBe("azure_managed_identity");
     expect(provider?.username).toBe("object-id-xyz");
+
+    // The scope default now comes from env.ts rather than a fallback in code.
+    await provider?.fetchToken();
+    expect(azureMocks.defaultGetToken).toHaveBeenCalledWith(AZURE_REDIS_SCOPE);
   });
 });
