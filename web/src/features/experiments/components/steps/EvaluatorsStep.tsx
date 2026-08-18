@@ -10,14 +10,13 @@ import { TemplateSelector } from "@/src/features/evals/components/template-selec
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { type EvaluatorsStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
-import { ExperimentEvaluatorSelectorContent } from "@/src/features/experiments/components/ExperimentEvaluatorSelector";
-import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
-import { Button } from "@/src/components/ui/button";
-import { ChevronDown } from "lucide-react";
+import { ExperimentEvaluatorAssignments } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/ExperimentEvaluatorAssignments";
 
 export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
   projectId,
   datasetId,
+  datasetVersion,
+  evaluatorAssignmentsRef,
   evaluatorState,
   permissions,
 }) => {
@@ -28,35 +27,30 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
         title="Evaluators (Optional)"
         description={
           evaluatorState.version === "v2"
-            ? "Evaluators with variables mapped to experiment columns."
+            ? "Choose evaluators to score experiment results and review their variable mappings."
             : "Configure evaluators to automatically score experiment results. You can add multiple evaluators to assess different aspects of your LLM outputs."
         }
       />
 
-      <FormItem>
-        <FormLabel>Evaluators</FormLabel>
-        {hasEvalReadAccess && (evaluatorState.version === "v2" || datasetId) ? (
+      <FormItem className="space-y-3">
+        {evaluatorState.version === "legacy" ? (
+          <FormLabel>Evaluators</FormLabel>
+        ) : null}
+        {hasEvalReadAccess && datasetId ? (
           evaluatorState.version === "v2" ? (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between px-2 font-normal"
-                >
-                  {evaluatorState.evaluatorOptions.length > 0
-                    ? `${evaluatorState.evaluatorOptions.length} ${evaluatorState.evaluatorOptions.length === 1 ? "evaluator" : "evaluators"}`
-                    : "No experiment evaluators"}
-                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <ExperimentEvaluatorSelectorContent
-                projectId={projectId}
-                evaluatorOptions={evaluatorState.evaluatorOptions}
-                search={evaluatorState.search}
-                onSearchChange={evaluatorState.onSearchChange}
-              />
-            </Popover>
+            <ExperimentEvaluatorAssignments
+              ref={evaluatorAssignmentsRef}
+              showSaveButton={false}
+              projectId={projectId}
+              datasetId={datasetId}
+              datasetVersion={datasetVersion}
+              evaluatorOptions={evaluatorState.evaluatorOptions}
+              initialAssignments={evaluatorState.selectedAssignments}
+              search={evaluatorState.search}
+              onSearchChange={evaluatorState.onSearchChange}
+              onSaveAssignments={evaluatorState.onSaveAssignments}
+              disabled={!hasEvalWriteAccess || evaluatorState.isUpdating}
+            />
           ) : (
             <TemplateSelector
               projectId={projectId}

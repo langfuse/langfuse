@@ -29,10 +29,20 @@ const preparatoryMigration = join(
   "20260807120000_drop_job_execution_configuration_fk",
   "migration.sql",
 );
-const backfillMigration = join(
+// The evaluator v2 rollout is two migrations: the DDL creates the tables and their foreign keys,
+// and the backfill copies the legacy rows in. They are split so that the foreign keys, which lock
+// `projects` and `users` against writes while their transaction is open, do not hold that lock for
+// the duration of the backfill. Both must exist for this suite to be testing anything.
+const ddlMigration = join(
   prismaDirectory,
   "migrations",
   "20260807121000_add_evaluator_v2",
+  "migration.sql",
+);
+const backfillMigration = join(
+  prismaDirectory,
+  "migrations",
+  "20260807121500_backfill_evaluator_v2",
   "migration.sql",
 );
 const preparatoryMigrationName = basename(dirname(preparatoryMigration));
@@ -468,6 +478,9 @@ beforeAll(async () => {
     existsSync(preparatoryMigration),
     `Missing migration: ${preparatoryMigration}`,
   ).toBe(true);
+  expect(existsSync(ddlMigration), `Missing migration: ${ddlMigration}`).toBe(
+    true,
+  );
   expect(
     existsSync(backfillMigration),
     `Missing migration: ${backfillMigration}`,
@@ -690,13 +703,18 @@ if (existingDatabaseUrl) {
       expect(assignments).toBe(configurationsWithTemplates);
     });
 
-    it("creates one evaluator per project, template and variable mapping", async () => {
+    it("creates one evaluator per project, template, variable mapping and score name", async () => {
+      // score_name belongs in the key: it is what the worker writes as the score name, so two
+      // configurations that agree on project, template and mapping but disagree on score name are
+      // different evaluators. Omitting it here passes on fixtures that never vary score name
+      // within a group, but understates the expectation on real data, where a single project
+      // routinely runs one template under many score names.
       const [counts] = await prisma.$queryRaw<
         Array<{ expected: bigint; actual: bigint }>
       >`
         SELECT
           (
-            SELECT count(DISTINCT (project_id, eval_template_id, variable_mapping))
+            SELECT count(DISTINCT (project_id, eval_template_id, variable_mapping, score_name))
             FROM job_configurations
             WHERE job_type = 'EVAL' AND eval_template_id IS NOT NULL
           )::bigint AS expected,

@@ -1,7 +1,7 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
-  toApiMappings,
+  toApiReadMappings,
   toPublicEvaluatorType,
   toStoredMappingList,
 } from "@/src/features/evals/server/unstable-public-api/adapters";
@@ -58,7 +58,7 @@ export function toMcpEvaluationRule(
       variableMapping:
         assignment.variableMapping === null
           ? null
-          : toApiMappings(assignment.variableMapping),
+          : toApiReadMappings(assignment.variableMapping),
     })),
     createdAt: rule.createdAt,
     updatedAt: rule.updatedAt,

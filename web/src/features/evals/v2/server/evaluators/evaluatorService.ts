@@ -136,17 +136,34 @@ export class EvaluatorService {
     ) as Record<string, EvaluatorExecutionTrace[]>;
     if (params.evaluatorIds.length === 0) return result;
 
-    const traces = await getRecentEvaluatorExecutionTraces(
-      params.projectId,
-      params.evaluatorIds,
-    );
+    const evaluators = await repository.findEvaluatorsByIds({
+      prisma: this.prisma,
+      projectId: params.projectId,
+      evaluatorIds: params.evaluatorIds,
+    });
+    // Prompt-experiment executions do not always carry evaluator_id metadata,
+    // but all evaluator execution paths use this trace-name convention.
+    const evaluatorIdsByTraceName = new Map<string, string[]>();
+    for (const evaluator of evaluators) {
+      const traceName = `Execute evaluator: ${evaluator.name}`;
+      evaluatorIdsByTraceName.set(traceName, [
+        ...(evaluatorIdsByTraceName.get(traceName) ?? []),
+        evaluator.id,
+      ]);
+    }
+    const traces = await getRecentEvaluatorExecutionTraces(params.projectId, [
+      ...evaluatorIdsByTraceName.keys(),
+    ]);
 
     for (const trace of traces) {
-      result[trace.evaluatorId]?.push({
-        id: trace.id,
-        level: trace.level,
-        timestamp: trace.timestamp,
-      });
+      for (const evaluatorId of evaluatorIdsByTraceName.get(trace.traceName) ??
+        []) {
+        result[evaluatorId]?.push({
+          id: trace.id,
+          level: trace.level,
+          timestamp: trace.timestamp,
+        });
+      }
     }
 
     return result;

@@ -414,7 +414,7 @@ types:
         type: list<commons.EvaluationRuleFilter>
         docs: List of filter conditions used to decide whether a target should be evaluated.
       mapping:
-        type: list<commons.EvaluationRuleMapping>
+        type: list<EvaluationRuleReadMapping>
         docs: Deprecated compatibility alias containing the effective mapping for `evaluators[0]`.
     examples:
       - value:
@@ -720,8 +720,18 @@ types:
       evaluator:
         type: EvaluationRuleEvaluator
       mapping:
-        type: nullable<list<commons.EvaluationRuleMapping>>
+        type: nullable<list<EvaluationRuleReadMapping>>
         docs: Rule-specific override, or `null` to inherit the evaluator version's default mapping.
+
+  EvaluationRuleReadMapping:
+    docs: Maps an evaluator variable to target data. The source is `null` when a legacy mapping is incomplete and must be configured.
+    properties:
+      variable:
+        type: string
+      source:
+        type: nullable<commons.EvaluationRuleMappingSource>
+      jsonPath:
+        type: optional<string>
 
   LegacyEvaluationRuleEvaluatorAssignment:
     properties:

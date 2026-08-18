@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -35,33 +35,12 @@ const focusEditingSurface = (element: HTMLDivElement | null) => {
  * no mid-text clamping. Visibility is controlled by the card header's
  * collapse toggle; error/empty notes render as always-visible rows instead.
  */
-function MappedValuePreview({
-  value,
-  variable,
-  onEdit,
-}: {
-  value: string;
-  variable: string;
-  onEdit: () => void;
-}) {
+function MappedValuePreview({ value }: { value: string }) {
   const parsed = useMemo(() => deepParseJsonIterative(value), [value]);
   const isJson = parsed !== null && typeof parsed === "object";
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={`Change mapping for {{${variable}}}`}
-      title={`Change mapping for {{${variable}}}`}
-      className="hover:bg-muted/50 focus-visible:ring-ring cursor-pointer rounded-b-md focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset"
-      onClick={onEdit}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onEdit();
-        }
-      }}
-    >
+    <div>
       {isJson ? (
         <PrettyJsonView
           json={parsed}
@@ -78,6 +57,35 @@ function MappedValuePreview({
           {value}
         </pre>
       )}
+    </div>
+  );
+}
+
+function MappingPreviewSurface({
+  variable,
+  children,
+  onEdit,
+}: {
+  variable: string;
+  children: ReactNode;
+  onEdit: () => void;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Change mapping for {{${variable}}}`}
+      title={`Change mapping for {{${variable}}}`}
+      className="hover:bg-muted/50 focus-visible:ring-ring cursor-pointer rounded-b-md transition-colors focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset"
+      onClick={onEdit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onEdit();
+        }
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -114,18 +122,17 @@ function TreeSelectorBody({
   // object the parent rebuilds on every render.
   const roots = useMemo(
     () =>
-      sourceObject
-        ? experimentTargetEvalVariableColumns.map((column) => ({
-            id: column.id,
-            label: column.name,
-            // Tool calls are already normalized; deep parsing can corrupt
-            // string-valued identifiers such as a tool named "true".
-            value:
-              column.id === TOOL_CALLS_COLUMN_ID
-                ? sourceObject[column.id]
-                : deepParseJsonIterative(sourceObject[column.id]),
-          }))
-        : [],
+      experimentTargetEvalVariableColumns.map((column) => ({
+        id: column.id,
+        label: column.name,
+        // Keep the top-level columns selectable without a sample so mappings
+        // can still be configured before the first matching event exists.
+        value: sourceObject
+          ? column.id === TOOL_CALLS_COLUMN_ID
+            ? sourceObject[column.id]
+            : deepParseJsonIterative(sourceObject[column.id])
+          : undefined,
+      })),
     [sourceObject],
   );
   const suggestions = useMemo(
@@ -139,17 +146,6 @@ function TreeSelectorBody({
         : [],
     [sourceObject, selectedColumnId],
   );
-
-  if (!sourceObject) {
-    return (
-      <p className="text-muted-foreground p-4 text-center text-sm">
-        {sourceUnavailableMessage ??
-          (hasMatchingObservations
-            ? "Loading sample data…"
-            : "No observations match the current rule — adjust the filters in the right pane.")}
-      </p>
-    );
-  }
 
   if (pathEditing && selectedColumnId) {
     return (
@@ -166,6 +162,14 @@ function TreeSelectorBody({
 
   return (
     <>
+      {!sourceObject ? (
+        <p className="text-muted-foreground border-b p-3 text-sm">
+          {sourceUnavailableMessage ??
+            (hasMatchingObservations
+              ? "Loading sample data…"
+              : "No observations match the current rule — mapping can be configured, but JSON paths cannot be validated yet.")}
+        </p>
+      ) : null}
       <div className="flex min-w-0 items-center justify-between gap-2 border-b px-3 py-1.5">
         <p
           className="text-muted-foreground min-w-0 truncate text-xs"
@@ -201,9 +205,8 @@ function TreeSelectorBody({
 /**
  * One mapping card per variable: header = "{{variable}} maps to <crumbs>"
  * with the pencil as the single edit affordance (plus trash), body = the
- * resolved value preview. The pencil flips the body into the point-at-data
- * tree, where one click binds and closes. Information-first: nothing else in
- * the card is clickable beyond the explicit header actions.
+ * resolved value preview. The pencil or preview body flips the body into the
+ * point-at-data tree, where one click binds and closes.
  */
 function VariableMappingRow({
   variable,
@@ -285,31 +288,34 @@ function VariableMappingRow({
         onEditingChange(false);
       }}
     />
-  ) : !expanded ? null : unmapped ? (
-    <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">
-      <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-      {`{{${variable}}} is not mapped yet — use the pencil to pick the data it pulls in.`}
-    </div>
-  ) : !sourceObject ? (
-    <p className="text-muted-foreground p-3 text-sm">
-      {sourceUnavailableMessage ??
-        "Pick a sample in the right pane to preview the value this mapping pulls in."}
-    </p>
-  ) : extracted?.error ? (
-    <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">
-      <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-      {extracted.error}
-    </div>
-  ) : !extracted?.value ? (
-    <p className="text-muted-foreground p-3 text-sm italic">
-      empty in the sample
-    </p>
-  ) : (
-    <MappedValuePreview
-      value={extracted.value}
+  ) : !expanded ? null : (
+    <MappingPreviewSurface
       variable={variable}
       onEdit={() => onEditingChange(true)}
-    />
+    >
+      {unmapped ? (
+        <div className="text-dark-yellow flex w-full items-start gap-1.5 p-3 text-left text-sm">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          {`{{${variable}}} is not mapped yet — click to choose the data it pulls in.`}
+        </div>
+      ) : !sourceObject ? (
+        <p className="text-muted-foreground p-3 text-sm">
+          {sourceUnavailableMessage ??
+            "Pick a sample in the right pane to preview the value this mapping pulls in."}
+        </p>
+      ) : extracted?.error ? (
+        <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          {extracted.error}
+        </div>
+      ) : !extracted?.value ? (
+        <p className="text-muted-foreground p-3 text-sm italic">
+          empty in the sample
+        </p>
+      ) : (
+        <MappedValuePreview value={extracted.value} />
+      )}
+    </MappingPreviewSurface>
   );
 
   return (

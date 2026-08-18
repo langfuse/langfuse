@@ -3,9 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   objectEntriesForPreview,
   previewOf,
+  typeBadge,
 } from "@/src/features/evals/v2/components/VariableMapping/formatValue";
 
 describe("variable mapping value previews", () => {
+  it("uses a friendly label when no sample value is available", () => {
+    expect(previewOf(undefined)).toBe("No sample value available");
+    expect(typeBadge(undefined)).toBe("no value");
+  });
+
   it("bounds object rows and serialized subtree previews", () => {
     const value = Object.fromEntries(
       Array.from({ length: 60 }, (_, index) => [

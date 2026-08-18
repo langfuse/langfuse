@@ -25,6 +25,8 @@ export function EvaluatorMappingRow({
   defaultVariableMapping,
   store,
   sampleObject,
+  sourceUnavailableMessage = "No matching observation is available to validate JSON paths.",
+  disabled = false,
 }: {
   evaluatorId: string;
   evaluatorName: string;
@@ -32,6 +34,8 @@ export function EvaluatorMappingRow({
   defaultVariableMapping: ObservationVariableMapping[];
   store: RuleSetupStore;
   sampleObject: Record<string, unknown> | null;
+  sourceUnavailableMessage?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const variableMappingOverride = useStore(
@@ -135,6 +139,7 @@ export function EvaluatorMappingRow({
             variant="ghost"
             size="sm"
             className="gap-2"
+            disabled={disabled}
             onClick={() => detachEvaluator(evaluatorId)}
           >
             <Unlink className="h-3.5 w-3.5" />
@@ -150,13 +155,13 @@ export function EvaluatorMappingRow({
             </p>
           ) : (
             <VariableMapping
-              mode="editable"
+              mode={disabled ? "read-only" : "editable"}
               mappings={mappings}
               {...variableMapping.mappingProps}
               onChangeField={updateMapping}
               sourceObject={sampleObject}
               hasMatchingObservations={Boolean(sampleObject)}
-              sourceUnavailableMessage="No matching observation is available to validate JSON paths."
+              sourceUnavailableMessage={sourceUnavailableMessage}
             />
           )}
         </CollapsibleContent>

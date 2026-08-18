@@ -404,6 +404,82 @@ describe("/api/public/unstable evaluators API", () => {
     ).resolves.toBeNull();
   });
 
+  it("returns incomplete inherited legacy mappings from create and read endpoints", async () => {
+    const evaluator = await makeZodVerifiedAPICall(
+      PostUnstableEvaluatorResponse,
+      "POST",
+      "/api/public/unstable/evaluators",
+      {
+        name: "Legacy mapping evaluator",
+        prompt: "Judge {{input}} against {{output}}",
+        outputDefinition: numericOutputDefinition,
+      },
+      auth,
+    );
+    await prisma.evaluatorVersion.updateMany({
+      where: { evaluatorId: evaluator.body.id },
+      data: {
+        variableMapping: [
+          {
+            templateVariable: "input",
+            langfuseObject: "trace",
+            objectName: null,
+            selectedColumnId: "input",
+            jsonSelector: null,
+          },
+          {
+            templateVariable: "output",
+            langfuseObject: "trace",
+            objectName: null,
+            selectedColumnId: "output",
+            jsonSelector: null,
+          },
+        ],
+      },
+    });
+
+    const created = await makeZodVerifiedAPICall(
+      PostUnstableEvaluationRuleResponse,
+      "POST",
+      "/api/public/unstable/evaluation-rules",
+      {
+        name: "incomplete_inherited_mapping_rule",
+        evaluator: { name: evaluator.body.name },
+        target: "observation",
+        enabled: false,
+        sampling: 1,
+        filter: [],
+      },
+      auth,
+    );
+    const incompleteMapping = [
+      { variable: "input", source: null },
+      { variable: "output", source: null },
+    ];
+    expect(created.body).toMatchObject({
+      mapping: incompleteMapping,
+      evaluators: [{ mapping: incompleteMapping }],
+    });
+
+    const fetched = await makeZodVerifiedAPICall(
+      GetUnstableEvaluationRuleResponse,
+      "GET",
+      `/api/public/unstable/evaluation-rules/${created.body.id}`,
+      undefined,
+      auth,
+    );
+    expect(fetched.body).toEqual(created.body);
+
+    const listed = await makeZodVerifiedAPICall(
+      GetUnstableEvaluationRulesResponse,
+      "GET",
+      "/api/public/unstable/evaluation-rules?page=1&limit=50",
+      undefined,
+      auth,
+    );
+    expect(listed.body.data).toContainEqual(created.body);
+  });
+
   it("creates and returns multiple evaluator assignments with compatibility aliases", async () => {
     const createEvaluator = (name: string) =>
       makeZodVerifiedAPICall(

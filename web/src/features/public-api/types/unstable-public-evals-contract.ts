@@ -159,6 +159,14 @@ export const PublicEvaluationRuleMapping = z.union([
   ExperimentEvaluationRuleMapping,
 ]);
 
+// Read responses preserve incomplete legacy mappings so callers can repair
+// them. Write schemas remain strict and require a concrete source.
+export const PublicEvaluationRuleReadMapping = z.object({
+  variable: z.string().min(1),
+  source: ExperimentEvaluationRuleMappingSource.nullable(),
+  jsonPath: z.string().min(1).optional(),
+});
+
 export const LegacyEvaluationRuleMapping = z
   .object({
     variable: z.string().min(1),
@@ -286,6 +294,9 @@ export type PublicEvaluationRuleEvaluatorType = z.infer<
 >;
 export type PublicEvaluationRuleMappingType = z.infer<
   typeof PublicEvaluationRuleMapping
+>;
+export type PublicEvaluationRuleReadMappingType = z.infer<
+  typeof PublicEvaluationRuleReadMapping
 >;
 export type PublicObservationEvaluationRuleMappingType = z.infer<
   typeof ObservationEvaluationRuleMapping
