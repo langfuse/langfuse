@@ -362,6 +362,7 @@ const EnvSchema = z.object({
   LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default("email"),
   LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default("name"),
   LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default("sub"),
+  LANGFUSE_CUSTOM_SSO_IMAGE_CLAIM: z.string().default("picture"),
   LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
     .number()
     .default(80e6), // 80MB
