@@ -121,6 +121,8 @@ export type ScoresTableProps = {
    * of a `Page`.
    */
   showControlsInPageHeader?: boolean;
+  /** Skip the default exclusion of internal environments. */
+  showAllEnvironments?: boolean;
 };
 
 function createFilterState(
@@ -149,6 +151,7 @@ export default function ScoresTable({
   localStorageSuffix = "",
   disableUrlPersistence = false,
   showControlsInPageHeader = false,
+  showAllEnvironments = false,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
 
@@ -359,7 +362,9 @@ export default function ScoresTable({
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isSidebarFilterLoading,
-      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      implicitDefaultConfig: showAllEnvironments
+        ? undefined
+        : DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     };
 
     if (peekContext) {
@@ -382,7 +387,13 @@ export default function ScoresTable({
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     };
-  }, [disableUrlPersistence, isSidebarFilterLoading, peekContext, projectId]);
+  }, [
+    disableUrlPersistence,
+    isSidebarFilterLoading,
+    peekContext,
+    projectId,
+    showAllEnvironments,
+  ]);
 
   const queryFilter = useSidebarFilterState(
     scoresFilterConfig,

@@ -307,6 +307,9 @@ export async function listEvaluatorVersions(params: {
     },
     orderBy: { version: "desc" },
     take: params.limit + 1,
+    include: {
+      createdByUser: { select: { name: true, email: true } },
+    },
   });
   const hasMore = versions.length > params.limit;
   const data = versions.slice(0, params.limit);

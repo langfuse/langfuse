@@ -14,5 +14,5 @@ export type EvaluatorVersion = {
   provider: string | null;
   model: string | null;
   outputDefinition: unknown;
-  createdByUser?: { name: string | null; email: string | null } | null;
+  createdByUser: { name: string | null; email: string | null } | null;
 };

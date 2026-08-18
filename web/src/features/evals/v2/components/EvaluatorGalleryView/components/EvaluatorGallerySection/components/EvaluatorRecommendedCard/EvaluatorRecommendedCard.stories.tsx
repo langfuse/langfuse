@@ -13,7 +13,6 @@ const template = {
   icon: "message-square",
   description: "Classifies user questions into predefined intent buckets.",
   maintainer: "langfuse",
-  runsOn: ["experiment", "live-observations"],
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     prompt: "Classify {{input}}.",

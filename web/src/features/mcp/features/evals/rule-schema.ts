@@ -10,6 +10,7 @@ import {
 } from "@/src/features/evals/v2/server/rules/ruleTypes";
 import {
   ObservationEvaluationRuleMapping,
+  PublicEvaluationRuleReadMapping,
   PublicEvaluatorType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { McpAdvancedFilterBaseSchema } from "../../core/filter-schema";
@@ -158,7 +159,7 @@ export const EvaluationRuleResponseSchema = z
         evaluatorId: z.string(),
         evaluatorName: z.string(),
         evaluatorType: PublicEvaluatorType,
-        variableMapping: z.array(ObservationEvaluationRuleMapping).nullable(),
+        variableMapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
       }),
     ),
     createdAt: z.date(),

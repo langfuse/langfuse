@@ -30,6 +30,7 @@ import {
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   type PublicEvaluationRuleFilterType,
   type PublicEvaluationRuleMappingType,
+  type PublicEvaluationRuleReadMappingType,
   type PublicEvaluationRuleReadTargetType,
   type PublicEvaluationRuleTargetType,
   type LegacyEvaluationRuleMappingType,
@@ -289,9 +290,9 @@ function toApiFilter(
   return filter as PublicEvaluationRuleFilterType;
 }
 
-export function toApiMappings(
+export function toApiReadMappings(
   mappings: unknown,
-): PublicEvaluationRuleMappingType[] {
+): PublicEvaluationRuleReadMappingType[] {
   const parsed = observationVariableMappingList.safeParse(mappings);
 
   if (!parsed.success) {
@@ -305,15 +306,27 @@ export function toApiMappings(
     const source =
       INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE[mapping.selectedColumnId];
 
-    if (!source) {
+    if (!source && mapping.selectedColumnId.trim()) {
       throw new InternalServerError("Evaluation rule mapping is corrupted");
     }
 
     return {
       variable: mapping.templateVariable,
-      source,
+      source: source ?? null,
       ...(mapping.jsonSelector ? { jsonPath: mapping.jsonSelector } : {}),
     };
+  });
+}
+
+export function toApiMappings(
+  mappings: unknown,
+): PublicEvaluationRuleMappingType[] {
+  return toApiReadMappings(mappings).map((mapping) => {
+    if (mapping.source === null) {
+      throw new InternalServerError("Evaluation rule mapping is corrupted");
+    }
+
+    return { ...mapping, source: mapping.source };
   });
 }
 
@@ -532,7 +545,7 @@ export function toApiV2EvaluationRule(
     mapping:
       candidate.variableMapping == null
         ? null
-        : toApiMappings(candidate.variableMapping),
+        : toApiReadMappings(candidate.variableMapping),
   }));
   const effectiveFirstMapping =
     assignment === null || evaluator === null
@@ -555,7 +568,7 @@ export function toApiV2EvaluationRule(
     sampling: Number(rule.sampling),
     target,
     filter: toApiFilters(rule.filter, target),
-    mapping: toApiMappings(effectiveFirstMapping),
+    mapping: toApiReadMappings(effectiveFirstMapping),
     createdAt: rule.createdAt,
     updatedAt: rule.updatedAt,
   };

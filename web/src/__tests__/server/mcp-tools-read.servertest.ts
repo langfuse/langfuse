@@ -653,6 +653,67 @@ describe("MCP Read Tools", () => {
       expect(result.data.map((item) => item.id)).toContain(rule.id);
     });
 
+    it("should list incomplete evaluator mappings", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createLlmEvaluatorForMcpReadTest(setup);
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId: setup.projectId,
+          name: `mcp-incomplete-mapping-rule-${nanoid()}`,
+          targetObject: "event",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: {
+              projectId: setup.projectId,
+              evaluatorId: evaluator.id,
+              variableMapping: [
+                {
+                  templateVariable: "input",
+                  selectedColumnId: "",
+                  jsonSelector: null,
+                },
+                {
+                  templateVariable: "output",
+                  selectedColumnId: "output",
+                  jsonSelector: null,
+                },
+              ],
+            },
+          },
+        },
+      });
+
+      const result = (await handleListEvaluationRules(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as {
+        data: Array<{
+          id: string;
+          evaluators: Array<{
+            evaluatorId: string;
+            variableMapping: Array<{
+              variable: string;
+              source: string | null;
+            }> | null;
+          }>;
+        }>;
+      };
+
+      expect(result.data.find((item) => item.id === rule.id)).toMatchObject({
+        evaluators: [
+          {
+            evaluatorId: evaluator.id,
+            variableMapping: [
+              { variable: "input", source: null },
+              { variable: "output", source: "output" },
+            ],
+          },
+        ],
+      });
+    });
+
     it("returns multi-evaluator rules with all assignments", async () => {
       const setup = await createMcpTestSetup();
       const [firstEvaluator, secondEvaluator] = await Promise.all([

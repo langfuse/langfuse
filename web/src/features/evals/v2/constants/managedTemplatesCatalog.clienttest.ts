@@ -11,7 +11,6 @@ describe("managed evaluator templates catalog", () => {
     const categoryKeys = new Set(
       MANAGED_TEMPLATES_CATALOG.categories.map(({ key }) => key),
     );
-    const runTargets = new Set(["experiment", "live-observations"]);
     const templateKeys = MANAGED_TEMPLATES_CATALOG.templates.map(
       ({ key }) => key,
     );
@@ -24,10 +23,6 @@ describe("managed evaluator templates catalog", () => {
       expect(
         template.categories.every((category) => categoryKeys.has(category)),
       ).toBe(true);
-      expect(template.runsOn.length).toBeGreaterThan(0);
-      expect(template.runsOn.every((target) => runTargets.has(target))).toBe(
-        true,
-      );
       const draft = managedTemplateToEvaluatorSetupDraft(template);
 
       if (draft.definition.type === "LLM_AS_JUDGE") {

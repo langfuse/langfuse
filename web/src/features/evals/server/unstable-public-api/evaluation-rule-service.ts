@@ -24,6 +24,7 @@ import type {
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
 import type {
   PublicEvaluationRuleMappingType,
+  PublicEvaluationRuleReadMappingType,
   PublicEvaluationRuleTargetType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import {
@@ -455,6 +456,17 @@ type PreparedAssignment = {
   effectiveMapping: unknown;
 };
 
+function toWritableMappingsIfComplete(
+  mappings: PublicEvaluationRuleReadMappingType[],
+): PublicEvaluationRuleMappingType[] | undefined {
+  const completeMappings: PublicEvaluationRuleMappingType[] = [];
+  for (const mapping of mappings) {
+    if (mapping.source === null) return undefined;
+    completeMappings.push({ ...mapping, source: mapping.source });
+  }
+  return completeMappings;
+}
+
 /**
  * Resolve one requested assignment (public shape) into its stored form.
  * An omitted mapping inherits the evaluator version's default.
@@ -638,7 +650,7 @@ export async function updatePublicEvaluationRule(params: {
           mapping:
             "mapping" in params.input && params.input.mapping !== undefined
               ? params.input.mapping
-              : (existingPublic.mapping ?? undefined),
+              : toWritableMappingsIfComplete(existingPublic.mapping),
         });
   if (patchedFirstAssignment) {
     assertUniqueEvaluators([

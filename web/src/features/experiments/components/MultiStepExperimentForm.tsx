@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
 import {
@@ -49,6 +49,7 @@ import { DatasetStep } from "./steps/DatasetStep";
 import { EvaluatorsStep } from "./steps/EvaluatorsStep";
 import { ExperimentDetailsStep } from "./steps/ExperimentDetailsStep";
 import { ReviewStep } from "./steps/ReviewStep";
+import type { ExperimentEvaluatorAssignmentsHandle } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
 
 // Import step prop types
 import {
@@ -109,6 +110,8 @@ export const MultiStepExperimentForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const [activeStep, setActiveStep] = useState("prompt");
+  const evaluatorAssignmentsRef =
+    useRef<ExperimentEvaluatorAssignmentsHandle>(null);
   const [hasAttemptedReview, setHasAttemptedReview] = useState(false);
   const [selectedPromptName, setSelectedPromptName] = useState<string>(
     promptDefault?.name ?? "",
@@ -209,11 +212,6 @@ export const MultiStepExperimentForm = ({
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
   });
-  const v2EvaluatorSelection = useExperimentV2EvaluatorSelection({
-    projectId,
-    enabled: useV2Evaluators && hasEvaluatorReadAccess,
-  });
-
   const {
     promptId: promptIdFromHook,
     promptsByName,
@@ -296,6 +294,14 @@ export const MultiStepExperimentForm = ({
       enabled: true,
     },
   );
+  const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
+  const v2EvaluatorSelection = useExperimentV2EvaluatorSelection({
+    projectId,
+    datasetId,
+    datasetName: selectedDataset?.name,
+    enabled: useV2Evaluators && hasEvaluatorReadAccess,
+    canWrite: hasEvalWriteAccess,
+  });
 
   // Callback for preprocessing evaluator form values
   // For new experiment evaluators (beta enabled), we only run on new data (not historic)
@@ -371,13 +377,11 @@ export const MultiStepExperimentForm = ({
 
   // Get evaluator names for review step
   const activeEvaluatorNames = useV2Evaluators
-    ? v2EvaluatorSelection.options.map(({ name }) => name)
+    ? v2EvaluatorSelection.selectedEvaluatorNames
     : Object.values(getExistingEvaluators(evaluators.data, datasetId))
         .filter((evaluator) => evaluator.isActive)
         .map((evaluator) => evaluator.templateName);
 
-  // Get dataset info for review step
-  const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
   const hasToolStructuredOutputConflict = hasPromptToolStructuredOutputConflict(
     selectedPromptToolConfig,
     structuredOutputEnabled,
@@ -423,6 +427,18 @@ export const MultiStepExperimentForm = ({
       setHasAttemptedReview(true);
     }
     setActiveStep(stepId);
+  };
+
+  const handleNextStep = async () => {
+    if (activeStep === "evaluators" && useV2Evaluators) {
+      await evaluatorAssignmentsRef.current?.save();
+    }
+
+    const stepIds = steps.map((step) => step.id);
+    const currentIndex = stepIds.indexOf(activeStep);
+    if (currentIndex < steps.length - 1) {
+      handleStepChange(stepIds[currentIndex + 1]);
+    }
   };
 
   const renderStepStatusIcon = (stepId: string, stepLabel: string) => {
@@ -513,9 +529,12 @@ export const MultiStepExperimentForm = ({
     ? {
         version: "v2" as const,
         evaluatorOptions: v2EvaluatorSelection.options,
+        selectedAssignments: v2EvaluatorSelection.selectedAssignments,
         activeEvaluatorNames,
         search: v2EvaluatorSelection.search,
         onSearchChange: v2EvaluatorSelection.onSearchChange,
+        onSaveAssignments: v2EvaluatorSelection.onSaveAssignments,
+        isUpdating: v2EvaluatorSelection.isUpdating,
       }
     : {
         version: "legacy" as const,
@@ -624,6 +643,8 @@ export const MultiStepExperimentForm = ({
                 <EvaluatorsStep
                   projectId={projectId}
                   datasetId={datasetId}
+                  datasetVersion={datasetVersion}
+                  evaluatorAssignmentsRef={evaluatorAssignmentsRef}
                   evaluatorState={evaluatorState}
                   permissions={permissions}
                 />
@@ -669,12 +690,15 @@ export const MultiStepExperimentForm = ({
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
-                      const stepIds = steps.map((s) => s.id);
-                      const currentIndex = stepIds.indexOf(activeStep);
-                      if (currentIndex < steps.length - 1) {
-                        handleStepChange(stepIds[currentIndex + 1]);
-                      }
+                      handleNextStep().catch(() => {
+                        // The evaluator mutation displays its own error toast.
+                      });
                     }}
+                    loading={
+                      activeStep === "evaluators" &&
+                      useV2Evaluators &&
+                      v2EvaluatorSelection.isUpdating
+                    }
                   >
                     Next
                     <ChevronRight className="ml-2 h-4 w-4" />
