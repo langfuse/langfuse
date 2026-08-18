@@ -522,21 +522,6 @@ const EnvSchema = z.object({
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5 * 60_000),
-  LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(15 * 60_000),
-  LANGFUSE_IN_APP_AGENT_APPROVAL_TTL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(24 * 60 * 60_000),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

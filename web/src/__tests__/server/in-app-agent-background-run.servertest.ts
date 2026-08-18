@@ -23,8 +23,11 @@ import {
   createInAppAgentRunId,
 } from "@/src/features/in-app-agent/ids";
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
-import { IN_APP_AGENT_HEARTBEAT_STALE_MS } from "@langfuse/shared/in-app-agent/server/tunables";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
+import {
+  IN_APP_AGENT_HEARTBEAT_STALE_MS,
+  IN_APP_AGENT_QUEUE_TIMEOUT_MS,
+  IN_APP_AGENT_RUN_MAX_DURATION_MS,
+} from "@langfuse/shared/in-app-agent/server/tunables";
 import { env } from "@/src/env.mjs";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -400,8 +403,8 @@ describe("in-app agent background runs", () => {
       userId,
       createdAt: new Date(
         Date.now() -
-          sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
-          sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS -
+          IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+          IN_APP_AGENT_RUN_MAX_DURATION_MS -
           60_000,
       ),
     });
@@ -431,8 +434,8 @@ describe("in-app agent background runs", () => {
     // its slot in the accounting, or the ceiling leaks while hung runs pile up.
     const overdue = new Date(
       Date.now() -
-        sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
-        sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS -
+        IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+        IN_APP_AGENT_RUN_MAX_DURATION_MS -
         60_000,
     );
     await prisma.inAppAgentRun.create({

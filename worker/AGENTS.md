@@ -70,7 +70,7 @@
   sandbox providers.
 - Worker env owns queue consumer/concurrency, sandbox configuration, and the
   development-only in-app-agent AWS profile. Shared lifecycle policy values
-  must be configured identically on web and worker deployments.
+  are fixed constants, so web and worker cannot diverge.
 - Persisted/queued contracts, lifecycle, storage, MCP policy, tool-result
   handling, and the seeded system prompt remain explicit shared subpaths.
 

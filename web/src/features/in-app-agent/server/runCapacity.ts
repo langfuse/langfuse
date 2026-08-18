@@ -1,7 +1,10 @@
 import { BaseError, type Plan } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { IN_APP_AGENT_HEARTBEAT_STALE_MS } from "@langfuse/shared/in-app-agent/server/tunables";
+import {
+  IN_APP_AGENT_HEARTBEAT_STALE_MS,
+  IN_APP_AGENT_QUEUE_TIMEOUT_MS,
+  IN_APP_AGENT_RUN_MAX_DURATION_MS,
+} from "@langfuse/shared/in-app-agent/server/tunables";
 import { recordIncrement } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
@@ -38,8 +41,8 @@ export async function assertInAppAgentRunCapacity(params: {
   // wins because a hung tool may keep renewing its heartbeat").
   const reconcilableBefore = new Date(
     Date.now() -
-      sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
-      sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS,
+      IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+      IN_APP_AGENT_RUN_MAX_DURATION_MS,
   );
   // Which is why a fresh heartbeat overrides that test. It is the one positive
   // liveness signal a row carries, and a run still holding a worker must keep

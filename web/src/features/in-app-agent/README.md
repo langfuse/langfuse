@@ -167,9 +167,9 @@ Environment ownership:
 
 - Worker: queue enable/concurrency, sandbox provider and Lambda MicroVM values,
   and development-only `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.
-- Shared lifecycle policy: queue timeout (300000 ms), maximum run duration
-  (900000 ms), and approval TTL (86400000 ms). Configure these identically on
-  web and worker deployments.
+- Fixed lifecycle policy: queue timeout (300000 ms), maximum run duration
+  (900000 ms), and approval TTL (86400000 ms). These are shared constants, so
+  web and worker cannot diverge.
 - Web: per-user (5) and per-org (20) active-run ceilings.
 - Fixed implementation timings: 5000 ms worker heartbeat, 60000 ms stale
   heartbeat, 1000 ms watch poll, 15000 ms keepalive, and 90000 ms watch
