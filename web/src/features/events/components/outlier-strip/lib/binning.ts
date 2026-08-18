@@ -83,7 +83,7 @@ const TICK_LABEL_PX_PER_CHAR = 6;
 /** Left inset for a start-anchored tick (matches the visualiser). */
 const TICK_LABEL_START_INSET_PX = 3;
 /** Right inset for an end-anchored tick so the last glyph isn't flush-clipped. */
-const TICK_LABEL_END_INSET_PX = 2;
+const TICK_LABEL_END_INSET_PX = 4;
 
 /**
  * Picks the finest granularity preset that fits the range into the available
