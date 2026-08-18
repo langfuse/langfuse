@@ -1,9 +1,5 @@
 import { z } from "zod";
-import type {
-  AgUiContext,
-  AgUiMessage,
-  InAppAgentToolApprovalRequest,
-} from "@langfuse/shared/in-app-agent";
+import type { AgUiContext, AgUiMessage } from "@langfuse/shared/in-app-agent";
 import { InAppAgentToolApprovalRequestSchema } from "@langfuse/shared/in-app-agent";
 
 type AgUiTool = {
@@ -11,15 +7,6 @@ type AgUiTool = {
   description: string;
   parameters?: unknown;
   metadata?: Record<string, unknown>;
-};
-
-export type ResumeForwardedProps = {
-  command: {
-    resume: {
-      approved: boolean;
-      approvalRequest: InAppAgentToolApprovalRequest;
-    };
-  };
 };
 
 export const ResumeForwardedPropsSchema = z.object({
@@ -35,6 +22,8 @@ export const ResumeForwardedPropsSchema = z.object({
     }),
   }),
 });
+
+export type ResumeForwardedProps = z.infer<typeof ResumeForwardedPropsSchema>;
 
 export type AgUiRunAgentInput = {
   threadId: string;
