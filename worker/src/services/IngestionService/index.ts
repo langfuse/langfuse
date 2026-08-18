@@ -1045,33 +1045,11 @@ export class IngestionService {
       );
     }
 
-    const hasIncomingCost = observationRecords.some(
-      (record) => Object.keys(record.provided_cost_details ?? {}).length > 0,
-    );
-    const hasUsageCalculationInput = timeSortedEvents.some(
-      (event) =>
-        ("input" in event.body && event.body.input !== undefined) ||
-        ("output" in event.body && event.body.output !== undefined) ||
-        ("model" in event.body && event.body.model !== undefined) ||
-        event.body.level !== undefined,
-    );
-    // Attribute-only updates cannot be rematched under the same-event
-    // contract, so retain the pricing result calculated with the prior usage.
-    const shouldPreserveCalculatedUsage =
-      clickhouseObservationRecord !== null &&
-      clickhouseObservationRecord !== undefined &&
-      Object.keys(clickhouseObservationRecord.provided_usage_details ?? {})
-        .length > 0 &&
-      pricingEventIndex === -1 &&
-      !hasIncomingCost &&
-      !hasUsageCalculationInput;
-    const generationUsage = shouldPreserveCalculatedUsage
-      ? {}
-      : await this.getGenerationUsage({
-          projectId,
-          pricingMatchAttributeValues,
-          observationRecord: mergedObservationRecord,
-        });
+    const generationUsage = await this.getGenerationUsage({
+      projectId,
+      pricingMatchAttributeValues,
+      observationRecord: mergedObservationRecord,
+    });
     const finalObservationRecord = {
       ...mergedObservationRecord,
       ...generationUsage,

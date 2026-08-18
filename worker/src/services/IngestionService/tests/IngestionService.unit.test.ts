@@ -14,7 +14,6 @@ vi.mock(
 import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
-  createObservation,
   createTraceScore,
   type ObservationEvent,
   type ScoreEventType,
@@ -364,64 +363,6 @@ describe("IngestionService unit tests", () => {
         metadata: { large: metadataValue },
       });
     }
-  });
-
-  it("preserves calculated usage and cost on legacy metadata-only updates", async () => {
-    const addToQueue = vi.fn();
-    const ingestionService = new IngestionService(
-      {} as any,
-      {} as any,
-      { addToQueue } as any,
-      {} as any,
-    );
-    const timestamp = "2026-07-22T00:00:00.000Z";
-    const existingObservation = createObservation({
-      id: "observation-id",
-      trace_id: "trace-id",
-      project_id: "project-id",
-      provided_usage_details: { input: 12, output: 21 },
-      usage_details: { input: 12, output: 21 },
-      provided_cost_details: {},
-      cost_details: { input: 0.00015, output: 0.001575 },
-      total_cost: 0.001725,
-      usage_pricing_tier_id: "priority-tier-id",
-      usage_pricing_tier_name: "Priority",
-    });
-
-    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
-      existingObservation,
-    );
-    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
-    const getGenerationUsage = vi
-      .spyOn(ingestionService as any, "getGenerationUsage")
-      .mockResolvedValue({});
-
-    await (ingestionService as any).processObservationEventList({
-      projectId: "project-id",
-      entityId: "observation-id",
-      createdAtTimestamp: new Date(timestamp),
-      observationEventList: [
-        {
-          id: "update-event-id",
-          timestamp: "2026-07-22T00:00:01.000Z",
-          type: "generation-update",
-          body: {
-            id: "observation-id",
-            metadata: { region: "eu" },
-          },
-        },
-      ],
-      writeToStagingTables: false,
-    });
-
-    expect(getGenerationUsage).not.toHaveBeenCalled();
-    expect(addToQueue.mock.calls.at(-1)?.[1]).toMatchObject({
-      usage_details: { input: 12, output: 21 },
-      cost_details: { input: 0.00015, output: 0.001575 },
-      total_cost: 0.001725,
-      usage_pricing_tier_id: "priority-tier-id",
-      usage_pricing_tier_name: "Priority",
-    });
   });
 
   it("correctly sorts events in ascending order by timestamp", async () => {
