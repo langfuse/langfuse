@@ -210,273 +210,11 @@ export const langgraphProductionShapeFixture = {
     },
   },
   spanIO: {
-    input: [
-      {
-        role: "system",
-        content: [
-          {
-            type: "text",
-            text: "You are a helpful synthetic assistant 007.",
-            synthetic_field_001: {
-              type: "You are a helpful synthetic assistant 008.",
-              synthetic_field_002: "You are a helpful synthetic assistant 009.",
-            },
-          },
-        ],
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Synthetic user request 010.",
-          },
-        ],
-      },
-      {
-        role: "assistant",
-        content: [
-          {
-            text: "Synthetic assistant response 011.",
-            type: "text",
-          },
-          {
-            id: "call_001",
-            caller: {
-              type: "direct",
-            },
-            input: {
-              synthetic_field_003: "Synthetic assistant response 012.",
-            },
-            name: "synthetic_tool_001",
-            type: "tool_use",
-          },
-          {
-            id: "call_002",
-            caller: {
-              type: "direct",
-            },
-            input: {
-              synthetic_field_003: "Synthetic assistant response 013.",
-            },
-            name: "synthetic_tool_001",
-            type: "tool_use",
-          },
-        ],
-        tool_calls: [
-          {
-            name: "synthetic_tool_001",
-            args: {
-              synthetic_field_003: "Synthetic assistant response 014.",
-            },
-            id: "call_001",
-            type: "tool_call",
-          },
-          {
-            name: "synthetic_tool_001",
-            args: {
-              synthetic_field_003: "Synthetic assistant response 015.",
-            },
-            id: "call_002",
-            type: "tool_call",
-          },
-        ],
-      },
-      {
-        role: "tool",
-        content: "synthetic-value-016",
-        tool_call_id: "call_001",
-      },
-      {
-        role: "tool",
-        content: "synthetic-value-017",
-        tool_call_id: "call_002",
-      },
-      {
-        role: "tool",
-        content: {
-          name: "synthetic_tool_001",
-          synthetic_field_004: {
-            properties: {
-              synthetic_field_003: {
-                description: "Synthetic description 018.",
-                type: "string",
-              },
-            },
-            required: ["synthetic_field_003"],
-            type: "object",
-          },
-          description: "Synthetic description 019.",
-          synthetic_field_001: {
-            type: "synthetic-value-020",
-            synthetic_field_002: "synthetic-value-021",
-          },
-        },
-      },
-    ],
-    output: {
-      role: "assistant",
-      content: "Synthetic assistant response 043.",
-    },
+    input:
+      '[{"role":"system","content":[{"type":"text","text":"You are a helpful synthetic assistant 007.","synthetic_field_001":{"type":"You are a helpful synthetic assistant 008.","synthetic_field_002":"You are a helpful synthetic assistant 009."}}]},{"role":"user","content":[{"type":"text","text":"Synthetic user request 010."}]},{"role":"assistant","content":[{"text":"Synthetic assistant response 011.","type":"text"},{"id":"call_001","caller":{"type":"direct"},"input":{"synthetic_field_003":"Synthetic assistant response 012."},"name":"synthetic_tool_001","type":"tool_use"},{"id":"call_002","caller":{"type":"direct"},"input":{"synthetic_field_003":"Synthetic assistant response 013."},"name":"synthetic_tool_001","type":"tool_use"}],"tool_calls":[{"name":"synthetic_tool_001","args":{"synthetic_field_003":"Synthetic assistant response 014."},"id":"call_001","type":"tool_call"},{"name":"synthetic_tool_001","args":{"synthetic_field_003":"Synthetic assistant response 015."},"id":"call_002","type":"tool_call"}]},{"role":"tool","content":"synthetic-value-016","tool_call_id":"call_001"},{"role":"tool","content":"synthetic-value-017","tool_call_id":"call_002"},{"role":"tool","content":{"name":"synthetic_tool_001","synthetic_field_004":{"properties":{"synthetic_field_003":{"description":"Synthetic description 018.","type":"string"}},"required":["synthetic_field_003"],"type":"object"},"description":"Synthetic description 019.","synthetic_field_001":{"type":"synthetic-value-020","synthetic_field_002":"synthetic-value-021"}}}]',
+    output:
+      '{"role":"assistant","content":"Synthetic assistant response 043."}',
     metadata: {
-      attributes: {
-        "synthetic.metadata.002": "synthetic-value-002",
-        "synthetic.metadata.003": "synthetic-value-003",
-        "langfuse.trace.metadata.participant-id": "synthetic-value-004",
-        "langfuse.trace.metadata.session-id": "synthetic-value-005",
-        "langfuse.trace.metadata.ls_integration": "synthetic-value-006",
-        "langfuse.observation.input": [
-          {
-            role: "system",
-            content: [
-              {
-                type: "text",
-                text: "You are a helpful synthetic assistant 007.",
-                synthetic_field_001: {
-                  type: "You are a helpful synthetic assistant 008.",
-                  synthetic_field_002:
-                    "You are a helpful synthetic assistant 009.",
-                },
-              },
-            ],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Synthetic user request 010.",
-              },
-            ],
-          },
-          {
-            role: "assistant",
-            content: [
-              {
-                text: "Synthetic assistant response 011.",
-                type: "text",
-              },
-              {
-                id: "call_001",
-                caller: {
-                  type: "direct",
-                },
-                input: {
-                  synthetic_field_003: "Synthetic assistant response 012.",
-                },
-                name: "synthetic_tool_001",
-                type: "tool_use",
-              },
-              {
-                id: "call_002",
-                caller: {
-                  type: "direct",
-                },
-                input: {
-                  synthetic_field_003: "Synthetic assistant response 013.",
-                },
-                name: "synthetic_tool_001",
-                type: "tool_use",
-              },
-            ],
-            tool_calls: [
-              {
-                name: "synthetic_tool_001",
-                args: {
-                  synthetic_field_003: "Synthetic assistant response 014.",
-                },
-                id: "call_001",
-                type: "tool_call",
-              },
-              {
-                name: "synthetic_tool_001",
-                args: {
-                  synthetic_field_003: "Synthetic assistant response 015.",
-                },
-                id: "call_002",
-                type: "tool_call",
-              },
-            ],
-          },
-          {
-            role: "tool",
-            content: "synthetic-value-016",
-            tool_call_id: "call_001",
-          },
-          {
-            role: "tool",
-            content: "synthetic-value-017",
-            tool_call_id: "call_002",
-          },
-          {
-            role: "tool",
-            content: {
-              name: "synthetic_tool_001",
-              synthetic_field_004: {
-                properties: {
-                  synthetic_field_003: {
-                    description: "Synthetic description 018.",
-                    type: "string",
-                  },
-                },
-                required: ["synthetic_field_003"],
-                type: "object",
-              },
-              description: "Synthetic description 019.",
-              synthetic_field_001: {
-                type: "synthetic-value-020",
-                synthetic_field_002: "synthetic-value-021",
-              },
-            },
-          },
-        ],
-        "langfuse.observation.model.parameters": {
-          synthetic_field_005: 1,
-          synthetic_field_006: 32000,
-        },
-        "langfuse.observation.metadata.tags": ["synthetic-value-022"],
-        "langfuse.observation.metadata.participant-id": "synthetic-value-023",
-        "langfuse.observation.metadata.session-id": "synthetic-value-024",
-        "langfuse.observation.metadata.ls_integration": "synthetic-value-025",
-        "langfuse.observation.metadata.langgraph_step": null,
-        "langfuse.observation.metadata.langgraph_node": "synthetic-value-027",
-        "langfuse.observation.metadata.langgraph_triggers": [
-          "synthetic-value-028",
-        ],
-        "langfuse.observation.metadata.langgraph_path": [
-          "synthetic-value-029",
-          "synthetic-value-030",
-        ],
-        "langfuse.observation.metadata.langgraph_checkpoint_ns":
-          "synthetic-value-031",
-        "langfuse.observation.metadata.checkpoint_ns": "synthetic-value-032",
-        "langfuse.observation.metadata.ls_provider": "synthetic-value-033",
-        "langfuse.observation.metadata.ls_model_name": "synthetic-value-034",
-        "langfuse.observation.metadata.ls_model_type": "synthetic-value-035",
-        "langfuse.observation.metadata.ls_temperature": "synthetic-value-036",
-        "langfuse.observation.metadata.ls_max_tokens": null,
-        "langfuse.observation.metadata.lc_versions": {
-          synthetic_field_007: "synthetic-value-038",
-          synthetic_field_008: "synthetic-value-039",
-          synthetic_field_009: "synthetic-value-040",
-        },
-        "langfuse.observation.metadata.ocs_provider_type":
-          "synthetic-value-041",
-        "langfuse.observation.type": "synthetic-value-042",
-        "langfuse.observation.output": {
-          role: "assistant",
-          content: "Synthetic assistant response 043.",
-        },
-        "langfuse.observation.model.name": "synthetic-value-044",
-        "langfuse.observation.usage_details": {
-          synthetic_field_010: 13252,
-          synthetic_field_011: 0,
-          input: 1,
-          output: 406,
-          synthetic_field_012: 0,
-          synthetic_field_013: 13252,
-        },
-      },
       resourceAttributes: {
         "telemetry.sdk.language": "python",
         "telemetry.sdk.name": "opentelemetry",
@@ -486,15 +224,28 @@ export const langgraphProductionShapeFixture = {
       scope: {
         name: "langfuse-sdk",
         version: "4.14.1",
-        attributes: [
-          {
-            key: "synthetic.metadata.001",
-            value: {
-              stringValue: "synthetic-value-001",
-            },
-          },
-        ],
+        attributes: {
+          "synthetic.metadata.001": "synthetic-value-001",
+        },
       },
+      tags: '["synthetic-value-022"]',
+      "participant-id": "synthetic-value-004",
+      "session-id": "synthetic-value-005",
+      ls_integration: "synthetic-value-006",
+      langgraph_step: '{"intValue":"synthetic-value-026"}',
+      langgraph_node: "synthetic-value-027",
+      langgraph_triggers: '["synthetic-value-028"]',
+      langgraph_path: '["synthetic-value-029","synthetic-value-030"]',
+      langgraph_checkpoint_ns: "synthetic-value-031",
+      checkpoint_ns: "synthetic-value-032",
+      ls_provider: "synthetic-value-033",
+      ls_model_name: "synthetic-value-034",
+      ls_model_type: "synthetic-value-035",
+      ls_temperature: "synthetic-value-036",
+      ls_max_tokens: '{"intValue":"synthetic-value-037"}',
+      lc_versions:
+        '{"synthetic_field_007":"synthetic-value-038","synthetic_field_008":"synthetic-value-039","synthetic_field_009":"synthetic-value-040"}',
+      ocs_provider_type: "synthetic-value-041",
     },
   },
   expected: {
