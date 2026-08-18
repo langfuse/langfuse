@@ -1,3 +1,5 @@
+import { Lightbulb } from "lucide-react";
+
 import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
 import {
   GALLERY_CATEGORY_ICONS,
@@ -11,9 +13,9 @@ describe("galleryCategoryPresentation", () => {
     }
   });
 
-  it("keeps recommended presentation without a colored left edge", () => {
+  it("uses a lightbulb for recommended, distinct from the LLM judge sparkle", () => {
     expect(getGalleryCategoryPresentation("recommended")).toEqual({
-      icon: GALLERY_CATEGORY_ICONS.recommended,
+      icon: Lightbulb,
       iconClassName: "text-dark-yellow",
     });
   });

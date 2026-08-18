@@ -1,8 +1,9 @@
-import { Sparkles } from "lucide-react";
-
 import { EvaluatorGalleryMethodBadge } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
+import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
+import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
+import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorRecommendedCard({
   template,
@@ -12,6 +13,9 @@ export function EvaluatorRecommendedCard({
   onSelect: (template: GalleryTemplate) => void;
 }) {
   const { description, type } = getGalleryTemplatePresentation(template);
+  const { icon: Icon, iconClassName } = getGalleryCategoryPresentation(
+    EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
+  );
 
   return (
     <button
@@ -20,7 +24,7 @@ export function EvaluatorRecommendedCard({
       className="bg-background hover:bg-muted/40 flex h-full cursor-pointer flex-col rounded-md border p-4 text-left transition-colors"
     >
       <div className="flex items-start justify-between gap-2">
-        <Sparkles className="text-dark-yellow h-4 w-4 shrink-0" />
+        <Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />
         <EvaluatorGalleryMethodBadge type={type} />
       </div>
       <span
