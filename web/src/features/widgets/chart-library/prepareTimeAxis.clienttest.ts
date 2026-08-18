@@ -188,8 +188,8 @@ describe("prepareTimeAxis", () => {
     expect(shortCategories.tickProps.angle).toBeLessThan(0);
 
     // Time-mode ticks stay flat with a numeric index step (no width-aware
-    // equidistant thinning). They also pad the right edge so a centered last
-    // date ("Aug 11") is not clipped by the chart surface.
+    // equidistant thinning). They also pad the right edge so the last date
+    // has a small gutter past the end-anchored label.
     const start = Date.UTC(2026, 5, 28, 0);
     const timeVals = Array.from({ length: 24 }, (_, h) =>
       iso(start + h * HOUR),

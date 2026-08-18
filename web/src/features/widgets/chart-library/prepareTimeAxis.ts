@@ -50,13 +50,12 @@ const MAX_CATEGORY_LABEL_CHARS = 24;
 const CATEGORY_MIN_TICK_GAP_PX = 16;
 
 /**
- * Extra category-axis padding (px) on a temporal x-axis so a centered last
- * date ("Aug 11") is not clipped by the chart surface / widget overflow.
- * Half of a 12px "MMM d" label is ~20px; 36px leaves a gap past the last
- * glyph even inside an overflow-hidden dashboard card. Categorical axes
- * skip this — they are already end-anchored.
+ * Extra category-axis padding (px) on a temporal x-axis. The last tick is
+ * also end-anchored (see TimeAxisTick) so a date sitting on the last bucket
+ * stays on-canvas; this pad is only a small gutter past that last glyph.
+ * Categorical axes skip this — they are already end-anchored.
  */
-const TEMPORAL_TICK_RIGHT_PADDING_PX = 36;
+const TEMPORAL_TICK_RIGHT_PADDING_PX = 16;
 
 /** End-truncate a long categorical label ("foo-bar-…"). Entity names carry
  * their distinguishing token early (e.g. "…-run-2-…"), so keeping the head and
