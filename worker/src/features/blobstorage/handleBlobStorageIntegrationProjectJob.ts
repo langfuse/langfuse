@@ -1524,40 +1524,44 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // customer fixes it. Once BullMQ exhausts its retries, disable the
     // integration so it stops re-scheduling and spamming.
     const isFinalAttempt = isFinalBullmqAttempt(job, error);
-    // Defined => disable; also tags the disable log + metric.
+    // Defined => disable; also tags the disable log + metric. No attempt-count
+    // gate: a deterministic fault cannot succeed on a retry, and the failures
+    // metric is emitted per failed attempt, so retrying one only lights the
+    // monitor for a fault nothing will clear.
     const customerFaultReason = classifyCustomerFault(error);
 
     const outcome = await recordTerminalExportError({
       projectId,
       errorMessage,
-      disableReason: isFinalAttempt ? customerFaultReason : undefined,
+      disableReason: customerFaultReason,
     });
 
     if (outcome.kind === "integration-deleted") {
       return; // obsolete job: complete it rather than fail it
     }
 
-    // Only the informational email waits for the retries to run out; sent
-    // earlier it fires even when a later attempt succeeds. A disable is already
-    // terminal, so it ignores the attempt count.
     switch (outcome.kind) {
       case "disabled-by-us":
-        notifyBlobStorageExportFailedInBackground(projectId, true);
-        break;
+        // Awaited, not fire-and-forget: the job resolves next, and the
+        // scheduler only enqueues enabled integrations, so an interrupted
+        // dispatch would leave the export off with nobody told and no retry.
+        await notifyBlobStorageExportFailed(projectId, true);
+        return; // resolve: retrying a config fault only lights the monitor
       case "lost-disable-race":
-        break; // the winner sent the terminal email; ours would contradict it
+        return; // the winner sent the terminal email; ours would contradict it
       case "error-recorded":
-        // Skipped once the integration is off: "will retry at the next
-        // scheduled export" is no longer true.
+        // Transient or unclassified, so it keeps retrying. The email waits for
+        // the retries to run out — sent earlier it fires even when a later
+        // attempt succeeds — and is skipped once the integration is off, where
+        // "will retry at the next scheduled export" is no longer true.
         if (isFinalAttempt && outcome.stillEnabled) {
           notifyBlobStorageExportFailedInBackground(projectId, false);
         }
         break;
       case "persist-failed":
-        // Row state unknown, so say something rather than nothing.
-        if (isFinalAttempt) {
-          notifyBlobStorageExportFailedInBackground(projectId, false);
-        }
+        // Nothing was written, so we cannot claim the fault is handled. Stay on
+        // the retry path and reclassify; no email, because its "will retry"
+        // text is the one thing we do know is true.
         break;
       // A plain switch over a union is not exhaustiveness-checked; the never
       // assignment below is what makes a missing case fail to compile.
@@ -1655,95 +1659,104 @@ async function recordTerminalExportError({
   }
 }
 
+// Fire-and-forget variant for the paths that rethrow: the job is about to fail
+// and BullMQ will retry, so nothing depends on the dispatch completing.
 function notifyBlobStorageExportFailedInBackground(
   projectId: string,
   disabled = false,
 ): void {
-  (async () => {
-    try {
-      // Called once per exhausted run. The cooldown gates across scheduled
-      // runs (the scheduler re-enqueues every frequency period, and each
-      // failing run would otherwise email again). The disable notification
-      // bypasses it: it is a one-time, terminal event — the integration
-      // won't run again until the customer re-enables it — and a cooldown
-      // claim could silently drop the one email that says it was turned off.
-      if (!disabled) {
-        const cooldownMs =
-          env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
-          60 *
-          60 *
-          1000;
+  notifyBlobStorageExportFailed(projectId, disabled);
+}
 
-        // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
-        // If the email send subsequently fails, the cooldown still applies — the next failure
-        // after cooldown expiry will retry the notification.
-        const claimed = await prisma.blobStorageIntegration.updateMany({
-          where: {
-            projectId,
-            OR: [
-              { lastFailureNotificationSentAt: null },
-              {
-                lastFailureNotificationSentAt: {
-                  lt: new Date(Date.now() - cooldownMs),
-                },
-              },
-            ],
-          },
-          data: { lastFailureNotificationSentAt: new Date() },
-        });
+// Swallows every failure: notification trouble must not turn a deliberate
+// resolve back into a job failure.
+async function notifyBlobStorageExportFailed(
+  projectId: string,
+  disabled = false,
+): Promise<void> {
+  try {
+    // Called once per exhausted run. The cooldown gates across scheduled
+    // runs (the scheduler re-enqueues every frequency period, and each
+    // failing run would otherwise email again). The disable notification
+    // bypasses it: it is a one-time, terminal event — the integration
+    // won't run again until the customer re-enables it — and a cooldown
+    // claim could silently drop the one email that says it was turned off.
+    if (!disabled) {
+      const cooldownMs =
+        env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
+        60 *
+        60 *
+        1000;
 
-        if (claimed.count === 0) {
-          logger.info(
-            `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
-          );
-          return;
-        }
-      }
-
-      const [project, integration] = await Promise.all([
-        prisma.project.findUnique({
-          where: { id: projectId },
-          select: { name: true },
-        }),
-        prisma.blobStorageIntegration.findUnique({
-          where: { projectId },
-          select: { bucketName: true },
-        }),
-      ]);
-      const projectName = project?.name ?? projectId;
-      const settingsPath = `/project/${projectId}/settings/integrations/blobstorage`;
-
-      // Route to configured notification channels and admin emails. The
-      // cooldown claim above already deduped, so no extra throttle is needed.
-      // `disabled` marks the terminal "export turned off" notification, which
-      // selects the disabled email/subject variant downstream.
-      await dispatchProjectNotification({
-        projectId,
-        event: {
-          eventType: "blob-export-failed",
-          severity: "ALERT",
+      // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
+      // If the email send subsequently fails, the cooldown still applies — the next failure
+      // after cooldown expiry will retry the notification.
+      const claimed = await prisma.blobStorageIntegration.updateMany({
+        where: {
           projectId,
-          projectName,
-          // The integration is keyed by projectId (1:1); the bucket name is
-          // the most useful human label for the failing export destination.
-          resourceId: projectId,
-          resourceName: integration?.bucketName ?? "Blob storage integration",
-          message: disabled
-            ? `Blob storage export disabled for project "${projectName}" after repeated failures.`
-            : `Blob storage export failed for project "${projectName}".`,
-          url: env.NEXTAUTH_URL
-            ? `${env.NEXTAUTH_URL}${settingsPath}`
-            : undefined,
-          disabled,
+          OR: [
+            { lastFailureNotificationSentAt: null },
+            {
+              lastFailureNotificationSentAt: {
+                lt: new Date(Date.now() - cooldownMs),
+              },
+            },
+          ],
         },
+        data: { lastFailureNotificationSentAt: new Date() },
       });
-    } catch (error) {
-      logger.error(
-        `[BLOB INTEGRATION] Failed to send failure notification for project ${projectId}`,
-        error,
-      );
+
+      if (claimed.count === 0) {
+        logger.info(
+          `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
+        );
+        return;
+      }
     }
-  })();
+
+    const [project, integration] = await Promise.all([
+      prisma.project.findUnique({
+        where: { id: projectId },
+        select: { name: true },
+      }),
+      prisma.blobStorageIntegration.findUnique({
+        where: { projectId },
+        select: { bucketName: true },
+      }),
+    ]);
+    const projectName = project?.name ?? projectId;
+    const settingsPath = `/project/${projectId}/settings/integrations/blobstorage`;
+
+    // Route to configured notification channels and admin emails. The
+    // cooldown claim above already deduped, so no extra throttle is needed.
+    // `disabled` marks the terminal "export turned off" notification, which
+    // selects the disabled email/subject variant downstream.
+    await dispatchProjectNotification({
+      projectId,
+      event: {
+        eventType: "blob-export-failed",
+        severity: "ALERT",
+        projectId,
+        projectName,
+        // The integration is keyed by projectId (1:1); the bucket name is
+        // the most useful human label for the failing export destination.
+        resourceId: projectId,
+        resourceName: integration?.bucketName ?? "Blob storage integration",
+        message: disabled
+          ? `Blob storage export disabled for project "${projectName}" after a configuration fault.`
+          : `Blob storage export failed for project "${projectName}".`,
+        url: env.NEXTAUTH_URL
+          ? `${env.NEXTAUTH_URL}${settingsPath}`
+          : undefined,
+        disabled,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      `[BLOB INTEGRATION] Failed to send failure notification for project ${projectId}`,
+      error,
+    );
+  }
 }
 
 function extractStorageErrorMessage(error: unknown): string {
