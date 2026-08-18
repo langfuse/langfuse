@@ -1572,6 +1572,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
           notifyBlobStorageExportFailedInBackground(projectId, false);
         }
         break;
+      // Without this a new outcome kind would silently send no notification:
+      // a plain switch over a union is not checked for exhaustiveness.
+      default: {
+        const _exhaustiveCheck: never = outcome;
+        throw new Error(
+          `Unhandled terminal export outcome: ${JSON.stringify(_exhaustiveCheck)}`,
+        );
+      }
     }
 
     const chain = errorChainText(error);
