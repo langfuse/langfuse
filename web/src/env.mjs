@@ -542,21 +542,16 @@ export const env = createEnv({
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
     LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
-      .enum(["dangerous-docker", "lambda-microvm"])
-      .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
-      .string()
-      .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
-      .string()
-      .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
-      z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
-      .string()
-      .optional(),
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(5),
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(20),
   },
 
   /**
@@ -575,6 +570,7 @@ export const env = createEnv({
       .optional(),
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
+    NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
@@ -630,6 +626,8 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF,
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF:
       process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF,
+    NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF:
+      process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     NEXT_PUBLIC_PREVIEW_PR_URL: process.env.NEXT_PUBLIC_PREVIEW_PR_URL,
     NEXT_PUBLIC_PREVIEW_PR_AUTHOR: process.env.NEXT_PUBLIC_PREVIEW_PR_AUTHOR,
@@ -642,21 +640,10 @@ export const env = createEnv({
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
-    LANGFUSE_IN_APP_AGENT_AWS_PROFILE:
-      process.env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER:
-      process.env
-        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN:
-      process.env
-        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
-      process.env
-        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION,
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
+      process.env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER,
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:
+      process.env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK:
       process.env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK,
@@ -1039,26 +1026,3 @@ export const env = createEnv({
   skipValidation: process.env.DOCKER_BUILD === "1",
   emptyStringAsUndefined: true, // https://env.t3.gg/docs/customization#treat-empty-strings-as-undefined
 });
-
-/**
- * @param {typeof env} parsed
- */
-const validateInAppAgentSandboxConfig = (parsed) => {
-  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
-    return;
-  }
-
-  if (
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION
-  ) {
-    throw new Error(
-      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, and region are required.",
-    );
-  }
-};
-
-if (typeof window === "undefined") {
-  validateInAppAgentSandboxConfig(env);
-}

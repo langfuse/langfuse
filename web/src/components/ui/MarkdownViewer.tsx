@@ -585,7 +585,7 @@ export function MarkdownView({
       {afterHeader}
       <div
         className={cn(
-          "io-message-content grid grid-flow-row gap-2 px-1 py-2",
+          "io-message-content ph-no-capture grid grid-flow-row gap-2 px-1 py-2",
           title === "assistant" || title === "Output" || title === "Model"
             ? "bg-accent-light-green"
             : "",
@@ -649,7 +649,7 @@ export function MarkdownView({
           <div className="text-muted-foreground mx-3 border-t px-2 py-1 text-xs">
             Media
           </div>
-          <div className="mx-3 flex flex-wrap gap-2 px-2 pt-1 pb-4">
+          <div className="ph-no-capture mx-3 flex flex-wrap gap-2 px-2 pt-1 pb-4">
             {remainingMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}

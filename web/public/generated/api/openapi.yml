@@ -1134,10 +1134,12 @@ paths:
   /api/public/dataset-run-items:
     post:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, create experiment data via the SDK
-        experiment runner or the OpenTelemetry endpoint at POST
-        /api/public/otel/v1/traces. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, create
+        experiment data via the SDK experiment runner or the OpenTelemetry
+        endpoint at POST /api/public/otel/v1/traces. Self-hosted deployments are
+        unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -1188,11 +1190,13 @@ paths:
       deprecated: true
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, dataset run items are replaced by
-        experiment items; use `GET
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        run items are replaced by experiment items; use `GET
         /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to>`
-        instead. See the [Langfuse v3 to v4 upgrade
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -1406,10 +1410,12 @@ paths:
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, dataset runs are replaced by
-        experiments; use GET /api/public/experiments instead. See the [Langfuse
-        v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        runs are replaced by experiments; use GET /api/public/experiments
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -1464,9 +1470,11 @@ paths:
       deprecated: true
     delete:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, dataset runs are replaced by
-        experiments. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        runs are replaced by experiments. Self-hosted deployments are unaffected
+        by this date; the endpoint becomes unavailable when they upgrade to
+        Langfuse v4. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -1522,10 +1530,12 @@ paths:
   /api/public/datasets/{datasetName}/runs:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, dataset runs are replaced by
-        experiments; use GET /api/public/experiments instead. See the [Langfuse
-        v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        runs are replaced by experiments; use GET /api/public/experiments
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -1934,11 +1944,14 @@ paths:
   /api/public/ingestion:
     post:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. Send data via the OpenTelemetry endpoint at `POST
-        /api/public/otel/v1/traces` instead, see the [OpenTelemetry integration
-        docs](https://langfuse.com/integrations/native/opentelemetry). See the
-        [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Send data via the
+        OpenTelemetry endpoint at `POST /api/public/otel/v1/traces` instead, see
+        the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry).
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -2040,9 +2053,12 @@ paths:
   /api/public/metrics:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. Use `GET /api/public/v2/metrics?query=<urlencoded
-        json query>` instead. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v2/metrics?query=<urlencoded json query>` instead.
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -2148,10 +2164,12 @@ paths:
   /api/public/observations/{observationId}:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. Use `GET
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
         /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
-        instead. See the [Langfuse v3 to v4 upgrade
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -2205,10 +2223,12 @@ paths:
   /api/public/observations:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. Use `GET
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
         /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
-        instead. See the [Langfuse v3 to v4 upgrade
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -5832,10 +5852,11 @@ paths:
   /api/public/v2/scores:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint is not
-        available on Langfuse v4 and later and will be removed on November 16,
-        2026. Use `GET /api/public/v3/scores` instead. See the [Langfuse v3 to
-        v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v3/scores` instead. Self-hosted deployments are unaffected
+        by this date; the endpoint becomes unavailable when they upgrade to
+        Langfuse v4. See the [Langfuse v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6062,10 +6083,12 @@ paths:
   /api/public/v2/scores/{scoreId}:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint is not
-        available on Langfuse v4 and later and will be removed on November 16,
-        2026. Use `GET /api/public/v3/scores` with the `id` filter instead. See
-        the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v3/scores` with the `id` filter instead. Self-hosted
+        deployments are unaffected by this date; the endpoint becomes
+        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6117,11 +6140,13 @@ paths:
   /api/public/sessions:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, read session data via `GET
-        /api/public/v2/observations?filter=<urlencoded sessionId
-        filter>&fromStartTime=<from>&toStartTime=<to>`. See the [Langfuse v3 to
-        v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read
+        session data via `GET /api/public/v2/observations?filter=<urlencoded
+        sessionId filter>&fromStartTime=<from>&toStartTime=<to>`. Self-hosted
+        deployments are unaffected by this date; the endpoint becomes
+        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6225,11 +6250,13 @@ paths:
   /api/public/sessions/{sessionId}:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, read session data via `GET
-        /api/public/v2/observations?filter=<urlencoded sessionId
-        filter>&fromStartTime=<from>&toStartTime=<to>`. See the [Langfuse v3 to
-        v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read
+        session data via `GET /api/public/v2/observations?filter=<urlencoded
+        sessionId filter>&fromStartTime=<from>&toStartTime=<to>`. Self-hosted
+        deployments are unaffected by this date; the endpoint becomes
+        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6292,10 +6319,13 @@ paths:
   /api/public/traces/{traceId}:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, read span and trace data via `GET
-        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`. See
-        the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read span
+        and trace data via `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -6405,10 +6435,13 @@ paths:
   /api/public/traces:
     get:
       description: >-
-        **Deprecated:** Langfuse v3 is deprecated; this endpoint will be removed
-        on November 16, 2026. In Langfuse v4, read span and trace data via `GET
-        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`. See
-        the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read span
+        and trace data via `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -10538,7 +10571,7 @@ components:
         supported)
 
         - Tiered pricing: Multiple pricing tiers with conditional matching based
-        on usage patterns
+        on usage patterns or observation attributes
 
 
         The pricing tiers approach is recommended for models with usage-based
@@ -10626,14 +10659,14 @@ components:
             $ref: '#/components/schemas/PricingTier'
           description: >-
             Array of pricing tiers with conditional pricing based on usage
-            thresholds.
+            thresholds or observation attributes.
 
 
             Pricing tiers enable accurate cost tracking for models that charge
             different rates based on usage patterns
 
-            (e.g., different rates for high-volume usage, large context windows,
-            or cached tokens).
+            or request attributes (e.g., high-volume usage, large context
+            windows, cached tokens, or service tiers).
 
 
             Each model must have exactly one default tier (isDefault=true,
@@ -10670,104 +10703,87 @@ components:
         - price
     PricingTierCondition:
       title: PricingTierCondition
-      type: object
+      oneOf:
+        - $ref: '#/components/schemas/PricingTierUsageCondition'
+        - $ref: '#/components/schemas/PricingTierAttributeCondition'
       description: >-
-        Condition for matching a pricing tier based on usage details. Used to
-        implement tiered pricing models where costs vary based on usage
-        thresholds.
+        Condition for matching a pricing tier against usage details or
+        observation attributes.
 
 
-        How it works:
-
-        1. The regex pattern matches against usage detail keys (e.g.,
-        "input_tokens", "input_cached")
-
-        2. Values of all matching keys are summed together
-
-        3. The sum is compared against the threshold value using the specified
-        operator
-
-        4. All conditions in a tier must be met (AND logic) for the tier to
-        match
-
-
-        Common use cases:
-
-        - Threshold-based pricing: Match when accumulated usage exceeds a
-        certain amount
-
-        - Usage-type-specific pricing: Different rates for cached vs non-cached
-        tokens, or input vs output
-
-        - Volume-based pricing: Different rates based on total request or token
-        count
+        Usage-detail conditions treat usageDetailPattern as a regex, sum all
+        matching usage values, and compare the sum to the numeric value.
+        Model-parameter and metadata conditions match an exact top-level key
+        against one or more string values.
+    PricingTierUsageCondition:
+      title: PricingTierUsageCondition
+      type: object
+      description: Condition that sums usage details whose keys match a regex.
       properties:
         usageDetailPattern:
           type: string
-          description: >-
-            Regex pattern to match against usage detail keys. All matching keys'
-            values are summed for threshold comparison.
-
-
-            Examples:
-
-            - "^input" matches "input", "input_tokens", "input_cached", etc.
-
-            - "^(input|prompt)" matches both "input_tokens" and "prompt_tokens"
-
-            - "_cache$" matches "input_cache", "output_cache", etc.
-
-
-            The pattern is case-insensitive by default. If no keys match, the
-            sum is treated as zero.
+          description: Regex pattern matched against usage detail keys.
         operator:
           $ref: '#/components/schemas/PricingTierOperator'
-          description: >-
-            Comparison operator to apply between the summed value and the
-            threshold.
-
-
-            - gt: greater than (sum > threshold)
-
-            - gte: greater than or equal (sum >= threshold)
-
-            - lt: less than (sum < threshold)
-
-            - lte: less than or equal (sum <= threshold)
-
-            - eq: equal (sum == threshold)
-
-            - neq: not equal (sum != threshold)
         value:
           type: number
           format: double
-          description: >-
-            Threshold value for comparison. For token-based pricing, this is
-            typically the token count threshold (e.g., 200000 for a 200K token
-            threshold).
+          description: Numeric threshold for the summed matching usage values.
         caseSensitive:
           type: boolean
-          description: >-
-            Whether the regex pattern matching is case-sensitive. Default is
-            false (case-insensitive matching).
+          description: Whether the usage-detail regex is case-sensitive.
       required:
         - usageDetailPattern
         - operator
         - value
         - caseSensitive
+    PricingTierAttributeCondition:
+      title: PricingTierAttributeCondition
+      type: object
+      description: >-
+        Condition that matches any configured value for a top-level observation
+        attribute.
+      properties:
+        source:
+          $ref: '#/components/schemas/PricingTierAttributeSource'
+          description: Observation attribute object evaluated by this condition.
+        key:
+          type: string
+          description: Exact top-level attribute key.
+        operator:
+          type: string
+          const: in
+          description: Membership operator.
+        values:
+          type: array
+          items:
+            type: string
+          description: Accepted string attribute values. At least one value is required.
+      required:
+        - source
+        - key
+        - operator
+        - values
+    PricingTierAttributeSource:
+      title: PricingTierAttributeSource
+      type: string
+      enum:
+        - model_parameters
+        - metadata
     PricingTier:
       title: PricingTier
       type: object
       description: >-
         Pricing tier definition with conditional pricing based on usage
-        thresholds.
+        thresholds or observation attributes.
 
 
         Pricing tiers enable accurate cost tracking for LLM providers that
-        charge different rates based on usage patterns.
+        charge different rates based on usage patterns or request attributes.
 
         For example, some providers charge higher rates when context size
-        exceeds certain thresholds.
+        exceeds certain thresholds or when an accelerated service tier is
+        selected.
 
 
         How tier matching works:
@@ -10958,8 +10974,9 @@ components:
             when this tier's pricing applies.
 
 
-            Each condition specifies a regex pattern, operator, and threshold
-            value for matching against usage details.
+            Conditions can compare summed matching usage details to a numeric
+            threshold, or exactly match a top-level model parameter or metadata
+            value.
         prices:
           type: object
           additionalProperties:
