@@ -115,8 +115,8 @@ export function EvaluatorsEmptyStateView({
   const { iconClassName } = getGalleryCategoryPresentation("recommended");
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col items-center px-8 py-8">
-      <div className="mb-8 max-w-2xl text-center">
+    <div className="mx-auto flex w-full max-w-5xl flex-col items-center px-8 pt-3 pb-6">
+      <div className="mb-6 max-w-2xl text-center">
         <h2 className="mb-2 text-2xl font-bold">
           Turn traces into quality signals
         </h2>
@@ -151,7 +151,7 @@ export function EvaluatorsEmptyStateView({
         </div>
       </div>
 
-      <p className="text-muted-foreground mt-8 max-w-2xl text-center text-sm">
+      <p className="text-muted-foreground mt-6 max-w-2xl text-center text-sm">
         You choose where each evaluator runs. Live traces or dataset runs, and
         test it on real data before activating.{" "}
         <a

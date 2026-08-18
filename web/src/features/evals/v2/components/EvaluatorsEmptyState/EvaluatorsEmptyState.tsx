@@ -60,7 +60,7 @@ export function EvaluatorsEmptyState({
   };
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="max-h-full overflow-y-auto">
       <EvaluatorsEmptyStateView
         startingPoints={emptyState.startingPoints}
         templateCount={emptyState.templateCount}
