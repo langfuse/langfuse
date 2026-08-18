@@ -8,7 +8,12 @@ import {
   type PromptType,
 } from "@langfuse/shared";
 import { type PartialConfig } from "@/src/features/evals/types";
-import { type RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import type {
+  RuleDraft,
+  RuleEvaluatorOption,
+} from "@/src/features/evals/v2/types/rules";
+import type { ExperimentEvaluatorAssignmentsHandle } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
+import type { Ref } from "react";
 
 type ValidationResult =
   | {
@@ -98,9 +103,12 @@ type LegacyEvaluatorState = {
 type V2EvaluatorState = {
   version: "v2";
   evaluatorOptions: RuleEvaluatorOption[];
+  selectedAssignments: RuleDraft["assignments"];
   activeEvaluatorNames: string[];
   search: string;
   onSearchChange: (value: string) => void;
+  onSaveAssignments: (assignments: RuleDraft["assignments"]) => Promise<void>;
+  isUpdating: boolean;
 };
 
 export type EvaluatorState = LegacyEvaluatorState | V2EvaluatorState;
@@ -127,6 +135,8 @@ export interface DatasetStepProps {
 export interface EvaluatorsStepProps {
   projectId: string;
   datasetId: string | null;
+  datasetVersion?: Date;
+  evaluatorAssignmentsRef?: Ref<ExperimentEvaluatorAssignmentsHandle>;
   evaluatorState: EvaluatorState;
   permissions: PermissionsState;
 }

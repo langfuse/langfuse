@@ -21,12 +21,12 @@ export function evaluatorScoresUrl(projectId: string, name: string) {
       value: ["EVAL"],
     },
   ];
-  return `/project/${projectId}/scores?filter=${encodeURIComponent(encodeFiltersGeneric(filter))}`;
+  return `/project/${projectId}/scores?showAllEnvironments=true&filter=${encodeURIComponent(encodeFiltersGeneric(filter))}`;
 }
 
 export function evaluatorExecutionsUrl(
   projectId: string,
-  evaluatorId: string,
+  evaluatorName: string,
   evaluatorType: EvalTemplateType,
 ) {
   const environment =
@@ -35,10 +35,10 @@ export function evaluatorExecutionsUrl(
       : LangfuseInternalTraceEnvironment.LLMJudge;
   const filter: FilterState = [
     {
-      column: "evaluatorId",
+      column: "traceName",
       type: "stringOptions",
       operator: "any of",
-      value: [evaluatorId],
+      value: [`Execute evaluator: ${evaluatorName}`],
     },
     {
       column: "environment",

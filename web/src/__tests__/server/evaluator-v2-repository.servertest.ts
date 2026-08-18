@@ -100,7 +100,9 @@ const createRuleAssignment = async ({
 };
 
 const createEvaluatorWithThreeVersions = async () => {
-  const evaluator = await createEvaluator();
+  const evaluator = await createEvaluator({
+    createdByUserId: creatorUserId,
+  });
   await prisma.$transaction(async (tx) => {
     await evaluatorRepository.appendEvaluatorVersion({
       tx,
@@ -637,7 +639,7 @@ describe("evaluator v2 repository", () => {
       ).resolves.toEqual({ data: [], nextCursor: undefined });
     });
 
-    it("paginates versions in descending order", async () => {
+    it("paginates versions in descending order with their creators", async () => {
       const evaluator = await createEvaluatorWithThreeVersions();
 
       await expect(
@@ -648,7 +650,10 @@ describe("evaluator v2 repository", () => {
           limit: 2,
         }),
       ).resolves.toMatchObject({
-        data: [{ version: 3 }, { version: 2 }],
+        data: [
+          { version: 3, createdByUser: null },
+          { version: 2, createdByUser: null },
+        ],
         nextCursor: 2,
       });
       await expect(
@@ -660,7 +665,15 @@ describe("evaluator v2 repository", () => {
           limit: 2,
         }),
       ).resolves.toMatchObject({
-        data: [{ version: 1 }],
+        data: [
+          {
+            version: 1,
+            createdByUser: {
+              name: "Evaluator creator",
+              email: expect.any(String),
+            },
+          },
+        ],
         nextCursor: undefined,
       });
       await expect(

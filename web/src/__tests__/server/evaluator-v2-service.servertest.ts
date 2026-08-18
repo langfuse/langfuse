@@ -686,7 +686,7 @@ describe("EvaluatorService", () => {
     );
   });
 
-  it("returns recent traces by stable evaluator ID", async () => {
+  it("returns recent traces by evaluator execution name", async () => {
     const service = createService();
     const [firstEvaluator, secondEvaluator, otherEvaluator] = await Promise.all(
       [
@@ -704,13 +704,13 @@ describe("EvaluatorService", () => {
     mocks.getRecentEvaluatorExecutionTraces.mockResolvedValue([
       ...[7, 6, 5, 4, 3].map((day) => ({
         id: `first-${day}`,
-        evaluatorId: firstEvaluator.id,
+        traceName: "Execute evaluator: First execution evaluator",
         level: "WARNING",
         timestamp: new Date(`2026-08-0${day}T00:00:00.000Z`),
       })),
       ...[4, 3, 2, 1].map((day) => ({
         id: `second-${day}`,
-        evaluatorId: secondEvaluator.id,
+        traceName: "Execute evaluator: Second execution evaluator",
         level: "DEFAULT",
         timestamp: new Date(`2026-08-0${day}T00:00:00.000Z`),
       })),
@@ -728,7 +728,10 @@ describe("EvaluatorService", () => {
     expect(
       new Set(mocks.getRecentEvaluatorExecutionTraces.mock.calls[0]?.[1]),
     ).toEqual(
-      new Set([firstEvaluator.id, secondEvaluator.id, otherEvaluator.id]),
+      new Set([
+        "Execute evaluator: First execution evaluator",
+        "Execute evaluator: Second execution evaluator",
+      ]),
     );
     expect(result[firstEvaluator.id]?.map(({ id }) => id)).toEqual([
       "first-7",

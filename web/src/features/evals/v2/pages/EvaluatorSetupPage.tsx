@@ -169,6 +169,7 @@ export function EvaluatorSetupPage(
     provider: version.provider,
     model: version.model,
     outputDefinition: version.outputDefinition,
+    createdByUser: version.createdByUser,
   }));
 
   const projectDefaultModel = useProjectDefaultModel({
