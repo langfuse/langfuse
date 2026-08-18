@@ -196,7 +196,7 @@ describe("IngestionService unit tests", () => {
       .spyOn(ingestionService as any, "getGenerationUsage")
       .mockResolvedValue({});
 
-    await ingestionService.createEventRecord(
+    const eventRecord = await ingestionService.createEventRecord(
       {
         projectId: "project-id",
         traceId: "trace-id",
@@ -228,6 +228,14 @@ describe("IngestionService unit tests", () => {
       "otel/project-id/raw-event.json",
     );
 
+    expect(eventRecord.model_parameters).toEqual({
+      service_tier: "priority",
+      temperature: 0.5,
+      stream: true,
+      nested: { ignored: "value" },
+      list: ["ignored"],
+      nil: null,
+    });
     expect(getGenerationUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         pricingMatchAttributes: {

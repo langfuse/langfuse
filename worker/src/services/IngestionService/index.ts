@@ -405,7 +405,11 @@ export class IngestionService {
       // Model
       model_id: generationUsage?.internal_model_id || "",
       provided_model_name: eventData.modelName,
-      model_parameters: this.stringify(modelParameters),
+      // Evaluation scheduling consumes this enriched record before it is
+      // written and expects parsed model parameters. The established runtime
+      // contract is therefore wider than the ClickHouse insert type declares.
+      model_parameters:
+        modelParameters as EventRecordInsertType["model_parameters"],
 
       // Usage & Cost
       provided_usage_details: eventData.providedUsageDetails ?? {},
