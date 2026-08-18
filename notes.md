@@ -124,6 +124,26 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
 - noop filed with full report; `missing_data` filed for the DB blocker
   (no `missing_tool` needed this run since Actions API worked).
 
+## 2026-08-18 (run 19, second workflow_dispatch same day) — filled the 08-18 chart gap, no new findings
+
+- Same-day re-trigger of run 18. Ledger (`prs.json`) still empty, so no
+  assessment-loop work. Reused run 18's vitest sampling and 08-12..08-17
+  day data unchanged; the only new work was pulling 08-18's own
+  merge-group runs (4 by this point in the day) to fill the gap run 18
+  left in the trailing-7-day chart window.
+- 08-18's 4 runs (perceived 193-207s, webRunTests 75-79s) land squarely in
+  the same stable band as 08-16/08-17 — reinforces, doesn't change, run
+  18's conclusion that no sustained (>=3-day) intra-week shift exists and
+  the 08-13/08-14 spike was CI-runner contention, not a code regression.
+- DB connectivity (`host.docker.internal:5432`) re-checked and still
+  EAI_AGAIN — same broken state as every run since 08-03, now confirmed
+  twice in one day. Standing score-comparison-analytics.servertest.ts fix
+  remains unverified for the same reason as run 18.
+- Updated `history/2026-W34-partial-0818.json` in place (same file,
+  supersedes the run-18 version) rather than writing a new checkpoint
+  file, since this is the same calendar day and same trailing-7-day
+  window, just with one more day of data filled in.
+
 ## Tooling notes (for future runs)
 
 - `list_workflow_runs` caps at ~30 runs/page, no `created` filter — filter

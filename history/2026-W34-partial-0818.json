@@ -2,65 +2,66 @@
   "isoWeek": "2026-W34",
   "kind": "partial-checkpoint",
   "analyzedAt": "2026-08-18",
-  "note": "Trailing-7-calendar-day window (08-12..08-18), spanning the tail of W33 and start of W34 -- not a clean ISO week. Same naming-collision caveat as prior checkpoints (see notes.md) applies to the isoWeek label. This is the first run with a working Actions API since 2026-07-31 (runs 12-17, 2026-08-03..08-17, were fully blocked -- see notes.md). 08-15 (Saturday) had 0 successful merge_group runs and is omitted; 5 days sampled (08-12,08-13,08-14,08-16,08-17), 5 runs/day, 25 runs total.",
+  "note": "Trailing-7-calendar-day window (08-12..08-18), spanning the tail of W33 and start of W34 -- not a clean ISO week. Same naming-collision caveat as prior checkpoints (see notes.md) applies to the isoWeek label. Supersedes an earlier same-day snapshot from this same file that was missing 08-18's data (that run happened before enough of 08-18's merge-group runs had completed). 08-15 (Saturday) had 0 successful merge_group runs and is omitted; 6 days now populated (08-12,08-13,08-14,08-16,08-17,08-18) -- 5 of them with 5 runs, 08-18 with only 4 (still a partial day at the time of this run; treated as 'all runs for that day' per the <5-runs rule). 29 runs total.",
   "window": { "from": "2026-08-12T00:00:00Z", "to": "2026-08-18T23:59:59Z", "kind": "trailing-7-days" },
   "events": {
     "merge_group": {
-      "windowRunCount": { "note": "08-15 (Sat): 0 successful runs, omitted. 5 sampled days x 5 runs = 25 runs total, all run_attempt:1 except one retry-corrected run on 08-12 (raw attempt discarded, replacement used)." },
+      "windowRunCount": { "note": "08-15 (Sat): 0 successful runs, omitted. 08-12,13,14,16,17: 5 runs each. 08-18: 4 runs (partial day, workflow_dispatch re-run same day as the original checkpoint). 29 runs total, all run_attempt:1 except one retry-corrected run on 08-12 (raw attempt discarded, replacement used)." },
       "perceivedByDay": {
         "2026-08-12": { "median": 336, "values": [260, 312, 367, 336, 365] },
         "2026-08-13": { "median": 676, "values": [360, 231, 694, 711, 676], "note": "3 of 5 runs dramatically slow" },
         "2026-08-14": { "median": 230, "values": [694, 673, 230, 224, 217], "note": "2 of 5 runs slow" },
         "2026-08-16": { "median": 194, "values": [194, 196, 193, 294, 194] },
-        "2026-08-17": { "median": 201, "values": [201, 195, 200, 244, 388] }
+        "2026-08-17": { "median": 201, "values": [201, 195, 200, 244, 388] },
+        "2026-08-18": { "median": 201.5, "values": [207, 207, 193, 196], "note": "partial day, 4 runs only, back to the 08-16/08-17 band" }
       },
-      "pooledWeekly": { "p50": 260, "p90": 700, "unit": "s", "population": "all 25 sampled runs" },
+      "pooledWeekly": { "p50": 231, "p90": 680, "unit": "s", "population": "all 29 sampled runs" },
       "executionByDay": {
-        "2026-08-12": 306, "2026-08-13": 667, "2026-08-14": 207, "2026-08-16": 179, "2026-08-17": 186
+        "2026-08-12": 306, "2026-08-13": 667, "2026-08-14": 207, "2026-08-16": 179, "2026-08-17": 186, "2026-08-18": 183
       },
       "runnerWaitByDay": {
-        "2026-08-12": 25, "2026-08-13": 9, "2026-08-14": 15, "2026-08-16": 15, "2026-08-17": 16
+        "2026-08-12": 25, "2026-08-13": 9, "2026-08-14": 15, "2026-08-16": 15, "2026-08-17": 16, "2026-08-18": 18.5
       },
       "segmentsByDay": {
-        "webBuildStepMed":       { "2026-08-12": 70, "2026-08-13": 149, "2026-08-14": 51, "2026-08-16": 47, "2026-08-17": 48 },
-        "webRunTestsStepMed":    { "2026-08-12": 96, "2026-08-13": 347, "2026-08-14": 82, "2026-08-16": 78, "2026-08-17": 77 },
-        "workerRunTestsStepMed": { "2026-08-12": 124, "2026-08-13": 213, "2026-08-14": 104, "2026-08-16": 98, "2026-08-17": 101 },
-        "e2eTestsJobSec":        { "2026-08-12": 169, "2026-08-13": 285, "2026-08-14": 197, "2026-08-16": 172, "2026-08-17": 149 }
+        "webBuildStepMed":       { "2026-08-12": 70, "2026-08-13": 149, "2026-08-14": 51, "2026-08-16": 47, "2026-08-17": 48, "2026-08-18": 48.5 },
+        "webRunTestsStepMed":    { "2026-08-12": 96, "2026-08-13": 347, "2026-08-14": 82, "2026-08-16": 78, "2026-08-17": 77, "2026-08-18": 77.5 },
+        "workerRunTestsStepMed": { "2026-08-12": 124, "2026-08-13": 213, "2026-08-14": 104, "2026-08-16": 98, "2026-08-17": 101, "2026-08-18": 101 },
+        "e2eTestsJobSec":        { "2026-08-12": 169, "2026-08-13": 285, "2026-08-14": 197, "2026-08-16": 172, "2026-08-17": 149, "2026-08-18": 158 }
       },
       "weeklyMedianOfDailyMedians": {
-        "webBuildStepMed": 51, "webRunTestsStepMed": 82, "workerRunTestsStepMed": 104, "e2eTestsJobSec": 172
+        "webBuildStepMed": 49.75, "webRunTestsStepMed": 80, "workerRunTestsStepMed": 102.5, "e2eTestsJobSec": 170.5
       }
     }
   },
   "comparisonToBaselineAndPriorCheckpoint": {
     "baselineFile": "history/2026-W28.json (window 06-30..07-07)",
     "priorCheckpointFile": "history/2026-W31-partial-0731.json (window 07-25..07-31, 18 days stale)",
-    "perceivedP50": "260 (pooled) vs baseline 396 (-34%) vs prior-checkpoint weekday-aggregate 476 (-45%) -- LOWER than both references on the population median.",
-    "perceivedP90": "~700 vs baseline 522 (+34%) -- tail is heavier than baseline, driven entirely by the 08-13/08-14 outlier runs, not a broad shift.",
-    "webRunTestsStepMed": "82 (weekly median-of-medians) vs baseline 86 (flat) vs prior-checkpoint 147 (-44%) -- the sustained three-checkpoint climb flagged 07-31 (86->114.5->147) does NOT appear to be continuing; most days this week are back near/below the original baseline. Caveat: 18-day data gap (08-03..08-17 blocked) means we cannot see the path between 147 and 82, so 'regression resolved' vs 'regression was itself noisy' cannot be distinguished from this data alone.",
-    "e2e": "172 (median-of-medians) vs baseline 232 vs prior-checkpoint 244 -- improved, within normal variation."
+    "perceivedP50": "231 (pooled, now including 08-18) vs baseline 396 (-42%) vs prior-checkpoint weekday-aggregate 476 (-51%) -- LOWER than both references on the population median; 08-18's addition pulled the pooled median down slightly from the earlier same-day snapshot's 260, since all 4 of today's runs landed in the 193-207s band.",
+    "perceivedP90": "~680 vs baseline 522 (+30%) -- tail still heavier than baseline, driven entirely by the 08-13/08-14 outlier runs (unchanged conclusion from the earlier same-day snapshot), not a broad shift.",
+    "webRunTestsStepMed": "80 (weekly median-of-medians, now 6 days) vs baseline 86 (-7%, essentially flat) vs prior-checkpoint 147 (-46%) -- the sustained three-checkpoint climb flagged 07-31 (86->114.5->147) does NOT appear to be continuing; 08-18 confirms the same 77-82s band seen on 08-14/08-16/08-17. Caveat unchanged: 18-day data gap (08-03..08-17 blocked) means we cannot see the path between 147 and 82/80, so 'regression resolved' vs 'regression was itself noisy' still cannot be distinguished from this data alone.",
+    "e2e": "170.5 (median-of-medians) vs baseline 232 vs prior-checkpoint 244 -- improved, within normal variation."
   },
   "intraWeekShiftCheck": {
     "rule": ">=50% across 3+ consecutive sampled days is actionable in-run",
-    "finding": "Perceived-time median by day: 336, 676, 230, 194, 201 (08-12,13,14,16,17). Only 08-13 and 08-14 are elevated (08-14 itself has a mixed within-day distribution: 2 of 5 runs slow, 3 fast, median lands normal-ish); 08-12/08-16/08-17 are all in the 194-336s band. This is 2 affected days, not 3+ consecutive -- does NOT meet the actionable threshold. Documented as an observed-but-not-actionable finding."
+    "finding": "Perceived-time median by day: 336, 676, 230, 194, 201, 201.5 (08-12,13,14,16,17,18). Only 08-13 and 08-14 are elevated; 08-12/08-16/08-17/08-18 are all in the 194-336s band, and the three most recent days (08-16,17,18) form a tight, stable 194-201.5s cluster. This is 2 affected days, not 3+ consecutive -- does NOT meet the actionable threshold. Same conclusion as the earlier same-day snapshot; 08-18's data only reinforces it."
   },
   "investigation": {
     "target": "08-13/08-14 outlier runs",
     "method": "Compared vitest log output between a slow run (08-13, tests-web job, run-tests step 374s, vitest Duration 364.19s: transform 134.78s / import 1931.94s / tests 863.40s) and a fast run (08-16, tests-web job, run-tests step 77s, vitest Duration 74.89s: transform 35.23s / import 292.76s / tests 282.62s). Same 238 test files, ~4300-4400 tests both times.",
     "finding": "Entire suite scaled proportionally slower (~5x across transform/import/tests) on the slow run -- not a single regressed test. Worker-shard comparison (08-13 Duration 216.21s vs 08-16 97.09s) shows the same pattern (import 437s vs 145s). Consistent with CI-runner-level resource contention (Blacksmith self-hosted runners; BLACKSMITH_RUNNER_ACQUIRE_JOB_MS/BLACKSMITH_RUNNER_MESSAGE_WAIT_MS env vars present in job logs) rather than a code-level regression.",
     "discardedHypothesis": "The 'Failed to save: Unable to reserve cache with key Linux-turbo-tests-web-compile-...another job may be creating this cache' log line was checked and appears identically in both the fast and slow runs -- confirmed NOT a causal factor, not attributed in this report.",
-    "conclusion": "Environment/runner-infra variability, outside repo's control this run; not fixable via a ci-perf/ PR or a pipeline.yml change. Not actionable per this workflow's own rules."
+    "conclusion": "Environment/runner-infra variability, outside repo's control this run; not fixable via a ci-perf/ PR or a pipeline.yml change. Not actionable per this workflow's own rules. Not re-investigated this run (no new information changes the conclusion)."
   },
   "standingCandidateFix": {
     "target": "web/src/__tests__/server/score-comparison-analytics.servertest.ts",
-    "status": "STILL NOT SANDBOX-VERIFIED. DB connectivity (host.docker.internal:5432) re-confirmed broken this run via a raw net.Socket connect test (EAI_AGAIN) -- extends the streak first seen 2026-08-03, now confirmed on every run through 2026-08-18 with zero change in symptom. Actions API now works (first time since 07-31) but DB does not, so the 'BOTH must work' precondition for verification is still unmet.",
-    "consistentEvidence": "Still the dominant slowest file across every sampled day this week (top-5, #1 on 3 of 5 days): 08-12 present but rank not fully captured, 08-13 58.40s (slow day), 08-14 29.16s, 08-16 17.11s, 08-17 17.08s (#5). Scaling is proportional to the overall environment slowdown on 08-13, not evidence of an independent code-level regression -- consistent with prior runs' root-cause analysis (packages/shared/src/server/test-utils/clickhouse-helpers.ts createScoresCh, 12 sequential batch inserts, safe to parallelize per 07-31 investigation in history/2026-W31-partial-0731.json).",
-    "recommendation": "Unchanged from 07-31: whichever future run gets BOTH a working Actions API AND live DB connectivity should verify immediately."
+    "status": "STILL NOT SANDBOX-VERIFIED. DB connectivity (host.docker.internal:5432) re-confirmed broken AGAIN this run (second check today) via a raw net.Socket-equivalent dns.lookup test (EAI_AGAIN) -- extends the streak first seen 2026-08-03, now confirmed on every run through 2026-08-18 (twice today) with zero change in symptom. Actions API works but DB does not, so the 'BOTH must work' precondition for verification is still unmet.",
+    "consistentEvidence": "Still the dominant slowest file across every sampled day this week (top-5, #1 on 3 of 5 days) per the original checkpoint's per-day sampling; not re-sampled this run since nothing about the fix candidate changed.",
+    "recommendation": "Unchanged: whichever future run gets BOTH a working Actions API AND live DB connectivity should verify immediately."
   },
   "flakyTests": [
     { "test": "src/queues/__tests__/otelToObservationForEval.test.ts > OTEL to ObservationForEval Schema Validation > Multiple spans in single batch > should process multiple spans and all conform to schema", "retries": 1, "sampledDay": "2026-08-13", "shard": "tests-worker (mode)" }
   ],
-  "flakyNote": "Same test flagged flaky on 2026-07-30 (history/2026-W31-partial-0731.json) with retries=1 that run too -- this is now a SECOND independent occurrence three weeks apart. Worth tracking as a recurring (not one-off) flake going forward, though still low-frequency (1 of 7 samples this run: 5 web-shard + 2 worker-shard). No other retried/flaky tests found in any of the other 6 samples.",
+  "flakyNote": "Same test flagged flaky on 2026-07-30 and again on 2026-08-18 (first same-day run) -- now a 2-instance pattern, still low-frequency. Not re-sampled this run (no new vitest log sampling performed; reused from the original same-day checkpoint).",
   "slowestTests": {
     "webServer": [
       { "file": "src/__tests__/server/score-comparison-analytics.servertest.ts", "note": "dominant across the week; see standingCandidateFix above" },
@@ -71,8 +72,8 @@
     ]
   },
   "toolingBlockers": {
-    "resolvedThisRun": "GitHub Actions MCP (actions_list/actions_get/get_job_logs) worked normally this entire run -- first working run since 2026-07-31 after 6 consecutive fully-blocked runs (08-03 through 08-17, see notes.md). Root cause of the prior block was never conclusively diagnosed by any autonomous run; treat as resolved-by-unknown-means, watch for recurrence.",
-    "stillBroken": "DB connectivity to host.docker.internal:5432 -- EAI_AGAIN, re-confirmed this run. Streak: first seen 08-03, confirmed on every run since (08-03, 08-06, and now 08-18), zero change in symptom across 15+ days."
+    "resolvedThisRun": "GitHub Actions MCP (actions_list/actions_get) worked normally again this run (second working run today, back-to-back with the earlier same-day checkpoint) -- no fresh get_job_logs calls were needed since vitest sampling was reused, not redone.",
+    "stillBroken": "DB connectivity to host.docker.internal:5432 -- EAI_AGAIN, re-confirmed this run (checked via dns.lookup, consistent with the raw-socket check used earlier today). Streak: first seen 08-03, confirmed on every run since, zero change in symptom across 15+ days, including twice today."
   },
-  "action": { "prOpened": false, "reason": "No sustained (>=50%-across-3-consecutive-days) intra-week regression found; the 08-13/08-14 outlier was root-caused to CI-runner contention, not a code regression, and does not meet the actionable threshold. The standing score-comparison-analytics.servertest.ts candidate fix remains well-reasoned but NOT sandbox-verifiable this run because DB connectivity is still broken (Actions API alone is not sufficient per this workflow's own verify-before-PR rule). No workflow-config (pipeline.yml) proposal warranted either, since the timing variance observed is infra-level, not pipeline-structural. Ledger (prs.json) confirmed empty. noop filed with full report." }
+  "action": { "prOpened": false, "reason": "Second workflow_dispatch run on the same calendar day (2026-08-18) as the prior full analysis. No ledger PRs to assess (prs.json still empty). Added 08-18's own merge-group data (4 runs, now enough of the day had completed) to complete the trailing-7-day chart window that the earlier run left with a gap; every other day's data and every prior conclusion (08-13/14 root-caused to CI-runner contention, standing score-comparison-analytics fix unverified due to broken DB, otelToObservationForEval flaky recurrence) reused unchanged since nothing about them could have changed within the same day. 08-18's own data reinforces rather than changes the 'no sustained intra-week shift' conclusion. No new optimization candidate found or looked for this run beyond what was already surfaced today. noop filed with full report." }
 }
