@@ -809,13 +809,39 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         projectId: project.id,
       });
       expect(created.config?.exportSource).toBe("TRACES_OBSERVATIONS");
+      // The legacy source stays an explicit, re-assertable choice — the pin
+      // neither rewrites it nor locks the field. (Enriched is unavailable on
+      // this write mode for a separate reason: the events table is not written.)
       await expect(
         caller.posthogIntegration.update({
           projectId: project.id,
           ...baseConfig,
-          exportSource: "EVENTS" as const,
+          exportSource: "TRACES_OBSERVATIONS" as const,
         }),
       ).resolves.not.toThrow();
+    });
+
+    it("self-hosted on a write mode that serves enriched may still switch to it", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepareOldProject();
+      await caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      const created = await caller.posthogIntegration.get({
+        projectId: project.id,
+      });
+      expect(created.config?.exportSource).toBe("TRACES_OBSERVATIONS");
+      await caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportSource: "EVENTS" as const,
+      });
+      const switched = await caller.posthogIntegration.get({
+        projectId: project.id,
+      });
+      expect(switched.config?.exportSource).toBe("EVENTS");
     });
   });
 
