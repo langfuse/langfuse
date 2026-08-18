@@ -585,7 +585,7 @@ export function MarkdownView({
       {afterHeader}
       <div
         className={cn(
-          "io-message-content grid grid-flow-row gap-2 px-1 py-2",
+          "io-message-content ph-no-capture grid grid-flow-row gap-2 px-1 py-2",
           title === "assistant" || title === "Output" || title === "Model"
             ? "bg-accent-light-green"
             : "",
