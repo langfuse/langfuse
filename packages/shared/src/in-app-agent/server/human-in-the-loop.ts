@@ -5,8 +5,7 @@ import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "../constants";
 import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
   type InAppAgentLangfuseMcpToolName,
-} from "./tools";
-import { safeJsonParse } from "../../utils/json";
+} from "./mcpPolicy";
 import {
   type AgUiEvent,
   type AgUiMessage,
@@ -45,14 +44,6 @@ export const InAppAgentMcpRunOverrideSchema = z
       "toolNames" in override ? override.toolNames : [override.toolName],
   }));
 
-const MastraSuspendEventSchema = z.object({
-  type: z.literal("mastra_suspend"),
-  toolCallId: z.string().min(1),
-  toolName: z.string().min(1),
-  args: z.unknown().optional(),
-  runId: z.string().min(1),
-});
-
 export async function createInAppAgentMcpRunOverride(params: {
   toolNames: InAppAgentLangfuseMcpToolName[];
 }) {
@@ -61,23 +52,6 @@ export async function createInAppAgentMcpRunOverride(params: {
     toolName: params.toolNames[0],
     toolNames: params.toolNames,
   });
-}
-
-export function parseInAppAgentInterruptEvent(
-  event: AgUiEvent,
-): InAppAgentToolApprovalRequest | undefined {
-  if (event.type !== EventType.CUSTOM || event.name !== "on_interrupt") {
-    return undefined;
-  }
-
-  const value = event.value;
-  const interrupt =
-    typeof value === "string" ? safeJsonParse(value) : (value as unknown);
-  const parsedInterrupt = MastraSuspendEventSchema.safeParse(interrupt);
-
-  return parsedInterrupt.success
-    ? { ...parsedInterrupt.data, type: "tool_approval_request" }
-    : undefined;
 }
 
 export type ManualToolApprovalRunInput = {

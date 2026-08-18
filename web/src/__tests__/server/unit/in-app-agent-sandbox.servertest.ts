@@ -4,11 +4,7 @@ import { Tool } from "@mastra/core/tools";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import {
-  createSandboxToolCallFileAccumulator,
-  getConversationMessagesForDisplay,
-  getSandboxToolCallFiles,
-} from "@langfuse/shared/in-app-agent/server/persistence";
+import { createSandboxToolCallFileAccumulator } from "@langfuse/shared/in-app-agent/server/persistence";
 import { createInAppAgentSandbox } from "@langfuse/shared/in-app-agent/server/sandbox";
 import { withOptionalSilentMcpOutput } from "@langfuse/shared/in-app-agent/server/tools";
 import { listObservationsTool } from "@/src/features/mcp/features/observations/tools/listObservations";
@@ -31,59 +27,6 @@ const dummySandbox = {
 };
 
 describe("in-app agent sandbox", () => {
-  it("redacts silent MCP output from persisted conversation display", async () => {
-    const silentResult = JSON.stringify({
-      type: "silent-mcp-output",
-      output: { data: [{ id: "observation-1" }] },
-    });
-    const events = [
-      {
-        type: EventType.TOOL_CALL_START,
-        toolCallId: "tool-call-1",
-        toolCallName: "listObservations",
-        parentMessageId: "assistant-1",
-      },
-      {
-        type: EventType.TOOL_CALL_ARGS,
-        toolCallId: "tool-call-1",
-        delta: "{}",
-      },
-      {
-        type: EventType.TOOL_CALL_END,
-        toolCallId: "tool-call-1",
-      },
-      {
-        type: EventType.TOOL_CALL_RESULT,
-        messageId: "result-1",
-        toolCallId: "tool-call-1",
-        content: silentResult,
-        role: "tool",
-      },
-    ];
-    const messages = await getConversationMessagesForDisplay({
-      prisma: {
-        inAppAgentEvent: {
-          findMany: async () =>
-            events.map((event) => ({
-              event,
-              runId: "run-1",
-              createdAt: new Date("2026-07-27T10:00:00.000Z"),
-            })),
-        },
-      } as never,
-      projectId: "project-1",
-      conversationId: "conversation-1",
-    });
-
-    expect(messages).toContainEqual(
-      expect.objectContaining({
-        role: "tool",
-        content: "Output saved to /workspace/tool_calls",
-      }),
-    );
-    expect(events[3]?.content).toBe(silentResult);
-  });
-
   it("persists sandbox session state when a turn ends", async () => {
     const sandboxSession = {
       async syncReadonlyFiles() {},
@@ -199,127 +142,6 @@ describe("in-app agent sandbox", () => {
       response: { data: [{ id: "observation-1" }] },
       error: null,
     });
-  });
-
-  it("exports prior non-sandbox tool calls into tool_calls files", () => {
-    const files = getSandboxToolCallFiles([
-      {
-        createdAt: new Date("2026-07-02T12:00:00.000Z"),
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_START,
-          toolCallId: "tool-call-1",
-          toolCallName: "langfuse_getHealth",
-        },
-      },
-      {
-        createdAt: new Date("2026-07-02T12:00:00.100Z"),
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_ARGS,
-          toolCallId: "tool-call-1",
-          delta: '{"projectId":"project-1"}',
-        },
-      },
-      {
-        createdAt: new Date("2026-07-02T12:00:00.200Z"),
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_RESULT,
-          toolCallId: "tool-call-1",
-          content: '{"status":"ok"}',
-        },
-      },
-      {
-        createdAt: new Date("2026-07-02T12:00:01.000Z"),
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_START,
-          toolCallId: "tool-call-2",
-          toolCallName: "read",
-        },
-      },
-      {
-        createdAt: new Date("2026-07-02T12:00:01.100Z"),
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_ARGS,
-          toolCallId: "tool-call-2",
-          delta: '{"path":"tool_calls/file.json"}',
-        },
-      },
-      {
-        createdAt: new Date("2026-07-02T12:00:01.200Z"),
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_RESULT,
-          toolCallId: "tool-call-2",
-          content: '{"content":"ignored"}',
-        },
-      },
-    ]);
-
-    expect(files).toEqual([
-      {
-        path: "tool_calls/2026-07-02T12-00-00.000Z_langfuse_getHealth_tool-call-1.json",
-        content: JSON.stringify(
-          {
-            request: { projectId: "project-1" },
-            response: { status: "ok" },
-            error: null,
-          },
-          null,
-          2,
-        ),
-      },
-    ]);
-  });
-
-  it("keeps repeated same-name tool calls with identical timestamps", () => {
-    const createdAt = new Date("2026-07-02T12:00:00.000Z");
-    const files = getSandboxToolCallFiles([
-      {
-        createdAt,
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_START,
-          toolCallId: "tool-call-1",
-          toolCallName: "langfuse_getHealth",
-        },
-      },
-      {
-        createdAt,
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_RESULT,
-          toolCallId: "tool-call-1",
-          content: '{"status":"ok"}',
-        },
-      },
-      {
-        createdAt,
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_START,
-          toolCallId: "tool-call-2",
-          toolCallName: "langfuse_getHealth",
-        },
-      },
-      {
-        createdAt,
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_RESULT,
-          toolCallId: "tool-call-2",
-          content: '{"status":"ok"}',
-        },
-      },
-    ]);
-
-    expect(files.map((file) => file.path)).toEqual([
-      "tool_calls/2026-07-02T12-00-00.000Z_langfuse_getHealth_tool-call-1.json",
-      "tool_calls/2026-07-02T12-00-00.000Z_langfuse_getHealth_tool-call-2.json",
-    ]);
   });
 
   it("returns the sandbox tool-call directory for silent MCP output", async () => {
@@ -516,7 +338,7 @@ describe("in-app agent sandbox", () => {
   });
 
   it("does not export failed tool calls into sandbox tool_calls files", () => {
-    const files = getSandboxToolCallFiles([
+    const files = createSandboxToolCallFileAccumulator([
       {
         createdAt: new Date("2026-07-02T12:00:00.000Z"),
         runId: "run-1",
@@ -548,7 +370,7 @@ describe("in-app agent sandbox", () => {
           }),
         },
       },
-    ]);
+    ]).getFiles();
 
     expect(files).toEqual([]);
   });

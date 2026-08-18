@@ -410,6 +410,24 @@ export const ObservationDetailViewHeader = memo(
                 costDetails={
                   subtreeMetrics?.costDetails ?? observation.costDetails
                 }
+                priceSource={
+                  isGenerationLike(observation.type) &&
+                  observation.internalModelId &&
+                  observation.model &&
+                  observation.usagePricingTierId &&
+                  observation.usagePricingTierName &&
+                  Object.keys(observation.providedCostDetails).length === 0 &&
+                  (!subtreeMetrics ||
+                    treeNodeTotalCost?.eq(totalCost ?? 0) === true)
+                    ? {
+                        projectId,
+                        modelId: observation.internalModelId,
+                        modelName: observation.model,
+                        pricingTierId: observation.usagePricingTierId,
+                        pricingTierName: observation.usagePricingTierName,
+                      }
+                    : undefined
+                }
               />
               {subtreeMetrics ? (
                 subtreeMetrics.hasGenerationLike &&

@@ -43,7 +43,8 @@
 - The in-app-agent runtime lives in shared:
   `@langfuse/shared/in-app-agent` is the client-safe contracts entry;
   its `AgUiRunAgentInput` is a compile-time-only execution contract;
-  `@langfuse/shared/in-app-agent/server` (and per-module subpaths) is
+  `@langfuse/shared/in-app-agent` also owns the browser-safe durable interrupt
+  parser. `@langfuse/shared/in-app-agent/server` (and per-module subpaths) is
   server-only. Web keeps only the thin adapters in
   `src/features/in-app-agent/` (router and UI), plus the authenticated watch
   route in `src/app/api/in-app-agent/watch/`.
@@ -202,6 +203,13 @@ Sentry instrumentation skill first and decide whether it should capture at all
   unique test data over global reset helpers.
 - Put pure server unit tests that do not need Postgres bootstrap under
   `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
+- Server tests that drive the public REST API over HTTP need a web server on
+  port 3000 **serving the test database**. `web/vitest.config.mts` loads
+  `../.env.test`, which points `DATABASE_URL` at its own database, while
+  `pnpm run dev:web` loads only `.env` — so that server talks to a different
+  database, finds none of the API keys the tests just created, and every
+  authenticated call comes back 401 `Invalid credentials`. Start it with
+  `pnpm exec dotenv -e .env.test -e .env -- pnpm --filter web run dev`.
 - Preserve the server-test project split in `vitest.config.mts`. Most tests
   consume the built `@langfuse/shared` package; only tests importing
   `@langfuse/shared/in-app-agent` or `@langfuse/shared/src/env` use the

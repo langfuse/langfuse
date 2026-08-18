@@ -2,6 +2,7 @@ import type { FilterCondition } from "../../../types";
 import type { OrderByState } from "../../../interfaces/orderBy";
 import { InvalidRequestError } from "../../../errors";
 import { describe, expect, it } from "vitest";
+import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import {
   buildEventsObservationRowSelection,
   groupEventsObservationFilters,
@@ -81,7 +82,9 @@ describe("buildEventsStreamQuery", () => {
       limit: 17,
     });
     expect(Object.values(params)).toContainEqual(["GENERATION"]);
-    expect(Object.values(params)).toContain(cutoffCreatedAt.getTime());
+    expect(Object.values(params)).toContain(
+      convertDateToClickhouseDateTime(cutoffCreatedAt),
+    );
   });
 
   it("omits the optional cutoff when it is absent", () => {

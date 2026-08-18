@@ -4,7 +4,9 @@ import {
   areEnrichedWritesActive,
   areLegacyWritesActive,
   InvalidRequestError,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
   type BlobExportWriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
@@ -143,6 +145,33 @@ describe("assertExportSourceAllowed", () => {
         nextExportSource: undefined,
         persistedExportSource: null,
         ctx: cloudPostCutoff,
+      }),
+    ).not.toThrow();
+  });
+  // Forwarding guard: adapters override the integration-level cutoff through the
+  // context. A destructuring assert that dropped the field would silently fall
+  // back to the blob cutoff and reject a row its own family grandfathers.
+  it("forwards a context-supplied exporterCutoff instead of the blob default", () => {
+    // Between the blob cutoff and the analytics one: blocked under the default,
+    // grandfathered under the override.
+    const between = new Date(
+      LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + 24 * 60 * 60 * 1000,
+    );
+    const base = {
+      nextExportSource: "TRACES_OBSERVATIONS" as const,
+      ctx: {
+        isCloud: true,
+        enrichedAvailable: true,
+        legacyWritesActive: true,
+        projectCreatedAt: new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - 1),
+        integrationCreatedAt: between,
+      },
+    };
+    expect(() => assertExportSourceAllowed(base)).toThrow(InvalidRequestError);
+    expect(() =>
+      assertExportSourceAllowed({
+        ...base,
+        ctx: { ...base.ctx, exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF },
       }),
     ).not.toThrow();
   });
