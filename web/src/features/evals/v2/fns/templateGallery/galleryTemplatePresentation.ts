@@ -5,14 +5,12 @@ import type {
   CustomEvaluatorTemplate,
   GalleryTemplate,
   ManagedTemplate,
-  TemplateRunTarget,
 } from "@/src/features/evals/v2/types/templateGallery";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
 
 export type GalleryTemplatePresentation = {
   description: string | undefined;
   type: EvalTemplateType;
-  runsOn: TemplateRunTarget[] | null;
   attribution: string | null;
 };
 
@@ -22,7 +20,6 @@ function managedPresentation(
   return {
     description: template.description,
     type: template.evaluator.type,
-    runsOn: template.runsOn,
     attribution: null,
   };
 }
@@ -45,7 +42,6 @@ function customPresentation(
   return {
     description: template.prompt?.trim() ? template.prompt : codeFallback,
     type: template.type,
-    runsOn: null,
     attribution: author ? `by ${author} · ${updated}` : `Updated ${updated}`,
   };
 }

@@ -43,9 +43,7 @@ export function EvaluatorGalleryView({
   onExpandedChange,
   onSelectTemplate,
   onCreateFromScratch,
-  sectionRef,
   scrollContainerRef,
-  onScroll,
   isLoading,
   errorMessage,
 }: {
@@ -60,9 +58,7 @@ export function EvaluatorGalleryView({
   onExpandedChange: (key: string, expanded: boolean) => void;
   onSelectTemplate: (template: GalleryTemplate) => void;
   onCreateFromScratch: (type: EvalTemplateType) => void;
-  sectionRef?: (key: string) => (element: HTMLElement | null) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
-  onScroll?: () => void;
   isLoading: boolean;
   errorMessage?: string;
 }) {
@@ -122,7 +118,6 @@ export function EvaluatorGalleryView({
 
           <div
             ref={scrollContainerRef}
-            onScroll={onScroll}
             className="flex flex-1 flex-col gap-10 overflow-y-auto py-4"
           >
             {isLoading ? <GallerySkeleton /> : null}
@@ -143,7 +138,6 @@ export function EvaluatorGalleryView({
                         onExpandedChange(section.key, expanded)
                       }
                       onSelectTemplate={onSelectTemplate}
-                      sectionRef={sectionRef?.(section.key)}
                     />
                   ))}
                 </div>
