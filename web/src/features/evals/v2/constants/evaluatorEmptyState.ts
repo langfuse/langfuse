@@ -15,8 +15,5 @@ export const EVALUATOR_EMPTY_STATE_STARTING_POINTS = [
   {
     action: "select-template",
     templateKey: "user-disagreement",
-    title: "Detect User Disagreement",
-    description:
-      "Catch conversations with unhappy users to know which traces deserve a deeper look.",
   },
 ] as const;

@@ -63,9 +63,6 @@ const startingPoints = [
         },
       },
     },
-    title: "Detect User Disagreement",
-    description:
-      "Catch conversations with unhappy users to know which traces deserve a deeper look.",
   },
 ] satisfies EvaluatorEmptyStateStartingPoint[];
 

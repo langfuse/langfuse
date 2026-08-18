@@ -22,10 +22,16 @@ describe("prepareEvaluatorEmptyState", () => {
       { key: "topic-classifier", action: "detect-topics" },
       { key: "user-disagreement", action: "select-template" },
     ]);
-    expect(emptyState.startingPoints.map(({ title }) => title)).toEqual([
-      "Detect Topics",
-      "Detect User Disagreement",
-    ]);
+    expect(emptyState.startingPoints[0]).toMatchObject({
+      action: "detect-topics",
+      title: "Detect Topics",
+      template: { key: "topic-classifier" },
+    });
+    expect(emptyState.startingPoints[1]).toMatchObject({
+      action: "select-template",
+      template: { key: "user-disagreement" },
+    });
+    expect(emptyState.startingPoints[1]).not.toHaveProperty("title");
   });
 
   it("locks the Detect Topics assistant prompt used by the empty-state experiment", () => {
