@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { V4MigrationDelayBadge } from "./V4MigrationDelayBadge";
 import {
@@ -123,6 +123,7 @@ const mocks = vi.hoisted(() => ({
   forceV3: false,
   isBetaEnabled: false,
   openMigrationPanel: vi.fn(),
+  capture: vi.fn(),
 }));
 
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
@@ -139,7 +140,7 @@ vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => vi.fn(),
+  usePostHogClientCapture: () => mocks.capture,
 }));
 
 vi.mock("@/src/features/projects/hooks", () => ({
@@ -202,13 +203,13 @@ describe("V4MigrationDelayBadge", () => {
   });
 
   it("stays hidden when every ingestion path is clean", () => {
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
   });
 
   it("shows SDK copy for outdated SDK traffic", () => {
     setSdk("legacy", [outdatedSdkSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.getAllByText("New data in ~15 min").length).toBeGreaterThan(
       0,
     );
@@ -219,7 +220,7 @@ describe("V4MigrationDelayBadge", () => {
 
   it("shows OTel copy for delayed OTel exporters", () => {
     setSdk("otel_header_required", [delayedOtelSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(
       screen.getAllByText(/Update your OTel instrumentation for real-time data/)
         .length,
@@ -228,7 +229,7 @@ describe("V4MigrationDelayBadge", () => {
 
   it("shows instrumentation copy for headerless ingestion traffic", () => {
     setSdk("unknown", [customIngestionSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(
       screen.getAllByText(/Upgrade your instrumentation for real-time data/)
         .length,
@@ -237,7 +238,7 @@ describe("V4MigrationDelayBadge", () => {
 
   it("shows the generic copy when several delayed paths fire", () => {
     setSdk("legacy", [outdatedSdkSeries(), delayedOtelSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(
       screen.getAllByText(/Upgrade to v4 for real-time data/).length,
     ).toBeGreaterThan(0);
@@ -263,20 +264,20 @@ describe("V4MigrationDelayBadge", () => {
       upgradeRequiredCount: 0,
       delayedOtelIngestionCount: 0,
     };
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
   });
 
   it("stays hidden while the check is still running", () => {
     setSdk("checking", []);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
   });
 
   it("stays hidden without the v4 upgrade UI flag", () => {
     mocks.v4UpgradeUiEnabled = false;
     setSdk("legacy", [outdatedSdkSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
   });
 
@@ -285,7 +286,7 @@ describe("V4MigrationDelayBadge", () => {
     mocks.forceV3 = true;
     mocks.isBetaEnabled = false;
     setSdk("legacy", [outdatedSdkSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
   });
 
@@ -295,7 +296,7 @@ describe("V4MigrationDelayBadge", () => {
     setSdk("legacy", [outdatedSdkSeries()]);
     const windowOpen = vi.spyOn(window, "open").mockImplementation(() => null);
 
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(
       screen.getAllByText(/Learn more in the docs/).length,
     ).toBeGreaterThan(0);
@@ -308,5 +309,75 @@ describe("V4MigrationDelayBadge", () => {
     );
     expect(mocks.openMigrationPanel).not.toHaveBeenCalled();
     windowOpen.mockRestore();
+  });
+
+  describe("discoverability events", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const hoveredCalls = () =>
+      mocks.capture.mock.calls.filter(
+        ([name]) => name === "v4_migration:delay_badge_hovered",
+      );
+
+    it("fires delay_badge_shown once per mount with the page dimension", () => {
+      setSdk("legacy", [outdatedSdkSeries()]);
+      const { rerender } = render(<V4MigrationDelayBadge page="traces" />);
+      rerender(<V4MigrationDelayBadge page="traces" />);
+      expect(
+        mocks.capture.mock.calls.filter(
+          ([name]) => name === "v4_migration:delay_badge_shown",
+        ),
+      ).toEqual([["v4_migration:delay_badge_shown", { page: "traces" }]]);
+    });
+
+    it("does not fire delay_badge_shown while the badge is hidden", () => {
+      setSdk("checking", []);
+      render(<V4MigrationDelayBadge page="traces" />);
+      expect(mocks.capture).not.toHaveBeenCalled();
+    });
+
+    it("fires delay_badge_hovered once after the dwell threshold", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      render(<V4MigrationDelayBadge page="observations" />);
+      const badge = screen.getByRole("button");
+
+      fireEvent.mouseEnter(badge);
+      vi.advanceTimersByTime(500);
+      fireEvent.mouseLeave(badge);
+      // A later hover on the same mount must not double-count.
+      fireEvent.mouseEnter(badge);
+      vi.advanceTimersByTime(500);
+
+      expect(hoveredCalls()).toEqual([
+        ["v4_migration:delay_badge_hovered", { page: "observations" }],
+      ]);
+    });
+
+    it("does not count a drive-by hover shorter than the dwell", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      render(<V4MigrationDelayBadge page="traces" />);
+      const badge = screen.getByRole("button");
+
+      fireEvent.mouseEnter(badge);
+      vi.advanceTimersByTime(300);
+      fireEvent.mouseLeave(badge);
+      vi.advanceTimersByTime(1000);
+
+      expect(hoveredCalls()).toHaveLength(0);
+    });
+
+    it("carries the page dimension on delay_badge_clicked", () => {
+      setSdk("legacy", [outdatedSdkSeries()]);
+      render(<V4MigrationDelayBadge page="observations" />);
+      fireEvent.click(screen.getAllByText("New data in ~15 min")[0]);
+      expect(mocks.capture).toHaveBeenCalledWith(
+        "v4_migration:delay_badge_clicked",
+        { page: "observations" },
+      );
+    });
   });
 });

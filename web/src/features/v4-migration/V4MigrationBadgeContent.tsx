@@ -27,6 +27,10 @@ export function V4MigrationStatusDot({
 
 type V4MigrationBadgeContentProps = {
   onClick: () => void;
+  // Hover callbacks for badges that track discoverability (the pill expands
+  // its description on hover, so hover ≈ "noticed the badge").
+  onHoverStart?: () => void;
+  onHoverEnd?: () => void;
   title: string;
   description?: string;
   showChevron?: boolean;
@@ -35,6 +39,8 @@ type V4MigrationBadgeContentProps = {
 
 export function V4MigrationBadgeContent({
   onClick,
+  onHoverStart,
+  onHoverEnd,
   title,
   description,
   showChevron = true,
@@ -45,6 +51,8 @@ export function V4MigrationBadgeContent({
       <button
         type="button"
         onClick={onClick}
+        onMouseEnter={onHoverStart}
+        onMouseLeave={onHoverEnd}
         className="hover:bg-muted/50 hover:text-foreground inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-bold whitespace-nowrap"
       >
         <span
@@ -75,6 +83,8 @@ export function V4MigrationBadgeContent({
       <button
         type="button"
         onClick={onClick}
+        onMouseEnter={onHoverStart}
+        onMouseLeave={onHoverEnd}
         className="group ring-input hover:bg-muted/50 hover:text-foreground col-start-1 row-start-1 inline-flex w-fit flex-none shrink-0 items-center gap-1.5 justify-self-start rounded-full bg-transparent px-2 py-0.5 text-xs font-bold whitespace-nowrap ring"
       >
         <V4MigrationStatusDot variant="action" />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {
   useV4UpgradeUiEnabled,
@@ -23,7 +23,17 @@ import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorM
 import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
-export function V4MigrationDelayBadge() {
+// The pill's description finishes expanding after 300ms (V4MigrationBadgeContent),
+// so a 500ms dwell means the full text was on screen — a drive-by mouse pass
+// does not count as "noticed".
+const HOVER_DWELL_MS = 500;
+
+export function V4MigrationDelayBadge({
+  page,
+}: {
+  // Which table hosts the badge — clicks/hovers/impressions segment by it.
+  page: "traces" | "observations" | "experiments";
+}) {
   const v4UpgradeUiFlagEnabled = useV4UpgradeUiFlag();
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { project } = useQueryProject();
@@ -56,18 +66,56 @@ export function V4MigrationDelayBadge() {
     customActionable,
   ].filter(Boolean).length;
 
-  if (!enabled || !project || actionablePaths === 0) {
+  const visible = enabled && Boolean(project) && actionablePaths > 0;
+
+  // Impression + hover exist to answer one question: do users notice the
+  // badge? `shown` is the exposure denominator, `hovered` the
+  // noticed-but-not-clicked middle. Both fire at most once per mount so the
+  // ratios stay per-visit; the effect synchronizes visibility with PostHog
+  // (it can flip to true only after the SDK check resolves).
+  const shownCapturedRef = useRef(false);
+  const hoverCapturedRef = useRef(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (visible && !shownCapturedRef.current) {
+      shownCapturedRef.current = true;
+      capture("v4_migration:delay_badge_shown", { page });
+    }
+  }, [visible, page, capture]);
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    };
+  }, []);
+
+  if (!visible || !project) {
     return null;
   }
 
   const handleClick = () => {
     if (forceV3) {
-      capture("v4_migration:delay_badge_clicked", { action: "docs" });
+      capture("v4_migration:delay_badge_clicked", { action: "docs", page });
       window.open(PARTNER_INTEGRATION_FAQ_URL, "_blank", "noopener,noreferrer");
       return;
     }
-    capture("v4_migration:delay_badge_clicked");
+    capture("v4_migration:delay_badge_clicked", { page });
     openMigrationPanel({ id: project.id, name: project.name }, "delay_badge");
+  };
+
+  const handleHoverStart = () => {
+    if (hoverCapturedRef.current || hoverTimerRef.current) return;
+    hoverTimerRef.current = setTimeout(() => {
+      hoverTimerRef.current = null;
+      hoverCapturedRef.current = true;
+      capture("v4_migration:delay_badge_hovered", { page });
+    }, HOVER_DWELL_MS);
+  };
+
+  const handleHoverEnd = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
   };
 
   // The hover's action clause echoes the panel section the click opens;
@@ -84,6 +132,8 @@ export function V4MigrationDelayBadge() {
   return (
     <V4MigrationBadgeContent
       onClick={handleClick}
+      onHoverStart={handleHoverStart}
+      onHoverEnd={handleHoverEnd}
       title="New data in ~15 min"
       description={forceV3 ? "Learn more in the docs" : description}
     />
