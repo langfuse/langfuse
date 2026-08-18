@@ -7,9 +7,11 @@ import {
   EvaluatorRecommendedTemplateCardContent,
 } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
 import { EvaluatorRecommendedCards } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
+import { EVALUATOR_ACCENT_BUTTON_CLASSNAME } from "@/src/features/evals/v2/constants/evaluatorEmptyState";
 import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
 import type { EvaluatorEmptyStateStartingPoint } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorEmptyState";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
+import { cn } from "@/src/utils/tailwind";
 
 function DetectTopicsStartingPointCard({
   startingPoint,
@@ -45,7 +47,10 @@ function DetectTopicsStartingPointCard({
             size="sm"
             variant="outline"
             onClick={onDetectTopics}
-            className="border-primary-accent/40 bg-primary-accent/10 text-primary-accent hover:bg-primary-accent/15 hover:text-primary-accent pointer-events-auto relative shrink-0 gap-1 px-2 text-xs"
+            className={cn(
+              EVALUATOR_ACCENT_BUTTON_CLASSNAME,
+              "pointer-events-auto relative shrink-0 gap-1 px-2 text-xs",
+            )}
           >
             <BotMessageSquare className="h-3 w-3" />
             Set up with AI

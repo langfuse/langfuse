@@ -63,6 +63,7 @@ import {
   evaluatorTableFilterConfig,
   evaluatorTableFilterOptions,
 } from "../constants/tableFilterColumns";
+import { EVALUATOR_ACCENT_BUTTON_CLASSNAME } from "../constants/evaluatorEmptyState";
 import type { GalleryTemplate } from "../types/templateGallery";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
@@ -563,10 +564,21 @@ export default function EvaluatorsPage() {
                 </PopoverTrigger>
               </JudgeModelPicker>
             )}
-            <Button onClick={() => setGalleryOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              New evaluator
-            </Button>
+            {showOnboarding ? (
+              <Button
+                variant="outline"
+                onClick={() => setGalleryOpen(true)}
+                className={EVALUATOR_ACCENT_BUTTON_CLASSNAME}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                New evaluator
+              </Button>
+            ) : (
+              <Button onClick={() => setGalleryOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                New evaluator
+              </Button>
+            )}
           </div>
         ),
         tabsProps: {
