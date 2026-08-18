@@ -7706,7 +7706,7 @@ paths:
         - if `enabled=true`, Langfuse validates that the referenced evaluator
         can currently run
 
-        - at most 50 evaluation rules can be effectively active in one project
+        - at most 500 evaluation rules can be effectively active in one project
         at the same time (enforced identically by the API, the MCP tools, and
         the app)
 
@@ -7719,8 +7719,8 @@ paths:
         creating a second one.
 
 
-        If enabling this resource would exceed the 50-active limit, the API also
-        returns `409`.
+        If enabling this resource would exceed the 500-active limit, the API
+        also returns `409`.
 
         In that case, disable or pause another active evaluation rule before
         enabling a new one.
@@ -8001,7 +8001,7 @@ paths:
         selected evaluator can run
 
         - if the update would move a non-active evaluation rule into the active
-        state and the project already has 50 active evaluation rules, the API
+        state and the project already has 500 active evaluation rules, the API
         returns `409`
 
 
@@ -15023,6 +15023,45 @@ components:
       required:
         - variable
         - source
+    unstableEvaluationRuleReadMapping:
+      title: unstableEvaluationRuleReadMapping
+      type: object
+      description: >-
+        Maps an evaluator variable to target data, as returned by read
+        endpoints.
+
+
+        Reads are more permissive than writes in two ways, so that data
+        configured before a
+
+        migration stays readable and repairable:
+
+        - `source` is `null` when a mapping was never fully configured. Set a
+        concrete `source` to fix it.
+
+        - every `source` value is allowed regardless of the rule `target`,
+        because an evaluator's
+          default mapping is stored independently of the rules that use it.
+
+        Requests always require a concrete `source` that is valid for the
+        selected `target`.
+      properties:
+        variable:
+          type: string
+          description: Prompt variable name without braces.
+        source:
+          $ref: '#/components/schemas/unstableEvaluationRuleMappingSource'
+          nullable: true
+          description: >-
+            Source field populating the variable, or `null` when the mapping is
+            incomplete.
+        jsonPath:
+          type: string
+          nullable: true
+          description: Optional JSONPath selector applied to the selected source.
+      required:
+        - variable
+        - source
     unstableEvaluationRuleFilter:
       title: unstableEvaluationRuleFilter
       oneOf:
@@ -16053,6 +16092,7 @@ components:
             evaluator name.
         evaluator:
           $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+          nullable: true
           description: >-
             Deprecated compatibility alias for `evaluators[0].evaluator`, or
             `null`
@@ -16614,24 +16654,6 @@ components:
       required:
         - evaluator
         - mapping
-    unstableEvaluationRuleReadMapping:
-      title: unstableEvaluationRuleReadMapping
-      type: object
-      description: >-
-        Maps an evaluator variable to target data. The source is `null` when a
-        legacy mapping is incomplete and must be configured.
-      properties:
-        variable:
-          type: string
-        source:
-          $ref: '#/components/schemas/unstableEvaluationRuleMappingSource'
-          nullable: true
-        jsonPath:
-          type: string
-          nullable: true
-      required:
-        - variable
-        - source
     unstableLegacyEvaluationRuleEvaluatorAssignment:
       title: unstableLegacyEvaluationRuleEvaluatorAssignment
       type: object
@@ -16824,11 +16846,20 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+            $ref: '#/components/schemas/unstableEvaluationRuleReadMapping'
           nullable: true
           description: >-
             Default variable mapping for this evaluator version, or `null` when
             no default is configured.
+
+
+            An entry's `source` is `null` when that variable was never fully
+            configured, and sources
+
+            are not restricted by rule `target` here, because the default is
+            stored on the evaluator
+
+            rather than on any one rule.
         evaluationRuleCount:
           type: integer
           description: >-

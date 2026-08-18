@@ -307,8 +307,17 @@ export async function createPublicEvaluationRule(params: {
   evaluatorId?: string;
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
+  // Scoped to the targets this API can write. Rule names carry no uniqueness constraint, so this
+  // only exists to hand back the id to PATCH instead of a second rule -- and PATCH 404s on the
+  // trace/dataset rules the backfill brought in, so including those would be a dead end.
   const existing = await prisma.evaluationRule.findFirst({
-    where: { projectId: params.projectId, name: params.input.name },
+    where: {
+      projectId: params.projectId,
+      name: params.input.name,
+      targetObject: {
+        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      },
+    },
     select: { id: true },
   });
   if (existing) {

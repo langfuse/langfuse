@@ -378,8 +378,13 @@ types:
 
           LLM evaluators require every variable to be mapped exactly once. Code evaluators always expose the fixed runtime payload fields and Langfuse maps them automatically.
       mapping:
-        type: nullable<list<commons.EvaluationRuleMapping>>
-        docs: Default variable mapping for this evaluator version, or `null` when no default is configured.
+        type: nullable<list<commons.EvaluationRuleReadMapping>>
+        docs: |
+          Default variable mapping for this evaluator version, or `null` when no default is configured.
+
+          An entry's `source` is `null` when that variable was never fully configured, and sources
+          are not restricted by rule `target` here, because the default is stored on the evaluator
+          rather than on any one rule.
       evaluationRuleCount:
         type: integer
         docs: Number of evaluation rules in the project that currently use this evaluator.
