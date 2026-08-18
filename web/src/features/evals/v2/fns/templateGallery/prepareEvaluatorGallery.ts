@@ -39,23 +39,29 @@ export function prepareEvaluatorGallery({
   );
   const managedCatalog = managedEvaluatorTemplateService.list({ search });
   const managedByCategory = new Map(
-    managedCatalog.categories.map((category) => [
-      category.key,
-      (category.key === "recommended"
-        ? managedCatalog.templates
-            .filter((template) => template.categories.includes(category.key))
-            .toSorted(
+    managedCatalog.categories.map((category) => {
+      const templatesInCategory = managedCatalog.templates.filter((template) =>
+        template.categories.includes(category.key),
+      );
+      const orderedTemplates =
+        category.key === "recommended"
+          ? templatesInCategory.toSorted(
               (left, right) =>
                 (RECOMMENDED_TEMPLATE_RANK.get(left.key) ??
                   Number.MAX_SAFE_INTEGER) -
                 (RECOMMENDED_TEMPLATE_RANK.get(right.key) ??
                   Number.MAX_SAFE_INTEGER),
             )
-        : managedCatalog.templates.filter((template) =>
-            template.categories.includes(category.key),
-          )
-      ).map((template) => ({ source: "managed" as const, ...template })),
-    ]),
+          : templatesInCategory;
+
+      return [
+        category.key,
+        orderedTemplates.map((template) => ({
+          source: "managed" as const,
+          ...template,
+        })),
+      ];
+    }),
   );
   const navigationItems: GalleryNavigationItem[] = [
     ...(filteredCustom.length
