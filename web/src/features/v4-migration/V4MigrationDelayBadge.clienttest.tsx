@@ -424,6 +424,44 @@ describe("V4MigrationDelayBadge", () => {
       expect(hoveredCalls()).toHaveLength(0);
     });
 
+    it("does not count a re-hover after the badge was clicked", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      render(<V4MigrationDelayBadge page="traces" />);
+      const badge = screen.getByRole("button");
+
+      // `hovered` counts noticed-but-NOT-clicked: once the user clicked,
+      // later dwells on the same exposure must not file them under it.
+      fireEvent.click(badge);
+      fireEvent.mouseEnter(badge);
+      vi.advanceTimersByTime(1000);
+
+      expect(hoveredCalls()).toHaveLength(0);
+    });
+
+    it("re-arms hovered when the user returns to a project in place", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      const { rerender } = render(<V4MigrationDelayBadge page="traces" />);
+      const dwell = () => {
+        fireEvent.mouseEnter(screen.getByRole("button"));
+        vi.advanceTimersByTime(500);
+        fireEvent.mouseLeave(screen.getByRole("button"));
+      };
+
+      dwell();
+      // Switch away and back without unmounting (the project switcher stays
+      // on the route). The return re-fires `shown` as a new exposure, so a
+      // fresh dwell must count again — otherwise the pair drifts apart.
+      mocks.projectId = "project-2";
+      rerender(<V4MigrationDelayBadge page="traces" />);
+      mocks.projectId = "project-1";
+      rerender(<V4MigrationDelayBadge page="traces" />);
+      dwell();
+
+      expect(hoveredCalls()).toHaveLength(2);
+    });
+
     it("counts a keyboard focus dwell as hovered", () => {
       vi.useFakeTimers();
       setSdk("legacy", [outdatedSdkSeries()]);

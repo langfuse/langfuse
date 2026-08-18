@@ -71,18 +71,29 @@ export function V4MigrationDelayBadge({
 
   // Impression + hover exist to answer one question: do users notice the
   // badge? `shown` is the exposure denominator, `hovered` the
-  // noticed-but-not-clicked middle. Both fire at most once per project per
-  // mount: the project switcher navigates within the same route, so the
-  // component survives the switch, and a plain once-per-mount boolean would
-  // swallow the next project's exposure (clicks with no matching shown). The
-  // effect synchronizes visibility with PostHog (it can flip to true only
-  // after the SDK check resolves).
+  // noticed-but-not-clicked middle. Both fire at most once per exposure,
+  // where an exposure ends when the hosting project changes: the project
+  // switcher navigates within the same route, so the component survives the
+  // switch, and a plain once-per-mount boolean would swallow the next
+  // project's exposure (clicks with no matching shown). The effect
+  // synchronizes visibility with PostHog (it can flip to true only after the
+  // SDK check resolves).
   const shownCapturedForRef = useRef<string | null>(null);
   const hoverCapturedForRef = useRef<string | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (visible && projectId && shownCapturedForRef.current !== projectId) {
       shownCapturedForRef.current = projectId;
+      // A new exposure re-arms the pair together: drop any dwell still
+      // pending from the previous project (the switch can happen without a
+      // mouseleave) and clear the hover marker, so a project the user
+      // returns to in place gets a `hovered` chance for each `shown` it
+      // fires — otherwise numerator and denominator drift apart.
+      hoverCapturedForRef.current = null;
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+      }
       capture("v4_migration:delay_badge_shown", { page });
     }
   }, [visible, projectId, page, capture]);
@@ -122,10 +133,13 @@ export function V4MigrationDelayBadge({
   };
 
   const handleClick = () => {
-    // A click consumes the pending dwell: `hovered` counts noticed but NOT
-    // clicked, and touch taps synthesize a mouseenter with no mouseleave, so
-    // an uncancelled timer would also count every tap as a hover.
+    // A click consumes this exposure's `hovered` budget: the event counts
+    // noticed but NOT clicked, so cancel the pending dwell (touch taps
+    // synthesize a mouseenter with no mouseleave, so an uncancelled timer
+    // would count every tap as a hover) and mark the project as spent — a
+    // re-hover after the click must not file the user under "never clicked".
     handleHoverEnd();
+    hoverCapturedForRef.current = project.id;
     if (forceV3) {
       capture("v4_migration:delay_badge_clicked", { action: "docs", page });
       window.open(PARTNER_INTEGRATION_FAQ_URL, "_blank", "noopener,noreferrer");
