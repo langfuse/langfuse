@@ -8,12 +8,19 @@ import { useState } from "react";
 import Decimal from "decimal.js";
 import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
+import Link from "next/link";
+import { ExternalLinkIcon } from "lucide-react";
+
+export type BreakdownTooltipCostSource =
+  | { type: "provided" }
+  | { type: "model"; href: string };
 
 interface BreakdownTooltipProps {
   details: Details | Details[];
   children: React.ReactNode;
   isCost?: boolean;
   pricingTierName?: string;
+  costSource?: BreakdownTooltipCostSource;
 }
 
 export const BreakdownTooltip = ({
@@ -21,6 +28,7 @@ export const BreakdownTooltip = ({
   children,
   isCost = false,
   pricingTierName,
+  costSource,
 }: BreakdownTooltipProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -75,6 +83,22 @@ export const BreakdownTooltip = ({
                 <div className="text-muted-foreground flex justify-between text-xs">
                   <span>Pricing Tier:</span>
                   <span className="font-mono">{pricingTierName}</span>
+                </div>
+              )}
+              {isCost && costSource && (
+                <div className="text-muted-foreground flex justify-between gap-4 text-xs">
+                  <span>Cost source:</span>
+                  {costSource.type === "provided" ? (
+                    <span className="text-right">Provided by application</span>
+                  ) : (
+                    <Link
+                      href={costSource.href}
+                      className="flex items-center gap-1 text-right underline-offset-2 hover:underline"
+                    >
+                      Langfuse model pricing
+                      <ExternalLinkIcon className="h-3 w-3 shrink-0" />
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

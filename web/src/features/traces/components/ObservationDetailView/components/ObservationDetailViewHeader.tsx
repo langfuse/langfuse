@@ -67,6 +67,9 @@ import { CollapsibleBadgeRow } from "@/src/features/traces/components/Collapsibl
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 
+const hasProvidedCosts = (costDetails: Record<string, number>) =>
+  Object.values(costDetails).some((value) => value != null);
+
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
   observationWithIO:
@@ -409,6 +412,24 @@ export const ObservationDetailViewHeader = memo(
                 }
                 costDetails={
                   subtreeMetrics?.costDetails ?? observation.costDetails
+                }
+                pricingTierName={
+                  subtreeMetrics
+                    ? undefined
+                    : (observation.usagePricingTierName ?? undefined)
+                }
+                costSource={
+                  subtreeMetrics
+                    ? undefined
+                    : hasProvidedCosts(observation.providedCostDetails)
+                      ? { type: "provided" }
+                      : observation.internalModelId &&
+                          observation.usagePricingTierId
+                        ? {
+                            type: "model",
+                            href: `/project/${projectId}/settings/models/${observation.internalModelId}?pricingTier=${observation.usagePricingTierId}`,
+                          }
+                        : undefined
                 }
               />
               {subtreeMetrics ? (

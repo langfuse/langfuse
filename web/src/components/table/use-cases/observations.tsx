@@ -129,6 +129,9 @@ export type ObservationsTableRow = {
   usageDetails: Record<string, number>;
   totalCost?: number;
   costDetails: Record<string, number>;
+  providedCostDetails: Record<string, number>;
+  modelId?: string;
+  usagePricingTierId?: string | null;
   usagePricingTierName?: string | null;
   model?: string;
   promptName?: string;
@@ -864,6 +867,18 @@ export default function ObservationsTable({
             details={row.original.costDetails}
             isCost
             pricingTierName={row.original.usagePricingTierName ?? undefined}
+            costSource={
+              Object.values(row.original.providedCostDetails).some(
+                (cost) => cost != null,
+              )
+                ? { type: "provided" }
+                : row.original.modelId && row.original.usagePricingTierId
+                  ? {
+                      type: "model",
+                      href: `/project/${projectId}/settings/models/${row.original.modelId}?pricingTier=${row.original.usagePricingTierId}`,
+                    }
+                  : undefined
+            }
           >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
@@ -1397,6 +1412,8 @@ export default function ObservationsTable({
             timestamp: generation.traceTimestamp ?? undefined,
             usageDetails: generation.usageDetails ?? {},
             costDetails: generation.costDetails ?? {},
+            providedCostDetails: generation.providedCostDetails ?? {},
+            usagePricingTierId: generation.usagePricingTierId ?? undefined,
             usagePricingTierName: generation.usagePricingTierName ?? undefined,
             environment: generation.environment ?? undefined,
             toolDefinitions: generation.toolDefinitionsCount ?? undefined,
