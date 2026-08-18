@@ -330,13 +330,14 @@ function VerifiedSignupFlow({
   const emailParam = router.query.email as string | undefined;
   const queryTargetPath = router.query.targetPath as string | undefined;
   const targetPath = queryTargetPath
-    ? stripBasePath(getSafeRedirectPath(queryTargetPath)) === "/demo"
-      ? "/demo"
-      : undefined
+    ? getSafeRedirectPath(queryTargetPath)
     : undefined;
-  const setupPasswordPath = targetPath
-    ? `/auth/setup-password?targetPath=${encodeURIComponent(targetPath)}`
+  const demoTargetPath =
+    targetPath && stripBasePath(targetPath) === "/demo" ? "/demo" : undefined;
+  const setupPasswordPath = demoTargetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(demoTargetPath)}`
     : "/auth/setup-password";
+  const ssoCallbackUrl = demoTargetPath ? targetPath : undefined;
 
   const [formError, setFormError] = useState<string | null>(null);
   const [phase, setPhase] = useState<SignupPhase>("form");
@@ -552,7 +553,7 @@ function VerifiedSignupFlow({
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
-        callbackUrl={targetPath}
+        callbackUrl={ssoCallbackUrl}
         lastUsedMethod={lastUsedAuthMethod}
         onProviderSelect={setLastUsedAuthMethod}
       />

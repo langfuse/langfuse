@@ -20,11 +20,12 @@ import type { SurveyFormData } from "../lib/surveyTypes";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 
-const getSameOriginPath = (url: string): string | null => {
+const getCallbackPath = (url: string): string | null => {
   if (typeof window === "undefined") return null;
+  if (!/^(\/|https?:\/\/)/i.test(url)) return null;
 
   try {
-    const parsedUrl = new URL(url);
+    const parsedUrl = new URL(url, window.location.origin);
     if (parsedUrl.origin !== window.location.origin) return null;
     return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
   } catch {
@@ -32,14 +33,11 @@ const getSameOriginPath = (url: string): string | null => {
   }
 };
 
-const getQueryRedirectPath = (value: unknown): string | undefined => {
-  if (typeof value !== "string") return undefined;
-  const sameOriginPath = getSameOriginPath(value);
-  return stripBasePath(getSafeRedirectPath(sameOriginPath ?? value));
-};
-
 const getDemoCallbackRedirectPath = (value: unknown): string | undefined => {
-  const redirectPath = getQueryRedirectPath(value);
+  if (typeof value !== "string") return undefined;
+  const callbackPath = getCallbackPath(value);
+  if (!callbackPath) return undefined;
+  const redirectPath = stripBasePath(getSafeRedirectPath(callbackPath));
   return redirectPath === "/demo" ? redirectPath : undefined;
 };
 

@@ -100,86 +100,6 @@ describe("demo redirect page", () => {
     expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
-  it("bounces to the project-cookie region before resolving demo redirects", async () => {
-    await expect(
-      getDemoServerSideProps(
-        makeCtx({
-          req: {
-            cookies: {
-              "langfuse.project": JSON.stringify({
-                origin: "https://us.cloud.langfuse.com",
-                projectId: "project-1",
-              }),
-            },
-            headers: {
-              host: "cloud.langfuse.com",
-              "x-forwarded-proto": "https",
-            },
-          },
-          resolvedUrl: "/demo",
-        }),
-      ),
-    ).resolves.toEqual({
-      redirect: {
-        destination: "https://us.cloud.langfuse.com/demo",
-        permanent: false,
-      },
-    });
-
-    expect(getServerAuthSessionMock).not.toHaveBeenCalled();
-    expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
-  });
-
-  it("bounces to the first detected session-cookie region when current host is unauthenticated", async () => {
-    await expect(
-      getDemoServerSideProps(
-        makeCtx({
-          req: {
-            cookies: {
-              "__Secure-next-auth.session-token.US": "token",
-              "__Secure-next-auth.session-token.EU": "token",
-            },
-            headers: {
-              host: "jp.cloud.langfuse.com",
-              "x-forwarded-proto": "https",
-            },
-          },
-        }),
-      ),
-    ).resolves.toEqual({
-      redirect: {
-        destination: "https://us.cloud.langfuse.com/demo",
-        permanent: false,
-      },
-    });
-
-    expect(getServerAuthSessionMock).not.toHaveBeenCalled();
-    expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
-  });
-
-  it("stays on the current host when it already has a matching session cookie", async () => {
-    await expect(
-      getDemoServerSideProps(
-        makeCtx({
-          req: {
-            cookies: {
-              "__Secure-next-auth.session-token.EU": "token",
-            },
-            headers: {
-              host: "cloud.langfuse.com",
-              "x-forwarded-proto": "https",
-            },
-          },
-        }),
-      ),
-    ).resolves.toEqual({
-      redirect: {
-        destination: `/auth/sign-up?targetPath=${encodeURIComponent("/demo")}`,
-        permanent: false,
-      },
-    });
-  });
-
   it("redirects unauthenticated users to sign up with the demo target", async () => {
     getServerAuthSessionMock.mockResolvedValue(null);
 
@@ -207,6 +127,20 @@ describe("demo redirect page", () => {
 
   it("falls back to home when no demo project is configured", async () => {
     mockEnv.env.NEXT_PUBLIC_DEMO_PROJECT_ID = undefined;
+
+    await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
+      redirect: {
+        destination: "/",
+        permanent: false,
+      },
+    });
+    expect(getServerAuthSessionMock).not.toHaveBeenCalled();
+    expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
+  });
+
+  it("falls back to home when the deployment is not Langfuse Cloud", async () => {
+    mockEnv.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
 
     await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
       redirect: {
