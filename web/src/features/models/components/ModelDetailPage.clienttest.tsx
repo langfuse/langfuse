@@ -76,7 +76,7 @@ vi.mock("@/src/components/editor", () => ({
   CodeMirrorEditor: () => null,
 }));
 
-import ModelDetailPage from "./[modelId]";
+import ModelDetailPage from "@/src/pages/project/[projectId]/settings/models/[modelId]";
 
 describe("ModelDetailPage pricing tier deep link", () => {
   it("falls back to the default tier when the linked tier was deleted", () => {
