@@ -9,6 +9,7 @@ import {
   instrumentSync,
 } from "../../../server/instrumentation";
 import { logger } from "../../../server/logger";
+import { ClickHouseResourceError } from "../../../server/repositories/clickhouse";
 import {
   getTriggerConfigurations as defaultGetTriggerConfigurations,
   type TriggerDomainWithActions,
@@ -162,6 +163,16 @@ export class MonitorProcessor {
       }
       metricMap["count_count"] = parseNumericValue(row["count_count"]);
     } catch (error) {
+      // Resource pressure is transient, not a bad query; rethrow so the monitor stays ACTIVE and the scheduler retries.
+      if (error instanceof ClickHouseResourceError) {
+        logger.warn("queryMetrics hit a ClickHouse resource limit; retrying", {
+          errorType: error.errorType,
+          projectId: event.projectId,
+          schedulerBatchId: event.schedulerBatchId.toString(),
+          monitorIds: event.monitors.map((m) => m.monitorId),
+        });
+        throw error;
+      }
       logger.error(
         "queryMetrics failed; flipping affected monitors to ERROR_BAD_QUERY",
         {

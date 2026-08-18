@@ -458,13 +458,13 @@ export const reduceUsageOrCostDetails = (
 } => {
   return {
     input: Object.entries(details ?? {})
-      .filter(([usageType]) => usageType.startsWith("input"))
+      .filter(([usageType]) => usageType.includes("input"))
       .reduce(
         (acc, [, value]) => (acc ?? 0) + Number(value),
         null as number | null, // default to null if no input usage is found
       ),
     output: Object.entries(details ?? {})
-      .filter(([usageType]) => usageType.startsWith("output"))
+      .filter(([usageType]) => usageType.includes("output"))
       .reduce(
         (acc, [, value]) => (acc ?? 0) + Number(value),
         null as number | null, // default to null if no output usage is found

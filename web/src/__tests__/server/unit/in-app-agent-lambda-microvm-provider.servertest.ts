@@ -221,4 +221,67 @@ describe("in-app agent lambda microvm sandbox provider", () => {
       headers: { "X-aws-proxy-auth": "token-3" },
     });
   });
+
+  it("replaces a terminal saved session with a new microvm", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response(null, { status: 200 })),
+    );
+    microvmSendMock.mockImplementation(async (command: { input: unknown }) => {
+      const input = command.input as { microvmIdentifier?: string };
+
+      if (command.constructor.name === "GetMicrovmCommand") {
+        if (input.microvmIdentifier === "old-session") {
+          return {
+            microvmId: "old-session",
+            endpoint: "https://old.example.com:8443",
+            state: "TERMINATED",
+          };
+        }
+
+        return {
+          microvmId: input.microvmIdentifier,
+          endpoint: "https://microvm.example.com:8443",
+          state: "RUNNING",
+        };
+      }
+
+      if (command.constructor.name === "RunMicrovmCommand") {
+        return {
+          microvmId: "microvm-2",
+          endpoint: "https://microvm.example.com:8443",
+          state: "RUNNING",
+        };
+      }
+
+      if (command.constructor.name === "CreateMicrovmAuthTokenCommand") {
+        return { authToken: { "X-aws-proxy-auth": "token-1" } };
+      }
+
+      throw new Error(`Unexpected command ${command.constructor.name}`);
+    });
+
+    const { createLambdaMicrovmSandboxProvider } =
+      await import("@langfuse/shared/in-app-agent/server/sandbox/providers/lambdaMicrovm");
+    const provider = createLambdaMicrovmSandboxProvider({
+      imageIdentifier: "image-1",
+      executionRoleArn: "arn:aws:iam::123456789012:role/sandbox",
+      region: "us-east-1",
+    });
+
+    const session = await provider.ensureSession({
+      conversationId: "conversation-1",
+      sessionId: "old-session",
+    });
+
+    expect(session.sessionId).toBe("microvm-2");
+    expect(session.replacementReason).toBe("terminal_state");
+    expect(
+      microvmSendMock.mock.calls.find(
+        ([command]) => command.constructor.name === "ResumeMicrovmCommand",
+      ),
+    ).toBeUndefined();
+  });
 });

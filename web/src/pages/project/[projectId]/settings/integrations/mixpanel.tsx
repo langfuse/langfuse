@@ -33,7 +33,7 @@ import {
   type MixpanelRegion,
 } from "@/src/features/mixpanel-integration/types";
 import {
-  AnalyticsIntegrationExportSource,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   validateExportSource,
   type BlobExportWriteMode,
   type ExportSourceContext,
@@ -42,12 +42,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
-  getExportSourceOptions,
+  getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-  shouldHideExportSourceSelector,
 } from "@/src/features/analytics-integrations/exportSource";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -171,38 +169,26 @@ const MixpanelIntegrationSettingsForm = ({
   projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const integrationCreatedAt = state?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
     () =>
       buildExportSourceContext({
         writeMode,
         isCloud: isLangfuseCloud,
         projectCreatedAt: new Date(projectCreatedAt),
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
       }),
-    [writeMode, isLangfuseCloud, projectCreatedAt],
+    [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
   );
-  const legacyValidation = validateExportSource(
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-    exportSourceCtx,
-  );
-  // Post-cutoff Cloud projects: field hidden, form value pinned to EVENTS via
-  // the default below (LFE-9688 / 9830 behavior, unchanged).
-  const isPostCutoffCloud =
-    !legacyValidation.ok && legacyValidation.reason === "cloud-cutoff";
-  const exportSourceOptions = getExportSourceOptions(
-    state?.exportSource ?? null,
-    exportSourceCtx,
-  );
-  // Selector is beta-gated, except a persisted source blocked by capability
-  // forces it visible so the blocked-save alert has something to point at.
-  const persistedBlockedByCapability =
-    state?.exportSource != null &&
-    !isPostCutoffCloud &&
-    !isExportSourceSelectable(state.exportSource, exportSourceCtx);
-  const showExportSourceField =
-    ((isBetaEnabled && !isPostCutoffCloud) || persistedBlockedByCapability) &&
-    !shouldHideExportSourceSelector(exportSourceOptions);
+  const {
+    options: exportSourceOptions,
+    showField: showExportSourceField,
+    defaultValue: defaultExportSource,
+  } = getExportSourceFieldState(state?.exportSource, exportSourceCtx);
 
   // Blocked-save validation instead of silent rewrite (LFE-10296).
   const formSchema = useMemo(
@@ -228,13 +214,6 @@ const MixpanelIntegrationSettingsForm = ({
       }),
     [exportSourceCtx, state],
   );
-
-  const defaultExportSource = isPostCutoffCloud
-    ? AnalyticsIntegrationExportSource.EVENTS
-    : (state?.exportSource ??
-      (isBetaEnabled || !exportSourceCtx.legacyWritesActive
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS));
 
   const mixpanelForm = useForm({
     resolver: zodResolver(formSchema),

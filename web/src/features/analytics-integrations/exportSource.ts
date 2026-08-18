@@ -22,11 +22,13 @@ export function buildExportSourceContext({
   isCloud,
   projectCreatedAt,
   integrationCreatedAt,
+  exporterCutoff,
 }: {
   writeMode: BlobExportWriteMode;
   isCloud: boolean;
   projectCreatedAt?: Date;
   integrationCreatedAt?: Date | null;
+  exporterCutoff?: Date;
 }): ExportSourceContext {
   return {
     isCloud,
@@ -34,6 +36,7 @@ export function buildExportSourceContext({
     legacyWritesActive: areLegacyWritesActive(writeMode),
     projectCreatedAt,
     integrationCreatedAt,
+    exporterCutoff,
   };
 }
 
@@ -87,6 +90,29 @@ export function getExportSourceOptions(
     if (!option) return [];
     return [{ ...option, unavailable: blockedReason !== undefined }];
   });
+}
+
+export type ExportSourceFieldState = {
+  options: SelectableExportSourceOption[];
+  showField: boolean;
+  defaultValue: AnalyticsIntegrationExportSource;
+};
+
+// Visibility and the default have to agree: a hidden selector whose default is
+// not selectable blocks every save with no field left to fix it with. Both
+// therefore derive from the same option list, with no per-context override —
+// the persisted value survives even where it can no longer be chosen, so the
+// blocked-save alert names it instead of a save quietly replacing it.
+export function getExportSourceFieldState(
+  persisted: AnalyticsIntegrationExportSource | null | undefined,
+  ctx: ExportSourceContext,
+): ExportSourceFieldState {
+  const options = getExportSourceOptions(persisted ?? null, ctx);
+  return {
+    options,
+    showField: !shouldHideExportSourceSelector(options),
+    defaultValue: getExportSourceFormValue(persisted, ctx),
+  };
 }
 
 // Blocked-save alert body per policy reason.

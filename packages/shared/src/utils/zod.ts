@@ -160,7 +160,7 @@ export const paginationMetaResponseZod = z.object({
 
 /**
  * Top-level `_deprecation` metadata returned by legacy public API endpoints.
- * Optional fields are omitted when empty (never null). See LFE-10895.
+ * Optional fields are omitted when empty (never null).
  */
 export const deprecationResponseZod = z.object({
   message: z.string(),
