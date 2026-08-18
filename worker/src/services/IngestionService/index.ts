@@ -83,13 +83,6 @@ function parseUInt16(value: string | null | undefined): number | undefined {
 }
 
 function toPricingAttributeRecord(value: unknown): Record<string, string> {
-  return mergePricingAttributeRecord({}, value);
-}
-
-function mergePricingAttributeRecord(
-  current: Record<string, string>,
-  value: unknown,
-): Record<string, string> {
   const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
 
   if (
@@ -97,23 +90,18 @@ function mergePricingAttributeRecord(
     typeof parsedValue !== "object" ||
     Array.isArray(parsedValue)
   ) {
-    return current;
+    return {};
   }
 
-  const merged = { ...current };
-  for (const [key, attributeValue] of Object.entries(parsedValue)) {
-    if (
+  return Object.fromEntries(
+    Object.entries(parsedValue).flatMap(([key, attributeValue]) =>
       typeof attributeValue === "string" ||
       typeof attributeValue === "number" ||
       typeof attributeValue === "boolean"
-    ) {
-      merged[key] = String(attributeValue);
-    } else {
-      delete merged[key];
-    }
-  }
-
-  return merged;
+        ? [[key, String(attributeValue)]]
+        : [],
+    ),
+  );
 }
 
 export type EventInput = InternalTraceEventInput;
@@ -149,7 +137,6 @@ type MergeAndWriteParams = {
 type PricingTierMatchAttributeValues = {
   modelParameters?: unknown;
   metadata?: unknown;
-  metadataPatches?: unknown[];
 };
 
 /**
@@ -1001,22 +988,21 @@ export class IngestionService {
     const rawOutput =
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
       clickhouseObservationRecord?.output;
-    let pricingMatchModelParameters: unknown =
-      clickhouseObservationRecord?.model_parameters;
-    const pricingMatchMetadataPatches: unknown[] = [];
-    for (const event of timeSortedEvents) {
-      if (event.body.metadata) {
-        pricingMatchMetadataPatches.push(event.body.metadata);
-      }
-      if ("modelParameters" in event.body && event.body.modelParameters) {
-        pricingMatchModelParameters = event.body.modelParameters;
-      }
-    }
-    const pricingMatchAttributeValues: PricingTierMatchAttributeValues = {
-      modelParameters: pricingMatchModelParameters,
-      metadata: clickhouseObservationRecord?.metadata,
-      metadataPatches: pricingMatchMetadataPatches,
-    };
+    const pricingEventIndex = observationRecords.findLastIndex(
+      (record) => Object.keys(record.provided_usage_details ?? {}).length > 0,
+    );
+    const pricingEvent = timeSortedEvents[pricingEventIndex];
+    const pricingMatchAttributeValues:
+      | PricingTierMatchAttributeValues
+      | undefined = pricingEvent
+      ? {
+          modelParameters:
+            "modelParameters" in pricingEvent.body
+              ? pricingEvent.body.modelParameters
+              : undefined,
+          metadata: pricingEvent.body.metadata,
+        }
+      : undefined;
     const normalizedTools = normalizeToolsForObservation(
       rawInput,
       rawOutput,
@@ -1059,11 +1045,33 @@ export class IngestionService {
       );
     }
 
-    const generationUsage = await this.getGenerationUsage({
-      projectId,
-      pricingMatchAttributeValues,
-      observationRecord: mergedObservationRecord,
-    });
+    const hasIncomingCost = observationRecords.some(
+      (record) => Object.keys(record.provided_cost_details ?? {}).length > 0,
+    );
+    const hasUsageCalculationInput = timeSortedEvents.some(
+      (event) =>
+        ("input" in event.body && event.body.input !== undefined) ||
+        ("output" in event.body && event.body.output !== undefined) ||
+        ("model" in event.body && event.body.model !== undefined) ||
+        event.body.level !== undefined,
+    );
+    // Attribute-only updates cannot be rematched under the same-event
+    // contract, so retain the pricing result calculated with the prior usage.
+    const shouldPreserveCalculatedUsage =
+      clickhouseObservationRecord !== null &&
+      clickhouseObservationRecord !== undefined &&
+      Object.keys(clickhouseObservationRecord.provided_usage_details ?? {})
+        .length > 0 &&
+      pricingEventIndex === -1 &&
+      !hasIncomingCost &&
+      !hasUsageCalculationInput;
+    const generationUsage = shouldPreserveCalculatedUsage
+      ? {}
+      : await this.getGenerationUsage({
+          projectId,
+          pricingMatchAttributeValues,
+          observationRecord: mergedObservationRecord,
+        });
     const finalObservationRecord = {
       ...mergedObservationRecord,
       ...generationUsage,
@@ -1337,16 +1345,6 @@ export class IngestionService {
               ),
         ),
       );
-      let pricingMetadata: Record<string, string> = {};
-      if (attributeSources.has("metadata")) {
-        pricingMetadata = toPricingAttributeRecord(
-          pricingMatchAttributeValues?.metadata,
-        );
-        for (const patch of pricingMatchAttributeValues?.metadataPatches ??
-          []) {
-          pricingMetadata = mergePricingAttributeRecord(pricingMetadata, patch);
-        }
-      }
       const pricingMatchAttributes: PricingTierMatchAttributes | undefined =
         attributeSources.size > 0
           ? {
@@ -1355,7 +1353,11 @@ export class IngestionService {
                     pricingMatchAttributeValues?.modelParameters,
                   )
                 : {},
-              metadata: pricingMetadata,
+              metadata: attributeSources.has("metadata")
+                ? toPricingAttributeRecord(
+                    pricingMatchAttributeValues?.metadata,
+                  )
+                : {},
             }
           : undefined;
       const matchedTier = matchPricingTier(

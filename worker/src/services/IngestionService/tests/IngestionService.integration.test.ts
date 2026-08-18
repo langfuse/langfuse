@@ -2647,7 +2647,7 @@ describe("Ingestion end-to-end tests", () => {
       expect(eventRecord.cost_details.total).toBeCloseTo(0.001725, 9);
     });
 
-    it("applies exact attribute tiers to merged legacy observations", async () => {
+    it("applies exact attribute tiers from a legacy usage event", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
       const modelId = randomUUID();
@@ -2716,8 +2716,6 @@ describe("Ingestion end-to-end tests", () => {
             name: "legacy-priority-generation",
             startTime: new Date().toISOString(),
             model: modelName,
-            modelParameters: { service_tier: "priority" },
-            metadata: { region: "us" },
             environment,
           },
         },
@@ -2733,6 +2731,8 @@ describe("Ingestion end-to-end tests", () => {
               output: 21,
               unit: ModelUsageUnit.Tokens,
             },
+            modelParameters: { service_tier: "priority" },
+            metadata: { region: "us" },
             environment,
           },
         },
