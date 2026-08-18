@@ -243,6 +243,8 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     };
   }
 
+  if (isToolCallLike(value)) return normalizeToolCall(value);
+
   switch (value.type) {
     case "text":
     case "input_text":
@@ -272,6 +274,7 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     case "function_call":
       return normalizeToolCall(value);
     case "tool_call_response":
+    case "function_call_output":
     case "tool-result":
     case "tool_result":
       return {
@@ -349,6 +352,7 @@ function normalizeMessage(
   source: "input" | "output",
 ): NormalizedMessage | null {
   if (typeof value === "string") {
+    if (value.length === 0) return null;
     return {
       role: fallbackRole,
       parts: [{ type: "text", text: value }],
@@ -366,11 +370,16 @@ function normalizeMessage(
     );
   }
 
-  const directToolCall = isToolCallLike(value)
-    ? normalizeToolCall(value)
-    : null;
-  if (directToolCall && !isMessageLike(value)) {
-    return { role: "assistant", parts: [directToolCall], source };
+  const directToolPart =
+    isToolCallLike(value) || isToolResultLike(value)
+      ? normalizeMessagePart(value)
+      : null;
+  if (directToolPart && !isMessageLike(value)) {
+    return {
+      role: directToolPart.type === "tool-result" ? "tool" : "assistant",
+      parts: [directToolPart],
+      source,
+    };
   }
 
   const nestedContent = asRecord(value.content);
@@ -396,7 +405,7 @@ function normalizeMessage(
           : undefined;
     if (rawParts) {
       appendParts(parts, rawParts);
-    } else if (typeof value.content === "string") {
+    } else if (typeof value.content === "string" && value.content.length > 0) {
       parts.push({ type: "text", text: value.content });
     } else if (isRecord(value.content)) {
       const part = normalizeMessagePart(value.content);
@@ -492,6 +501,15 @@ function isToolCallLike(value: Record<string, unknown>): boolean {
     hasAnthropicShape ||
     hasFlatShape
   );
+}
+
+function isToolResultLike(value: Record<string, unknown>): boolean {
+  return [
+    "function_call_output",
+    "tool_call_response",
+    "tool-result",
+    "tool_result",
+  ].includes(String(value.type));
 }
 
 function collectMessageArray(

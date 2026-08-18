@@ -4,10 +4,7 @@ import { normalizedIOFixtures } from "./fixtures";
 import { normalizeIO } from "./parser";
 
 describe("normalized observation I/O", () => {
-  it.each(normalizedIOFixtures)(
-    "normalizes the $name production-shaped fixture",
-    ({ spanIO, expected }) => {
-      expect(normalizeIO(spanIO)).toEqual(expected);
-    },
-  );
+  it.each(normalizedIOFixtures)("$name", ({ spanIO, expected }) => {
+    expect(normalizeIO(spanIO)).toEqual(expected);
+  });
 });

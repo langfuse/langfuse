@@ -1,17 +1,4 @@
-import type { ResourceSpan } from "../../../otel/OtelIngestionProcessor";
-import type { NormalizedIO, SpanIO } from "../types";
-
-type OtelScopeSpan = NonNullable<ResourceSpan["scopeSpans"]>[number];
-
-export type NormalizedIOFixture = {
-  name: string;
-  otel?: {
-    scopeSpan: OtelScopeSpan;
-    resourceAttributes: Record<string, unknown>;
-  };
-  spanIO: SpanIO;
-  expected: NormalizedIO;
-};
+import type { NormalizedIOFixture } from "./types";
 
 const previousToolCallId = "call_37WZP0DuTXwk6x43u5sz0WpD";
 const outputToolCallId = "call_CQBg5lwXHRCSONvKr6OT9znL";
