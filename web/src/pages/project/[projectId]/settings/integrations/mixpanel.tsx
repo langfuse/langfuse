@@ -35,7 +35,7 @@ import {
 import {
   LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   validateExportSource,
-  type BlobExportWriteMode,
+  type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -163,7 +163,7 @@ const MixpanelIntegrationSettingsForm = ({
 }: {
   state?: NonNullable<RouterOutput["mixpanelIntegration"]["get"]["config"]>;
   projectId: string;
-  writeMode: BlobExportWriteMode;
+  writeMode: V4WriteMode;
   // Raw ISO string, not a Date: a Date built in the parent's JSX would be a new
   // reference on every render and would defeat the memo below.
   projectCreatedAt: string;
@@ -190,12 +190,12 @@ const MixpanelIntegrationSettingsForm = ({
     defaultValue: defaultExportSource,
   } = getExportSourceFieldState(state?.exportSource, exportSourceCtx);
 
-  // Blocked-save validation instead of silent rewrite (LFE-10296).
+  // Blocked-save validation instead of silent rewrite.
   const formSchema = useMemo(
     () =>
       mixpanelIntegrationFormSchema.superRefine((data, ctx) => {
         // The credential is write-only: blank keeps the saved token, so it is
-        // only required when no integration exists yet (LFE-14384).
+        // only required when no integration exists yet.
         if (!state && !data.mixpanelProjectToken) {
           ctx.addIssue({
             code: "custom",
