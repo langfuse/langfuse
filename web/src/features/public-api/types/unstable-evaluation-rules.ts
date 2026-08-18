@@ -11,7 +11,7 @@ import {
   PublicEvaluationRuleEvaluator,
   PublicEvaluationRuleEvaluatorReference,
   PublicEvaluationRuleEvaluatorReferencePatch,
-  PublicEvaluationRuleMapping,
+  PublicEvaluationRuleReadMapping,
   PublicEvaluationRuleLegacyTarget,
   PublicEvaluationRuleStatus,
   PublicEvaluationRuleTarget,
@@ -39,12 +39,12 @@ export const APIEvaluationRule = z
     evaluators: z.array(
       z.object({
         evaluator: PublicEvaluationRuleEvaluator,
-        mapping: z.array(PublicEvaluationRuleMapping).nullable(),
+        mapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
       }),
     ),
     target: PublicEvaluationRuleTarget,
     filter: z.array(PublicEvaluationRuleFilter),
-    mapping: z.array(PublicEvaluationRuleMapping),
+    mapping: z.array(PublicEvaluationRuleReadMapping),
   })
   .strict();
 
