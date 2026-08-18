@@ -676,16 +676,16 @@ export class InAppAgentInstrumentation {
       toolCallApproval === "rejected"
         ? rawStartTime
         : (executionTimes?.endTime ?? new Date());
+    const startTime =
+      rawStartTime.getTime() > endTime.getTime() ? endTime : rawStartTime;
     const body: ObservationBody = {
       id: toolCallId,
       traceId: this.traceId,
       parentObservationId: this.rootObservationId,
       name: tool.name,
-      startTime:
-        rawStartTime.getTime() > endTime.getTime() ? endTime : rawStartTime,
+      startTime,
       endTime,
-      completionStartTime:
-        rawStartTime.getTime() > endTime.getTime() ? endTime : rawStartTime,
+      completionStartTime: startTime,
       input,
       output,
       ...(failureMessage
