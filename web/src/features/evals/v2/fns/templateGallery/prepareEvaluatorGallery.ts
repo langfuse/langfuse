@@ -8,9 +8,9 @@ import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/tem
 import { EVALUATOR_GALLERY_PROJECT_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
 
 const RECOMMENDED_TEMPLATE_ORDER = [
-  "chat-intent",
+  "topic-classifier",
   "out-of-scope-request",
-  "language",
+  "quality-criterion",
 ] as const;
 
 const RECOMMENDED_TEMPLATE_RANK = new Map<string, number>(
