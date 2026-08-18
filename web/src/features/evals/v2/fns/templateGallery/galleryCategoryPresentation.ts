@@ -13,27 +13,62 @@ import {
 
 import {
   EVALUATOR_GALLERY_ALL_SECTION_KEY,
-  EVALUATOR_GALLERY_CATEGORY_ICON_CLASS,
   EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
 
-export const GALLERY_CATEGORY_ICONS: Record<string, LucideIcon> = {
-  [EVALUATOR_GALLERY_ALL_SECTION_KEY]: LayoutGrid,
-  [EVALUATOR_GALLERY_PROJECT_SECTION_KEY]: User,
-  [EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY]: Lightbulb,
-  conversation: MessagesSquare,
-  quality: Gauge,
-  classifier: ListFilter,
-  retrieval: FileSearch,
-  safety: Shield,
-  "coding-agents": Code2,
+export type GalleryCategoryPresentation = {
+  icon: LucideIcon;
+  iconClassName: string;
+};
+
+const FALLBACK_PRESENTATION: GalleryCategoryPresentation = {
+  icon: LayoutGrid,
+  iconClassName: "text-muted-foreground",
+};
+
+export const GALLERY_CATEGORY_PRESENTATION: Record<
+  string,
+  GalleryCategoryPresentation
+> = {
+  [EVALUATOR_GALLERY_ALL_SECTION_KEY]: {
+    icon: LayoutGrid,
+    iconClassName: "text-muted-foreground",
+  },
+  [EVALUATOR_GALLERY_PROJECT_SECTION_KEY]: {
+    icon: User,
+    iconClassName: "text-muted-foreground",
+  },
+  [EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY]: {
+    icon: Lightbulb,
+    iconClassName: "text-dark-yellow",
+  },
+  conversation: {
+    icon: MessagesSquare,
+    iconClassName: "text-dark-violet",
+  },
+  quality: {
+    icon: Gauge,
+    iconClassName: "text-dark-yellow",
+  },
+  classifier: {
+    icon: ListFilter,
+    iconClassName: "text-dark-blue",
+  },
+  retrieval: {
+    icon: FileSearch,
+    iconClassName: "text-dark-teal",
+  },
+  safety: {
+    icon: Shield,
+    iconClassName: "text-dark-red",
+  },
+  "coding-agents": {
+    icon: Code2,
+    iconClassName: "text-dark-green",
+  },
 };
 
 export function getGalleryCategoryPresentation(key: string) {
-  return {
-    icon: GALLERY_CATEGORY_ICONS[key] ?? LayoutGrid,
-    iconClassName:
-      EVALUATOR_GALLERY_CATEGORY_ICON_CLASS[key] ?? "text-muted-foreground",
-  };
+  return GALLERY_CATEGORY_PRESENTATION[key] ?? FALLBACK_PRESENTATION;
 }

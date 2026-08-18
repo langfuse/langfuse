@@ -3,7 +3,7 @@ import type {
   GalleryNavigationItem,
   GallerySection,
 } from "@/src/features/evals/v2/types/templateGallery";
-import { GALLERY_CATEGORY_ICONS } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
+import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
 import { EVALUATOR_GALLERY_PROJECT_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
 
@@ -63,7 +63,9 @@ export function prepareEvaluatorGallery({
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
             label: "Your templates",
-            icon: GALLERY_CATEGORY_ICONS[EVALUATOR_GALLERY_PROJECT_SECTION_KEY],
+            icon: getGalleryCategoryPresentation(
+              EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
+            ).icon,
             count: customTemplateCount,
           },
         ]
@@ -72,7 +74,7 @@ export function prepareEvaluatorGallery({
       .map((category) => ({
         key: category.key,
         label: category.label,
-        icon: GALLERY_CATEGORY_ICONS[category.key],
+        icon: getGalleryCategoryPresentation(category.key).icon,
         count: managedByCategory.get(category.key)?.length ?? 0,
       }))
       .filter(({ count }) => count > 0),

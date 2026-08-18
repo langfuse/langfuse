@@ -1,22 +1,18 @@
 import { Lightbulb } from "lucide-react";
 
-import { EVALUATOR_GALLERY_CATEGORY_ICON_CLASS } from "@/src/features/evals/v2/constants/evaluatorGallery";
 import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
 import {
-  GALLERY_CATEGORY_ICONS,
+  GALLERY_CATEGORY_PRESENTATION,
   getGalleryCategoryPresentation,
 } from "./galleryCategoryPresentation";
 
 describe("galleryCategoryPresentation", () => {
-  it("has an icon for every managed category", () => {
+  it("has an icon and color for every managed category", () => {
     for (const category of MANAGED_TEMPLATES_CATALOG.categories) {
-      expect(GALLERY_CATEGORY_ICONS[category.key]).toBeDefined();
-    }
-  });
-
-  it("has an icon color for every managed category", () => {
-    for (const category of MANAGED_TEMPLATES_CATALOG.categories) {
-      expect(EVALUATOR_GALLERY_CATEGORY_ICON_CLASS[category.key]).toBeDefined();
+      const presentation = GALLERY_CATEGORY_PRESENTATION[category.key];
+      expect(presentation).toBeDefined();
+      expect(presentation.icon).toBeDefined();
+      expect(presentation.iconClassName).toBeDefined();
     }
   });
 
