@@ -22,11 +22,13 @@ export function buildExportSourceContext({
   isCloud,
   projectCreatedAt,
   integrationCreatedAt,
+  exporterCutoff,
 }: {
   writeMode: BlobExportWriteMode;
   isCloud: boolean;
   projectCreatedAt?: Date;
   integrationCreatedAt?: Date | null;
+  exporterCutoff?: Date;
 }): ExportSourceContext {
   return {
     isCloud,
@@ -34,6 +36,7 @@ export function buildExportSourceContext({
     legacyWritesActive: areLegacyWritesActive(writeMode),
     projectCreatedAt,
     integrationCreatedAt,
+    exporterCutoff,
   };
 }
 

@@ -1,5 +1,6 @@
 import {
   AnalyticsIntegrationExportSource,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   LEGACY_BLOB_EXPORT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
   type BlobExportWriteMode,
@@ -540,5 +541,109 @@ describe("getExportSourceUnavailableMessage", () => {
     const message = getExportSourceUnavailableMessage("legacy-writes-disabled");
     expect(message).toContain("LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only");
     expect(message).not.toContain("no longer available for this project");
+  });
+});
+
+// Mirrors the context the analytics settings pages build. Row ages derive from
+// the constant, never from literals: it is overridable via
+// NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF.
+describe("analytics settings pages: the new-integration enriched pin", () => {
+  const ROW_PRE_ANALYTICS = new Date(
+    LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
+  );
+  const ROW_POST_ANALYTICS = new Date(
+    LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+  );
+
+  const analyticsCloudCtx = (
+    integrationCreatedAt: Date | null,
+  ): ExportSourceContext =>
+    buildExportSourceContext({
+      writeMode: "dual",
+      isCloud: true,
+      // Pre-cutoff project, so the only Cloud gate in play is the
+      // integration-level one.
+      projectCreatedAt: PROJECT_PRE,
+      integrationCreatedAt,
+      exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+    });
+
+  it("brand-new Cloud integration: selector hidden, pinned to the enriched source", () => {
+    const { showField, defaultValue, options } = getExportSourceFieldState(
+      undefined,
+      analyticsCloudCtx(null),
+    );
+    expect(showField).toBe(false);
+    expect(defaultValue).toBe(AnalyticsIntegrationExportSource.EVENTS);
+    // Hidden because there is nothing left to choose, not because the choice
+    // was suppressed.
+    expect(options.map((o) => o.value)).toEqual([
+      AnalyticsIntegrationExportSource.EVENTS,
+    ]);
+  });
+
+  it("grandfathered pre-cutoff Cloud integration: selector shown, legacy source kept and still selectable", () => {
+    const ctx = analyticsCloudCtx(ROW_PRE_ANALYTICS);
+    const { showField, defaultValue } = getExportSourceFieldState(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      ctx,
+    );
+    expect(showField).toBe(true);
+    expect(defaultValue).toBe(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    );
+    // A real choice: opting into enriched is offered, never forced.
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        ctx,
+      ),
+    ).toBe(true);
+    expect(
+      isExportSourceSelectable(AnalyticsIntegrationExportSource.EVENTS, ctx),
+    ).toBe(true);
+  });
+
+  it("post-cutoff Cloud integration on a legacy source: selector forced visible, source kept, never rewritten", () => {
+    // Reachable: a Cloud row created after the cutoff date but before this gate
+    // shipped still carries the legacy source. Pinning the form value to the
+    // enriched source here would change what it exports on the next save of any
+    // unrelated field.
+    const ctx = analyticsCloudCtx(ROW_POST_ANALYTICS);
+    const { showField, defaultValue, options } = getExportSourceFieldState(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      ctx,
+    );
+    expect(showField).toBe(true);
+    expect(defaultValue).toBe(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    );
+    // Kept, but blocked — the save must fail rather than substitute a source.
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        ctx,
+      ),
+    ).toBe(false);
+    expect(
+      options.find(
+        (o) => o.value === AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      )?.unavailable,
+    ).toBe(true);
+  });
+
+  it("a grandfathered row already on enriched still offers the way back to legacy", () => {
+    // The UI half of the reversibility guarantee: hiding the selector once the
+    // row sits on enriched would leave the escape hatch API-only.
+    const { showField, options } = getExportSourceFieldState(
+      AnalyticsIntegrationExportSource.EVENTS,
+      analyticsCloudCtx(ROW_PRE_ANALYTICS),
+    );
+    expect(showField).toBe(true);
+    expect(
+      options.find(
+        (o) => o.value === AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      ),
+    ).toMatchObject({ unavailable: false });
   });
 });
