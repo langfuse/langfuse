@@ -1,10 +1,3 @@
-import { Eye } from "lucide-react";
-
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { EvaluatorGalleryMethodBadge } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
 import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
@@ -20,13 +13,8 @@ export function EvaluatorTemplateRow({
   categoryKey: string;
   onSelect: (template: GalleryTemplate) => void;
 }) {
-  const {
-    description,
-    type,
-    returnTypeLabel,
-    expectedOutputHint,
-    attribution,
-  } = getGalleryTemplatePresentation(template);
+  const { description, type, returnTypeLabel, attribution } =
+    getGalleryTemplatePresentation(template);
   const { icon: Icon, iconClassName } =
     getGalleryCategoryPresentation(categoryKey);
 
@@ -55,26 +43,6 @@ export function EvaluatorTemplateRow({
         ) : null}
       </p>
       <div className="flex shrink-0 items-center gap-2">
-        {expectedOutputHint ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="text-muted-foreground hover:text-foreground inline-flex h-4 w-4 items-center justify-center">
-                <Eye className="h-3.5 w-3.5" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-sm p-3">
-              <p className="font-bold">Expected output shape</p>
-              <p className="text-muted-foreground mt-1 text-sm">
-                {expectedOutputHint.shape}
-              </p>
-              {expectedOutputHint.example ? (
-                <code className="bg-muted mt-2 block rounded px-2 py-1 text-xs whitespace-pre-wrap">
-                  {expectedOutputHint.example}
-                </code>
-              ) : null}
-            </TooltipContent>
-          </Tooltip>
-        ) : null}
         <EvaluatorGalleryMethodBadge type={type} />
         {returnTypeLabel ? (
           <span className="text-muted-foreground hidden min-w-20 text-right text-xs tracking-wide uppercase sm:inline">

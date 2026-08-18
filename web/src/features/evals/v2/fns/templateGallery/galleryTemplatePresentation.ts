@@ -30,7 +30,6 @@ import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import type {
   CustomEvaluatorTemplate,
-  ExpectedOutputHint,
   GalleryTemplate,
   ManagedTemplate,
   TemplateRunTarget,
@@ -69,7 +68,6 @@ export type GalleryTemplatePresentation = {
   icon: LucideIcon;
   returnTypeLabel: string | null;
   runsOn: TemplateRunTarget[] | null;
-  expectedOutputHint?: ExpectedOutputHint;
   attribution: string | null;
 };
 
@@ -94,7 +92,6 @@ function managedPresentation(
     icon: GALLERY_TEMPLATE_ICONS[template.icon] ?? Sparkles,
     returnTypeLabel: managedReturnTypeLabel(template.evaluator),
     runsOn: template.runsOn,
-    expectedOutputHint: template.expectedOutputHint,
     attribution: null,
   };
 }
@@ -120,7 +117,6 @@ function customPresentation(
     icon: User,
     returnTypeLabel: null,
     runsOn: null,
-    expectedOutputHint: undefined,
     attribution: author ? `by ${author} · ${updated}` : `Updated ${updated}`,
   };
 }
