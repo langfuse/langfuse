@@ -19,13 +19,11 @@ export function EvaluatorGallerySection({
   expanded,
   onExpandedChange,
   onSelectTemplate,
-  sectionRef,
 }: {
   section: GallerySection;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onSelectTemplate: (template: GalleryTemplate) => void;
-  sectionRef?: (element: HTMLElement | null) => void;
 }) {
   const isRecommended =
     section.key === EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY;
@@ -38,7 +36,7 @@ export function EvaluatorGallerySection({
   );
 
   return (
-    <section ref={sectionRef} className="flex scroll-mt-1 flex-col gap-3">
+    <section className="flex scroll-mt-1 flex-col gap-3">
       {isRecommended ? (
         <h4 className="text-muted-foreground flex items-center gap-1.5 text-xs font-bold">
           <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />

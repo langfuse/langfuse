@@ -194,8 +194,6 @@ const defaultArgs = {
   onExpandedChange: fn(),
   onSelectTemplate: fn(),
   onCreateFromScratch: fn(),
-  sectionRef: () => fn(),
-  onScroll: fn(),
   isLoading: false,
 };
 
