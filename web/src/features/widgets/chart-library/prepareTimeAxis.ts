@@ -49,6 +49,14 @@ const MAX_CATEGORY_LABEL_CHARS = 24;
  */
 const CATEGORY_MIN_TICK_GAP_PX = 16;
 
+/**
+ * Extra category-axis padding (px) on a temporal x-axis so a centered last
+ * date ("Aug 11") is not clipped by the chart surface / widget overflow.
+ * Half of a 12px "MMM d" label is ~20px; 24px leaves a small gap past the
+ * last glyph. Categorical axes skip this — they are already end-anchored.
+ */
+const TEMPORAL_TICK_RIGHT_PADDING_PX = 24;
+
 /** End-truncate a long categorical label ("foo-bar-…"). Entity names carry
  * their distinguishing token early (e.g. "…-run-2-…"), so keeping the head and
  * dropping the tail preserves what tells ticks apart; the tooltip has the full
@@ -151,11 +159,12 @@ export type TimeAxis = {
   showVerticalGrid: boolean;
   /**
    * Tick-label props the visualiser spreads onto the recharts `XAxis`.
-   * Time / date / month ticks are short single-units rendered flat (`{}` → the
-   * spread is a no-op, so dashboards are unchanged). Categorical entity names
-   * are long, so we render them angled + end-anchored — the standard way to fit
-   * long category labels — and set a `minTickGap` so the (width-aware thinned)
-   * ticks keep a real gap between them. (LFE-10583)
+   * Time / date / month ticks are short single-units rendered flat. A right
+   * `padding` keeps the centered last date on-canvas (otherwise "Aug 11"
+   * clips to "Aug 1"). Categorical entity names are long, so we render them
+   * angled + end-anchored — the standard way to fit long category labels —
+   * and set a `minTickGap` so the (width-aware thinned) ticks keep a real
+   * gap between them. (LFE-10583)
    */
   tickProps: {
     angle?: number;
@@ -164,6 +173,8 @@ export type TimeAxis = {
     height?: number;
     /** Minimum px gap recharts leaves between two shown ticks. */
     minTickGap?: number;
+    /** Inset the category scale so a centered last tick label stays on-canvas. */
+    padding?: { left?: number; right?: number };
   };
 };
 
@@ -323,14 +334,17 @@ export function prepareTimeAxis(
     });
   };
 
-  // Time / date / month ticks are short single-units — rendered flat, exactly
-  // as the dashboards do today (no orientation change → pixel-identical).
+  // Time / date / month ticks are short single-units — rendered flat. The
+  // last tick sits on the last bucket, flush with the plot's right edge;
+  // without a right pad a centered "Aug 11" clips to "Aug 1".
   return {
     interval,
     formatTick,
     formatTooltip,
     mode,
     showVerticalGrid: true,
-    tickProps: {},
+    tickProps: {
+      padding: { left: 0, right: TEMPORAL_TICK_RIGHT_PADDING_PX },
+    },
   };
 }

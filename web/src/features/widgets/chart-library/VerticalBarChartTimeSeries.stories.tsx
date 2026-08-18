@@ -50,3 +50,28 @@ export const Default = meta.story({
     legendPosition: "auto",
   },
 });
+
+const dailyStacked: DataPoint[] = Array.from({ length: 14 }, (_, day) => {
+  const time_dimension = new Date(Date.UTC(2026, 7, 1 + day)).toISOString();
+  return [
+    {
+      time_dimension,
+      dimension: "gpt-4o",
+      metric: 40_000 + day * 1_200,
+    },
+    {
+      time_dimension,
+      dimension: "gpt-4o-mini",
+      metric: 65_000 + day * 800,
+    },
+  ];
+}).flat();
+
+export const LastDateAtEdge = meta.story({
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className="bg-background h-[220px] w-[480px] overflow-hidden rounded-lg border p-4">
+      <VerticalBarChartTimeSeries data={dailyStacked} legendPosition="none" />
+    </div>
+  ),
+});

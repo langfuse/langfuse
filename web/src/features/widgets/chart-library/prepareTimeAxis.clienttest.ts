@@ -182,20 +182,32 @@ describe("prepareTimeAxis", () => {
     expect(axis.formatTooltip(runs[1])).toBe(runs[1]);
   });
 
-  it("short categorical labels are not truncated and time ticks stay flat + numeric (dashboards unchanged)", () => {
+  it("short categorical labels are not truncated and time ticks stay flat + numeric", () => {
     const shortCategories = prepareTimeAxis(["run-a", "run-b", "run-c"], 6);
     expect(shortCategories.formatTick("run-a")).toBe("run-a");
     expect(shortCategories.tickProps.angle).toBeLessThan(0);
 
-    // Time-mode ticks are unchanged: flat tickProps AND a numeric index step, so
-    // dashboards render pixel-identically (no width-aware equidistant thinning).
+    // Time-mode ticks stay flat with a numeric index step (no width-aware
+    // equidistant thinning). They also pad the right edge so a centered last
+    // date ("Aug 11") is not clipped by the chart surface.
     const start = Date.UTC(2026, 5, 28, 0);
     const timeVals = Array.from({ length: 24 }, (_, h) =>
       iso(start + h * HOUR),
     );
     const timeAxis = prepareTimeAxis(timeVals, 6);
-    expect(timeAxis.tickProps).toEqual({});
+    expect(timeAxis.tickProps.angle).toBeUndefined();
+    expect(timeAxis.tickProps.padding?.right).toBeGreaterThanOrEqual(16);
     expect(typeof timeAxis.interval).toBe("number");
+  });
+
+  it("date-mode axes also pad the right edge so the last date is not clipped", () => {
+    const values = Array.from({ length: 14 }, (_, d) =>
+      iso(Date.UTC(2026, 7, 1) + d * DAY),
+    );
+    const axis = prepareTimeAxis(values, 6);
+    expect(axis.mode).toBe("date");
+    expect(axis.tickProps.padding?.right).toBeGreaterThanOrEqual(16);
+    expect(axis.tickProps.angle).toBeUndefined();
   });
 
   it("hideCategoryTickLabels blanks the entity axis but keeps the full name in the tooltip", () => {
