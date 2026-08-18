@@ -44,10 +44,8 @@ import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBr
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ExperimentEvaluatorSelectorContent } from "@/src/features/experiments/components/ExperimentEvaluatorSelector";
+import { ExperimentEvaluatorAssignments } from "@/src/features/experiments";
 import { useExperimentV2EvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentV2EvaluatorSelection";
-import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
-import { ChevronDown } from "lucide-react";
 
 export default function Dataset() {
   const router = useRouter();
@@ -159,7 +157,10 @@ export default function Dataset() {
   });
   const v2EvaluatorSelection = useExperimentV2EvaluatorSelection({
     projectId,
+    datasetId,
+    datasetName: dataset.data?.name ?? datasetId,
     enabled: isExperimentsBetaActive && hasEvaluatorReadAccess,
+    canWrite: hasEvalWriteAccess,
   });
 
   // Callback for preprocessing evaluator form values
@@ -215,35 +216,35 @@ export default function Dataset() {
                   />
                 </DialogContent>
               </Dialog>
-
-              {hasEvaluatorReadAccess && (
-                <div className="w-fit">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="justify-between px-2 font-normal"
-                      >
-                        {v2EvaluatorSelection.options.length > 0
-                          ? `${v2EvaluatorSelection.options.length} ${v2EvaluatorSelection.options.length === 1 ? "evaluator" : "evaluators"}`
-                          : "No experiment evaluators"}
-                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <ExperimentEvaluatorSelectorContent
-                      projectId={projectId}
-                      evaluatorOptions={v2EvaluatorSelection.options}
-                      search={v2EvaluatorSelection.search}
-                      onSearchChange={v2EvaluatorSelection.onSearchChange}
-                    />
-                  </Popover>
-                </div>
-              )}
             </>
           ),
         }}
       >
+        {hasEvaluatorReadAccess && (
+          <section className="border-b p-3">
+            <div className="max-w-3xl space-y-3">
+              <div>
+                <h2 className="text-base font-bold">Experiment evaluators</h2>
+                <p className="text-muted-foreground text-sm">
+                  Attach evaluators and review how their variables map to
+                  experiment inputs and outputs.
+                </p>
+              </div>
+              <ExperimentEvaluatorAssignments
+                projectId={projectId}
+                datasetId={datasetId}
+                evaluatorOptions={v2EvaluatorSelection.options}
+                initialAssignments={v2EvaluatorSelection.selectedAssignments}
+                search={v2EvaluatorSelection.search}
+                onSearchChange={v2EvaluatorSelection.onSearchChange}
+                onSaveAssignments={v2EvaluatorSelection.onSaveAssignments}
+                disabled={
+                  !hasEvalWriteAccess || v2EvaluatorSelection.isUpdating
+                }
+              />
+            </div>
+          </section>
+        )}
         <ExperimentsTable
           projectId={projectId}
           fixedFilter={[

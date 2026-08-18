@@ -5,11 +5,40 @@ import {
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
-import { evaluatorExecutionsUrl } from "./evaluatorScoresUrl";
+import {
+  evaluatorExecutionsUrl,
+  evaluatorScoresUrl,
+} from "./evaluatorScoresUrl";
+
+describe("evaluatorScoresUrl", () => {
+  it("shows evaluator scores across all environments", () => {
+    const url = new URL(
+      evaluatorScoresUrl("project-1", "evaluator-name"),
+      "https://langfuse.local",
+    );
+
+    expect(url.pathname).toBe("/project/project-1/scores");
+    expect(url.searchParams.get("showAllEnvironments")).toBe("true");
+    expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["evaluator-name"],
+      },
+      {
+        column: "source",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["EVAL"],
+      },
+    ]);
+  });
+});
 
 const getFilters = (evaluatorType: EvalTemplateType) => {
   const url = new URL(
-    evaluatorExecutionsUrl("project/id", "evaluator-1", evaluatorType),
+    evaluatorExecutionsUrl("project/id", "Quality", evaluatorType),
     "https://langfuse.local",
   );
 
@@ -33,10 +62,10 @@ describe("evaluatorExecutionsUrl", () => {
         pathname: "/project/project%2Fid/traces",
         filters: [
           {
-            column: "evaluatorId",
+            column: "traceName",
             type: "stringOptions",
             operator: "any of",
-            value: ["evaluator-1"],
+            value: ["Execute evaluator: Quality"],
           },
           {
             column: "environment",

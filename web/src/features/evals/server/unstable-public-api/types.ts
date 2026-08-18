@@ -10,7 +10,7 @@ import type {
   PublicEvaluationRuleEvaluatorReferenceType,
   PublicEvaluationRuleEvaluatorType,
   PublicEvaluationRuleFilterType,
-  PublicEvaluationRuleMappingType,
+  PublicEvaluationRuleReadMappingType,
   PublicEvaluationRuleStatusType,
   PublicEvaluationRuleTargetType,
   LegacyEvaluationRuleMappingType,
@@ -85,11 +85,11 @@ type ApiEvaluationRuleRecordBase = {
 export type ApiWritableEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
   evaluators: Array<{
     evaluator: PublicEvaluationRuleEvaluatorType;
-    mapping: PublicEvaluationRuleMappingType[] | null;
+    mapping: PublicEvaluationRuleReadMappingType[] | null;
   }>;
   target: PublicEvaluationRuleTargetType;
   filter: PublicEvaluationRuleFilterType[];
-  mapping: PublicEvaluationRuleMappingType[];
+  mapping: PublicEvaluationRuleReadMappingType[];
 };
 
 export type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {

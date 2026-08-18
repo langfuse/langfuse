@@ -33,6 +33,7 @@ function structuredPreview(value: unknown, depth: number): string {
 }
 
 export function previewOf(value: unknown) {
+  if (value === undefined) return "No sample value available";
   if (typeof value === "string") {
     return value.length > MAX_PREVIEW_LENGTH
       ? `${value.slice(0, MAX_PREVIEW_LENGTH)}…`
@@ -55,6 +56,7 @@ export function objectEntriesForPreview(value: Record<string, unknown>) {
 }
 
 export function typeBadge(value: unknown) {
+  if (value === undefined) return "no value";
   if (Array.isArray(value)) return `list · ${value.length}`;
   if (value === null) return "null";
   if (typeof value === "object") return `object · ${Object.keys(value).length}`;

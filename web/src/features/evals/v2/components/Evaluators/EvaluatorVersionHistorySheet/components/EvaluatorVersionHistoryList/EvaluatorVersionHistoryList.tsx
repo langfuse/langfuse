@@ -1,4 +1,5 @@
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
+import { formatDistanceToNowStrict } from "date-fns";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -72,10 +73,10 @@ export function EvaluatorVersionHistoryList({
     <div className="flex flex-col gap-2">
       {versions.map((version) => {
         const author =
-          version.createdByUser?.name ?? version.createdByUser?.email ?? null;
-        const saved = `${version.createdAt.toLocaleString()}${
-          author ? ` · by ${author}` : ""
-        }`;
+          version.createdByUser?.name ?? version.createdByUser?.email ?? "API";
+        const saved = formatDistanceToNowStrict(version.createdAt, {
+          addSuffix: true,
+        });
 
         return (
           <CollapsibleCard
@@ -100,11 +101,20 @@ export function EvaluatorVersionHistoryList({
                     Current
                   </Badge>
                 ) : null}
-                <span
-                  className="text-muted-foreground min-w-0 truncate text-xs"
-                  title={saved}
-                >
-                  {saved}
+                <span className="text-muted-foreground flex min-w-0 shrink-0 items-center gap-1 text-xs">
+                  <span
+                    className="min-w-0 truncate"
+                    title={`Created by ${author}`}
+                  >
+                    {author}
+                  </span>
+                  <span aria-hidden>·</span>
+                  <span
+                    className="shrink-0"
+                    title={`Saved ${version.createdAt.toLocaleString()}`}
+                  >
+                    {saved}
+                  </span>
                 </span>
               </>
             }

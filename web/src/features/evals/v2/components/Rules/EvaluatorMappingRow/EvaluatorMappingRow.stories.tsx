@@ -1,4 +1,4 @@
-import preview from "../../../../../../../../.storybook/preview";
+import preview from "../../../../../../../.storybook/preview";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 
 import { EvaluatorMappingRow } from "./EvaluatorMappingRow";

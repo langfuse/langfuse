@@ -1,5 +1,11 @@
 # Evaluator v2 migration suite
 
+The rollout is two migrations: `20260807121000_add_evaluator_v2` creates the tables, and
+`20260807121500_backfill_evaluator_v2` copies the legacy `job_configurations` / `eval_templates`
+rows into them. They are split because adding the new foreign keys locks `projects` and `users`
+against writes for as long as that transaction stays open, and the backfill is the slow part. This
+suite exercises both, since it applies every migration from the preparatory one onwards.
+
 This manual Vitest suite creates an isolated database on the PostgreSQL server configured by the repository's `.env`, applies the repository's migrations up to the evaluator migration, loads legacy data, and continues with normal `prisma migrate deploy`. Vitest then checks the migrated records and tenant isolation. Its setup runs deploy a second time and verifies that Prisma reports no pending migrations, and its teardown drops the database. It requires at least two project IDs so tenant isolation is always exercised. It is intentionally outside the regular test discovery paths and is not part of CI.
 
 Run with checked-in fixtures:

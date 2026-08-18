@@ -3586,35 +3586,34 @@ export const getLatestEvaluatorTestRunCost = async (
 
 export const getRecentEvaluatorExecutionTraces = async (
   projectId: string,
-  evaluatorIds: string[],
+  traceNames: string[],
 ) => {
-  if (evaluatorIds.length === 0) return [];
+  if (traceNames.length === 0) return [];
 
   const builder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn: "e.trace_id, evaluator_id",
+    groupByColumn: "e.trace_id, e.trace_name",
     selectExpression: [
       "e.trace_id as id",
-      "arrayElement(e.metadata_values, indexOf(e.metadata_names, 'evaluator_id')) as evaluator_id",
+      "e.trace_name as trace_name",
       "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
       "min(e.start_time) as timestamp",
     ].join(", "),
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw("has(e.metadata_names, 'evaluator_id')")
-    .whereRaw("evaluator_id IN ({evaluatorIds: Array(String)})", {
-      evaluatorIds,
+    .whereRaw("e.trace_name IN ({traceNames: Array(String)})", {
+      traceNames,
     })
     .havingRaw(
       `countIf((has(e.metadata_names, 'evaluator_test') AND ${eventMetadataValue("evaluator_test")} = 'true') OR startsWith(e.trace_name, 'Test evaluator')) = 0`,
     )
     .orderBy("ORDER BY timestamp DESC, id DESC")
-    .limitByCount(5, "evaluator_id");
+    .limitByCount(5, "trace_name");
 
   const { query, params } = builder.buildWithParams();
   const rows = await queryClickhouse<{
     id: string;
-    evaluator_id: string;
+    trace_name: string;
     level: string;
     timestamp: string;
   }>({
@@ -3626,7 +3625,7 @@ export const getRecentEvaluatorExecutionTraces = async (
 
   return rows.map((row) => ({
     id: row.id,
-    evaluatorId: row.evaluator_id,
+    traceName: row.trace_name,
     level: row.level,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
   }));

@@ -366,7 +366,7 @@ export default function EvaluatorsPage() {
                 router.push(
                   evaluatorExecutionsUrl(
                     projectId,
-                    row.original.id,
+                    row.original.name,
                     row.original.type,
                   ),
                 )
@@ -456,7 +456,7 @@ export default function EvaluatorsPage() {
                 router.push(
                   evaluatorExecutionsUrl(
                     projectId,
-                    row.original.id,
+                    row.original.name,
                     row.original.type,
                   ),
                 )

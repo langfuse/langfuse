@@ -124,10 +124,12 @@ describe("Clickhouse Events Repository Test", () => {
       const failedTestSpanId = randomUUID();
       const untaggedTestTraceId = randomUUID();
       const evaluatorId = randomUUID();
+      const evaluatorTraceName = `Execute evaluator: Quality ${evaluatorId}`;
       await createEventsCh([
         createEvent({
           project_id: projectId,
           trace_id: traceId,
+          trace_name: evaluatorTraceName,
           type: "SPAN",
           level: "ERROR",
           metadata_names: ["evaluator_id"],
@@ -165,9 +167,13 @@ describe("Clickhouse Events Repository Test", () => {
       ]);
 
       await expect(
-        getRecentEvaluatorExecutionTraces(projectId, [evaluatorId]),
+        getRecentEvaluatorExecutionTraces(projectId, [evaluatorTraceName]),
       ).resolves.toEqual([
-        expect.objectContaining({ id: traceId, evaluatorId, level: "ERROR" }),
+        expect.objectContaining({
+          id: traceId,
+          traceName: evaluatorTraceName,
+          level: "ERROR",
+        }),
       ]);
     });
   });
