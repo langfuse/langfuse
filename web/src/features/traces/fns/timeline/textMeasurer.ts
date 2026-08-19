@@ -33,7 +33,16 @@ const unitAt = (text: string, index: number): string | null => {
   return null;
 };
 
-export type TextMeasurer = { measure: (text: string) => number };
+export type TextMeasurer = {
+  measure: (text: string) => number;
+  /**
+   * The same text as the browser will set it in BOLD. Callers that reserve room
+   * for bold content need this: measuring it at the regular weight came out
+   * ~4% short on one font stack and fitted on another, which is a reservation
+   * that clips only on some machines.
+   */
+  measureBold: (text: string) => number;
+};
 
 export function createTextMeasurer(font = "12px ui-sans-serif"): TextMeasurer {
   let context: CanvasRenderingContext2D | null = null;
@@ -53,6 +62,18 @@ export function createTextMeasurerFrom(
   context: CanvasRenderingContext2D | null,
   font = "12px ui-sans-serif",
 ): TextMeasurer {
+  return {
+    measure: measurerFor(context, font),
+    // A CSS font shorthand takes the weight first, and the callers here build
+    // theirs from a probe's `font-size` + `font-family`.
+    measureBold: measurerFor(context, `700 ${font}`),
+  };
+}
+
+function measurerFor(
+  context: CanvasRenderingContext2D | null,
+  font: string,
+): (text: string) => number {
   const glyphs = new Map<string, number>();
   const units = new Map<string, number>();
   const cache = new Map<string, number>();
@@ -83,9 +104,14 @@ export function createTextMeasurerFrom(
     let run = "";
     const flush = () => {
       if (!run) return;
-      width += context
-        ? context.measureText(run).width
-        : run.length * PX_PER_LETTER;
+      if (context) {
+        // Set every time: the bold twin shares this context, and whichever
+        // measured last would otherwise decide the font for both.
+        context.font = font;
+        width += context.measureText(run).width;
+      } else {
+        width += run.length * PX_PER_LETTER;
+      }
       run = "";
     };
     for (let i = 0; i < text.length; i++) {
@@ -108,13 +134,11 @@ export function createTextMeasurerFrom(
     return width;
   };
 
-  return {
-    measure: (text) => {
-      const cached = cache.get(text);
-      if (cached !== undefined) return cached;
-      const width = computeWidth(text);
-      cache.set(text, width);
-      return width;
-    },
+  return (text: string) => {
+    const cached = cache.get(text);
+    if (cached !== undefined) return cached;
+    const width = computeWidth(text);
+    cache.set(text, width);
+    return width;
   };
 }

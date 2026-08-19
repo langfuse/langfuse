@@ -84,15 +84,17 @@ const SCORE_VALUE_SEPARATOR_PX = 8;
 const SCORE_VALUE_ICON_PX = 16;
 /** `px-1` both sides of a ScoreTag level pill; the label itself is measured. */
 const SCORE_PILL_CHROME_PX = 8;
-/** `px-1` both sides of the "+N" button for groups past `maxVisible`. */
-const SCORE_OVERFLOW_CHROME_PX = 8;
-/**
- * The button renders `font-bold`, which sets wider than the regular-weight probe
- * the measurer is seeded from. Small, but it is width, and unpaid width clips.
- */
-const SCORE_OVERFLOW_BOLD_PX = 2;
+/** `px-1` both sides of the "+N" button for groups past `maxVisible`, and its border. */
+const SCORE_OVERFLOW_CHROME_PX = 10;
 /** `gap-1` on the score-badges wrapper — not the cluster's own `gap-2`. */
 export const SCORE_GROUP_GAP_PX = 4;
+/**
+ * A canvas measurement and the browser's own layout of the same string agree to
+ * a fraction of a px, not exactly — enough that a chip priced to the last tenth
+ * came out 0.09px short on another font stack. One px a chip, in the direction
+ * that does not clip.
+ */
+const MEASURE_MARGIN_PX = 1;
 
 /**
  * The trailing "+N" button, plus the `gap-1` before it. Its digits are measured
@@ -103,11 +105,17 @@ export function overflowButtonWidth(
   hidden: number,
   measurer: TimelineBarProps["measurer"],
 ): number {
+  // Bold, and measured as bold: at the regular weight this came out ~4% short,
+  // which fitted on one font stack and clipped on another. Two px of margin on
+  // top, because this is the one item whose own measurement was observed to
+  // disagree with layout by more than a rounding error, and it is admitted last
+  // — over-reserving it can only drop badges in a lane that was borderline
+  // anyway, while under-reserving it cuts a digit off.
   return (
-    measurer.measure(`+${hidden}`) +
+    measurer.measureBold(`+${hidden}`) +
     SCORE_OVERFLOW_CHROME_PX +
-    SCORE_OVERFLOW_BOLD_PX +
-    SCORE_GROUP_GAP_PX
+    SCORE_GROUP_GAP_PX +
+    MEASURE_MARGIN_PX * 2
   );
 }
 
@@ -182,7 +190,8 @@ export function scoreBadgesWidth(
         values +
         pills +
         gaps +
-        SCORE_CHIP_CHROME_PX
+        SCORE_CHIP_CHROME_PX +
+        MEASURE_MARGIN_PX
       );
     })
     .sort((a, b) => b - a)

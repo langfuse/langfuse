@@ -289,7 +289,8 @@ export const ScorePricingNeverUnderReserves = meta.story({
     // Never below: the cluster's overflow box cuts whatever it over-admits.
     await expect(priced).toBeGreaterThanOrEqual(actual);
     // And within a few px above, which is what makes the line above bite: with
-    // loose slack anywhere in the sum, a whole missing term still "passes".
+    // loose slack anywhere in the sum, a whole missing term still "passes". The
+    // budget here is 2 chips' measurement margin plus the icons' rounding.
     await expect(priced - actual).toBeLessThan(12);
   },
 });
@@ -348,7 +349,15 @@ export const OverflowButtonIsPricedFromItsDigits = meta.story({
       overflowButtonWidth(10, measurerFor(rendered)) - SCORE_GROUP_GAP_PX;
     const drawn = button.getBoundingClientRect().width;
     await expect(charged).toBeGreaterThanOrEqual(drawn);
-    await expect(charged - drawn).toBeLessThan(4);
+    // A wider ceiling than the chips get: this term carries an explicit margin,
+    // because its measurement is the one that moved between font stacks.
+    await expect(charged - drawn).toBeLessThan(8);
+    // Bold is what it renders in, so bold is what it must be priced at — the
+    // regular weight is short, and short is the direction that clips.
+    const regular = measurerFor(rendered).measure("+10");
+    await expect(measurerFor(rendered).measureBold("+10")).toBeGreaterThan(
+      regular,
+    );
   },
 });
 
