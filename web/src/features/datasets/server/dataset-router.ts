@@ -2186,12 +2186,22 @@ export const datasetRouter = createTRPCRouter({
           )
         : undefined;
       const reusesSecretHeader = Object.entries(existingHeaders).some(
-        ([key, header]) =>
-          header.secret &&
-          (input.requestHeaders === undefined ||
-            submittedHeadersByLowerKey?.[
-              key.trim().toLowerCase()
-            ]?.value.trim() === ""),
+        ([key, existingHeader]) => {
+          if (!existingHeader.secret) {
+            return false;
+          }
+
+          // Omitting requestHeaders preserves every existing header.
+          if (input.requestHeaders === undefined) {
+            return true;
+          }
+
+          const normalizedKey = key.trim().toLowerCase();
+          const submittedHeader = submittedHeadersByLowerKey[normalizedKey];
+
+          // An empty submitted value preserves the existing secret.
+          return submittedHeader?.value.trim() === "";
+        },
       );
 
       if (input.url !== dataset.remoteExperimentUrl && reusesSecretHeader) {
