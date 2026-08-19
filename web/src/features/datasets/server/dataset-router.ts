@@ -2197,7 +2197,7 @@ export const datasetRouter = createTRPCRouter({
           }
 
           const normalizedKey = key.trim().toLowerCase();
-          const submittedHeader = submittedHeadersByLowerKey[normalizedKey];
+          const submittedHeader = submittedHeadersByLowerKey?.[normalizedKey];
 
           // An empty submitted value preserves the existing secret.
           return submittedHeader?.value.trim() === "";
