@@ -1012,9 +1012,6 @@ importers:
       '@aws-sdk/client-lambda-microvms':
         specifier: 'catalog:'
         version: 3.1074.0
-      '@aws-sdk/credential-providers':
-        specifier: 'catalog:'
-        version: 3.1074.0
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
