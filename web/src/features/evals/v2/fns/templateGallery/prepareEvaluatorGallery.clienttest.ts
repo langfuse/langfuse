@@ -42,7 +42,7 @@ describe("prepareEvaluatorGallery", () => {
       recommendedSection?.templates.map((template) =>
         template.source === "managed" ? template.key : null,
       ),
-    ).toEqual(["chat-intent", "out-of-scope-request", "language"]);
+    ).toEqual(["chat-intent", "out-of-scope-request"]);
     const conversationSection = gallery.sections.find(
       ({ key }) => key === "conversation",
     );
@@ -51,7 +51,6 @@ describe("prepareEvaluatorGallery", () => {
         template.source === "managed" ? template.key : null,
       ),
     ).toEqual([
-      "language",
       "chat-intent",
       "out-of-scope-request",
       "user-disagreement",
