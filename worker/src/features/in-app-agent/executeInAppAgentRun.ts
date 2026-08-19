@@ -1,10 +1,4 @@
-import {
-  InAppAgentRunErrorCode,
-  InAppAgentRunRequestSchema,
-  InAppAgentRunStatus,
-  Role,
-  type InAppAgentRunRequest,
-} from "@langfuse/shared";
+import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
@@ -17,41 +11,46 @@ import {
   deleteApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunRequestSchema,
+  InAppAgentRunStatus,
   getInAppAgentInstrumentationTraceId,
-  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+  parseInAppAgentInterruptEvent,
   type AgUiEvent,
-  type AgUiRunAgentInput,
+  type InAppAgentRunRequest,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import {
-  claimQueuedRun,
-  clearRunMcpApiKeyPointer,
-  createAgUiStream,
-  createInAppAgentMcpRunOverride,
-  createInAppAgentSandbox,
   createSandboxToolCallFileAccumulator,
-  finishClaimedRun,
   flushPendingRunEvents,
   getConversationEvents,
   getConversationMessagesForReplay,
-  getInAppAgentPromptClient,
+  shouldFlushPersistedEvent,
+  toPersistableAgentEvent,
+  type PersistedConversationEvent,
+} from "@langfuse/shared/in-app-agent/server/persistence";
+import {
+  claimQueuedRun,
+  clearRunMcpApiKeyPointer,
+  finishClaimedRun,
   heartbeatClaimedRun,
-  IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
-  isInAppAgentConversationWriteLocked,
+} from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import {
+  createInAppAgentMcpRunOverride,
   createInAppAgentToolPolicy,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
-  maybeInferAndPersistConversationTitle,
-  parseInAppAgentInterruptEvent,
-  shouldFlushPersistedEvent,
-  toPersistableAgentEvent,
   type InAppAgentUserAccess,
-  type PersistedConversationEvent,
-} from "@langfuse/shared/in-app-agent/server";
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import { IN_APP_AGENT_HEARTBEAT_INTERVAL_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
-} from "@langfuse/shared/in-app-agent/server/sandbox/config";
+} from "./runtime/sandbox/config";
+import { createInAppAgentSandbox } from "./runtime/sandbox";
+import { createAgUiStream } from "./runtime/agent";
+import { getInAppAgentPromptClient } from "./runtime/promptClient";
+import type { AgUiRunAgentInput } from "./runtime/types";
 
 import { env } from "../../env";
 
@@ -77,6 +76,7 @@ export async function executeInAppAgentRun(params: {
   runId: string;
 }): Promise<void> {
   const { projectId, runId } = params;
+  const awsProfile = env.AWS_PROFILE ?? env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
 
   // Claim CAS: zero rows means duplicate delivery or a run reconciled away
   // while queued — ack and exit, Postgres owns correctness.
@@ -218,17 +218,6 @@ export async function executeInAppAgentRun(params: {
       conversationId: conversation.id,
     });
 
-    if (
-      isInAppAgentConversationWriteLocked({
-        conversation,
-        events: conversationEvents,
-      })
-    ) {
-      throw new InAppAgentRunInitError(
-        IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-      );
-    }
-
     // ---- Build the agent input from the run request + persisted history. ----
     const parsedRequest = InAppAgentRunRequestSchema.safeParse(run.request);
 
@@ -270,6 +259,17 @@ export async function executeInAppAgentRun(params: {
               command: {
                 resume: {
                   approved: request.approved,
+                  continuationNumber: request.continuationNumber ?? 1,
+                  ...(request.rootRunId
+                    ? { rootRunId: request.rootRunId }
+                    : {}),
+                  ...(request.traceStartedAt
+                    ? { traceStartedAt: request.traceStartedAt }
+                    : {}),
+                  ...(request.approvalRequestedAt
+                    ? { approvalRequestedAt: request.approvalRequestedAt }
+                    : {}),
+                  approvalDecidedAt: run.createdAt.toISOString(),
                   approvalRequest,
                 },
               },
@@ -450,19 +450,6 @@ export async function executeInAppAgentRun(params: {
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }
               : { status: InAppAgentRunStatus.SUCCEEDED },
           );
-          await maybeInferAndPersistConversationTitle({
-            prisma,
-            projectId,
-            conversationId: conversation.id,
-            userId: run.triggeredByUserId!,
-            aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
-          }).catch((error) =>
-            logger.error("Failed to infer in-app agent conversation title", {
-              error,
-              projectId,
-              runId,
-            }),
-          );
         },
         onAbort: async () => {
           const reason = abortController.signal.reason as AbortReason;
@@ -516,9 +503,7 @@ export async function executeInAppAgentRun(params: {
         awsBedrock: {
           region: sharedEnv.LANGFUSE_AWS_BEDROCK_REGION,
           modelId: bedrockModelId,
-          ...(sharedEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE
-            ? { profile: sharedEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE }
-            : {}),
+          ...(awsProfile ? { profile: awsProfile } : {}),
         },
         langfuseMcp: {
           url: getLangfuseMcpUrl(),
@@ -546,6 +531,8 @@ export async function executeInAppAgentRun(params: {
           },
         }),
         sandbox: sandboxState?.sandbox,
+        // History still shows this agent's own earlier writes, so it needs telling.
+        sandboxWorkspaceWasReset: sandboxState?.workspaceWasReset,
       },
     });
 

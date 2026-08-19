@@ -24,6 +24,17 @@ import { backOff } from "exponential-backoff";
 
 const delayFromStartOfInterval = 3600000 + 5 * 60 * 1000; // 5 minutes after the end of the interval
 
+// Stripe deduplicates meter events by identifier, so deriving it from the tuple
+// that defines the billable fact makes a replayed interval idempotent instead of
+// adding a second time to the customer's usage. The meter name is part of the key
+// because both meters are reported for the same org and interval - without it the
+// two would collide and Stripe would drop one of them.
+const meterEventIdentifier = (
+  eventName: string,
+  orgId: string,
+  intervalStart: Date,
+) => `${eventName}:${orgId}:${intervalStart.getTime()}`;
+
 export const handleCloudUsageMeteringJob = async (job: Job) => {
   if (!env.STRIPE_SECRET_KEY) {
     logger.warn("[CLOUD USAGE METERING] Stripe secret key not found");
@@ -71,6 +82,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
   }
 
+  const jobStartedAt = new Date();
   try {
     await prisma.cronJobs.update({
       where: {
@@ -80,7 +92,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       },
       data: {
         state: CloudUsageMeteringDbCronJobStates.Processing,
-        jobStartedAt: new Date(),
+        jobStartedAt,
       },
     });
   } catch (e) {
@@ -223,6 +235,11 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
         async () =>
           await stripe.billing.meterEvents.create({
             event_name: "tracing_observations",
+            identifier: meterEventIdentifier(
+              "tracing_observations",
+              org.id,
+              meterIntervalStart,
+            ),
             timestamp: meterIntervalEnd.getTime() / 1000,
             payload: {
               stripe_customer_id: stripeCustomerId,
@@ -252,6 +269,11 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
         async () =>
           await stripe.billing.meterEvents.create({
             event_name: "tracing_events",
+            identifier: meterEventIdentifier(
+              "tracing_events",
+              org.id,
+              meterIntervalStart,
+            ),
             timestamp: meterIntervalEnd.getTime() / 1000,
             payload: {
               stripe_customer_id: stripeCustomerId,
@@ -322,15 +344,39 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
   }
 
-  // update cron job
-  await prisma.cronJobs.update({
-    where: { name: cloudUsageMeteringDbCronJobName },
-    data: {
-      lastRun: meterIntervalEnd,
-      state: CloudUsageMeteringDbCronJobStates.Queued,
-      jobStartedAt: null,
-    },
-  });
+  // Advance the cron job only while still holding the lease claimed above. The
+  // stale-job takeover can hand this interval to another run mid-flight; without
+  // the predicate a superseded run would still move lastRun forward and mask the
+  // fact that another run owns the interval.
+  try {
+    await prisma.cronJobs.update({
+      where: {
+        name: cloudUsageMeteringDbCronJobName,
+        state: CloudUsageMeteringDbCronJobStates.Processing,
+        jobStartedAt,
+      },
+      data: {
+        lastRun: meterIntervalEnd,
+        state: CloudUsageMeteringDbCronJobStates.Queued,
+        jobStartedAt: null,
+      },
+    });
+  } catch (e) {
+    logger.warn(
+      "[CLOUD USAGE METERING] Job lease was taken over before completion, leaving cron state to the run that owns it now",
+      { e },
+    );
+    recordIncrement(
+      "langfuse.queue.cloud_usage_metering_queue.lost_job_lease",
+      1,
+      {
+        unit: "jobs",
+      },
+    );
+    // Returning rather than throwing keeps the queue wrapper from resetting the
+    // state and replaying this interval on top of the run that took it over.
+    return;
+  }
 
   logger.info(
     `[CLOUD USAGE METERING] Job for interval ${meterIntervalStart.toISOString()} - ${meterIntervalEnd.toISOString()} completed`,

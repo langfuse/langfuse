@@ -13,15 +13,19 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   OBSERVATION_FIELD_GROUPS_FULL,
-  LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
-const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const PRE_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() - MS_PER_DAY,
+);
+const POST_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + MS_PER_DAY,
+);
 // Integration-level cutoff applied to BlobStorageIntegration.createdAt.
 const INTEGRATION_PRE_CUTOFF = new Date(
   LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
@@ -986,7 +990,7 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
   });
 
-  // LFE-10296: an update that omits exportSource must preserve the persisted
+  // An update that omits exportSource must preserve the persisted
   // value (parity with the public REST handler) — never rewrite it to the
   // legacy default — and must be rejected when preserving would keep a stale
   // enriched source alive on a deployment without the enriched export path.
@@ -1066,8 +1070,8 @@ describe("Blob Storage Integration tRPC Router", () => {
     it("creates with EVENTS when exportSource is omitted for a post-cutoff Cloud project", async () => {
       // The legacy gate only checks explicit values, so an omitted
       // exportSource on CREATE must not fall through to the Prisma column
-      // default (TRACES_OBSERVATIONS) — mirror of the REST handler's
-      // forceEventsOnCreate behavior.
+      // default (TRACES_OBSERVATIONS) — mirror of the REST handler's resolved
+      // create default.
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
       const { caller, project } = await prepare();
@@ -1075,6 +1079,26 @@ describe("Blob Storage Integration tRPC Router", () => {
         where: { id: project.id },
         data: { createdAt: POST_CUTOFF },
       });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("creates with EVENTS when exportSource is omitted on a self-hosted dual deployment", async () => {
+      // No Cloud cutoff applies here, so nothing forces enriched — the shared
+      // default does, because dual writes the enriched table. This is the case
+      // where the routers used to create TRACES_OBSERVATIONS while the settings
+      // page offered EVENTS.
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
 
       await caller.blobStorageIntegration.update({
         projectId: project.id,

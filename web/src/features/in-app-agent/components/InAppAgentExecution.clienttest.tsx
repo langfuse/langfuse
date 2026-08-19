@@ -6,8 +6,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { EventType } from "@ag-ui/core";
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
@@ -53,7 +56,7 @@ const providerMocks = vi.hoisted(() => {
       data: undefined as
         | undefined
         | {
-            conversation: { id: string; isWriteLocked: boolean };
+            conversation: { id: string };
             messages: AgUiMessage[];
             eventCursor: number;
             latestRun: {
@@ -331,7 +334,6 @@ describe("in-app agent execution", () => {
     const approvedSnapshot = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -447,7 +449,6 @@ describe("in-app agent execution", () => {
     const completedSnapshot = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -553,7 +554,6 @@ describe("in-app agent execution", () => {
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -606,7 +606,6 @@ describe("in-app agent execution", () => {
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -660,7 +659,7 @@ describe("in-app agent execution", () => {
 
   it("does not observe a cached active run while the assistant is closed", async () => {
     const runningSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: 5,
       latestRun: {
@@ -706,7 +705,7 @@ describe("in-app agent execution", () => {
     const initialText = "I found the affected traces.";
     const finalText = "The remaining analysis was cancelled before completion.";
     const runningSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [
         { id: "persisted-user", role: "user", content: "Investigate this" },
         {
@@ -876,14 +875,14 @@ describe("in-app agent execution", () => {
 
     const finalText = "The investigation was cancelled before it completed.";
     providerMocks.conversationQuery.data = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: -1,
       latestRun: null,
       pendingToolApprovals: [],
     };
     const cancellingSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [
         { id: "persisted-user", role: "user", content: "Investigate this" },
       ] satisfies AgUiMessage[],
@@ -1089,7 +1088,7 @@ describe("in-app agent concurrent conversations", () => {
 
   it("starts a new conversation while another one is still running", async () => {
     providerMocks.conversationQuery.data = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: 3,
       latestRun: {
