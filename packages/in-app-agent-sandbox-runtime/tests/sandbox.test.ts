@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import Docker from "dockerode";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const PACKAGE_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -21,12 +21,14 @@ type JsonResponse = {
 
 describe("sandbox runtime docker container", () => {
   const docker = new Docker();
-  let container: Docker.Container | undefined;
+  let container: Docker.Container;
   let baseUrl = "";
 
   beforeAll(async () => {
     await buildSandboxImage(docker);
+  }, 300_000);
 
+  beforeEach(async () => {
     container = await docker.createContainer({
       Image: IMAGE_TAG,
       name: `langfuse-in-app-agent-sandbox-e2e-${randomUUID().slice(0, 8)}`,
@@ -47,10 +49,10 @@ describe("sandbox runtime docker container", () => {
 
     baseUrl = `http://127.0.0.1:${hostPort}`;
     await waitForHealth(baseUrl, container);
-  }, 300_000);
+  });
 
-  afterAll(async () => {
-    await container?.remove({ force: true }).catch(() => undefined);
+  afterEach(async () => {
+    await container.remove({ force: true }).catch(() => undefined);
   });
 
   it(
@@ -210,6 +212,102 @@ describe("sandbox runtime docker container", () => {
       }
     },
   );
+
+  it(
+    "queues concurrent sandbox operations in request order",
+    { timeout: 20_000 },
+    async () => {
+      const first = requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command: [
+            "rm -f queue-active queue-order.txt",
+            "touch queue-active",
+            "sleep 1",
+            "printf 'first\\n' >> queue-order.txt",
+            "rm queue-active",
+          ].join("; "),
+        }),
+      });
+
+      await waitForContainerFile(container, "/workspace/queue-active");
+
+      const second = requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command: [
+            "test ! -e queue-active",
+            "printf 'second\\n' >> queue-order.txt",
+          ].join("; "),
+        }),
+      });
+
+      const [firstResponse, secondResponse] = await Promise.all([
+        first,
+        second,
+      ]);
+      expect(firstResponse).toEqual({
+        status: 200,
+        body: { result: expect.objectContaining({ exitCode: 0 }) },
+      });
+      expect(secondResponse).toEqual({
+        status: 200,
+        body: { result: expect.objectContaining({ exitCode: 0 }) },
+      });
+
+      const order = await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "read",
+          path: "queue-order.txt",
+        }),
+      });
+      expect(order).toEqual({
+        status: 200,
+        body: {
+          result: {
+            path: "/workspace/queue-order.txt",
+            content: "first\nsecond\n",
+          },
+        },
+      });
+
+      const timedOut = requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command: "echo $$ > timeout-process.pid; while :; do :; done",
+          timeoutMs: 200,
+        }),
+      });
+
+      await waitForContainerFile(container, "/workspace/timeout-process.pid");
+
+      const afterTimeout = requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command:
+            "! kill -0 \"$(cat timeout-process.pid)\" 2>/dev/null || { echo 'timed-out process still running' >&2; exit 1; }",
+        }),
+      });
+
+      const [timedOutResponse, afterTimeoutResponse] = await Promise.all([
+        timedOut,
+        afterTimeout,
+      ]);
+      expect(timedOutResponse).toEqual({
+        status: 200,
+        body: { result: expect.objectContaining({ exitCode: 124 }) },
+      });
+      expect(afterTimeoutResponse).toEqual({
+        status: 200,
+        body: { result: expect.objectContaining({ exitCode: 0 }) },
+      });
+    },
+  );
 });
 
 async function buildSandboxImage(docker: Docker) {
@@ -294,6 +392,25 @@ async function waitForHealth(baseUrl: string, container: Docker.Container) {
       .filter(Boolean)
       .join("\n"),
   );
+}
+
+async function waitForContainerFile(
+  container: Docker.Container,
+  filePath: string,
+) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < HEALTH_TIMEOUT_MS) {
+    const exec = await container.exec({ Cmd: ["test", "-e", filePath] });
+    await exec.start({});
+    if ((await exec.inspect()).ExitCode === 0) {
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  throw new Error(`Container file did not appear: ${filePath}`);
 }
 
 function readStreamToString(stream: NodeJS.ReadableStream) {

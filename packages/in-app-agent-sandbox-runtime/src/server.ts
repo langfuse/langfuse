@@ -17,7 +17,6 @@ import {
   type SandboxOperation,
   type WriteSandboxOperation,
 } from "./contracts.js";
-import { createSerialQueue } from "./sandboxQueue.js";
 
 const SERVER_PORT = 5000;
 const WORKSPACE_ROOT = "/workspace";
@@ -25,7 +24,16 @@ const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
 const MICROVM_RUNTIME_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
 const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024;
 let requestCounter = 0;
-const runSandboxOperationExclusive = createSerialQueue();
+let sandboxOperationTail: Promise<unknown> = Promise.resolve();
+
+function runSandboxOperationExclusive<T>(task: () => Promise<T>): Promise<T> {
+  const result = sandboxOperationTail.then(task, task);
+  sandboxOperationTail = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
 
 const server = createServer(async (request, response) => {
   const requestId = `req-${++requestCounter}`;
@@ -321,6 +329,7 @@ function runCommand(
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let timedOut = false;
     const startedAt = new Date().toISOString();
     const startedAtMs = Date.now();
 
@@ -360,7 +369,7 @@ function runCommand(
               return;
             }
 
-            settled = true;
+            timedOut = true;
             if (child.pid) {
               try {
                 // Process-group termination is best-effort:
@@ -378,13 +387,6 @@ function runCommand(
             } else {
               child.kill("SIGKILL");
             }
-            resolve({
-              stdout,
-              stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
-              exitCode: 124,
-              startedAt,
-              completedAt: new Date().toISOString(),
-            });
           }, timeoutMs);
 
     child.on("close", (code) => {
@@ -405,6 +407,17 @@ function runCommand(
         stdoutBytes: Buffer.byteLength(stdout, "utf8"),
         stderrBytes: Buffer.byteLength(stderr, "utf8"),
       });
+
+      if (timedOut) {
+        resolve({
+          stdout,
+          stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
+          exitCode: 124,
+          startedAt,
+          completedAt: new Date().toISOString(),
+        });
+        return;
+      }
 
       resolve({
         stdout,
