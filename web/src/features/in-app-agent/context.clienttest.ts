@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getInAppAgentScreenContextDescription } from "./context";
 
 describe("getInAppAgentScreenContextDescription", () => {

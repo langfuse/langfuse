@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 
 import { EVENTS_FIELD_REGISTRY } from "./fields";

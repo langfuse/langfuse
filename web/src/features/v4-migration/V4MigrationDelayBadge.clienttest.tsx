@@ -161,7 +161,7 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useCanUseInAppAgent: () => false,
+  useIsInAppAgentLauncherVisible: () => false,
   useInAppAiAgent: () => ({ setOpen: vi.fn(), submit: vi.fn() }),
 }));
 

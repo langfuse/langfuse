@@ -13,7 +13,7 @@ import {
   singleSpan,
   threeSpans,
   zeroDurationTrace,
-} from "./__tests__/timelineV2.fixtures";
+} from "../../fns/timeline/__tests__/timelineV2.fixtures";
 
 const meta = preview.meta({
   component: TimelineV2,

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { decodeFiltersGeneric } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 

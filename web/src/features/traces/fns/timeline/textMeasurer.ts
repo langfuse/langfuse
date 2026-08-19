@@ -33,7 +33,16 @@ const unitAt = (text: string, index: number): string | null => {
   return null;
 };
 
-export type TextMeasurer = { measure: (text: string) => number };
+export type TextMeasurer = {
+  measure: (text: string) => number;
+  /**
+   * The same text as the browser will set it in BOLD. Callers that reserve room
+   * for bold content need this: measuring it at the regular weight came out
+   * ~4% short on one font stack and fitted on another, which is a reservation
+   * that clips only on some machines.
+   */
+  measureBold: (text: string) => number;
+};
 
 export function createTextMeasurer(font = "12px ui-sans-serif"): TextMeasurer {
   let context: CanvasRenderingContext2D | null = null;
@@ -53,6 +62,18 @@ export function createTextMeasurerFrom(
   context: CanvasRenderingContext2D | null,
   font = "12px ui-sans-serif",
 ): TextMeasurer {
+  return {
+    measure: measurerFor(context, font),
+    // A CSS font shorthand takes the weight first, and the callers here build
+    // theirs from a probe's `font-size` + `font-family`.
+    measureBold: measurerFor(context, `700 ${font}`),
+  };
+}
+
+function measurerFor(
+  context: CanvasRenderingContext2D | null,
+  font: string,
+): (text: string) => number {
   const glyphs = new Map<string, number>();
   const units = new Map<string, number>();
   const cache = new Map<string, number>();
@@ -75,30 +96,49 @@ export function createTextMeasurerFrom(
 
   const computeWidth = (text: string) => {
     let width = 0;
+    // Anything that is neither a digit nor a duration unit is measured as a run,
+    // not estimated per letter: callers now price arbitrary text with this
+    // (a score's name, a level label), and at 6.5px a letter `quality:` came out
+    // 13px wider than it renders — slack that hides a real under-reservation
+    // somewhere else in the same sum.
+    let run = "";
+    const flush = () => {
+      if (!run) return;
+      if (context) {
+        // Set every time: the bold twin shares this context, and whichever
+        // measured last would otherwise decide the font for both.
+        context.font = font;
+        width += context.measureText(run).width;
+      } else {
+        width += run.length * PX_PER_LETTER;
+      }
+      run = "";
+    };
     for (let i = 0; i < text.length; i++) {
       const glyph = glyphs.get(text[i]!);
       if (glyph !== undefined) {
+        flush();
         width += glyph;
         continue;
       }
       const unit = unitAt(text, i);
       if (unit !== null) {
+        flush();
         width += units.get(unit) ?? unit.length * PX_PER_LETTER;
         i += unit.length - 1;
         continue;
       }
-      width += PX_PER_LETTER;
+      run += text[i]!;
     }
+    flush();
     return width;
   };
 
-  return {
-    measure: (text) => {
-      const cached = cache.get(text);
-      if (cached !== undefined) return cached;
-      const width = computeWidth(text);
-      cache.set(text, width);
-      return width;
-    },
+  return (text: string) => {
+    const cached = cache.get(text);
+    if (cached !== undefined) return cached;
+    const width = computeWidth(text);
+    cache.set(text, width);
+    return width;
   };
 }
