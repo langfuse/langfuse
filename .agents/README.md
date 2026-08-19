@@ -37,19 +37,15 @@ Current shape:
     "devTerminalDescription": "Main development terminal running the development server"
   },
   "mcpServers": {
-    "playwright": {
+    "agent-browser": {
       "transport": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@playwright/mcp@latest",
-        "--isolated",
-        "--save-session",
-        "--output-dir",
-        "/tmp/playwright-mcp",
-        "--test-id-attribute",
-        "data-testid"
-      ]
+      "command": "bash",
+      "args": ["scripts/agents/start-agent-browser-mcp.sh"]
+    },
+    "next-devtools": {
+      "transport": "stdio",
+      "command": "pnpm",
+      "args": ["exec", "next-devtools-mcp"]
     },
     "langfuse-docs": {
       "transport": "http",
@@ -102,6 +98,12 @@ Current shape:
   }
 }
 ```
+
+`next-devtools` exposes Next.js compilation and runtime diagnostics from the
+running development server. `agent-browser` drives an isolated browser session
+with React DevTools enabled; its MCP surface is limited to the browser-review
+profiles used by this repo. It replaces Playwright MCP for agent-driven review,
+not the Playwright E2E test suite in `web/`.
 
 ## How Shims Are Generated
 
@@ -272,7 +274,8 @@ Use HTTP/OAuth where available so credentials remain outside the agent VM.
 | Slack | Cursor Marketplace integration | Enabled; allow search/history/channel reads only |
 | Google Drive | Cursor Marketplace integration | Enabled; allow file search, metadata, export, and content reads only |
 | PostHog | Cursor Marketplace integration | Enabled; allow analytics, schema, query, and insight reads only |
-| Browser automation | Cursor computer use in Cloud; Playwright MCP locally | Enabled; never reuse a developer's local authenticated browser session |
+| Browser automation | Cursor computer use in Cloud; agent-browser MCP locally | Enabled; never reuse a developer's local authenticated browser session |
+| Next.js diagnostics | Shared Next DevTools MCP | Enabled against the isolated local development server |
 
 Do not approve create, save, update, delete, comment, reply, send, resolve,
 archive, acknowledge, execute-DDL, or settings-management tools. Review the

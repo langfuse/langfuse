@@ -30,8 +30,8 @@ ensure_cloud_dependencies
 
 pnpm install --frozen-lockfile
 
-# Install Chromium into the default user-level Playwright cache so frontend
-# browser review works on first bootstrap.
+# Install Chromium into the default user-level Playwright cache for E2E tests.
+# Agent-browser also auto-detects this installation.
 pnpm run playwright:install
 
 # Generate the shared Prisma client explicitly in the current worktree before

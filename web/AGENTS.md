@@ -237,7 +237,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - In-source tests: `pnpm --filter web run test:in-source <args>`
 - Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
-- Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
+- Agent browser Chrome install: `pnpm run agent-browser:install`
+- Playwright E2E browser install: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
 - Structure-RFC violation counts: `pnpm --filter web run structure:stats`
 - Move files/folders with every importer rewritten:
@@ -277,17 +278,18 @@ Sentry instrumentation skill first and decide whether it should capture at all
 4. For meaningful user actions (buttons, form submits, mode switches), decide
    explicitly whether to instrument them with PostHog. Use
    `../.agents/skills/posthog-instrumentation/SKILL.md`.
-5. Review the affected user flow in a real browser with the Playwright MCP
-   server before signoff. Use
+5. Review the affected user flow in a real browser with agent-browser and use
+   Next DevTools MCP for compilation/runtime diagnostics before signoff. Use
    `../.agents/skills/frontend-browser-review/SKILL.md`.
 
 ### Agent browser loop
 
 1. Start the app with `pnpm run dev:web` unless an existing local server is already running.
-2. Install Chromium with `pnpm run playwright:install` if Playwright has not been set up on this machine yet.
-3. Use the workspace `playwright` MCP server from `.mcp.json`, `.cursor/mcp.json`, or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
-4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions before signoff.
-5. Inspect traces and other artifacts under `/tmp/playwright-mcp` when a browser session fails.
+2. Use Next DevTools MCP to compile the target route and inspect existing issues.
+3. Use the workspace `agent-browser` MCP server from `.mcp.json`, `.cursor/mcp.json`, or `.vscode/mcp.json`. It launches an isolated session with React DevTools enabled; never reuse a developer browser profile.
+4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions. Use React tree/inspect/render profiling, Web Vitals, accessibility, console, or network tools when they provide relevant evidence.
+5. Re-check Next DevTools compilation/runtime issues after exercising the flow. If browser launch fails, run `pnpm exec agent-browser doctor --json`.
+6. Keep Playwright for the executable E2E suite; agent-browser replaces only Playwright MCP-driven agent review.
 
 ## Package-Specific Rules
 
