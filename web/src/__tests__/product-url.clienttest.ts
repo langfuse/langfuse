@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { buildTraceDetailPath } from "@langfuse/shared/src/server";
+import { buildTraceDetailPath } from "@langfuse/shared";
 
 describe("buildTraceDetailPath", () => {
   it("builds a trace path without query params", () => {

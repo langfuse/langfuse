@@ -107,7 +107,7 @@ import {
 } from "@/src/features/events/hooks/useAppRootDefault";
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { buildTraceDetailPath } from "@langfuse/shared/src/server";
+import { buildTraceDetailPath } from "@langfuse/shared";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 // Disabled for now because perhaps confusing
 // import {

@@ -239,37 +239,6 @@ export const buildTracePath = (params: {
     { timestamp: params.timestamp },
   );
 
-type BuildTraceDetailPathParams = {
-  projectId: string;
-  traceId: string;
-  observationId?: string | null;
-  timestamp?: Date | string | null;
-};
-
-export const buildTraceDetailPath = (params: BuildTraceDetailPathParams) =>
-  appendProductPathQuery(
-    `${buildProjectPath(params)}/traces/${encodeURIComponent(params.traceId)}`,
-    {
-      observation: params.observationId,
-      timestamp:
-        params.timestamp instanceof Date
-          ? params.timestamp.toISOString()
-          : decodeURIComponentSafely(params.timestamp),
-    },
-  );
-
-const decodeURIComponentSafely = (value?: string | null) => {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-};
-
 export const buildTracesPath = (params: {
   projectId: string;
   isV4Enabled?: boolean;

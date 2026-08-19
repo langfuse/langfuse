@@ -97,7 +97,7 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { buildTraceDetailPath } from "@langfuse/shared/src/server";
+import { buildTraceDetailPath } from "@langfuse/shared";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {
   REFRESH_INTERVALS,
