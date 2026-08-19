@@ -369,6 +369,14 @@ const EnvSchema = z.object({
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
+  // Optional override for the event-propagation dual-write INSERT. Set to
+  // false to defer data-skipping index materialization until background
+  // merges; unset uses the default behavior.
+  LANGFUSE_EVENT_PROPAGATION_MATERIALIZE_SKIP_INDEXES_ON_INSERT: z
+    .enum(["true", "false"])
+    .optional()
+    .default("true"),
+
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
