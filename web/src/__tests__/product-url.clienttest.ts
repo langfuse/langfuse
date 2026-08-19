@@ -1,11 +1,11 @@
 // @vitest-environment node
 
-import { buildTraceDetailPath } from "@langfuse/shared";
+import { buildTracePath } from "@langfuse/shared";
 
-describe("buildTraceDetailPath", () => {
+describe("buildTracePath", () => {
   it("builds a trace path without query params", () => {
     expect(
-      buildTraceDetailPath({
+      buildTracePath({
         projectId: "project-1",
         traceId: "trace/1",
       }),
@@ -14,7 +14,7 @@ describe("buildTraceDetailPath", () => {
 
   it("adds observation and timestamp query params", () => {
     expect(
-      buildTraceDetailPath({
+      buildTracePath({
         projectId: "project-1",
         traceId: "trace-1",
         observationId: "observation-1",
@@ -27,7 +27,7 @@ describe("buildTraceDetailPath", () => {
 
   it("normalizes an encoded timestamp string", () => {
     expect(
-      buildTraceDetailPath({
+      buildTracePath({
         projectId: "project-1",
         traceId: "trace-1",
         observationId: "observation-1",
