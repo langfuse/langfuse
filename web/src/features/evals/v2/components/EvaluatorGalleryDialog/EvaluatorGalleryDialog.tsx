@@ -103,7 +103,8 @@ export function EvaluatorGalleryDialog({
         <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
           <DialogTitle>Add an evaluator</DialogTitle>
           <DialogDescription>
-            Pick what you want to measure. Prompt, model and scoring come next.
+            Pick a template to start from or create a new evaluator from
+            scratch.
           </DialogDescription>
         </DialogHeader>
         <EvaluatorGalleryView
