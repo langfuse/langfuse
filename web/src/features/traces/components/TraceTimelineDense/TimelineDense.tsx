@@ -269,6 +269,27 @@ export type TimelineDenseProps = {
 
 export type GutterMode = "auto" | "expanded" | "collapsed";
 
+/**
+ * What a row's background says about it. ONE decision, because two places draw a
+ * row — the chart and the names floating over it — and a second copy is a second
+ * chance to miss a state: the peek's copy only knew about selection and hover, so
+ * during playback the row that was playing glowed in the chart and stayed plain
+ * in the names right beside it.
+ *
+ * Playing rows glow UP rather than the others dimming down, which is the standing
+ * rule for playback highlight here.
+ */
+function rowWashClass(state: {
+  selected: boolean;
+  focused: boolean;
+  active: boolean;
+}): string | false {
+  if (state.selected) return "bg-primary-accent/20";
+  if (state.focused) return "bg-primary-accent/15";
+  // At 4px a tint is not enough to find yourself by, so these are full-width.
+  return state.active && "bg-primary/20";
+}
+
 export function TimelineDense({
   roots,
   box,
@@ -847,6 +868,12 @@ export function TimelineDense({
       offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX
     ) {
       setOverride(isOpen ? "collapsed" : "expanded");
+      // This tap is spent on the toggle, so it is not half of a double-tap:
+      // opening and closing the names inside the double-tap window otherwise read
+      // as one, and flew the viewport to whatever row the second tap landed on.
+      // Forgetting the pending tap is enough — a tap NEAR the rail is a rail tap
+      // and lands here too, and a tap far from it fails the proximity check.
+      lastTap.current = { at: 0, x: 0, y: 0 };
       return;
     }
     // Shift+drag draws a box to zoom into, which is the one gesture where the
@@ -1356,13 +1383,11 @@ export function TimelineDense({
                 key={node.id}
                 className={cn(
                   "absolute inset-x-0",
-                  // At 4px a tint is not enough to find yourself by, so the
-                  // hovered row takes a full-width accent wash.
-                  isSelected && "bg-primary-accent/20",
-                  isFocused && !isSelected && "bg-primary-accent/15",
-                  // Playing rows glow up rather than others dimming down, which
-                  // is the standing rule for playback highlight.
-                  isActive && !isSelected && !isFocused && "bg-primary/20",
+                  rowWashClass({
+                    selected: isSelected,
+                    focused: isFocused,
+                    active: isActive,
+                  }),
                 )}
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
                 // A double-click delivers TWO clicks, and selecting is not free:
@@ -1522,10 +1547,11 @@ export function TimelineDense({
                   key={node.id}
                   className={cn(
                     "absolute inset-x-0",
-                    node.id === selectedId && "bg-primary-accent/20",
-                    node.index === focusIndex &&
-                      node.id !== selectedId &&
-                      "bg-primary-accent/15",
+                    rowWashClass({
+                      selected: node.id === selectedId,
+                      focused: node.index === focusIndex,
+                      active: Boolean(activeIds?.has(node.id)),
+                    }),
                   )}
                   style={{ top: `${y}px`, height: `${rowHeight}px` }}
                 >

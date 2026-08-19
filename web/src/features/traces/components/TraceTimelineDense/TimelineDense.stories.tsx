@@ -1002,6 +1002,86 @@ export const DoubleTapFocusesOnTouch = meta.story({
   },
 });
 
+/**
+ * Opening and closing the names is two taps in the same place, inside the
+ * double-tap window — and it used to also fly the viewport to whatever row the
+ * second tap landed on, because the rail tap returned early without ever marking
+ * itself as spent.
+ */
+export const RailTapsAreNotADoubleTap = meta.story({
+  name: "(Test) Rail Taps Are Not A Double Tap",
+  args: {
+    // Tall enough rows that the rail exists to be tapped.
+    roots: manySpans(40),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "coarse",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+    const names = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-peek"] span[title], [data-testid="timeline-dense-content"] > div span[title]',
+      ).length;
+
+    const rect = surface.getBoundingClientRect();
+    const x = rect.left + 4;
+    const y = rect.top + 200;
+    await expect(readout()).toContain("fitted");
+
+    // Open, then close — one frame apart, which is how a real pair arrives: far
+    // enough for the toggle to see its own new state, far INSIDE the double-tap
+    // window. Dispatching both in one microtask tests neither, because React has
+    // not re-rendered and both taps read the same `isOpen`.
+    const frame = () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    touch(surface, "pointerdown", 1, x, y);
+    touch(surface, "pointerup", 1, x, y);
+    await waitFor(() => expect(names()).toBeGreaterThan(0));
+    await frame();
+    touch(surface, "pointerdown", 1, x, y);
+    touch(surface, "pointerup", 1, x, y);
+    await waitFor(() => expect(names()).toBe(0));
+
+    // Then a SINGLE tap in the chart, still inside the window. One tap is one
+    // tap: it only looked like the second half of a double-tap because the rail's
+    // release had recorded a tap it should never have recorded. This has to come
+    // before the wait below, or the wait itself pushes it out of the window and
+    // the sequence goes untested.
+    await frame();
+    touch(surface, "pointerdown", 1, rect.left + rect.width * 0.6, y);
+    touch(surface, "pointerup", 1, rect.left + rect.width * 0.6, y);
+
+    // "Nothing flew" has to outlast the flight, or it passes by being early — as
+    // this assertion did at first, which made it green against the bug.
+    let flew = false;
+    try {
+      await waitFor(() => expect(readout()).toContain("zoomed"), {
+        timeout: 600,
+      });
+      flew = true;
+    } catch {
+      // Never zoomed inside a window longer than the 320ms flight: correct.
+    }
+    await expect(flew).toBe(false);
+  },
+});
+
 export const TooltipFollowsTheContent = meta.story({
   name: "(Test) Tooltip Follows The Content",
   args: {
@@ -1156,6 +1236,60 @@ function WithLateRows(props: TimelineDenseProps) {
     </div>
   );
 }
+
+/**
+ * The names floating over the chart are the SAME rows as the chart's. Where the
+ * gutter is only a rail, peeking is the one way to read a name during playback —
+ * and the peek kept its own copy of the row backgrounds, which knew about
+ * selection and hover but had never heard of playback: the row that was playing
+ * glowed in the chart and stayed plain in the names beside it.
+ */
+export const ThePeekGlowsWithThePlayingRow = meta.story({
+  name: "(Test) The Peek Glows With The Playing Row",
+  args: {
+    // 40 rows in this box are 15px: too short to hold a name in flow, tall
+    // enough that the rail exists to peek at. At the 1px floor there is no rail
+    // by design, so there would be nothing to hover.
+    roots: manySpans(40),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+    // The root covers the whole trace, so it plays throughout.
+    activeIds: new Set(["n0"]),
+    playhead: PLAYBACK.playhead,
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + 4,
+        // Well away from the playing row, so the hover wash cannot stand in for
+        // the glow this is looking for.
+        clientY: rect.top + 200,
+      }),
+    );
+    const peek = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-peek"]',
+      );
+      if (!el) throw new Error("the rail did not peek");
+      return el;
+    });
+    await expect(peek.querySelectorAll("div.bg-primary\\/20").length).toBe(1);
+  },
+});
 
 export const ALateRowIsStillRevealed = meta.story({
   name: "(Test) A Late Row Is Still Revealed",
