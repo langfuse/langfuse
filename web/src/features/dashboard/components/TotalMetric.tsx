@@ -17,7 +17,7 @@ export const TotalMetric = ({
     <div className={cn("animate-in flex flex-col items-start", className)}>
       <div className="text-3xl font-bold">{metric}</div>
       {description || children ? (
-        <div className="flex min-w-0 items-center">
+        <div className="flex min-w-0 items-center gap-1">
           {description ? (
             <p className="text-muted-foreground text-sm">{description}</p>
           ) : null}

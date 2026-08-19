@@ -27,7 +27,7 @@ export const WithInfoIcon = meta.story({
   args: {
     metric: "$9,753.19",
     description: "Total cost",
-    children: <Info className="text-muted-foreground mx-1 h-3 w-3" />,
+    children: <Info className="text-muted-foreground h-3 w-3" />,
   },
 });
 
