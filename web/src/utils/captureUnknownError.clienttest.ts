@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 const { captureExceptionMock } = vi.hoisted(() => ({

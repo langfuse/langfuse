@@ -1,24 +1,35 @@
+import { InAppAgentRunStatus } from "../features/inAppAgent/types";
+
 // Avoid renaming this as the FE is aware of this when rendering, renaming it would cause history issues
 export const IN_APP_AGENT_REDIRECT_TOOL_NAME = "langfuse_proposeRedirect";
 
 export const IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE = "tool_call_rejected";
 
+export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =
+  "An error occurred. Please try again or start a new conversation.";
+
+/** Runs that are not yet in a terminal state, including parked approvals. */
+export const IN_APP_AGENT_UNSETTLED_RUN_STATUSES: readonly InAppAgentRunStatus[] =
+  [
+    InAppAgentRunStatus.QUEUED,
+    InAppAgentRunStatus.RUNNING,
+    InAppAgentRunStatus.AWAITING_APPROVAL,
+  ];
+
+export function isUnsettledInAppAgentRunStatus(
+  status: InAppAgentRunStatus,
+): boolean {
+  return IN_APP_AGENT_UNSETTLED_RUN_STATUSES.includes(status);
+}
+
 export const IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE = "silent-mcp-output";
 export const IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE =
   "Output saved to /workspace/tool_calls";
-
-export const IN_APP_AGENT_MCP_USER_AGENT = "langfuse-in-app-agent";
 
 // Header used only by Langfuse's server-side in-app agent when it calls the
 // Langfuse MCP endpoint with a temporary in-app-agent API key and run override.
 export const IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER =
   "x-langfuse-in-app-agent-tool-override";
-
-export const IN_APP_AGENT_LOCAL_SANDBOX_IMAGE =
-  "langfuse-in-app-agent-sandbox:latest";
-
-export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =
-  "An error occurred. Please try again or start a new conversation.";
 
 // Observation ids stay equal to the per-turn run id so persisted messages,
 // feedback, and traced generations all point at the same Langfuse observation.

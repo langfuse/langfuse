@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   AnalyticsIntegrationExportSource,
   LEGACY_ANALYTICS_EXPORTER_CUTOFF,

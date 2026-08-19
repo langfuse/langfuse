@@ -1,8 +1,8 @@
-import type { AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
+import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 import type { FilterState } from "@langfuse/shared";
 
-type InAppAgentContext = AgUiRunAgentInput["context"];
+type InAppAgentContext = AgUiContext;
 
 export type InAppAgentScreenContextDescription =
   | { type: "page" }

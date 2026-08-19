@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { chartConfigToWidgetInput } from "./chartConfigToWidget";
 import { DEFAULT_CONFIG } from "../vocab";
 import { type ChartViewConfig } from "../types";
