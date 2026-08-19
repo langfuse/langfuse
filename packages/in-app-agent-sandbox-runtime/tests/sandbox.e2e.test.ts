@@ -57,7 +57,7 @@ describe("sandbox runtime docker container", () => {
 
     baseUrl = `http://127.0.0.1:${hostPort}`;
     await waitForHealth(baseUrl, containerName);
-  });
+  }, 300_000);
 
   afterAll(async () => {
     if (!containerName) {
@@ -67,159 +67,163 @@ describe("sandbox runtime docker container", () => {
     await runDocker(["rm", "-f", containerName]).catch(() => undefined);
   });
 
-  it("serves health, sandbox operations, and microvm hooks over HTTP", async () => {
-    const health = await requestJson(baseUrl, "/health");
-    expect(health).toEqual({ status: 200, body: { status: "ok" } });
+  it(
+    "serves health, sandbox operations, and microvm hooks over HTTP",
+    { timeout: 120_000 },
+    async () => {
+      const health = await requestJson(baseUrl, "/health");
+      expect(health).toEqual({ status: 200, body: { status: "ok" } });
 
-    const written = await requestJson(baseUrl, "/sandbox", {
-      method: "POST",
-      body: JSON.stringify({
-        operation: "write",
-        path: "hello.txt",
-        content: "hello",
-      }),
-    });
-    expect(written.status).toBe(200);
-    expect(written.body).toEqual({
-      result: {
-        path: "/workspace/hello.txt",
-        bytesWritten: Buffer.byteLength("hello", "utf8"),
-      },
-    });
-
-    const readBack = await requestJson(baseUrl, "/sandbox", {
-      method: "POST",
-      body: JSON.stringify({
-        operation: "read",
-        path: "/workspace/hello.txt",
-      }),
-    });
-    expect(readBack).toEqual({
-      status: 200,
-      body: {
-        result: {
-          path: "/workspace/hello.txt",
-          content: "hello",
-        },
-      },
-    });
-
-    const edited = await requestJson(baseUrl, "/sandbox", {
-      method: "POST",
-      body: JSON.stringify({
-        operation: "edit",
-        path: "hello.txt",
-        oldText: "hello",
-        newText: "hello world",
-      }),
-    });
-    expect(edited).toEqual({
-      status: 200,
-      body: {
-        result: {
-          path: "/workspace/hello.txt",
-          replaced: true,
-        },
-      },
-    });
-
-    const bash = await requestJson(baseUrl, "/sandbox", {
-      method: "POST",
-      body: JSON.stringify({
-        operation: "bash",
-        command: "cat hello.txt; pwd",
-      }),
-    });
-    expect(bash.status).toBe(200);
-    expect(bash.body).toEqual({
-      result: expect.objectContaining({
-        stdout: expect.stringMatching(/^hello world\/workspace\n$/),
-        stderr: "",
-        exitCode: 0,
-      }),
-    });
-
-    const toolCall = await requestJson(baseUrl, "/sandbox", {
-      method: "POST",
-      body: JSON.stringify({
-        operation: "bash",
-        command: "cat /workspace/tool_calls/note.txt",
-        toolCallFiles: [
-          {
-            path: "/workspace/tool_calls/note.txt",
-            content: "from-previous-tool",
-          },
-        ],
-      }),
-    });
-    expect(toolCall.status).toBe(200);
-    expect(toolCall.body).toEqual({
-      result: expect.objectContaining({
-        stdout: "from-previous-tool",
-        exitCode: 0,
-      }),
-    });
-
-    const toolCallReset = await requestJson(baseUrl, "/sandbox", {
-      method: "POST",
-      body: JSON.stringify({
-        operation: "bash",
-        command: "test ! -e /workspace/tool_calls/note.txt",
-      }),
-    });
-    expect(toolCallReset.status).toBe(200);
-    expect(toolCallReset.body).toEqual({
-      result: expect.objectContaining({ exitCode: 0 }),
-    });
-
-    const timedOut = await requestJson(baseUrl, "/sandbox", {
-      method: "POST",
-      body: JSON.stringify({
-        operation: "bash",
-        command: "sleep 2",
-        timeoutMs: 200,
-      }),
-    });
-    expect(timedOut.status).toBe(200);
-    expect(timedOut.body).toEqual({
-      result: expect.objectContaining({
-        exitCode: 124,
-        stderr: expect.stringContaining("timed out after 200ms"),
-      }),
-    });
-
-    const escaped = await requestJson(baseUrl, "/sandbox", {
-      method: "POST",
-      body: JSON.stringify({
-        operation: "read",
-        path: "/etc/passwd",
-      }),
-    });
-    expect(escaped.status).toBe(500);
-    expect(escaped.body).toEqual({
-      error: "Sandbox path escapes workspace: /etc/passwd",
-    });
-
-    const missing = await requestJson(baseUrl, "/not-a-route");
-    expect(missing).toEqual({
-      status: 404,
-      body: { error: "Not found" },
-    });
-
-    for (const [hookPath, expected] of [
-      [`${MICROVM_HOOKS_ROOT}/ready`, { ready: true }],
-      [`${MICROVM_HOOKS_ROOT}/run`, { ready: true }],
-      [`${MICROVM_HOOKS_ROOT}/resume`, { resumed: true }],
-      [`${MICROVM_HOOKS_ROOT}/suspend`, { suspended: true }],
-      [`${MICROVM_HOOKS_ROOT}/terminate`, { terminated: true }],
-    ] as const) {
-      const hook = await requestJson(baseUrl, hookPath, {
+      const written = await requestJson(baseUrl, "/sandbox", {
         method: "POST",
-        body: "{}",
+        body: JSON.stringify({
+          operation: "write",
+          path: "hello.txt",
+          content: "hello",
+        }),
       });
-      expect(hook).toEqual({ status: 200, body: expected });
-    }
-  });
+      expect(written.status).toBe(200);
+      expect(written.body).toEqual({
+        result: {
+          path: "/workspace/hello.txt",
+          bytesWritten: Buffer.byteLength("hello", "utf8"),
+        },
+      });
+
+      const readBack = await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "read",
+          path: "/workspace/hello.txt",
+        }),
+      });
+      expect(readBack).toEqual({
+        status: 200,
+        body: {
+          result: {
+            path: "/workspace/hello.txt",
+            content: "hello",
+          },
+        },
+      });
+
+      const edited = await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "edit",
+          path: "hello.txt",
+          oldText: "hello",
+          newText: "hello world",
+        }),
+      });
+      expect(edited).toEqual({
+        status: 200,
+        body: {
+          result: {
+            path: "/workspace/hello.txt",
+            replaced: true,
+          },
+        },
+      });
+
+      const bash = await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command: "cat hello.txt; pwd",
+        }),
+      });
+      expect(bash.status).toBe(200);
+      expect(bash.body).toEqual({
+        result: expect.objectContaining({
+          stdout: expect.stringMatching(/^hello world\/workspace\n$/),
+          stderr: "",
+          exitCode: 0,
+        }),
+      });
+
+      const toolCall = await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command: "cat /workspace/tool_calls/note.txt",
+          toolCallFiles: [
+            {
+              path: "/workspace/tool_calls/note.txt",
+              content: "from-previous-tool",
+            },
+          ],
+        }),
+      });
+      expect(toolCall.status).toBe(200);
+      expect(toolCall.body).toEqual({
+        result: expect.objectContaining({
+          stdout: "from-previous-tool",
+          exitCode: 0,
+        }),
+      });
+
+      const toolCallReset = await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command: "test ! -e /workspace/tool_calls/note.txt",
+        }),
+      });
+      expect(toolCallReset.status).toBe(200);
+      expect(toolCallReset.body).toEqual({
+        result: expect.objectContaining({ exitCode: 0 }),
+      });
+
+      const timedOut = await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command: "sleep 2",
+          timeoutMs: 200,
+        }),
+      });
+      expect(timedOut.status).toBe(200);
+      expect(timedOut.body).toEqual({
+        result: expect.objectContaining({
+          exitCode: 124,
+          stderr: expect.stringContaining("timed out after 200ms"),
+        }),
+      });
+
+      const escaped = await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "read",
+          path: "/etc/passwd",
+        }),
+      });
+      expect(escaped.status).toBe(500);
+      expect(escaped.body).toEqual({
+        error: "Sandbox path escapes workspace: /etc/passwd",
+      });
+
+      const missing = await requestJson(baseUrl, "/not-a-route");
+      expect(missing).toEqual({
+        status: 404,
+        body: { error: "Not found" },
+      });
+
+      for (const [hookPath, expected] of [
+        [`${MICROVM_HOOKS_ROOT}/ready`, { ready: true }],
+        [`${MICROVM_HOOKS_ROOT}/run`, { ready: true }],
+        [`${MICROVM_HOOKS_ROOT}/resume`, { resumed: true }],
+        [`${MICROVM_HOOKS_ROOT}/suspend`, { suspended: true }],
+        [`${MICROVM_HOOKS_ROOT}/terminate`, { terminated: true }],
+      ] as const) {
+        const hook = await requestJson(baseUrl, hookPath, {
+          method: "POST",
+          body: "{}",
+        });
+        expect(hook).toEqual({ status: 200, body: expected });
+      }
+    },
+  );
 });
 
 async function waitForHealth(baseUrl: string, containerName: string) {

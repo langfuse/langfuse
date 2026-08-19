@@ -11,8 +11,8 @@
     "build:test": "tsc",
     "build:docker-image": "tsc && docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
     "start": "node ./dist/server.js",
-    "test": "vitest run --project unit",
-    "test:e2e": "pnpm run build && vitest run --project e2e",
+    "test": "vitest run src",
+    "test:e2e": "pnpm run build && vitest run tests",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
