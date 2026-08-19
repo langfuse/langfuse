@@ -6,7 +6,7 @@ import {
   requireV4Writes,
 } from "@/src/server/api/trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfExceedsLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
 import {
   CreateMonitorSchema,
   DeleteMonitorSchema,
@@ -36,17 +36,18 @@ export const monitorsRouter = createTRPCRouter({
         scope: "alerts:CUD",
       });
 
-      const currentCount = await ctx.prisma.monitor.count({
-        where: { project: { orgId: ctx.session.orgId, deletedAt: null } },
-      });
-      throwIfExceedsLimit({
+      return createWithinEntitlementLimit({
+        prisma: ctx.prisma,
+        orgId: ctx.session.orgId,
         entitlementLimit: "monitor-count",
         sessionUser: ctx.session.user,
-        orgId: ctx.session.orgId,
-        currentUsage: currentCount,
+        countCurrentUsage: (tx) =>
+          tx.monitor.count({
+            where: { project: { orgId: ctx.session.orgId, deletedAt: null } },
+          }),
+        create: (tx) =>
+          MonitorService.create(sessionContextFromCtx(ctx), input, tx),
       });
-
-      return MonitorService.create(sessionContextFromCtx(ctx), input);
     }),
 
   update: monitorsProcedure

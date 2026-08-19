@@ -15,3 +15,9 @@ export const IN_APP_AGENT_RUN_MAX_DURATION_MS = 15 * 60_000;
 
 /** AWAITING_APPROVAL parked longer than this expires (approval_expired) on read. */
 export const IN_APP_AGENT_APPROVAL_TTL_MS = 24 * 60 * 60_000;
+
+/**
+ * Sequential model calls (Mastra `maxSteps`) allowed in one turn. Shared so
+ * wrap-up, truncation detection, and the Agent constructor cannot drift.
+ */
+export const IN_APP_AGENT_MAX_STEPS = 20;

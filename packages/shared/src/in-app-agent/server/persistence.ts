@@ -15,11 +15,11 @@ import {
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
 
-import { env } from "../../env";
 import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
 } from "../../server/llm/langfuseAiCompletion";
+import { getInAppAgentModelConfig } from "./modelProvider";
 import { getProductBaseUrl } from "../../server/utils/baseUrl";
 import { truncate } from "../../utils/stringChecks";
 import { assertUnreachable } from "../../utils/typeChecks";
@@ -431,10 +431,9 @@ export async function maybeInferAndPersistConversationTitle(params: {
   userId: string;
   aiTelemetryEnabled: boolean;
 }) {
-  const model =
-    env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const modelConfig = getInAppAgentModelConfig();
 
-  if (!model) {
+  if (!modelConfig) {
     return;
   }
 
@@ -523,7 +522,7 @@ ${JSON.stringify(transcript, null, 2)}
   `.trim(),
         },
       ],
-      model,
+      model: modelConfig.titleModelId,
       maxTokens: 1000,
       traceSinkParams: params.aiTelemetryEnabled
         ? getLangfuseAITraceSinkParams({

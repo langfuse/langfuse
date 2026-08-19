@@ -1,8 +1,8 @@
 import { fn } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { TimelineGutterRow } from "./TimelineGutterRow";
-import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
-import { makeItem, makeTreeNode } from "./__tests__/timeline.fixtures";
+import { prepareTimeline } from "../../fns/timeline/layout";
+import { makeRow, makeTreeNode } from "./__tests__/timeline.fixtures";
 
 const ROW_BOX =
   "bg-background relative h-[26px] w-[320px] overflow-hidden rounded border";
@@ -14,7 +14,7 @@ const PANEL_BOX = "bg-background w-[320px] overflow-hidden rounded border";
 const meta = preview.meta({
   component: TimelineGutterRow,
   args: {
-    item: makeItem({
+    row: makeRow({
       depth: 1,
       treeLines: [false],
       isLastSibling: true,
@@ -41,7 +41,7 @@ export const Default = meta.story({
 
 export const RootWithChildren = meta.story({
   args: {
-    item: makeItem({
+    row: makeRow({
       depth: 0,
       treeLines: [],
       isLastSibling: true,
@@ -60,7 +60,7 @@ export const RootWithChildren = meta.story({
 
 export const NestedWithSiblingBelow = meta.story({
   args: {
-    item: makeItem({
+    row: makeRow({
       depth: 2,
       treeLines: [true, true],
       isLastSibling: false,
@@ -79,7 +79,7 @@ export const NestedWithSiblingBelow = meta.story({
 
 export const NestedLastChild = meta.story({
   args: {
-    item: makeItem({
+    row: makeRow({
       depth: 2,
       treeLines: [true, false],
       isLastSibling: true,
@@ -108,7 +108,7 @@ export const Selected = meta.story({
 
 export const Collapsed = meta.story({
   args: {
-    item: makeItem({
+    row: makeRow({
       depth: 1,
       treeLines: [false],
       isLastSibling: true,
@@ -198,25 +198,22 @@ export const TreeShowcase = meta.story({
       ],
     });
 
-    const items = flattenTreeWithTimelineMetrics(
-      [tree],
-      new Set(),
-      tree.startTime,
-      8,
-      900,
-    );
+    // The real tree walk, so connectors connect parent→child across rows
+    // exactly as in the app. Only depth/treeLines matter here; the gutter takes
+    // no geometry.
+    const rows = prepareTimeline([tree]).rows;
 
     return (
       <>
-        {items.map((item) => (
-          <div key={item.node.id} className="h-[26px]">
+        {rows.map((row) => (
+          <div key={row.node.id} className="h-[26px]">
             <TimelineGutterRow
-              item={item}
+              row={row}
               isSelected={false}
               onSelect={args.onSelect}
               onHover={args.onHover}
               onToggleCollapse={args.onToggleCollapse}
-              hasChildren={item.node.children.length > 0}
+              hasChildren={row.hasChildren}
               isCollapsed={false}
             />
           </div>

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { canApplyScoreOutlierStripFilters } from "@/src/features/scores-chart-view/fns/outlierStripFilters";
 
 describe("canApplyScoreOutlierStripFilters", () => {
