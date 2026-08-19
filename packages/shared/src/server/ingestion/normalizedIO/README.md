@@ -6,6 +6,53 @@ turns `SpanIO` into `NormalizedIO`; projections derive consumer shapes
 (ClickHouse tool columns, eval records) from `NormalizedIO` — never from the
 raw formats.
 
+## Validation status
+
+- Fixture registry (`fixtures/`): 12 fixtures across Vercel AI SDK, OpenAI
+  chat completions + Responses API, LangGraph, Microsoft Agent Framework,
+  Pydantic AI, Semantic Kernel, Gemini, and raw passthrough shapes; parser
+  output locked per fixture, tool-column projection asserted against the
+  same locked output.
+- Legacy compatibility: with the (temporary) hookup of
+  `toToolColumns(normalizeIO(...))` into `normalizeToolsForObservation`,
+  53/54 of the legacy `extractToolsBackend` worker tests pass. The one
+  divergence (unnamed provider tools, see questions) is under review.
+- Prod replay: sampled prod OTel batches replayed through the read-only
+  consistency harness; the parser's tool columns diffed against the
+  actually-ingested ClickHouse baseline
+  (`scripts/compareToolColumnsAgainstManifest.ts`). Known win: spans whose
+  tool calls live in `parts[].type: "tool_call"` containers are missed by
+  the live pipeline and correctly extracted here — internal example from langfuse emo trace:
+  https://cloud.langfuse.com/project/clkpwwm0m000gmm094odg11gi/traces/5f9b96b2d186c0cd172bc93272bf6f68?observation=a661aa3c1be83d6a
+
+## What's left
+
+1. **OTel → SpanIO adapter**: extract the raw input/output/metadata
+   discovery out of `OtelIngestionProcessor.extractInputAndOutput` /
+   `extractMetadata` into `adapters/otel.ts`, with the processor calling in.
+2. **How to deal with empty strings**: Proposal implementation: messages whose only
+   content is an empty string are dropped. TBD how to handle non-string `text` values
+   — align with the trace IO view, which renders both.
+3. **Messages/metadata confidence**: use prod replay against the
+   ChatML parser tests, same method as the tool-column comparison.
+4. **Projection coverage**: tests for `toEvalRecord`. Other projects have been tested.
+5. **Rollout**: across product surfaces. Start with ingestion, continue with evals.
+
+## Questions for review
+
+1. **Interface structure**: The current interface still exposes IO extraction (OTel or ClickHouse → SpanIO)
+   and normalization (SpanIO → NormalizedIO), as individually callable; callers to coordinate both steps.
+   We are considering a single input-format-aware wrapper that returns both SpanIO and NormalizedIO.
+   This would clearly preserve which source and semantic adapters were used (extensible with schema version or confidence).
+   Discuss sign-off on `NormalizedIO` / the part union in
+   `types.ts`, and on `source: "input" | "output"`.
+2. **Unnamed provider tools**: the parser admits provider tools without a
+   `name` (e.g. `web_search_preview`) into `tool_definitions`; the legacy
+   extractor excludes them. Keep (available-tool filtering covers provider
+   tools too) or match legacy?
+3. **Anything else** missing — consumers, semantics, or rollout concerns not
+   covered here?
+
 ## Assumptions
 
 Each entry states the assumption, why it holds, and how to challenge it.
@@ -85,3 +132,23 @@ encoded strings are decoded by whichever step consumes them, not eagerly.
 The parser emits `toolCallId: null` when instrumentation provides no id; the
 column projection converts `null` to `""` for byte-compatibility with the
 legacy ClickHouse format.
+
+### 8. `SpanIO.metadata` may carry an `attributes` record with OTel keys
+
+The parser mines known tool-definition attribute keys from
+`metadata.attributes` (`ai.prompt.tools`, `gen_ai.tool.definitions`,
+`llm.tools.N.tool.json_schema`, `model_request_parameters.function_tools`).
+
+- **Why:** both adapters (OTel ingestion, ClickHouse event record) store
+  span attributes under `metadata.attributes`, so the parser can treat that
+  shape as part of the `SpanIO` contract rather than transport knowledge.
+- **Tension (open):** these are OTel-format key names inside the
+  "transport-independent" core. Alternative: move attribute mining into the
+  adapters and have them surface definitions explicitly.
+
+### 9. Id-less identical parallel calls collapse
+
+Two distinct calls to the same tool with identical arguments and no ids
+dedup to one (key: name + input). The legacy extractor behaves the same
+(`id || name-arguments`), so parity holds — but real parallel duplicate
+calls are undercounted by both.
