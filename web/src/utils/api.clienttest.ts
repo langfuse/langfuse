@@ -11,6 +11,7 @@ import {
   isExpectedTrpcClientError,
   isNetworkConnectivityError,
   isTrpcResponseParseError,
+  isTrpcZodValidationError,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
@@ -47,6 +48,7 @@ const trpcServerError = (opts: {
   httpStatus: number;
   path?: string;
   message?: string;
+  zodError?: unknown;
 }) =>
   TRPCClientError.from({
     error: {
@@ -56,9 +58,22 @@ const trpcServerError = (opts: {
         code: opts.code,
         httpStatus: opts.httpStatus,
         ...(opts.path !== undefined ? { path: opts.path } : {}),
+        ...(opts.zodError !== undefined ? { zodError: opts.zodError } : {}),
       },
     },
   });
+
+/** Zod 4 stringifies input failures as a JSON issue list — the toast users see today. */
+const ZOD4_TOO_SMALL_MESSAGE = JSON.stringify([
+  {
+    origin: "string",
+    code: "too_small",
+    minimum: 1,
+    inclusive: true,
+    path: ["name"],
+    message: "Too small: expected string to have >=1 characters",
+  },
+]);
 
 describe("isNetworkConnectivityError", () => {
   it("detects the reported failed fetch error without a response", () => {
@@ -331,6 +346,47 @@ describe("isExpectedTrpcClientError", () => {
     ).toBe(false);
   });
 
+  it("suppresses Zod input validation (empty/too-short fields) as expected user input", () => {
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "prompts.create",
+          message: ZOD4_TOO_SMALL_MESSAGE,
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "prompts.create",
+          message: "Invalid input",
+          zodError: {
+            formErrors: [],
+            fieldErrors: {
+              name: ["Too small: expected string to have >=1 characters"],
+            },
+          },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not treat a non-Zod BAD_REQUEST as validation", () => {
+    expect(
+      isTrpcZodValidationError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          message: "Invalid input, projectId is required",
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("does not suppress an unrecognized tRPC code", () => {
     const error = trpcServerError({
       code: "TEAPOT",
@@ -472,6 +528,21 @@ describe("reportTrpcErrorWithoutToast", () => {
       code: "FORBIDDEN",
       path: "organizations.delete",
     });
+  });
+
+  it("does not capture Zod input validation (empty/too-short fields)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "BAD_REQUEST",
+        httpStatus: 400,
+        path: "prompts.create",
+        message: ZOD4_TOO_SMALL_MESSAGE,
+      }),
+      "prompts",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
   });
 
   // Negative fixture: real errors MUST still be captured, with the
