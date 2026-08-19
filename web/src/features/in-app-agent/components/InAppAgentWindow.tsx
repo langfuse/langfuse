@@ -1045,8 +1045,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     () => buildConversationDisplayItems(messages, isRunUnsettled),
     [messages, isRunUnsettled],
   );
+  const lastUserIndex = displayItems.findLastIndex(
+    (item) => item.type === "user",
+  );
+  // activityOutcome is for the latest turn. If that turn never produced an
+  // activity group (failed or cancelled before the first assistant token),
+  // do not stamp the outcome onto an earlier turn.
   const lastSettledActivityIndex = displayItems.findLastIndex(
-    (item) => item.type === "activity" && !item.isInProgress,
+    (item, index) =>
+      item.type === "activity" && !item.isInProgress && index > lastUserIndex,
   );
   const hasSettledAssistantReply = displayItems.some(
     (item) => item.type === "assistant" && item.isFinalAnswer,

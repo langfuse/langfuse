@@ -1608,6 +1608,75 @@ export const Failed = meta.story({
   },
 });
 
+const failedBeforeFirstTokenRun = {
+  id: "run-2",
+  status: InAppAgentRunStatus.FAILED,
+  errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
+  cancelRequested: false,
+};
+
+export const FailedBeforeFirstToken = meta.story({
+  args: {
+    selectedConversationId: "conversation-1",
+    executionUi: {
+      notice: getBackgroundRunNotice(failedBeforeFirstTokenRun),
+      activityOutcome: getSettledActivityOutcome(failedBeforeFirstTokenRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate yesterday's errors.",
+        },
+      },
+      {
+        id: "assistant-reasoning-1",
+        timestamp: new Date("2026-08-06T15:20:00.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking yesterday first.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-text-1",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:20:12.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Yesterday was quiet.",
+        },
+      },
+      {
+        id: "user-2",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Now look at today's traces.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "No worker picked this up",
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Worked for 12s" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: /Failed after/ }),
+    ).not.toBeInTheDocument();
+  },
+});
+
 /**
  * Every activity state in the row it belongs to, sharing one fixed-width slot
  * so the column stays straight despite the dots being narrower than the icons.
