@@ -43,6 +43,70 @@ export const InAppAgentRedirectActionToolResultSchema = z.object({
   href: z.string().min(1),
 });
 
+export const InAppAgentSandboxToolNameSchema = z.enum([
+  "read",
+  "write",
+  "edit",
+  "bash",
+]);
+
+export const InAppAgentSandboxReadArgsSchema = z.object({
+  path: z.string().min(1),
+});
+
+export const InAppAgentSandboxWriteArgsSchema = z.object({
+  path: z.string().min(1),
+  content: z.string(),
+});
+
+export const InAppAgentSandboxEditArgsSchema = z.object({
+  path: z.string().min(1),
+  oldText: z.string(),
+  newText: z.string(),
+});
+
+export const InAppAgentSandboxBashArgsSchema = z.object({
+  command: z.string().min(1),
+  timeoutMs: z.number().int().positive().max(120_000).default(120_000),
+});
+
+export const InAppAgentSandboxReadResultSchema = z.object({
+  path: z.string(),
+  content: z.string().nullable(),
+});
+
+export const InAppAgentSandboxWriteResultSchema = z.object({
+  path: z.string(),
+  bytesWritten: z.number().int().nonnegative(),
+});
+
+export const InAppAgentSandboxEditResultSchema = z.object({
+  path: z.string(),
+  replaced: z.boolean(),
+});
+
+export const InAppAgentSandboxBashResultSchema = z.object({
+  stdout: z.string(),
+  stderr: z.string(),
+  exitCode: z.number().int(),
+  startedAt: z.string().optional(),
+  completedAt: z.string().optional(),
+});
+
+export const InAppAgentSandboxToolArgsSchemas = {
+  read: InAppAgentSandboxReadArgsSchema,
+  write: InAppAgentSandboxWriteArgsSchema,
+  edit: InAppAgentSandboxEditArgsSchema,
+  bash: InAppAgentSandboxBashArgsSchema,
+} as const;
+
+export const InAppAgentSandboxToolResultSchemas = {
+  read: InAppAgentSandboxReadResultSchema,
+  write: InAppAgentSandboxWriteResultSchema,
+  edit: InAppAgentSandboxEditResultSchema,
+  bash: InAppAgentSandboxBashResultSchema,
+} as const;
+
 const AgUiInputContentSourceSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("data"),
