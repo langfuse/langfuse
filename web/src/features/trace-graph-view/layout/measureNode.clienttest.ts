@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   APPROX_CHAR_WIDTH,
   MAX_LABEL_LENGTH,

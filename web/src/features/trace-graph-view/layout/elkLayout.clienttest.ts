@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { type GraphCanvasData, type GraphNodeData } from "../types";
 import {
   computeGraphLayout,

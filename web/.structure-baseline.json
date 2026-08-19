@@ -233,7 +233,7 @@
    "src/features/evals/components/evaluation-prompt-preview.tsx: extra exports: getVariableColor",
    "src/features/experiments/components/table/ExperimentItemsTable.tsx: extra exports: getDefaultExperimentFilterTarget, shouldEnableExperimentPeek",
    "src/features/in-app-agent/components/InAppAgentWindowShell.tsx: extra exports: useInAppAgentWindowShellPanelControl",
-   "src/features/in-app-agent/components/InAppAiAgentProvider.tsx: extra exports: useInAppAiAgent, useCanUseInAppAgent",
+   "src/features/in-app-agent/components/InAppAiAgentProvider.tsx: extra exports: useInAppAiAgent, useCanUseInAppAgent, useIsInAppAgentLauncherVisible",
    "src/features/monitors/components/MonitorChartPreview.tsx: extra exports: __test",
    "src/features/monitors/components/MonitorForm.tsx: extra exports: __test",
    "src/features/monitors/components/MonitorsTable.tsx: extra exports: __test",

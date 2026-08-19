@@ -1,11 +1,11 @@
 import { compactEvents } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 
+import { LangfuseNotFoundError } from "../../index";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
-  LangfuseNotFoundError,
-} from "../../index";
+} from "../../features/inAppAgent/types";
 import {
   ChatMessageRole,
   ChatMessageType,
@@ -15,11 +15,11 @@ import {
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
 
-import { env } from "../../env";
 import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
 } from "../../server/llm/langfuseAiCompletion";
+import { getInAppAgentModelConfig } from "./modelProvider";
 import { getProductBaseUrl } from "../../server/utils/baseUrl";
 import { truncate } from "../../utils/stringChecks";
 import { assertUnreachable } from "../../utils/typeChecks";
@@ -33,7 +33,6 @@ import {
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
 } from "../messages";
-import { assertConversationAccess } from "./access";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
@@ -47,6 +46,19 @@ import { getToolFailureMessage } from "./toolErrors";
 
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
+
+/** Owner-only authorization with a non-enumerating failure. */
+export function assertOwnedConversation(params: {
+  conversation: Pick<InAppAgentConversation, "createdByUserId" | "deletedAt">;
+  userId: string;
+}): void {
+  if (
+    params.conversation.deletedAt ||
+    params.conversation.createdByUserId !== params.userId
+  ) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
+}
 
 export type SerializedInAppAgentConversation = {
   id: string;
@@ -99,7 +111,7 @@ export async function getOwnedConversationOrThrow(params: {
     throw new LangfuseNotFoundError("Agent conversation not found");
   }
 
-  assertConversationAccess({
+  assertOwnedConversation({
     conversation,
     userId: params.userId,
   });
@@ -123,7 +135,7 @@ export async function ensureOwnedConversation(params: {
   });
 
   if (existing) {
-    assertConversationAccess({
+    assertOwnedConversation({
       conversation: existing,
       userId: params.userId,
     });
@@ -419,10 +431,9 @@ export async function maybeInferAndPersistConversationTitle(params: {
   userId: string;
   aiTelemetryEnabled: boolean;
 }) {
-  const model =
-    env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const modelConfig = getInAppAgentModelConfig();
 
-  if (!model) {
+  if (!modelConfig) {
     return;
   }
 
@@ -511,7 +522,7 @@ ${JSON.stringify(transcript, null, 2)}
   `.trim(),
         },
       ],
-      model,
+      model: modelConfig.titleModelId,
       maxTokens: 1000,
       traceSinkParams: params.aiTelemetryEnabled
         ? getLangfuseAITraceSinkParams({
