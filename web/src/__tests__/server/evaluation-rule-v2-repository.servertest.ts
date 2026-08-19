@@ -283,7 +283,7 @@ describe("evaluation rule v2 repository", () => {
   });
 
   describe("listRuleFilterOptions", () => {
-    it("returns distinct project-scoped names and displayed creators", async () => {
+    it("returns distinct project-scoped names, creators, and upgrade availability", async () => {
       await Promise.all([
         createRule({ name: "Alpha rule", createdByUserId: creatorUserId }),
         createRule({ name: "Alpha rule" }),
@@ -299,7 +299,17 @@ describe("evaluation rule v2 repository", () => {
       ).resolves.toEqual({
         name: ["Alpha rule", "Beta rule"],
         creator: ["API", "Rule creator"],
+        hasUpgradeRequired: false,
       });
+
+      await prisma.evaluationRule.updateMany({
+        where: { projectId, name: "Beta rule" },
+        data: { targetObject: EvalTargetObject.TRACE },
+      });
+
+      await expect(
+        ruleRepository.listRuleFilterOptions({ prisma, projectId }),
+      ).resolves.toMatchObject({ hasUpgradeRequired: true });
     });
   });
 

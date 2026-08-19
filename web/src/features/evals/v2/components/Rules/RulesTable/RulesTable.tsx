@@ -60,6 +60,7 @@ import {
   evaluationRuleTableFilterConfig,
   evaluationRuleTableFilterOptions,
 } from "@/src/features/evals/v2/constants/tableFilterColumns";
+import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
 
 function RelativeDate({ date }: { date: Date }) {
   return (
@@ -175,19 +176,25 @@ export function RulesTable({
     }),
     [filterOptionsQuery.data],
   );
-  const queryFilter = useSidebarFilterState(
-    evaluationRuleTableFilterConfig,
-    filterOptions,
-    {
-      loading: filterOptionsQuery.isPending,
-      stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
-      onExplicitFilterStateChange: () => {
-        setPagination({ page: 1, limit: pagination.limit });
-        selectionStore.getState().actions.clearSelection();
-      },
-    },
+  const filterConfig = useMemo(
+    () =>
+      omitFilterFacets(
+        evaluationRuleTableFilterConfig,
+        filterOptionsQuery.data?.hasUpgradeRequired === false
+          ? ["upgradeRequired"]
+          : [],
+      ),
+    [filterOptionsQuery.data?.hasUpgradeRequired],
   );
+  const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
+    loading: filterOptionsQuery.isPending,
+    stateLocation: "urlAndSessionStorage",
+    sessionFilterContextId: projectId,
+    onExplicitFilterStateChange: () => {
+      setPagination({ page: 1, limit: pagination.limit });
+      selectionStore.getState().actions.clearSelection();
+    },
+  });
   const filterState = queryFilter.filterState;
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
   // Query param so other surfaces can deep-link straight to a rule.

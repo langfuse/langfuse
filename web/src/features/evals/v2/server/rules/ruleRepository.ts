@@ -50,6 +50,14 @@ const ruleInclude = {
   assignments: assignmentInclude,
 } satisfies Prisma.EvaluationRuleInclude;
 
+const upgradeRequiredRuleCondition = {
+  targetObject: {
+    in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
+  },
+  status: JobConfigState.ACTIVE,
+  timeScope: { has: "NEW" },
+} satisfies Prisma.EvaluationRuleWhereInput;
+
 function jsonValue(
   value: unknown,
 ): Prisma.InputJsonValue | typeof Prisma.DbNull {
@@ -85,14 +93,9 @@ function ruleWhere(params: {
     upgradeRequired: {
       boolean: (filter) => {
         const required = filter.operator === "=" ? filter.value : !filter.value;
-        const condition = {
-          targetObject: {
-            in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
-          },
-          status: JobConfigState.ACTIVE,
-          timeScope: { has: "NEW" },
-        } satisfies Prisma.EvaluationRuleWhereInput;
-        return required ? condition : { NOT: condition };
+        return required
+          ? upgradeRequiredRuleCondition
+          : { NOT: upgradeRequiredRuleCondition };
       },
     },
   } satisfies Record<
@@ -144,13 +147,22 @@ export async function listRuleFilterOptions(params: {
   prisma: PrismaClient;
   projectId: string;
 }) {
-  const rules = await params.prisma.evaluationRule.findMany({
-    where: { projectId: params.projectId },
-    select: {
-      name: true,
-      createdByUser: { select: { name: true, email: true } },
-    },
-  });
+  const [rules, upgradeRequiredRule] = await Promise.all([
+    params.prisma.evaluationRule.findMany({
+      where: { projectId: params.projectId },
+      select: {
+        name: true,
+        createdByUser: { select: { name: true, email: true } },
+      },
+    }),
+    params.prisma.evaluationRule.findFirst({
+      where: {
+        projectId: params.projectId,
+        ...upgradeRequiredRuleCondition,
+      },
+      select: { id: true },
+    }),
+  ]);
 
   return {
     name: [...new Set(rules.map(({ name }) => name))].sort(),
@@ -162,6 +174,7 @@ export async function listRuleFilterOptions(params: {
         ),
       ),
     ].sort(),
+    hasUpgradeRequired: upgradeRequiredRule !== null,
   };
 }
 
