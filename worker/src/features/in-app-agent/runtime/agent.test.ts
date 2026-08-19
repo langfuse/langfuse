@@ -45,6 +45,33 @@ const getAgentTools = (
 ): MockedAgentTools | undefined =>
   agentConfig?.tools as MockedAgentTools | undefined;
 
+type MockedAgentConfig = {
+  instructions?: (() => string) | string;
+  model?: {
+    doStream: (options: unknown) => Promise<{
+      stream: ReadableStream<unknown>;
+    }>;
+  };
+  defaultOptions?: {
+    onIterationComplete?: (context: {
+      iteration: number;
+      maxIterations?: number;
+      isFinal: boolean;
+      finishReason: string;
+    }) => unknown;
+  };
+};
+
+const getLastAgentConfig = () =>
+  vi.mocked(Agent).mock.calls.at(-1)?.[0] as MockedAgentConfig | undefined;
+
+const readAgentInstructions = (agentConfig: MockedAgentConfig | undefined) => {
+  const instructions = agentConfig?.instructions;
+  return typeof instructions === "function"
+    ? instructions()
+    : (instructions ?? "");
+};
+
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
   cleanup: vi.fn().mockResolvedValue(undefined),
@@ -568,27 +595,34 @@ describe("createAgUiStream", () => {
     ).toHaveBeenNthCalledWith(2, finishPart);
   });
 
-  it("injects wrap-up instructions after the penultimate model call", async () => {
+  it("injects wrap-up instructions after the penultimate Mastra iteration", async () => {
     await initializeBasicTracedAgent("run-step-limit-wrap-up");
-    const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0] as
-      | {
-          instructions?: (() => string) | string;
-          model?: {
-            doStream: (options: unknown) => Promise<{
-              stream: ReadableStream<unknown>;
-            }>;
-          };
-        }
-      | undefined;
+    const agentConfig = getLastAgentConfig();
+    const onIterationComplete =
+      agentConfig?.defaultOptions?.onIterationComplete;
+    expect(onIterationComplete).toEqual(expect.any(Function));
+
+    expect(readAgentInstructions(agentConfig)).not.toContain(
+      "Do not call any more tools",
+    );
+
+    await onIterationComplete?.({
+      iteration: IN_APP_AGENT_MAX_STEPS - 1,
+      maxIterations: IN_APP_AGENT_MAX_STEPS,
+      isFinal: false,
+      finishReason: "tool-calls",
+    });
+
+    expect(readAgentInstructions(agentConfig)).toContain(
+      "Do not call any more tools",
+    );
+  });
+
+  it("does not treat provider stream finishes as Mastra steps", async () => {
+    await initializeBasicTracedAgent("run-step-limit-retry");
+    const agentConfig = getLastAgentConfig();
     const model = agentConfig?.model;
     expect(model).toBeDefined();
-
-    const readInstructions = () => {
-      const instructions = agentConfig?.instructions;
-      return typeof instructions === "function"
-        ? instructions()
-        : (instructions ?? "");
-    };
 
     bedrockMocks.streamParts = [
       {
@@ -597,16 +631,16 @@ describe("createAgUiStream", () => {
       },
     ];
 
-    expect(readInstructions()).not.toContain("Do not call any more tools");
-
     for (let i = 0; i < IN_APP_AGENT_MAX_STEPS - 1; i++) {
       const result = await model!.doStream({});
       for await (const _part of result.stream) {
-        // Drain the mocked provider stream so finish is observed.
+        // Drain provider finishes that used to be counted as steps.
       }
     }
 
-    expect(readInstructions()).toContain("Do not call any more tools");
+    expect(readAgentInstructions(agentConfig)).not.toContain(
+      "Do not call any more tools",
+    );
   });
 
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {

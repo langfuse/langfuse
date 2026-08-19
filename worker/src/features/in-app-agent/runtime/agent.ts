@@ -11,10 +11,7 @@ import {
   type AgUiEvent,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
-import {
-  getToolFailureMessage,
-  isRecord,
-} from "@langfuse/shared/in-app-agent/server/toolErrors";
+import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
 import { createManualToolApprovalRunInput } from "./human-in-the-loop";
@@ -163,41 +160,16 @@ export type InAppAgentCompleteOutcome = {
 };
 
 type StepLimitState = {
-  modelCallCount: number;
+  iteration: number;
   lastFinishReason: string | undefined;
   wrapUp: boolean;
 };
 
 function isTruncatedByStepLimit(state: StepLimitState): boolean {
   return (
-    state.modelCallCount >= IN_APP_AGENT_MAX_STEPS &&
+    state.iteration >= IN_APP_AGENT_MAX_STEPS &&
     state.lastFinishReason !== "stop"
   );
-}
-
-function getStreamFinishReason(part: unknown): string | undefined {
-  if (!isRecord(part) || part.type !== "finish") {
-    return undefined;
-  }
-
-  const finishReason = part.finishReason;
-  if (typeof finishReason === "string") {
-    return finishReason;
-  }
-
-  if (!isRecord(finishReason)) {
-    return undefined;
-  }
-
-  if (typeof finishReason.unified === "string") {
-    return finishReason.unified;
-  }
-
-  if (typeof finishReason.raw === "string") {
-    return finishReason.raw;
-  }
-
-  return undefined;
 }
 
 // Adaptive thinking is the default for every Claude model so new generations
@@ -312,24 +284,16 @@ export async function createAgUiStream(params: {
     instrumentation.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS),
   );
   const stepLimitState: StepLimitState = {
-    modelCallCount: 0,
+    iteration: 0,
     lastFinishReason: undefined,
     wrapUp: false,
   };
   const onModelCallStart = (options: unknown) => {
-    stepLimitState.modelCallCount += 1;
     recordInstrumentation("recordModelCallStart", (instrumentation) =>
       instrumentation.recordModelCallStart?.(options),
     );
   };
   const onModelStreamPart = (part: unknown) => {
-    const finishReason = getStreamFinishReason(part);
-    if (finishReason !== undefined) {
-      stepLimitState.lastFinishReason = finishReason;
-      if (stepLimitState.modelCallCount === IN_APP_AGENT_MAX_STEPS - 1) {
-        stepLimitState.wrapUp = true;
-      }
-    }
     recordInstrumentation("recordModelStreamPart", (instrumentation) =>
       instrumentation.recordModelStreamPart?.(part),
     );
@@ -1173,6 +1137,23 @@ async function createMastraAdapter(params: {
       defaultOptions: {
         abortSignal: params.signal,
         maxSteps: IN_APP_AGENT_MAX_STEPS,
+        // Mastra's logical step counter — not provider doStream/finish parts,
+        // which retry and inflate independently of maxSteps.
+        onIterationComplete: ({
+          iteration,
+          maxIterations,
+          isFinal,
+          finishReason,
+        }) => {
+          params.stepLimitState.iteration = iteration;
+          params.stepLimitState.lastFinishReason = finishReason;
+          if (
+            iteration === (maxIterations ?? IN_APP_AGENT_MAX_STEPS) - 1 &&
+            !isFinal
+          ) {
+            params.stepLimitState.wrapUp = true;
+          }
+        },
         ...(params.options.sandboxWorkspaceWasReset
           ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }
           : {}),
