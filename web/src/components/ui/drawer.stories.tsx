@@ -13,7 +13,7 @@ const meta = preview.meta({
 export const Compact = meta.story({
   render: () => (
     <Drawer open forceDirection="bottom" shouldScaleBackground={false}>
-      <DrawerContent>
+      <DrawerContent size="full">
         <DrawerHeader className="p-4 text-left">
           <div className="flex w-full items-center justify-center">
             <div className="bg-muted h-2 w-20 rounded-full" />
