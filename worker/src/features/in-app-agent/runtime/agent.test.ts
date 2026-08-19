@@ -534,14 +534,11 @@ describe("createAgUiStream", () => {
     await readStream(stream);
   };
 
-  it("uses the AWS default credential chain without a bearer-token fallback", async () => {
+  it("uses the shared Bedrock default-credential auth", async () => {
     const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
-    const { fromNodeProviderChain } =
-      await import("@aws-sdk/credential-providers");
 
     await initializeBasicTracedAgent("run-default-bedrock-auth");
 
-    expect(fromNodeProviderChain).toHaveBeenCalledWith({});
     expect(createAmazonBedrock).toHaveBeenCalledWith({
       region: "eu-central-1",
       apiKey: "",

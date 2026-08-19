@@ -2,7 +2,6 @@ import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
 import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
 import type { Langfuse } from "langfuse";
@@ -45,7 +44,10 @@ import {
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  createDefaultBedrockProviderAuth,
+  logger,
+} from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
@@ -942,12 +944,8 @@ async function createMastraAdapter(params: {
 }) {
   const bedrock = createAmazonBedrock({
     region: params.options.model.region,
-    // Explicitly suppress the SDK's AWS_BEARER_TOKEN_BEDROCK fallback:
-    // assistant auth always uses the AWS default credential chain, never an
-    // unrelated process-level bearer token.
-    apiKey: "",
-    credentialProvider: fromNodeProviderChain(
-      params.awsProfile ? { profile: params.awsProfile } : {},
+    ...createDefaultBedrockProviderAuth(
+      params.awsProfile ? { profile: params.awsProfile } : undefined,
     ),
   });
 
