@@ -1547,7 +1547,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         // Skipped once the integration is off: "will retry at the next
         // scheduled export" is no longer true.
         if (isFinalAttempt && outcome.stillEnabled) {
-          notifyBlobStorageExportFailedInBackground(projectId, false);
+          notifyBlobStorageExportFailedInBackground(projectId);
         }
         break;
       case "persist-failed":
@@ -1650,13 +1650,10 @@ async function recordTerminalExportError({
   }
 }
 
-// Fire-and-forget variant for the paths that rethrow: the job is about to fail and
+// Informational variant for the paths that rethrow: the job is about to fail and
 // be retried, so nothing depends on the dispatch completing.
-function notifyBlobStorageExportFailedInBackground(
-  projectId: string,
-  disabled = false,
-): void {
-  notifyBlobStorageExportFailed(projectId, disabled);
+function notifyBlobStorageExportFailedInBackground(projectId: string): void {
+  notifyBlobStorageExportFailed(projectId, false);
 }
 
 // Logs and swallows every failure: notification trouble must not turn a
