@@ -279,11 +279,13 @@ describe("sandbox runtime docker container", () => {
         },
       });
 
+      const timeoutStartedAt = Date.now();
       const timedOut = requestJson(baseUrl, "/sandbox", {
         method: "POST",
         body: JSON.stringify({
           operation: "bash",
-          command: "echo $$ > timeout-process.pid; exec sleep 60",
+          command:
+            "setsid sh -c 'echo $$ > timeout-process.pid; sleep 10' & wait",
           timeoutMs: 200,
         }),
       });
@@ -294,8 +296,7 @@ describe("sandbox runtime docker container", () => {
         method: "POST",
         body: JSON.stringify({
           operation: "bash",
-          command:
-            "! kill -0 \"$(cat timeout-process.pid)\" 2>/dev/null || { echo 'timed-out process still running' >&2; exit 1; }",
+          command: "printf 'continued\\n' > after-timeout.txt",
         }),
       });
 
@@ -311,6 +312,7 @@ describe("sandbox runtime docker container", () => {
         status: 200,
         body: { result: expect.objectContaining({ exitCode: 0 }) },
       });
+      expect(Date.now() - timeoutStartedAt).toBeLessThan(5_000);
     },
   );
 });

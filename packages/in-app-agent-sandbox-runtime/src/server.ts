@@ -23,6 +23,7 @@ const WORKSPACE_ROOT = "/workspace";
 const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
 const MICROVM_RUNTIME_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
 const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024;
+const COMMAND_TERMINATION_GRACE_MS = 1_000;
 let requestCounter = 0;
 let sandboxOperationTail: Promise<unknown> = Promise.resolve();
 
@@ -330,8 +331,30 @@ function runCommand(
     let stderr = "";
     let settled = false;
     let timedOut = false;
+    let terminationGraceTimeoutId: NodeJS.Timeout | undefined;
     const startedAt = new Date().toISOString();
     const startedAtMs = Date.now();
+
+    const resolveTimedOutCommand = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (terminationGraceTimeoutId) {
+        clearTimeout(terminationGraceTimeoutId);
+      }
+      resolve({
+        stdout,
+        stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
+        exitCode: 124,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      });
+    };
 
     logSandboxServer("bash.start", {
       requestId,
@@ -387,16 +410,26 @@ function runCommand(
             } else {
               child.kill("SIGKILL");
             }
+
+            terminationGraceTimeoutId = setTimeout(() => {
+              if (settled) {
+                return;
+              }
+
+              logSandboxServer("bash.terminationGraceExceeded", {
+                requestId,
+                pid: child.pid ?? null,
+                graceMs: COMMAND_TERMINATION_GRACE_MS,
+              });
+              child.stdout.destroy();
+              child.stderr.destroy();
+              resolveTimedOutCommand();
+            }, COMMAND_TERMINATION_GRACE_MS);
           }, timeoutMs);
 
     child.on("close", (code) => {
       if (settled) {
         return;
-      }
-
-      settled = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
       }
 
       logSandboxServer("bash.processComplete", {
@@ -409,16 +442,14 @@ function runCommand(
       });
 
       if (timedOut) {
-        resolve({
-          stdout,
-          stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
-          exitCode: 124,
-          startedAt,
-          completedAt: new Date().toISOString(),
-        });
+        resolveTimedOutCommand();
         return;
       }
 
+      settled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       resolve({
         stdout,
         stderr,
