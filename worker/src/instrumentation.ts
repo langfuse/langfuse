@@ -9,7 +9,7 @@ import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
-import { ioredisRequestHook } from "@langfuse/shared/src/server/instrumentation/ioredisRequestHook";
+import { ioredisRequestHook } from "@langfuse/shared/instrumentation/bootstrap";
 import { envDetector, resourceFromAttributes } from "@opentelemetry/resources";
 import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";

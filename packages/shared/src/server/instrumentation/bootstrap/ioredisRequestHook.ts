@@ -1,9 +1,6 @@
 import { type Span } from "@opentelemetry/api";
 
-import { API_KEY_CACHE_KEY_PREFIX } from "../auth/apiKeyCache";
-
-// Leaf module: OTel preloads import this without pulling the server barrel,
-// which would load ioredis before instrumentation can patch it.
+import { API_KEY_CACHE_KEY_PREFIX } from "../../auth/apiKeyCache";
 
 /** ioredisRequestHook records the Redis command on the span, redacting credentials and API key cache values. */
 export function ioredisRequestHook(

@@ -7,7 +7,7 @@ import * as dd from "dd-trace";
 import { env } from "../../env";
 import { logger } from "../logger";
 
-export { ioredisRequestHook } from "./ioredisRequestHook";
+export { ioredisRequestHook } from "./bootstrap";
 
 export type TCarrier = {
   traceparent?: string;

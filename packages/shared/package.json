@@ -39,9 +39,9 @@
       "import": "./dist/src/server/auth/apiKeys.js",
       "require": "./dist/src/server/auth/apiKeys.js"
     },
-    "./src/server/instrumentation/ioredisRequestHook": {
-      "import": "./dist/src/server/instrumentation/ioredisRequestHook.js",
-      "require": "./dist/src/server/instrumentation/ioredisRequestHook.js"
+    "./instrumentation/bootstrap": {
+      "import": "./dist/src/server/instrumentation/bootstrap/index.js",
+      "require": "./dist/src/server/instrumentation/bootstrap/index.js"
     },
     "./src/utils/chatml": {
       "import": "./dist/src/utils/chatml/index.js",
