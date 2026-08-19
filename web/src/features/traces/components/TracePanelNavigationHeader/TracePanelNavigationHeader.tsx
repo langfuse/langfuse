@@ -344,6 +344,9 @@ function ViewModeSwitch({
         icon={ListTree}
         label="Tree"
       />
+      {/* One Timeline. What it IS depends on the Compact Timeline feature
+          preview — see TracePanelNavigation — rather than on a third segment
+          the user has to understand. */}
       <ViewModeSegment
         active={isTimelineView}
         onClick={() => onSelect(true)}

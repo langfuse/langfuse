@@ -226,7 +226,7 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeAssistantSupport", () => ({
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useIsInAppAgentLauncherVisible: () => true,
+  useCanUseInAppAgent: () => true,
   useInAppAiAgent: () => ({
     openAssistant: mocks.openAssistant,
     submit: mocks.submitAgentMessage,
