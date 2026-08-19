@@ -185,6 +185,39 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.model_parameters).toBe("not-json");
   });
 
+  it("does not link malformed string prompt versions", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const getPrompt = vi
+      .spyOn((ingestionService as any).promptService, "getPrompt")
+      .mockResolvedValue(null);
+
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "malformed-prompt-version",
+        type: "GENERATION",
+        environment: "default",
+        startTimeISO: "2026-08-19T00:00:00.000Z",
+        endTimeISO: "2026-08-19T00:00:01.000Z",
+        promptName: "prompt-name",
+        promptVersion: "12suffix",
+        metadata: {},
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(getPrompt).not.toHaveBeenCalled();
+    expect(eventRecord.prompt_version).toBeUndefined();
+  });
+
   it("passes direct-event attribute values to pricing", async () => {
     const ingestionService = new IngestionService(
       {} as any,

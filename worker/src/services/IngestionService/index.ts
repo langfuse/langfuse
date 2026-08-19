@@ -76,8 +76,8 @@ import { applyObservationFieldOverflow } from "../../features/observation-field-
  * Returns undefined if the value is nullish or not a valid UInt16 integer.
  */
 function parseUInt16(value: string | null | undefined): number | undefined {
-  if (value == null) return undefined;
-  const num = parseInt(value, 10);
+  if (value == null || !/^\d+$/.test(value)) return undefined;
+  const num = Number(value);
   if (!Number.isInteger(num) || num < 0 || num > 65535) return undefined;
   return num;
 }
@@ -303,6 +303,7 @@ export class IngestionService {
     const modelParameters = parseEventModelParameters(
       eventData.modelParameters,
     );
+    const promptVersion = parseUInt16(eventData.promptVersion);
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -320,14 +321,11 @@ export class IngestionService {
     // Perform lookups for prompt and model/usage enrichment
     const [prompt, generationUsage] = await Promise.all([
       // Lookup prompt by name and version
-      eventData.promptName && eventData.promptVersion
+      eventData.promptName && promptVersion !== undefined
         ? this.promptService.getPrompt({
             projectId: eventData.projectId,
             promptName: eventData.promptName,
-            version:
-              typeof eventData.promptVersion === "string"
-                ? parseInt(eventData.promptVersion, 10)
-                : eventData.promptVersion,
+            version: promptVersion,
             label: undefined,
           })
         : null,
@@ -405,7 +403,7 @@ export class IngestionService {
       // Prompt
       prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
-      prompt_version: parseUInt16(eventData.promptVersion),
+      prompt_version: promptVersion,
 
       // Model
       model_id: generationUsage?.internal_model_id || "",
