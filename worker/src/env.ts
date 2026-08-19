@@ -375,7 +375,7 @@ const EnvSchema = z.object({
   LANGFUSE_EVENT_PROPAGATION_MATERIALIZE_SKIP_INDEXES_ON_INSERT: z
     .enum(["true", "false"])
     .optional()
-    .default("true"),
+    .default("false"),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
