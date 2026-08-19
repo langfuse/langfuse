@@ -5,6 +5,7 @@ import {
 } from "./repositories/events";
 
 export * from "./services/StorageService";
+export * from "./services/azureCredentials";
 export * from "./media";
 export * from "./services/safeBlobKeySegment";
 export * from "./ingestion/eventBucketPath";

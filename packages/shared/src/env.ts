@@ -27,6 +27,16 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
+// Declared here rather than in azureCredentials.ts so the env schema does not
+// import a module that imports `env`. See there for what each mode maps to.
+export const AZURE_CREDENTIAL_MODES = [
+  "shared-key",
+  "workload-identity",
+  "managed-identity",
+  "service-principal",
+  "default-chain",
+] as const;
+
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
 const EnvSchema = z.object({
@@ -285,6 +295,21 @@ const EnvSchema = z.object({
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
+  // How Langfuse authenticates to Azure Blob Storage.
+  LANGFUSE_AZURE_BLOB_CREDENTIAL: z
+    .enum(AZURE_CREDENTIAL_MODES)
+    .default("shared-key"),
+  // The Azure SDK's own variable names, not LANGFUSE_-prefixed duplicates: the
+  // AKS workload identity webhook injects these already, and every other Azure
+  // tool in a cluster reads the same names.
+  AZURE_CLIENT_ID: z.string().optional(),
+  AZURE_TENANT_ID: z.string().optional(),
+  AZURE_FEDERATED_TOKEN_FILE: z.string().optional(),
+  AZURE_CLIENT_SECRET: z.string().optional(),
+  AZURE_CLIENT_CERTIFICATE_PATH: z.string().optional(),
+  // Alternative to AZURE_CLIENT_ID. Langfuse-specific because Azure has no
+  // standard variable for it (the SDK accepts it programmatically only).
+  LANGFUSE_AZURE_MANAGED_IDENTITY_RESOURCE_ID: z.string().optional(),
   LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
     .enum(["true", "false"])
     .default("true"),

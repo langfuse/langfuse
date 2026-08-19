@@ -7,6 +7,7 @@ import type { S3Client } from "@aws-sdk/client-s3";
 
 import { env } from "../../env";
 import { StorageServiceFactory } from "./StorageService";
+import { type AzureCredentialConfig } from "./azureCredentials";
 
 /**
  * Regression tests for the Azure Blob download path.
@@ -365,5 +366,221 @@ describe("S3StorageService DeleteObjects checksum", () => {
       .digest("base64");
     expect(findHeader(request, "content-md5")).toBe(expectedMd5);
     expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
+  });
+});
+
+describe("AzureBlobStorageService with a token credential", () => {
+  const makeService = (
+    overrides: {
+      azureCredential?: AzureCredentialConfig;
+      endpoint?: string;
+    } = {},
+  ) =>
+    StorageServiceFactory.getInstance({
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+      bucketName: "test-container",
+      endpoint: overrides.endpoint ?? "https://test.blob.core.windows.net",
+      region: undefined,
+      forcePathStyle: false,
+      useAzureBlob: true,
+      azureCredential: overrides.azureCredential ?? {
+        mode: "workload-identity",
+        clientId: "client-1",
+        tenantId: "00000000-0000-0000-0000-000000000000",
+        tokenFilePath: "/var/run/secrets/azure/tokens/azure-identity-token",
+      },
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+  // `value` is base64 because it is the HMAC key used when signing.
+  const userDelegationKey = {
+    signedObjectId: "00000000-0000-0000-0000-000000000001",
+    signedTenantId: "00000000-0000-0000-0000-000000000002",
+    // The service returns these as parsed dates at runtime, even though the
+    // SDK types declare them as strings — the signing code calls toISOString.
+    signedStartsOn: new Date("2026-01-01T00:00:00Z") as unknown as string,
+    signedExpiresOn: new Date("2026-01-02T00:00:00Z") as unknown as string,
+    signedService: "b",
+    signedVersion: "2025-01-05",
+    value: Buffer.from("test-delegation-key").toString("base64"),
+  };
+
+  const stubAzureCalls = (service: unknown) => {
+    const internals = service as {
+      client: { createIfNotExists: () => Promise<unknown> };
+      blobServiceClient: {
+        getUserDelegationKey: (startsOn: Date, expiresOn: Date) => unknown;
+      };
+    };
+
+    vi.spyOn(internals.client, "createIfNotExists").mockResolvedValue({});
+    const getUserDelegationKey = vi
+      .spyOn(internals.blobServiceClient, "getUserDelegationKey")
+      .mockResolvedValue(userDelegationKey as never);
+
+    return { getUserDelegationKey };
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("constructs without static credentials", () => {
+    expect(() => makeService()).not.toThrow();
+  });
+
+  it("still requires an endpoint", () => {
+    expect(() =>
+      StorageServiceFactory.getInstance({
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+        bucketName: "test-container",
+        endpoint: undefined,
+        region: undefined,
+        forcePathStyle: false,
+        useAzureBlob: true,
+        azureCredential: { mode: "default-chain" },
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      }),
+    ).toThrow(/Endpoint must be configured/);
+  });
+
+  it("rejects an endpoint it cannot derive the account name from", () => {
+    expect(() =>
+      makeService({ endpoint: "https://storage.example.com" }),
+    ).toThrow(/Could not derive the storage account name/);
+  });
+
+  it("signs download URLs with a user delegation key", async () => {
+    const service = makeService();
+    const { getUserDelegationKey } = stubAzureCalls(service);
+
+    const url = await service.getSignedUrl("events/project-1/file.json", 600);
+
+    expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
+    const query = new URL(url).searchParams;
+    // sks* parameters are only present on a user-delegation SAS.
+    expect(query.get("skoid")).toBe(userDelegationKey.signedObjectId);
+    expect(query.get("sktid")).toBe(userDelegationKey.signedTenantId);
+    expect(query.get("sp")).toBe("r");
+    expect(query.get("sig")).toBeTruthy();
+  });
+
+  it("signs upload URLs with a user delegation key", async () => {
+    const service = makeService();
+    stubAzureCalls(service);
+
+    const url = await service.getSignedUploadUrl({
+      path: "media/project-1/file.png",
+      ttlSeconds: 600,
+      sha256Hash: "hash",
+      contentType: "image/png",
+      contentLength: 10,
+    });
+
+    const query = new URL(url).searchParams;
+    expect(query.get("skoid")).toBe(userDelegationKey.signedObjectId);
+    expect(query.get("sp")).toBe("w");
+    expect(query.get("rsct")).toBe("image/png");
+  });
+
+  it("shares one delegation key fetch across concurrent signing calls", async () => {
+    const service = makeService();
+    const { getUserDelegationKey } = stubAzureCalls(service);
+
+    await Promise.all([
+      service.getSignedUrl("events/project-1/one.json", 600),
+      service.getSignedUrl("events/project-1/two.json", 600),
+      service.getSignedUrl("events/project-1/three.json", 600),
+    ]);
+
+    expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not join an in-flight fetch whose key expires too early", async () => {
+    const service = makeService();
+    const { getUserDelegationKey } = stubAzureCalls(service);
+    const sixDays = 6 * 24 * 60 * 60;
+
+    await Promise.all([
+      service.getSignedUrl("events/project-1/short.json", 600),
+      service.getSignedUrl("events/project-1/long.json", sixDays),
+    ]);
+
+    expect(getUserDelegationKey).toHaveBeenCalledTimes(2);
+    const longestExpiry = Math.max(
+      ...getUserDelegationKey.mock.calls.map(([, expiresOn]) =>
+        (expiresOn as Date).getTime(),
+      ),
+    );
+    expect(longestExpiry).toBeGreaterThan(Date.now() + sixDays * 1000);
+  });
+
+  it("reuses the delegation key across signing calls", async () => {
+    const service = makeService();
+    const { getUserDelegationKey } = stubAzureCalls(service);
+
+    await service.getSignedUrl("events/project-1/one.json", 600);
+    await service.getSignedUrl("events/project-1/two.json", 600);
+
+    expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses to sign a URL outliving the maximum delegation key lifetime", async () => {
+    const service = makeService();
+    stubAzureCalls(service);
+
+    await expect(
+      service.getSignedUrl("events/project-1/file.json", 8 * 24 * 60 * 60),
+    ).rejects.toThrow();
+  });
+
+  // startsOn is backdated for clock skew, so the usable ceiling is below a full
+  // 7 days and exactly 7 days must be refused locally, not by Azure.
+  it("refuses a TTL of exactly the maximum key lifetime", async () => {
+    const service = makeService();
+    stubAzureCalls(service);
+
+    // getSignedUrl wraps failures, so the guard's message lands on the cause.
+    const error = await service
+      .getSignedUrl("events/project-1/file.json", 7 * 24 * 60 * 60)
+      .then(() => undefined)
+      .catch((err: unknown) => err as Error);
+
+    expect((error?.cause as Error | undefined)?.message).toMatch(
+      /7 day maximum/,
+    );
+  });
+
+  it("does not request a delegation key when an account key is configured", async () => {
+    const service = makeService({
+      azureCredential: {
+        mode: "shared-key",
+        accountName: "test-account",
+        accountKey: Buffer.from("test-secret-key").toString("base64"),
+      },
+    });
+    const { getUserDelegationKey } = stubAzureCalls(service);
+
+    const url = await service.getSignedUrl("events/project-1/file.json", 600);
+
+    expect(getUserDelegationKey).not.toHaveBeenCalled();
+    expect(new URL(url).searchParams.get("skoid")).toBeNull();
+  });
+
+  it("accepts a custom domain endpoint when using a shared key", () => {
+    expect(() =>
+      makeService({
+        endpoint: "https://storage.example.com",
+        azureCredential: {
+          mode: "shared-key",
+          accountName: "test-account",
+          accountKey: Buffer.from("test-secret-key").toString("base64"),
+        },
+      }),
+    ).not.toThrow();
   });
 });
