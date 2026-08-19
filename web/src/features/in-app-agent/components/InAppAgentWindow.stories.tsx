@@ -1460,11 +1460,39 @@ export const StepLimit = meta.story({
         role: "user",
         content: {
           type: "text",
+          text: "Investigate yesterday's errors.",
+        },
+      },
+      {
+        id: "assistant-reasoning-1",
+        timestamp: new Date("2026-08-06T15:20:00.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking yesterday first.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-text-1",
+        runId: "run-0",
+        timestamp: new Date("2026-08-06T15:20:12.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Yesterday was quiet.",
+        },
+      },
+      {
+        id: "user-2",
+        role: "user",
+        content: {
+          type: "text",
           text: "Keep inspecting traces until you find the spike.",
         },
       },
       {
-        id: "assistant-tool-1",
+        id: "assistant-tool-2",
         timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
         role: "assistant",
         content: {
@@ -1488,7 +1516,7 @@ export const StepLimit = meta.story({
         },
       },
       {
-        id: "assistant-text-1",
+        id: "assistant-text-2",
         timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
         role: "assistant",
         content: {
@@ -1504,8 +1532,75 @@ export const StepLimit = meta.story({
     await expect(canvas.getByRole("status")).toHaveTextContent(
       "Too many steps in one turn",
     );
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Send another message",
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Worked for 12s" }),
+    ).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Stopped after 51s" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+  },
+});
+
+const failedRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.FAILED,
+  errorCode: InAppAgentRunErrorCode.RUN_TIMEOUT,
+  cancelRequested: false,
+};
+
+export const Failed = meta.story({
+  args: {
+    selectedConversationId: "conversation-1",
+    executionUi: {
+      notice: getBackgroundRunNotice(failedRun),
+      activityOutcome: getSettledActivityOutcome(failedRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate latency",
+        },
+      },
+      {
+        id: "assistant-reasoning",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking the slow traces.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Still inspecting the remaining traces.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "The run exceeded the maximum duration.",
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Failed after 51s" }),
     ).toBeVisible();
     await expect(
       canvas.getByRole("textbox", { name: "Message the assistant" }),
