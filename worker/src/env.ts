@@ -369,6 +369,12 @@ const EnvSchema = z.object({
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
+  LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(8),
+
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
