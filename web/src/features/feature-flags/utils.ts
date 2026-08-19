@@ -27,6 +27,24 @@ export const receivesFeaturePreviewsByDefault = (
   );
 };
 
+/**
+ * Whether `flag` is on for this user without an explicit entry in
+ * `User.featureFlags` — i.e. whether an "off" has to be stored as an opt-out
+ * marker rather than as the absence of an opt-in.
+ *
+ * Deliberately independent of `isFeaturePreviewAvailable`, so an opt-out
+ * recorded today still holds once a deployment becomes eligible later.
+ */
+export const featurePreviewDefaultsToEnabled = (
+  flag: FeaturePreviewFlag,
+  email: string | null | undefined,
+): boolean =>
+  receivesFeaturePreviewsByDefault(email) ||
+  // The v4 migration UI is not a preview users have to discover: every
+  // deployment that can act on the migration gets it by default, and the
+  // Feature Preview modal only exists to opt back out.
+  flag === "v4UpgradeUi";
+
 export const parseFlags = (
   dbFlags: string[],
   context: FeaturePreviewAvailabilityContext & {
@@ -34,21 +52,24 @@ export const parseFlags = (
   },
 ): Flags => {
   const parsedFlags = {} as Flags;
-  const enableFeaturePreviewsByDefault = receivesFeaturePreviewsByDefault(
-    context.email,
-  );
 
   availableFlags.forEach((flag) => {
-    if (
-      enableFeaturePreviewsByDefault &&
-      isFeaturePreviewFlag(flag) &&
-      isFeaturePreviewAvailable(flag, context)
-    ) {
-      parsedFlags[flag] = !dbFlags.includes(getFeaturePreviewOptOutFlag(flag));
+    if (!isFeaturePreviewFlag(flag)) {
+      parsedFlags[flag] = dbFlags.includes(flag);
       return;
     }
 
-    parsedFlags[flag] = dbFlags.includes(flag);
+    // Availability is a hard gate: a preview whose read path this deployment
+    // does not support stays off even for a user holding an opt-in entry from
+    // a deployment that used to support it.
+    if (!isFeaturePreviewAvailable(flag, context)) {
+      parsedFlags[flag] = false;
+      return;
+    }
+
+    parsedFlags[flag] = featurePreviewDefaultsToEnabled(flag, context.email)
+      ? !dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
+      : dbFlags.includes(flag);
   });
 
   return parsedFlags;

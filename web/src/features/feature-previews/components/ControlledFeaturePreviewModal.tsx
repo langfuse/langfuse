@@ -30,6 +30,8 @@ export function ControlledFeaturePreviewModal({
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
   const { isBetaEnabled } = useV4Beta();
+  const v4UpgradeUiAvailable =
+    authSession.data?.user?.v4UpgradeUiAvailable === true;
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
@@ -72,6 +74,13 @@ export function ControlledFeaturePreviewModal({
     },
     v4UpgradeUi: {
       enabled: authSession.data?.user?.featureFlags.v4UpgradeUi === true,
+      // On by default wherever the deployment can act on the migration, so the
+      // only reason to see it off is an opt-out — or a deployment that cannot
+      // act on it at all, which the toggle has to explain rather than reject.
+      disabled: !v4UpgradeUiAvailable,
+      warningReason: !v4UpgradeUiAvailable
+        ? "The V4 Migration experience is only available on deployments that write the v4 events tables. Set LANGFUSE_MIGRATION_V4_WRITE_MODE=dual and LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true to enable it."
+        : undefined,
       onToggle: onToggle("v4UpgradeUi"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },

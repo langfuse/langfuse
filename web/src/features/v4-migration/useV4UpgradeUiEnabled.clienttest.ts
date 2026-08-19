@@ -34,10 +34,14 @@ describe("useV4UpgradeUiEnabled", () => {
     mockUseForceV3Experience.mockReturnValue(false);
   });
 
-  it("maps the database flag into the session flag shape", () => {
+  it("maps deployment availability into the session flag shape", () => {
     const context = { email: undefined, v4BetaEnabled: false };
-    expect(parseFlags(["v4UpgradeUi"], context).v4UpgradeUi).toBe(true);
-    expect(parseFlags([], context).v4UpgradeUi).toBe(false);
+    expect(
+      parseFlags([], { ...context, v4UpgradeUiAvailable: true }).v4UpgradeUi,
+    ).toBe(true);
+    expect(
+      parseFlags([], { ...context, v4UpgradeUiAvailable: false }).v4UpgradeUi,
+    ).toBe(false);
   });
 
   it("does not enable the UI for admins or experimental deployments", () => {

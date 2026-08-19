@@ -15,6 +15,9 @@ export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;
+  // Whether this deployment shows the v4 migration UI at all — derived from the
+  // write mode once in the auth session callback. See isV4UpgradeUiAvailable.
+  v4UpgradeUiAvailable: boolean;
 };
 
 export const isFeaturePreviewAvailable = (
@@ -30,7 +33,7 @@ export const isFeaturePreviewAvailable = (
   }
 
   if (flag === "v4UpgradeUi") {
-    return true;
+    return context.v4UpgradeUiAvailable;
   }
 
   if (flag === "compactTimeline") {

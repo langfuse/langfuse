@@ -7,13 +7,16 @@ import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import {
+  canToggleV4,
+  isV4UpgradeUiAvailable,
+} from "@/src/features/events/lib/v4Rollout";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
+  featurePreviewDefaultsToEnabled,
   getFeaturePreviewOptOutFlag,
-  receivesFeaturePreviewsByDefault,
 } from "@/src/features/feature-flags/utils";
 import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 
@@ -114,9 +117,24 @@ export const userAccountRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
+      const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+      // Mirrors the auth.ts session callback so the write path agrees with what
+      // the session reports.
+      const v4UpgradeUiAvailable = isV4UpgradeUiAvailable({
+        isLangfuseCloud,
+        v4WriteMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+        dualPreviewAvailable:
+          isLangfuseCloud ||
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+      });
+
       const canEnableFeaturePreviews =
-        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
-        ctx.session.user.v4BetaEnabled === true;
+        isLangfuseCloud ||
+        ctx.session.user.v4BetaEnabled === true ||
+        // The v4 migration UI is not part of the events-backed preview: it is on
+        // by default wherever the deployment can act on the migration, so a user
+        // who opted out has to be able to opt back in.
+        (input.flag === "v4UpgradeUi" && v4UpgradeUiAvailable);
 
       if (input.enabled && !canEnableFeaturePreviews) {
         throw new TRPCError({
@@ -147,7 +165,7 @@ export const userAccountRouter = createTRPCRouter({
           );
           const nextFeatureFlags = input.enabled
             ? [...featureFlagsWithoutOverride, input.flag]
-            : receivesFeaturePreviewsByDefault(currentUser.email)
+            : featurePreviewDefaultsToEnabled(input.flag, currentUser.email)
               ? [...featureFlagsWithoutOverride, optOutFlag]
               : featureFlagsWithoutOverride;
           await tx.user.update({
