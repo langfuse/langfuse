@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { EvaluatorRecommendedCard } from "./components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
+import { EvaluatorRecommendedCards } from "./components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
 import { EvaluatorTemplateRow } from "./components/EvaluatorTemplateRow/EvaluatorTemplateRow";
 import type {
   GalleryTemplate,
@@ -41,22 +42,8 @@ export function EvaluatorGallerySection({
 
   return (
     <section className="flex scroll-mt-1 flex-col gap-3">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />
-          <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
-            {section.label}
-          </h4>
-          {isSafety ? (
-            <InfoTooltip label={`About ${section.label}`}>
-              {EVALUATOR_GALLERY_SAFETY_CALLOUT}
-            </InfoTooltip>
-          ) : null}
-        </div>
-        <div className="border-t" />
-      </div>
       {isRecommended ? (
-        <div className="grid grid-cols-3 gap-3">
+        <EvaluatorRecommendedCards label={section.label}>
           {shownTemplates.map((template) => (
             <EvaluatorRecommendedCard
               key={getGalleryTemplateId(template)}
@@ -64,17 +51,33 @@ export function EvaluatorGallerySection({
               onSelect={onSelectTemplate}
             />
           ))}
-        </div>
+        </EvaluatorRecommendedCards>
       ) : (
-        <div className="flex flex-col">
-          {shownTemplates.map((template) => (
-            <EvaluatorTemplateRow
-              key={getGalleryTemplateId(template)}
-              template={template}
-              onSelect={onSelectTemplate}
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />
+              <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
+                {section.label}
+              </h4>
+              {isSafety ? (
+                <InfoTooltip label={`About ${section.label}`}>
+                  {EVALUATOR_GALLERY_SAFETY_CALLOUT}
+                </InfoTooltip>
+              ) : null}
+            </div>
+            <div className="border-t" />
+          </div>
+          <div className="flex flex-col">
+            {shownTemplates.map((template) => (
+              <EvaluatorTemplateRow
+                key={getGalleryTemplateId(template)}
+                template={template}
+                onSelect={onSelectTemplate}
+              />
+            ))}
+          </div>
+        </>
       )}
       {totalCount > EVALUATOR_GALLERY_PREVIEW_SIZE ? (
         <button
