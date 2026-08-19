@@ -24,6 +24,7 @@ import {
   normalizeToolMetadataForObservation,
   normalizeEnvironment,
   DEFAULT_TRACE_ENVIRONMENT,
+  LangfuseInternalTraceEnvironment,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -2253,7 +2254,46 @@ export class OtelIngestionProcessor {
       }
     }
 
+    const openRouterEnvironment =
+      this.extractOpenRouterFailedRequestEnvironment(
+        attributes,
+        resourceAttributes,
+      );
+    if (openRouterEnvironment) {
+      return normalizeEnvironment(openRouterEnvironment);
+    }
+
     return DEFAULT_TRACE_ENVIRONMENT;
+  }
+
+  private extractOpenRouterFailedRequestEnvironment(
+    attributes: Record<string, unknown>,
+    resourceAttributes: Record<string, unknown>,
+  ): LangfuseInternalTraceEnvironment.LLMJudge | undefined {
+    if (
+      resourceAttributes["service.name"] !== "openrouter" ||
+      attributes["openrouter.source"] !== "openrouter"
+    ) {
+      return undefined;
+    }
+
+    const completion = this.parseJsonPayload(attributes["gen_ai.completion"]);
+    if (
+      !OtelIngestionProcessor.isPlainObject(completion) ||
+      completion.completion !== null ||
+      !OtelIngestionProcessor.isPlainObject(completion.rawRequest) ||
+      !OtelIngestionProcessor.isPlainObject(completion.rawRequest.trace)
+    ) {
+      return undefined;
+    }
+
+    // OpenRouter Broadcast can omit custom trace metadata when a request fails,
+    // but echoes the original request here. Recover only our reserved evaluator
+    // marker so failed judge calls cannot be scheduled as fresh evaluations.
+    return completion.rawRequest.trace.environment ===
+      LangfuseInternalTraceEnvironment.LLMJudge
+      ? LangfuseInternalTraceEnvironment.LLMJudge
+      : undefined;
   }
 
   private extractName(
@@ -2396,18 +2436,23 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     instrumentationScopeName: string,
   ): Record<string, unknown> {
+    let explicitModelParameters: Record<string, unknown> | undefined;
     if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS]) {
       try {
-        return this.sanitizeModelParams(
+        explicitModelParameters = this.sanitizeModelParams(
           JSON.parse(
             attributes[
               LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS
             ] as string,
           ),
-        );
+        ) as Record<string, unknown>;
       } catch {
         // Fallthrough
       }
+    }
+
+    if (explicitModelParameters && instrumentationScopeName !== "ai") {
+      return explicitModelParameters;
     }
 
     // Genkit
@@ -2423,6 +2468,11 @@ export class OtelIngestionProcessor {
 
     // Vercel AI SDK
     if (instrumentationScopeName === "ai") {
+      const providerMetadata = this.parseJsonPayload(
+        attributes["ai.response.providerMetadata"],
+      );
+      const responseServiceTier = providerMetadata?.openai?.serviceTier;
+
       return {
         maxSteps:
           "ai.settings.maxSteps" in attributes
@@ -2460,8 +2510,17 @@ export class OtelIngestionProcessor {
           "gen_ai.request.temperature" in attributes
             ? (attributes["gen_ai.request.temperature"]?.toString() ?? null)
             : null,
+        service_tier:
+          typeof responseServiceTier === "string"
+            ? responseServiceTier
+            : "gen_ai.request.service_tier" in attributes
+              ? (attributes["gen_ai.request.service_tier"]?.toString() ?? null)
+              : null,
+        ...explicitModelParameters,
       };
     }
+
+    if (explicitModelParameters) return explicitModelParameters;
 
     if (attributes["llm.invocation_parameters"]) {
       try {
@@ -2483,13 +2542,19 @@ export class OtelIngestionProcessor {
       }
     }
 
-    const modelParameters = Object.keys(attributes).filter((key) =>
-      key.startsWith("gen_ai.request."),
+    const modelParameterPrefixes = [
+      "gen_ai.request.",
+      "llm.invocation_parameters.",
+    ];
+    const modelParameters = modelParameterPrefixes.flatMap((prefix) =>
+      Object.keys(attributes)
+        .filter((key) => key.startsWith(prefix))
+        .map((key) => ({ key, prefix })),
     );
 
     return this.sanitizeModelParams(
-      modelParameters.reduce((acc: any, key) => {
-        const modelParamKey = key.replace("gen_ai.request.", "");
+      modelParameters.reduce((acc: any, { key, prefix }) => {
+        const modelParamKey = key.replace(prefix, "");
         if (modelParamKey !== "model") {
           acc[modelParamKey] = attributes[key];
         }
@@ -2841,6 +2906,7 @@ export class OtelIngestionProcessor {
       rawUsageDetails["total_tokens"] ?? rawUsageDetails["total"];
     const cacheReadTokens =
       rawUsageDetails["cache_read.input_tokens"] ??
+      rawUsageDetails["cache_read_input_tokens"] ??
       rawUsageDetails["cache_read_tokens"] ??
       rawUsageDetails["details.cache_read_tokens"] ??
       rawUsageDetails["details.cache_read_input_tokens"] ??
@@ -2848,6 +2914,7 @@ export class OtelIngestionProcessor {
       rawUsageDetails["input_cached_tokens"];
     const cacheCreationTokens =
       rawUsageDetails["cache_creation.input_tokens"] ??
+      rawUsageDetails["cache_creation_input_tokens"] ??
       rawUsageDetails["cache_write_tokens"] ??
       rawUsageDetails["details.cache_write_tokens"] ??
       rawUsageDetails["details.cache_creation_input_tokens"] ??
@@ -2873,12 +2940,14 @@ export class OtelIngestionProcessor {
             "total_tokens",
             "total",
             "cache_read.input_tokens",
+            "cache_read_input_tokens",
             "cache_read_tokens",
             "details.cache_read_tokens",
             "details.cache_read_input_tokens",
             "prompt_details.cache_read",
             "input_cached_tokens",
             "cache_creation.input_tokens",
+            "cache_creation_input_tokens",
             "cache_write_tokens",
             "details.cache_write_tokens",
             "details.cache_creation_input_tokens",

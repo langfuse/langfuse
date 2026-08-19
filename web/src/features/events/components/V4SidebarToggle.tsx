@@ -10,6 +10,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { ZapIcon } from "lucide-react";
 import { useId } from "react";
 import { useRouter } from "next/router";
@@ -127,7 +128,8 @@ export function V4SidebarToggle() {
     confirmIntroDialog,
     dismissIntroDialog,
   } = useV4PreviewToggle("sidebar");
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const { project } = useQueryProject();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
 
   // v4-upgrade users get this toggle inside the migration panel instead.
   if (!canToggleV4 || v4UpgradeUiEnabled) {
@@ -217,7 +219,7 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
   return (
     <>
       <div className="flex items-center gap-2">
-        <span className="shrink-0 text-sm">V3</span>
+        <span className="text-muted-foreground shrink-0 text-sm">V3</span>
         <Switch
           id={toggleId}
           size="sm"
@@ -229,10 +231,10 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
         />
         <Label
           htmlFor={toggleId}
-          className="block min-w-0 cursor-pointer truncate text-sm font-normal"
-          title={V4_PREVIEW_LABEL}
+          className="text-muted-foreground block min-w-0 cursor-pointer truncate text-sm font-normal"
+          title="V4"
         >
-          {V4_PREVIEW_LABEL}
+          V4
         </Label>
         <span id={descriptionId} className="sr-only">
           {V4_PREVIEW_DESCRIPTION}

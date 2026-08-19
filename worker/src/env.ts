@@ -148,6 +148,9 @@ const EnvSchema = z.object({
   // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports
   // and avoid overwhelming the target instance (see issue #12786).
   LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
+  // Timeout (ms) for each Mixpanel import request, so an unresponsive endpoint
+  // cannot hold the integration job indefinitely (see issue #15958).
+  LANGFUSE_MIXPANEL_TIMEOUT_MS: z.coerce.number().positive().default(30000),
   // Delay (ms) after each PostHog flush. Together with 1,000-event flushes,
   // this bounds the export rate for fast-acknowledging target instances.
   LANGFUSE_POSTHOG_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
@@ -231,11 +234,29 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  // Off by default until the background-execution rollout: the consumer needs
-  // Bedrock/MCP/sandbox config the worker deployment may not carry yet.
+  // Opt-in because only workers provisioned for agent execution should consume
+  // durable runs; ingestion-only workers must leave this disabled.
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  // The ambient host profile takes precedence over the agent-specific default
+  // so local developer credentials win when both are configured.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
+    .enum(["dangerous-docker", "lambda-microvm"])
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
+    z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
+    .string()
+    .optional(),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -290,6 +311,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_V4_LEGACY_API_USAGE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -324,10 +348,6 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
 
-  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(10),
   LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE: z.coerce
     .number()
     .positive()
@@ -678,9 +698,26 @@ const validateV4Flags = (parsed: ParsedEnv): void => {
   }
 };
 
+const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
+  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
+    return;
+  }
+
+  if (
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION
+  ) {
+    throw new Error(
+      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, and region are required.",
+    );
+  }
+};
+
 const parseEnv = (): ParsedEnv => {
   const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
   validateV4Flags(parsed);
+  validateInAppAgentSandboxConfig(parsed);
   return parsed;
 };
 

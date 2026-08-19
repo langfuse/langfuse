@@ -6,14 +6,25 @@ import {
 } from "@/src/components/ui/tooltip";
 import { useState } from "react";
 import Decimal from "decimal.js";
-import { getMaxDecimals } from "@/src/features/models/utils";
+import Link from "next/link";
+import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
+import { ExternalLink } from "lucide-react";
+
+export interface PriceSource {
+  projectId: string;
+  modelId: string;
+  modelName: string;
+  pricingTierId: string;
+  pricingTierName: string;
+}
 
 interface BreakdownTooltipProps {
   details: Details | Details[];
   children: React.ReactNode;
   isCost?: boolean;
   pricingTierName?: string;
+  priceSource?: PriceSource;
 }
 
 export const BreakdownTooltip = ({
@@ -21,6 +32,7 @@ export const BreakdownTooltip = ({
   children,
   isCost = false,
   pricingTierName,
+  priceSource,
 }: BreakdownTooltipProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -65,6 +77,18 @@ export const BreakdownTooltip = ({
               <span className="font-bold">
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
+
+              {isCost && priceSource && (
+                <Link
+                  href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
+                  className="text-muted-foreground flex flex-row gap-1 text-xs italic underline-offset-4 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {priceSource.pricingTierName} Tier Pricing
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              )}
               {Array.isArray(details) && details.length > 0 && (
                 <span className="text-muted-foreground text-xs italic">
                   Aggregate across {details.length}{" "}

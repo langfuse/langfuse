@@ -60,6 +60,7 @@ export const ApprovalRequired = meta.story({
       },
     },
     onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
     onRejectToolCall: fn(),
   },
 });
@@ -85,6 +86,7 @@ export const ApprovalSubmitting = meta.story({
       },
     },
     onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
     onRejectToolCall: fn(),
   },
 });
@@ -111,14 +113,22 @@ export const ApprovalDisabled = meta.story({
       },
     },
     onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
     onRejectToolCall: fn(),
   },
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
 
     await expect(
-      canvas.getByRole("button", { name: "Confirm" }),
+      canvas.getByRole("button", { name: "Approve" }),
     ).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", {
+        name: "Always approve for this conversation",
+      }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Decline" }),
+    ).toBeDisabled();
   },
 });

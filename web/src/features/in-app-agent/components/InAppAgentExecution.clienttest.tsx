@@ -6,8 +6,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { EventType } from "@ag-ui/core";
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
@@ -18,6 +21,16 @@ const providerMocks = vi.hoisted(() => {
   const startRun = vi.fn();
   const cancelRun = vi.fn();
   const decideToolApproval = vi.fn();
+  const activityQuery = {
+    data: undefined as undefined,
+    refetch: vi.fn(() => Promise.resolve({ data: undefined })),
+  };
+  const activityUseQuery = vi.fn(
+    (
+      _input?: { projectId: string; limit: number },
+      _options?: { enabled?: boolean },
+    ) => activityQuery,
+  );
 
   return {
     capture: vi.fn(),
@@ -30,6 +43,8 @@ const providerMocks = vi.hoisted(() => {
       decideToolApproval: { mutateAsync: decideToolApproval },
     },
     getConversation: vi.fn(),
+    activityQuery,
+    activityUseQuery,
     listQuery: {
       data: { pages: [{ conversations: [] }] },
       error: null,
@@ -41,7 +56,7 @@ const providerMocks = vi.hoisted(() => {
       data: undefined as
         | undefined
         | {
-            conversation: { id: string; isWriteLocked: boolean };
+            conversation: { id: string };
             messages: AgUiMessage[];
             eventCursor: number;
             latestRun: {
@@ -66,22 +81,22 @@ const providerMocks = vi.hoisted(() => {
     },
     utils: {
       dashboard: {
-        invalidate: vi.fn(),
+        invalidate: vi.fn(() => Promise.resolve()),
       },
       dashboardWidgets: {
-        invalidate: vi.fn(),
+        invalidate: vi.fn(() => Promise.resolve()),
       },
       inAppAgent: {
         getConversation: {
           fetch: vi.fn(),
-          invalidate: vi.fn(),
+          invalidate: vi.fn(() => Promise.resolve()),
         },
         listConversations: {
-          invalidate: vi.fn(),
+          invalidate: vi.fn(() => Promise.resolve()),
         },
       },
       prompts: {
-        invalidate: vi.fn(),
+        invalidate: vi.fn(() => Promise.resolve()),
       },
     },
   };
@@ -94,17 +109,34 @@ vi.mock("next/router", () => ({
   }),
 }));
 
+const sessionMocks = vi.hoisted(() => ({
+  userId: "user-1" as string | undefined,
+  aiFeaturesEnabled: true,
+  isLangfuseCloud: true,
+}));
+
 vi.mock("next-auth/react", () => ({
-  useSession: () => ({ data: { user: { name: "Test User" } } }),
+  useSession: () => ({
+    data: {
+      user: { id: sessionMocks.userId, name: "Test User" },
+    },
+  }),
 }));
 
 vi.mock("@/src/features/entitlements/hooks", () => ({
   useHasEntitlement: () => true,
 }));
 
+vi.mock("@/src/features/organizations/hooks", () => ({
+  useLangfuseCloudRegion: () => ({
+    isLangfuseCloud: sessionMocks.isLangfuseCloud,
+    region: sessionMocks.isLangfuseCloud ? "US" : undefined,
+  }),
+}));
+
 vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
-    organization: { aiFeaturesEnabled: true },
+    organization: { aiFeaturesEnabled: sessionMocks.aiFeaturesEnabled },
   }),
 }));
 
@@ -118,9 +150,17 @@ vi.mock("@/src/utils/api", () => ({
     inAppAgent: {
       listConversations: {
         useInfiniteQuery: () => providerMocks.listQuery,
+        // Bounded activity poll: same procedure, `limit: 50`.
+        useQuery: (
+          input: { projectId: string; limit: number },
+          options?: { enabled?: boolean },
+        ) => providerMocks.activityUseQuery(input, options),
       },
       getConversation: {
-        useQuery: () => providerMocks.conversationQuery,
+        useQuery: (...args: unknown[]) => {
+          providerMocks.getConversation(...args);
+          return providerMocks.conversationQuery;
+        },
       },
       deleteConversation: {
         useMutation: () => ({ mutateAsync: vi.fn() }),
@@ -162,6 +202,53 @@ function ReopenAssistantButton() {
   );
 }
 
+function ConcurrentConversationProbe({
+  conversationId,
+}: {
+  conversationId: string | null;
+}) {
+  const { isSubmitting, selectConversation, submit } = useInAppAiAgent();
+
+  return (
+    <>
+      <p>{isSubmitting ? "Submitting" : "Ready"}</p>
+      <button
+        type="button"
+        onClick={() => {
+          submit("First question").catch(() => undefined);
+        }}
+      >
+        Submit
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          selectConversation(null);
+        }}
+      >
+        Leave conversation
+      </button>
+      <button
+        type="button"
+        disabled={!conversationId}
+        onClick={() => {
+          selectConversation(conversationId);
+        }}
+      >
+        Return to conversation
+      </button>
+    </>
+  );
+}
+
+function providerProbe(conversationId: string | null) {
+  return (
+    <InAppAiAgentProvider defaultOpen>
+      <ConcurrentConversationProbe conversationId={conversationId} />
+    </InAppAiAgentProvider>
+  );
+}
+
 function renderExecutionUi({
   defaultOpen = true,
   includeReopenButton = false,
@@ -190,6 +277,12 @@ function queryActivityIndicator() {
 
 describe("in-app agent execution", () => {
   beforeEach(() => {
+    sessionMocks.userId = "user-1";
+    sessionMocks.aiFeaturesEnabled = true;
+    sessionMocks.isLangfuseCloud = true;
+    providerMocks.activityUseQuery.mockImplementation(
+      () => providerMocks.activityQuery,
+    );
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({
@@ -208,11 +301,39 @@ describe("in-app agent execution", () => {
     window.sessionStorage.clear();
   });
 
-  it("renders persisted background messages and approval actions in the drawer", async () => {
-    providerMocks.conversationQuery.data = {
+  // Gated more strictly than useCanUseInAppAgent, which ignores the org AI
+  // toggle so the entry points can offer to turn it on. Polling with it off
+  // turns every page load and window focus into a Forbidden toast.
+  it("polls for activity only once AI features are on", () => {
+    sessionMocks.aiFeaturesEnabled = false;
+
+    const offRender = render(
+      <InAppAiAgentProvider defaultOpen={false}>
+        <div />
+      </InAppAiAgentProvider>,
+    );
+
+    expect(providerMocks.activityUseQuery.mock.calls.at(-1)?.[1]?.enabled).toBe(
+      false,
+    );
+    offRender.unmount();
+
+    sessionMocks.aiFeaturesEnabled = true;
+    render(
+      <InAppAiAgentProvider defaultOpen={false}>
+        <div />
+      </InAppAiAgentProvider>,
+    );
+
+    expect(providerMocks.activityUseQuery.mock.calls.at(-1)?.[1]?.enabled).toBe(
+      true,
+    );
+  });
+
+  it("always allows a persisted background tool for the conversation", async () => {
+    const approvedSnapshot = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -224,9 +345,37 @@ describe("in-app agent execution", () => {
           id: "persisted-assistant",
           role: "assistant",
           content: "I need approval.",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: "{}",
+              },
+            },
+            {
+              id: "tool-call-2",
+              type: "function",
+              function: {
+                name: "langfuse_createDashboardWidget",
+                arguments: "{}",
+              },
+            },
+          ],
         },
       ],
       eventCursor: 12,
+      latestRun: {
+        id: "run-2",
+        status: InAppAgentRunStatus.RUNNING,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [],
+    } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
+    providerMocks.conversationQuery.data = {
+      ...approvedSnapshot,
       latestRun: {
         id: "run-1",
         status: InAppAgentRunStatus.AWAITING_APPROVAL,
@@ -245,6 +394,10 @@ describe("in-app agent execution", () => {
         },
       ],
     };
+    providerMocks.decideToolApproval.mockResolvedValueOnce({});
+    providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValueOnce(
+      approvedSnapshot,
+    );
     window.sessionStorage.setItem(
       "langfuse:in-app-ai-agent-selected-conversation:project-1",
       JSON.stringify("conversation-1"),
@@ -253,24 +406,49 @@ describe("in-app agent execution", () => {
     renderExecutionUi();
 
     expect(await screen.findByText("Create the prompt")).toBeInTheDocument();
+    // The run is parked on this approval, so the drawer says so rather than
+    // narrating the tool it was about to call.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Waiting for your approval…" }),
+    );
     expect(screen.getByText("I need approval.")).toBeInTheDocument();
-    expect(
+    fireEvent.click(
       screen.getByRole("button", {
-        name: "Confirm",
+        name: "Always approve for this conversation",
       }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: "Reject",
-      }),
-    ).toBeInTheDocument();
+    );
+
+    await waitFor(() => {
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledOnce();
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledWith({
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        runId: "run-1",
+        toolCallId: "tool-call-1",
+        approved: true,
+        approvalScope: "conversation",
+      });
+      expect(providerMocks.capture).toHaveBeenCalledOnce();
+      expect(providerMocks.capture).toHaveBeenCalledWith(
+        "in_app_agent:tool_approval_decided",
+        {
+          isApproved: true,
+          toolName: "langfuse_createTextPrompt",
+          approvalScope: "conversation",
+        },
+      );
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText(/^createDashboardWidget:/),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("replays prompt and dashboard invalidations after a detached run completes", async () => {
     const completedSnapshot = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -376,7 +554,6 @@ describe("in-app agent execution", () => {
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -420,14 +597,15 @@ describe("in-app agent execution", () => {
 
     renderExecutionUi();
 
-    expect(await screen.findByText("Calling 1 tool")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Browsing traces" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps approval cancellation visibly stopping until hydration settles", async () => {
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -476,12 +654,12 @@ describe("in-app agent execution", () => {
       ).toHaveBeenCalledOnce();
     });
     expect(screen.getByRole("button", { name: "Stopping run" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Stopping the run…");
+    expect(screen.getByText("Stopping the run…")).toBeVisible();
   });
 
   it("does not observe a cached active run while the assistant is closed", async () => {
     const runningSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: 5,
       latestRun: {
@@ -527,7 +705,7 @@ describe("in-app agent execution", () => {
     const initialText = "I found the affected traces.";
     const finalText = "The remaining analysis was cancelled before completion.";
     const runningSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [
         { id: "persisted-user", role: "user", content: "Investigate this" },
         {
@@ -681,9 +859,7 @@ describe("in-app agent execution", () => {
       ).not.toBeInTheDocument();
     });
     expect(screen.getByText(finalText)).toBeVisible();
-    expect(
-      screen.getByText("The assistant is aware of this trace view."),
-    ).toBeVisible();
+    expect(screen.getByText("Current trace view in context")).toBeVisible();
     expect(screen.getByRole("button", { name: "Good response" })).toBeVisible();
   });
 
@@ -699,14 +875,14 @@ describe("in-app agent execution", () => {
 
     const finalText = "The investigation was cancelled before it completed.";
     providerMocks.conversationQuery.data = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: -1,
       latestRun: null,
       pendingToolApprovals: [],
     };
     const cancellingSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [
         { id: "persisted-user", role: "user", content: "Investigate this" },
       ] satisfies AgUiMessage[],
@@ -733,8 +909,14 @@ describe("in-app agent execution", () => {
       },
     };
     providerMocks.startRun
-      .mockResolvedValueOnce({ runId: "run-1" })
-      .mockResolvedValueOnce({ runId: "run-2" });
+      .mockResolvedValueOnce({
+        conversationId: "conversation-1",
+        runId: "run-1",
+      })
+      .mockResolvedValueOnce({
+        conversationId: "conversation-1",
+        runId: "run-2",
+      });
     providerMocks.cancelRun.mockResolvedValue({
       cancelledImmediately: false,
       status: InAppAgentRunStatus.RUNNING,
@@ -872,5 +1054,215 @@ describe("in-app agent execution", () => {
     await waitFor(() => {
       expect(providerMocks.startRun).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+describe("in-app agent concurrent conversations", () => {
+  beforeEach(() => {
+    sessionMocks.userId = "user-1";
+    sessionMocks.aiFeaturesEnabled = true;
+    sessionMocks.isLangfuseCloud = true;
+    providerMocks.activityUseQuery.mockImplementation(
+      () => providerMocks.activityQuery,
+    );
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+    providerMocks.conversationQuery.data = undefined;
+    providerMocks.conversationQuery.error = null;
+    providerMocks.conversationQuery.isLoading = false;
+    window.sessionStorage.clear();
+    window.localStorage.clear();
+  });
+
+  it("starts a new conversation while another one is still running", async () => {
+    providerMocks.conversationQuery.data = {
+      conversation: { id: "conversation-1" },
+      messages: [],
+      eventCursor: 3,
+      latestRun: {
+        id: "run-1",
+        status: InAppAgentRunStatus.RUNNING,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [],
+    };
+    providerMocks.startRun.mockImplementation(
+      async (input: { conversationId: string }) => ({
+        conversationId: input.conversationId,
+        runId: "run-2",
+      }),
+    );
+    window.sessionStorage.setItem(
+      "langfuse:in-app-ai-agent-selected-conversation:project-1",
+      JSON.stringify("conversation-1"),
+    );
+
+    renderExecutionUi();
+
+    const newConversationButton = await screen.findByRole("button", {
+      name: "Start new conversation",
+    });
+    expect(newConversationButton).toBeEnabled();
+    fireEvent.click(newConversationButton);
+
+    const input = await screen.findByRole("textbox", {
+      name: "Message the assistant",
+    });
+    fireEvent.change(input, { target: { value: "Second question" } });
+    const form = input.closest("form");
+    if (!form) {
+      throw new Error("Expected the assistant composer to render a form");
+    }
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: "project-1",
+          message: "Second question",
+        }),
+      );
+    });
+    expect(providerMocks.cancelRun).not.toHaveBeenCalled();
+  });
+
+  it("waits for startRun before fetching a new conversation", async () => {
+    providerMocks.getConversation.mockClear();
+    providerMocks.startRun.mockReset();
+
+    let resolveStartRun:
+      | ((result: { runId: string; conversationId: string }) => void)
+      | undefined;
+    providerMocks.startRun.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStartRun = resolve;
+        }),
+    );
+
+    renderExecutionUi();
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    fireEvent.change(input, { target: { value: "First question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledOnce();
+    });
+    const conversationId = providerMocks.startRun.mock.calls[0]?.[0]
+      ?.conversationId as string;
+
+    expect(providerMocks.getConversation).toHaveBeenLastCalledWith(
+      expect.objectContaining({ conversationId }),
+      expect.objectContaining({ enabled: false }),
+    );
+
+    await act(async () => {
+      resolveStartRun?.({ runId: "run-1", conversationId });
+    });
+
+    await waitFor(() => {
+      expect(providerMocks.getConversation).toHaveBeenLastCalledWith(
+        expect.objectContaining({ conversationId }),
+        expect.objectContaining({ enabled: true }),
+      );
+    });
+  });
+
+  it("releases a conversation submit lock when switching away", async () => {
+    providerMocks.startRun.mockImplementation(
+      async (input: { conversationId: string }) => ({
+        conversationId: input.conversationId,
+        runId: "run-1",
+      }),
+    );
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        }),
+    );
+
+    const { rerender } = render(providerProbe(null));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledOnce();
+    });
+    const conversationId = providerMocks.startRun.mock.calls[0]?.[0]
+      ?.conversationId as string;
+    rerender(providerProbe(conversationId));
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave conversation" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to conversation" }),
+    );
+
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+  });
+
+  it("keeps a failed new conversation provisional and preserves its messages on retry", async () => {
+    providerMocks.getConversation.mockClear();
+    providerMocks.startRun
+      .mockReset()
+      .mockRejectedValueOnce(new Error("Start failed"))
+      .mockImplementationOnce(() => new Promise<never>(() => undefined));
+
+    renderExecutionUi();
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    fireEvent.change(input, { target: { value: "First question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledOnce();
+    });
+    const conversationId = providerMocks.startRun.mock.calls[0]?.[0]
+      ?.conversationId as string;
+
+    await waitFor(() => {
+      expect(providerMocks.getConversation).toHaveBeenLastCalledWith(
+        expect.objectContaining({ conversationId }),
+        expect.objectContaining({ enabled: false }),
+      );
+    });
+    expect(screen.getByText("First question")).toBeVisible();
+
+    fireEvent.change(input, { target: { value: "Retry question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByText("First question")).toBeVisible();
+    expect(screen.getByText("Retry question")).toBeVisible();
+    expect(providerMocks.capture).toHaveBeenCalledWith(
+      "in_app_agent:new_chat_started",
+      { entryPoint: "chat", hasOtherActiveRun: false },
+    );
+    expect(
+      providerMocks.capture.mock.calls.filter(
+        ([event]) => event === "in_app_agent:new_chat_started",
+      ),
+    ).toHaveLength(1);
   });
 });

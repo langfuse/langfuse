@@ -157,7 +157,110 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.cost_details).toEqual({ total: 0.03 });
   });
 
-  it("does not overflow legacy observation or dual-write staging records", async () => {
+  it("preserves non-JSON model parameter strings on direct events", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "invalid-model-parameters",
+        type: "SPAN",
+        environment: "default",
+        startTimeISO: "2026-08-17T00:00:00.000Z",
+        endTimeISO: "2026-08-17T00:00:01.000Z",
+        modelParameters: "not-json",
+        metadata: {},
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(eventRecord.model_parameters).toBe("not-json");
+  });
+
+  it("passes direct-event attribute values to pricing", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const getGenerationUsage = vi
+      .spyOn(ingestionService as any, "getGenerationUsage")
+      .mockResolvedValue({});
+
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "primitive-pricing-attributes",
+        type: "GENERATION",
+        environment: "default",
+        startTimeISO: "2026-08-18T00:00:00.000Z",
+        endTimeISO: "2026-08-18T00:00:01.000Z",
+        modelName: "model-name",
+        modelParameters: {
+          service_tier: "priority",
+          temperature: 0.5,
+          stream: true,
+          nested: { ignored: "value" },
+          list: ["ignored"],
+          nil: null,
+        },
+        metadata: {
+          region: "us",
+          attempts: 2,
+          cached: false,
+          nested: { ignored: "value" },
+          list: ["ignored"],
+          nil: null,
+        },
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(eventRecord.model_parameters).toEqual({
+      service_tier: "priority",
+      temperature: 0.5,
+      stream: true,
+      nested: { ignored: "value" },
+      list: ["ignored"],
+      nil: null,
+    });
+    expect(getGenerationUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pricingMatchAttributeValues: {
+          modelParameters: {
+            service_tier: "priority",
+            temperature: 0.5,
+            stream: true,
+            nested: { ignored: "value" },
+            list: ["ignored"],
+            nil: null,
+          },
+          metadata: {
+            region: "us",
+            attempts: 2,
+            cached: false,
+            nested: { ignored: "value" },
+            list: ["ignored"],
+            nil: null,
+          },
+        },
+      }),
+    );
+  });
+
+  it("uses only pricing attributes from the legacy event that supplies usage", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -180,8 +283,37 @@ describe("IngestionService unit tests", () => {
           startTime: timestamp,
           input,
           output,
-          metadata: { large: metadataValue },
+          metadata: {
+            large: metadataValue,
+            count: 2,
+            enabled: false,
+            nested: { ignored: "value" },
+            list: ["ignored"],
+            nil: null,
+          },
+          modelParameters: {
+            service_tier: "priority",
+            temperature: 0.5,
+            stream: true,
+            nested: { ignored: "value" },
+            list: ["ignored"],
+            nil: null,
+          },
           environment: "default",
+        },
+      },
+      {
+        id: "update-event-id",
+        timestamp: "2026-07-22T00:00:01.000Z",
+        type: "generation-update",
+        body: {
+          id: "observation-id",
+          usage: {
+            input: 12,
+            output: 21,
+          },
+          modelParameters: { service_tier: "fast" },
+          metadata: { region: "eu" },
         },
       },
     ];
@@ -208,6 +340,15 @@ describe("IngestionService unit tests", () => {
     });
 
     expect(mocks.applyObservationFieldOverflow).not.toHaveBeenCalled();
+    const getGenerationUsage = vi.mocked(
+      (ingestionService as any).getGenerationUsage,
+    );
+    expect(
+      getGenerationUsage.mock.calls[0]?.[0].pricingMatchAttributeValues,
+    ).toEqual({
+      modelParameters: { service_tier: "fast" },
+      metadata: { region: "eu" },
+    });
     for (const table of [
       TableName.Observations,
       TableName.ObservationsBatchStaging,

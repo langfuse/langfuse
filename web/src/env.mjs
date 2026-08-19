@@ -335,6 +335,10 @@ export const env = createEnv({
     LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.url().optional(),
+    // JSON array of {name, url} objects; validated lazily in
+    // web/src/ee/features/ui-customization/instanceLinks.ts so a bad value
+    // disables the instance switcher instead of failing the deployment.
+    LANGFUSE_UI_INSTANCE_LINKS: z.string().optional(),
 
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
@@ -408,6 +412,9 @@ export const env = createEnv({
       .date()
       .optional()
       .transform((date) => (date ? new Date(date) : null)),
+    // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
+    // Unset disables the endpoint (it 500s) rather than leaving it open.
+    CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -535,21 +542,16 @@ export const env = createEnv({
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
     LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
-      .enum(["dangerous-docker", "lambda-microvm"])
-      .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
-      .string()
-      .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
-      .string()
-      .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
-      z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
-      .string()
-      .optional(),
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(5),
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(20),
   },
 
   /**
@@ -568,6 +570,7 @@ export const env = createEnv({
       .optional(),
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
+    NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
@@ -591,6 +594,13 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("true"),
+    // Content larger than this is rendered as plain text instead of markdown,
+    // as react-markdown is too slow for large payloads.
+    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(150_000),
   },
 
   /**
@@ -616,6 +626,8 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF,
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF:
       process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF,
+    NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF:
+      process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     NEXT_PUBLIC_PREVIEW_PR_URL: process.env.NEXT_PUBLIC_PREVIEW_PR_URL,
     NEXT_PUBLIC_PREVIEW_PR_AUTHOR: process.env.NEXT_PUBLIC_PREVIEW_PR_AUTHOR,
@@ -628,21 +640,10 @@ export const env = createEnv({
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
-    LANGFUSE_IN_APP_AGENT_AWS_PROFILE:
-      process.env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER:
-      process.env
-        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN:
-      process.env
-        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
-      process.env
-        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION,
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
+      process.env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER,
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:
+      process.env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK:
       process.env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK,
@@ -920,6 +921,7 @@ export const env = createEnv({
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
+    LANGFUSE_UI_INSTANCE_LINKS: process.env.LANGFUSE_UI_INSTANCE_LINKS,
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES:
       process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:
@@ -927,6 +929,9 @@ export const env = createEnv({
     // Playground
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT:
       process.env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT,
+    // Markdown rendering
+    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
+      process.env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
@@ -941,6 +946,8 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+    CLICKHOUSE_BILLING_METRICS_API_KEY:
+      process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
@@ -1019,26 +1026,3 @@ export const env = createEnv({
   skipValidation: process.env.DOCKER_BUILD === "1",
   emptyStringAsUndefined: true, // https://env.t3.gg/docs/customization#treat-empty-strings-as-undefined
 });
-
-/**
- * @param {typeof env} parsed
- */
-const validateInAppAgentSandboxConfig = (parsed) => {
-  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
-    return;
-  }
-
-  if (
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION
-  ) {
-    throw new Error(
-      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, and region are required.",
-    );
-  }
-};
-
-if (typeof window === "undefined") {
-  validateInAppAgentSandboxConfig(env);
-}

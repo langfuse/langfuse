@@ -415,6 +415,7 @@ export enum QueueName {
   NotificationQueue = "notification-queue",
   MonitorQueue = "monitor-queue",
   InAppAgentRunQueue = "in-app-agent-run-queue",
+  V4LegacyApiUsageQueue = "v4-legacy-api-usage-queue",
 }
 
 export enum QueueJobs {
@@ -453,6 +454,7 @@ export enum QueueJobs {
   NotificationJob = "notification-job",
   MonitorJob = "monitor-job",
   InAppAgentRunJob = "in-app-agent-run-job",
+  V4LegacyApiUsageJob = "v4-legacy-api-usage-job",
 }
 
 export type TQueueJobTypes = {

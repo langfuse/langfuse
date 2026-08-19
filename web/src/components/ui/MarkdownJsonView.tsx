@@ -10,7 +10,7 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
-import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
+import { env } from "@/src/env.mjs";
 
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
@@ -33,7 +33,9 @@ export function MarkdownJsonViewHeader({
 
   return (
     <div className="io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between px-1 py-1 text-sm font-bold capitalize transition-colors">
-      <div className="flex items-center gap-2">
+      {/* Masked from session recordings: the title can be a customer-provided
+          message `name` (or tool name) rather than a fixed role string. */}
+      <div className="ph-no-capture flex items-center gap-2">
         {titleIcon}
         {title}
       </div>
@@ -77,7 +79,8 @@ export const canRenderContentAsMarkdown = (
 ): content is z.input<typeof OpenAIContentSchema> =>
   OpenAIContentSchema.safeParse(content).success &&
   // Don't render if markdown content is huge
-  JSON.stringify(content || {}).length <= MARKDOWN_RENDER_CHARACTER_LIMIT;
+  JSON.stringify(content || {}).length <=
+    env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT;
 
 // MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
 // otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
