@@ -54,7 +54,6 @@ import {
 import type { InAppAgentError } from "@/src/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
@@ -1595,14 +1594,9 @@ export function useInAppAiAgent() {
  * for this project would be served, so callers can skip ones it would reject. */
 export function useIsInAppAgentEnabled() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { organization } = useQueryProjectOrOrganization();
 
-  return (
-    isLangfuseCloud &&
-    hasInAppAgentEntitlement &&
-    Boolean(organization?.aiFeaturesEnabled)
-  );
+  return hasInAppAgentEntitlement && Boolean(organization?.aiFeaturesEnabled);
 }
 
 /** Whether the current user/context may use the in-app assistant at all. Shared
@@ -1612,13 +1606,7 @@ export function useIsInAppAgentEnabled() {
 export function useCanUseInAppAgent() {
   const { isAvailable } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { organization } = useQueryProjectOrOrganization();
 
-  return (
-    isAvailable &&
-    hasInAppAgentEntitlement &&
-    isLangfuseCloud &&
-    Boolean(organization)
-  );
+  return isAvailable && hasInAppAgentEntitlement && Boolean(organization);
 }

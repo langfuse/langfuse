@@ -2,8 +2,8 @@ import type { Session } from "next-auth";
 
 import { BaseError, ForbiddenError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { getInAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 
-import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 export async function assertInAppAgentAvailable({
@@ -15,16 +15,6 @@ export async function assertInAppAgentAvailable({
   projectId: string;
   user: NonNullable<Session["user"]>;
 }) {
-  // TODO(LFE-14555): Remove this guard once the OSS release strategy is ready.
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    throw new BaseError(
-      "PreconditionFailedError",
-      412,
-      "In-app agent is not available in this environment yet.",
-      true,
-    );
-  }
-
   if (
     !hasEntitlement({
       entitlement: "in-app-agent",
@@ -53,6 +43,15 @@ export async function assertInAppAgentAvailable({
 
   if (!project?.organization.aiFeaturesEnabled) {
     throw new ForbiddenError("Assistant is not enabled for this organization");
+  }
+
+  if (!getInAppAgentModelConfig()) {
+    throw new BaseError(
+      "PreconditionFailedError",
+      412,
+      "Assistant Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL and LANGFUSE_AWS_BEDROCK_REGION.",
+      true,
+    );
   }
 
   return project.organization;
