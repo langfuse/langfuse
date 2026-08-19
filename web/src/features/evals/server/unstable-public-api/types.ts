@@ -17,7 +17,6 @@ import type {
   PublicEvaluationRuleLegacyTargetType,
   PublicEvaluatorModelConfigType,
   PublicEvaluatorOutputDefinitionType,
-  PublicObservationEvaluationRuleMappingType,
   PublicCodeEvaluatorSourceCodeLanguageType,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
@@ -37,7 +36,8 @@ type ApiEvaluatorRecordBase = {
   name: string;
   version: number;
   variables: string[];
-  mapping: PublicObservationEvaluationRuleMappingType[] | null;
+  // Read shape: an evaluator default can be incomplete or name experiment-only sources.
+  mapping: PublicEvaluationRuleReadMappingType[] | null;
   evaluationRuleCount: number;
   createdAt: Date;
   updatedAt: Date;

@@ -43,7 +43,10 @@ import {
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import {
+  isLegacyEvalTarget,
+  requiresLegacyMigrationAction,
+} from "@/src/features/evals/utils/typeHelpers";
 import {
   getRuleNavigationAction,
   getRuleNavigationUrl,
@@ -252,7 +255,34 @@ export function RulesTable({
         isFixedPosition: true,
         cell: ({ row }) => {
           const legacy = isLegacyEvalTarget(row.original.targetObject);
-          return <RuleNameCell name={row.original.name} legacy={legacy} />;
+          const upgradeRequired = requiresLegacyMigrationAction({
+            targetObject: row.original.targetObject,
+            status: row.original.enabled ? "ACTIVE" : "INACTIVE",
+            timeScope: row.original.timeScope,
+          });
+          return (
+            <RuleNameCell
+              name={row.original.name}
+              legacy={legacy}
+              onUpgrade={
+                upgradeRequired
+                  ? () => {
+                      capture("v4_migration:update_required_badge_clicked", {
+                        scope: "single",
+                      });
+                      router.push(
+                        getRuleNavigationUrl({
+                          projectId,
+                          ruleId: row.original.id,
+                          targetObject: row.original.targetObject,
+                          enabled: row.original.enabled,
+                        }),
+                      );
+                    }
+                  : undefined
+              }
+            />
+          );
         },
       },
       {
@@ -423,6 +453,7 @@ export function RulesTable({
       recentExecutions.isPending,
       router,
       activationConfirmation.requestActivation,
+      capture,
       selectActionColumn,
     ],
   );

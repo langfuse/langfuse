@@ -27,7 +27,7 @@ import {
   detectPointerModality,
   resolveDensity,
   type PointerModality,
-} from "./density";
+} from "../../fns/timeline/density";
 import {
   formatDurationMs,
   layout,
@@ -35,8 +35,8 @@ import {
   timeCompressionFor,
   type LayoutNode,
   type PositionedNode,
-} from "./layout";
-import { createTextMeasurer } from "./textMeasurer";
+} from "../../fns/timeline/layout";
+import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import {
   fitView,
   isFitted,
@@ -46,7 +46,7 @@ import {
   zoomView,
   type Box,
   type TimeSpan,
-} from "./viewTransform";
+} from "../../fns/timeline/viewTransform";
 
 /**
  * The four takes on "what happens to the name gutter below ~480px", so the

@@ -10,10 +10,19 @@ import {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
+const mocks = vi.hoisted(() => ({
+  getEvaluatorDefinitionPreflightError: vi.fn(async () => null),
+}));
+
 vi.mock(
   "@/src/features/evals/v2/server/evaluators/evaluatorValidation",
   () => ({ assertEvaluatorConfigurationValid: vi.fn() }),
 );
+
+vi.mock("@/src/features/evals/server/evaluator-preflight", () => ({
+  getEvaluatorDefinitionPreflightError:
+    mocks.getEvaluatorDefinitionPreflightError,
+}));
 
 const orgIds: string[] = [];
 let projectId = "";
@@ -178,6 +187,40 @@ describe("evalsV2 tRPC", () => {
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
+  it("reactivates a project-scoped evaluator after model preflight", async () => {
+    const evaluator = await caller.evalsV2.create({
+      projectId,
+      name: "Blocked transport evaluator",
+      description: null,
+      definition,
+    });
+    await prisma.evaluator.update({
+      where: { id: evaluator.id, projectId },
+      data: {
+        blockedAt: new Date(),
+        blockReason: "DEFAULT_EVAL_MODEL_MISSING",
+        blockMessage: "Blocked for test",
+      },
+    });
+
+    await expect(
+      caller.evalsV2.reactivate({ projectId, evaluatorId: evaluator.id }),
+    ).resolves.toMatchObject({
+      id: evaluator.id,
+      blockedAt: null,
+      blockReason: null,
+      blockMessage: null,
+    });
+    expect(mocks.getEvaluatorDefinitionPreflightError).toHaveBeenCalledOnce();
+
+    await expect(
+      caller.evalsV2.reactivate({
+        projectId: otherProjectId,
+        evaluatorId: evaluator.id,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   it("returns evaluator costs through the tRPC contract", async () => {
     const evaluator = await caller.evalsV2.create({
       projectId,
@@ -207,5 +250,82 @@ describe("evalsV2 tRPC", () => {
     });
 
     expect(costs).toEqual({ [evaluator.id]: 0.02 });
+  });
+
+  it("keeps legacy rule history while including evaluator-addressed executions", async () => {
+    const evaluator = await caller.evalsV2.create({
+      projectId,
+      name: "Migrated evaluator history",
+      description: null,
+      definition,
+    });
+    const rule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "Migrated legacy rule",
+        status: "ACTIVE",
+        targetObject: "trace",
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        assignments: {
+          create: { projectId, evaluatorId: evaluator.id },
+        },
+      },
+    });
+    await prisma.jobExecution.createMany({
+      data: [
+        {
+          projectId,
+          jobConfigurationId: rule.id,
+          status: "ERROR",
+          error: "Historical legacy failure",
+        },
+        {
+          projectId,
+          jobConfigurationId: evaluator.id,
+          status: "COMPLETED",
+        },
+        {
+          projectId,
+          jobConfigurationId: "unrelated-evaluator-id",
+          status: "PENDING",
+        },
+      ],
+    });
+
+    await expect(
+      caller.evals.jobExecutionCountsByEvaluatorIds({
+        projectId,
+        evaluatorIds: [rule.id],
+      }),
+    ).resolves.toEqual({
+      [rule.id]: expect.arrayContaining([
+        { status: "ERROR", count: 1 },
+        { status: "COMPLETED", count: 1 },
+      ]),
+    });
+
+    await expect(
+      caller.evals.getLogs({
+        projectId,
+        jobConfigurationId: rule.id,
+        filter: [],
+        page: 0,
+        limit: 50,
+      }),
+    ).resolves.toMatchObject({
+      totalCount: 2,
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          jobConfigurationId: rule.id,
+          status: "ERROR",
+        }),
+        expect.objectContaining({
+          jobConfigurationId: evaluator.id,
+          status: "COMPLETED",
+        }),
+      ]),
+    });
   });
 });

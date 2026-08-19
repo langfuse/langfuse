@@ -22,6 +22,7 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { CreateObservationBatchEvaluationActionSchema } from "../validation";
+import { batchEligibleEvaluatorWhere } from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 
 export const runEvaluationRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -70,7 +71,11 @@ export const runEvaluationRouter = createTRPCRouter({
         const evaluatorIds = (
           input.evalVersion === "v2"
             ? await ctx.prisma.evaluator.findMany({
-                where: { id: { in: requestedEvaluatorIds }, projectId },
+                where: {
+                  id: { in: requestedEvaluatorIds },
+                  projectId,
+                  ...batchEligibleEvaluatorWhere,
+                },
                 select: { id: true },
               })
             : await ctx.prisma.evaluationRule.findMany({
@@ -98,10 +103,10 @@ export const runEvaluationRouter = createTRPCRouter({
             message:
               missingEvaluatorIds.length > 0
                 ? input.evalVersion === "v2"
-                  ? `Evaluators [${missingEvaluatorIds.join(", ")}] are missing.`
+                  ? `Evaluators [${missingEvaluatorIds.join(", ")}] are missing or incompatible with batch evaluation.`
                   : `Evaluators [${missingEvaluatorIds.join(", ")}] are missing or not ${scopeLabel}-scoped.`
                 : input.evalVersion === "v2"
-                  ? "Selected evaluators are missing."
+                  ? "Selected evaluators are missing or incompatible with batch evaluation."
                   : `Selected evaluators are missing or not ${scopeLabel}-scoped.`,
           });
         }

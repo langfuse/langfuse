@@ -7,6 +7,10 @@ import type {
 } from "../../domain";
 import { env } from "../../env";
 import {
+  EvalExecutionMetadataKey,
+  type EvalExecutionMetadataKey as EvalExecutionMetadataKeyType,
+} from "../../features/evals/evalExecutionMetadata";
+import {
   InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -3386,13 +3390,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
   });
 };
 
-type EvaluationMetadataKey =
-  | "evaluator_id"
-  | "evaluator_test"
-  | "rule_id"
-  | "job_configuration_id";
-
-const eventMetadataValue = (key: EvaluationMetadataKey) =>
+const eventMetadataValue = (key: EvalExecutionMetadataKeyType) =>
   `arrayElement(e.metadata_values, indexOf(e.metadata_names, '${key}'))`;
 
 /**
@@ -3400,7 +3398,7 @@ const eventMetadataValue = (key: EvaluationMetadataKey) =>
  * metadata key while executions written before the rename still resolve.
  */
 const eventMetadataValueWithFallback = (
-  keys: readonly EvaluationMetadataKey[],
+  keys: readonly EvalExecutionMetadataKeyType[],
 ) =>
   keys
     .slice(0, -1)
@@ -3410,12 +3408,18 @@ const eventMetadataValueWithFallback = (
       eventMetadataValue(keys[keys.length - 1]!),
     );
 
-const hasAnyEventMetadataKey = (keys: readonly EvaluationMetadataKey[]) =>
-  keys.map((key) => `has(e.metadata_names, '${key}')`).join(" OR ");
+const hasAnyEventMetadataKey = (
+  keys: readonly EvalExecutionMetadataKeyType[],
+) => keys.map((key) => `has(e.metadata_names, '${key}')`).join(" OR ");
+
+const evaluatorTestEventCondition = `(has(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATOR_TEST}') AND ${eventMetadataValue(EvalExecutionMetadataKey.EVALUATOR_TEST)} = 'true') OR startsWith(e.trace_name, 'Test evaluator')`;
 
 const traceCostsByMetadata = (params: {
   projectId: string;
-  metadata: Array<{ keys: readonly EvaluationMetadataKey[]; alias: string }>;
+  metadata: Array<{
+    keys: readonly EvalExecutionMetadataKeyType[];
+    alias: string;
+  }>;
   additionalSelect?: string[];
 }) =>
   new EventsAggQueryBuilder({
@@ -3455,16 +3459,24 @@ const getCostMetricsByMetadataIds = async <
   projectId: string;
   metadataIds: string[];
   fields: TFields;
-  metadataKeys: readonly Exclude<EvaluationMetadataKey, "evaluator_test">[];
+  metadataKeys: readonly Exclude<
+    EvalExecutionMetadataKeyType,
+    typeof EvalExecutionMetadataKey.EVALUATOR_TEST
+  >[];
 }) => {
   if (params.metadataIds.length === 0) return [];
 
   const traceCostsBuilder = traceCostsByMetadata({
     projectId: params.projectId,
     metadata: [{ keys: params.metadataKeys, alias: "metadata_id" }],
-  }).havingRaw("metadata_id IN ({metadataIds: Array(String)})", {
-    metadataIds: params.metadataIds,
-  });
+    additionalSelect: [
+      `countIf(${evaluatorTestEventCondition}) as test_event_count`,
+    ],
+  })
+    .havingRaw("metadata_id IN ({metadataIds: Array(String)})", {
+      metadataIds: params.metadataIds,
+    })
+    .havingRaw("test_event_count = 0");
 
   const traceCosts = traceCostsBuilder.buildWithParams();
   const queryBuilder = new CTEQueryBuilder()
@@ -3507,7 +3519,7 @@ export const getAvgCostByEvaluatorIds = async (
     projectId,
     metadataIds: evaluatorIds,
     fields: ["avgCost", "executionCount"],
-    metadataKeys: ["evaluator_id"],
+    metadataKeys: [EvalExecutionMetadataKey.EVALUATOR_ID],
   });
   return metrics.map(({ metadataId, ...costs }) => ({
     evaluatorId: metadataId,
@@ -3526,7 +3538,10 @@ export const getTotalCostByRule = async (
     // Rules replaced job configurations, but executions written before the
     // rename only carry `job_configuration_id`, and the v1 evals UI still
     // reads costs by job-configuration id.
-    metadataKeys: ["rule_id", "job_configuration_id"],
+    metadataKeys: [
+      EvalExecutionMetadataKey.EVALUATION_RULE_ID,
+      EvalExecutionMetadataKey.JOB_CONFIGURATION_ID,
+    ],
   });
   return metrics.map(({ metadataId, totalCost }) => ({
     ruleId: metadataId,
@@ -3542,7 +3557,7 @@ export const getTotalCostByEvaluatorIds = async (
     projectId,
     metadataIds: evaluatorIds,
     fields: ["totalCost"],
-    metadataKeys: ["evaluator_id"],
+    metadataKeys: [EvalExecutionMetadataKey.EVALUATOR_ID],
   });
   return metrics.map(({ metadataId, totalCost }) => ({
     evaluatorId: metadataId,
@@ -3557,18 +3572,25 @@ export const getLatestEvaluatorTestRunCost = async (
   const builder = traceCostsByMetadata({
     projectId,
     metadata: [
-      { keys: ["evaluator_id"], alias: "evaluator_id" },
-      { keys: ["evaluator_test"], alias: "evaluator_test" },
+      {
+        keys: [EvalExecutionMetadataKey.EVALUATOR_ID],
+        alias: EvalExecutionMetadataKey.EVALUATOR_ID,
+      },
+      {
+        keys: [EvalExecutionMetadataKey.EVALUATOR_TEST],
+        alias: EvalExecutionMetadataKey.EVALUATOR_TEST,
+      },
     ],
     additionalSelect: [
       "max(e.start_time) as timestamp",
       "countIf(e.type = 'GENERATION') as generation_count",
     ],
   })
-    .havingRaw("evaluator_id = {evaluatorId: String}", {
-      evaluatorId,
-    })
-    .havingRaw("evaluator_test = 'true'")
+    .havingRaw(
+      `${EvalExecutionMetadataKey.EVALUATOR_ID} = {evaluatorId: String}`,
+      { evaluatorId },
+    )
+    .havingRaw(`${EvalExecutionMetadataKey.EVALUATOR_TEST} = 'true'`)
     .havingRaw("generation_count > 0")
     .orderBy("ORDER BY timestamp DESC, trace_id DESC")
     .limit(1);
@@ -3604,9 +3626,7 @@ export const getRecentEvaluatorExecutionTraces = async (
     .whereRaw("e.trace_name IN ({traceNames: Array(String)})", {
       traceNames,
     })
-    .havingRaw(
-      `countIf((has(e.metadata_names, 'evaluator_test') AND ${eventMetadataValue("evaluator_test")} = 'true') OR startsWith(e.trace_name, 'Test evaluator')) = 0`,
-    )
+    .havingRaw(`countIf(${evaluatorTestEventCondition}) = 0`)
     .orderBy("ORDER BY timestamp DESC, id DESC")
     .limitByCount(5, "trace_name");
 
@@ -3637,30 +3657,38 @@ export const getRecentRuleExecutionTraces = async (
 ) => {
   if (ruleIds.length === 0) return [];
 
-  const ruleId = eventMetadataValue("rule_id");
+  const evaluationRuleId = eventMetadataValue(
+    EvalExecutionMetadataKey.EVALUATION_RULE_ID,
+  );
   const builder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn: "e.trace_id, rule_id",
+    groupByColumn: `e.trace_id, ${EvalExecutionMetadataKey.EVALUATION_RULE_ID}`,
     selectExpression: [
       "e.trace_id as id",
-      `${ruleId} as rule_id`,
+      `${evaluationRuleId} as ${EvalExecutionMetadataKey.EVALUATION_RULE_ID}`,
       "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
       "min(e.start_time) as timestamp",
     ].join(", "),
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw("has(e.metadata_names, 'rule_id')")
-    .whereRaw("rule_id IN ({ruleIds: Array(String)})", { ruleIds })
+    .whereRaw(
+      `has(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}')`,
+    )
+    .whereRaw(
+      `${EvalExecutionMetadataKey.EVALUATION_RULE_ID} IN ({ruleIds: Array(String)})`,
+      { ruleIds },
+    )
     .orderBy("ORDER BY timestamp DESC, id DESC")
-    .limitByCount(5, "rule_id");
+    .limitByCount(5, EvalExecutionMetadataKey.EVALUATION_RULE_ID);
 
   const { query, params } = builder.buildWithParams();
-  const rows = await queryClickhouse<{
-    id: string;
-    rule_id: string;
-    level: string;
-    timestamp: string;
-  }>({
+  const rows = await queryClickhouse<
+    {
+      id: string;
+      level: string;
+      timestamp: string;
+    } & Record<typeof EvalExecutionMetadataKey.EVALUATION_RULE_ID, string>
+  >({
     query,
     params,
     tags: { projectId },
@@ -3669,7 +3697,7 @@ export const getRecentRuleExecutionTraces = async (
 
   return rows.map((row) => ({
     id: row.id,
-    ruleId: row.rule_id,
+    ruleId: row[EvalExecutionMetadataKey.EVALUATION_RULE_ID],
     level: row.level,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
   }));

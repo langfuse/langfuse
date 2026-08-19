@@ -21,6 +21,15 @@ const DEPRECATED_EVALUATOR_FILTERS: FilterState = [
   },
 ];
 
+const DEPRECATED_RULE_FILTERS: FilterState = [
+  {
+    column: "upgradeRequired",
+    type: "boolean",
+    operator: "=",
+    value: true,
+  },
+];
+
 function buildLegacyEvaluatorListUrl(projectId: string, filter: FilterState) {
   return `/project/${projectId}/evals/legacy?filter=${encodeURIComponent(
     encodeFiltersGeneric(filter),
@@ -30,6 +39,13 @@ function buildLegacyEvaluatorListUrl(projectId: string, filter: FilterState) {
 /** Opens the evaluator list with only the deprecated target types visible. */
 export function buildDeprecatedEvaluatorsUrl(projectId: string) {
   return buildLegacyEvaluatorListUrl(projectId, DEPRECATED_EVALUATOR_FILTERS);
+}
+
+/** Opens the rules table with only active legacy rules that process new data. */
+export function buildDeprecatedRulesUrl(projectId: string) {
+  return `/project/${projectId}/evals/rules?filter=${encodeURIComponent(
+    encodeFiltersGeneric(DEPRECATED_RULE_FILTERS),
+  )}`;
 }
 
 /** Opens the evaluator list with only active observation and experiment targets visible. */

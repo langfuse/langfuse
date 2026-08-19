@@ -67,6 +67,9 @@ Report:
 2. Whether the primary flow worked
 3. Any visible regressions or follow-up risks
 4. If review was blocked, exactly what prevented browser verification
+5. For a human handoff, the preview or sandbox URL plus exact click-path
+   steps, and proof of the fix (screenshot, short video, or before/after)
+   — not a long agent-only writeup
 
 ## Scope Notes
 

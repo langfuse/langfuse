@@ -1,9 +1,4 @@
-import {
-  EvalTemplateType,
-  EvaluatorBlockReason,
-  JobConfigState,
-  Prisma,
-} from "@prisma/client";
+import { EvalTemplateType, EvaluatorBlockReason, Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { env } from "../../env";
 import {
@@ -25,22 +20,6 @@ export const EvaluatorBlockSource = {
 export type EvaluatorBlockSource =
   (typeof EvaluatorBlockSource)[keyof typeof EvaluatorBlockSource];
 
-type BlockEvaluatorConfigsBaseParams = {
-  projectId: string;
-  where: Prisma.JobConfigurationWhereInput;
-  blockReason: EvaluatorBlockReason;
-  blockMessage: string;
-  blockedAt?: Date;
-};
-
-type BlockEvaluatorConfigsParams = BlockEvaluatorConfigsBaseParams & {
-  source: EvaluatorBlockSource;
-};
-
-type BlockEvaluatorConfigsInTxParams = BlockEvaluatorConfigsBaseParams & {
-  tx: Prisma.TransactionClient;
-};
-
 export type BlockedEvaluatorConfigIdsByReason = {
   [reason in EvaluatorBlockReason]?: string[];
 };
@@ -50,67 +29,7 @@ type BlockedEvaluatorConfigNotification = {
   blockedIds: string[];
 };
 
-export async function blockEvaluatorConfigsInTx({
-  tx,
-  projectId,
-  where,
-  blockReason,
-  blockMessage,
-  blockedAt = new Date(),
-}: BlockEvaluatorConfigsInTxParams): Promise<{
-  blockedJobConfigIds: string[];
-}> {
-  // Preserve the previous "no explicit scope means no-op" behavior.
-  if (Object.keys(where).length === 0) {
-    return { blockedJobConfigIds: [] };
-  }
-
-  const activeEvaluatorConfigs = await tx.jobConfiguration.findMany({
-    where: {
-      AND: [
-        where,
-        {
-          projectId,
-          status: JobConfigState.ACTIVE,
-          blockedAt: null,
-        },
-      ],
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  const blockedJobConfigIds = activeEvaluatorConfigs.map((config) => config.id);
-
-  if (blockedJobConfigIds.length === 0) {
-    return { blockedJobConfigIds: [] };
-  }
-
-  await tx.jobConfiguration.updateMany({
-    where: {
-      projectId,
-      status: JobConfigState.ACTIVE,
-      blockedAt: null,
-      id: {
-        in: blockedJobConfigIds,
-      },
-    },
-    data: {
-      blockedAt,
-      blockReason,
-      blockMessage,
-    },
-  });
-
-  // Queued executions are cancelled when workers re-check executability on pickup.
-  return { blockedJobConfigIds };
-}
-
-/**
- * Evaluator v2 counterpart of {@link blockEvaluatorConfigsInTx}: claims the
- * evaluators that are still runnable, so only the first claimer notifies.
- */
+/** Claims evaluators that are still runnable, so only the first claimer notifies. */
 export async function blockEvaluatorsInTx({
   tx,
   projectId,
@@ -150,12 +69,10 @@ export async function blockEvaluatorsInTx({
 }
 
 export type EvaluatorBlockResult = {
-  blockedJobConfigIds: string[];
   blockedEvaluatorIds: string[];
 };
 
 export const EMPTY_EVALUATOR_BLOCK: EvaluatorBlockResult = {
-  blockedJobConfigIds: [],
   blockedEvaluatorIds: [],
 };
 
@@ -180,7 +97,7 @@ async function blockForReasonInTx(params: {
     blockedAt,
   });
 
-  return { blockedJobConfigIds: [], blockedEvaluatorIds };
+  return { blockedEvaluatorIds };
 }
 
 /**
@@ -219,21 +136,6 @@ async function findEvaluatorIdsWithCurrentVersion(params: {
     const version = evaluator.versions[0];
     return version && params.matches(version) ? [evaluator.id] : [];
   });
-}
-
-/**
- * Eval templates that pin neither provider nor model, and therefore fall back
- * to the project's default eval model. Managed templates have no project, but
- * the configurations using them do.
- */
-export async function findDefaultModelEvalTemplateIds({
-  tx: _tx,
-  projectId: _projectId,
-}: {
-  tx: Prisma.TransactionClient;
-  projectId: string;
-}): Promise<string[]> {
-  return [];
 }
 
 /**
@@ -290,7 +192,6 @@ export async function unblockEvaluatorsUsingDefaultModel(params: {
   tx: Prisma.TransactionClient;
   projectId: string;
 }): Promise<{
-  unblockedJobConfigCount: number;
   unblockedEvaluatorCount: number;
 }> {
   const where = {
@@ -305,35 +206,11 @@ export async function unblockEvaluatorsUsingDefaultModel(params: {
   const evaluators = await params.tx.evaluator.updateMany({ where, data });
 
   return {
-    unblockedJobConfigCount: 0,
     unblockedEvaluatorCount: evaluators.count,
   };
 }
 
-export async function blockEvaluatorConfigs(
-  params: BlockEvaluatorConfigsParams,
-): Promise<{ blockedJobConfigIds: string[] }> {
-  const result = await prisma.$transaction((tx) =>
-    blockEvaluatorConfigsInTx({
-      tx,
-      ...params,
-    }),
-  );
-
-  await finalizeEvaluatorBlocks({
-    projectId: params.projectId,
-    source: params.source,
-    jobConfigIdsByReason: { [params.blockReason]: result.blockedJobConfigIds },
-  });
-
-  return result;
-}
-
-/**
- * Evaluator v2 counterpart of {@link blockEvaluatorConfigs}: pauses one
- * evaluator and runs the same notification tail, so an auto-paused v2
- * evaluator is as visible to the project as a legacy one.
- */
+/** Pauses one evaluator and runs the notification tail. */
 export async function blockEvaluator(params: {
   projectId: string;
   evaluatorId: string;
@@ -371,44 +248,25 @@ export async function blockEvaluator(params: {
   return { blockedEvaluatorIds: [params.evaluatorId] };
 }
 
-/**
- * Runs the post-block tail for both data models: one cache invalidation, then
- * per-reason metrics, logging and notification dispatch. The two models need
- * separate notification lookups because they store the evaluator name and its
- * resolution link on different tables.
- */
+/** Runs cache invalidation, metrics, logging and notifications after blocking. */
 export async function finalizeEvaluatorBlocks(params: {
   projectId: string;
   source: EvaluatorBlockSource;
-  /** Legacy `job_configurations` ids. */
-  jobConfigIdsByReason?: BlockedEvaluatorConfigIdsByReason;
-  /** Evaluator v2 `evaluators` ids. */
   evaluatorIdsByReason?: BlockedEvaluatorConfigIdsByReason;
 }): Promise<void> {
-  const batches = [
-    {
-      blockedByReason: params.jobConfigIdsByReason ?? {},
-      notify: notifyBlockedEvaluatorConfigs,
-    },
-    {
-      blockedByReason: params.evaluatorIdsByReason ?? {},
-      notify: notifyBlockedEvaluators,
-    },
-  ].flatMap(({ blockedByReason, notify }) => {
-    const notifications =
-      getBlockedEvaluatorConfigNotifications(blockedByReason);
-    return notifications.length > 0 ? [{ notifications, notify }] : [];
-  });
-
-  if (batches.length === 0) {
+  const notifications = getBlockedEvaluatorConfigNotifications(
+    params.evaluatorIdsByReason ?? {},
+  );
+  if (notifications.length === 0) {
     return;
   }
 
   await invalidateProjectEvalConfigCaches(params.projectId);
-
-  for (const batch of batches) {
-    emitEvaluatorBlocks({ ...params, ...batch });
-  }
+  emitEvaluatorBlocks({
+    ...params,
+    notifications,
+    notify: notifyBlockedEvaluators,
+  });
 }
 
 function emitEvaluatorBlocks(params: {
@@ -459,14 +317,6 @@ type NotifyBlockedEvaluatorsParams = {
   blockedIds: string[];
   blockReason: EvaluatorBlockReason;
 };
-
-export async function notifyBlockedEvaluatorConfigs(
-  _params: NotifyBlockedEvaluatorsParams,
-): Promise<void> {
-  // Legacy job-configuration notifications are retained only for worker
-  // fallback calls. New evaluator writes and notifications use evaluator v2.
-  return undefined;
-}
 
 export async function notifyBlockedEvaluators({
   projectId,

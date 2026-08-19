@@ -364,12 +364,6 @@ export const llmApiKeyRouter = createTRPCRouter({
       await finalizeEvaluatorBlocks({
         projectId: input.projectId,
         source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
-        jobConfigIdsByReason: {
-          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
-            result.providerBlock.blockedJobConfigIds,
-          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
-            result.defaultModelBlock.blockedJobConfigIds,
-        },
         evaluatorIdsByReason: {
           [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
             result.providerBlock.blockedEvaluatorIds,

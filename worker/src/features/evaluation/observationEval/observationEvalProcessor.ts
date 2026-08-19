@@ -314,11 +314,9 @@ async function cancelJobExecution(
  * Resolves which evaluator definition a queued job must execute.
  *
  * Jobs scheduled since evaluator v2 carry their evaluator identity in the
- * queue payload, so this is a direct lookup. Jobs queued by an older worker
- * carry none, and are resolved through `job_configurations` exactly as the
- * pre-v2 worker did — the two paths never overlap, so the id reuse between
- * legacy configurations, rules and evaluators introduced by the backfill can
- * no longer be mistaken for one another.
+ * queue payload, so this is a direct lookup. For jobs queued by an older
+ * worker, the backfill preserves `job_configurations.id` as the rule id, so we
+ * resolve through that rule's assignment.
  */
 async function resolveObservationEvalExecution(params: {
   event: z.infer<typeof ObservationEvalExecutionEventSchema>;
@@ -329,7 +327,33 @@ async function resolveObservationEvalExecution(params: {
   const { projectId, evaluatorId, evaluationRuleId } = event;
 
   if (!evaluatorId) {
-    return resolveLegacyExecution({ projectId, job, executionType });
+    const migratedAssignment =
+      await prisma.evaluationRuleEvaluatorAssignment.findFirst({
+        where: {
+          projectId,
+          evaluationRuleId: job.jobConfigurationId,
+          evaluator: { projectId, type: executionType },
+        },
+        include: {
+          evaluationRule: true,
+          evaluator: { include: evaluatorInclude },
+        },
+      });
+    if (migratedAssignment) {
+      const { evaluationRule: rule, evaluator } = migratedAssignment;
+      if (
+        rule.status !== JobConfigState.ACTIVE &&
+        event.executionMode !== "MANUAL"
+      ) {
+        return { type: "cancelled" as const, reason: "rule-inactive" };
+      }
+      return buildV2Execution({
+        rule,
+        assignment: migratedAssignment,
+        evaluator,
+      });
+    }
+    return { type: "cancelled" as const, reason: "assignment-unavailable" };
   }
 
   // Manual batch runs address the evaluator directly, with no rule to re-check:
@@ -382,37 +406,6 @@ const evaluatorInclude = {
   // here rather than pinned at dispatch.
   versions: { orderBy: { version: "desc" }, take: 1 },
 } satisfies Prisma.EvaluatorInclude;
-
-async function resolveLegacyExecution(params: {
-  projectId: string;
-  job: JobExecution;
-  executionType: ObservationEvalExecutionType;
-}) {
-  const config = await prisma.jobConfiguration.findFirst({
-    where: {
-      id: params.job.jobConfigurationId,
-      projectId: params.projectId,
-      evalTemplate: { is: { type: params.executionType } },
-    },
-    include: {
-      evalTemplate: true,
-      project: { select: { orgId: true } },
-    },
-  });
-
-  if (!config?.evalTemplate) {
-    throw new UnrecoverableError(
-      `Job configuration or template not found for job ${params.job.id}`,
-    );
-  }
-
-  return {
-    type: "legacy" as const,
-    config,
-    template: normalizeEvalTemplate(config.evalTemplate, params.executionType),
-    organizationId: config.project.orgId,
-  };
-}
 
 function normalizeEvalTemplate(
   template: EvalTemplate,

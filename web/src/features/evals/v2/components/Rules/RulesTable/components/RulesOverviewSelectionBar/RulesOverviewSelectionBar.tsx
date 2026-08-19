@@ -40,10 +40,10 @@ export function RulesOverviewSelectionBar({
   const selectionActions = selectionStore.getState().actions;
   const setEnabled = api.evalsV2.rules.setManyEnabled.useMutation({
     onError: trpcErrorToast,
-    onSuccess: async (_result, variables) => {
+    onSuccess: async (result, variables) => {
       capture("evaluation_rules:status_change", {
         isEnabled: variables.enabled,
-        ruleCount: "ruleIds" in variables ? variables.ruleIds.length : 0,
+        ruleCount: result.ruleIds.length,
       });
       selectionActions.clearSelection();
       await utils.evalsV2.rules.list.invalidate({ projectId });

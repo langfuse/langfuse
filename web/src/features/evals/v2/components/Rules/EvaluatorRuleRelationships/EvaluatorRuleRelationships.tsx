@@ -25,6 +25,8 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { getRuleNavigationUrl } from "@/src/features/evals/v2/utils/ruleNavigation";
+import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
+import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 
 function keepSheetOpenForRelationshipOverlay(
   event: Event & { preventDefault: () => void },
@@ -249,6 +251,31 @@ export function EvaluatorRuleRelationshipsSheet({
                       >
                         {evaluationRule.enabled ? "Active" : "Inactive"}
                       </Badge>
+                      {requiresLegacyMigrationAction({
+                        targetObject: evaluationRule.targetObject,
+                        status: evaluationRule.enabled ? "ACTIVE" : "INACTIVE",
+                        timeScope: evaluationRule.timeScope,
+                      }) ? (
+                        <V4MigrationBadgeContent
+                          onClick={() => {
+                            capture(
+                              "v4_migration:update_required_badge_clicked",
+                              { scope: "single" },
+                            );
+                            router.push(
+                              getRuleNavigationUrl({
+                                projectId,
+                                ruleId: evaluationRule.id,
+                                targetObject: evaluationRule.targetObject,
+                                enabled: evaluationRule.enabled,
+                              }),
+                            );
+                          }}
+                          title="Upgrade now"
+                          showChevron={false}
+                          compact
+                        />
+                      ) : null}
                       <Button
                         type="button"
                         variant="ghost"
@@ -304,10 +331,10 @@ export function EvaluatorRuleRelationshipsSheet({
                               },
                             ]
                           : [],
-                      title: "Attach evaluator?",
+                      title: "Attach evaluator to rule",
                       description:
                         "This rule is active. Based on matching observations from the last seven days and the latest evaluator test call:",
-                      confirmLabel: "Attach evaluator",
+                      confirmLabel: "Attach evaluator to rule",
                       onConfirm: async (sampling) => {
                         if (
                           sampling !== undefined &&

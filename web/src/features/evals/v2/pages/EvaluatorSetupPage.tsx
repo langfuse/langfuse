@@ -28,6 +28,7 @@ import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
@@ -44,6 +45,8 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
+import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type InitialEvaluator = {
   id: string;
@@ -85,6 +88,10 @@ export function EvaluatorSetupPage(
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const canReactivate = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:CUD",
+  });
   const [evaluatorSetupStore] = useState(() =>
     createEvaluatorSetupStore({
       initialEvaluator: initialEvaluator ?? initialDraft,
@@ -179,6 +186,24 @@ export function EvaluatorSetupPage(
 
   const create = api.evalsV2.create.useMutation();
   const update = api.evalsV2.update.useMutation();
+  const reactivate = api.evalsV2.reactivate.useMutation({
+    onSuccess: async () => {
+      showSuccessToast({
+        title: "Evaluator reactivated",
+        description:
+          "The model test succeeded and the evaluator is active again.",
+      });
+      if (initialEvaluator) {
+        await utils.evalsV2.get.invalidate({
+          projectId,
+          evaluatorId: initialEvaluator.id,
+        });
+      }
+    },
+    onError: (error) => {
+      showErrorToast("Reactivation failed", error.message);
+    },
+  });
   const deleteEvaluator = api.evalsV2.delete.useMutation({
     onError: trpcErrorToast,
     onSuccess: async () => {
@@ -210,21 +235,23 @@ export function EvaluatorSetupPage(
       trpcErrorToast(error);
     },
   });
-  const suggestName = api.evalsV2.suggestName.useMutation({
-    onSuccess: (suggested) => {
-      if (suggested) evaluatorSetupStore.getState().actions.setName(suggested);
-    },
-  });
+  const suggestName = api.evalsV2.suggestName.useMutation();
 
-  const requestNameSuggestion = () => {
-    if (!nameAIAssistanceAvailable) return;
+  const requestNameSuggestion = async () => {
+    if (!nameAIAssistanceAvailable) return null;
     hasRequestedName.current = true;
     const state = evaluatorSetupStore.getState();
     const nameDefinition =
       state.type === "LLM_AS_JUDGE"
         ? { type: state.type, prompt: state.prompt }
         : { type: state.type, sourceCode: state.sourceCode };
-    suggestName.mutate({ projectId, definition: nameDefinition });
+    const suggested = await suggestName.mutateAsync({
+      projectId,
+      definition: nameDefinition,
+    });
+    const name = suggested?.trim() || null;
+    if (name) state.actions.setName(name);
+    return name;
   };
 
   const setStepOpen = (step: number, open: boolean) => {
@@ -238,7 +265,7 @@ export function EvaluatorSetupPage(
       !state.name &&
       !hasRequestedName.current
     ) {
-      requestNameSuggestion();
+      requestNameSuggestion().catch(trpcErrorToast);
     }
   };
 
@@ -252,15 +279,22 @@ export function EvaluatorSetupPage(
   };
 
   const save = async () => {
-    const state = evaluatorSetupStore.getState();
-    const { definition } = prepareEvaluatorDraft(state);
-    if (!definition || !state.name.trim()) return;
     try {
+      let state = evaluatorSetupStore.getState();
+      const name = await prepareNameForSave({
+        currentName: state.name,
+        generateName: nameAIAssistanceAvailable ? requestNameSuggestion : null,
+        setName: state.actions.setName,
+      });
+      state = evaluatorSetupStore.getState();
+      const { definition } = prepareEvaluatorDraft(state);
+      if (!definition || !name) return;
+
       if (initialEvaluator) {
         const evaluator = await update.mutateAsync({
           projectId,
           evaluatorId: initialEvaluator.id,
-          name: state.name,
+          name,
           description: state.description || null,
           definition,
         });
@@ -278,7 +312,7 @@ export function EvaluatorSetupPage(
       const evaluator = await create.mutateAsync({
         projectId,
         evaluatorId,
-        name: state.name,
+        name,
         description: state.description || null,
         definition,
       });
@@ -287,7 +321,7 @@ export function EvaluatorSetupPage(
       await utils.evalsV2.filterOptions.invalidate({ projectId });
       setSavedEvaluator({
         id: evaluator.id,
-        name: state.name,
+        name,
         type: state.type,
         defaultVariableMapping: observationVariableMappingList
           .catch([])
@@ -359,7 +393,10 @@ export function EvaluatorSetupPage(
           ? { state: "unavailable" }
           : suggestName.isPending
             ? { state: "generating" }
-            : { state: "idle", onGenerate: requestNameSuggestion }
+            : {
+                state: "idle",
+                onGenerate: () => requestNameSuggestion().catch(trpcErrorToast),
+              }
       }
     />
   );
@@ -446,6 +483,18 @@ export function EvaluatorSetupPage(
               blockedAt={initialEvaluator.blockedAt}
               blockReason={initialEvaluator.blockReason}
               blockMessage={initialEvaluator.blockMessage}
+              canReactivate={canReactivate}
+              reactivationPending={reactivate.isPending}
+              onReactivate={() => {
+                capture("evaluators:reactivate", {
+                  blockReason:
+                    initialEvaluator.blockReason ?? "EVAL_MODEL_CONFIG_INVALID",
+                });
+                reactivate.mutate({
+                  projectId,
+                  evaluatorId: initialEvaluator.id,
+                });
+              }}
             />
           </div>
         ) : null}
@@ -477,7 +526,10 @@ export function EvaluatorSetupPage(
           store={evaluatorSetupStore}
           initialSnapshot={initialSnapshot.current}
           isEditing={Boolean(initialEvaluator)}
-          isSaving={create.isPending || update.isPending}
+          isSaving={
+            create.isPending || update.isPending || suggestName.isPending
+          }
+          nameAIAssistanceAvailable={nameAIAssistanceAvailable}
           onClose={requestClose}
           onSave={save}
         />

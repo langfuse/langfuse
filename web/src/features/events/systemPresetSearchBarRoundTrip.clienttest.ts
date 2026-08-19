@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import isEqual from "lodash/isEqual";
 import {
   TableViewPresetTableName,

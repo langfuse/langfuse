@@ -60,8 +60,8 @@ export type EvaluationRuleWithAssignments = Pick<
   "projectId" | "sampling" | "status"
 > & {
   /**
-   * Anchor written to `job_executions.job_configuration_id`: the rule id, or —
-   * for manual batch runs, which address evaluators directly — the evaluator id.
+   * Anchor written to `job_executions.job_configuration_id`: the rule id, or
+   * the evaluator id when a ruleless manual batch run has no associated rule.
    */
   id: string;
   /** Null when no rule is involved, i.e. for manual batch runs. */

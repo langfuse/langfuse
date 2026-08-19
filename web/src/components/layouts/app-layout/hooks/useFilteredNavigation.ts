@@ -9,6 +9,7 @@ import type { Session } from "next-auth";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import {
   ROUTES,
   RouteSection,
@@ -19,6 +20,7 @@ import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import { applyNavigationFilters } from "../utils/navigationFilters";
 import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
+import { resolveRoutePathname } from "../utils/routePathname";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -89,6 +91,7 @@ export function useFilteredNavigation(
   const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   const routerProjectId = router.query.projectId as string | undefined;
+  const forceV3Experience = useForceV3Experience(routerProjectId);
   const routerOrganizationId = router.query.organizationId as
     | string
     | undefined;
@@ -127,10 +130,12 @@ export function useFilteredNavigation(
   // This is O(n) - we map directly over filteredRoutes instead of re-iterating ROUTES
   return useMemo(() => {
     const mapRouteToNavigationItem = (route: Route): NavigationItem => {
-      const pathname =
-        route.legacyPathname && session?.user?.v4BetaEnabled !== true
-          ? route.legacyPathname
-          : route.pathname;
+      const pathname = resolveRoutePathname({
+        pathname: route.pathname,
+        legacyPathname: route.legacyPathname,
+        v4Enabled: session?.user?.v4BetaEnabled === true,
+        forceV3Experience,
+      });
       const url = pathname
         .replace("[projectId]", routerProjectId ?? "")
         .replace("[organizationId]", routerOrganizationId ?? "");
@@ -181,5 +186,6 @@ export function useFilteredNavigation(
     routerOrganizationId,
     router.pathname,
     session?.user?.v4BetaEnabled,
+    forceV3Experience,
   ]);
 }

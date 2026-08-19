@@ -33,6 +33,36 @@ describe("toTestResultPanelState", () => {
     });
   });
 
+  it.each([
+    { matches: ["very funny"], expectedScore: "very funny" },
+    {
+      matches: ["very funny", "original"],
+      expectedScore: "very funny, original",
+    },
+  ])(
+    "maps categorical LLM matches into the provided result panel",
+    ({ matches, expectedScore }) => {
+      expect(
+        toTestResultPanelState({
+          type: "LLM_AS_JUDGE",
+          isPending: false,
+          result: {
+            success: true,
+            result: {
+              dataType: "CATEGORICAL",
+              matches,
+              reasoning: "The selected categories fit the response.",
+            },
+          },
+        }),
+      ).toEqual({
+        status: "llm-success",
+        score: expectedScore,
+        reasoning: "The selected categories fit the response.",
+      });
+    },
+  );
+
   it("keeps pending and failed runs distinct", () => {
     expect(
       toTestResultPanelState({

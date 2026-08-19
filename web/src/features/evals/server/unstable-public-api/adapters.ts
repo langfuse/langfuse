@@ -25,13 +25,13 @@ import {
   ExperimentEvaluationRuleFilter,
   LegacyEvaluationRuleMapping,
   ObservationEvaluationRuleFilter,
-  ObservationEvaluationRuleMapping,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   type PublicEvaluationRuleFilterType,
   type PublicEvaluationRuleMappingType,
   type PublicEvaluationRuleReadMappingType,
   type PublicEvaluationRuleReadTargetType,
+  type PublicEvaluationRuleStatusType,
   type PublicEvaluationRuleTargetType,
   type LegacyEvaluationRuleMappingType,
   type PublicEvaluatorModelConfigType,
@@ -384,16 +384,6 @@ function getLegacyCodeEvalVariableMapping(target: "trace" | "dataset") {
   );
 }
 
-function toApiObservationMappings(mappings: unknown) {
-  const parsed = z
-    .array(ObservationEvaluationRuleMapping)
-    .safeParse(toApiMappings(mappings));
-  if (!parsed.success) {
-    throw new InternalServerError("Evaluator default mapping is corrupted");
-  }
-  return parsed.data;
-}
-
 function toApiFilters(
   filters: unknown,
   target: PublicEvaluationRuleTargetType,
@@ -440,7 +430,7 @@ export function toApiEvaluator(params: {
     mapping:
       template.variableMapping == null
         ? null
-        : toApiObservationMappings(template.variableMapping),
+        : toApiReadMappings(template.variableMapping),
     evaluationRuleCount: params.evaluationRuleCount,
     createdAt: template.createdAt,
     updatedAt: template.updatedAt,
@@ -473,6 +463,41 @@ export function toApiEvaluator(params: {
   };
 }
 
+// Blocking used to live on the job configuration, so the public contract reports it on the rule.
+// In the v2 model it lives on the evaluator, so read it back off the rule's assignments to keep the
+// contract intact. Every migrated rule has exactly one evaluator, which is also the only shape the
+// pre-v2 API could produce, so those reproduce the old responses one for one. A rule with several
+// evaluators reports paused as soon as one of them is blocked, since it is no longer writing every
+// score it is configured to write.
+function toApiRuleBlockState(rule: StoredPublicV2EvaluationRule) {
+  const blocked = rule.assignments
+    .map((candidate) => candidate.evaluator)
+    .filter(
+      (candidate): candidate is typeof candidate & { blockedAt: Date } =>
+        candidate.blockedAt !== null,
+    )
+    // most recently blocked wins, matching how the backfill picked a group's reason
+    .sort(
+      (left, right) => right.blockedAt.getTime() - left.blockedAt.getTime(),
+    );
+  const source = blocked[0];
+  return {
+    isBlocked: source !== undefined,
+    pausedReason: source?.blockReason ?? null,
+    pausedMessage: source?.blockMessage ?? null,
+  };
+}
+
+function toApiEvaluationRuleStatus(
+  status: JobConfigState,
+  isBlocked: boolean,
+): PublicEvaluationRuleStatusType {
+  if (status !== JobConfigState.ACTIVE) {
+    return "inactive";
+  }
+  return isBlocked ? "paused" : "active";
+}
+
 export function toApiV2EvaluationRule(
   rule: StoredPublicV2EvaluationRule,
 ): ApiEvaluationRuleRecord {
@@ -481,6 +506,7 @@ export function toApiV2EvaluationRule(
   // null/empty rather than the resource 404ing.
   const assignment = rule.assignments[0] ?? null;
   const evaluator = assignment?.evaluator ?? null;
+  const block = toApiRuleBlockState(rule);
 
   const toEvaluator = (candidate: NonNullable<typeof assignment>) => ({
     id: candidate.evaluator.id,
@@ -526,9 +552,9 @@ export function toApiV2EvaluationRule(
       evaluator: assignment === null ? null : toEvaluator(assignment),
       evaluators,
       enabled: rule.status === JobConfigState.ACTIVE,
-      status: rule.status === JobConfigState.ACTIVE ? "active" : "inactive",
-      pausedReason: null,
-      pausedMessage: null,
+      status: toApiEvaluationRuleStatus(rule.status, block.isBlocked),
+      pausedReason: block.pausedReason,
+      pausedMessage: block.pausedMessage,
       sampling: Number(rule.sampling),
       target,
       delay: rule.delay,
@@ -562,9 +588,9 @@ export function toApiV2EvaluationRule(
     evaluator: assignment === null ? null : toEvaluator(assignment),
     evaluators,
     enabled: rule.status === JobConfigState.ACTIVE,
-    status: rule.status === JobConfigState.ACTIVE ? "active" : "inactive",
-    pausedReason: null,
-    pausedMessage: null,
+    status: toApiEvaluationRuleStatus(rule.status, block.isBlocked),
+    pausedReason: block.pausedReason,
+    pausedMessage: block.pausedMessage,
     sampling: Number(rule.sampling),
     target,
     filter: toApiFilters(rule.filter, target),

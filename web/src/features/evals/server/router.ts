@@ -24,6 +24,7 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   EvalTemplateType,
+  type EvaluatorExecutionStatusCount,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -1190,6 +1191,15 @@ export const evalRouter = createTRPCRouter({
         evalExecutionsFilterCols,
         "job_executions",
       );
+      const executionConfigIds = input.jobConfigurationId
+        ? (
+            await new LegacyEvalCompatibilityService(
+              ctx.prisma,
+            ).resolveExecutionConfigIds(input.projectId, [
+              input.jobConfigurationId,
+            ])
+          )[input.jobConfigurationId]
+        : undefined;
 
       const [jobExecutions, count] = await Promise.all([
         ctx.prisma.$queryRaw<
@@ -1225,7 +1235,7 @@ export const evalRouter = createTRPCRouter({
             Prisma.sql`ORDER BY je.created_at DESC`,
             input.limit,
             input.page,
-            input.jobConfigurationId,
+            executionConfigIds,
           ),
         ),
         ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
@@ -1236,7 +1246,7 @@ export const evalRouter = createTRPCRouter({
             Prisma.empty,
             1, // limit
             0, // page
-            input.jobConfigurationId,
+            executionConfigIds,
           ),
         ),
       ]);
@@ -1304,11 +1314,41 @@ export const evalRouter = createTRPCRouter({
         return {};
       }
 
-      return getEvaluatorExecutionStatusCountsByEvaluatorId({
-        prisma: ctx.prisma,
-        projectId: input.projectId,
-        evaluatorIds: input.evaluatorIds,
-      });
+      const executionIdsByRuleId = await new LegacyEvalCompatibilityService(
+        ctx.prisma,
+      ).resolveExecutionConfigIds(input.projectId, input.evaluatorIds);
+      const executionCountsById =
+        await getEvaluatorExecutionStatusCountsByEvaluatorId({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          evaluatorIds: [
+            ...new Set(Object.values(executionIdsByRuleId).flat()),
+          ],
+        });
+
+      // Fold the persisted rule- and evaluator-addressed rows back into the
+      // legacy rule IDs requested by the table.
+      return Object.fromEntries(
+        input.evaluatorIds.map((ruleId) => {
+          const countsByStatus = new Map<
+            EvaluatorExecutionStatusCount["status"],
+            number
+          >();
+          for (const executionId of executionIdsByRuleId[ruleId] ?? [ruleId]) {
+            for (const { status, count } of executionCountsById[executionId] ??
+              []) {
+              countsByStatus.set(
+                status,
+                (countsByStatus.get(status) ?? 0) + count,
+              );
+            }
+          }
+          return [
+            ruleId,
+            [...countsByStatus].map(([status, count]) => ({ status, count })),
+          ];
+        }),
+      );
     }),
 
   costByEvaluatorIds: protectedProjectProcedure
@@ -1386,10 +1426,10 @@ const generateExecutionsQuery = (
   orderCondition: Prisma.Sql,
   limit: number,
   page: number,
-  jobConfigurationId?: string,
+  jobConfigurationIds?: string[],
 ) => {
-  const configCondition = jobConfigurationId
-    ? Prisma.sql`AND je.job_configuration_id = ${jobConfigurationId}`
+  const configCondition = jobConfigurationIds?.length
+    ? Prisma.sql`AND je.job_configuration_id IN (${Prisma.join(jobConfigurationIds)})`
     : Prisma.empty;
 
   return Prisma.sql`

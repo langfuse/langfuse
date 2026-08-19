@@ -696,6 +696,42 @@ export class LegacyEvalCompatibilityService {
     return rule?.assignments.length === 1 ? toLegacyConfig(rule) : null;
   }
 
+  /**
+   * Legacy executions use the rule ID, while evaluator-addressed V2 runs use
+   * the assigned evaluator ID. Read both so migration does not hide history.
+   */
+  async resolveExecutionConfigIds(
+    projectId: string,
+    jobConfigurationIds: string[],
+  ) {
+    const executionIdsByJobConfigurationId = new Map(
+      jobConfigurationIds.map((id) => [id, new Set([id])]),
+    );
+    const assignments =
+      await this.prisma.evaluationRuleEvaluatorAssignment.findMany({
+        where: {
+          projectId,
+          evaluationRuleId: { in: jobConfigurationIds },
+        },
+        select: { evaluationRuleId: true, evaluatorId: true },
+      });
+
+    for (const assignment of assignments) {
+      executionIdsByJobConfigurationId
+        .get(assignment.evaluationRuleId)
+        ?.add(assignment.evaluatorId);
+    }
+
+    return Object.fromEntries(
+      [...executionIdsByJobConfigurationId].map(
+        ([jobConfigurationId, executionIds]) => [
+          jobConfigurationId,
+          [...executionIds],
+        ],
+      ),
+    );
+  }
+
   async listProjectTemplates(
     projectId: string,
     options: { collapseManagedCopies?: boolean } = {},
