@@ -246,18 +246,16 @@ describe("in-app agent persistence", () => {
     });
   });
 
-  it("rejects users without the in-app agent entitlement", async () => {
+  it("allows oss-plan users to list conversations", async () => {
     const { caller, projectId } = await createCaller(
       `user-${randomUUID()}`,
       "oss",
     );
 
-    await expect(caller.listConversations({ projectId })).rejects.toMatchObject(
-      {
-        code: "FORBIDDEN",
-        message: expect.stringContaining("in-app-agent"),
-      },
-    );
+    await expect(caller.listConversations({ projectId })).resolves.toEqual({
+      conversations: [],
+      nextCursor: undefined,
+    });
   });
 
   const startCompactRun = async (params: {
