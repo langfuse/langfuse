@@ -102,7 +102,7 @@ const IOTableCellContent = ({
   return singleLine ? (
     <div
       className={cn(
-        "h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
+        "ph-no-capture h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
         paddingClassName,
         className,
       )}
@@ -238,7 +238,7 @@ export const IOTableCell = ({
         </div>
       </HoverCardTrigger>
       <HoverCardContent
-        className="max-h-[40vh] w-[400px] overflow-y-auto"
+        className="ph-no-capture max-h-[40vh] w-[400px] overflow-y-auto"
         side="top"
         align="start"
       >

@@ -35,6 +35,64 @@ const meterEventIdentifier = (
   intervalStart: Date,
 ) => `${eventName}:${orgId}:${intervalStart.getTime()}`;
 
+// Stripe does not silently drop a meter event whose identifier it has already
+// seen - it answers with a 400. Left to propagate, the first replayed org ends
+// the whole run, and because `lastRun` only advances after the org loop the same
+// interval is claimed again on the next tick: the replay the identifier was
+// added to make harmless instead stalls metering outright.
+const isDuplicateMeterEventError = (error: unknown): boolean => {
+  const stripeError = error as
+    | { statusCode?: unknown; rawType?: unknown; message?: unknown }
+    | null
+    | undefined;
+
+  return (
+    typeof stripeError === "object" &&
+    stripeError !== null &&
+    stripeError.statusCode === 400 &&
+    stripeError.rawType === "invalid_request_error" &&
+    typeof stripeError.message === "string" &&
+    /already exists with identifier/i.test(stripeError.message)
+  );
+};
+
+// Every other rejection still fails the job. Only the duplicate is safe to
+// swallow, because the identifier is derived from the tuple that defines the
+// billable fact, so Stripe already holding it is proof this usage was delivered.
+const sendMeterEvent = async (
+  stripe: Stripe,
+  params: Stripe.Billing.MeterEventCreateParams,
+) => {
+  try {
+    // retrying the stripe call in case of an HTTP error
+    await backOff(async () => await stripe.billing.meterEvents.create(params), {
+      numOfAttempts: 3,
+      // Stripe returns `stripe-should-retry: false` on a duplicate, so retrying
+      // only multiplies the rejection.
+      retry: (e) => !isDuplicateMeterEventError(e),
+    });
+  } catch (e) {
+    if (!isDuplicateMeterEventError(e)) {
+      throw e;
+    }
+
+    // Skip only this meter event, not the rest of the organization. Both meters
+    // are sent sequentially, so a run that died between them leaves one
+    // delivered and the other missing - skipping the org here would under-bill
+    // it for this interval for good.
+    logger.info(
+      `[CLOUD USAGE METERING] Stripe already holds meter event ${params.identifier}, skipping`,
+    );
+    recordIncrement(
+      "langfuse.queue.cloud_usage_metering_queue.duplicate_meter_events",
+      1,
+      {
+        unit: "events",
+      },
+    );
+  }
+};
+
 export const handleCloudUsageMeteringJob = async (job: Job) => {
   if (!env.STRIPE_SECRET_KEY) {
     logger.warn("[CLOUD USAGE METERING] Stripe secret key not found");
@@ -231,25 +289,19 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`,
     );
     if (countObservations > 0) {
-      await backOff(
-        async () =>
-          await stripe.billing.meterEvents.create({
-            event_name: "tracing_observations",
-            identifier: meterEventIdentifier(
-              "tracing_observations",
-              org.id,
-              meterIntervalStart,
-            ),
-            timestamp: meterIntervalEnd.getTime() / 1000,
-            payload: {
-              stripe_customer_id: stripeCustomerId,
-              value: countObservations.toString(), // value is a string in stripe
-            },
-          }),
-        {
-          numOfAttempts: 3,
+      await sendMeterEvent(stripe, {
+        event_name: "tracing_observations",
+        identifier: meterEventIdentifier(
+          "tracing_observations",
+          org.id,
+          meterIntervalStart,
+        ),
+        timestamp: meterIntervalEnd.getTime() / 1000,
+        payload: {
+          stripe_customer_id: stripeCustomerId,
+          value: countObservations.toString(), // value is a string in stripe
         },
-      );
+      });
     }
 
     // Events
@@ -264,26 +316,19 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countEvents} events`,
     );
     if (countEvents > 0) {
-      // retrying the stripe call in case of an HTTP error
-      await backOff(
-        async () =>
-          await stripe.billing.meterEvents.create({
-            event_name: "tracing_events",
-            identifier: meterEventIdentifier(
-              "tracing_events",
-              org.id,
-              meterIntervalStart,
-            ),
-            timestamp: meterIntervalEnd.getTime() / 1000,
-            payload: {
-              stripe_customer_id: stripeCustomerId,
-              value: countEvents.toString(), // value is a string in stripe
-            },
-          }),
-        {
-          numOfAttempts: 3,
+      await sendMeterEvent(stripe, {
+        event_name: "tracing_events",
+        identifier: meterEventIdentifier(
+          "tracing_events",
+          org.id,
+          meterIntervalStart,
+        ),
+        timestamp: meterIntervalEnd.getTime() / 1000,
+        payload: {
+          stripe_customer_id: stripeCustomerId,
+          value: countEvents.toString(), // value is a string in stripe
         },
-      );
+      });
     }
 
     if (countEvents === 0 && countObservations === 0) {

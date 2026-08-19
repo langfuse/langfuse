@@ -27,11 +27,11 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
-import {
-  type InAppAgentMessageFeedback,
-  type InAppAgentMessageFeedbackValue,
-  type InAppAgentMessageSource,
-} from "@langfuse/shared/in-app-agent";
+import type {
+  InAppAgentMessageFeedback,
+  InAppAgentMessageFeedbackValue,
+  InAppAgentMessageSource,
+} from "../schema";
 import {
   Popover,
   PopoverAnchor,

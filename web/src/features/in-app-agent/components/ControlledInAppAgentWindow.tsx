@@ -20,8 +20,10 @@ import {
   isCancellableBackgroundRun,
   type BackgroundExecutionRunView,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
-import { InAppAgentRunStatus } from "@langfuse/shared";
-import { isUnsettledInAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentRunStatus,
+  isUnsettledInAppAgentRunStatus,
+} from "@langfuse/shared/in-app-agent";
 
 function getBackgroundRunNotice(
   run: BackgroundExecutionRunView | null,

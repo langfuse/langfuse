@@ -1,12 +1,5 @@
-import {
-  InAppAgentRunErrorCode,
-  InAppAgentRunRequestSchema,
-  InAppAgentRunStatus,
-  Role,
-  type InAppAgentRunRequest,
-} from "@langfuse/shared";
+import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   getLangfuseAITraceSinkParams,
   logger,
@@ -17,38 +10,50 @@ import {
   deleteApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunRequestSchema,
+  InAppAgentRunStatus,
   getInAppAgentInstrumentationTraceId,
   parseInAppAgentInterruptEvent,
   type AgUiEvent,
-  type AgUiRunAgentInput,
+  type InAppAgentRunRequest,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import {
-  claimQueuedRun,
-  clearRunMcpApiKeyPointer,
-  createAgUiStream,
-  createInAppAgentMcpRunOverride,
-  createInAppAgentSandbox,
   createSandboxToolCallFileAccumulator,
-  finishClaimedRun,
   flushPendingRunEvents,
   getConversationEvents,
   getConversationMessagesForReplay,
-  getInAppAgentPromptClient,
+  shouldFlushPersistedEvent,
+  toPersistableAgentEvent,
+  type PersistedConversationEvent,
+} from "@langfuse/shared/in-app-agent/server/persistence";
+import {
+  getInAppAgentModelConfig,
+  isInAppAgentInstanceEnabled,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
+import {
+  claimQueuedRun,
+  clearRunMcpApiKeyPointer,
+  finishClaimedRun,
   heartbeatClaimedRun,
-  IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
+} from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import {
+  createInAppAgentMcpRunOverride,
   createInAppAgentToolPolicy,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
-  shouldFlushPersistedEvent,
-  toPersistableAgentEvent,
   type InAppAgentUserAccess,
-  type PersistedConversationEvent,
-} from "@langfuse/shared/in-app-agent/server";
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import { IN_APP_AGENT_HEARTBEAT_INTERVAL_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
-} from "@langfuse/shared/in-app-agent/server/sandbox/config";
+} from "./runtime/sandbox/config";
+import { createInAppAgentSandbox } from "./runtime/sandbox";
+import { createAgUiStream } from "./runtime/agent";
+import { getInAppAgentPromptClient } from "./runtime/promptClient";
+import type { AgUiRunAgentInput } from "./runtime/types";
 
 import { env } from "../../env";
 
@@ -74,6 +79,7 @@ export async function executeInAppAgentRun(params: {
   runId: string;
 }): Promise<void> {
   const { projectId, runId } = params;
+  const awsProfile = env.AWS_PROFILE ?? env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
 
   // Claim CAS: zero rows means duplicate delivery or a run reconciled away
   // while queued — ack and exit, Postgres owns correctness.
@@ -150,19 +156,22 @@ export async function executeInAppAgentRun(params: {
 
   try {
     // ---- Revalidate at claim; nothing from enqueue time is trusted. ----
-    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    if (!isInAppAgentInstanceEnabled()) {
       throw new InAppAgentRunInitError(
-        "In-app agent is only available on Langfuse Cloud",
+        "In-app agent is not enabled on this instance",
       );
     }
 
-    const bedrockModelId = run.model ?? sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
+    const modelConfig = getInAppAgentModelConfig({ modelId: run.model });
 
-    if (!bedrockModelId || !sharedEnv.LANGFUSE_AWS_BEDROCK_REGION) {
+    if (!modelConfig) {
       throw new InAppAgentRunInitError(
-        "Assistant Bedrock model is not configured",
+        "In-app agent Bedrock model is not configured",
       );
     }
+
+    const useBundledPrompt =
+      env.NODE_ENV === "development" || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
     const conversation = await prisma.inAppAgentConversation.findFirst({
       where: { id: run.conversationId, projectId, deletedAt: null },
@@ -497,13 +506,8 @@ export async function executeInAppAgentRun(params: {
           await cleanupMcpApiKeyLogged();
           await sandboxState?.onTurnEnded();
         },
-        awsBedrock: {
-          region: sharedEnv.LANGFUSE_AWS_BEDROCK_REGION,
-          modelId: bedrockModelId,
-          ...(sharedEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE
-            ? { profile: sharedEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE }
-            : {}),
-        },
+        model: modelConfig,
+        ...(awsProfile ? { awsProfile } : {}),
         langfuseMcp: {
           url: getLangfuseMcpUrl(),
           publicKey: mcpApiKey.publicKey,
@@ -515,8 +519,10 @@ export async function executeInAppAgentRun(params: {
           projectId,
           isV4Enabled: access.v4BetaEnabled,
         },
-        langfuseClient: getInAppAgentPromptClient(),
-        useLocalPrompt: env.NODE_ENV === "development",
+        useLocalPrompt: useBundledPrompt,
+        ...(useBundledPrompt
+          ? {}
+          : { langfuseClient: getInAppAgentPromptClient() }),
         langfuseTracing: buildTracingConfig({
           aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
           projectId,

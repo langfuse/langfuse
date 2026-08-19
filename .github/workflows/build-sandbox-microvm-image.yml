@@ -2,6 +2,24 @@ name: Build Sandbox MicroVM Image
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to publish the MicroVM image to
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - all-production
+          - prod-eu
+          - prod-us
+          - prod-hipaa
+          - prod-jp
+  push:
+    branches:
+      - main
+    paths:
+      - packages/in-app-agent-sandbox-runtime/**
 
 permissions: {}
 
@@ -21,12 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - environment: staging
-          - environment: prod-eu
-          - environment: prod-us
-          - environment: prod-hipaa
-          - environment: prod-jp
+        environment: ${{ fromJSON(github.event_name == 'push' && '["staging"]' || inputs.environment == 'all-production' && '["prod-eu","prod-us","prod-hipaa","prod-jp"]' || format('["{0}"]', inputs.environment)) }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_MICROVM_BUILD_ROLE_ARN: ${{ vars.AWS_MICROVM_BUILD_ROLE_ARN }}
@@ -198,10 +211,11 @@ jobs:
 
       - name: Write job summary
         env:
+          DEPLOYMENT_ENVIRONMENT: ${{ matrix.environment }}
           IMAGE_ARN: ${{ steps.publish.outputs.image_arn }}
           IMAGE_VERSION: ${{ steps.wait.outputs.image_version }}
         run: |
-          printf '## Sandbox MicroVM image (%s)\n\n' '${{ matrix.environment }}' >> "$GITHUB_STEP_SUMMARY"
+          printf '## Sandbox MicroVM image (%s)\n\n' "$DEPLOYMENT_ENVIRONMENT" >> "$GITHUB_STEP_SUMMARY"
           printf -- '- Region: `%s`\n' "$AWS_REGION" >> "$GITHUB_STEP_SUMMARY"
           printf -- '- ARN: `%s`\n' "$IMAGE_ARN" >> "$GITHUB_STEP_SUMMARY"
           printf -- '- Version: `%s`\n' "$IMAGE_VERSION" >> "$GITHUB_STEP_SUMMARY"

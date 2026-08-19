@@ -45,7 +45,8 @@
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
   AI SDK-native LLM execution helpers (`generateLLMText` and
-  `streamLLMText`), and server test utilities.
+  `streamLLMText`), Bedrock default-credential provider auth
+  (`createDefaultBedrockProviderAuth`), and server test utilities.
 - `@langfuse/shared/src/db` via `src/db.ts`: Prisma client singleton plus
   Prisma namespace/types for direct database access. Never route this into
   frontend-safe code.
@@ -55,19 +56,18 @@
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
-  client-safe in-app-agent contracts (AG-UI schemas, constants, id helpers,
-  and durable interrupt parsing shared by browser and server runtimes).
-  `AgUiRunAgentInput` is a compile-time-only execution contract; there is no
-  runtime input or browser runtime-state schema. Never re-export server code
-  here.
-- `@langfuse/shared/in-app-agent/server` (plus per-module subpaths via the
-  `./in-app-agent/server/*` wildcard) via `src/in-app-agent/server/`:
-  the in-app-agent runtime (Mastra/Bedrock/MCP loop, tools, persistence,
-  sandbox), consumed by web's router/watch adapters and the worker execution
-  processor.
+  client-safe durable in-app-agent contracts: AG-UI messages/events/context,
+  run requests/status/errors, approval events, constants, message helpers,
+  and interrupt parsing. Never re-export server code here.
+- In-app-agent server contracts use explicit subpaths only:
+  `persistence`, `runLifecycle`, `tunables`, `eventCompaction`, `mcpPolicy`,
+  `toolResults`, `toolErrors`, `systemPrompt`, and `modelProvider`. These are
+  storage/lifecycle, durable cross-process policy, or instance-model contracts;
+  the Mastra runtime and sandbox belong to the worker.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
-  `@langfuse/shared/src/server/ee/ingestionMasking`, and
+  `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
