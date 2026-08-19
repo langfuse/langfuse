@@ -645,7 +645,9 @@ export const OptimisticFeedbackInteraction = meta.story({
       type: "text",
       text: "Langfuse tracks traces, observations, scores, and metadata so teams can debug LLM applications.",
     },
-    onSubmitFeedback: fn(() => new Promise<void>(() => undefined)),
+    onSubmitFeedback: fn(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 1_000)),
+    ),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
