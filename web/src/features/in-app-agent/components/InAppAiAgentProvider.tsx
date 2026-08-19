@@ -54,7 +54,6 @@ import {
 import type { InAppAgentError } from "@/src/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
@@ -293,7 +292,7 @@ function InAppAiAgentProviderInner({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
-  const isInAppAgentEnabled = useIsInAppAgentEnabled();
+  const canUseAssistant = useCanUseInAppAgent();
   const { organization } = useQueryProjectOrOrganization();
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
   const [_selectedConversationId, setSelectedConversationId] =
@@ -435,7 +434,7 @@ function InAppAiAgentProviderInner({
     userId,
     // Polling a project the server will reject turns every page load and
     // window focus into a Forbidden toast.
-    enabled: isInAppAgentEnabled,
+    enabled: canUseAssistant,
     // Only what the user can actually see counts as looked at; a selected
     // conversation behind a closed window has not been read.
     visibleConversationId: open ? selectedConversationId : null,
@@ -1591,34 +1590,39 @@ export function useInAppAiAgent() {
   return ctx;
 }
 
-/** Client mirror of the server's assertInAppAgentAvailable: whether a request
- * for this project would be served, so callers can skip ones it would reject. */
-export function useIsInAppAgentEnabled() {
+/** Whether a run would be admitted for this project. Client mirror of
+ * assertInAppAgentAvailable: instance switch, entitlement, and org AI
+ * Features. Use this for polling and other paths that must not hit the
+ * server when org AI Features is off. More restrictive than
+ * useIsInAppAgentLauncherVisible. */
+export function useCanUseInAppAgent() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { organization } = useQueryProjectOrOrganization();
+  const session = useSession();
+  const instanceEnabled = session.data?.environment.inAppAgentEnabled ?? false;
 
   return (
-    isLangfuseCloud &&
+    instanceEnabled &&
     hasInAppAgentEntitlement &&
     Boolean(organization?.aiFeaturesEnabled)
   );
 }
 
-/** Whether the current user/context may use the in-app assistant at all. Shared
- * gate for the launcher button and the window host. Deliberately looser than
- * useIsInAppAgentEnabled: with the org AI toggle off the entry points still
- * show, and clicking one opens the dialog that turns it on. */
-export function useCanUseInAppAgent() {
+/** Whether to show Assistant entry points (nav launcher, v4/eval CTAs).
+ * Looser than useCanUseInAppAgent: with org AI Features off they still
+ * show, and clicking opens the dialog that turns it on. Hidden entirely
+ * when the instance-wide switch is off. */
+export function useIsInAppAgentLauncherVisible() {
   const { isAvailable } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { organization } = useQueryProjectOrOrganization();
+  const session = useSession();
+  const instanceEnabled = session.data?.environment.inAppAgentEnabled ?? false;
 
   return (
+    instanceEnabled &&
     isAvailable &&
     hasInAppAgentEntitlement &&
-    isLangfuseCloud &&
     Boolean(organization)
   );
 }

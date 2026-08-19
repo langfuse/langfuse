@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
 
@@ -35,9 +36,13 @@ type AgentScenario = (ctx: {
   };
   signal: AbortSignal;
   options: {
-    awsBedrock: {
-      profile?: string;
+    model: {
+      provider: "bedrock";
+      modelId: string;
     };
+    awsProfile?: string;
+    langfuseClient?: unknown;
+    useLocalPrompt: boolean;
     langfuseMcp: {
       toolPolicy: {
         available: ReadonlySet<string>;
@@ -59,6 +64,7 @@ const scenarioRef = vi.hoisted(() => ({
   failApiKeyDelete: false,
   apiKeyDeleteCalls: 0,
   titleInferenceCalls: 0,
+  instanceEnabled: true,
 }));
 
 vi.mock("./runtime/agent", async (importOriginal) => {
@@ -101,6 +107,21 @@ vi.mock(
     >()),
     IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: 50,
   }),
+);
+
+vi.mock(
+  "@langfuse/shared/in-app-agent/server/modelProvider",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@langfuse/shared/in-app-agent/server/modelProvider")
+      >();
+
+    return {
+      ...actual,
+      isInAppAgentInstanceEnabled: () => scenarioRef.instanceEnabled,
+    };
+  },
 );
 
 vi.mock("@langfuse/shared/src/server/auth/apiKeys", async (importOriginal) => {
@@ -271,6 +292,7 @@ async function seedApprovedContinuation(opts?: {
 describe("executeInAppAgentRun", () => {
   beforeEach(() => {
     scenarioRef.titleInferenceCalls = 0;
+    scenarioRef.instanceEnabled = true;
   });
 
   it("does not regenerate the conversation title after executing a user-message run", async () => {
@@ -296,7 +318,7 @@ describe("executeInAppAgentRun", () => {
 
     const { projectId, run } = await seedBackgroundRun();
     scenarioRef.current = async ({ options }) => {
-      expect(options.awsBedrock.profile).toBe("developer-profile");
+      expect(options.awsProfile).toBe("developer-profile");
       await options.onComplete();
       await options.onFinish();
     };
@@ -306,6 +328,25 @@ describe("executeInAppAgentRun", () => {
     } finally {
       workerEnv.AWS_PROFILE = originalAwsProfile;
       workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = originalConfiguredProfile;
+    }
+  });
+
+  it("uses the bundled prompt in self-hosted production", async () => {
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    const { projectId, run } = await seedBackgroundRun();
+    scenarioRef.current = async ({ options }) => {
+      expect(options.useLocalPrompt).toBe(true);
+      expect(options.langfuseClient).toBeUndefined();
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    try {
+      await executeInAppAgentRun({ projectId, runId: run.id });
+    } finally {
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     }
   });
 
@@ -729,6 +770,42 @@ describe("executeInAppAgentRun", () => {
     expect(failed.status).toBe("FAILED");
     expect(failed.errorCode).toBe("init_failed");
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+  });
+
+  it("fails revalidation at claim as FAILED (init_failed) when in-app agent is instance-disabled", async () => {
+    scenarioRef.instanceEnabled = false;
+    const { projectId, run } = await seedBackgroundRun();
+    scenarioRef.current = async () => {
+      throw new Error("agent loop must not start when the instance is off");
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    const failed = await getRun(projectId, run.id);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.errorCode).toBe("init_failed");
+    expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+  });
+
+  it("claims a run when LANGFUSE_AWS_BEDROCK_REGION is unset", async () => {
+    const originalRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+    (
+      sharedEnv as { LANGFUSE_AWS_BEDROCK_REGION?: string }
+    ).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+
+    try {
+      const { projectId, run } = await seedBackgroundRun();
+      scenarioRef.current = completingScenario;
+
+      await executeInAppAgentRun({ projectId, runId: run.id });
+
+      const finished = await getRun(projectId, run.id);
+      expect(finished.status).toBe("SUCCEEDED");
+    } finally {
+      (
+        sharedEnv as { LANGFUSE_AWS_BEDROCK_REGION?: string }
+      ).LANGFUSE_AWS_BEDROCK_REGION = originalRegion;
+    }
   });
 
   it("keeps the MCP-key pointer when the delete fails, for reconciliation to retry", async () => {
