@@ -112,10 +112,10 @@ export const MANAGED_TEMPLATES_CATALOG = {
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt:
-          "Classify the user message into exactly one intent category.\n\nBefore using this template, replace the category definitions below with your own taxonomy.\nCategory definitions (edit these examples):\n- support_request: user asks for troubleshooting or account help.\n- bug_report: user reports unexpected product behavior.\n- billing_question: user asks about pricing, invoices, or subscriptions.\n- sales_inquiry: user asks about product fit, demos, or procurement.\n- feature_request: user asks for a new capability.\n- general_question: user asks a neutral product or usage question.\n- other: user message does not fit any category above.\n\nUser message: {{user_message}}",
+          'You are an expert intent-classification evaluator for AI chatbot conversations.\n\nClassify the user\'s primary request into exactly one intent category.\n\nBefore using this template, replace the category definitions below with your own taxonomy.\nCategory [EDIT EXAMPLES TO YOUR CATEGORIES]:\n- support_request: user asks for troubleshooting or account help.\n- bug_report: user reports unexpected product behavior.\n- billing_question: user asks about pricing, invoices, or subscriptions.\n- sales_inquiry: user asks about product fit, demos, or procurement.\n- feature_request: user asks for a new capability.\n- general_question: user asks a neutral product or usage question.\n- other: user message does not fit any category above.\n\nDecision rules:\n1. Classify only the user\'s message. Do not infer intent from assistant responses, account history, or unstated context.\n2. Select the one category that best represents the user\'s primary action or goal. If several intents appear, choose the intent the user most needs resolved first.\n3. Use the label definitions as the decision boundary; do not create new labels or return multiple labels.\n4. Use other only when no listed category reasonably applies.\n\nExamples:\n- "I was charged twice on my invoice." → billing_question\n- "The app crashes when I upload a PDF." → bug_report\n- "Can you add SAML support?" → feature_request\n\nUser message: {{input}}',
         variables: [
           {
-            name: "user_message",
+            name: "input",
             defaultMapping: { field: "input" },
           },
         ],
@@ -123,7 +123,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
           version: 2,
           dataType: "CATEGORICAL",
           score: {
-            description: "Predicted intent category.",
+            description: "Predicted category.",
             categories: [
               "support_request",
               "bug_report",
@@ -136,7 +136,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
             shouldAllowMultipleMatches: false,
           },
           reasoning: {
-            description: "One sentence reasoning for the intent label.",
+            description: "One sentence reasoning for the category label.",
           },
         },
       },
