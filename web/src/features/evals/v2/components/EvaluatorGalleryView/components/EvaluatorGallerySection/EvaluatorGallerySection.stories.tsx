@@ -142,6 +142,9 @@ export const Recommended = meta.story({
     await expect(canvas.queryByText("Any application")).not.toBeInTheDocument();
     await expect(canvas.queryByText("Set up")).not.toBeInTheDocument();
     await expect(
+      canvas.queryByLabelText("About Safety / Security"),
+    ).not.toBeInTheDocument();
+    await expect(
       canvas.queryByText(EVALUATOR_GALLERY_SAFETY_CALLOUT),
     ).not.toBeInTheDocument();
   },
@@ -158,9 +161,15 @@ export const Safety = meta.story({
     await expect(
       canvas.getByRole("heading", { name: "Safety / Security" }),
     ).toBeInTheDocument();
+    const hint = canvas.getByLabelText("About Safety / Security");
+    await expect(hint).toBeInTheDocument();
     await expect(
-      canvas.getByText(EVALUATOR_GALLERY_SAFETY_CALLOUT),
-    ).toBeInTheDocument();
+      canvas.queryByText(EVALUATOR_GALLERY_SAFETY_CALLOUT),
+    ).not.toBeInTheDocument();
+    await userEvent.hover(hint);
+    await expect(
+      await canvas.findByRole("tooltip", undefined, { timeout: 2000 }),
+    ).toHaveTextContent(EVALUATOR_GALLERY_SAFETY_CALLOUT);
     await expect(
       canvas.getByText("Detect prompt injection"),
     ).toBeInTheDocument();

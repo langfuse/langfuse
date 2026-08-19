@@ -1,6 +1,6 @@
-import { ChevronDown, ChevronUp, Info } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { EvaluatorRecommendedCard } from "./components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
 import { EvaluatorTemplateRow } from "./components/EvaluatorTemplateRow/EvaluatorTemplateRow";
 import type {
@@ -47,20 +47,17 @@ export function EvaluatorGallerySection({
           <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
             {section.label}
           </h4>
+          {isSafety ? (
+            <InfoTooltip label={`About ${section.label}`}>
+              {EVALUATOR_GALLERY_SAFETY_CALLOUT}
+            </InfoTooltip>
+          ) : null}
           <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
             {totalCount}
           </span>
         </div>
         <div className="border-t" />
       </div>
-      {isSafety ? (
-        <Alert variant="info" className="py-2">
-          <Info className="text-dark-blue h-4 w-4" />
-          <AlertDescription>
-            {EVALUATOR_GALLERY_SAFETY_CALLOUT}
-          </AlertDescription>
-        </Alert>
-      ) : null}
       {isRecommended ? (
         <div className="grid grid-cols-3 gap-3">
           {shownTemplates.map((template) => (
