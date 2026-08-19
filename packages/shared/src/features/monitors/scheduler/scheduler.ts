@@ -13,7 +13,6 @@ export const monitorProcessorTtl = 5 * 60 * 1000;
 /** MonitorScheduler claims and publishes due monitors for its scheduler slot. */
 export class MonitorScheduler {
   public static readonly claimTimeoutMs = 20_000;
-  public static readonly claimTransactionTimeoutMs = 25_000;
 
   private readonly schedulerId: number;
   private readonly totalSchedulers: number;
@@ -37,21 +36,18 @@ export class MonitorScheduler {
    * advances the schedule to the next run.
    */
   async schedule(scheduledAt: Date): Promise<number> {
-    const results = await this.db.$transaction(
-      async (tx) => {
-        await tx.$executeRawUnsafe(
-          `SET LOCAL statement_timeout = ${MonitorScheduler.claimTimeoutMs}`,
-        );
-        return tx.$queryRaw<MonitorBatchResult[]>(
-          buildScheduleQuery({
-            tick: scheduledAt,
-            schedulerId: this.schedulerId,
-            totalSchedulers: this.totalSchedulers,
-          }),
-        );
-      },
-      { timeout: MonitorScheduler.claimTransactionTimeoutMs },
-    );
+    const [, results] = await this.db.$transaction([
+      this.db.$executeRawUnsafe(
+        `SET LOCAL statement_timeout = ${MonitorScheduler.claimTimeoutMs}`,
+      ),
+      this.db.$queryRaw<MonitorBatchResult[]>(
+        buildScheduleQuery({
+          tick: scheduledAt,
+          schedulerId: this.schedulerId,
+          totalSchedulers: this.totalSchedulers,
+        }),
+      ),
+    ]);
 
     if (results.length === 0) return 0;
 

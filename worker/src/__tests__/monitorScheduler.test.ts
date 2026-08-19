@@ -704,15 +704,16 @@ describe("MonitorScheduler (integration)", () => {
 describe("MonitorScheduler (timeouts)", () => {
   const stubDb = (rows: unknown[]) => {
     const executeRawUnsafe = vi.fn().mockResolvedValue(0);
-    const transaction = vi.fn(
-      async (fn: (tx: unknown) => Promise<unknown>, _options?: unknown) =>
-        fn({
-          $executeRawUnsafe: executeRawUnsafe,
-          $queryRaw: async () => rows,
-        }),
+    const queryRaw = vi.fn().mockResolvedValue(rows);
+    const transaction = vi.fn(async (ops: Promise<unknown>[]) =>
+      Promise.all(ops),
     );
     return {
-      db: { $transaction: transaction } as unknown as PrismaClient,
+      db: {
+        $executeRawUnsafe: executeRawUnsafe,
+        $queryRaw: queryRaw,
+        $transaction: transaction,
+      } as unknown as PrismaClient,
       executeRawUnsafe,
       transaction,
     };
@@ -731,8 +732,6 @@ describe("MonitorScheduler (timeouts)", () => {
     expect(executeRawUnsafe).toHaveBeenCalledWith(
       "SET LOCAL statement_timeout = 20000",
     );
-    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
-      timeout: 25_000,
-    });
+    expect(transaction).toHaveBeenCalledWith(expect.any(Array));
   });
 });
