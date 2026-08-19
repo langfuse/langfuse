@@ -14,7 +14,7 @@ import { format as formatWithPrettier } from "prettier";
 const repoRoot = resolve(new URL("../..", import.meta.url).pathname);
 const generatedDir = resolve(
   repoRoot,
-  "packages/shared/src/in-app-agent/server/skills/generated",
+  "worker/src/features/in-app-agent/runtime/skills/generated",
 );
 const rawTargetDir = resolve(generatedDir, "raw");
 const generatedModuleName = "skill-markdown.ts";
@@ -156,7 +156,7 @@ const getCurrentManagedFileNames = () =>
 
 const renderGeneratedModule = async (files) => {
   // Markdown is inlined as string literals (instead of raw `.md` imports) so
-  // the module compiles under plain tsc in @langfuse/shared without bundler
+  // the module compiles under plain tsc in worker without bundler
   // support. The raw/*.md files are still written for reviewable diffs.
   const entries = files
     .map(

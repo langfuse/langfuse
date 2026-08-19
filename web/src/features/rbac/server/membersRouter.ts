@@ -21,7 +21,7 @@ import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfExceedsLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
@@ -221,15 +221,18 @@ export const membersRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Org not found" });
       }
 
-      // Count current members + pending invitations for limit check
-      const [currentMemberCount, pendingInviteCount] = await Promise.all([
-        ctx.prisma.organizationMembership.count({
+      // Members and pending invitations both consume a seat, so the limit
+      // check counts them together. Reads through the caller-supplied client
+      // so it can run inside the limit transaction.
+      const countSeatsInUse = async (tx: Prisma.TransactionClient) => {
+        const memberCount = await tx.organizationMembership.count({
           where: { orgId: input.orgId },
-        }),
-        ctx.prisma.membershipInvitation.count({
+        });
+        const pendingInviteCount = await tx.membershipInvitation.count({
           where: { orgId: input.orgId },
-        }),
-      ]);
+        });
+        return memberCount + pendingInviteCount;
+      };
 
       if (user) {
         const existingOrgMembership =
@@ -276,21 +279,22 @@ export const membersRouter = createTRPCRouter({
           });
         }
 
-        // Check member limit before creating new membership
-        throwIfExceedsLimit({
+        // create org membership as user is not a member yet, unless that
+        // would exceed the member limit
+        const orgMembership = await createWithinEntitlementLimit({
+          prisma: ctx.prisma,
+          orgId: input.orgId,
           entitlementLimit: "organization-member-count",
           sessionUser: ctx.session.user,
-          orgId: input.orgId,
-          currentUsage: currentMemberCount + pendingInviteCount,
-        });
-
-        // create org membership as user is not a member yet
-        const orgMembership = await ctx.prisma.organizationMembership.create({
-          data: {
-            userId: user.id,
-            orgId: input.orgId,
-            role: input.orgRole,
-          },
+          countCurrentUsage: countSeatsInUse,
+          create: (tx) =>
+            tx.organizationMembership.create({
+              data: {
+                userId: user.id,
+                orgId: input.orgId,
+                role: input.orgRole,
+              },
+            }),
         });
         await auditLog({
           session: ctx.session,
@@ -334,30 +338,35 @@ export const membersRouter = createTRPCRouter({
           env: env,
         });
       } else {
-        // Check member limit before creating invitation
-        throwIfExceedsLimit({
-          entitlementLimit: "organization-member-count",
-          sessionUser: ctx.session.user,
-          orgId: input.orgId,
-          currentUsage: currentMemberCount + pendingInviteCount,
-        });
-
         try {
-          const invitation = await ctx.prisma.membershipInvitation.create({
-            data: {
-              orgId: input.orgId,
-              projectId:
-                project && input.projectRole && input.projectRole !== Role.NONE
-                  ? project.id
-                  : null,
-              email: input.email.toLowerCase(),
-              orgRole: input.orgRole,
-              projectRole:
-                input.projectRole && input.projectRole !== Role.NONE && project
-                  ? input.projectRole
-                  : null,
-              invitedByUserId: ctx.session.user.id,
-            },
+          // create the invitation unless that would exceed the member limit
+          const invitation = await createWithinEntitlementLimit({
+            prisma: ctx.prisma,
+            orgId: input.orgId,
+            entitlementLimit: "organization-member-count",
+            sessionUser: ctx.session.user,
+            countCurrentUsage: countSeatsInUse,
+            create: (tx) =>
+              tx.membershipInvitation.create({
+                data: {
+                  orgId: input.orgId,
+                  projectId:
+                    project &&
+                    input.projectRole &&
+                    input.projectRole !== Role.NONE
+                      ? project.id
+                      : null,
+                  email: input.email.toLowerCase(),
+                  orgRole: input.orgRole,
+                  projectRole:
+                    input.projectRole &&
+                    input.projectRole !== Role.NONE &&
+                    project
+                      ? input.projectRole
+                      : null,
+                  invitedByUserId: ctx.session.user.id,
+                },
+              }),
           });
 
           await auditLog({

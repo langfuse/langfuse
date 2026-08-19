@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { joinSessionCoreAndMetrics } from "@/src/components/table/use-cases/session-row-data";
 
 describe("joinSessionCoreAndMetrics", () => {

@@ -1,16 +1,13 @@
+import { LangfuseConflictError } from "../../index";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   InAppAgentRunStatusSchema,
-  LangfuseConflictError,
-} from "../../index";
+} from "../../features/inAppAgent/types";
 import { Prisma } from "../../db";
 import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
-import {
-  buildInAppAgentApprovalDecisionEvent,
-  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
-} from "../backgroundWatch";
+import { buildInAppAgentApprovalDecisionEvent } from "../approvalEvents";
 import type { AgUiEvent } from "../schema";
 import type { InAppAgentPrefixedLangfuseMcpToolName } from "./mcpPolicy";
 import {
@@ -18,6 +15,7 @@ import {
   resolveInAppAgentRootRunId,
   type InAppAgentRunRequest,
 } from "../../features/inAppAgent/types";
+import { IN_APP_AGENT_UNSETTLED_RUN_STATUSES } from "../constants";
 import {
   ACTIVE_RUN_CONFLICT_MESSAGE,
   lockConversation,
@@ -330,9 +328,6 @@ export async function decideToolApproval(params: {
         toolCallId: params.toolCallId,
         approved: params.approved,
         decidedByUserId: params.decidedByUserId,
-        ...(params.alwaysAllowToolName
-          ? { scope: "conversation" as const }
-          : {}),
       }),
     });
 

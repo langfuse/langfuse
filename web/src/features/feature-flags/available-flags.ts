@@ -8,6 +8,7 @@ export const featurePreviewFlags = [
   // safe rollback; drop once the GA rollout is confirmed stable.
   "searchBar",
   "v4UpgradeUi",
+  "compactTimeline",
 ] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
@@ -29,6 +30,10 @@ export const isFeaturePreviewAvailable = (
   }
 
   if (flag === "v4UpgradeUi") {
+    return true;
+  }
+
+  if (flag === "compactTimeline") {
     return true;
   }
 
