@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   type FilterState,
   observationsTableCols,

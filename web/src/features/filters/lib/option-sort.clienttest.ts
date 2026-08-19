@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";

@@ -133,8 +133,16 @@ export function ItemBadge({
       variant="outline"
       title={label}
       className={cn(
-        "bg-background flex max-w-fit items-center gap-1 overflow-hidden border-2 px-1 whitespace-nowrap",
-        isSmall && "h-4",
+        "bg-background flex max-w-fit items-center gap-1 overflow-hidden border-2 whitespace-nowrap",
+        // With a label the horizontal padding is what separates the icon from the
+        // text. Without one there is nothing to separate, and the padding only
+        // made a square icon sit in a rectangle. `max-w-none` is what lets it be
+        // square: `max-w-fit` caps the width at the icon's own width, so a set
+        // size would apply to the height alone.
+        showLabel
+          ? "px-1"
+          : cn("max-w-none justify-center p-0", isSmall ? "size-4" : "size-6"),
+        isSmall && showLabel && "h-4",
       )}
     >
       <Icon className={iconClass} />

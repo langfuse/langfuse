@@ -73,6 +73,7 @@ describe("backend activity tracking", () => {
         cloudRegion: "US",
         organizationId: "org-1",
         projectId: "project-1",
+        userId: "user-1",
       },
       timestamp: new Date("2026-08-10T12:00:00.000Z"),
       disableGeoip: true,
@@ -97,6 +98,7 @@ describe("backend activity tracking", () => {
           activityScope: "organization",
           cloudRegion: "US",
           organizationId: "org-1",
+          userId: "user-1",
         },
       }),
     );
@@ -108,6 +110,7 @@ describe("backend activity tracking", () => {
           cloudRegion: "US",
           organizationId: "org-1",
           projectId: "project-1",
+          userId: "user-1",
         },
       }),
     );

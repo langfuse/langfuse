@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 // @vitest-environment jsdom
 
 import { buildTreeFromJSON } from "./treeStructure";

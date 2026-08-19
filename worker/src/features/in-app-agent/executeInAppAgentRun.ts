@@ -1,10 +1,10 @@
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   getLangfuseAITraceSinkParams,
   logger,
   redis,
+  traceException,
 } from "@langfuse/shared/src/server";
 import {
   createAndAddApiKeysToDb,
@@ -30,10 +30,15 @@ import {
   type PersistedConversationEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import {
+  getInAppAgentModelConfig,
+  isInAppAgentInstanceEnabled,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
+import {
   claimQueuedRun,
   clearRunMcpApiKeyPointer,
   finishClaimedRun,
   heartbeatClaimedRun,
+  reconcileConversationRuns,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import {
   createInAppAgentMcpRunOverride,
@@ -79,7 +84,7 @@ export async function executeInAppAgentRun(params: {
   const awsProfile = env.AWS_PROFILE ?? env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
 
   // Claim CAS: zero rows means duplicate delivery or a run reconciled away
-  // while queued — ack and exit, Postgres owns correctness.
+  // while queued. Reconcile then ack — Postgres owns correctness.
   const run = await claimQueuedRun({ prisma, projectId, runId });
 
   if (!run) {
@@ -87,6 +92,20 @@ export async function executeInAppAgentRun(params: {
       projectId,
       runId,
     });
+
+    const existing = await prisma.inAppAgentRun.findUnique({
+      where: { id_projectId: { id: runId, projectId } },
+      select: { conversationId: true },
+    });
+
+    if (existing) {
+      await reconcileConversationRuns({
+        prisma,
+        projectId,
+        conversationId: existing.conversationId,
+      });
+    }
+
     return;
   }
 
@@ -153,19 +172,22 @@ export async function executeInAppAgentRun(params: {
 
   try {
     // ---- Revalidate at claim; nothing from enqueue time is trusted. ----
-    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    if (!isInAppAgentInstanceEnabled()) {
       throw new InAppAgentRunInitError(
-        "In-app agent is only available on Langfuse Cloud",
+        "In-app agent is not enabled on this instance",
       );
     }
 
-    const bedrockModelId = run.model ?? sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
+    const modelConfig = getInAppAgentModelConfig({ modelId: run.model });
 
-    if (!bedrockModelId || !sharedEnv.LANGFUSE_AWS_BEDROCK_REGION) {
+    if (!modelConfig) {
       throw new InAppAgentRunInitError(
-        "Assistant Bedrock model is not configured",
+        "In-app agent Bedrock model is not configured",
       );
     }
+
+    const useBundledPrompt =
+      env.NODE_ENV === "development" || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
     const conversation = await prisma.inAppAgentConversation.findFirst({
       where: { id: run.conversationId, projectId, deletedAt: null },
@@ -444,11 +466,18 @@ export async function executeInAppAgentRun(params: {
           return flushPersistedRunEvents();
         },
         onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
-        onComplete: async () => {
+        onComplete: async (outcome) => {
           await flushPersistedRunEvents(
             interruptRequest
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }
-              : { status: InAppAgentRunStatus.SUCCEEDED },
+              : outcome?.truncatedByStepLimit
+                ? {
+                    status: InAppAgentRunStatus.SUCCEEDED,
+                    errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
+                    errorMessage:
+                      "The run reached the step limit before a final answer",
+                  }
+                : { status: InAppAgentRunStatus.SUCCEEDED },
           );
         },
         onAbort: async () => {
@@ -500,11 +529,8 @@ export async function executeInAppAgentRun(params: {
           await cleanupMcpApiKeyLogged();
           await sandboxState?.onTurnEnded();
         },
-        awsBedrock: {
-          region: sharedEnv.LANGFUSE_AWS_BEDROCK_REGION,
-          modelId: bedrockModelId,
-          ...(awsProfile ? { profile: awsProfile } : {}),
-        },
+        model: modelConfig,
+        ...(awsProfile ? { awsProfile } : {}),
         langfuseMcp: {
           url: getLangfuseMcpUrl(),
           publicKey: mcpApiKey.publicKey,
@@ -516,8 +542,10 @@ export async function executeInAppAgentRun(params: {
           projectId,
           isV4Enabled: access.v4BetaEnabled,
         },
-        langfuseClient: getInAppAgentPromptClient(),
-        useLocalPrompt: env.NODE_ENV === "development",
+        useLocalPrompt: useBundledPrompt,
+        ...(useBundledPrompt
+          ? {}
+          : { langfuseClient: getInAppAgentPromptClient() }),
         langfuseTracing: buildTracingConfig({
           aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
           projectId,
@@ -562,9 +590,12 @@ export async function executeInAppAgentRun(params: {
       }),
     });
     await cleanupMcpApiKeyLogged();
-
+    // Terminal persist succeeded; ACK so the job does not sit in the DLQ.
+    // Loop failures used to rethrow. Record the APM error without failing
+    // the BullMQ job. Init failures were already ACK'd and stay off
+    // Error Tracking.
     if (!(error instanceof InAppAgentRunInitError)) {
-      throw error;
+      traceException(error);
     }
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
