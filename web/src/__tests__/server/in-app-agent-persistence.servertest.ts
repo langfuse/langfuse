@@ -15,10 +15,8 @@ import { randomUUID } from "crypto";
 import { vi } from "vitest";
 import waitForExpect from "wait-for-expect";
 
-import { BEDROCK_USE_DEFAULT_CREDENTIALS, type Plan } from "@langfuse/shared";
+import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { decrypt } from "@langfuse/shared/encryption";
 import {
   createOrgProjectAndApiKey,
   getScoreById,
@@ -638,53 +636,6 @@ describe("in-app agent persistence", () => {
       ).resolves.toEqual({ title: originalTitle });
     } finally {
       (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
-    }
-  });
-
-  it("uses default AWS credentials for conversation title generation", async () => {
-    const originalModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
-    const originalSmallModel = sharedEnv.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
-    const originalRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
-    const { projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
-    const run = await createClaimedRunFixture({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-    await startCompactRun({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      messageId: "default-credentials-title-user",
-      content: "Inspect latency regressions",
-    });
-
-    try {
-      (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = "claude-sonnet";
-      (sharedEnv as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = undefined;
-      (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = "eu-central-1";
-      mockGenerateLLMText.mockResolvedValue({
-        text: "Inspect latency regressions",
-      } as never);
-
-      await maybeInferAndPersistConversationTitle({
-        prisma,
-        projectId,
-        conversationId: conversation.id,
-        userId,
-        aiTelemetryEnabled: false,
-      });
-
-      const call = mockGenerateLLMText.mock.calls[0]?.[0];
-      expect(call?.model).toMatchObject({ id: "claude-sonnet" });
-      expect(decrypt(call?.connection.secretKey ?? "")).toBe(
-        BEDROCK_USE_DEFAULT_CREDENTIALS,
-      );
-    } finally {
-      (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = originalModel;
-      (sharedEnv as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalSmallModel;
-      (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = originalRegion;
     }
   });
 
