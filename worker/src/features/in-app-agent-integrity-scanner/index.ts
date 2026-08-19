@@ -19,6 +19,13 @@ const LOCK_TTL_SECONDS = 120;
 
 // Bounds every query. Unsettled runs are a small working set; if we ever hit a
 // cap the count is reported as a floor and logged rather than silently trimmed.
+//
+// Neither scan is index-supported today: in_app_agent_runs is indexed on
+// (project_id, conversation_id, created_at) and a partial unique on
+// finished_at IS NULL, so filtering by status or by a lingering mcp_api_key_id
+// falls back to a sequential scan. That is cheap at current volume and the
+// 15-minute interval keeps it cheap, but it scales with the table rather than
+// with the finding count. Revisit with a partial index if run volume grows.
 const SCAN_LIMIT = 5_000;
 
 const UNSETTLED_STATUSES = [

@@ -656,10 +656,13 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  // Every deadline this reports against is 5 minutes or longer, so a faster
+  // sample adds nothing. It also keeps the cost down: both scans are currently
+  // unindexed, so they grow with the table.
   LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_INTERVAL_MS: z.coerce
     .number()
     .positive()
-    .default(60_000),
+    .default(900_000), // 15 minutes between runs
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()
