@@ -4,6 +4,7 @@ import {
   getLangfuseAITraceSinkParams,
   logger,
   redis,
+  traceException,
 } from "@langfuse/shared/src/server";
 import {
   createAndAddApiKeysToDb,
@@ -583,6 +584,17 @@ export async function executeInAppAgentRun(params: {
     });
     await cleanupMcpApiKeyLogged();
     // Terminal persist succeeded; ACK so the job does not sit in the DLQ.
+    // Loop failures used to rethrow (APM + WorkerManager failed). Keep the
+    // Datadog error on the processor span without failing the BullMQ job.
+    // Init failures were already ACK'd and stay off Error Tracking.
+    if (!(error instanceof InAppAgentRunInitError)) {
+      logger.error("In-app agent run failed", {
+        error,
+        projectId,
+        runId,
+      });
+      traceException(error);
+    }
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     activeRunAborts.delete(abortController);

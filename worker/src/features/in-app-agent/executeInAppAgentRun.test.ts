@@ -1,7 +1,15 @@
 import { randomUUID } from "crypto";
+import { Queue, Worker } from "bullmq";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createNewRedisInstance,
+  createOrgProjectAndApiKey,
+  getQueuePrefix,
+  logger,
+  QueueJobs,
+  redisQueueRetryOptions,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
@@ -67,6 +75,20 @@ const scenarioRef = vi.hoisted(() => ({
   titleInferenceCalls: 0,
   instanceEnabled: true,
 }));
+
+const observabilityRef = vi.hoisted(() => ({
+  traceException: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...actual,
+    traceException: (...args: unknown[]) =>
+      observabilityRef.traceException(...args),
+  };
+});
 
 vi.mock("./runtime/agent", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./runtime/agent")>();
@@ -253,6 +275,97 @@ const getRun = (projectId: string, runId: string) =>
 const getInAppAgentApiKeys = (projectId: string) =>
   prisma.apiKey.findMany({ where: { projectId, isInAppAgentKey: true } });
 
+/** Isolated queue + worker: first delivery fails (stall/DLQ), retry runs the handler. */
+async function withInAppAgentDlqRetry(
+  run: (ctx: {
+    enqueueAndFail: (params: {
+      projectId: string;
+      runId: string;
+    }) => Promise<void>;
+    retryFailedJobs: () => Promise<void>;
+    getFailedCount: () => Promise<number>;
+  }) => Promise<void>,
+) {
+  const redis = createNewRedisInstance({
+    enableOfflineQueue: false,
+    ...redisQueueRetryOptions,
+  });
+  if (!redis) throw new Error("Failed to create redis instance");
+
+  const queueName = `in-app-agent-dlq-retry-${randomUUID()}`;
+  const prefix = getQueuePrefix(queueName);
+  const queue = new Queue(queueName, {
+    connection: redis,
+    prefix,
+    defaultJobOptions: {
+      removeOnComplete: true,
+      removeOnFail: 100,
+      attempts: 1,
+    },
+  });
+
+  let failNext = true;
+  const worker = new Worker(
+    queueName,
+    async (job) => {
+      if (job.name !== QueueJobs.InAppAgentRunJob) return;
+      if (failNext) {
+        failNext = false;
+        throw new Error("job stalled more than allowable limit");
+      }
+      await executeInAppAgentRun(job.data.payload);
+    },
+    { connection: redis, prefix },
+  );
+
+  const waitForFailedCount = async (expected: number) => {
+    const deadline = Date.now() + 15_000;
+    while ((await queue.getFailedCount()) < expected) {
+      if (Date.now() > deadline) {
+        throw new Error(`Timed out waiting for ${expected} failed jobs`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  };
+
+  try {
+    await worker.waitUntilReady();
+    await run({
+      enqueueAndFail: async ({ projectId, runId }) => {
+        await queue.add(
+          QueueJobs.InAppAgentRunJob,
+          {
+            timestamp: new Date(),
+            id: randomUUID(),
+            name: QueueJobs.InAppAgentRunJob,
+            payload: { projectId, runId },
+          },
+          { jobId: runId },
+        );
+        await waitForFailedCount(1);
+      },
+      // Same contract as DlqRetryService: getFailed() then job.retry().
+      // Isolated queue so we do not retry other local failed jobs.
+      retryFailedJobs: async () => {
+        for (const job of await queue.getFailed()) {
+          // DlqRetryService reads payload.projectId before retry(); a missing
+          // field would skip this job (caught) and leave it in the failed set.
+          if (!job.data.payload.projectId) {
+            throw new Error("DLQ retry requires payload.projectId");
+          }
+          await job.retry();
+        }
+      },
+      getFailedCount: () => queue.getFailedCount(),
+    });
+  } finally {
+    await worker.close();
+    await queue.obliterate({ force: true });
+    await queue.close();
+    redis.disconnect();
+  }
+}
+
 /** A run resuming an approved tool call whose interrupt event is persisted on a parked parent run. */
 async function seedApprovedContinuation(opts?: {
   context?: Array<{ description: string; value: string }>;
@@ -317,6 +430,7 @@ describe("executeInAppAgentRun", () => {
     scenarioRef.titleInferenceCalls = 0;
     scenarioRef.instanceEnabled = true;
     scenarioRef.failFinishClaimedRun = false;
+    observabilityRef.traceException.mockClear();
   });
 
   it("does not regenerate the conversation title after executing a user-message run", async () => {
@@ -721,15 +835,32 @@ describe("executeInAppAgentRun", () => {
       throw new Error("persistence blew up");
     };
 
-    await expect(
-      executeInAppAgentRun({ projectId, runId: run.id }),
-    ).resolves.toBeUndefined();
+    const errorSpy = vi.spyOn(logger, "error");
 
-    const failed = await getRun(projectId, run.id);
-    expect(failed.status).toBe("FAILED");
-    expect(failed.errorCode).toBe("agent_error");
-    expect(failed.errorMessage).toBe("persistence blew up");
-    expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+    try {
+      await expect(
+        executeInAppAgentRun({ projectId, runId: run.id }),
+      ).resolves.toBeUndefined();
+
+      const failed = await getRun(projectId, run.id);
+      expect(failed.status).toBe("FAILED");
+      expect(failed.errorCode).toBe("agent_error");
+      expect(failed.errorMessage).toBe("persistence blew up");
+      expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+      expect(observabilityRef.traceException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "persistence blew up" }),
+      );
+      expect(errorSpy).toHaveBeenCalledWith(
+        "In-app agent run failed",
+        expect.objectContaining({
+          error: expect.objectContaining({ message: "persistence blew up" }),
+          projectId,
+          runId: run.id,
+        }),
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it("still fails the job when terminal persist throws", async () => {
@@ -837,6 +968,83 @@ describe("executeInAppAgentRun", () => {
     expect(unchanged.finishedAt?.toISOString()).toBe(finishedAt.toISOString());
   });
 
+  it("retries a stalled corpse into FAILED (worker_lost) and ACKs the BullMQ job", async () => {
+    const { projectId, run } = await seedBackgroundRun({ status: "RUNNING" });
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: run.id, projectId } },
+      data: {
+        claimedAt: twoMinutesAgo,
+        heartbeatAt: twoMinutesAgo,
+      },
+    });
+
+    scenarioRef.current = async () => {
+      throw new Error(
+        "agent loop must not start on DLQ retry of a stall corpse",
+      );
+    };
+
+    await withInAppAgentDlqRetry(
+      async ({ enqueueAndFail, retryFailedJobs, getFailedCount }) => {
+        await enqueueAndFail({ projectId, runId: run.id });
+        expect(await getFailedCount()).toBe(1);
+        expect((await getRun(projectId, run.id)).status).toBe("RUNNING");
+
+        await retryFailedJobs();
+
+        await vi.waitFor(async () => {
+          expect((await getRun(projectId, run.id)).status).toBe("FAILED");
+        });
+
+        const failed = await getRun(projectId, run.id);
+        expect(failed.errorCode).toBe("worker_lost");
+        expect(failed.finishedAt).not.toBeNull();
+        expect(await getFailedCount()).toBe(0);
+      },
+    );
+  }, 30_000);
+
+  it("retries an already-FAILED delivery without changing the row and ACKs the job", async () => {
+    const { projectId, run } = await seedBackgroundRun({ status: "FAILED" });
+    const finishedAt = new Date("2026-08-01T00:00:00.000Z");
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: run.id, projectId } },
+      data: {
+        finishedAt,
+        errorCode: "agent_error",
+        errorMessage: "already terminal",
+      },
+    });
+
+    scenarioRef.current = async () => {
+      throw new Error(
+        "agent loop must not start on DLQ retry of a terminal run",
+      );
+    };
+
+    await withInAppAgentDlqRetry(
+      async ({ enqueueAndFail, retryFailedJobs, getFailedCount }) => {
+        await enqueueAndFail({ projectId, runId: run.id });
+        expect(await getFailedCount()).toBe(1);
+
+        await retryFailedJobs();
+
+        await vi.waitFor(async () => {
+          expect(await getFailedCount()).toBe(0);
+        });
+
+        const unchanged = await getRun(projectId, run.id);
+        expect(unchanged.status).toBe("FAILED");
+        expect(unchanged.errorCode).toBe("agent_error");
+        expect(unchanged.errorMessage).toBe("already terminal");
+        expect(unchanged.finishedAt?.toISOString()).toBe(
+          finishedAt.toISOString(),
+        );
+      },
+    );
+  }, 30_000);
+
   it("fails revalidation at claim as FAILED (init_failed) when AI features are disabled", async () => {
     const { projectId, run } = await seedBackgroundRun({
       aiFeaturesEnabled: false,
@@ -852,6 +1060,7 @@ describe("executeInAppAgentRun", () => {
     expect(failed.status).toBe("FAILED");
     expect(failed.errorCode).toBe("init_failed");
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+    expect(observabilityRef.traceException).not.toHaveBeenCalled();
   });
 
   it("fails revalidation at claim as FAILED (init_failed) when in-app agent is instance-disabled", async () => {
