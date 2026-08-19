@@ -11,7 +11,7 @@ import {
 // flex-basis/min-height only, so the component never measures its container
 // (charts must stay a pure function of their box — see BarListChartArea).
 const MAX_ROW_PX = 56;
-const MIN_ROW_PX = 16;
+const MIN_ROW_PX = 20;
 const ROW_GAP_PX = 1;
 
 const CopyDimensionButton: React.FC<{ value: string }> = ({ value }) => {

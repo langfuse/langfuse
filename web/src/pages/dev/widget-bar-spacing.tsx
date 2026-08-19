@@ -208,7 +208,7 @@ const TopList: React.FC<{
   availableHeightPx: number;
   minRowPx?: number;
   maxRowPx?: number;
-}> = ({ rows, availableHeightPx, minRowPx = 16, maxRowPx = 56 }) => {
+}> = ({ rows, availableHeightPx, minRowPx = 20, maxRowPx = 56 }) => {
   const GAP = 1;
   const max = Math.max(...rows.map((r) => r.value), 1);
   const fit = (availableHeightPx - GAP * (rows.length - 1)) / rows.length;
@@ -392,7 +392,7 @@ export default function WidgetBarSpacingTestPage() {
       key: "top-list",
       title: "F · Top list",
       subtitle:
-        "value left, label on bar; rows grow to max 56px, min 16px; hover row to copy name",
+        "value left, label on bar; rows grow to max 56px, min 20px; hover row to copy name",
       render: (rows) => (
         <TopList rows={rows} availableHeightPx={chartAreaHeight} />
       ),
