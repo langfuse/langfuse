@@ -160,7 +160,14 @@ export const events = {
     "delete_form_open",
     "delete_template_button_click",
   ],
-  evaluators: ["create", "update", "delete", "test", "default_model_update"],
+  evaluators: [
+    "create",
+    "update",
+    "delete",
+    "test",
+    "default_model_update",
+    "reactivate",
+  ],
   evaluation_rules: [
     "create",
     "update",

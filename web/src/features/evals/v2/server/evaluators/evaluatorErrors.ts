@@ -16,3 +16,6 @@ export class EvaluatorConfigurationError extends BaseError {
     super("EvaluatorConfigurationError", 412, message, true);
   }
 }
+
+/** A structurally valid evaluator whose LLM model cannot currently resolve. */
+export class EvaluatorModelConfigurationError extends EvaluatorConfigurationError {}

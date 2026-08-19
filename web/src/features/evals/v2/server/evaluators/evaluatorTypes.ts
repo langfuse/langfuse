@@ -158,6 +158,7 @@ export const EvaluatorOptionsSchema = z.object({
   projectId: z.string(),
   search: z.string().trim().max(200).optional(),
   limit: paginationLimitZod.optional().default(50),
+  excludeLegacyEvaluators: z.boolean().optional().default(false),
 });
 
 export const SuggestEvaluatorNameSchema = z.object({

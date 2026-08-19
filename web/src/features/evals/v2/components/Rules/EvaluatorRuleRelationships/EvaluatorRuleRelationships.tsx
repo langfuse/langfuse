@@ -331,10 +331,10 @@ export function EvaluatorRuleRelationshipsSheet({
                               },
                             ]
                           : [],
-                      title: "Attach evaluator?",
+                      title: "Attach evaluator to rule",
                       description:
                         "This rule is active. Based on matching observations from the last seven days and the latest evaluator test call:",
-                      confirmLabel: "Attach evaluator",
+                      confirmLabel: "Attach evaluator to rule",
                       onConfirm: async (sampling) => {
                         if (
                           sampling !== undefined &&

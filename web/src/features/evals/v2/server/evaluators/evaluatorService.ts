@@ -3,6 +3,8 @@ import { z } from "zod";
 import {
   EvalTemplateType,
   type FilterState,
+  getBlockReasonForInvalidModelConfig,
+  getEvaluatorBlockMetadata,
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
@@ -18,6 +20,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
+import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import type {
   CreateEvaluatorInput,
   DeleteEvaluatorsInput,
@@ -31,6 +34,11 @@ import {
 } from "./evaluatorTypes";
 import { testEvaluator as executeEvaluatorTest } from "./testEvaluator";
 import * as repository from "./evaluatorRepository";
+import {
+  EvaluatorConfigurationError,
+  EvaluatorModelConfigurationError,
+  EvaluatorVersionConflictError,
+} from "./evaluatorErrors";
 import {
   assertCompleteEvaluatorVariableMapping,
   assertEvaluatorConfigurationValid,
@@ -90,7 +98,12 @@ export class EvaluatorService {
   }
 
   /** Name-searchable projection with the latest version, for pickers. */
-  listOptions(params: { projectId: string; search?: string; limit: number }) {
+  listOptions(params: {
+    projectId: string;
+    search?: string;
+    limit: number;
+    excludeLegacyEvaluators: boolean;
+  }) {
     return repository.listEvaluatorOptions({
       prisma: this.prisma,
       ...params,
@@ -180,10 +193,15 @@ export class EvaluatorService {
   }
 
   async create(input: CreateEvaluatorInput, createdByUserId: string | null) {
-    await assertEvaluatorConfigurationValid(input);
+    const block = await validateEvaluatorForPersistence(input);
     const evaluator = await this.prisma
       .$transaction((prisma) =>
-        repository.createEvaluator({ prisma, input, createdByUserId }),
+        repository.createEvaluator({
+          prisma,
+          input,
+          createdByUserId,
+          block,
+        }),
       )
       .catch((error) => {
         // Callers may pre-generate the id so test runs can be attributed
@@ -213,7 +231,7 @@ export class EvaluatorService {
     input: CreateEvaluatorInput,
     createdByUserId: string | null,
   ) {
-    await assertEvaluatorConfigurationValid(input);
+    const block = await validateEvaluatorForPersistence(input);
     const result = await this.prisma.$transaction(async (prisma) => {
       const matches = await repository.findEvaluatorsByName({
         prisma,
@@ -234,6 +252,7 @@ export class EvaluatorService {
             prisma,
             input,
             createdByUserId,
+            block,
           }),
         };
       }
@@ -254,6 +273,7 @@ export class EvaluatorService {
           },
           createdByUserId,
           forceNewVersion: true,
+          block,
         }),
       };
     });
@@ -270,13 +290,14 @@ export class EvaluatorService {
     createdByUserId: string | null,
     options?: { forceNewVersion?: boolean },
   ) {
-    await assertEvaluatorConfigurationValid(input);
+    const block = await validateEvaluatorForPersistence(input);
     const evaluator = await this.prisma.$transaction((tx) =>
       updateEvaluator({
         tx,
         input,
         createdByUserId,
         forceNewVersion: options?.forceNewVersion ?? false,
+        block,
       }),
     );
     await this.audit({
@@ -285,6 +306,90 @@ export class EvaluatorService {
       evaluatorId: evaluator.id,
     });
     return evaluator;
+  }
+
+  async reactivate(params: { projectId: string; evaluatorId: string }) {
+    const { projectId, evaluatorId } = params;
+    const evaluator = await repository.findEvaluator({
+      prisma: this.prisma,
+      projectId,
+      evaluatorId,
+    });
+    if (!evaluator) throw new LangfuseNotFoundError("Evaluator not found");
+    if (!evaluator.blockedAt) return evaluator;
+
+    const version = evaluator.versions[0];
+    if (!version)
+      throw new LangfuseNotFoundError("Evaluator version not found");
+    const definition = toEvaluatorDefinition(evaluator.type, version);
+    if (definition.type !== EvalTemplateType.LLM_AS_JUDGE) {
+      throw new EvaluatorConfigurationError(
+        "Only LLM evaluators can be reactivated with a model test.",
+      );
+    }
+    const error = await getEvaluatorDefinitionPreflightError({
+      projectId,
+      template: {
+        name: evaluator.name,
+        type: definition.type,
+        provider: definition.provider,
+        model: definition.model,
+        modelParams: definition.modelParams,
+        outputDefinition: definition.outputDefinition,
+      },
+    });
+    if (error) {
+      const reason = getBlockReasonForInvalidModelConfig({
+        templateProvider: definition.provider,
+        templateModel: definition.model,
+        error,
+      });
+      await this.prisma.$transaction(async (tx) => {
+        const current = await repository.findEvaluator({
+          prisma: tx,
+          projectId,
+          evaluatorId,
+        });
+        if (!current) throw new LangfuseNotFoundError("Evaluator not found");
+        if (current.versions[0]?.id !== version.id) {
+          throw new EvaluatorVersionConflictError();
+        }
+        await repository.blockEvaluator({
+          tx,
+          projectId,
+          evaluatorId,
+          reason,
+          message: getEvaluatorBlockMetadata(reason).message,
+        });
+      });
+      await invalidateProjectEvalConfigCaches(projectId);
+      await this.audit({ action: "update", projectId, evaluatorId });
+      throw new EvaluatorModelConfigurationError(error);
+    }
+
+    const reactivated = await this.prisma.$transaction(async (tx) => {
+      const current = await repository.findEvaluator({
+        prisma: tx,
+        projectId,
+        evaluatorId,
+      });
+      if (!current) throw new LangfuseNotFoundError("Evaluator not found");
+      if (current.versions[0]?.id !== version.id) {
+        throw new EvaluatorVersionConflictError();
+      }
+      await repository.unblockEvaluator({ tx, projectId, evaluatorId });
+      const updated = await repository.findEvaluator({
+        prisma: tx,
+        projectId,
+        evaluatorId,
+      });
+      if (!updated) throw new LangfuseNotFoundError("Evaluator not found");
+      return updated;
+    });
+
+    await invalidateProjectEvalConfigCaches(projectId);
+    await this.audit({ action: "update", projectId, evaluatorId });
+    return reactivated;
   }
 
   async delete(projectId: string, evaluatorId: string) {
@@ -387,6 +492,7 @@ async function updateEvaluator(params: {
   input: UpdateEvaluatorInput;
   createdByUserId: string | null;
   forceNewVersion: boolean;
+  block: Awaited<ReturnType<typeof validateEvaluatorForPersistence>>;
 }) {
   const { tx, input, createdByUserId } = params;
   const current = await repository.findEvaluator({
@@ -444,6 +550,15 @@ async function updateEvaluator(params: {
     });
   }
 
+  if (params.block) {
+    await repository.blockEvaluator({
+      tx,
+      projectId: input.projectId,
+      evaluatorId: input.evaluatorId,
+      ...params.block,
+    });
+  }
+
   const updated = await repository.findEvaluator({
     prisma: tx,
     projectId: input.projectId,
@@ -451,6 +566,29 @@ async function updateEvaluator(params: {
   });
   if (!updated) throw new LangfuseNotFoundError("Evaluator not found");
   return updated;
+}
+
+async function validateEvaluatorForPersistence(
+  input: CreateEvaluatorInput | UpdateEvaluatorInput,
+) {
+  try {
+    await assertEvaluatorConfigurationValid(input);
+    return null;
+  } catch (error) {
+    if (
+      input.definition.type !== EvalTemplateType.LLM_AS_JUDGE ||
+      !(error instanceof EvaluatorModelConfigurationError)
+    ) {
+      throw error;
+    }
+
+    const reason = getBlockReasonForInvalidModelConfig({
+      templateProvider: input.definition.provider,
+      templateModel: input.definition.model,
+      error: error.message,
+    });
+    return { reason, message: getEvaluatorBlockMetadata(reason).message };
+  }
 }
 
 export function toEvaluatorDefinition(

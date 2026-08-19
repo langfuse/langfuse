@@ -24,7 +24,8 @@ import {
   type BatchEvaluator,
 } from "./EvaluatorSelectionStep";
 import { ConfirmationStep } from "./ConfirmationStep";
-import { buildQueryWithSelectedIds } from "./utils";
+import { buildQueryWithSelectedIds, getCreateEvaluatorHref } from "./utils";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 
 type RunEvaluationDialogProps = {
   projectId: string;
@@ -62,12 +63,14 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     BatchEvaluator[]
   >([]);
   const [evaluatorSearchQuery, setEvaluatorSearchQuery] = useState("");
+  const forceV3Experience = useForceV3Experience(projectId);
 
   // Unsearched: `EvaluatorSelectionStep` filters the list client-side, the
   // same way the overview does, so typing does not refetch.
   const evaluatorsQuery = api.evalsV2.options.useQuery({
     projectId,
     limit: BATCH_EVALUATOR_LIMIT,
+    excludeLegacyEvaluators: true,
   });
 
   const runEvaluationMutation =
@@ -220,7 +223,10 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 evaluatorSearchQuery={evaluatorSearchQuery}
                 onSearchQueryChange={setEvaluatorSearchQuery}
                 onToggleEvaluator={toggleEvaluatorSelection}
-                createEvaluatorHref={`/project/${projectId}/evals?gallery=open`}
+                createEvaluatorHref={getCreateEvaluatorHref({
+                  projectId,
+                  forceV3Experience,
+                })}
               />
             ) : (
               <ConfirmationStep

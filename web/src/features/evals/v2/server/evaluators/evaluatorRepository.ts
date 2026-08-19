@@ -2,6 +2,7 @@ import {
   EvalTemplateType,
   Prisma,
   type PrismaClient,
+  type EvaluatorBlockReason,
 } from "@langfuse/shared/src/db";
 import type {
   CreateEvaluatorInput,
@@ -9,7 +10,7 @@ import type {
 } from "./evaluatorTypes";
 import { EvaluatorVersionConflictError } from "./evaluatorErrors";
 import { setRuleStatus } from "../rules/ruleRepository";
-import type { FilterState } from "@langfuse/shared";
+import { EvalTargetObject, type FilterState } from "@langfuse/shared";
 import {
   compilePrismaFilters,
   stringFilterToPrisma,
@@ -24,6 +25,20 @@ const latestVersion = {
   orderBy: { version: "desc" as const },
   take: 1,
 };
+
+export const batchEligibleEvaluatorWhere = {
+  // Trace/dataset assignments carry rule-specific mappings that an
+  // observation batch cannot resolve when it addresses the evaluator alone.
+  assignments: {
+    none: {
+      evaluationRule: {
+        targetObject: {
+          in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
+        },
+      },
+    },
+  },
+} satisfies Prisma.EvaluatorWhereInput;
 
 function versionData(
   definition: EvaluatorDefinition,
@@ -227,6 +242,7 @@ export async function listEvaluatorOptions(params: {
   projectId: string;
   search?: string;
   limit: number;
+  excludeLegacyEvaluators?: boolean;
 }) {
   const evaluators = await params.prisma.evaluator.findMany({
     where: {
@@ -234,6 +250,7 @@ export async function listEvaluatorOptions(params: {
       ...(params.search
         ? { name: { contains: params.search, mode: "insensitive" } }
         : {}),
+      ...(params.excludeLegacyEvaluators ? batchEligibleEvaluatorWhere : {}),
     },
     orderBy: [{ name: "asc" }, { id: "asc" }],
     take: params.limit,
@@ -336,6 +353,7 @@ export function createEvaluator(params: {
   prisma: PrismaClient | PrismaTransaction;
   input: CreateEvaluatorInput;
   createdByUserId: string | null;
+  block?: { reason: EvaluatorBlockReason; message: string } | null;
 }) {
   return params.prisma.evaluator.create({
     data: {
@@ -345,6 +363,13 @@ export function createEvaluator(params: {
       description: params.input.description,
       type: params.input.definition.type,
       createdByUserId: params.createdByUserId,
+      ...(params.block
+        ? {
+            blockedAt: new Date(),
+            blockReason: params.block.reason,
+            blockMessage: params.block.message,
+          }
+        : {}),
       versions: {
         create: {
           version: 1,
@@ -353,6 +378,38 @@ export function createEvaluator(params: {
       },
     },
     include: { versions: latestVersion },
+  });
+}
+
+export function blockEvaluator(params: {
+  tx: PrismaTransaction;
+  projectId: string;
+  evaluatorId: string;
+  reason: EvaluatorBlockReason;
+  message: string;
+}) {
+  return params.tx.evaluator.update({
+    where: { id: params.evaluatorId, projectId: params.projectId },
+    data: {
+      blockedAt: new Date(),
+      blockReason: params.reason,
+      blockMessage: params.message,
+    },
+  });
+}
+
+export function unblockEvaluator(params: {
+  tx: PrismaTransaction;
+  projectId: string;
+  evaluatorId: string;
+}) {
+  return params.tx.evaluator.update({
+    where: { id: params.evaluatorId, projectId: params.projectId },
+    data: {
+      blockedAt: null,
+      blockReason: null,
+      blockMessage: null,
+    },
   });
 }
 

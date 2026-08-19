@@ -28,6 +28,7 @@ import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
@@ -45,6 +46,7 @@ import { useProject } from "@/src/features/projects/hooks";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type InitialEvaluator = {
   id: string;
@@ -86,6 +88,10 @@ export function EvaluatorSetupPage(
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const canReactivate = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:CUD",
+  });
   const [evaluatorSetupStore] = useState(() =>
     createEvaluatorSetupStore({
       initialEvaluator: initialEvaluator ?? initialDraft,
@@ -180,6 +186,24 @@ export function EvaluatorSetupPage(
 
   const create = api.evalsV2.create.useMutation();
   const update = api.evalsV2.update.useMutation();
+  const reactivate = api.evalsV2.reactivate.useMutation({
+    onSuccess: async () => {
+      showSuccessToast({
+        title: "Evaluator reactivated",
+        description:
+          "The model test succeeded and the evaluator is active again.",
+      });
+      if (initialEvaluator) {
+        await utils.evalsV2.get.invalidate({
+          projectId,
+          evaluatorId: initialEvaluator.id,
+        });
+      }
+    },
+    onError: (error) => {
+      showErrorToast("Reactivation failed", error.message);
+    },
+  });
   const deleteEvaluator = api.evalsV2.delete.useMutation({
     onError: trpcErrorToast,
     onSuccess: async () => {
@@ -459,6 +483,18 @@ export function EvaluatorSetupPage(
               blockedAt={initialEvaluator.blockedAt}
               blockReason={initialEvaluator.blockReason}
               blockMessage={initialEvaluator.blockMessage}
+              canReactivate={canReactivate}
+              reactivationPending={reactivate.isPending}
+              onReactivate={() => {
+                capture("evaluators:reactivate", {
+                  blockReason:
+                    initialEvaluator.blockReason ?? "EVAL_MODEL_CONFIG_INVALID",
+                });
+                reactivate.mutate({
+                  projectId,
+                  evaluatorId: initialEvaluator.id,
+                });
+              }}
             />
           </div>
         ) : null}

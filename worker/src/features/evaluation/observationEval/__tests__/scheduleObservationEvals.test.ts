@@ -621,11 +621,17 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation: createMockObservation(),
-        configs: [createMockRule({ id: "evaluator-1", ruleId: null })],
+        configs: [createMockRule({ id: "rule-1", ruleId: null })],
         schedulerDeps,
         executionMode: "MANUAL",
       });
 
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobConfigurationId: "rule-1",
+          jobTemplateId: "evaluator-1",
+        }),
+      );
       const payload = vi.mocked(schedulerDeps.enqueueEvalJob).mock.calls[0]![0];
       expect(payload).toMatchObject({ evaluatorId: "evaluator-1" });
       expect(payload).not.toHaveProperty("evaluationRuleId");

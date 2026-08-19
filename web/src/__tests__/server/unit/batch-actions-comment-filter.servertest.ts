@@ -91,7 +91,10 @@ const session = {
   },
 } as Session;
 
-function prepare({ v4BetaEnabled = false } = {}) {
+function prepare({
+  v4BetaEnabled = false,
+  foundEvaluatorIds = [evaluatorId],
+} = {}) {
   const batchActionCreate = vi
     .fn()
     .mockResolvedValue({ id: "batch-action-id" });
@@ -104,7 +107,7 @@ function prepare({ v4BetaEnabled = false } = {}) {
       findMany: vi.fn(async () => [{ id: evaluatorId }]),
     },
     evaluator: {
-      findMany: vi.fn(async () => [{ id: evaluatorId }]),
+      findMany: vi.fn(async () => foundEvaluatorIds.map((id) => ({ id }))),
     },
   } as unknown as PrismaClient;
   const ctx = {
@@ -260,7 +263,17 @@ describe("batched evaluation version selection", () => {
     });
 
     expect(context.prisma.evaluator.findMany).toHaveBeenCalledWith({
-      where: { id: { in: [evaluatorId] }, projectId },
+      where: {
+        id: { in: [evaluatorId] },
+        projectId,
+        assignments: {
+          none: {
+            evaluationRule: {
+              targetObject: { in: ["trace", "dataset"] },
+            },
+          },
+        },
+      },
       select: { id: true },
     });
     expect(context.prisma.jobConfiguration.findMany).not.toHaveBeenCalled();
@@ -287,5 +300,28 @@ describe("batched evaluation version selection", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
     expect(context.prisma.evaluator.findMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects legacy-backed evaluators that are not batch eligible", async () => {
+    const context = prepare({
+      v4BetaEnabled: true,
+      foundEvaluatorIds: [],
+    });
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: [evaluatorId],
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evalVersion: "v2",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: `Evaluators [${evaluatorId}] are missing or incompatible with batch evaluation.`,
+    });
+
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
+    expect(mocks.queueAdd).not.toHaveBeenCalled();
   });
 });

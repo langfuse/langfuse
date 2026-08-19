@@ -18,12 +18,15 @@ const mocks = vi.hoisted(() => {
     getEventsStreamForEval: vi.fn(emptyStream),
     getObservationStream: vi.fn(emptyStream),
     findEvaluationRules: vi.fn(),
+    findEvaluators: vi.fn(),
+    processBatchedObservationEval: vi.fn().mockResolvedValue(undefined),
   };
 });
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     evaluationRule: { findMany: mocks.findEvaluationRules },
+    evaluator: { findMany: mocks.findEvaluators },
     batchAction: { update: vi.fn().mockResolvedValue(undefined) },
   },
 }));
@@ -52,7 +55,7 @@ vi.mock("../features/batchAction/processAddObservationsToDataset", () => ({
 }));
 
 vi.mock("../features/batchAction/processBatchedObservationEval", () => ({
-  processBatchedObservationEval: vi.fn().mockResolvedValue(undefined),
+  processBatchedObservationEval: mocks.processBatchedObservationEval,
 }));
 
 import { prisma } from "@langfuse/shared/src/db";
@@ -183,4 +186,60 @@ describe("event batch-action comment filter wiring", () => {
       );
     },
   );
+
+  it("anchors v2 batch executions to an associated rule when available", async () => {
+    mocks.findEvaluators.mockResolvedValue([
+      {
+        id: "evaluator-with-rule",
+        name: "Evaluator with rule",
+        projectId: "project-1",
+        type: "LLM_AS_JUDGE",
+        blockedAt: null,
+        versions: [{ id: "version-1", variableMapping: [] }],
+        assignments: [{ evaluationRuleId: "rule-1" }],
+      },
+      {
+        id: "standalone-evaluator",
+        name: "Standalone evaluator",
+        projectId: "project-1",
+        type: "LLM_AS_JUDGE",
+        blockedAt: null,
+        versions: [{ id: "version-2", variableMapping: [] }],
+        assignments: [],
+      },
+    ]);
+
+    await runBatchAction({
+      ...createPayload("observation-run-batched-evaluation"),
+      evaluatorIds: ["evaluator-with-rule", "standalone-evaluator"],
+      evalVersion: "v2",
+    });
+
+    expect(mocks.findEvaluators).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          assignments: {
+            where: { projectId: "project-1" },
+            orderBy: { evaluationRuleId: "asc" },
+            take: 1,
+            select: { evaluationRuleId: true },
+          },
+        }),
+      }),
+    );
+    expect(mocks.processBatchedObservationEval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluators: [
+          expect.objectContaining({
+            id: "rule-1",
+            ruleId: null,
+          }),
+          expect.objectContaining({
+            id: "standalone-evaluator",
+            ruleId: null,
+          }),
+        ],
+      }),
+    );
+  });
 });

@@ -580,6 +580,39 @@ describe("evaluator v2 repository", () => {
         },
       ]);
     });
+
+    it("excludes evaluators attached to legacy rules when requested", async () => {
+      const [standalone, legacy] = await Promise.all([
+        createEvaluator({ name: "Standalone batch evaluator" }),
+        createEvaluator({ name: "Legacy trace evaluator" }),
+      ]);
+      await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Legacy trace rule",
+          status: "ACTIVE",
+          targetObject: "trace",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: {
+              projectId,
+              evaluatorId: legacy.id,
+            },
+          },
+        },
+      });
+
+      await expect(
+        evaluatorRepository.listEvaluatorOptions({
+          prisma,
+          projectId,
+          limit: 50,
+          excludeLegacyEvaluators: true,
+        }),
+      ).resolves.toEqual([expect.objectContaining({ id: standalone.id })]);
+    });
   });
 
   describe("findEvaluator", () => {

@@ -10,7 +10,10 @@ import {
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
 import { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json-path-compatibility";
-import { EvaluatorConfigurationError } from "./evaluatorErrors";
+import {
+  EvaluatorConfigurationError,
+  EvaluatorModelConfigurationError,
+} from "./evaluatorErrors";
 import type { EvaluatorDefinition } from "./evaluatorTypes";
 
 export function assertEvaluatorVariablesMatchPrompt(params: {
@@ -125,5 +128,5 @@ export async function assertEvaluatorConfigurationValid(params: {
       outputDefinition: params.definition.outputDefinition,
     },
   });
-  if (error) throw new EvaluatorConfigurationError(error);
+  if (error) throw new EvaluatorModelConfigurationError(error);
 }
