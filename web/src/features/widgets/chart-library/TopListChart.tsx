@@ -11,7 +11,7 @@ import {
 // flex-basis/min-height only, so the component never measures its container
 // (charts must stay a pure function of their box — see BarListChartArea).
 const MAX_ROW_PX = 56;
-const MIN_ROW_PX = 32;
+const MIN_ROW_PX = 16;
 const ROW_GAP_PX = 4;
 
 const CopyDimensionButton: React.FC<{ value: string }> = ({ value }) => {
@@ -79,14 +79,16 @@ export const TopListChart: React.FC<ChartProps> = ({
 
   return (
     <div
-      className="flex h-full min-h-0 w-full flex-col overflow-x-hidden overflow-y-auto"
+      // :has() dims every row except the hovered one, so the hovered row (and
+      // its copy affordance) reads as the single focused item.
+      className="flex h-full min-h-0 w-full flex-col overflow-x-hidden overflow-y-auto [&:has(>div:hover)>div:not(:hover)]:opacity-40"
       style={{ gap: ROW_GAP_PX }}
       data-testid="top-list-chart"
     >
       {rows.map((row, i) => (
         <div
           key={`${row.dimension}-${i}`}
-          className="group flex items-center gap-2"
+          className="group hover:bg-accent/60 flex items-center gap-2 rounded-sm transition-opacity"
           style={{
             flex: `0 1 ${MAX_ROW_PX}px`,
             minHeight: MIN_ROW_PX,

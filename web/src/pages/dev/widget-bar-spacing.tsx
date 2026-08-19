@@ -208,7 +208,7 @@ const TopList: React.FC<{
   availableHeightPx: number;
   minRowPx?: number;
   maxRowPx?: number;
-}> = ({ rows, availableHeightPx, minRowPx = 32, maxRowPx = 56 }) => {
+}> = ({ rows, availableHeightPx, minRowPx = 16, maxRowPx = 56 }) => {
   const GAP = 4;
   const max = Math.max(...rows.map((r) => r.value), 1);
   const fit = (availableHeightPx - GAP * (rows.length - 1)) / rows.length;
@@ -217,13 +217,13 @@ const TopList: React.FC<{
     toFullMetricString(formatMetric(value, { style: "compact" }));
   return (
     <div
-      className="flex h-full min-h-0 flex-col overflow-y-auto"
+      className="flex h-full min-h-0 flex-col overflow-y-auto [&:has(>div:hover)>div:not(:hover)]:opacity-40"
       style={{ gap: GAP }}
     >
       {rows.map((r) => (
         <div
           key={r.name}
-          className="group flex shrink-0 items-center gap-2"
+          className="group hover:bg-accent/60 flex shrink-0 items-center gap-2 rounded-sm transition-opacity"
           style={{ height: rowH }}
         >
           <div className="w-14 shrink-0 text-right text-sm font-bold tabular-nums">
@@ -392,7 +392,7 @@ export default function WidgetBarSpacingTestPage() {
       key: "top-list",
       title: "F · Top list",
       subtitle:
-        "value left, label on bar; rows grow to max 56px, min 32px; hover row to copy name",
+        "value left, label on bar; rows grow to max 56px, min 16px; hover row to copy name",
       render: (rows) => (
         <TopList rows={rows} availableHeightPx={chartAreaHeight} />
       ),
