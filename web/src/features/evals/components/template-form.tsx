@@ -318,13 +318,6 @@ export const InnerEvalTemplateForm = (props: {
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
   const isBooleanOutput = scoreDataType === ScoreDataTypeEnum.BOOLEAN;
   const shouldAllowMultipleMatches = form.watch("shouldAllowMultipleMatches");
-  const categoriesError = form.formState.errors.categories;
-  const categoriesErrorMessage =
-    typeof categoriesError?.message === "string"
-      ? categoriesError.message
-      : typeof categoriesError?.root?.message === "string"
-        ? categoriesError.root.message
-        : undefined;
 
   const applyDefaultOutputDefinitionCopy = (params: {
     scoreDataType:
@@ -915,11 +908,7 @@ export const InnerEvalTemplateForm = (props: {
                           </FormItem>
                         )}
                       />
-                      {categoriesErrorMessage ? (
-                        <p className="text-destructive text-sm font-bold">
-                          {categoriesErrorMessage}
-                        </p>
-                      ) : null}
+                      <FormMessage />
                     </FormItem>
                   )}
                 />

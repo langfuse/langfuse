@@ -140,15 +140,39 @@ const FormDescription = React.forwardRef<
 });
 FormDescription.displayName = "FormDescription";
 
+/**
+ * Zod 4 + react-hook-form nest array-level errors on `root` and item errors
+ * on numeric keys. `error.message` is then undefined, so FormMessage used to
+ * render nothing even though the field was invalid.
+ */
+function getFieldErrorMessage(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const record = error as Record<string, unknown>;
+  if (typeof record.message === "string" && record.message.length > 0) {
+    return record.message;
+  }
+  const root = record.root;
+  if (root && typeof root === "object") {
+    const rootMessage = getFieldErrorMessage(root);
+    if (rootMessage) return rootMessage;
+  }
+  for (const key of Object.keys(record)) {
+    // `ref` is RHF metadata. `type` is metadata when it is a string, but a
+    // nested object when a union/discriminated path is named `type`.
+    if (key === "ref" || key === "message" || key === "root") continue;
+    if (key === "type" && typeof record[key] !== "object") continue;
+    const found = getFieldErrorMessage(record[key]);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 const FormMessage = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, children, ...props }, ref) => {
   const { error, formMessageId } = useFormField();
-  const body =
-    typeof error?.message === "string" && error.message.length > 0
-      ? error.message
-      : children;
+  const body = getFieldErrorMessage(error) ?? children;
 
   if (!body) {
     return null;
