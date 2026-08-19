@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
 
@@ -823,13 +824,24 @@ describe("executeInAppAgentRun", () => {
   });
 
   it("reconciles a stale RUNNING delivery and acknowledges without starting the agent loop", async () => {
-    const { projectId, run } = await seedBackgroundRun({ status: "RUNNING" });
+    const { projectId, run, user } = await seedBackgroundRun({
+      status: "RUNNING",
+    });
     const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
+    const key = await createAndAddApiKeysToDb({
+      prisma,
+      entityId: projectId,
+      scope: "PROJECT",
+      note: "stale-run mcp key",
+      isInAppAgentKey: true,
+      createdByUserId: user.id,
+    });
     await prisma.inAppAgentRun.update({
       where: { id_projectId: { id: run.id, projectId } },
       data: {
         claimedAt: twoMinutesAgo,
         heartbeatAt: twoMinutesAgo,
+        mcpApiKeyId: key.id,
       },
     });
 
@@ -847,6 +859,59 @@ describe("executeInAppAgentRun", () => {
     expect(failed.status).toBe("FAILED");
     expect(failed.errorCode).toBe("worker_lost");
     expect(failed.finishedAt).not.toBeNull();
+    expect(failed.mcpApiKeyId).toBeNull();
+    expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+  });
+
+  it("clears the MCP pointer on claim-miss even when the key row is already gone", async () => {
+    const { projectId, run, user } = await seedBackgroundRun({
+      status: "RUNNING",
+    });
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
+    const key = await createAndAddApiKeysToDb({
+      prisma,
+      entityId: projectId,
+      scope: "PROJECT",
+      note: "already-deleted mcp key",
+      isInAppAgentKey: true,
+      createdByUserId: user.id,
+    });
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: run.id, projectId } },
+      data: {
+        claimedAt: twoMinutesAgo,
+        heartbeatAt: twoMinutesAgo,
+        mcpApiKeyId: key.id,
+      },
+    });
+    await prisma.apiKey.delete({ where: { id: key.id } });
+
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
+    scenarioRef.current = async () => {
+      throw new Error(
+        "agent loop must not start on stale unclaimable delivery",
+      );
+    };
+
+    try {
+      await expect(
+        executeInAppAgentRun({ projectId, runId: run.id }),
+      ).resolves.toBeUndefined();
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    const failed = await getRun(projectId, run.id);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.errorCode).toBe("worker_lost");
+    expect(failed.mcpApiKeyId).toBeNull();
+    expect(
+      errorSpy.mock.calls.filter(([message]) =>
+        String(message).includes(
+          "Failed to clean up in-app agent MCP key on reconcile",
+        ),
+      ),
+    ).toHaveLength(0);
   });
 
   it("acknowledges delivery against an already-FAILED run without changing it", async () => {
