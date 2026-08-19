@@ -22,7 +22,7 @@ export async function assertInAppAgentAvailable({
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      "Assistant is not enabled on this instance.",
+      "In-app agent is not enabled on this instance.",
       true,
     );
   }

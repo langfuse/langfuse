@@ -4,7 +4,7 @@ import { BotMessageSquare } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import {
-  useCanUseInAppAgent,
+  useIsInAppAgentVisible,
   useInAppAiAgent,
   type InAppAgentEntryPoint,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
@@ -24,7 +24,7 @@ export const InAppAiAgentButton = ({
   prominent?: boolean;
 } = {}) => {
   const { open, setOpen, openAssistant, attentionCount } = useInAppAiAgent();
-  const canUseAssistant = useCanUseInAppAgent();
+  const isInAppAgentVisible = useIsInAppAgentVisible();
 
   const toggleAssistant = useCallback(
     (source: InAppAgentEntryPoint) => {
@@ -39,7 +39,7 @@ export const InAppAiAgentButton = ({
   );
 
   useEffect(() => {
-    if (!canUseAssistant) {
+    if (!isInAppAgentVisible) {
       return;
     }
 
@@ -60,9 +60,9 @@ export const InAppAiAgentButton = ({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [canUseAssistant, toggleAssistant]);
+  }, [isInAppAgentVisible, toggleAssistant]);
 
-  if (!canUseAssistant) {
+  if (!isInAppAgentVisible) {
     return null;
   }
 

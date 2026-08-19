@@ -1,4 +1,4 @@
-import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useIsInAppAgentVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { api } from "@/src/utils/api";
 
@@ -57,7 +57,7 @@ export function useEvalUpgradeAssistantPlan(params: {
   projectId: string | undefined;
   enabled: boolean;
 }) {
-  const canUseAssistant = useCanUseInAppAgent();
+  const isInAppAgentVisible = useIsInAppAgentVisible();
   const sdk = useProjectV4SdkData(params);
   const evalQuery = api.v4Transition.traceLevelEvalSummary.useQuery(
     { projectId: params.projectId ?? "" },
@@ -77,10 +77,10 @@ export function useEvalUpgradeAssistantPlan(params: {
     : "outside";
 
   return {
-    canUseAssistant,
+    canUseAssistant: isInAppAgentVisible,
     mode,
     /** Whether the migration panel may show the Assistant CTA. */
-    showAssistantButton: canUseAssistant && mode !== "outside",
+    showAssistantButton: isInAppAgentVisible && mode !== "outside",
     assistantPrompt:
       mode === "evals-ready"
         ? EVAL_UPGRADE_ASSISTANT_PROMPT

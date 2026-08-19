@@ -158,7 +158,7 @@ export async function executeInAppAgentRun(params: {
     // ---- Revalidate at claim; nothing from enqueue time is trusted. ----
     if (!isInAppAgentInstanceEnabled()) {
       throw new InAppAgentRunInitError(
-        "Assistant is not enabled on this instance",
+        "In-app agent is not enabled on this instance",
       );
     }
 

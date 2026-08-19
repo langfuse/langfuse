@@ -22,7 +22,7 @@ import {
 import { BotMessageSquare, ChevronDown, Zap } from "lucide-react";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
-  useCanUseInAppAgent,
+  useIsInAppAgentVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -48,7 +48,7 @@ export default function RemapEvaluatorPage() {
   const evalConfigId = router.query.evaluator as string;
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(projectId);
   const capture = usePostHogClientCapture();
-  const canUseAssistant = useCanUseInAppAgent();
+  const isInAppAgentVisible = useIsInAppAgentVisible();
   const { openAssistant, submit } = useInAppAiAgent();
   const sdk = useProjectV4SdkData({
     projectId,
@@ -231,7 +231,7 @@ export default function RemapEvaluatorPage() {
             align="top"
             actions={() => (
               <>
-                {canUseAssistant ? (
+                {isInAppAgentVisible ? (
                   <Button
                     size="sm"
                     variant="secondary"

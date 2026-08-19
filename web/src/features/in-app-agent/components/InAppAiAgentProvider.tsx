@@ -292,7 +292,7 @@ function InAppAiAgentProviderInner({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
-  const isInAppAgentEnabled = useIsInAppAgentEnabled();
+  const canTriggerInAppAgentRun = useCanTriggerInAppAgentRun();
   const { organization } = useQueryProjectOrOrganization();
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
   const [_selectedConversationId, setSelectedConversationId] =
@@ -434,7 +434,7 @@ function InAppAiAgentProviderInner({
     userId,
     // Polling a project the server will reject turns every page load and
     // window focus into a Forbidden toast.
-    enabled: isInAppAgentEnabled,
+    enabled: canTriggerInAppAgentRun,
     // Only what the user can actually see counts as looked at; a selected
     // conversation behind a closed window has not been read.
     visibleConversationId: open ? selectedConversationId : null,
@@ -1590,9 +1590,10 @@ export function useInAppAiAgent() {
   return ctx;
 }
 
-/** Client mirror of the server's assertInAppAgentAvailable: whether a request
- * for this project would be served, so callers can skip ones it would reject. */
-export function useIsInAppAgentEnabled() {
+/** Whether a run would be admitted for this project. Client mirror of
+ * assertInAppAgentAvailable: instance switch, entitlement, and org AI
+ * Features. More restrictive than useIsInAppAgentVisible. */
+export function useCanTriggerInAppAgentRun() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
   const session = useSession();
@@ -1605,12 +1606,11 @@ export function useIsInAppAgentEnabled() {
   );
 }
 
-/** Whether the current user/context may use the in-app assistant at all. Shared
- * gate for the launcher button and the window host. Deliberately looser than
- * useIsInAppAgentEnabled: with the org AI toggle off the entry points still
- * show, and clicking one opens the dialog that turns it on. Hidden entirely
- * when the instance-wide Assistant switch is off. */
-export function useCanUseInAppAgent() {
+/** Whether to show in-app agent entry points (launcher, window host). Looser
+ * than useCanTriggerInAppAgentRun: with org AI Features off the entry points
+ * still show, and clicking one opens the dialog that turns it on. Hidden
+ * entirely when the instance-wide switch is off. */
+export function useIsInAppAgentVisible() {
   const { isAvailable } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
