@@ -7,10 +7,6 @@ import {
   JobConfigState,
   singleFilter,
   isSafeWebhookActionConfig,
-  isWebhookAction,
-  convertToSafeWebhookConfig,
-  isGitHubDispatchAction,
-  convertToSafeGitHubDispatchConfig,
   TriggerEventSource,
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
@@ -18,6 +14,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import {
+  convertActionToDomain,
   getActionById,
   getAutomations,
   getAutomationById,
@@ -364,14 +361,7 @@ export const automationsRouter = createTRPCRouter({
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
-        action: {
-          ...action,
-          config: isWebhookAction(action)
-            ? convertToSafeWebhookConfig(action.config)
-            : isGitHubDispatchAction(action)
-              ? convertToSafeGitHubDispatchConfig(action.config)
-              : action.config,
-        },
+        action: convertActionToDomain(action),
         trigger,
         automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
@@ -499,14 +489,7 @@ export const automationsRouter = createTRPCRouter({
       });
 
       return {
-        action: {
-          ...action,
-          config: isWebhookAction(action)
-            ? convertToSafeWebhookConfig(action.config)
-            : isGitHubDispatchAction(action)
-              ? convertToSafeGitHubDispatchConfig(action.config)
-              : action.config,
-        },
+        action: convertActionToDomain(action),
         trigger,
         automation,
       };

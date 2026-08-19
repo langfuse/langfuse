@@ -85,12 +85,51 @@ export const deepNesting = (levels = 12): LayoutNode[] => {
   return build([child!]);
 };
 
+/**
+ * The observation types a real agent trace actually contains, in roughly the
+ * proportions you see one: mostly spans and model calls, with tools, retrievers
+ * and the occasional guardrail. Generated traces used to be all SPAN and
+ * GENERATION, which made anything colour-coded by type look like it was not
+ * colour-coded at all.
+ */
+const REALISTIC_TYPES = [
+  "SPAN",
+  "GENERATION",
+  "SPAN",
+  "TOOL",
+  "GENERATION",
+  "CHAIN",
+  "SPAN",
+  "RETRIEVER",
+  "GENERATION",
+  "EMBEDDING",
+  "SPAN",
+  "AGENT",
+  "GENERATION",
+  "EVENT",
+  "SPAN",
+  "GUARDRAIL",
+] as const;
+
+const NAME_BY_TYPE: Record<string, string> = {
+  SPAN: "step",
+  GENERATION: "openai.chat",
+  TOOL: "stripe.refund",
+  CHAIN: "sequence",
+  RETRIEVER: "vector-search",
+  EMBEDDING: "embed-query",
+  AGENT: "planner",
+  EVENT: "checkpoint",
+  GUARDRAIL: "output-guard",
+};
+
 /** A root plus `count - 1` descendants in a balanced arity-6 tree. */
 export const manySpans = (count: number): LayoutNode[] => {
   const random = seededRandom(count);
   const totalMs = 24_000;
   const root: SpanSpec = {
     name: "agent-run",
+    type: "AGENT",
     startMs: 0,
     durationMs: totalMs,
     children: [],
@@ -108,9 +147,10 @@ export const manySpans = (count: number): LayoutNode[] => {
         random() * Math.max(parent.startMs + parentDuration - startMs, 2),
       ),
     );
+    const type = REALISTIC_TYPES[i % REALISTIC_TYPES.length]!;
     const spec: SpanSpec = {
-      name: i % 4 === 0 ? `openai.chat.${i}` : `step-${i}`,
-      type: i % 4 === 0 ? "GENERATION" : "SPAN",
+      name: `${NAME_BY_TYPE[type] ?? "step"}-${i}`,
+      type,
       startMs,
       durationMs,
       children: [],

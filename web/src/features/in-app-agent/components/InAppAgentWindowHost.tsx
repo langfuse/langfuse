@@ -12,7 +12,7 @@ import {
   useInAppAgentWindowShellPanelControl,
 } from "@/src/features/in-app-agent/components/InAppAgentWindowShell";
 import {
-  useCanUseInAppAgent,
+  useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
@@ -64,7 +64,7 @@ function DeleteConversationDialog({
  * window unmounts and its geometry resets on every navigation.
  */
 export function InAppAgentWindowHost() {
-  const canUseAgent = useCanUseInAppAgent();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const { deleteConversation, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -121,9 +121,9 @@ export function InAppAgentWindowHost() {
     floatingPanelHandle.initializeGeometry();
   }, [floatingPanelHandle, isExpanded, open]);
 
-  // Only `canUseAgent` gates the tree: the shell owns the `open` guard so the
-  // handheld drawer stays mounted and can animate itself closed.
-  if (!canUseAgent) {
+  // Only `isInAppAgentLauncherVisible` gates the tree: the shell owns the `open` guard
+  // so the handheld drawer stays mounted and can animate itself closed.
+  if (!isInAppAgentLauncherVisible) {
     return null;
   }
 
