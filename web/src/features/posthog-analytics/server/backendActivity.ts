@@ -26,14 +26,29 @@ export const createBackendActivityTracker = ({
   now,
   setIfAbsent,
 }: BackendActivityTrackerDependencies) => {
-  const localCache = new Set<string>();
+  const localCache = new Map<string, number>();
 
-  const cacheLocally = (key: string) => {
+  const isCachedLocally = (key: string, timestamp: Date) => {
+    const expiresAt = localCache.get(key);
+    if (expiresAt === undefined) return false;
+
+    if (timestamp.getTime() >= expiresAt) {
+      localCache.delete(key);
+      return false;
+    }
+
+    return true;
+  };
+
+  const cacheLocally = (key: string, timestamp: Date) => {
     if (localCache.size >= LOCAL_CACHE_MAX_ENTRIES) {
-      const oldestKey = localCache.values().next().value;
+      const oldestKey = localCache.keys().next().value;
       if (oldestKey) localCache.delete(oldestKey);
     }
-    localCache.add(key);
+    localCache.set(
+      key,
+      timestamp.getTime() + DEDUPLICATION_TTL_SECONDS * 1_000,
+    );
   };
 
   return async ({
@@ -46,20 +61,22 @@ export const createBackendActivityTracker = ({
     const timestamp = now();
     const activityScope = projectId ? "project" : "organization";
     const scopeId = projectId ?? organizationId;
-    const utcHour = timestamp.toISOString().slice(0, 13);
+    // Keep the existing key format so old and new web instances share the
+    // Redis lock during rolling deployments. The TTL owns the cache window.
+    const utcDate = timestamp.toISOString().slice(0, 10);
     const deduplicationKey = [
       "langfuse",
       "backend-activity",
-      utcHour,
+      utcDate,
       userId,
       activityScope,
       scopeId,
     ].join(":");
 
-    if (localCache.has(deduplicationKey)) return;
+    if (isCachedLocally(deduplicationKey, timestamp)) return;
     // Mark the attempt before the first await so concurrent requests and Redis
     // outages cannot create an analytics retry storm in this web process.
-    cacheLocally(deduplicationKey);
+    cacheLocally(deduplicationKey, timestamp);
 
     try {
       const isFirstActivity = await setIfAbsent(
