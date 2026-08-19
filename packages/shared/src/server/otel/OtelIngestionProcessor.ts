@@ -2838,25 +2838,53 @@ export class OtelIngestionProcessor {
       const usageDetails: Record<string, number | undefined> =
         this.extractGenericGenAiUsageDetails(attributes);
 
-      // prompt tokens include cached tokens, so the blob cache-read count is subtracted from input
-      if (usageDetails["input_cached_tokens"] === undefined) {
+      // prompt tokens include cached tokens, so the blob cache-read count is subtracted from input.
+      // thought tokens are included in the emitted output token count, so they are
+      // subtracted from output to avoid double counting.
+      if (
+        usageDetails["input_cached_tokens"] === undefined ||
+        usageDetails["output_reasoning_tokens"] === undefined
+      ) {
         const llmResponse = this.parseJsonPayload(
           attributes["gcp.vertex.agent.llm_response"],
         );
-        const cachedTokens =
-          llmResponse?.usage_metadata?.cached_content_token_count;
+        const usageMetadata = llmResponse?.usage_metadata;
 
-        if (
-          typeof cachedTokens === "number" &&
-          !Number.isNaN(cachedTokens) &&
-          cachedTokens > 0
-        ) {
-          usageDetails["input_cached_tokens"] = cachedTokens;
-          if (usageDetails["input"] !== undefined) {
-            usageDetails["input"] = Math.max(
-              usageDetails["input"] - cachedTokens,
-              0,
-            );
+        if (usageMetadata) {
+          if (usageDetails["input_cached_tokens"] === undefined) {
+            const cachedTokens = usageMetadata.cached_content_token_count;
+
+            if (
+              typeof cachedTokens === "number" &&
+              !Number.isNaN(cachedTokens) &&
+              cachedTokens > 0
+            ) {
+              usageDetails["input_cached_tokens"] = cachedTokens;
+              if (usageDetails["input"] !== undefined) {
+                usageDetails["input"] = Math.max(
+                  usageDetails["input"] - cachedTokens,
+                  0,
+                );
+              }
+            }
+          }
+
+          if (usageDetails["output_reasoning_tokens"] === undefined) {
+            const thoughtsTokens = usageMetadata.thoughts_token_count;
+
+            if (
+              typeof thoughtsTokens === "number" &&
+              !Number.isNaN(thoughtsTokens) &&
+              thoughtsTokens > 0
+            ) {
+              usageDetails["output_reasoning_tokens"] = thoughtsTokens;
+              if (usageDetails["output"] !== undefined) {
+                usageDetails["output"] = Math.max(
+                  usageDetails["output"] - thoughtsTokens,
+                  0,
+                );
+              }
+            }
           }
         }
       }
