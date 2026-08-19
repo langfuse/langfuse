@@ -267,10 +267,10 @@ export const isTrpcResponseParseError = (error: unknown): boolean => {
  * Soft cap for a tRPC GET URL. The request head (URL line + cookies + headers)
  * is capped at ~16KB by Node and most proxies; cookies (NextAuth JWT, PostHog)
  * commonly consume several KB, so the serialized query URL must stay well
- * below that. Matches the page-URL filter budget (`MAX_URL_FILTER_QUERY_LENGTH`)
- * so a filter that is legal to share still cannot 414/431 the tRPC round-trip
- * after JSON + `encodeURIComponent` inflation. Queries whose GET URL would
- * exceed this are sent as POST.
+ * below that. Numerically similar to the page-URL filter budget
+ * (`MAX_URL_FILTER_QUERY_LENGTH`) but independent of it: this bounds the full
+ * tRPC GET URL (path + superjson-serialized input), not the `?filter=` param.
+ * Queries whose GET URL would exceed this are sent as POST.
  */
 export const MAX_TRPC_GET_URL_BYTES = 4_000;
 
@@ -320,6 +320,16 @@ export const shouldSendQueryAsPost = (
     return false;
   }
 };
+
+const trpcApiUrl = () => `${getBaseUrl()}/api/trpc`;
+
+const postOverrideHttpLink = () =>
+  httpLink({
+    url: trpcApiUrl(),
+    transformer: superjson,
+    methodOverride: "POST",
+    fetch: fetchWithParseErrorStatus,
+  });
 
 /**
  * Creates a unique hash for an error to track it for debouncing; implementation hashes based on the tRPC path and http status
@@ -525,8 +535,7 @@ const requestTooLargeDiagnosticsLink = (): TRPCLink<AppRouter> => () => {
           observer.next(value);
         },
         error(err) {
-          const sentAsGet =
-            op.type === "query" && op.context.sendAsPost !== true;
+          const sentAsGet = op.type === "query" && !shouldSendQueryAsPost(op);
           // Annotation-first (meta is dropped on JSON-parse failures — the
           // common shape of a real 414/431, whose body is empty/HTML).
           const status = getResponseStatus(err);
@@ -620,21 +629,16 @@ export const api = createTRPCNext<AppRouter>({
           // HTTP 414/431. See `shouldSendQueryAsPost`.
           true: splitLink({
             condition: shouldSendQueryAsPost,
-            true: httpLink({
-              url: `${getBaseUrl()}/api/trpc`,
-              transformer: superjson,
-              methodOverride: "POST",
-              fetch: fetchWithParseErrorStatus,
-            }),
+            true: postOverrideHttpLink(),
             false: httpLink({
-              url: `${getBaseUrl()}/api/trpc`,
+              url: trpcApiUrl(),
               transformer: superjson,
               fetch: fetchWithParseErrorStatus,
             }),
           }),
           // when condition is false, use batching
           false: httpBatchLink({
-            url: `${getBaseUrl()}/api/trpc`,
+            url: trpcApiUrl(),
             transformer: superjson,
             maxURLLength: 2083, // avoid too large batches
             fetch: fetchWithParseErrorStatus,
@@ -695,14 +699,9 @@ export const directApi = createTRPCProxyClient<AppRouter>({
     }),
     splitLink({
       condition: shouldSendQueryAsPost,
-      true: httpLink({
-        url: `${getBaseUrl()}/api/trpc`,
-        transformer: superjson,
-        methodOverride: "POST",
-        fetch: fetchWithParseErrorStatus,
-      }),
+      true: postOverrideHttpLink(),
       false: httpBatchLink({
-        url: `${getBaseUrl()}/api/trpc`,
+        url: trpcApiUrl(),
         transformer: superjson,
         maxURLLength: 2083, // avoid too large batches
         fetch: fetchWithParseErrorStatus,

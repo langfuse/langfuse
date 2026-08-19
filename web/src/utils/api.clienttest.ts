@@ -259,7 +259,11 @@ describe("shouldSendQueryAsPost", () => {
     expect(getApproxTrpcGetUrlBytes("traces.all", input)).toBeGreaterThan(
       MAX_TRPC_GET_URL_BYTES,
     );
-    expect(shouldSendQueryAsPost(queryOp(input))).toBe(true);
+    // Auto-routing does not set `sendAsPost` on the op; the 414/431 diagnostic
+    // must use `shouldSendQueryAsPost`, not the explicit flag alone.
+    const op = queryOp(input);
+    expect(op.context.sendAsPost).not.toBe(true);
+    expect(shouldSendQueryAsPost(op)).toBe(true);
   });
 
   it("routes a traces.metrics query whose id list would blow the GET URL as POST", () => {
