@@ -9,8 +9,11 @@
   "scripts": {
     "build": "tsc",
     "build:test": "tsc",
-    "build:docker-image": "docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
+    "build:docker-image": "tsc && docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
     "start": "node ./dist/server.js",
+    "test": "vitest run src",
+    "test:e2e": "pnpm run build && vitest run tests",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -19,8 +22,11 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
+    "@types/dockerode": "^4.0.1",
     "@types/node": "^24.3.0",
+    "dockerode": "^4.0.12",
     "prettier": "^3.8.3",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
   }
 }

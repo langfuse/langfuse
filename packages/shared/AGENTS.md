@@ -36,7 +36,8 @@
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
-  helpers, eval/model-pricing helpers, and other frontend-safe utilities.
+  helpers, eval/model-pricing helpers, product path builders, and other
+  frontend-safe utilities.
   Includes the unicode-decoding JSON serialization helpers (`stringify`,
   `stringifyForCsv` in `src/utils/stringify.ts`) used by both the server
   trace-download route and client-side download/copy paths; the server barrel
@@ -45,7 +46,8 @@
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
   AI SDK-native LLM execution helpers (`generateLLMText` and
-  `streamLLMText`), and server test utilities.
+  `streamLLMText`), Bedrock default-credential provider auth
+  (`createDefaultBedrockProviderAuth`), and server test utilities.
 - `@langfuse/shared/src/db` via `src/db.ts`: Prisma client singleton plus
   Prisma namespace/types for direct database access. Never route this into
   frontend-safe code.
@@ -60,12 +62,13 @@
   and interrupt parsing. Never re-export server code here.
 - In-app-agent server contracts use explicit subpaths only:
   `persistence`, `runLifecycle`, `tunables`, `eventCompaction`, `mcpPolicy`,
-  `toolResults`, `toolErrors`, and `systemPrompt`. These are storage/lifecycle or durable
-  cross-process policy contracts; the Mastra runtime and sandbox belong to the
-  worker.
+  `toolResults`, `toolErrors`, `systemPrompt`, and `modelProvider`. These are
+  storage/lifecycle, durable cross-process policy, or instance-model contracts;
+  the Mastra runtime and sandbox belong to the worker.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
-  `@langfuse/shared/src/server/ee/ingestionMasking`, and
+  `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel

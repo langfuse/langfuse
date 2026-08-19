@@ -38,6 +38,7 @@ correct validation surfaces land in the plan, not in a follow-up CVE.
 | Topic | Open when | File |
 | --- | --- | --- |
 | SSRF and outbound URL validation | The change accepts or fetches a user-supplied URL, host, or endpoint | [references/outbound-url-validation.md](references/outbound-url-validation.md) |
+| Secret read paths | The change shapes what a read route returns for an entity or config blob that also stores a credential | [references/secret-read-paths.md](references/secret-read-paths.md) |
 
 The catalog is intentionally short today. New topic files are added as new
 finding classes recur (see "Extending This Skill").
@@ -83,7 +84,6 @@ pointing at the new topic file, and add a row to the table above.
 Candidates for future references (do not add until a real finding recurs):
 
 - Tenant isolation (`projectId` filters across Prisma and ClickHouse)
-- Secret handling and encryption-at-rest read paths
 - Redirect mishandling and sensitive-header propagation
 - File upload validation and content-type sniffing
 - RBAC scope drift on new tRPC/public API endpoints

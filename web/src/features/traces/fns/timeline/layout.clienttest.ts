@@ -285,6 +285,34 @@ describe("textMeasurer", () => {
     expect(measure("∑ 1.24s")).toBeCloseTo(70, 6);
   });
 
+  it("measures bold wider than regular, and neither twin sets the other's font", () => {
+    // Width follows the FONT this context was last given, so an interleaved call
+    // that forgot to set it reads as the other weight — which is the bug: both
+    // twins share one canvas, and the run measurement happens lazily at measure
+    // time rather than when the twin was built.
+    const byWeight: {
+      font: string;
+      measureText: (text: string) => TextMetrics;
+    } = {
+      font: "",
+      measureText: (text: string) =>
+        ({
+          width: text.length * (byWeight.font.startsWith("700") ? 20 : 10),
+        }) as TextMetrics,
+    };
+    const measurer = createTextMeasurerFrom(
+      byWeight as unknown as CanvasRenderingContext2D,
+      "12px test",
+    );
+
+    expect(measurer.measure("abc")).toBeCloseTo(30, 6);
+    expect(measurer.measureBold("abc")).toBeCloseTo(60, 6);
+    // Interleaved, and each still its own weight.
+    expect(measurer.measure("abcd")).toBeCloseTo(40, 6);
+    expect(measurer.measureBold("abcd")).toBeCloseTo(80, 6);
+    expect(measurer.measure("ab")).toBeCloseTo(20, 6);
+  });
+
   it("falls back to a flat per-letter width with no canvas", () => {
     expect(createTextMeasurerFrom(null).measure("1m 35s")).toBeCloseTo(
       6 * PX_PER_LETTER,

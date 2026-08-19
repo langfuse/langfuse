@@ -70,6 +70,7 @@ const run = async (
 ): Promise<SeedSummary> => {
   const startedAt = Date.now();
   const turns = params["turns"] as number;
+  const turnGapMs = params["turn-gap-ms"] as number;
   const withV4 = params["v4"] as boolean;
   // Default: attach langgraph metadata (the explicit-flow graph). --timing-only
   // omits it to exercise the pure timing-based graph fallback. (A boolean that
@@ -81,6 +82,12 @@ const run = async (
     throw new SeedError(
       `--turns must be >= 1, got ${turns}`,
       "pass a positive integer, e.g. --turns 6",
+    );
+  }
+  if (turnGapMs < 0 || turnGapMs > 3_600_000) {
+    throw new SeedError(
+      `--turn-gap-ms must be between 0 and 3600000, got ${turnGapMs}`,
+      "one hour of idle between turns is already an extreme trace",
     );
   }
 
@@ -152,6 +159,15 @@ const run = async (
       });
 
       cursor = nodeEnd + 20 + jitter(ctx.seed, step * 7 + 2, 60); // gap to next step
+    }
+
+    // A long-running agent spends most of its wall clock WAITING — on a queue, a
+    // rate limit, a retry backoff, a human. Without that, a thousand-span trace
+    // is a thousand spans inside four seconds, which is not what any real trace
+    // looks like and makes every bar full-width. Jittered, because a fixed gap
+    // reads as a metronome rather than as work arriving.
+    if (turnGapMs > 0) {
+      cursor += turnGapMs + jitter(ctx.seed, turn * 13 + 3, turnGapMs);
     }
   }
 
@@ -394,6 +410,13 @@ export const agentTimelineScenario: ScenarioDefinition = {
       default: 6,
       description:
         "refine-loop iterations (each is planner→retriever→generator→critic)",
+    },
+    {
+      flag: "turn-gap-ms",
+      type: "number",
+      default: 0,
+      description:
+        "idle ms between turns (jittered up to 2x), so the run spreads over a real wall clock instead of packing every span into a few seconds — 120 turns at 60000 is a ~2.5h trace whose work is a few percent of it",
     },
     {
       flag: "timing-only",
