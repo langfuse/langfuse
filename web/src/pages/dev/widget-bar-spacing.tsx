@@ -223,7 +223,9 @@ const TopList: React.FC<{
       {rows.map((r) => (
         <div
           key={r.name}
-          className="group/row hover:bg-accent/60 flex shrink-0 items-center gap-2 rounded-sm transition-opacity"
+          className={`group/row hover:bg-accent/60 flex shrink-0 items-center gap-2 rounded-sm transition-opacity ${
+            rowH >= 48 ? "text-base" : rowH >= 36 ? "text-sm" : "text-xs"
+          }`}
           style={{ height: rowH }}
         >
           <div className="w-14 shrink-0 text-right text-sm font-bold tabular-nums">

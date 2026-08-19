@@ -21,7 +21,6 @@ import {
   GripVerticalIcon,
   MoreVerticalIcon,
   CopyIcon,
-  ClipboardPasteIcon,
   CopyPlusIcon,
   FileJsonIcon,
   DownloadIcon,
@@ -41,9 +40,7 @@ import {
   type WidgetExportSource,
 } from "@/src/features/widgets/utils/import-export-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
-import { isPasteablePlacementPayload } from "@/src/features/dashboard/utils/dashboard-import-export";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,7 +88,6 @@ export function DashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
-  onPasteWidget,
   onDuplicateWidget,
 }: {
   projectId: string;
@@ -111,12 +107,7 @@ export function DashboardWidget({
   /** Pure viewing surface (e.g. Home): render no edit affordances. */
   readOnly?: boolean;
   /**
-   * Pastes the clipboard widget next to this tile. Passed only on editable
-   * (non-locked) dashboards; absent → no "Paste to the right" menu item.
-   */
-  onPasteWidget?: (anchor: WidgetPlacement) => void;
-  /**
-   * Duplicates this widget (new widget row seeded from `widget`) next to this
+   * Clones this widget (new widget row seeded from `widget`) next to this
    * tile. Passed only on editable (non-locked) dashboards.
    */
   onDuplicateWidget?: (
@@ -175,17 +166,6 @@ export function DashboardWidget({
   });
   const [retryCount, setRetryCount] = useState(0);
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
-  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
-  // Gate "Paste to the right" on the clipboard actually holding a pasteable
-  // payload, where the browser lets us check silently.
-  const isPasteablePayload = useCallback(
-    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
-    [isBetaEnabled],
-  );
-  const clipboardProbe = useClipboardWidgetProbe(
-    isActionsMenuOpen && Boolean(onPasteWidget),
-    isPasteablePayload,
-  );
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -696,7 +676,7 @@ export function DashboardWidget({
               </button>
             </>
           )}
-          <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 className="text-muted-foreground hover:text-foreground hidden group-hover:block data-[state=open]:block"
@@ -731,15 +711,6 @@ export function DashboardWidget({
                 <CopyIcon className="mr-2 h-4 w-4" />
                 Copy to clipboard
               </DropdownMenuItem>
-              {onPasteWidget && (
-                <DropdownMenuItem
-                  disabled={clipboardProbe === "no-widget"}
-                  onClick={() => onPasteWidget(placement)}
-                >
-                  <ClipboardPasteIcon className="mr-2 h-4 w-4" />
-                  Paste to the right
-                </DropdownMenuItem>
-              )}
               {onDuplicateWidget && (
                 <DropdownMenuItem
                   onClick={() =>
@@ -747,7 +718,7 @@ export function DashboardWidget({
                   }
                 >
                   <CopyPlusIcon className="mr-2 h-4 w-4" />
-                  Duplicate
+                  Clone
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />

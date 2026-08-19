@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
-  ClipboardPasteIcon,
   CopyIcon,
   CopyPlusIcon,
   GripVerticalIcon,
@@ -16,14 +15,10 @@ import {
   getHomePreset,
   type PresetWidgetContext,
 } from "@/src/features/dashboard/components/home-preset-registry";
-import {
-  buildPresetExport,
-  isPasteablePlacementPayload,
-} from "@/src/features/dashboard/utils/dashboard-import-export";
+import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,7 +52,6 @@ export function PresetDashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
-  onPasteWidget,
   onDuplicatePreset,
 }: {
   projectId: string;
@@ -77,13 +71,8 @@ export function PresetDashboardWidget({
   /** Pure viewing surface (e.g. Home): render no edit affordances. */
   readOnly?: boolean;
   /**
-   * Pastes the clipboard widget/card next to this tile. Passed only on
-   * editable (non-locked) dashboards.
-   */
-  onPasteWidget?: (anchor: PresetPlacement) => void;
-  /**
-   * Adds another placement of this preset card next to this tile. Passed
-   * only on editable (non-locked) dashboards.
+   * Adds another placement of this preset card next to this tile (clone).
+   * Passed only on editable (non-locked) dashboards.
    */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
 }) {
@@ -167,18 +156,6 @@ export function PresetDashboardWidget({
   };
 
   const capture = usePostHogClientCapture();
-  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
-  // Gate "Paste to the right" on the clipboard actually holding a pasteable
-  // payload, where the browser lets us check silently.
-  const isPasteablePayload = useCallback(
-    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
-    [isBetaEnabled],
-  );
-  const clipboardProbe = useClipboardWidgetProbe(
-    isActionsMenuOpen && Boolean(onPasteWidget),
-    isPasteablePayload,
-  );
-
   const handleCopyToClipboard = async () => {
     try {
       await copyTextToClipboard(
@@ -226,7 +203,7 @@ export function PresetDashboardWidget({
             </button>
           </>
         )}
-        <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
+        <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               className="text-muted-foreground hover:text-foreground"
@@ -240,19 +217,10 @@ export function PresetDashboardWidget({
               <CopyIcon className="mr-2 h-4 w-4" />
               Copy to clipboard
             </DropdownMenuItem>
-            {onPasteWidget && (
-              <DropdownMenuItem
-                disabled={clipboardProbe === "no-widget"}
-                onClick={() => onPasteWidget(placement)}
-              >
-                <ClipboardPasteIcon className="mr-2 h-4 w-4" />
-                Paste to the right
-              </DropdownMenuItem>
-            )}
             {onDuplicatePreset && (
               <DropdownMenuItem onClick={() => onDuplicatePreset(placement)}>
                 <CopyPlusIcon className="mr-2 h-4 w-4" />
-                Duplicate
+                Clone
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

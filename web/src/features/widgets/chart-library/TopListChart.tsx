@@ -13,6 +13,11 @@ import {
 const MAX_ROW_PX = 56;
 const MIN_ROW_PX = 20;
 const ROW_GAP_PX = 1;
+// Label/value text steps through the type scale with the row height (each
+// row is a size container): text-xs by default, text-sm from 36px rows,
+// text-base from 48px — never anything off-scale, capped at base.
+const ROW_TEXT_STEPS =
+  "text-xs [@container(min-height:36px)]:text-sm [@container(min-height:48px)]:text-base";
 
 const CopyDimensionButton: React.FC<{ value: string }> = ({ value }) => {
   const [copied, setCopied] = useState(false);
@@ -92,11 +97,14 @@ export const TopListChart: React.FC<ChartProps> = ({
           style={{
             flex: `0 1 ${MAX_ROW_PX}px`,
             minHeight: MIN_ROW_PX,
+            // Each row is a size container so ROW_TEXT_STEPS can step the
+            // type scale by row height.
+            containerType: "size",
           }}
           title={`${row.dimension}: ${formatValue(row.value)}`}
         >
           <div
-            className="shrink-0 text-right text-xs font-bold tabular-nums"
+            className={`shrink-0 text-right font-bold tabular-nums ${ROW_TEXT_STEPS}`}
             style={{ width: `${valueColumnCh}ch` }}
           >
             {formatValue(row.value)}
@@ -109,11 +117,10 @@ export const TopListChart: React.FC<ChartProps> = ({
                 backgroundColor: `hsl(var(--chart-1) / ${subtleFill ? 0.15 : 0.3})`,
               }}
             />
-            <div className="absolute inset-y-0 left-2 flex max-w-full min-w-0 items-center gap-1 pr-2">
-              <span
-                className="text-foreground truncate text-xs"
-                title={row.dimension}
-              >
+            <div
+              className={`absolute inset-y-0 left-2 flex max-w-full min-w-0 items-center gap-1 pr-2 ${ROW_TEXT_STEPS}`}
+            >
+              <span className="text-foreground truncate" title={row.dimension}>
                 {row.dimension}
               </span>
               <CopyDimensionButton value={row.dimension} />

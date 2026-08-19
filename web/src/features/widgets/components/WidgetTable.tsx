@@ -194,7 +194,7 @@ function WidgetActionsCell({
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!hasCUDAccess} onClick={handleDuplicate}>
             <CopyPlus className="mr-2 h-4 w-4" />
-            Duplicate
+            Clone
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleDownloadJson}>
             <FileJson className="mr-2 h-4 w-4" />
