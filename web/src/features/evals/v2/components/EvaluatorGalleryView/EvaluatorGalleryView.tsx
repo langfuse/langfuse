@@ -82,54 +82,54 @@ export function EvaluatorGalleryView({
           />
         ) : null}
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-4 pb-0">
-          <div className="flex shrink-0 items-center gap-2 border-b pb-3">
-            <div className="relative min-w-0 flex-1">
-              <Search className="text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2" />
-              <Input
-                ref={searchInputRef}
-                value={search}
-                onChange={(event) => onSearchChange(event.target.value)}
-                placeholder="Search what you want to measure."
-                className="pl-8"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              className="shrink-0 gap-1.5"
-              onClick={() =>
-                onCreateFromScratch(EvalTemplateTypeEnum.LLM_AS_JUDGE)
-              }
-            >
-              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              New LLM-as-a-judge
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="shrink-0 gap-1.5"
-              onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.CODE)}
-            >
-              <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
-              New code evaluator
-            </Button>
-          </div>
-
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div
             ref={scrollContainerRef}
-            className="flex flex-1 flex-col gap-10 overflow-y-auto py-4"
+            className="min-h-0 flex-1 overflow-y-auto"
           >
-            {isLoading ? <GallerySkeleton /> : null}
-            {errorMessage ? (
-              <div className="text-destructive py-8 text-center text-sm">
-                Error: {errorMessage}
+            <div className="bg-modal sticky top-0 z-10 flex items-center gap-2 border-b px-4 py-3">
+              <div className="relative min-w-0 flex-1">
+                <Search className="text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2" />
+                <Input
+                  ref={searchInputRef}
+                  value={search}
+                  onChange={(event) => onSearchChange(event.target.value)}
+                  placeholder="Search what you want to measure."
+                  className="pl-8"
+                />
               </div>
-            ) : null}
-            {!isLoading && !errorMessage ? (
-              hasTemplates ? (
-                <div className="flex flex-col gap-10">
-                  {displayedSections.map((section) => (
+              <Button
+                type="button"
+                variant="secondary"
+                className="shrink-0 gap-1.5"
+                onClick={() =>
+                  onCreateFromScratch(EvalTemplateTypeEnum.LLM_AS_JUDGE)
+                }
+              >
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                New LLM-as-a-judge
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="shrink-0 gap-1.5"
+                onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.CODE)}
+              >
+                <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
+                New code evaluator
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-10 px-4 py-4">
+              {isLoading ? <GallerySkeleton /> : null}
+              {errorMessage ? (
+                <div className="text-destructive py-8 text-center text-sm">
+                  Error: {errorMessage}
+                </div>
+              ) : null}
+              {!isLoading && !errorMessage ? (
+                hasTemplates ? (
+                  displayedSections.map((section) => (
                     <EvaluatorGallerySection
                       key={section.key}
                       section={section}
@@ -139,14 +139,14 @@ export function EvaluatorGalleryView({
                       }
                       onSelectTemplate={onSelectTemplate}
                     />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-muted-foreground py-8 text-center text-sm">
-                  No templates match your search.
-                </div>
-              )
-            ) : null}
+                  ))
+                ) : (
+                  <div className="text-muted-foreground py-8 text-center text-sm">
+                    No templates match your search.
+                  </div>
+                )
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

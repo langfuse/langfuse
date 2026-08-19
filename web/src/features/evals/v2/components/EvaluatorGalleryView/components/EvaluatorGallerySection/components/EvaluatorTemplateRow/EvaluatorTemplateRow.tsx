@@ -19,13 +19,13 @@ export function EvaluatorTemplateRow({
       className="hover:bg-muted/60 flex cursor-pointer items-center gap-3 rounded-md px-1 py-2.5 text-left transition-colors"
     >
       <span
-        className="max-w-[14rem] shrink-0 truncate text-sm font-bold"
+        className="max-w-[14rem] shrink-0 truncate text-sm leading-5 font-bold"
         title={template.name}
       >
         {template.name}
       </span>
       <p
-        className="text-muted-foreground min-w-0 flex-1 truncate text-sm"
+        className="text-muted-foreground min-w-0 flex-1 truncate text-sm leading-5"
         title={
           attribution ? `${description ?? ""} ${attribution}` : description
         }

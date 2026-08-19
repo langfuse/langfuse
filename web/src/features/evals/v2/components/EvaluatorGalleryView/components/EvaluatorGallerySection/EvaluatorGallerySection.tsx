@@ -37,25 +37,18 @@ export function EvaluatorGallerySection({
 
   return (
     <section className="flex scroll-mt-1 flex-col gap-3">
-      {isRecommended ? (
-        <h4 className="text-muted-foreground flex items-center gap-1.5 text-xs font-bold">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
           <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />
-          {section.label}
-        </h4>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />
-            <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
-              {section.label}
-            </h4>
-            <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
-              {totalCount}
-            </span>
-          </div>
-          <div className="border-t" />
+          <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
+            {section.label}
+          </h4>
+          <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
+            {totalCount}
+          </span>
         </div>
-      )}
+        <div className="border-t" />
+      </div>
       {isRecommended ? (
         <div className="grid grid-cols-3 gap-3">
           {shownTemplates.map((template) => (
