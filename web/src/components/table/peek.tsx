@@ -2,6 +2,7 @@ import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
 import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
 import { Separator } from "@/src/components/ui/separator";
+import { type LayerName } from "@/src/components/ui/layer";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
@@ -102,6 +103,7 @@ type TablePeekViewProps = Pick<
 // below; this also covers the header "select all". Applied to every peek so
 // tables don't each have to redeclare it (which is easy to forget).
 const ALWAYS_KEEP_PEEK_OPEN_SELECTORS = ['[role="checkbox"]'];
+const TOAST_LAYER: LayerName = "toast";
 
 /**
  * Decide whether an outside interaction should keep the peek open instead of
@@ -135,7 +137,7 @@ export const shouldKeepPeekOpenOnOutsideInteraction = (
   if (shouldIgnoreOutsideInteraction(target)) return true;
   // Toasts portal into a higher overlay layer than the peek, so Radix reports
   // them as outside. Closing / clicking one must not dismiss the peek.
-  if (target.closest('[data-layer="toast"]')) return true;
+  if (target.closest(`[data-layer="${TOAST_LAYER}"]`)) return true;
   if (target.closest("[data-row-index]")) return true;
   return [...ALWAYS_KEEP_PEEK_OPEN_SELECTORS, ...ignoredSelectors].some(
     (selector) => target.closest(selector),
