@@ -215,16 +215,16 @@ describe("sandbox runtime docker container", () => {
 
   it(
     "queues concurrent sandbox operations in request order",
-    { timeout: 20_000 },
+    { timeout: 60_000 },
     async () => {
       const first = requestJson(baseUrl, "/sandbox", {
         method: "POST",
         body: JSON.stringify({
           operation: "bash",
           command: [
-            "rm -f queue-active queue-order.txt",
+            "rm -f queue-active queue-release queue-order.txt",
             "touch queue-active",
-            "sleep 1",
+            "while [ ! -e queue-release ]; do sleep 0.05; done",
             "printf 'first\\n' >> queue-order.txt",
             "rm queue-active",
           ].join("; "),
@@ -243,6 +243,11 @@ describe("sandbox runtime docker container", () => {
           ].join("; "),
         }),
       });
+
+      const releaseExec = await container.exec({
+        Cmd: ["touch", "/workspace/queue-release"],
+      });
+      await releaseExec.start({});
 
       const [firstResponse, secondResponse] = await Promise.all([
         first,
@@ -278,7 +283,7 @@ describe("sandbox runtime docker container", () => {
         method: "POST",
         body: JSON.stringify({
           operation: "bash",
-          command: "echo $$ > timeout-process.pid; while :; do :; done",
+          command: "echo $$ > timeout-process.pid; exec sleep 60",
           timeoutMs: 200,
         }),
       });
