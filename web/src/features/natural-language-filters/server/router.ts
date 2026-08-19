@@ -32,14 +32,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           scope: "project:read",
         });
 
-        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message:
-              "Natural language filtering is not available in self-hosted deployments.",
-          });
-        }
-
         const project = await ctx.prisma.project.findUnique({
           where: { id: input.projectId },
           select: {

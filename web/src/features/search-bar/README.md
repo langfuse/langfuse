@@ -277,8 +277,8 @@ the wand only survives on non-bar/embedded surfaces and the v3 traces table).
   existing filters). Tab is deliberately NOT a shortcut: while typing it belongs
   to autocomplete navigation, so forward-tab just moves focus from the field
   onto the button. `EventsSearchBarRow` owns the `'grammar' | 'ai'` mode and
-  gates availability on `isLangfuseCloud && organization.aiFeaturesEnabled` (the
-  server enforces it too). `SearchComposer` only takes an `onActivateAi` callback
+  gates availability on `organization.aiFeaturesEnabled` (the server enforces it
+  too). `SearchComposer` only takes an `onActivateAi` callback
   - renders the affordance; it stays grammar-only.
 - **The component.** `components/SearchBarAiPrompt.tsx` — a plain NL input (not
   the contenteditable). Enter generates; Esc or the back arrow exits (no

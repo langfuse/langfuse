@@ -2,6 +2,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import type { Session } from "next-auth";
 
 // Both Ask AI endpoints only generate a filter over data the caller can
@@ -61,7 +62,7 @@ async function prepare(projectRole: Role) {
   };
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
-  return { project, caller: appRouter.createCaller({ ...ctx, prisma }) };
+  return { project, org, caller: appRouter.createCaller({ ...ctx, prisma }) };
 }
 
 /** Message of a rejection, or "" when the call resolved. */
@@ -118,5 +119,44 @@ describe("Ask AI filter generation access", () => {
         prompt: "traces from today",
       }),
     ).rejects.toThrow(NO_ACCESS);
+  });
+
+  it("does not reject Ask AI as Cloud-only on self-hosted", async () => {
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    (
+      env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
+    ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    try {
+      const { project, org, caller } = await prepare("VIEWER");
+      await prisma.organization.update({
+        where: { id: org.id },
+        data: { aiFeaturesEnabled: true },
+      });
+
+      const naturalLanguageMessage = await failureMessage(
+        caller.naturalLanguageFilters.createCompletion({
+          projectId: project.id,
+          prompt: "traces from today",
+        }),
+      );
+      const searchBarMessage = await failureMessage(
+        caller.searchBar.generateFilter({
+          projectId: project.id,
+          prompt: "traces from today",
+        }),
+      );
+
+      expect(naturalLanguageMessage).not.toContain(
+        "not available in self-hosted deployments",
+      );
+      expect(searchBarMessage).not.toContain(
+        "not available in self-hosted deployments",
+      );
+    } finally {
+      (
+        env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
+      ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    }
   });
 });

@@ -67,7 +67,6 @@ import {
   InputCommandList,
 } from "@/src/components/ui/input-command";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { openAIFeaturesSettings } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 
 /**
@@ -119,7 +118,6 @@ export function PopoverFilterBuilder({
   isV4?: boolean;
 }) {
   const capture = usePostHogClientCapture();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const projectId = useProjectIdFromURL();
   const { organization } = useQueryProject();
   const createFilterMutation =
@@ -231,24 +229,23 @@ export function PopoverFilterBuilder({
       return newState;
     });
   };
-  const aiFilter =
-    filterWithAI && isLangfuseCloud
-      ? {
-          organizationId: organization?.id,
-          aiFeaturesEnabled: organization?.aiFeaturesEnabled === true,
-          isPending: createFilterMutation.isPending,
-          generateFilters: async (prompt: string) => {
-            if (!projectId) return null;
-            const result = await createFilterMutation.mutateAsync({
-              projectId,
-              prompt,
-            });
-            return result && Array.isArray(result.filters)
-              ? (result.filters as WipFilterState)
-              : null;
-          },
-        }
-      : undefined;
+  const aiFilter = filterWithAI
+    ? {
+        organizationId: organization?.id,
+        aiFeaturesEnabled: organization?.aiFeaturesEnabled === true,
+        isPending: createFilterMutation.isPending,
+        generateFilters: async (prompt: string) => {
+          if (!projectId) return null;
+          const result = await createFilterMutation.mutateAsync({
+            projectId,
+            prompt,
+          });
+          return result && Array.isArray(result.filters)
+            ? (result.filters as WipFilterState)
+            : null;
+        },
+      }
+    : undefined;
 
   return (
     <div className="flex items-center">

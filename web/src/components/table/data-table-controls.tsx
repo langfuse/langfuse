@@ -96,7 +96,6 @@ import {
 } from "@/src/components/ui/popover";
 import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
 import { type FilterState } from "@langfuse/shared";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 interface ControlsContextType {
   open: boolean;
@@ -209,7 +208,6 @@ export function DataTableControls({
   blockedColumnReason,
   layout = "panel",
 }: DataTableControlsProps) {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { setOpen, tableName, isMobile } = useDataTableControls();
   const capture = usePostHogClientCapture();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
@@ -983,7 +981,7 @@ export function DataTableControls({
             )}
           </div>
           <div className="flex items-center gap-1">
-            {filterWithAI && isLangfuseCloud && (
+            {filterWithAI && (
               <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
                 <Tooltip>
                   <TooltipTrigger asChild>
