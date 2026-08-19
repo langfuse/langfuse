@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { expect, fn, userEvent } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../../../.storybook/preview";
 import { EvaluatorGallerySection } from "./EvaluatorGallerySection";
@@ -168,7 +168,9 @@ export const Safety = meta.story({
     ).not.toBeInTheDocument();
     await userEvent.hover(hint);
     await expect(
-      await canvas.findByRole("tooltip", undefined, { timeout: 2000 }),
+      await within(document.body).findByRole("tooltip", undefined, {
+        timeout: 2000,
+      }),
     ).toHaveTextContent(EVALUATOR_GALLERY_SAFETY_CALLOUT);
     await expect(
       canvas.getByText("Detect prompt injection"),
