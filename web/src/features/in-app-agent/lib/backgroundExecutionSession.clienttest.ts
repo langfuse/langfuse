@@ -17,6 +17,7 @@ import {
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
   BackgroundExecutionSessionController,
+  getBackgroundRunNotice,
   type BackgroundExecutionView,
 } from "./backgroundExecutionSession";
 
@@ -1361,6 +1362,34 @@ describe("InAppAgentBackgroundClient reconnect", () => {
       message: "Assistant watch returned an invalid frame",
       retryable: false,
     });
+  });
+});
+
+describe("getBackgroundRunNotice", () => {
+  const run = (overrides: {
+    status?: InAppAgentRunStatus;
+    errorCode?: string | null;
+    cancelRequested?: boolean;
+  }) => ({
+    id: "run-1",
+    status: InAppAgentRunStatus.SUCCEEDED,
+    errorCode: null as string | null,
+    cancelRequested: false,
+    ...overrides,
+  });
+
+  it("tells the user to send another message when the run hit the step limit", () => {
+    expect(
+      getBackgroundRunNotice(
+        run({ errorCode: InAppAgentRunErrorCode.STEP_LIMIT }),
+      ),
+    ).toBe(
+      "The assistant stopped at the step limit before a final answer. Send another message to continue.",
+    );
+  });
+
+  it("does not show a notice for a successful run", () => {
+    expect(getBackgroundRunNotice(run({}))).toBeNull();
   });
 });
 

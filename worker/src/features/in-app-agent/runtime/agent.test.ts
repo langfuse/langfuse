@@ -10,6 +10,7 @@ import {
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
 } from "@langfuse/shared/in-app-agent";
 import { createInAppAgentToolPolicy } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { patchMastraApprovalChunks, type createAgUiStream } from "./agent";
 import {
   createInAppAgentSandbox,
@@ -567,6 +568,47 @@ describe("createAgUiStream", () => {
     ).toHaveBeenNthCalledWith(2, finishPart);
   });
 
+  it("injects wrap-up instructions after the penultimate model call", async () => {
+    await initializeBasicTracedAgent("run-step-limit-wrap-up");
+    const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0] as
+      | {
+          instructions?: (() => string) | string;
+          model?: {
+            doStream: (options: unknown) => Promise<{
+              stream: ReadableStream<unknown>;
+            }>;
+          };
+        }
+      | undefined;
+    const model = agentConfig?.model;
+    expect(model).toBeDefined();
+
+    const readInstructions = () => {
+      const instructions = agentConfig?.instructions;
+      return typeof instructions === "function"
+        ? instructions()
+        : (instructions ?? "");
+    };
+
+    bedrockMocks.streamParts = [
+      {
+        type: "finish",
+        finishReason: { unified: "tool-calls", raw: "tool_use" },
+      },
+    ];
+
+    expect(readInstructions()).not.toContain("Do not call any more tools");
+
+    for (let i = 0; i < IN_APP_AGENT_MAX_STEPS - 1; i++) {
+      const result = await model!.doStream({});
+      for await (const _part of result.stream) {
+        // Drain the mocked provider stream so finish is observed.
+      }
+    }
+
+    expect(readInstructions()).toContain("Do not call any more tools");
+  });
+
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {
     const { createAgUiStream } = await import("./agent");
     const input = {
@@ -764,7 +806,7 @@ describe("createAgUiStream", () => {
     );
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
     expect(agentConfig?.defaultOptions).toMatchObject({
-      maxSteps: expect.any(Number),
+      maxSteps: IN_APP_AGENT_MAX_STEPS,
       providerOptions: {
         bedrock: {
           additionalModelRequestFields: {
@@ -997,7 +1039,7 @@ describe("createAgUiStream", () => {
     const { Agent } = await import("@mastra/core/agent");
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
     expect(agentConfig?.defaultOptions).toMatchObject({
-      maxSteps: expect.any(Number),
+      maxSteps: IN_APP_AGENT_MAX_STEPS,
     });
     expect(agentConfig?.defaultOptions).not.toHaveProperty("providerOptions");
   });

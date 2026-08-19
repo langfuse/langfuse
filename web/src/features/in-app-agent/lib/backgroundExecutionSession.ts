@@ -576,6 +576,34 @@ export function getBackgroundRunFailureMessage(
   );
 }
 
+const STEP_LIMIT_NOTICE =
+  "The assistant stopped at the step limit before a final answer. Send another message to continue.";
+
+export function getBackgroundRunNotice(
+  run: BackgroundExecutionRunView | null,
+): string | null {
+  if (!run) {
+    return null;
+  }
+
+  if (isCancellableBackgroundRun(run.status) && run.cancelRequested) {
+    return "Stopping the run…";
+  }
+
+  if (run.status === InAppAgentRunStatus.FAILED) {
+    return getBackgroundRunFailureMessage(run.errorCode ?? null);
+  }
+
+  if (
+    run.status === InAppAgentRunStatus.SUCCEEDED &&
+    run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT
+  ) {
+    return STEP_LIMIT_NOTICE;
+  }
+
+  return null;
+}
+
 const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.ENQUEUE_FAILED]: "Couldn't start the run. Try again.",
   [InAppAgentRunErrorCode.QUEUE_TIMEOUT]:

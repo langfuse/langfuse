@@ -16,32 +16,13 @@ import {
   getInAppAgentQuickActionContext,
 } from "@/src/features/in-app-agent/quickActions";
 import {
-  getBackgroundRunFailureMessage,
+  getBackgroundRunNotice,
   isCancellableBackgroundRun,
-  type BackgroundExecutionRunView,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
 import {
   InAppAgentRunStatus,
   isUnsettledInAppAgentRunStatus,
 } from "@langfuse/shared/in-app-agent";
-
-function getBackgroundRunNotice(
-  run: BackgroundExecutionRunView | null,
-): string | null {
-  if (!run) {
-    return null;
-  }
-
-  if (isCancellableBackgroundRun(run.status) && run.cancelRequested) {
-    return "Stopping the run…";
-  }
-
-  if (run.status === InAppAgentRunStatus.FAILED) {
-    return getBackgroundRunFailureMessage(run.errorCode ?? null);
-  }
-
-  return null;
-}
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;

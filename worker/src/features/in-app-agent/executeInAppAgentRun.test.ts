@@ -47,7 +47,7 @@ type AgentScenario = (ctx: {
     };
     onEvent: (event: unknown) => Promise<void> | void;
     onApprovedToolCallExecuted?: () => Promise<void> | void;
-    onComplete: () => Promise<void>;
+    onComplete: (outcome?: { truncatedByStepLimit?: boolean }) => Promise<void>;
     onAbort: () => Promise<void>;
     onError: (error: unknown) => Promise<void>;
     onFinish: () => Promise<void>;
@@ -420,6 +420,23 @@ describe("executeInAppAgentRun", () => {
     const merged = events.find((e) => e.type === "TEXT_MESSAGE_CHUNK");
     expect(merged).toBeDefined();
     expect((merged!.event as { delta?: string }).delta).toBe("Hello world");
+  });
+
+  it("records step_limit on SUCCEEDED when the loop hits the cap without a stop finish", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+
+    scenarioRef.current = async ({ options }) => {
+      await options.onEvent(textChunk("Still calling tools"));
+      await options.onComplete({ truncatedByStepLimit: true });
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    const finished = await getRun(projectId, run.id);
+    expect(finished.status).toBe("SUCCEEDED");
+    expect(finished.errorCode).toBe("step_limit");
+    expect(finished.errorMessage).toMatch(/step limit/i);
   });
 
   it("acknowledges duplicate delivery without executing (claim CAS returns no row)", async () => {

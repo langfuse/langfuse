@@ -444,11 +444,18 @@ export async function executeInAppAgentRun(params: {
           return flushPersistedRunEvents();
         },
         onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
-        onComplete: async () => {
+        onComplete: async (outcome) => {
           await flushPersistedRunEvents(
             interruptRequest
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }
-              : { status: InAppAgentRunStatus.SUCCEEDED },
+              : outcome?.truncatedByStepLimit
+                ? {
+                    status: InAppAgentRunStatus.SUCCEEDED,
+                    errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
+                    errorMessage:
+                      "The run reached the step limit before a final answer",
+                  }
+                : { status: InAppAgentRunStatus.SUCCEEDED },
           );
         },
         onAbort: async () => {
