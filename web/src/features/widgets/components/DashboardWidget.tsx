@@ -709,7 +709,7 @@ export function DashboardWidget({
               )}
               <DropdownMenuItem onClick={handleCopyToClipboard}>
                 <CopyIcon className="mr-2 h-4 w-4" />
-                Copy to clipboard
+                Copy widget as JSON
               </DropdownMenuItem>
               {onDuplicateWidget && (
                 <DropdownMenuItem
