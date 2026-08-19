@@ -76,6 +76,16 @@ export const LastDateAtEdge = meta.story({
       <VerticalBarChartTimeSeries data={dailyStacked} legendPosition="none" />
     </div>
   ),
+});
+
+export const TestLastDateFullyVisible = meta.story({
+  name: "(Test) Last Date Fully Visible",
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className="bg-background h-[220px] w-[480px] overflow-hidden rounded-lg border p-4">
+      <VerticalBarChartTimeSeries data={dailyStacked} legendPosition="none" />
+    </div>
+  ),
   play: async ({ canvasElement }) => {
     await waitFor(() => {
       const svg = canvasElement.querySelector("svg");

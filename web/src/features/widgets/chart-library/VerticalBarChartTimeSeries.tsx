@@ -23,7 +23,7 @@ import {
   TimeSeriesLegend,
   useSeriesLegend,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
-import { timeAxisTick } from "@/src/features/widgets/chart-library/TimeAxisTick";
+import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
 
 /**
  * VerticalBarChartTimeSeries component
@@ -137,9 +137,10 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             interval={timeAxis.interval}
             tickFormatter={timeAxis.formatTick}
             {...timeAxis.tickProps}
-            {...(timeAxis.mode !== "category"
-              ? { tick: timeAxisTick(timeAxis.formatTick) }
-              : {})}
+            {...temporalAxisTickProp(
+              timeAxis,
+              groupedData.at(-1)?.time_dimension,
+            )}
           />
           <YAxis
             type="number"

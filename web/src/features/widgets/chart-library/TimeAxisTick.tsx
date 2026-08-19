@@ -1,32 +1,44 @@
+import type { ReactNode } from "react";
+import type { XAxisTickContentProps } from "recharts";
+
 type TimeAxisTickViewProps = {
-  x?: number;
-  y?: number;
+  x?: number | string;
+  y?: number | string;
   payload?: { value?: unknown };
-  index?: number;
-  visibleTicksCount?: number;
 };
 
+function tickCoord(value: number | string | undefined): number | null {
+  if (value == null) return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 /**
- * Temporal x-axis tick. The last shown tick sits on the last bucket, flush
- * with the plot's right edge — a centered "Aug 11" clips to "Aug 1". End-anchor
- * that last label so it stays on-canvas; every other tick stays centered.
+ * Temporal x-axis tick. A centered label on the last *bucket* clips at the
+ * plot edge ("Aug 11" → "Aug 1"). End-anchor only that last-bucket tick;
+ * thinned ticks that are not the last bucket stay centered on their gridline.
  */
 function TimeAxisTick({
   x,
   y,
   payload,
-  index,
-  visibleTicksCount,
   formatter,
-}: TimeAxisTickViewProps & { formatter: (raw: unknown) => string }) {
-  if (x == null || y == null) return null;
-  const isLast = visibleTicksCount != null && index === visibleTicksCount - 1;
+  lastValue,
+}: TimeAxisTickViewProps & {
+  formatter: (raw: unknown) => string;
+  lastValue: unknown;
+}) {
+  const tickX = tickCoord(x);
+  const tickY = tickCoord(y);
+  if (tickX == null || tickY == null) return null;
+  const isLastBucket =
+    lastValue != null && String(payload?.value) === String(lastValue);
   return (
     <text
-      x={x}
-      y={y}
+      x={tickX}
+      y={tickY}
       dy={8}
-      textAnchor={isLast ? "end" : "middle"}
+      textAnchor={isLastBucket ? "end" : "middle"}
       className="fill-muted-foreground/90"
       fontSize={12}
     >
@@ -35,8 +47,24 @@ function TimeAxisTick({
   );
 }
 
-export function timeAxisTick(formatter: (raw: unknown) => string) {
-  return function TimeAxisTickRenderer(props: TimeAxisTickViewProps) {
-    return <TimeAxisTick {...props} formatter={formatter} />;
+export function timeAxisTick(
+  formatter: (raw: unknown) => string,
+  lastValue: unknown,
+): (props: XAxisTickContentProps) => ReactNode {
+  return function TimeAxisTickRenderer(props: XAxisTickContentProps) {
+    return (
+      <TimeAxisTick {...props} formatter={formatter} lastValue={lastValue} />
+    );
   };
+}
+
+/** Visualiser helper: custom tick only on temporal axes (preparer stays React-free). */
+export function temporalAxisTickProp(
+  timeAxis: { mode: string; formatTick: (raw: unknown) => string },
+  lastValue: unknown,
+):
+  | { tick: (props: XAxisTickContentProps) => ReactNode }
+  | Record<string, never> {
+  if (timeAxis.mode === "category") return {};
+  return { tick: timeAxisTick(timeAxis.formatTick, lastValue) };
 }
