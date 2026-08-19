@@ -226,7 +226,7 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeAssistantSupport", () => ({
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useIsInAppAgentVisible: () => true,
+  useCanUseInAppAgent: () => mocks.aiFeaturesEnabled,
   useInAppAiAgent: () => ({
     openAssistant: mocks.openAssistant,
     submit: mocks.submitAgentMessage,
@@ -1098,59 +1098,19 @@ describe("V4MigrationDetailsContent", () => {
     );
   });
 
-  it("keeps the choice screen when AI features are disabled", () => {
+  it("hides the assistant evals CTA when AI features are disabled", () => {
     mocks.migrationData.evals = { status: "loaded", count: 1 };
     mocks.aiFeaturesEnabled = false;
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    // Without AI features the button drops the assistant branding …
     expect(
       screen.queryByRole("button", { name: "Use Assistant" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Update evals" }));
-
-    // … and the dialog does not preselect the assistant, so the choice
-    // screen keeps owning the enable-AI flow.
-    const migrationDialog = screen.getByRole("dialog");
     expect(
-      within(migrationDialog).getByRole("heading", {
-        name: "How would you like to upgrade your evaluators?",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(migrationDialog).getByRole("button", {
-        name: /^Use Assistant/,
-      }),
-    ).toBeInTheDocument();
-  });
-
-  it("shows the admin handoff after a non-admin chooses the Assistant", () => {
-    mocks.migrationData.evals = { status: "loaded", count: 1 };
-    mocks.canUpdateOrgSettings = false;
-    mocks.aiFeaturesEnabled = false;
-
-    render(<V4MigrationDetailsContent projectId="project-1" />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Update evals" }));
-    const migrationDialog = screen.getByRole("dialog");
-    fireEvent.click(
-      within(migrationDialog).getByRole("button", {
-        name: /^Use Assistant/,
-      }),
-    );
-
-    expect(
-      screen.getByRole("heading", {
-        name: "Ask your organization admin to enable AI features",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/enable AI features for our Langfuse organization/),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Continue with manual upgrade" }),
+      screen.queryByRole("button", { name: "Update evals" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
 

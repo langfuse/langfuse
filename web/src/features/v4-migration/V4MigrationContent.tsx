@@ -10,7 +10,7 @@ import {
   Info,
 } from "lucide-react";
 import { env } from "@/src/env.mjs";
-import { useIsInAppAgentVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -1401,7 +1401,7 @@ export function V4MigrationDetailsContent({
     onNavigate?.();
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
-  const isInAppAgentVisible = useIsInAppAgentVisible();
+  const canUseAssistant = useCanUseInAppAgent();
   // Same org source as EvaluatorMigrationDialog's gating, so the button
   // branding and the dialog's preselect can't disagree.
   const { organization: routeOrganization } = useQueryProjectOrOrganization();
@@ -1461,7 +1461,7 @@ export function V4MigrationDetailsContent({
             <V4MigrationEvalsSection
               state={migrationData.evals}
               assistant={
-                isInAppAgentVisible
+                canUseAssistant
                   ? {
                       onMigrate: handleMigrateEvalsWithAgent,
                       aiFeaturesEnabled,
