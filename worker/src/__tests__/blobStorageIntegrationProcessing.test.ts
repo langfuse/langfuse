@@ -132,19 +132,18 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     s3Prefix = null;
   });
 
-  // LFE-10296: a persisted enriched export source on a deployment without the
-  // enriched export path (e.g. after a V4-preview rollback) must fail the job
-  // loudly instead of silently exporting from unpopulated tables.
+  // A persisted enriched export source on a deployment that does not write the
+  // v4 events table must fail the job loudly instead of silently exporting
+  // from unpopulated tables.
   describe("enriched export source guard", () => {
-    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
     afterEach(() => {
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
-        originalV4Preview;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
     });
 
-    it("fails the job and persists lastError when the enriched export path is unavailable", async () => {
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+    it("fails the job and persists lastError when an enriched source runs on legacy", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
 
@@ -242,11 +241,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   // After BullMQ exhausts its retries, a customer-fault error disables the
   // integration; everything else keeps retrying as before.
   describe("customer-fault disable", () => {
-    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
     afterEach(() => {
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
-        originalV4Preview;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
     });
 
     // Minimal AWS SDK v3 S3 AccessDenied shape (high-confidence customer fault).
@@ -337,9 +335,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
 
     it("does not disable on the final attempt of a non-customer-fault ('other') error", async () => {
-      // Enriched source + V4 preview off => the guard throws a plain Error,
-      // which the classifier treats as "other".
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      // Enriched source on the legacy write mode => the guard throws a plain
+      // Error, which the classifier treats as "other".
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
 
@@ -405,6 +403,89 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(row.enabled).toBe(false);
       expect(row.lastError).toMatch(/connection refused/i);
       expect(row.lastFailureNotificationSentAt).toBeNull();
+    });
+
+    // A concurrent run (distinct jobId, so not queue-deduped) can win the
+    // disable claim first. The loser must stay silent: the winner already sent
+    // the terminal "disabled" email, and the loser's only fallback is the
+    // informational "will retry at the next scheduled export" variant, which is
+    // false for an integration that is now off.
+    it("does not notify when a concurrent run won the customer-fault disable claim", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockRecordIncrement.mockClear();
+      // Land the winner's disable between the handler's enabled check and the
+      // terminal catch, then raise the same fault the winner disabled on.
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await prisma.blobStorageIntegration.updateMany({
+          where: { projectId },
+          data: { enabled: false },
+        });
+        throw accessDeniedError();
+      });
+
+      await expect(runAttempt(projectId, 4)).rejects.toThrow(/access denied/i);
+      await settleBackgroundTasks();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toMatch(/access denied/i);
+      // Null proves the loser suppressed its email: the informational fallback
+      // would have taken the cooldown claim and stamped this.
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+      // Only the worker that actually flipped enabled true->false counts it.
+      expect(mockRecordIncrement).not.toHaveBeenCalledWith(
+        BLOB_INTEGRATION_DISABLED_METRIC,
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    // When the failure can't even be written down (Postgres unavailable), the
+    // run knows nothing about the row's state. It must not claim a disable it
+    // failed to persist, but it must still say something rather than dropping
+    // the failure silently. `update` is only called on this terminal path, so
+    // spying on it isolates the persistence failure from the export itself.
+    it("falls back to the informational email when persisting the failure fails", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockRecordIncrement.mockClear();
+      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
+        accessDeniedError(),
+      );
+      const updateSpy = vi
+        .spyOn(prisma.blobStorageIntegration, "update")
+        .mockRejectedValueOnce(new Error("database unavailable"));
+
+      try {
+        await expect(runAttempt(projectId, 4)).rejects.toThrow(
+          /access denied/i,
+        );
+        await settleBackgroundTasks();
+      } finally {
+        updateSpy.mockRestore();
+      }
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // Nothing was written, so the fault is invisible to the row and the
+      // integration keeps running — even though this was a classified fault on
+      // the final attempt, which would otherwise have disabled it.
+      expect(row.enabled).toBe(true);
+      expect(row.lastError).toBeNull();
+      expect(mockRecordIncrement).not.toHaveBeenCalledWith(
+        BLOB_INTEGRATION_DISABLED_METRIC,
+        expect.anything(),
+        expect.anything(),
+      );
+      // The informational email still goes out, observable via its cooldown
+      // claim, so an unwritable failure is not a silent one.
+      expect(row.lastFailureNotificationSentAt).not.toBeNull();
     });
   });
 

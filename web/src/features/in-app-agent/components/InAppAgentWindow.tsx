@@ -22,7 +22,6 @@ import {
   Plus,
   SendHorizontal,
   Square,
-  TriangleAlert,
   Trash2,
   X,
 } from "lucide-react";
@@ -48,13 +47,11 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import {
-  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
-  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-  type InAppAgentMessageFeedbackValue,
-  type InAppAgentMessageSource,
-} from "@langfuse/shared/in-app-agent";
-import { deduplicateBy } from "@/src/utils/arrays";
+import type {
+  InAppAgentMessageFeedbackValue,
+  InAppAgentMessageSource,
+} from "../schema";
+import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import { ConversationActivityIndicator } from "@/src/features/in-app-agent/components/ConversationActivityIndicator";
@@ -66,6 +63,7 @@ import {
   type InAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
+import { deduplicateBy } from "@/src/utils/arrays";
 import messageStyles from "./InAppAgentMessage.module.css";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
@@ -826,7 +824,6 @@ export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
   /** Per-conversation attention state, for the recent-conversation indicators. */
   activityByConversationId: InAppAgentActivityByConversationId;
-  disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   executionUi: InAppAgentWindowExecutionUi;
   hasMoreConversations: boolean;
@@ -917,37 +914,20 @@ function InAppAgentRateLimitError({
   );
 }
 
-function InAppAgentIssueNotice({
-  isExpanded,
-  variant,
-}: {
-  isExpanded: boolean;
-  variant: "error" | "write_lock";
-}) {
-  const isWriteLock = variant === "write_lock";
-
+function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
   return (
     <div className="shrink-0 px-2 pb-2">
       <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
         <p
           role="alert"
           className={cn(
-            "flex w-full items-center gap-2 rounded-lg border px-2 py-1",
-            isWriteLock
-              ? "border-border bg-muted/60 text-foreground"
-              : "border-destructive/40 bg-destructive/10 text-destructive",
+            "border-destructive/40 bg-destructive/10 text-destructive flex w-full items-center gap-2 rounded-lg border px-2 py-1",
             isExpanded ? "text-sm" : "text-xs",
           )}
         >
-          {isWriteLock ? (
-            <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
-          ) : (
-            <Info aria-hidden="true" className="size-3 shrink-0" />
-          )}
+          <Info aria-hidden="true" className="size-3 shrink-0" />
           <span className="min-w-0 flex-1">
-            {isWriteLock
-              ? IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE
-              : IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
+            {IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
           </span>
         </p>
       </div>
@@ -959,7 +939,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     activityByConversationId,
     conversations,
-    disablePendingToolApprovalActions = false,
     error,
     executionUi,
     hasMoreConversations,
@@ -1387,12 +1366,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       quickActionCategory: context,
                       position,
                     });
-                    submitInput(action.prompt, {
-                      quickAction: {
-                        key: action.id,
-                        category: context,
-                      },
-                    });
+                    submitInput(action.prompt);
                   }}
                 />
               </div>
@@ -1492,9 +1466,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   key={`${tool.approval?.id ?? tool.name}-${index}`}
                   tool={tool}
                   isCompact={!isExpanded}
-                  isDisabled={
-                    isRateLimited || disablePendingToolApprovalActions
-                  }
+                  isDisabled={isRateLimited}
                   onApproveToolCall={onApproveToolCall}
                   onAlwaysAllowToolCall={onAlwaysAllowToolCall}
                   onRejectToolCall={onRejectToolCall}
@@ -1521,11 +1493,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
-        {(error?.type === "generic" || error?.type === "write_lock") && (
-          <InAppAgentIssueNotice
-            isExpanded={isExpanded}
-            variant={error.type === "write_lock" ? "write_lock" : "error"}
-          />
+        {error?.type === "generic" && (
+          <InAppAgentIssueNotice isExpanded={isExpanded} />
         )}
         {backgroundHint.isVisible && props.onClose ? (
           <InAppAgentBackgroundHint
@@ -1549,12 +1518,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </div>
         )}
         {isAssistantTurnInProgress && pendingToolCalls.length === 0 ? (
-          <div
-            className={cn(
-              "pointer-events-none relative h-px w-full shrink-0 select-none",
-              isExpanded && "mx-auto max-w-3xl",
-            )}
-          >
+          <div className="pointer-events-none relative mx-auto h-px w-[calc(100%-1.5rem)] max-w-[calc(48rem-0.75rem)] shrink-0 select-none">
             <div className="absolute top-0 h-4 w-full -translate-y-full overflow-hidden">
               <div className="absolute top-0 h-12 w-full bg-radial from-(--color-3) to-transparent to-60% bg-center opacity-25" />
             </div>
@@ -1563,18 +1527,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 aria-hidden="true"
                 className={cn("h-[4rem]", styles.loadingGradient)}
               />
-              {isExpanded && (
-                <>
-                  {/* Gradient overlays for expanded state so that the edges fade out */}
-                  {/* Match the assistant surface (bg-background) so edges fade cleanly */}
-                  <div className="from-background absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
-                  <div className="from-background absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
-                </>
-              )}
+              {/* Match the assistant surface so the loading animation fades at both edges. */}
+              <div className="from-background absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
+              <div className="from-background absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
             </div>
           </div>
         ) : null}
-        <div className={cn("p-1.5", isExpanded && "pt-0")}>
+        <div
+          className={cn(
+            "p-1.5",
+            (isExpanded || isAssistantTurnInProgress) && "pt-0",
+          )}
+        >
           {/* The composer separates from the transcript by elevation, not by a
               rule: one hairline edge, a lifted surface, and a footer band a
               step off the input. `overflow-hidden` keeps that band inside the
@@ -1640,7 +1604,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     executionStop?.onStop();
                   }}
                 >
-                  <Square className="size-3" />
+                  <Square className="text-muted-foreground size-3 fill-current" />
                 </Button>
               ) : (
                 <Button

@@ -12,9 +12,25 @@
  */
 import { DNS_LOOKUP_FAILED_MESSAGE_PREFIX } from "@langfuse/shared/src/server";
 
-const OUTBOUND_VALIDATION_ERROR_NAMES = new Set([
+// Host/IP policy blocks — the SSRF signal proper. RedirectValidationError
+// belongs here: it means a redirect TARGET failed host validation.
+const POLICY_BLOCK_ERROR_NAMES = new Set([
   "OutboundUrlValidationError",
   "RedirectValidationError",
+]);
+
+// Redirect budget exhaustion and loops. Also permanent — retrying re-reads the
+// same events and hits the same chain — but the SSRF status is genuinely
+// UNKNOWN: outbound-url/fetch.ts detects both before validating the hop that
+// would have closed the loop or exceeded the budget, so that target was never
+// checked. Reporting must say so instead of claiming a security block.
+const REDIRECT_BUDGET_ERROR_NAME = "MaxRedirectsExceededError";
+const REDIRECT_LOOP_ERROR_NAME = "CircularRedirectError";
+
+const OUTBOUND_VALIDATION_ERROR_NAMES = new Set([
+  ...POLICY_BLOCK_ERROR_NAMES,
+  REDIRECT_BUDGET_ERROR_NAME,
+  REDIRECT_LOOP_ERROR_NAME,
 ]);
 
 // A resolver hiccup is not a policy block: the host may be legitimate and the
@@ -54,4 +70,23 @@ export function findOutboundUrlValidationError(
   }
 
   return undefined;
+}
+
+/**
+ * How to describe a terminal outbound failure in a log line and in the error
+ * that reaches BullMQ's `failedReason`.
+ *
+ * A host/IP policy block is stated as one. A redirect budget or loop fault is
+ * NOT: it only asserts that the chain stopped before its final target was
+ * validated, so it must not claim the destination was blocked (nothing checked
+ * it) or fine (it might be the metadata service).
+ */
+export function describeOutboundFailure(error: Error): string {
+  if (error.name === REDIRECT_BUDGET_ERROR_NAME) {
+    return "too many redirects; final destination not verified";
+  }
+  if (error.name === REDIRECT_LOOP_ERROR_NAME) {
+    return "redirect loop; final destination not verified";
+  }
+  return "blocked by SSRF protection";
 }

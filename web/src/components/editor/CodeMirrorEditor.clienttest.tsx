@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getPromptVariableDiagnostics } from "@/src/components/editor/CodeMirrorEditor";
 
 describe("getPromptVariableDiagnostics", () => {

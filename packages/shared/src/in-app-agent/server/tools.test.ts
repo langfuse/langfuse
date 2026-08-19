@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createInAppAgentToolPolicy } from "./tools";
+import { createInAppAgentToolPolicy } from "./mcpPolicy";
 
 describe("createInAppAgentToolPolicy", () => {
   it("drops a stored grant the user's role no longer covers", () => {

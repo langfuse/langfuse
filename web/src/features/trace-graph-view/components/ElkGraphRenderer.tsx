@@ -359,7 +359,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       ref={containerRef}
       role="group"
       aria-label="Trace agent graph"
-      className="bg-background/50 relative h-full w-full cursor-grab overflow-hidden active:cursor-grabbing"
+      // `touch-none`: d3-zoom owns pan and pinch here. Without it WebKit zooms
+      // the page instead, since `preventDefault` cannot cancel its pinch.
+      className="bg-background/50 relative h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
       onPointerDown={(e) =>
         (pointerDownPos.current = { x: e.clientX, y: e.clientY })
       }

@@ -15,8 +15,10 @@ Peek views allow users to quickly preview table items in a side panel. When navi
   table behind stays interactive. A left-edge handle resizes it; dragging to the
   far edge (or the header Expand button) **expands** it to the max width
   (viewport − sidebar; the sidebar stays visible).
-- **Mobile** (`useIsMobile`, <768px) — a `vaul` bottom drawer with native
-  swipe-down dismissal (Expand is hidden).
+- **Handheld** (`useIsHandheld` — narrower than `md`, _or_ a coarse pointer on a
+  short screen, i.e. a phone in landscape) — a `vaul` bottom drawer with native
+  swipe-down dismissal (Expand is hidden). Not width-only: a landscape phone is
+  wider than `md` and would otherwise get the desktop sheet.
 
 Dismissal:
 

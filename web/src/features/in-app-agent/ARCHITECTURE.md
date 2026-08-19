@@ -58,11 +58,14 @@ Two consequences worth stating explicitly:
 `packages/shared` is for what web **and** worker both need. Web-only logic stays
 in web even when it executes on a server.
 
-The worker runs agents; it never renders. So the event log, canonical
-accumulation, replay, the run lifecycle and watch framing are shared, while
-display recording and projection live in `web/src/features/in-app-agent/lib/`
-and are imported by both the browser and the web server that builds snapshots.
-Shared persistence knows nothing about rendering.
+The worker runs agents; it never renders. Mastra adaptation, tools,
+instrumentation, continuation handling, prompt loading, skills, and sandbox
+providers therefore live in `worker/src/features/in-app-agent/runtime/`.
+Shared owns only durable cross-process contracts and storage behavior: the
+event log, canonical accumulation, replay, lifecycle, approval events, MCP
+policy, tool-result redaction, and seeded prompt. Watch framing, display
+recording, projection, IDs, feedback/source schemas, and conversation access
+live in web. Shared persistence knows nothing about rendering.
 
 The two message-pruning helpers are the deliberate exception: they prune
 `AgUiMessage` shape rather than describe presentation, and replay needs them
@@ -83,14 +86,18 @@ flowchart LR
   end
   subgraph Shared["packages/shared"]
     L[("in_app_agent_events")]
-    A["agent runtime"]
+    C["durable contracts + lifecycle"]
   end
-  W["worker: executeInAppAgentRun"]
+  subgraph Worker["worker"]
+    W["executeInAppAgentRun"]
+    A["runtime/agent + tools + sandbox"]
+  end
 
   S -->|"tRPC start + snapshot"| RT
   RT -->|"enqueue"| W
   W --> A
   W --> L
+  W -.-> C
   S -->|"SSE tail above cursor"| WR
   RT --> L
   WR --> L
