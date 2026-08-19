@@ -65,6 +65,11 @@ async function createMigratedEvalConfig(
   args: Parameters<typeof prisma.jobConfiguration.create>[0],
 ) {
   const config = await prisma.jobConfiguration.create(args);
+  const template = config.evalTemplateId
+    ? await prisma.evalTemplate.findUnique({
+        where: { id: config.evalTemplateId },
+      })
+    : null;
   const evaluator = await prisma.evaluator.create({
     data: {
       projectId: config.projectId,
@@ -73,7 +78,21 @@ async function createMigratedEvalConfig(
       blockedAt: config.blockedAt,
       blockReason: config.blockReason,
       blockMessage: config.blockMessage,
-      versions: { create: { version: 1 } },
+      versions: {
+        create: {
+          version: 1,
+          prompt: template?.prompt,
+          partner: template?.partner,
+          model: template?.model,
+          provider: template?.provider,
+          modelParams: template?.modelParams ?? undefined,
+          vars: template?.vars,
+          variableMapping: config.variableMapping,
+          outputDefinition: template?.outputDefinition ?? undefined,
+          sourceCode: template?.sourceCode,
+          sourceCodeLanguage: template?.sourceCodeLanguage,
+        },
+      },
     },
   });
   await prisma.evaluationRule.create({
@@ -1871,7 +1890,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      const jobConfiguration = await prisma.jobConfiguration.create({
+      const jobConfiguration = await createMigratedEvalConfig({
         data: {
           id: randomUUID(),
           projectId,
@@ -1960,7 +1979,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      const jobConfiguration = await prisma.jobConfiguration.create({
+      const jobConfiguration = await createMigratedEvalConfig({
         data: {
           id: randomUUID(),
           projectId,
@@ -2053,7 +2072,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      const jobConfiguration = await prisma.jobConfiguration.create({
+      const jobConfiguration = await createMigratedEvalConfig({
         data: {
           id: randomUUID(),
           projectId,
@@ -2123,6 +2142,126 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].status.toString()).toBe("PENDING");
     }, 10_000);
 
+    test("blocks the migrated evaluator for a job queued without v2 identity", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      openAIServer.respondWithError(401, "Not authorized");
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: "a",
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      const template = await prisma.evalTemplate.create({
+        data: {
+          projectId,
+          name: "migrated-template",
+          version: 1,
+          prompt: "Please evaluate toxicity {{input}} {{output}}",
+          model: "gpt-3.5-turbo",
+          provider: "openai",
+          modelParams: {},
+          vars: ["input", "output"],
+          outputDefinition: {
+            reasoning: "Please explain your reasoning",
+            score: "Please provide a score between 0 and 1",
+          },
+        },
+      });
+      const jobConfiguration = await createMigratedEvalConfig({
+        data: {
+          projectId,
+          filter: [],
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal(1),
+          targetObject: EvalTargetObject.TRACE,
+          scoreName: "migrated-score",
+          variableMapping: [
+            {
+              templateVariable: "input",
+              langfuseObject: "trace",
+              selectedColumnId: "input",
+            },
+            {
+              templateVariable: "output",
+              langfuseObject: "trace",
+              selectedColumnId: "output",
+            },
+          ],
+          evalTemplateId: template.id,
+        },
+      });
+      const assignment =
+        await prisma.evaluationRuleEvaluatorAssignment.findFirstOrThrow({
+          where: { evaluationRuleId: jobConfiguration.id },
+          include: { evaluator: { include: { versions: true } } },
+        });
+      await prisma.evaluatorVersion.update({
+        where: { id: assignment.evaluator.versions[0].id },
+        data: {
+          prompt: template.prompt,
+          model: template.model,
+          provider: template.provider,
+          modelParams: template.modelParams ?? Prisma.DbNull,
+          vars: template.vars,
+          variableMapping: jobConfiguration.variableMapping,
+          outputDefinition: template.outputDefinition ?? Prisma.DbNull,
+        },
+      });
+
+      const jobExecutionId = randomUUID();
+      await prisma.jobExecution.create({
+        data: {
+          id: jobExecutionId,
+          projectId,
+          jobConfigurationId: jobConfiguration.id,
+          status: "PENDING",
+          startTime: new Date(),
+          jobInputTraceId: traceId,
+        },
+      });
+      await prisma.llmApiKeys.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          secretKey: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          customModels: [],
+          displaySecretKey: "123456",
+        },
+      });
+
+      await expect(
+        evaluate({
+          event: { projectId, jobExecutionId, delay: 1000 },
+        }),
+      ).rejects.toMatchObject({ statusCode: 401 });
+
+      await expect(
+        prisma.evaluator.findUniqueOrThrow({
+          where: { id: assignment.evaluatorId },
+          select: { blockedAt: true, blockReason: true },
+        }),
+      ).resolves.toMatchObject({
+        blockedAt: expect.any(Date),
+        blockReason: "LLM_CONNECTION_AUTH_INVALID",
+      });
+      await expect(
+        prisma.jobConfiguration.findUniqueOrThrow({
+          where: { id: jobConfiguration.id },
+          select: { blockedAt: true },
+        }),
+      ).resolves.toEqual({ blockedAt: null });
+    }, 10_000);
+
     test("evals should cancel if job is cancelled", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
@@ -2145,7 +2284,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      const jobConfiguration = await prisma.jobConfiguration.create({
+      const jobConfiguration = await createMigratedEvalConfig({
         data: {
           id: randomUUID(),
           projectId,
@@ -2217,7 +2356,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      const jobConfiguration = await prisma.jobConfiguration.create({
+      const jobConfiguration = await createMigratedEvalConfig({
         data: {
           id: randomUUID(),
           projectId,
@@ -2323,7 +2462,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      const jobConfiguration = await prisma.jobConfiguration.create({
+      const jobConfiguration = await createMigratedEvalConfig({
         data: {
           id: randomUUID(),
           projectId,
@@ -3161,7 +3300,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       });
 
       const configId = randomUUID();
-      await prisma.jobConfiguration.create({
+      await createMigratedEvalConfig({
         data: {
           id: configId,
           projectId,
@@ -3213,7 +3352,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(capturedTraceSinkParams.targetProjectId).toBe(projectId);
       expect(capturedTraceSinkParams.traceId).toMatch(/^[a-f0-9]{32}$/);
       expect(capturedTraceSinkParams.traceName).toBe(
-        "Execute evaluator: test-evaluator",
+        "Execute evaluator: test-score",
       );
       expect(capturedTraceSinkParams.environment).toBe(
         LangfuseInternalTraceEnvironment.LLMJudge,
@@ -3268,7 +3407,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      const jobConfiguration = await prisma.jobConfiguration.create({
+      const jobConfiguration = await createMigratedEvalConfig({
         data: {
           id: randomUUID(),
           projectId,

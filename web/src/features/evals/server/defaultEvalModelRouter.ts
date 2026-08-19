@@ -53,10 +53,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
         }),
       );
 
-      if (
-        unblocked.unblockedJobConfigCount > 0 ||
-        unblocked.unblockedEvaluatorCount > 0
-      ) {
+      if (unblocked.unblockedEvaluatorCount > 0) {
         await invalidateProjectEvalConfigCaches(input.projectId);
       }
 
@@ -91,10 +88,6 @@ export const defaultEvalModelRouter = createTRPCRouter({
       await finalizeEvaluatorBlocks({
         projectId: input.projectId,
         source: EvaluatorBlockSource.DEFAULT_EVAL_MODEL_DELETION,
-        jobConfigIdsByReason: {
-          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
-            result.blockedJobConfigIds,
-        },
         evaluatorIdsByReason: {
           [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
             result.blockedEvaluatorIds,
