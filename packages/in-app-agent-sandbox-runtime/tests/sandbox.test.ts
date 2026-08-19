@@ -177,7 +177,7 @@ describe("sandbox runtime docker container", () => {
         }),
       });
 
-      const sensitiveFileContent = "customer-file-content-must-not-be-logged";
+      const sensitiveFileContent = "customer-read-content-must-not-be-logged";
       await requestJson(baseUrl, "/sandbox", {
         method: "POST",
         body: JSON.stringify({
@@ -194,8 +194,44 @@ describe("sandbox runtime docker container", () => {
         }),
       });
 
+      const sensitiveOldText = "customer-edit-old-text-must-not-be-logged";
+      const sensitiveNewText = "customer-edit-new-text-must-not-be-logged";
+      await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "write",
+          path: "edit-sensitive.txt",
+          content: sensitiveOldText,
+        }),
+      });
+      await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "edit",
+          path: "edit-sensitive.txt",
+          oldText: sensitiveOldText,
+          newText: sensitiveNewText,
+        }),
+      });
+
+      const sensitiveToolCallContent =
+        "customer-tool-call-content-must-not-be-logged";
+      await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command: "true",
+          toolCallFiles: [
+            {
+              path: "/workspace/tool_calls/sensitive.txt",
+              content: sensitiveToolCallContent,
+            },
+          ],
+        }),
+      });
+
       const sensitiveCommand =
-        "printf customer-command-output-must-not-be-logged # customer-command-must-not-be-logged";
+        "printf customer-stdout-must-not-be-logged; printf customer-stderr-must-not-be-logged >&2 # customer-command-must-not-be-logged";
       await requestJson(baseUrl, "/sandbox", {
         method: "POST",
         body: JSON.stringify({
@@ -206,8 +242,27 @@ describe("sandbox runtime docker container", () => {
 
       const logs = await getContainerLogs(container!);
       expect(logs).not.toContain(sensitiveFileContent);
+      expect(logs).not.toContain(sensitiveOldText);
+      expect(logs).not.toContain(sensitiveNewText);
+      expect(logs).not.toContain(sensitiveToolCallContent);
       expect(logs).not.toContain("customer-command-must-not-be-logged");
-      expect(logs).not.toContain("customer-command-output-must-not-be-logged");
+      expect(logs).not.toContain("customer-stdout-must-not-be-logged");
+      expect(logs).not.toContain("customer-stderr-must-not-be-logged");
+      expect(logs).toContain(
+        `"contentBytes":${Buffer.byteLength(sensitiveFileContent, "utf8")}`,
+      );
+      expect(logs).toContain(
+        `"oldTextLength":${sensitiveOldText.length},"newTextLength":${sensitiveNewText.length}`,
+      );
+      expect(logs).toContain(
+        `"commandBytes":${Buffer.byteLength(sensitiveCommand, "utf8")}`,
+      );
+      expect(logs).toContain(
+        `"stdoutBytes":${Buffer.byteLength("customer-stdout-must-not-be-logged", "utf8")}`,
+      );
+      expect(logs).toContain(
+        `"stderrBytes":${Buffer.byteLength("customer-stderr-must-not-be-logged", "utf8")}`,
+      );
 
       const escaped = await requestJson(baseUrl, "/sandbox", {
         method: "POST",

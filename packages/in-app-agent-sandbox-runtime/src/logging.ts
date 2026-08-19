@@ -27,27 +27,38 @@ export function summarizeBashResult(result: BashResult) {
 }
 
 export function summarizeOperation(body: SandboxOperation) {
-  switch (body.operation) {
-    case "read":
-      return { operation: body.operation, path: body.path };
-    case "write":
-      return {
-        operation: body.operation,
-        path: body.path,
-        contentBytes: Buffer.byteLength(body.content, "utf8"),
-      };
-    case "edit":
-      return {
-        operation: body.operation,
-        path: body.path,
-        oldTextLength: body.oldText.length,
-        newTextLength: body.newText.length,
-      };
-    case "bash":
-      return {
-        operation: body.operation,
-        timeoutMs: body.timeoutMs ?? null,
-        commandBytes: Buffer.byteLength(body.command, "utf8"),
-      };
+  if (body.operation === "read") {
+    return { operation: body.operation, path: body.path };
   }
+
+  if (body.operation === "write") {
+    return {
+      operation: body.operation,
+      path: body.path,
+      contentBytes: Buffer.byteLength(body.content, "utf8"),
+    };
+  }
+
+  if (body.operation === "edit") {
+    return {
+      operation: body.operation,
+      path: body.path,
+      oldTextLength: body.oldText.length,
+      newTextLength: body.newText.length,
+    };
+  }
+
+  if (body.operation === "bash") {
+    return {
+      operation: body.operation,
+      timeoutMs: body.timeoutMs ?? null,
+      commandBytes: Buffer.byteLength(body.command, "utf8"),
+    };
+  }
+
+  return assertUnreachable(body);
+}
+
+function assertUnreachable(_value: never): never {
+  throw new Error("Unhandled sandbox operation");
 }
