@@ -34,18 +34,18 @@ export function V4MigrationNavItem() {
   };
 
   return (
-    <div className="px-2 py-2 group-data-[collapsible=icon]:hidden">
-      <SidebarMenuButton
-        onClick={handleClick}
-        tooltip={label}
-        className="border-input w-full gap-1.5 rounded-full border pr-2 pl-[9px]"
-      >
-        <span className="h-2 w-2 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400" />
-        <span className="truncate font-bold" title={label}>
-          {label}
-        </span>
-        <ChevronRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
-      </SidebarMenuButton>
-    </div>
+    <SidebarMenuButton
+      onClick={handleClick}
+      tooltip={label}
+      className="group-data-[collapsible=icon]:hidden"
+    >
+      <div className="relative mx-1 flex h-2 w-2 shrink-0 items-center justify-center">
+        <span className="inline-flex h-2 w-2 rounded-full bg-orange-400" />
+      </div>
+      <span className="truncate font-bold" title={label}>
+        {label}
+      </span>
+      <ChevronRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+    </SidebarMenuButton>
   );
 }
