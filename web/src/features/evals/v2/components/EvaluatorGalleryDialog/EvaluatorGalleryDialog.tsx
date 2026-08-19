@@ -129,7 +129,7 @@ export function EvaluatorGalleryDialog({
         <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
           <DialogTitle>Configure evaluator</DialogTitle>
           <DialogDescription>
-            Choose a blank evaluator or start from an example.
+            Choose a blank evaluator or start from a template.
           </DialogDescription>
         </DialogHeader>
         <EvaluatorGalleryView

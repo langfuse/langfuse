@@ -7,10 +7,17 @@ describe("managedEvaluatorTemplateService", () => {
       search: "exact",
       type: "CODE",
     });
+    const recommendedTemplates = managedEvaluatorTemplateService.list({
+      category: "recommended",
+    });
 
-    expect(exactMatch?.name).toBe("Exact Match");
+    expect(exactMatch?.name).toBe("Check if output is an Exact Match");
     expect(codeTemplates.templates.map(({ key }) => key)).toEqual([
       "exact-match",
+    ]);
+    expect(recommendedTemplates.templates.map(({ key }) => key)).toEqual([
+      "chat-intent",
+      "out-of-scope-request",
     ]);
     expect(codeTemplates.categories.length).toBeGreaterThan(0);
   });

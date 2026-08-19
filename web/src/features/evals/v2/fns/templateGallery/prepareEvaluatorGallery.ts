@@ -1,6 +1,8 @@
 import {
+  Code2,
   FileSearch,
   Gauge,
+  ListFilter,
   MessagesSquare,
   Shield,
   Sparkles,
@@ -20,9 +22,21 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   gauge: Gauge,
   shield: Shield,
   "file-search": FileSearch,
+  "list-filter": ListFilter,
   "messages-square": MessagesSquare,
+  "code-2": Code2,
   sparkles: Sparkles,
 };
+
+const RECOMMENDED_TEMPLATE_ORDER = [
+  "chat-intent",
+  "out-of-scope-request",
+  "language",
+] as const;
+
+const RECOMMENDED_TEMPLATE_RANK = new Map<string, number>(
+  RECOMMENDED_TEMPLATE_ORDER.map((key, index) => [key, index]),
+);
 
 export function prepareEvaluatorGallery({
   customTemplates,
@@ -46,19 +60,36 @@ export function prepareEvaluatorGallery({
   );
   const managedCatalog = managedEvaluatorTemplateService.list({ search });
   const managedByCategory = new Map(
-    managedCatalog.categories.map((category) => [
-      category.key,
-      managedCatalog.templates
-        .filter((template) => template.category === category.key)
-        .map((template) => ({ source: "managed" as const, ...template })),
-    ]),
+    managedCatalog.categories.map((category) => {
+      const templatesInCategory = managedCatalog.templates.filter((template) =>
+        template.categories.includes(category.key),
+      );
+      const orderedTemplates =
+        category.key === "recommended"
+          ? templatesInCategory.toSorted(
+              (left, right) =>
+                (RECOMMENDED_TEMPLATE_RANK.get(left.key) ??
+                  Number.MAX_SAFE_INTEGER) -
+                (RECOMMENDED_TEMPLATE_RANK.get(right.key) ??
+                  Number.MAX_SAFE_INTEGER),
+            )
+          : templatesInCategory;
+
+      return [
+        category.key,
+        orderedTemplates.map((template) => ({
+          source: "managed" as const,
+          ...template,
+        })),
+      ];
+    }),
   );
   const navigationItems: GalleryNavigationItem[] = [
     ...(filteredCustom.length
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-            label: "Your Examples",
+            label: "Your Templates",
             icon: User,
             count: customTemplateCount,
           },
@@ -78,9 +109,8 @@ export function prepareEvaluatorGallery({
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-            label: "Your Examples",
-            description:
-              "Start from an evaluator this project already created.",
+            label: "Your Templates",
+            description: "Start from a template this project already created.",
             totalCount: customTemplateCount,
             templates: filteredCustom.map((template) => ({
               source: "custom" as const,

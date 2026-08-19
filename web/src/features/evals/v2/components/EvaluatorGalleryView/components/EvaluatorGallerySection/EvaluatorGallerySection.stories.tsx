@@ -11,7 +11,7 @@ const template = {
   source: "managed",
   key: "answer-relevance",
   name: "Answer relevance",
-  category: "quality",
+  categories: ["quality"],
   icon: "gauge",
   description: "Assess whether the answer directly addresses the question.",
   maintainer: "langfuse",

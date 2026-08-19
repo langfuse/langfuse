@@ -32,7 +32,7 @@ export default function NewEvaluatorPage() {
   }
 
   if (template.isNotFound) {
-    return <div className="p-6">Evaluator example not found</div>;
+    return <div className="p-6">Evaluator template not found</div>;
   }
 
   const initialType = requestedEvaluatorType(router.query.type);

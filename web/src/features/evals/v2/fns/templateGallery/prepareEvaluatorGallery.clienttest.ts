@@ -26,11 +26,36 @@ describe("prepareEvaluatorGallery", () => {
     expect(gallery.sections[0]?.totalCount).toBe(12);
     expect(gallery.sections.map(({ key }) => key)).toEqual([
       "custom",
-      "quality",
-      "safety",
-      "rag",
+      "recommended",
       "conversation",
-      "other",
+      "quality",
+      "classifier",
+      "retrieval",
+      "safety",
+      "coding-agents",
+    ]);
+
+    const recommendedSection = gallery.sections.find(
+      ({ key }) => key === "recommended",
+    );
+    expect(
+      recommendedSection?.templates.map((template) =>
+        template.source === "managed" ? template.key : null,
+      ),
+    ).toEqual(["chat-intent", "out-of-scope-request"]);
+    const conversationSection = gallery.sections.find(
+      ({ key }) => key === "conversation",
+    );
+    expect(
+      conversationSection?.templates.map((template) =>
+        template.source === "managed" ? template.key : null,
+      ),
+    ).toEqual([
+      "chat-intent",
+      "out-of-scope-request",
+      "user-disagreement",
+      "all-caps",
+      "user-distress",
     ]);
   });
 
@@ -38,18 +63,21 @@ describe("prepareEvaluatorGallery", () => {
     const gallery = prepareEvaluatorGallery({
       customTemplates: [customTemplate],
       customTemplateCount: 1,
-      search: "not grounded",
+      search: "grounded",
     });
 
     expect(gallery.navigationItems).toEqual([
-      expect.objectContaining({ key: "quality", count: 1 }),
+      expect.objectContaining({ key: "retrieval", count: 1 }),
     ]);
     expect(gallery.navigationItems.map(({ key }) => key)).toEqual(
       gallery.sections.map(({ key }) => key),
     );
     expect(gallery.sections).toHaveLength(1);
     expect(gallery.sections[0]?.templates).toEqual([
-      expect.objectContaining({ source: "managed", key: "hallucination" }),
+      expect.objectContaining({
+        source: "managed",
+        key: "answer-groundedness",
+      }),
     ]);
   });
 });

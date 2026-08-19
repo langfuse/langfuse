@@ -78,14 +78,14 @@ export function EvaluatorGalleryView({
   isLoading: boolean;
   errorMessage?: string;
 }) {
-  const hasExamples = sections.length > 0;
+  const hasTemplates = sections.length > 0;
 
   return (
     <div className="flex flex-1 flex-row gap-4 overflow-hidden p-0">
       <div className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-4">
         {navigationItems.length > 0 ? (
           <div className="flex h-8 shrink-0 items-center px-3 text-base font-bold">
-            Examples
+            Templates
           </div>
         ) : null}
         {navigationItems.map((item) => {
@@ -132,7 +132,7 @@ export function EvaluatorGalleryView({
               ref={searchInputRef}
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search examples..."
+              placeholder="Search templates..."
               className="pl-8"
             />
           </div>
@@ -186,10 +186,10 @@ export function EvaluatorGalleryView({
                 </div>
               ) : null}
 
-              {hasExamples ? (
+              {hasTemplates ? (
                 <div className="flex flex-col gap-2.5">
                   <h3 className="text-xl leading-7 font-bold">
-                    Start from Examples
+                    Start from Templates
                   </h3>
                   <div className="flex flex-col gap-8">
                     {sections.map((section) => (
@@ -208,9 +208,9 @@ export function EvaluatorGalleryView({
                 </div>
               ) : null}
 
-              {!hasExamples ? (
+              {!hasTemplates ? (
                 <div className="text-muted-foreground py-8 text-center text-sm">
-                  No examples match your search.
+                  No templates match your search.
                 </div>
               ) : null}
             </>

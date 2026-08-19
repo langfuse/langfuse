@@ -22,10 +22,7 @@ export function EvaluatorGallerySection({
   const shownTemplates = expanded
     ? section.templates
     : section.templates.slice(0, EVALUATOR_GALLERY_PREVIEW_SIZE);
-  // Sections hold one source at a time: the project's own evaluators or
-  // managed examples.
-  const noun =
-    section.templates[0]?.source === "custom" ? "evaluators" : "examples";
+  const noun = "templates";
 
   return (
     <section ref={sectionRef} className="flex scroll-mt-1 flex-col gap-2.5">
