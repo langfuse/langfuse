@@ -43,5 +43,9 @@ describe("Drawer", () => {
     const classes = drawer?.className.split(/\s+/) ?? [];
     expect(classes).not.toContain("h-1/3");
     expect(classes).toContain("h-auto");
+    // Vaul paints a 200%-tall ::after below the sheet so a drag doesn't
+    // expose a gap. `overflow-y-auto` would turn that into a hollow
+    // scroll region under the last action.
+    expect(classes).not.toContain("overflow-y-auto");
   });
 });

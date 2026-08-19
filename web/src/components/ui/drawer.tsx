@@ -41,7 +41,7 @@ const drawerVariants = cva("fixed flex flex-col border bg-modal", {
   variants: {
     direction: {
       bottom:
-        "inset-x-0 bottom-0 h-auto max-h-screen-with-banner min-h-0 overflow-y-auto rounded-t-lg",
+        "inset-x-0 bottom-0 h-auto max-h-screen-with-banner min-h-0 rounded-t-lg",
       left: "bottom-0 left-0 top-banner-offset h-screen-with-banner rounded-r-lg",
       right:
         "bottom-0 right-0 top-banner-offset h-screen-with-banner rounded-l-lg",
