@@ -54,7 +54,9 @@ export async function assertInAppAgentAvailable({
   });
 
   if (!project?.organization.aiFeaturesEnabled) {
-    throw new ForbiddenError("Assistant is not enabled for this organization");
+    throw new ForbiddenError(
+      "In-app agent is not enabled for this organization",
+    );
   }
 
   return project.organization;
@@ -66,7 +68,7 @@ export function assertInAppAgentModelConfigured() {
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      "Assistant Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL and LANGFUSE_AWS_BEDROCK_REGION.",
+      "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL and LANGFUSE_AWS_BEDROCK_REGION.",
       true,
     );
   }

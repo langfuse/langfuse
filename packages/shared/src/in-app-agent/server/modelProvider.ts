@@ -9,10 +9,10 @@ export type InAppAgentModelConfig = {
 };
 
 /**
- * Resolves the instance-wide assistant model configuration.
+ * Resolves the instance-wide in-app agent model configuration.
  *
  * The discriminated provider contract is intentionally narrower than the
- * generic LLM connection model: assistant execution currently supports
+ * generic LLM connection model: in-app agent execution currently supports
  * Bedrock only, but callers do not need to know which provider supplies the
  * model. A future provider can add another branch here without changing the
  * worker or title-generation call sites.
@@ -38,7 +38,7 @@ export function getInAppAgentModelConfig(params?: {
 }
 
 /**
- * Instance-wide Assistant switch.
+ * Instance-wide in-app agent switch.
  *
  * Cloud is on unless LANGFUSE_IN_APP_AGENT_ENABLED is "false". Self-hosted is
  * on only when the var is "true".

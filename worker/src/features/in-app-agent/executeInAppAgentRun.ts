@@ -166,7 +166,7 @@ export async function executeInAppAgentRun(params: {
 
     if (!modelConfig) {
       throw new InAppAgentRunInitError(
-        "Assistant Bedrock model is not configured",
+        "In-app agent Bedrock model is not configured",
       );
     }
 

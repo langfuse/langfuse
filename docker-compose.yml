@@ -73,8 +73,8 @@ services:
       REDIS_TLS_KEY: ${REDIS_TLS_KEY:-/certs/redis.key}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-}
       SMTP_CONNECTION_URL: ${SMTP_CONNECTION_URL:-}
-      # Shared assistant configuration. Web generates conversation titles and
-      # the worker executes queued runs, so both services receive these values.
+      # Shared AI features configuration. These apply to AI features that run
+      # in both web and worker.
       LANGFUSE_IN_APP_AGENT_ENABLED: ${LANGFUSE_IN_APP_AGENT_ENABLED:-}
       LANGFUSE_AWS_BEDROCK_MODEL: ${LANGFUSE_AWS_BEDROCK_MODEL:-}
       LANGFUSE_AWS_BEDROCK_SMALL_MODEL: ${LANGFUSE_AWS_BEDROCK_SMALL_MODEL:-}
@@ -83,9 +83,11 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       AWS_PROFILE: ${AWS_PROFILE:-}
-      # Assistant worker settings (ignored by the web service).
+      # In-app agent worker settings (ignored by the web service).
+      # Compose defaults the queue consumer on; the worker schema defaults it
+      # off so ingestion-only processes do not consume agent jobs.
       QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: ${QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED:-true}
-      LANGFUSE_IN_APP_AGENT_RUN_QUEUE_PROCESSING_CONCURRENCY: ${LANGFUSE_IN_APP_AGENT_RUN_QUEUE_PROCESSING_CONCURRENCY:-5}
+      LANGFUSE_IN_APP_AGENT_RUN_QUEUE_PROCESSING_CONCURRENCY: ${LANGFUSE_IN_APP_AGENT_RUN_QUEUE_PROCESSING_CONCURRENCY:-}
       LANGFUSE_IN_APP_AGENT_AWS_PROFILE: ${LANGFUSE_IN_APP_AGENT_AWS_PROFILE:-}
       LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: ${LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER:-}
       LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: ${LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER:-}
@@ -112,9 +114,9 @@ services:
       LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-}
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
-      # Web-only assistant admission ceilings.
-      LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: ${LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:-5}
-      LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: ${LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:-20}
+      # In-app agent settings.
+      LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: ${LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:-}
+      LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: ${LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:-}
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server:25.12

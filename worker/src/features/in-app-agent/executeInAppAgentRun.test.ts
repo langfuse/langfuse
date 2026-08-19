@@ -754,7 +754,7 @@ describe("executeInAppAgentRun", () => {
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
   });
 
-  it("fails revalidation at claim as FAILED (init_failed) when Assistant is instance-disabled", async () => {
+  it("fails revalidation at claim as FAILED (init_failed) when in-app agent is instance-disabled", async () => {
     scenarioRef.instanceEnabled = false;
     const { projectId, run } = await seedBackgroundRun();
     scenarioRef.current = async () => {

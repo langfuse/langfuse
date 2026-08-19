@@ -333,7 +333,7 @@ describe("in-app agent execution", () => {
     );
   });
 
-  it("does not poll for activity when Assistant is instance-disabled", () => {
+  it("does not poll for activity when in-app agent is instance-disabled", () => {
     sessionMocks.inAppAgentEnabled = false;
 
     render(

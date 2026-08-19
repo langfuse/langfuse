@@ -39,7 +39,7 @@ describe("organization AI feature settings", () => {
     ).resolves.toEqual({ aiFeaturesEnabled: true });
   });
 
-  it("allows a self-hosted organization administrator to opt in to AI features when Assistant is instance-disabled", async () => {
+  it("allows a self-hosted organization administrator to opt in to AI features when in-app agent is instance-disabled", async () => {
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = "false";
     const { caller, orgId } = await createCaller();
 

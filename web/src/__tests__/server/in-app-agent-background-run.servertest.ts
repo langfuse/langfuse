@@ -275,7 +275,7 @@ describe("in-app agent background runs", () => {
     expect(enqueuedJobs).toHaveLength(0);
   });
 
-  it("lists conversations when the assistant model is not configured", async () => {
+  it("lists conversations when the in-app agent model is not configured", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
@@ -288,7 +288,7 @@ describe("in-app agent background runs", () => {
     ]);
   });
 
-  it("rejects requests before queueing when the assistant model is not configured", async () => {
+  it("rejects requests before queueing when the in-app agent model is not configured", async () => {
     const { caller, projectId } = await createCaller();
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
@@ -302,7 +302,7 @@ describe("in-app agent background runs", () => {
     ).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
       message:
-        "Assistant Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL and LANGFUSE_AWS_BEDROCK_REGION.",
+        "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL and LANGFUSE_AWS_BEDROCK_REGION.",
     });
 
     expect(enqueuedJobs).toHaveLength(0);

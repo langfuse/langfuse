@@ -1396,7 +1396,7 @@ async function getSystemPromptInstructions(params: {
   }
 
   if (!params.langfuseClient) {
-    throw new Error("Managed assistant prompt client is not configured");
+    throw new Error("Managed in-app agent prompt client is not configured");
   }
 
   const prompt = await params.langfuseClient.getPrompt(
@@ -1460,7 +1460,7 @@ function createRunErrorEvent(
   error: unknown,
 ): AgUiEvent {
   const message =
-    error instanceof Error ? error.message : "Unknown assistant error";
+    error instanceof Error ? error.message : "Unknown in-app agent error";
 
   return {
     type: EventType.RUN_ERROR,
@@ -1473,5 +1473,5 @@ function createRunErrorEvent(
 function getRunErrorMessage(event: AgUiEvent) {
   return typeof event.message === "string" && event.message.trim()
     ? event.message
-    : "Unknown assistant error";
+    : "Unknown in-app agent error";
 }
