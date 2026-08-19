@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getPromptDetailHref } from "@/src/features/prompts/utils";
 
 describe("getPromptDetailHref", () => {
