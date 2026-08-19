@@ -1,5 +1,7 @@
-vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
+  const actual = await vi.importActual(
+    "@langfuse/shared/src/server/llm/llmText",
+  );
   return {
     ...actual,
     generateLLMText: vi.fn(),
@@ -17,9 +19,9 @@ import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
-  generateLLMText,
   getScoreById,
 } from "@langfuse/shared/src/server";
+import { generateLLMText } from "@langfuse/shared/src/server/llm/llmText";
 import { env } from "@/src/env.mjs";
 import {
   InAppAgentRunErrorCode,

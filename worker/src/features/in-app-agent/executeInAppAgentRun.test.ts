@@ -35,9 +35,13 @@ type AgentScenario = (ctx: {
   };
   signal: AbortSignal;
   options: {
-    awsBedrock: {
-      profile?: string;
+    model: {
+      provider: "bedrock";
+      modelId: string;
     };
+    awsProfile?: string;
+    langfuseClient?: unknown;
+    useLocalPrompt: boolean;
     langfuseMcp: {
       toolPolicy: {
         available: ReadonlySet<string>;
@@ -296,7 +300,7 @@ describe("executeInAppAgentRun", () => {
 
     const { projectId, run } = await seedBackgroundRun();
     scenarioRef.current = async ({ options }) => {
-      expect(options.awsBedrock.profile).toBe("developer-profile");
+      expect(options.awsProfile).toBe("developer-profile");
       await options.onComplete();
       await options.onFinish();
     };
@@ -306,6 +310,25 @@ describe("executeInAppAgentRun", () => {
     } finally {
       workerEnv.AWS_PROFILE = originalAwsProfile;
       workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = originalConfiguredProfile;
+    }
+  });
+
+  it("uses the bundled prompt in self-hosted production", async () => {
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    const { projectId, run } = await seedBackgroundRun();
+    scenarioRef.current = async ({ options }) => {
+      expect(options.useLocalPrompt).toBe(true);
+      expect(options.langfuseClient).toBeUndefined();
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    try {
+      await executeInAppAgentRun({ projectId, runId: run.id });
+    } finally {
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     }
   });
 

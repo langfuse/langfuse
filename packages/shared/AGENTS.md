@@ -45,7 +45,8 @@
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
   AI SDK-native LLM execution helpers (`generateLLMText` and
-  `streamLLMText`), and server test utilities.
+  `streamLLMText`), Bedrock default-credential provider auth
+  (`createDefaultBedrockProviderAuth`), and server test utilities.
 - `@langfuse/shared/src/db` via `src/db.ts`: Prisma client singleton plus
   Prisma namespace/types for direct database access. Never route this into
   frontend-safe code.
