@@ -584,15 +584,10 @@ export async function executeInAppAgentRun(params: {
     });
     await cleanupMcpApiKeyLogged();
     // Terminal persist succeeded; ACK so the job does not sit in the DLQ.
-    // Loop failures used to rethrow (APM + WorkerManager failed). Keep the
-    // Datadog error on the processor span without failing the BullMQ job.
-    // Init failures were already ACK'd and stay off Error Tracking.
+    // Loop failures used to rethrow. Record the APM error without failing
+    // the BullMQ job. Init failures were already ACK'd and stay off
+    // Error Tracking.
     if (!(error instanceof InAppAgentRunInitError)) {
-      logger.error("In-app agent run failed", {
-        error,
-        projectId,
-        runId,
-      });
       traceException(error);
     }
   } finally {
