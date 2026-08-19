@@ -64,6 +64,7 @@ import {
   Plus,
 } from "lucide-react";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { Layer } from "@/src/components/ui/layer";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
 import {
@@ -306,9 +307,13 @@ export function TimelineDense({
   factsOf,
 }: TimelineDenseProps) {
   const [viewport, setViewport] = useState<Viewport | null>(null);
-  const [pointerPos, setPointerPos] = useState<{ x: number; y: number } | null>(
-    null,
-  );
+  const [pointerPos, setPointerPos] = useState<{
+    x: number;
+    y: number;
+    /** The same point in VIEWPORT coordinates, for the tooltip's own layer. */
+    clientX: number;
+    clientY: number;
+  } | null>(null);
   const [dragging, setDragging] = useState(false);
   /**
    * Shift-drag box, in surface coordinates, while it is being drawn. The REF is
@@ -488,7 +493,9 @@ export function TimelineDense({
    */
   const notifyHover = (
     viewport: Viewport,
-    at = pointerPosRef.current,
+    // Only the surface-local point matters here; the viewport coordinates the
+    // tooltip needs are not this function's business.
+    at: { x: number; y: number } | null = pointerPosRef.current,
   ): void => {
     if (!at || !onHover) return;
     const live = layoutRef.current;
@@ -1032,7 +1039,12 @@ export function TimelineDense({
     }
 
     notifyHover(current, { x: offsetX, y: offsetY });
-    setPointerPos({ x: offsetX, y: offsetY });
+    setPointerPos({
+      x: offsetX,
+      y: offsetY,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
   };
 
   /** Release of a shift-drag: fly to the box, if it is big enough to mean one. */
@@ -1588,64 +1600,56 @@ export function TimelineDense({
           </div>
         ) : null}
 
-        {/* The tooltip is what names a row when the gutter cannot. */}
+        {/* The tooltip is what names a row when the gutter cannot — and it is the
+            one thing here that belongs OUTSIDE the box. Kept inside, it had to be
+            clamped to the space left, which on the bottom rows of a short panel
+            meant clamping it against a guess at its own height and cutting the
+            metrics line off. In the tooltip layer nothing clips it, and the
+            surface still has nothing to scroll because it is not in the surface.
+
+            It anchors to whichever side of the pointer has room rather than
+            measuring itself: the side with room is known from the pointer alone,
+            a size is not, and a tooltip that has to be measured before it can be
+            placed is a tooltip that renders once in the wrong place. */}
         {focused && pointerPos && !dragging && pointerPos.x > gutterWidth ? (
-          <div
-            className="border-border bg-background text-foreground pointer-events-none absolute z-10 flex flex-col gap-0.5 overflow-hidden rounded border px-1.5 py-1 shadow-md"
-            style={{
-              left:
-                pointerPos.x > contentWidth * 0.55
-                  ? undefined
-                  : `${Math.round(pointerPos.x + 12)}px`,
-              right:
-                pointerPos.x > contentWidth * 0.55
-                  ? `${Math.round(Math.max(contentWidth - pointerPos.x + 12, 4))}px`
-                  : undefined,
-              // Clamped to the space left, not a percentage guess: an unclamped
-              // tooltip poked past the surface and put 5px of scrollWidth on a
-              // box whose whole claim is that nothing scrolls.
-              maxWidth: `${Math.max(
-                pointerPos.x > contentWidth * 0.55
-                  ? pointerPos.x - 16
-                  : contentWidth - pointerPos.x - 16,
-                80,
-              )}px`,
-              top: `${Math.round(
-                Math.min(
-                  Math.max(pointerPos.y + 12, 2),
-                  Math.max(surfaceHeight - 26, 2),
-                ),
-              )}px`,
-              fontSize: "10px",
-            }}
-            data-testid="timeline-dense-tooltip"
-          >
-            {/* Two rows, like a tree row: identity, then the metrics. One row
-                made the NAME the only flexible item, so adding cost and tokens
-                truncated it away — and the name is the thing you hovered for. */}
-            <span className="flex items-center gap-1">
-              <span
-                className={cn(
-                  "h-2 w-2 shrink-0 rounded-[1px]",
-                  TYPE_COLOR[focused.type] ?? FALLBACK_COLOR,
-                )}
-              />
-              <span className="truncate" title={focused.name}>
-                {focused.name}
+          <Layer name="tooltip">
+            <div
+              className="border-border bg-background text-foreground pointer-events-none fixed flex max-w-[min(320px,90vw)] flex-col gap-0.5 rounded border px-1.5 py-1 shadow-md"
+              style={{
+                left: `${Math.round(pointerPos.clientX + (pointerPos.clientX > window.innerWidth * 0.6 ? -12 : 12))}px`,
+                top: `${Math.round(pointerPos.clientY + (pointerPos.clientY > window.innerHeight * 0.6 ? -12 : 12))}px`,
+                transform: `translate(${pointerPos.clientX > window.innerWidth * 0.6 ? "-100%" : "0"}, ${pointerPos.clientY > window.innerHeight * 0.6 ? "-100%" : "0"})`,
+                fontSize: "10px",
+              }}
+              data-testid="timeline-dense-tooltip"
+            >
+              {/* Two rows, like a tree row: identity, then the metrics. One row
+                  made the NAME the only flexible item, so adding cost and tokens
+                  truncated it away — and the name is the thing you hovered for. */}
+              <span className="flex items-center gap-1">
+                <span
+                  className={cn(
+                    "h-2 w-2 shrink-0 rounded-[1px]",
+                    TYPE_COLOR[focused.type] ?? FALLBACK_COLOR,
+                  )}
+                />
+                <span className="truncate" title={focused.name}>
+                  {focused.name}
+                </span>
               </span>
-            </span>
-            <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-              <span>
-                {focused.durationMs == null
-                  ? "—"
-                  : formatDurationMs(focused.durationMs)}
+              <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span>
+                  {focused.durationMs == null
+                    ? "—"
+                    : formatDurationMs(focused.durationMs)}
+                </span>
+                <span>@{formatDurationMs(focused.startMs)}</span>
+                {factsOf?.(focused.id).map((fact) => (
+                  <span key={fact}>{fact}</span>
+                ))}
               </span>
-              <span>@{formatDurationMs(focused.startMs)}</span>
-              {factsOf?.(focused.id).map((fact) => (
-                <span key={fact}>{fact}</span>
-              ))}
-            </span>
-          </div>
+            </div>
+          </Layer>
         ) : null}
       </div>
 
