@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 
 describe("buildTraceDetailPath", () => {
