@@ -40,8 +40,7 @@ import {
   useShowPlayhead,
 } from "@/src/features/traces/contexts/PlayheadContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { computeSelectionScrollTarget } from "../../fns/timelineCalculations";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import {
@@ -56,7 +55,6 @@ import {
   computeMaxVisualDepth,
   GUTTER_VISUAL_DEPTH,
 } from "../../fns/visualDepth";
-import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
 import { type TreeNode } from "../../types/treeNode";
 import { cn } from "@/src/utils/tailwind";
@@ -214,8 +212,7 @@ export function TraceTimeline() {
     comments,
     traceDuration,
   } = useTraceData();
-  const { collapsedNodes, toggleCollapsed, selectedNodeId, setSelectedNodeId } =
-    useSelection();
+  const { collapsedNodes, toggleCollapsed, selectedNodeId } = useSelection();
   const {
     showDuration,
     showCostTokens,
@@ -224,12 +221,9 @@ export function TraceTimeline() {
     colorCodeMetrics,
   } = useViewPreferences();
   const { handleHover } = useHandlePrefetchObservation();
-  const capture = usePostHogClientCapture();
-  const analyticsDimensions = useTraceAnalyticsDimensions();
-  // Optional (null in the mobile layout): reopen the detail panel on select.
-  const layout = useDesktopLayoutContextOptional();
+  const handleSelectNode = useSelectTraceNode("timeline");
   // Optional (null on desktop): its presence also means the timeline is
-  // rendered inside a narrow mobile tab, and selecting jumps to the Info tab.
+  // rendered inside a narrow mobile tab, which the gutter width follows.
   const mobileLayout = useMobileLayoutContextOptional();
 
   // The chart is the single vertical scroller; the gutter content is a one-way
@@ -563,23 +557,9 @@ export function TraceTimeline() {
     handleHandleKeyDown,
   } = useTimelinePlayhead({ traceDuration, secToX, xToSec });
 
-  // Stable id/node-taking callbacks shared by every row shell (see
-  // TimelineRows.tsx — stable references keep the memo boundary effective).
-  const handleSelectNode = useCallback(
-    (nodeId: string) => {
-      capture("trace_detail:node_selected", {
-        source: "timeline",
-        ...analyticsDimensions,
-      });
-      setSelectedNodeId(nodeId);
-      // Reopen the detail panel on any select — including re-clicking the
-      // already-selected row, where the URL param wouldn't fire an effect.
-      layout?.expandDetailPanel();
-      // Mobile: jump to the Info tab on the same re-click path (no-op on desktop).
-      mobileLayout?.switchToInfoTab();
-    },
-    [setSelectedNodeId, layout, mobileLayout, capture, analyticsDimensions],
-  );
+  // Stable node-taking callback shared by every row shell (see TimelineRows.tsx
+  // — stable references keep the memo boundary effective). Selecting itself is
+  // useSelectTraceNode, above, which every view of a trace shares.
   const handleHoverNode = useCallback(
     (node: TreeNode) => {
       setHoveredNodeId(node.id);
