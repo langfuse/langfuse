@@ -97,7 +97,7 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { buildTracePath } from "@langfuse/shared";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {
   REFRESH_INTERVALS,
@@ -1537,7 +1537,7 @@ export default function ObservationsTable({
                   const timestamp = row.timestamp;
 
                   if (traceId) {
-                    const observationUrl = buildTraceDetailPath({
+                    const observationUrl = buildTracePath({
                       projectId,
                       traceId,
                       observationId,
