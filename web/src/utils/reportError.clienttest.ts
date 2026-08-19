@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { reportError } from "@/src/utils/reportError";
 
 const { captureExceptionMock, addBreadcrumbMock } = vi.hoisted(() => ({

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * Tests for treeExpansion.ts utilities
  *

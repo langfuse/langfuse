@@ -1,9 +1,11 @@
+// @vitest-environment node
+
 import { describe, expect, it, vi } from "vitest";
 
 import { V4_CODING_AGENT_PROMPT } from "./useV4UpgradeAssistantSupport";
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useCanUseInAppAgent: () => true,
+  useIsInAppAgentLauncherVisible: () => true,
 }));
 
 describe("V4_CODING_AGENT_PROMPT", () => {
