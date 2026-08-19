@@ -52,9 +52,6 @@ export function EvaluatorGallerySection({
               {EVALUATOR_GALLERY_SAFETY_CALLOUT}
             </InfoTooltip>
           ) : null}
-          <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
-            {totalCount}
-          </span>
         </div>
         <div className="border-t" />
       </div>
