@@ -44,4 +44,43 @@ describe("managed evaluator templates catalog", () => {
       }
     }
   });
+
+  it("detects all-caps text in the latest user chat message", () => {
+    const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      ({ key }) => key === "all-caps",
+    );
+
+    expect(template?.evaluator.type).toBe("CODE");
+    if (!template || template.evaluator.type !== "CODE") {
+      throw new Error("All-caps code evaluator template not found");
+    }
+
+    const javascript = template.evaluator.source
+      .replace(
+        "function evaluate(ctx: EvaluationContext): EvaluationResult",
+        "function evaluate(ctx)",
+      )
+      .replace("(value: unknown): string =>", "(value) =>")
+      .replaceAll(" as Record<string, unknown>", "");
+    const createEvaluator = new Function(
+      `${javascript}\nreturn evaluate;`,
+    ) as () => (ctx: { observation: { input: unknown } }) => {
+      scores: Array<{ value: boolean }>;
+    };
+
+    const evaluate = createEvaluator();
+    const messages = [
+      { role: "system", content: "Answer helpfully." },
+      { role: "assistant", content: "How can I help?" },
+      {
+        role: "user",
+        content: [{ type: "text", text: "THIS IS COMPLETELY BROKEN" }],
+      },
+    ];
+
+    for (const input of [messages, { messages }]) {
+      const result = evaluate({ observation: { input } });
+      expect(result.scores[0]?.value).toBe(true);
+    }
+  });
 });
