@@ -36,7 +36,7 @@ This produces `langfuse-in-app-agent-sandbox:latest`.
 
 ## Testing
 
-Typecheck (production sources plus unit and Docker tests; tests stay out of `dist`):
+Typecheck:
 
 ```bash
 pnpm --filter @repo/in-app-agent-sandbox-runtime run typecheck
