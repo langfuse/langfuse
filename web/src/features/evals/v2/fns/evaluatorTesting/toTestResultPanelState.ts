@@ -46,9 +46,13 @@ export function toTestResultPanelState(params: {
     typeof response.result === "object" && response.result
       ? (response.result as Record<string, unknown>)
       : {};
+  const score = Array.isArray(result.matches)
+    ? result.matches.map(String).join(", ")
+    : String(result.score ?? "");
+
   return {
     status: "llm-success",
-    score: String(result.score ?? ""),
+    score,
     reasoning: result.reasoning == null ? null : String(result.reasoning),
   };
 }

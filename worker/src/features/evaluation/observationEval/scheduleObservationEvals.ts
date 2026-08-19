@@ -266,7 +266,7 @@ type ScheduledObservationEvalAssignment = {
   /** Set for evaluator v2; null when scheduling a legacy config. */
   evaluatorId: string | null;
   evaluationRuleId: string | null;
-  /** Set for legacy configs only; evaluator v2 resolves at pickup. */
+  /** Legacy template id, or evaluator id for a ruleless V2 batch run. */
   evalTemplateId: string | null;
   evaluatorType: ObservationEvalAssignment["evaluator"]["type"];
 };
@@ -305,7 +305,8 @@ function getExecutableAssignments(
         id: assignment.id,
         evaluatorId: assignment.evaluator.id,
         evaluationRuleId: rule.ruleId,
-        evalTemplateId: null,
+        // Ruleless batch runs use the evaluator as the legacy template anchor.
+        evalTemplateId: rule.ruleId === null ? assignment.evaluator.id : null,
         evaluatorType: assignment.evaluator.type,
       },
     ];

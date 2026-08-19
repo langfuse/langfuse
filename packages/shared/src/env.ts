@@ -37,6 +37,7 @@ const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
   // Same, for the integration-level cutoff (BlobStorageIntegration.createdAt).
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
+  NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
@@ -362,6 +363,7 @@ const EnvSchema = z.object({
   LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default("email"),
   LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default("name"),
   LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default("sub"),
+  LANGFUSE_CUSTOM_SSO_IMAGE_CLAIM: z.string().default("picture"),
   LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
     .number()
     .default(80e6), // 80MB
@@ -511,11 +513,6 @@ const EnvSchema = z.object({
     .positive()
     .default(3_600_000), // 60 minutes
 
-  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(10),
-
   LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS: z.coerce
     .number()
     .int()
@@ -525,76 +522,6 @@ const EnvSchema = z.object({
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
-  // Ambient AWS profile of the host process; the in-app agent prefers it over
-  // the configured Bedrock profile so local dev credentials win.
-  AWS_PROFILE: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
-    .enum(["dangerous-docker", "lambda-microvm"])
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
-    .string()
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
-    .string()
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
-    z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
-    .string()
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5_000),
-  LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(60_000),
-  LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5 * 60_000),
-  LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(15 * 60_000),
-  LANGFUSE_IN_APP_AGENT_APPROVAL_TTL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(24 * 60 * 60_000),
-  // Flat safety ceilings on concurrent non-terminal runs. Per region, so a
-  // small region (JP, staging) can be tightened below its execution capacity.
-  LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5),
-  LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(20),
-  LANGFUSE_IN_APP_AGENT_WATCH_TAIL_POLL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(1_000),
-  LANGFUSE_IN_APP_AGENT_WATCH_KEEPALIVE_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(15_000),
-  LANGFUSE_IN_APP_AGENT_WATCH_MAX_CONNECTION_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(90_000),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

@@ -17,13 +17,8 @@ import {
   ForbiddenError,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
-import {
-  areEnrichedWritesActive,
-  areLegacyWritesActive,
-} from "@langfuse/shared";
+import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -160,8 +155,6 @@ async function handleUpsertBlobStorageIntegration(
     throw new LangfuseNotFoundError("Project not found");
   }
 
-  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-
   const internalExportSource =
     validatedData.exportSource != null
       ? toInternalExportSource(validatedData.exportSource)
@@ -177,21 +170,17 @@ async function handleUpsertBlobStorageIntegration(
   });
 
   // Explicit sources must pass every check; an omitted source keeps the
-  // persisted one, capability-checked only. See export-source-policy.ts.
-  assertExportSourceAllowed({
-    nextExportSource: internalExportSource,
-    persistedExportSource: existingIntegration?.exportSource,
-    ctx: {
-      isCloud,
-      enrichedAvailable: areEnrichedWritesActive(
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      ),
-      legacyWritesActive: areLegacyWritesActive(
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      ),
-      projectCreatedAt: project.createdAt,
-      integrationCreatedAt: existingIntegration?.createdAt ?? null,
-    },
+  // persisted one, capability-checked only, and a create falls back to the
+  // shared default. Same call the tRPC routers make, so a PUT and a settings
+  // save agree. See export-source-policy.ts.
+  const createExportSource = await resolveExportSource({
+    db: prisma,
+    projectId: validatedData.projectId,
+    // Already loaded above for the org-ownership check; reuse it rather than
+    // making the helper re-read the same row.
+    projectCreatedAt: project.createdAt,
+    requestedExportSource: internalExportSource,
+    existingIntegration,
   });
 
   await auditLog({
@@ -205,14 +194,7 @@ async function handleUpsertBlobStorageIntegration(
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
-    // New Cloud rows default to EVENTS when exportSource is omitted: a
-    // brand-new row is post-cutoff, so the legacy column default would trip
-    // refuseLegacyOnCreate and fail a partial PUT that never mentioned
-    // exportSource. Substituted in-transaction to avoid a TOCTOU window.
-    forceEventsOnCreate: validatedData.exportSource == null && isCloud,
-    // In-transaction backstop: a concurrent DELETE can flip this upsert to
-    // CREATE; never let a new Cloud row be born with a legacy source.
-    refuseLegacyOnCreate: isCloud,
+    createExportSource,
     data: {
       type: validatedData.type,
       bucketName: validatedData.bucketName,

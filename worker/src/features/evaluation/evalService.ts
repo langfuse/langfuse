@@ -32,7 +32,6 @@ import {
   DatasetRunItemUpsertEventType,
   classifyEvaluatorLlmError,
   blockEvaluator,
-  blockEvaluatorConfigs,
   buildEvalExecutionMetadata,
   EvaluatorBlockSource,
   executeLlmEvaluator,
@@ -184,12 +183,42 @@ type CreateEvalJobsParams = {
     }
 );
 
+// Only what toTraceEvalConfig reads. Selecting the evaluator wholesale would carry its prompt
+// and source code (up to 256KB) into a query that runs per trace.
+const traceRuleSelect = {
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  projectId: true,
+  status: true,
+  targetObject: true,
+  filter: true,
+  sampling: true,
+  delay: true,
+  timeScope: true,
+  assignments: {
+    orderBy: { createdAt: "asc" },
+    select: {
+      variableMapping: true,
+      evaluator: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          blockedAt: true,
+          versions: {
+            orderBy: { version: "desc" },
+            take: 1,
+            select: { id: true, variableMapping: true },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.EvaluationRuleSelect;
+
 type TraceRule = Prisma.EvaluationRuleGetPayload<{
-  include: {
-    assignments: {
-      include: { evaluator: { include: { versions: true } } };
-    };
-  };
+  select: typeof traceRuleSelect;
 }>;
 
 type TraceEvalConfig = JobConfiguration & {
@@ -263,19 +292,16 @@ export const createEvalJobs = async ({
       ...(enforcedJobTimeScope
         ? { timeScope: { has: enforcedJobTimeScope } }
         : {}),
-    },
-    include: {
+      // `some` picks which rules load, not which assignments. Filtering the nested assignments
+      // would shrink a two-evaluator rule to the one assignment toTraceEvalConfig then runs.
       assignments: {
-        orderBy: { createdAt: "asc" },
-        include: {
-          evaluator: {
-            include: {
-              versions: { orderBy: { version: "desc" }, take: 1 },
-            },
-          },
+        some: {
+          projectId: event.projectId,
+          evaluator: { blockedAt: null, type: EvalTemplateType.LLM_AS_JUDGE },
         },
       },
     },
+    select: traceRuleSelect,
   });
   const configs = rules.flatMap((rule) => {
     const config = toTraceEvalConfig(rule);
@@ -866,22 +892,19 @@ export async function runLLMAsJudgeEvaluation({
     blockReason: Parameters<typeof blockEvaluator>[0]["blockReason"],
     source: EvaluatorBlockSource,
   ) => {
+    if (!evaluatorId) {
+      throw new UnrecoverableError(
+        `Evaluator identity missing for job ${jobExecutionId}`,
+      );
+    }
     const blockMessage = getEvaluatorBlockMetadata(blockReason).message;
-    return evaluatorId
-      ? blockEvaluator({
-          projectId,
-          evaluatorId,
-          blockReason,
-          blockMessage,
-          source,
-        })
-      : blockEvaluatorConfigs({
-          projectId,
-          where: { id: config.id },
-          blockReason,
-          blockMessage,
-          source,
-        });
+    return blockEvaluator({
+      projectId,
+      evaluatorId,
+      blockReason,
+      blockMessage,
+      source,
+    });
   };
 
   return instrumentAsync(
@@ -1215,53 +1238,24 @@ const traceEvaluatorInclude = {
   versions: { orderBy: { version: "desc" as const }, take: 1 },
 } satisfies Prisma.EvaluatorInclude;
 
-async function resolveLegacyTraceExecution(params: {
-  projectId: string;
-  job: JobExecution;
-}) {
-  const config = await prisma.jobConfiguration.findFirst({
-    where: {
-      id: params.job.jobConfigurationId,
-      projectId: params.projectId,
-    },
-  });
-  if (!config?.evalTemplateId) {
-    throw new UnrecoverableError(
-      `Job configuration or template not found for job ${params.job.id}`,
-    );
-  }
-  const template = await prisma.evalTemplate.findFirst({
-    where: {
-      id: config.evalTemplateId,
-      type: EvalTemplateType.LLM_AS_JUDGE,
-      OR: [{ projectId: params.projectId }, { projectId: null }],
-    },
-  });
-  if (!template) {
-    throw new UnrecoverableError(
-      `Evaluation template ${config.evalTemplateId} not found`,
-    );
-  }
-  return { type: "legacy" as const, config, template };
-}
-
 async function resolveTraceExecution(params: {
   event: z.infer<typeof EvalExecutionEvent>;
   job: JobExecution;
 }) {
   const { event, job } = params;
-  if (!event.evaluatorId) {
-    return resolveLegacyTraceExecution({ projectId: event.projectId, job });
-  }
-  if (!event.evaluationRuleId) {
+  if (event.evaluatorId && !event.evaluationRuleId) {
     return { type: "cancelled" as const, reason: "rule-identity-missing" };
   }
 
+  // The evaluator-v2 backfill preserves job_configuration.id as the rule id.
+  // This lets jobs queued before the new identity fields were added resolve
+  // through the migrated rule and block the evaluator row on failure.
+  const evaluationRuleId = event.evaluationRuleId ?? job.jobConfigurationId;
   const assignment = await prisma.evaluationRuleEvaluatorAssignment.findFirst({
     where: {
       projectId: event.projectId,
-      evaluationRuleId: event.evaluationRuleId,
-      evaluatorId: event.evaluatorId,
+      evaluationRuleId,
+      ...(event.evaluatorId ? { evaluatorId: event.evaluatorId } : {}),
       evaluator: {
         projectId: event.projectId,
         type: EvalTemplateType.LLM_AS_JUDGE,
@@ -1697,7 +1691,7 @@ const snakeToCamel = (s: string) =>
 // Returns the typed value extracted from a database row. The shared LLM
 // evaluator runtime stringifies it during prompt substitution; code-based
 // evaluators consume the typed value directly.
-export const parseDatabaseRowValue = (
+const parseDatabaseRowValue = (
   dbRow: Record<string, unknown>,
   mapping: z.infer<typeof variableMapping>,
 ): unknown => {
@@ -1726,28 +1720,4 @@ export const parseDatabaseRowValue = (
   }
 
   return value;
-};
-
-export const parseUnknownToString = (value: unknown): string => {
-  if (value === null || value === undefined) {
-    return "";
-  }
-
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return value.toString();
-  }
-
-  if (typeof value === "object") {
-    return JSON.stringify(value);
-  }
-
-  if (typeof value === "symbol") {
-    return value.toString();
-  }
-
-  return String(value);
 };

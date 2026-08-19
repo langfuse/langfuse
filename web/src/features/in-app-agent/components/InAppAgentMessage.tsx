@@ -28,11 +28,11 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
-import {
-  type InAppAgentMessageFeedback,
-  type InAppAgentMessageFeedbackValue,
-  type InAppAgentMessageSource,
-} from "@langfuse/shared/in-app-agent";
+import type {
+  InAppAgentMessageFeedback,
+  InAppAgentMessageFeedbackValue,
+  InAppAgentMessageSource,
+} from "../schema";
 import {
   Popover,
   PopoverAnchor,
@@ -48,8 +48,7 @@ import {
   projectMarkdownToRenderedText,
 } from "./utils/markdown";
 import styles from "./InAppAgentMessage.module.css";
-import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
-import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
+import { InAppAgentToolCallDetails } from "./InAppAgentToolCallDetails";
 import {
   getInAppAgentToolDisplayName,
   type InAppAgentToolCallContent,
@@ -811,14 +810,7 @@ function ToolCallDisclosure({
         </span>
       </summary>
       <div className={cn("mt-1.5 mb-1 ml-3 px-3", isCompact && "px-2.5")}>
-        <div className="flex flex-col gap-2">
-          <InAppAgentToolPayload
-            label="Arguments"
-            value={tool.args}
-            variant="default"
-          />
-          <InAppAgentToolResultPayload tool={tool} />
-        </div>
+        <InAppAgentToolCallDetails tool={tool} />
       </div>
     </details>
   );

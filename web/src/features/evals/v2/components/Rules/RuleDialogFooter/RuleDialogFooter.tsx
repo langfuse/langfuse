@@ -13,16 +13,20 @@ export function RuleDialogFooter({
   ruleSetupStore,
   activationPending,
   mutationPending,
+  nameGenerationPending,
   isEditing,
   canEdit,
+  nameAIAssistanceAvailable,
   onCancel,
   onSave,
 }: {
   ruleSetupStore: ReturnType<typeof createRuleSetupStore>;
   activationPending: boolean;
   mutationPending: boolean;
+  nameGenerationPending: boolean;
   isEditing: boolean;
   canEdit: boolean;
+  nameAIAssistanceAvailable: boolean;
   onCancel: () => void;
   onSave: () => void;
 }) {
@@ -32,18 +36,27 @@ export function RuleDialogFooter({
   const saveButton = (
     <Button
       type="button"
-      loading={mutationPending || activationPending}
+      loading={mutationPending || activationPending || nameGenerationPending}
       loadingText={
-        mutationPending ? "Validating rule..." : "Estimating cost..."
+        nameGenerationPending
+          ? "Generating name..."
+          : mutationPending
+            ? "Validating rule..."
+            : "Estimating cost..."
       }
       disabled={
         !canEdit ||
-        !dirty ||
-        nameMissing ||
+        (isEditing && !dirty) ||
+        (nameMissing && !nameAIAssistanceAvailable) ||
         mutationPending ||
-        activationPending
+        activationPending ||
+        nameGenerationPending
       }
-      className={nameMissing ? "pointer-events-none" : undefined}
+      className={
+        nameMissing && !nameAIAssistanceAvailable
+          ? "pointer-events-none"
+          : undefined
+      }
       onClick={onSave}
     >
       {isEditing ? "Save changes" : "Save and activate"}
@@ -55,7 +68,7 @@ export function RuleDialogFooter({
       <Button type="button" variant="outline" onClick={onCancel}>
         {dirty ? "Cancel" : "Close"}
       </Button>
-      {nameMissing && canEdit ? (
+      {nameMissing && !nameAIAssistanceAvailable && canEdit ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex cursor-not-allowed">{saveButton}</span>

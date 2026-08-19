@@ -1,9 +1,11 @@
 import { EventType } from "@ag-ui/core";
 import { describe, expect, it, vi } from "vitest";
 
-import { InAppAgentRunStatus } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
-import { IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
+  InAppAgentRunStatus,
+} from "@langfuse/shared/in-app-agent";
 
 vi.mock("@langfuse/shared/src/server", () => ({
   ClickHouseClientManager: {

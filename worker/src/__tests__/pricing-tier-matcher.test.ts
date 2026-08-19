@@ -3,11 +3,20 @@ import { Decimal } from "decimal.js";
 import { z } from "zod";
 import { validateRegexPattern } from "@langfuse/shared";
 import {
+  hasPricingTierUsageDetails,
   matchPricingTier,
   type PricingTierWithPrices,
 } from "@langfuse/shared/src/server";
 import { DefaultModelPriceSchema } from "../scripts/upsertDefaultModelPrices";
 import defaultModelPrices from "../constants/default-model-prices.json";
+
+describe("hasPricingTierUsageDetails", () => {
+  it("requires at least one usage detail, including zero-valued details", () => {
+    expect(hasPricingTierUsageDetails(undefined)).toBe(false);
+    expect(hasPricingTierUsageDetails({})).toBe(false);
+    expect(hasPricingTierUsageDetails({ input: 0 })).toBe(true);
+  });
+});
 
 describe("default-model-prices.json", () => {
   it("should parse successfully with Zod schema (same validation as upsertDefaultModelPrices)", () => {
@@ -174,26 +183,29 @@ describe("default-model-prices.json", () => {
         expect(tier.conditions.length).toBeGreaterThan(0);
 
         for (const condition of tier.conditions) {
-          expect(condition).toHaveProperty("usageDetailPattern");
           expect(condition).toHaveProperty("operator");
-          expect(condition).toHaveProperty("value");
-          expect(condition).toHaveProperty("caseSensitive");
-
-          // Validate operator
-          expect(["gt", "gte", "lt", "lte", "eq", "neq"]).toContain(
-            condition.operator,
-          );
-
-          // Validate value is a number
-          expect(typeof condition.value).toBe("number");
-
-          // Validate caseSensitive is boolean
-          expect(typeof condition.caseSensitive).toBe("boolean");
-
-          // Validate pattern is a string
-          expect(typeof condition.usageDetailPattern).toBe("string");
-          expect(condition.usageDetailPattern.length).toBeGreaterThan(0);
-          expect(condition.usageDetailPattern.length).toBeLessThanOrEqual(200);
+          if ("usageDetailPattern" in condition) {
+            expect(condition).toHaveProperty("value");
+            expect(["gt", "gte", "lt", "lte", "eq", "neq"]).toContain(
+              condition.operator,
+            );
+            expect(typeof condition.value).toBe("number");
+            expect(typeof condition.caseSensitive).toBe("boolean");
+            expect(typeof condition.usageDetailPattern).toBe("string");
+            expect(condition.usageDetailPattern.length).toBeGreaterThan(0);
+            expect(condition.usageDetailPattern.length).toBeLessThanOrEqual(
+              200,
+            );
+          } else {
+            expect(["model_parameters", "metadata"]).toContain(
+              condition.source,
+            );
+            expect(condition).toHaveProperty("key");
+            expect(condition.operator).toBe("in");
+            expect(condition.values).toEqual(
+              expect.arrayContaining([expect.any(String)]),
+            );
+          }
         }
       }
     }
@@ -203,9 +215,13 @@ describe("default-model-prices.json", () => {
     for (const model of defaultModelPrices) {
       for (const tier of model.pricingTiers) {
         for (const condition of tier.conditions) {
-          expect(() =>
-            validateRegexPattern(condition.usageDetailPattern),
-          ).not.toThrow();
+          const pattern =
+            "usageDetailPattern" in condition
+              ? condition.usageDetailPattern
+              : null;
+          if (pattern !== null) {
+            expect(() => validateRegexPattern(pattern)).not.toThrow();
+          }
         }
       }
     }
@@ -295,7 +311,7 @@ describe("default-model-prices.json", () => {
     }
   });
 
-  it("should price explicit GPT-5.6 usage aliases without implicit tiers", () => {
+  it("should price GPT-5.6 usage aliases across context and service tiers", () => {
     const modelNames = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"];
 
     for (const modelName of modelNames) {
@@ -305,6 +321,8 @@ describe("default-model-prices.json", () => {
       expect(model, modelName).toBeDefined();
       expect(model!.pricingTiers.map((tier) => tier.name)).toEqual([
         "Standard",
+        "Fast mode · Large context (>272K)",
+        "Fast mode",
         "Large Context (>272K)",
       ]);
 
@@ -356,7 +374,71 @@ describe("default-model-prices.json", () => {
     expect(
       matchPricingTier(tiers, { cache_write_tokens: 272001 })?.pricingTierName,
     ).toBe("Large Context (>272K)");
+
+    expect(
+      matchPricingTier(
+        tiers,
+        { cache_write_tokens: 272001 },
+        { modelParameters: { service_tier: "priority" } },
+      )?.pricingTierName,
+    ).toBe("Fast mode · Large context (>272K)");
+
+    expect(
+      matchPricingTier(
+        tiers,
+        { cache_write_tokens: 272001 },
+        { modelParameters: { service_tier: "fast" } },
+      )?.pricingTierName,
+    ).toBe("Fast mode · Large context (>272K)");
+
+    expect(
+      matchPricingTier(
+        tiers,
+        { input: 1000 },
+        { modelParameters: { service_tier: "priority" } },
+      )?.pricingTierName,
+    ).toBe("Fast mode");
+
+    expect(
+      matchPricingTier(
+        tiers,
+        { input: 1000 },
+        { modelParameters: { service_tier: "fast" } },
+      )?.pricingTierName,
+    ).toBe("Fast mode");
   });
+
+  it.each(["fast", "priority"])(
+    "should match GPT-5.5 Fast mode for the %s service tier value",
+    (serviceTier) => {
+      const model = defaultModelPrices.find(
+        (candidate) => candidate.modelName === "gpt-5.5-2026-04-23",
+      );
+      expect(model).toBeDefined();
+
+      const tiers: PricingTierWithPrices[] = model!.pricingTiers.map(
+        (tier) => ({
+          id: tier.id,
+          name: tier.name,
+          isDefault: tier.isDefault,
+          priority: tier.priority,
+          conditions: tier.conditions,
+          prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+            usageType,
+            price: new Decimal(price),
+          })),
+        }),
+      );
+
+      expect(
+        matchPricingTier(
+          tiers,
+          { input: 1000 },
+          { modelParameters: { service_tier: serviceTier } },
+        )?.pricingTierName,
+      ).toBe("Fast mode");
+    },
+  );
 });
 
 describe("validateRegexPattern", () => {
@@ -404,6 +486,134 @@ describe("validateRegexPattern", () => {
 });
 
 describe("matchPricingTier", () => {
+  describe("attribute conditions", () => {
+    const tiers: PricingTierWithPrices[] = [
+      {
+        id: "tier-default",
+        name: "Standard",
+        isDefault: true,
+        priority: 0,
+        conditions: [],
+        prices: [{ usageType: "input", price: new Decimal("0.000005") }],
+      },
+      {
+        id: "tier-priority",
+        name: "Priority",
+        isDefault: false,
+        priority: 1,
+        conditions: [
+          {
+            source: "model_parameters",
+            key: "service_tier",
+            operator: "in",
+            values: ["priority"],
+          },
+        ],
+        prices: [{ usageType: "input", price: new Decimal("0.0000125") }],
+      },
+    ];
+
+    it("matches exact top-level model parameters", () => {
+      const result = matchPricingTier(
+        tiers,
+        { input: 12 },
+        {
+          modelParameters: { service_tier: "priority" },
+        },
+      );
+
+      expect(result?.pricingTierId).toBe("tier-priority");
+    });
+
+    it("matches exact top-level metadata", () => {
+      const metadataTiers: PricingTierWithPrices[] = [
+        tiers[0]!,
+        {
+          ...tiers[1]!,
+          conditions: [
+            {
+              source: "metadata",
+              key: "inference_geo",
+              operator: "in",
+              values: ["us"],
+            },
+          ],
+        },
+      ];
+
+      const result = matchPricingTier(
+        metadataTiers,
+        { input: 12 },
+        {
+          metadata: { inference_geo: "us" },
+        },
+      );
+
+      expect(result?.pricingTierId).toBe("tier-priority");
+    });
+
+    it("falls back when the exact key is absent", () => {
+      const result = matchPricingTier(
+        tiers,
+        { input: 12 },
+        {
+          modelParameters: { different_key: "priority" },
+        },
+      );
+
+      expect(result?.pricingTierId).toBe("tier-default");
+    });
+
+    it.each(["fast", "priority"])(
+      "matches any configured attribute value for %s",
+      (serviceTier) => {
+        const result = matchPricingTier(
+          [
+            tiers[0]!,
+            {
+              ...tiers[1]!,
+              conditions: [
+                {
+                  source: "model_parameters",
+                  key: "service_tier",
+                  operator: "in",
+                  values: ["fast", "priority"],
+                },
+              ],
+            },
+          ],
+          { input: 12 },
+          { modelParameters: { service_tier: serviceTier } },
+        );
+
+        expect(result?.pricingTierId).toBe("tier-priority");
+      },
+    );
+
+    it("falls back when an attribute value is outside the configured set", () => {
+      const result = matchPricingTier(
+        [
+          tiers[0]!,
+          {
+            ...tiers[1]!,
+            conditions: [
+              {
+                source: "model_parameters",
+                key: "service_tier",
+                operator: "in",
+                values: ["fast", "priority"],
+              },
+            ],
+          },
+        ],
+        { input: 12 },
+        { modelParameters: { service_tier: "standard" } },
+      );
+
+      expect(result?.pricingTierId).toBe("tier-default");
+    });
+  });
+
   describe("Basic tier matching", () => {
     it("should return default tier when no conditions match", () => {
       const tiers: PricingTierWithPrices[] = [

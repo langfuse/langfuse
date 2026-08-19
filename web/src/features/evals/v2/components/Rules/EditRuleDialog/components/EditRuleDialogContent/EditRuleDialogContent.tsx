@@ -194,8 +194,10 @@ export function EditRuleDialogContent({
         ruleSetupStore={ruleSetupStore}
         activationPending={activation.estimate.status === "estimating"}
         mutationPending={update.isPending}
+        nameGenerationPending={false}
         isEditing
         canEdit={hasWriteAccess}
+        nameAIAssistanceAvailable={false}
         onCancel={onClose}
         onSave={() => requestSave().catch(() => undefined)}
       />

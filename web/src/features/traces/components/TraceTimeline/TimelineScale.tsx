@@ -1,90 +1,61 @@
 /**
- * TimelineScale - Renders the time axis at the top of the timeline
- * Shows time markers with step intervals based on trace duration
+ * TimelineScale - Renders the time axis at the top of the timeline.
  *
- * Ticks are positioned in BAR coordinates ((time / traceDuration) *
- * scaleWidth) — the same mapping the gantt bars, the playhead, and
- * click-to-seek use — so a tick labeled "5.00s" sits exactly where a seek
- * lands at 5.00s. Positioning ticks on a fixed pixel grid instead
- * (index * STEP_SIZE) silently diverges whenever the rounded-up stepSize
- * doesn't equal traceDuration / (scaleWidth / STEP_SIZE), which is almost
- * every real trace.
+ * Draws ticks, nothing more: which times get a tick, where they land and how
+ * they are labelled all come from `layout()`, in the same coordinate space as
+ * the bars and the playhead. That is what keeps a tick labelled "5.00s" exactly
+ * above the bar that starts at 5.00s — the axis and the bars used to derive
+ * their positions separately and disagree whenever the rounded step size did
+ * not divide the trace duration evenly.
+ *
+ * Ticks whose label would not fit inside the measured lane are dropped by the
+ * layout rather than clipped here, so the axis obeys the same
+ * everything-inside-the-box rule as everything else.
  */
 
+import {
+  TICK_LABEL_GAP_PX,
+  TICK_LABEL_INSET_PX,
+} from "../../fns/timeline/layout";
 import { type TimelineScaleProps } from "./types";
-import { formatIntervalSeconds } from "@/src/utils/dates";
 
-/**
- * Sub-minute ticks keep the precise "5.00s" form; minute-scale and larger
- * ticks read as durations ("25m 00s", "1h 30m 00s") — raw "1500.00s" labels
- * are unreadable on hour-scale traces (LFE-10959).
- */
-const formatTickLabel = (timeValue: number): string =>
-  timeValue >= 60
-    ? formatIntervalSeconds(timeValue)
-    : `${timeValue.toFixed(2)}s`;
-
-export function TimelineScale({
-  traceDuration,
-  scaleWidth,
-  stepSize,
-}: TimelineScaleProps) {
-  // Guard against non-finite / absurd inputs ever reaching here:
-  // Array.from({ length }) throws "RangeError: Invalid array length" for
-  // Infinity and OOMs for an enormous finite length, so clamp to a finite,
-  // sane upper bound. calculateStepSize keeps the real count at ~10.
-  const safeScaleWidth = Number.isFinite(scaleWidth)
-    ? Math.max(0, scaleWidth)
-    : 0;
-  const numMarkers =
-    traceDuration > 0 && stepSize > 0 && Number.isFinite(traceDuration)
-      ? Math.min(Math.floor(traceDuration / stepSize) + 1, 10_000)
-      : 1;
-
-  const tickLeft = (timeValue: number) =>
-    traceDuration > 0 ? (timeValue / traceDuration) * safeScaleWidth : 0;
-
+export function TimelineScale({ ticks, laneWidth }: TimelineScaleProps) {
   return (
-    // No left margin: the 0s tick must sit exactly at the track origin so the
-    // ticks line up with the bars (which start at startOffset = 0 there).
     <div className="mb-2">
-      <div className="relative h-8" style={{ width: `${scaleWidth}px` }}>
-        {Array.from({ length: numMarkers }).map((_, index) => {
-          const timeValue = stepSize * index;
+      <div
+        className="relative h-8 overflow-hidden"
+        style={{ width: `${laneWidth}px` }}
+      >
+        {ticks.map((tick) => (
+          <div
+            key={tick.realMs}
+            className="border-border-contrast absolute h-full border-l text-xs"
+            style={{ left: `${tick.x}px` }}
+          >
+            {/* maxWidth is the structural guarantee: layout() already drops a
+                tick whose label would not fit, but it predicts the width from
+                measured glyphs, and a prediction must not be the only thing
+                keeping the axis inside the box.
 
-          return (
-            <div
-              key={index}
-              className="border-border-contrast absolute h-full border-l text-xs"
-              style={{ left: `${tickLeft(timeValue)}px` }}
+                The offset and the clamp both come from the constant layout()
+                reserves with, so the prediction and the render cannot drift. */}
+            <span
+              className="text-muted-foreground absolute overflow-hidden text-xs whitespace-nowrap"
+              style={{
+                // Inside the tick's border, so the gap — while the clamp pays for
+                // the border too, which is what layout() reserved.
+                left: `${TICK_LABEL_GAP_PX}px`,
+                maxWidth: `${Math.max(
+                  laneWidth - tick.x - TICK_LABEL_INSET_PX,
+                  0,
+                )}px`,
+              }}
+              title={tick.label}
             >
-              <span
-                className="text-muted-foreground absolute left-2 text-xs whitespace-nowrap"
-                title={formatTickLabel(timeValue)}
-              >
-                {formatTickLabel(timeValue)}
-              </span>
-            </div>
-          );
-        })}
-
-        {/* Grid lines for visual alignment */}
-        <div className="pointer-events-none absolute inset-0">
-          {Array.from({ length: numMarkers }).map((_, index) => {
-            if (index === 0) {
-              return null;
-            }
-            const timeValue = stepSize * index;
-
-            return (
-              <div
-                key={`grid-${index}`}
-                className="border-border/30 absolute h-full border-l"
-                style={{ left: `${tickLeft(timeValue)}px` }}
-              />
-            );
-          })}
-        </div>
+              {tick.label}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );

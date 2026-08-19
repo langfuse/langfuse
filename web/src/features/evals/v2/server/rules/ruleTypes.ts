@@ -45,7 +45,9 @@ export const ListRulesSchema = z.object({
         const valid =
           ((filter.column === "name" || filter.column === "creator") &&
             (filter.type === "string" || filter.type === "stringOptions")) ||
-          (filter.column === "enabled" && filter.type === "boolean");
+          ((filter.column === "enabled" ||
+            filter.column === "upgradeRequired") &&
+            filter.type === "boolean");
         if (!valid) {
           ctx.addIssue({
             code: "custom",

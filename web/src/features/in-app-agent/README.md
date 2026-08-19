@@ -6,7 +6,7 @@ persisted event stream.
 
 `ARCHITECTURE.md` covers why the feature is shaped this way: the one-log /
 three-derivations contract, where code lives and why, and the boundaries between
-browser, web server, shared runtime, and worker.
+browser, web server, shared durable contracts, and worker runtime.
 Read it before changing how messages are represented or where logic lives.
 
 ## Core Model
@@ -15,7 +15,10 @@ AG-UI events are the durable transcript vocabulary. Langfuse-owned protocols
 coordinate persistence, watching, run lifecycle, approvals, and display
 projection around those events.
 
-The browser owns interaction state and submits intent. The server owns authorization, run/message IDs, request sanitization, MCP credentials, runtime configuration, tool access, persistence, and replay.
+The browser owns interaction state and submits intent. Web owns authorization,
+run/message IDs, request sanitization, admission, snapshots, and watching. The
+worker owns runtime configuration, MCP credentials, tools, execution, and
+continuations. Shared owns durable contracts, persistence, and lifecycle.
 
 A conversation can have one active run. The browser starts a durable run,
 hydrates one persisted transcript/cursor snapshot, and observes its tail.
@@ -23,24 +26,24 @@ Closing the drawer detaches observation without cancelling the worker run.
 
 ## Major Files
 
-- `schema.ts`: runtime-neutral AG-UI schemas and types shared by browser, server, persistence, replay, and rendering, including Langfuse-owned human-in-the-loop wire contracts.
-- `server/agent.ts`: Mastra/Bedrock/MCP runtime setup, custom tool wiring, human-in-the-loop approval gates, AG-UI event normalization, and cleanup.
-- `server/human-in-the-loop.ts`: interrupt parsing and worker continuation
-  compatibility.
-- `server/tools.ts`: custom agent tools with strict schemas and scoped, user-visible behavior.
-- `server/persistence.ts`: conversations, events, canonical accumulation, and replay. Knows nothing about rendering.
-- `server/runLifecycle.ts`: durable run creation, claiming, cancellation, terminal transitions, active-run locking, and reconciliation.
+- `packages/shared/src/in-app-agent/schema.ts`: runtime-neutral AG-UI and durable
+  human-in-the-loop wire contracts.
+- `packages/shared/src/in-app-agent/interrupts.ts`: browser-safe durable
+  approval interrupt parsing used by browser, web, and worker.
+- Explicit `packages/shared/src/in-app-agent/server/*` modules own persistence,
+  lifecycle, MCP policy, persisted tool-result handling, compaction, tunables,
+  and the seeded system prompt. There is no aggregate server barrel.
+- `schema.ts`, `ids.ts`, and `watchFrames.ts`: web-owned feedback/source/rate
+  schemas, browser/server IDs, and watch wire framing.
 - `lib/display.ts`: display-state recording, the render-time projection, and its
   wire serialization. Web-only; used by the browser and by the web server when
   it builds a conversation snapshot.
 - `server/conversationSnapshot.ts`: rebuilds canonical messages and display state
   from one read of the persisted event log.
 - `server/router.ts`: tRPC routes for durable run start/cancel/approval, conversation snapshots and lists, and feedback.
-- `server/instrumentation.ts`: optional Langfuse tracing for agent runs, prompts, events, and errors.
-- `server/sandbox/config.ts`: sandbox provider selection and runtime configuration.
-- `server/sandbox/service.ts`: conversation-scoped sandbox session reuse, readonly file sync, and turn-end session persistence.
-- `server/sandbox/providers/*`: provider adapters for local Docker and Lambda MicroVM sandboxes.
-- `server/sandbox/types.ts`: runtime-neutral sandbox interface used by tools/agent.
+- `worker/src/features/in-app-agent/runtime/*`: Mastra/Bedrock/MCP execution,
+  continuation handling, instrumentation, prompt loading, tools, skills, and
+  sandbox providers.
 - `constants.ts`: stable names shared across prompts, tools, persistence, and rendering.
 - `components/InAppAiAgentProvider.tsx`: query integration and the React bridge
   to the background session.
@@ -77,29 +80,32 @@ flowchart TB
   BackgroundClient -->|SSE tail| Watch["app/api/in-app-agent/watch\nauthenticated watch route"]
   Provider -->|tRPC| Router["server/router.ts\ntRPC routes (non-streaming)"]
 
-  Schema["schema.ts\nshared AG-UI contract"] -.-> Provider
-  Schema -.-> HumanLoop["server/human-in-the-loop.ts\napproval state + validation"]
+  Schema["packages/shared/.../schema.ts\ndurable AG-UI contract"] -.-> Provider
+  Schema -.-> HumanLoop["worker runtime/human-in-the-loop.ts\ncontinuation compatibility"]
   Schema -.-> Router
   Schema -.-> Persistence["server/persistence.ts"]
 
   Router -->|enqueue| Worker["worker executeInAppAgentRun\ndurable run driver"]
   Worker --> Persistence
-  Worker --> Sandbox["server/sandbox/service.ts\nsandbox lifecycle"]
-  Worker --> Agent["server/agent.ts\nagent runtime"]
+  Worker --> Sandbox["worker runtime/sandbox\nsandbox lifecycle"]
+  Worker --> Agent["worker runtime/agent.ts\nagent runtime"]
   Worker --> HumanLoop
   Watch --> Persistence
   Sandbox --> Persistence
-  Sandbox --> Providers["server/sandbox/providers/*\nDocker or Lambda MicroVM"]
+  Sandbox --> Providers["worker runtime/sandbox/providers/*\nDocker or Lambda MicroVM"]
   Agent --> HumanLoop
-  Agent --> Tools["server/tools.ts\ncustom tools"]
+  Agent --> Tools["worker runtime/tools.ts\ncustom tools"]
   Agent --> Tools
-  Agent --> Instrumentation["server/instrumentation.ts\nLangfuse telemetry"]
+  Agent --> Instrumentation["worker runtime/instrumentation.ts\nLangfuse telemetry"]
   Router --> Persistence
 ```
 
 ## Run Lifecycles
 
-1. The provider starts the durable run through `startRun`.
+1. The provider submits one user message plus browser context to the session.
+   The session owns optimistic insertion and constructs the internal AG-UI run
+   input before starting the durable run through `startRun`; the server remains
+   the authoritative sanitizer before persisting the request.
 2. `BackgroundExecutionSessionController` installs the persisted canonical
    messages, the display state, and the cursor before attaching the watch
    stream. The seed is never projected or pruned; see `ARCHITECTURE.md`.
@@ -139,9 +145,9 @@ Streaming publications and background session snapshots are high-frequency.
 Keep their subscription boundary narrow, derive status/notice values during
 render, and preserve stable message references between session publications.
 
-Stop intentionally emits no new analytics event during the internal rollout:
-the existing run lifecycle is sufficient to diagnose correctness, and there is
-no product decision that a separate click event would answer yet.
+Stop intentionally emits no separate analytics event: the run lifecycle is
+sufficient to diagnose correctness, and there is no product decision that a
+separate click event would answer.
 
 ## Operations
 
@@ -157,9 +163,21 @@ its default of 20 equals full US capacity and exceeds JP and staging.
 Conversation switching, detached invalidations, retry, and conversation-list run
 statuses remain separate project concerns.
 
+Environment ownership:
+
+- Worker: queue enable/concurrency, sandbox provider and Lambda MicroVM values,
+  and development-only `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.
+- Fixed lifecycle policy: queue timeout (300000 ms), maximum run duration
+  (900000 ms), and approval TTL (86400000 ms). These are shared constants, so
+  web and worker cannot diverge.
+- Web: per-user (5) and per-org (20) active-run ceilings.
+- Fixed implementation timings: 5000 ms worker heartbeat, 60000 ms stale
+  heartbeat, 1000 ms watch poll, 15000 ms keepalive, and 90000 ms watch
+  connection. These are intentionally not environment variables.
+
 ## Sandbox Runtime
 
-`server/sandbox/service.ts` gives the agent a conversation-scoped sandbox interface with `read`, `write`, `edit`, and `bash`. Sessions are created lazily on the first sandbox tool call. The service reuses a live or suspended provider session identified by `providerSessionId`; if that session is gone or terminal, it boots a fresh session and persists the replacement id.
+The worker runtime sandbox service gives the agent a conversation-scoped sandbox interface with `read`, `write`, and `edit` plus a separate turn-end callback. It reuses an existing provider session when the stored provider/session/TTL still match, otherwise it boots a fresh session and persists the new state on the conversation.
 
 Both sandbox providers target the same runtime contract from `packages/in-app-agent-sandbox-runtime`.
 
@@ -210,18 +228,16 @@ MCP registry behavior:
 - In-app-agent keys can call read-only tools directly when the tool has `readOnlyHint: true`.
 - In-app-agent keys need a valid tool override to call named non-read-only Langfuse MCP tools.
 
-RBAC is the first gate for Langfuse MCP tools. Before a tool is exposed to the model, `server/tools.ts` checks the signed-in user's `projectRole` and `isAdmin` against the tool's required `ProjectScope` with `hasProjectAccess()`. That means the assistant never sees tools the user could not use manually in the product UI or APIs. Human approval is a second gate on top of RBAC for tools classified as `"approval"`: approval can allow one execution of a tool the user already has access to, but it does not widen the user's project permissions.
+RBAC is the first gate for Langfuse MCP tools. Before a tool is exposed to the model, shared `mcpPolicy.ts` checks the signed-in user's `projectRole` and `isAdmin` against the tool's required `ProjectScope` with `hasProjectAccess()`. That means the assistant never sees tools the user could not use manually in the product UI or APIs. Human approval is a second gate on top of RBAC for tools classified as `"approval"`: approval can allow one execution of a tool the user already has access to, but it does not widen the user's project permissions.
 
-Human approval is separate from the MCP tool override. Shared `server/tools.ts` classifies every Langfuse MCP tool in `IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES`, using unprefixed MCP registry names and either `"auto"` or `"approval"`. The web in-app-agent server test imports the MCP registry's `McpToolName` contract and verifies both type equality and runtime registry equality, so adding a Langfuse MCP tool requires an explicit in-app agent approval classification without making MCP bootstrap depend on the in-app agent.
+Human approval is separate from the MCP tool override. Shared `mcpPolicy.ts` classifies every Langfuse MCP tool in `IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES`, using unprefixed MCP registry names and either `"auto"` or `"approval"`. The web in-app-agent server test imports the MCP registry's `McpToolName` contract and verifies both type equality and runtime registry equality, so adding a Langfuse MCP tool requires an explicit in-app agent approval classification without making MCP bootstrap depend on the in-app agent.
 
-`server/tools.ts` turns that map into an `InAppAgentToolPolicy` with an `available` set for tools the model may see and an `autoApproved` set for tools that run without a prompt. `createInAppAgentToolPolicy()` intersects stored grants with current availability, so an unknown, deleted, reclassified, or now-out-of-role tool silently drops out. Local tools such as `IN_APP_AGENT_REDIRECT_TOOL_NAME` and the sandbox tools are always auto-approved; docs MCP tools are auto-approved by the `langfuseDocs_` prefix. `server/agent.ts` marks every other tool with Mastra `requireApproval: true`.
-
-Conversation-scoped grants live in `InAppAgentConversation.alwaysAllowedTools`, holding server-prefixed names such as `langfuse_createDashboardWidget`. The prefix is part of the identity, so a stored grant cannot be mistaken for a same-named tool on another MCP surface; unprefixed entries are rejected when the policy is rebuilt. Grants are written inside the same locked transaction as the approval decision in `server/runLifecycle.ts`. A one-off `Approve` writes nothing there; only `Always approve` does. The worker rebuilds the policy from the column on every run rather than trusting enqueue-time authorization. Mastra emits an interrupt, the browser asks the user, and the router records the decision for a durable worker continuation. `server/human-in-the-loop.ts` adapts Mastra's runtime interrupt payload into the Langfuse-owned `tool_approval_request` contract from `schema.ts`; the browser stores and forwards only that runtime-neutral shape.
+The internal auto-approval set is derived from that map by prefixing Langfuse MCP tools with `langfuse_` and adding local tools such as `IN_APP_AGENT_REDIRECT_TOOL_NAME`; docs MCP tools are auto-approved by the `langfuseDocs_` prefix. The worker runtime agent marks every other tool with Mastra `requireApproval: true`. Mastra emits an interrupt, the browser asks the user, and the router records the decision for a durable worker continuation. The browser-safe `interrupts.ts` parser adapts Mastra's runtime payload into the Langfuse-owned `tool_approval_request` contract from `schema.ts`; browser, web server, and worker all consume that same parser.
 
 The `InAppAgentPendingToolApproval` table is not used by background execution.
 It remains temporarily so existing rows and Prisma relations stay valid.
 
-Sandbox tools are separate from MCP authorization. When a sandbox provider is enabled, `server/tools.ts` adds local `read`, `write`, `edit`, and `bash` tools backed by the sandbox provider contract rather than the MCP registry.
+Sandbox tools are separate from MCP authorization. When a sandbox provider is enabled, the worker runtime adds local `read`, `write`, `edit`, and `bash` tools backed by the sandbox provider contract rather than the MCP registry.
 
 ## Change Rules
 

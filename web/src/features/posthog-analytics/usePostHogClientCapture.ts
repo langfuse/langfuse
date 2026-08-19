@@ -160,7 +160,14 @@ export const events = {
     "delete_form_open",
     "delete_template_button_click",
   ],
-  evaluators: ["create", "update", "delete", "test", "default_model_update"],
+  evaluators: [
+    "create",
+    "update",
+    "delete",
+    "test",
+    "default_model_update",
+    "reactivate",
+  ],
   evaluation_rules: [
     "create",
     "update",
@@ -334,6 +341,11 @@ export const events = {
   v4_migration: [
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
+    // Discoverability pair for the table delay badge: `shown` is the
+    // exposure denominator (badge actually rendered), `hovered` counts
+    // noticed-but-not-clicked (pill expanded long enough to read).
+    "delay_badge_shown",
+    "delay_badge_hovered",
     "project_chip_clicked",
     "contact_book_call_clicked",
     "contact_support_clicked",

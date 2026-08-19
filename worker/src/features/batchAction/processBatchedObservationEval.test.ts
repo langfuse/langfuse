@@ -96,7 +96,7 @@ describe("processBatchedObservationEval", () => {
     const evaluators: ObservationEvalRule[] = [
       {
         id: "evaluator-1",
-        // A batch run has no rule: the evaluator id anchors the job execution.
+        // A standalone evaluator falls back to its own id as the execution anchor.
         ruleId: null,
         projectId,
         filter: [],

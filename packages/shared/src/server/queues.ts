@@ -135,8 +135,8 @@ export const EvalExecutionEvent = z.object({
   jobExecutionId: z.string(),
   delay: z.number().nullish(),
   // Evaluator v2 identity is carried by newly scheduled trace/dataset jobs.
-  // Jobs queued before the migration omit it and are resolved through the
-  // legacy job-configuration fallback in the worker.
+  // Jobs queued before the migration omit it. Their job-configuration id was
+  // preserved as the migrated rule id, which the worker resolves directly.
   evaluatorId: z.string().optional(),
   evaluationRuleId: z.string().optional(),
 });
@@ -150,8 +150,8 @@ export const ObservationEvalExecutionEventSchema = z.object({
   // Evaluator v2 identity, carried so the worker never has to re-derive which
   // evaluator a job belongs to from `jobConfigurationId`: the legacy backfill
   // reuses job-configuration ids for both rules and evaluators, so that id
-  // alone is ambiguous. Absent on jobs queued before evaluator v2, which the
-  // worker still resolves through `job_configurations`.
+  // alone is ambiguous. Absent on jobs queued before evaluator v2; the worker
+  // resolves those through the migrated rule assignment first.
   //
   // No version is carried: a rule always runs its evaluator's current version,
   // which the executor resolves on pickup and records on the execution.

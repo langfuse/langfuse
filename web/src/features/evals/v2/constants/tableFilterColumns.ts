@@ -67,6 +67,12 @@ export const evaluationRuleTableFilterColumns: ColumnDefinition[] = [
     type: "boolean",
     internal: "enabled",
   },
+  {
+    name: "Upgrade required",
+    id: "upgradeRequired",
+    type: "boolean",
+    internal: "upgradeRequired",
+  },
 ];
 
 export const evaluatorTableFilterConfig: FilterConfig = {
@@ -94,6 +100,13 @@ export const evaluationRuleTableFilterConfig: FilterConfig = {
       label: "Enabled",
       trueLabel: "Enabled",
       falseLabel: "Disabled",
+    },
+    {
+      type: "boolean",
+      column: "upgradeRequired",
+      label: "Upgrade required",
+      trueLabel: "Required",
+      falseLabel: "Not required",
     },
   ],
 };

@@ -7,7 +7,6 @@ const observabilityMocks = vi.hoisted(() => ({
     name: string;
     attributes: Record<string, unknown>;
   }>,
-  blockEvaluatorConfigs: vi.fn().mockResolvedValue(undefined),
   blockEvaluator: vi.fn().mockResolvedValue({ blockedEvaluatorIds: [] }),
 }));
 
@@ -17,7 +16,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
   return {
     ...actual,
-    blockEvaluatorConfigs: observabilityMocks.blockEvaluatorConfigs,
     blockEvaluator: observabilityMocks.blockEvaluator,
     instrumentAsync: vi.fn(
       async (
@@ -76,7 +74,6 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
   beforeEach(() => {
     observabilityMocks.spans.length = 0;
-    observabilityMocks.blockEvaluatorConfigs.mockClear();
     observabilityMocks.blockEvaluator.mockClear();
   });
 
@@ -1268,7 +1265,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
       ).rejects.toThrow("Rate limit exceeded");
     });
 
-    it("records native error policy on both evaluator spans", async () => {
+    it("records native error policy and blocks the evaluator", async () => {
       const llmError = new LLMValidationError({
         code: "endpoint-unreachable",
         message: "Cannot reach custom endpoint",
@@ -1279,7 +1276,10 @@ describe("executeLLMAsJudgeEvaluation", () => {
       });
 
       await expect(
-        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
+        executeLLMAsJudgeEvaluation({
+          ...createExecutionParams({ deps }),
+          evaluatorId: "evaluator-123",
+        }),
       ).rejects.toBe(llmError);
 
       const executeSpan = observabilityMocks.spans.find(
@@ -1310,28 +1310,6 @@ describe("executeLLMAsJudgeEvaluation", () => {
       expect(callSpan?.attributes).not.toHaveProperty(
         "http.response.status_code",
       );
-      expect(observabilityMocks.blockEvaluatorConfigs).toHaveBeenCalledTimes(1);
-      expect(observabilityMocks.blockEvaluator).not.toHaveBeenCalled();
-    });
-
-    it("pauses the evaluator instead of the rule when given an evaluator id", async () => {
-      const llmError = new LLMValidationError({
-        code: "endpoint-unreachable",
-        message: "Cannot reach custom endpoint",
-      });
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: mockValidFetchModelConfig(),
-        callLLM: vi.fn().mockRejectedValue(llmError),
-      });
-
-      await expect(
-        executeLLMAsJudgeEvaluation({
-          ...createExecutionParams({ deps }),
-          evaluatorId: "evaluator-123",
-        }),
-      ).rejects.toBe(llmError);
-
-      // One evaluator can back many rules, so the pause belongs on it.
       expect(observabilityMocks.blockEvaluator).toHaveBeenCalledWith(
         expect.objectContaining({
           evaluatorId: "evaluator-123",
@@ -1339,7 +1317,6 @@ describe("executeLLMAsJudgeEvaluation", () => {
           source: "llm_completion_error",
         }),
       );
-      expect(observabilityMocks.blockEvaluatorConfigs).not.toHaveBeenCalled();
     });
   });
 

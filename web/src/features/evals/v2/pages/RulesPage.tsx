@@ -11,6 +11,7 @@ import {
   EVALS_V2_TABS,
   getEvalsV2Tabs,
 } from "@/src/features/navigation/utils/evals-v2-tabs";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export function RulesPage() {
   const router = useRouter();
@@ -31,6 +32,7 @@ export function RulesPage() {
     <Page
       headerProps={{
         title: "Rules",
+        titleBadges: <V4MigrationUpdateRequiredBadge />,
         help: {
           description:
             "Rules define which incoming observations reusable evaluators run on.",

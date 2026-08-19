@@ -46,6 +46,12 @@ export class MonitorService {
   public static async create(
     session: SessionContext,
     input: CreateMonitor,
+    /**
+     * Optional transaction client, so a caller can create the monitor inside
+     * its own transaction (e.g. to enforce a plan limit atomically). Defaults
+     * to the shared client.
+     */
+    tx: Prisma.TransactionClient = prisma,
   ): Promise<Monitor> {
     const filters = sortFiltersCanonically(input.filters);
     const windowMs = windowToMs(input.window);
@@ -57,7 +63,7 @@ export class MonitorService {
       windowMs,
     });
 
-    const created = await prisma.monitor.create({
+    const created = await tx.monitor.create({
       data: {
         projectId: input.projectId,
         createdBy: session.userId,

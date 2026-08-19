@@ -71,6 +71,22 @@ const longContextTier = {
   prices: { text_input: 0.000008, text_output: 0.000032, audio: 0.00006 },
 };
 
+const fastModeTier = {
+  id: "tier-priority",
+  name: "Fast mode",
+  isDefault: false,
+  priority: 1,
+  conditions: [
+    {
+      source: "model_parameters" as const,
+      key: "service_tier",
+      operator: "in" as const,
+      values: ["fast", "priority"],
+    },
+  ],
+  prices: { text_input: 0.0000125, text_output: 0.000075, audio: 0.00009 },
+};
+
 const modelData = (
   pricingTiers: GetModelResult["pricingTiers"],
 ): GetModelResult => ({
@@ -188,7 +204,14 @@ describe("UpsertModelFormDialog price editor", () => {
         name: "Long context",
         isDefault: false,
         priority: 1,
-        conditions: longContextTier.conditions,
+        conditions: [
+          {
+            usageDetailPattern: "^text_input",
+            operator: "gt",
+            value: 128000,
+            caseSensitive: false,
+          },
+        ],
         // The rename must not zero this tier's price for the renamed key.
         prices: {
           text_input_cached: 0.000008,
@@ -197,6 +220,16 @@ describe("UpsertModelFormDialog price editor", () => {
         },
       },
     ]);
+  });
+
+  it("preserves model parameter membership conditions when saving", async () => {
+    openEditDialog([defaultTier, fastModeTier]);
+    submit();
+
+    await waitFor(() => expect(upsertMutateAsync).toHaveBeenCalledTimes(1));
+    expect(
+      upsertMutateAsync.mock.calls[0][0].pricingTiers[1].conditions,
+    ).toEqual(fastModeTier.conditions);
   });
 
   it("renaming a clone keeps a custom match pattern but follows a generated one", () => {

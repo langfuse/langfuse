@@ -55,10 +55,10 @@ FROM "job_configurations" jc
 WHERE jc."job_type" = 'EVAL'
 ON CONFLICT ("id") DO NOTHING;
 
--- Job configurations that agree on project, template, variable mapping *and* score name describe
--- the very same evaluator, so they share one. Configurations that differ in any of the four keep
--- their own evaluator: the mapping is part of the evaluator definition, while the evaluator name
--- determines the score name written by the worker.
+-- Job configurations that agree on project, template, variable mapping, score name *and* block
+-- status describe the very same evaluator, so they share one. Blocked and unblocked configurations
+-- stay separate to preserve which legacy rules were executable. The mapping is part of the
+-- evaluator definition, while the evaluator name determines the score name written by the worker.
 --
 -- The evaluator ID is the lowest job configuration ID in the group. That makes the group's
 -- representative the row where `job_configuration_id = evaluator_id`, and it keeps evaluator IDs
@@ -68,7 +68,8 @@ SELECT
   jc."id" AS "job_configuration_id",
   min(jc."id") OVER (
     PARTITION BY
-      jc."project_id", jc."eval_template_id", jc."variable_mapping", jc."score_name"
+      jc."project_id", jc."eval_template_id", jc."variable_mapping", jc."score_name",
+      jc."blocked_at" IS NOT NULL
   ) AS "evaluator_id"
 FROM "job_configurations" jc
 WHERE jc."job_type" = 'EVAL'
@@ -91,8 +92,8 @@ SELECT
   (array_agg(jc."score_name" ORDER BY jc."id"))[1],
   -- constant within the group, the template ID is part of the grouping key
   current_template."type",
-  -- a group is blocked as soon as any of its configurations is, and the reason/message are
-  -- taken from whichever configuration was blocked most recently
+  -- Block status is part of the grouping key, so unblocked groups stay unblocked. For blocked
+  -- groups, the reason/message come from whichever configuration was blocked most recently.
   max(jc."blocked_at"),
   (array_agg(jc."block_reason" ORDER BY jc."blocked_at" DESC, jc."id")
     FILTER (WHERE jc."blocked_at" IS NOT NULL))[1],

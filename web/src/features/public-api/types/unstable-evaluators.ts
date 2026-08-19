@@ -3,6 +3,7 @@ import {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   ObservationEvaluationRuleMapping,
+  PublicEvaluationRuleReadMapping,
   PublicCodeEvaluatorDefinitionInput,
   PublicEvaluatorModelConfig,
   PublicEvaluatorOutputDefinition,
@@ -17,7 +18,9 @@ const APIEvaluatorBase = z
     name: z.string(),
     version: z.number().int().positive(),
     variables: z.array(z.string()),
-    mapping: z.array(ObservationEvaluationRuleMapping).nullable(),
+    // An evaluator's default mapping can name experiment-only sources, and a legacy one can be
+    // incomplete, so reads use the permissive schema. Requests stay strict.
+    mapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
     evaluationRuleCount: z.number().int().nonnegative(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
