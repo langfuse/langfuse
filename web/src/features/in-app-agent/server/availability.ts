@@ -2,7 +2,10 @@ import type { Session } from "next-auth";
 
 import { BaseError, ForbiddenError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { getInAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
+import {
+  getInAppAgentModelConfig,
+  isInAppAgentInstanceEnabled,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
@@ -15,6 +18,15 @@ export async function assertInAppAgentAvailable({
   projectId: string;
   user: NonNullable<Session["user"]>;
 }) {
+  if (!isInAppAgentInstanceEnabled()) {
+    throw new BaseError(
+      "PreconditionFailedError",
+      412,
+      "Assistant is not enabled on this instance.",
+      true,
+    );
+  }
+
   if (
     !hasEntitlement({
       entitlement: "in-app-agent",

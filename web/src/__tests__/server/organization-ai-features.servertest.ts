@@ -3,12 +3,15 @@ import type { Session } from "next-auth";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 describe("organization AI feature settings", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalSharedInAppAgentEnabled =
+    sharedEnv.LANGFUSE_IN_APP_AGENT_ENABLED;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -16,9 +19,28 @@ describe("organization AI feature settings", () => {
 
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED =
+      originalSharedInAppAgentEnabled;
   });
 
   it("allows a self-hosted organization administrator to opt in to AI features", async () => {
+    const { caller, orgId } = await createCaller();
+
+    await caller.organizations.update({
+      orgId,
+      aiFeaturesEnabled: true,
+    });
+
+    await expect(
+      prisma.organization.findUniqueOrThrow({
+        where: { id: orgId },
+        select: { aiFeaturesEnabled: true },
+      }),
+    ).resolves.toEqual({ aiFeaturesEnabled: true });
+  });
+
+  it("allows a self-hosted organization administrator to opt in to AI features when Assistant is instance-disabled", async () => {
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = "false";
     const { caller, orgId } = await createCaller();
 
     await caller.organizations.update({

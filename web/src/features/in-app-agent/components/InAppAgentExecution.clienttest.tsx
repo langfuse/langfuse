@@ -112,6 +112,7 @@ vi.mock("next/router", () => ({
 const sessionMocks = vi.hoisted(() => ({
   userId: "user-1" as string | undefined,
   aiFeaturesEnabled: true,
+  inAppAgentEnabled: true,
   isLangfuseCloud: true,
 }));
 
@@ -119,6 +120,7 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
       user: { id: sessionMocks.userId, name: "Test User" },
+      environment: { inAppAgentEnabled: sessionMocks.inAppAgentEnabled },
     },
   }),
 }));
@@ -279,6 +281,7 @@ describe("in-app agent execution", () => {
   beforeEach(() => {
     sessionMocks.userId = "user-1";
     sessionMocks.aiFeaturesEnabled = true;
+    sessionMocks.inAppAgentEnabled = true;
     sessionMocks.isLangfuseCloud = true;
     providerMocks.activityUseQuery.mockImplementation(
       () => providerMocks.activityQuery,
@@ -327,6 +330,20 @@ describe("in-app agent execution", () => {
 
     expect(providerMocks.activityUseQuery.mock.calls.at(-1)?.[1]?.enabled).toBe(
       true,
+    );
+  });
+
+  it("does not poll for activity when Assistant is instance-disabled", () => {
+    sessionMocks.inAppAgentEnabled = false;
+
+    render(
+      <InAppAiAgentProvider defaultOpen={false}>
+        <div />
+      </InAppAiAgentProvider>,
+    );
+
+    expect(providerMocks.activityUseQuery.mock.calls.at(-1)?.[1]?.enabled).toBe(
+      false,
     );
   });
 

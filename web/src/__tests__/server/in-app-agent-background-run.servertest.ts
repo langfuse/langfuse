@@ -97,8 +97,11 @@ vi.mock("@/src/server/auth", () => ({
 describe("in-app agent background runs", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalSharedCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalSharedBedrockModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
   const originalSharedBedrockRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+  const originalSharedInAppAgentEnabled =
+    sharedEnv.LANGFUSE_IN_APP_AGENT_ENABLED;
   const originalMaxActiveRunsPerUser =
     env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER;
   const originalMaxActiveRunsPerOrg =
@@ -107,8 +110,10 @@ describe("in-app agent background runs", () => {
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = "eu-central-1";
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = undefined;
     enqueuedJobs.length = 0;
     enqueueShouldFail = false;
     persistenceMocks.maybeInferAndPersistConversationTitle.mockClear();
@@ -122,9 +127,13 @@ describe("in-app agent background runs", () => {
     vi.useRealTimers();
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+      originalSharedCloudRegion;
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = originalSharedBedrockModel;
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION =
       originalSharedBedrockRegion;
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED =
+      originalSharedInAppAgentEnabled;
     (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
       originalMaxActiveRunsPerUser;
     (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG =
@@ -204,6 +213,8 @@ describe("in-app agent background runs", () => {
 
   it("starts a run on self-hosted deployments after the organization opts in", async () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = "true";
     const { caller, projectId, userId } = await createCaller(
       undefined,
       "self-hosted:enterprise",
@@ -219,6 +230,87 @@ describe("in-app agent background runs", () => {
     ).resolves.toMatchObject({ conversationId: conversation.id });
 
     expect(enqueuedJobs).toHaveLength(1);
+  });
+
+  it("rejects self-hosted startRun when LANGFUSE_IN_APP_AGENT_ENABLED is unset", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    const { caller, projectId, userId } = await createCaller(
+      undefined,
+      "self-hosted:enterprise",
+    );
+    const conversation = await createConversation({ projectId, userId });
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "Do not queue this",
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message: "Assistant is not enabled on this instance.",
+    });
+
+    expect(enqueuedJobs).toHaveLength(0);
+  });
+
+  it("rejects self-hosted startRun when LANGFUSE_IN_APP_AGENT_ENABLED is false", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = "false";
+    const { caller, projectId, userId } = await createCaller(
+      undefined,
+      "self-hosted:enterprise",
+    );
+    const conversation = await createConversation({ projectId, userId });
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "Do not queue this",
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message: "Assistant is not enabled on this instance.",
+    });
+
+    expect(enqueuedJobs).toHaveLength(0);
+  });
+
+  it("starts a Cloud run when LANGFUSE_IN_APP_AGENT_ENABLED is unset", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "Inspect a trace",
+      }),
+    ).resolves.toMatchObject({ conversationId: conversation.id });
+
+    expect(enqueuedJobs).toHaveLength(1);
+  });
+
+  it("rejects Cloud startRun when LANGFUSE_IN_APP_AGENT_ENABLED is false", async () => {
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = "false";
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "Do not queue this",
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message: "Assistant is not enabled on this instance.",
+    });
+
+    expect(enqueuedJobs).toHaveLength(0);
   });
 
   it("rejects requests before queueing when the assistant model is not configured", async () => {

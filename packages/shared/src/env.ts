@@ -522,6 +522,7 @@ const EnvSchema = z.object({
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
   LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS: z.coerce
     .number()
     .int()

@@ -36,3 +36,19 @@ export function getInAppAgentModelConfig(params?: {
     region,
   };
 }
+
+/**
+ * Instance-wide Assistant switch.
+ *
+ * Cloud is on unless LANGFUSE_IN_APP_AGENT_ENABLED is "false". Self-hosted is
+ * on only when the var is "true".
+ */
+export function isInAppAgentInstanceEnabled(): boolean {
+  const enabled = env.LANGFUSE_IN_APP_AGENT_ENABLED;
+
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    return enabled !== "false";
+  }
+
+  return enabled === "true";
+}

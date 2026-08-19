@@ -63,6 +63,7 @@ const scenarioRef = vi.hoisted(() => ({
   failApiKeyDelete: false,
   apiKeyDeleteCalls: 0,
   titleInferenceCalls: 0,
+  instanceEnabled: true,
 }));
 
 vi.mock("./runtime/agent", async (importOriginal) => {
@@ -105,6 +106,21 @@ vi.mock(
     >()),
     IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: 50,
   }),
+);
+
+vi.mock(
+  "@langfuse/shared/in-app-agent/server/modelProvider",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@langfuse/shared/in-app-agent/server/modelProvider")
+      >();
+
+    return {
+      ...actual,
+      isInAppAgentInstanceEnabled: () => scenarioRef.instanceEnabled,
+    };
+  },
 );
 
 vi.mock("@langfuse/shared/src/server/auth/apiKeys", async (importOriginal) => {
@@ -275,6 +291,7 @@ async function seedApprovedContinuation(opts?: {
 describe("executeInAppAgentRun", () => {
   beforeEach(() => {
     scenarioRef.titleInferenceCalls = 0;
+    scenarioRef.instanceEnabled = true;
   });
 
   it("does not regenerate the conversation title after executing a user-message run", async () => {
@@ -727,6 +744,21 @@ describe("executeInAppAgentRun", () => {
 
     scenarioRef.current = async () => {
       throw new Error("agent loop must not start when revalidation fails");
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    const failed = await getRun(projectId, run.id);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.errorCode).toBe("init_failed");
+    expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+  });
+
+  it("fails revalidation at claim as FAILED (init_failed) when Assistant is instance-disabled", async () => {
+    scenarioRef.instanceEnabled = false;
+    const { projectId, run } = await seedBackgroundRun();
+    scenarioRef.current = async () => {
+      throw new Error("agent loop must not start when the instance is off");
     };
 
     await executeInAppAgentRun({ projectId, runId: run.id });

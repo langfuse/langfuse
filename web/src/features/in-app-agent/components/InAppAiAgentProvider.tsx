@@ -1595,18 +1595,32 @@ export function useInAppAiAgent() {
 export function useIsInAppAgentEnabled() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
+  const session = useSession();
+  const instanceEnabled = session.data?.environment.inAppAgentEnabled ?? false;
 
-  return hasInAppAgentEntitlement && Boolean(organization?.aiFeaturesEnabled);
+  return (
+    instanceEnabled &&
+    hasInAppAgentEntitlement &&
+    Boolean(organization?.aiFeaturesEnabled)
+  );
 }
 
 /** Whether the current user/context may use the in-app assistant at all. Shared
  * gate for the launcher button and the window host. Deliberately looser than
  * useIsInAppAgentEnabled: with the org AI toggle off the entry points still
- * show, and clicking one opens the dialog that turns it on. */
+ * show, and clicking one opens the dialog that turns it on. Hidden entirely
+ * when the instance-wide Assistant switch is off. */
 export function useCanUseInAppAgent() {
   const { isAvailable } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
+  const session = useSession();
+  const instanceEnabled = session.data?.environment.inAppAgentEnabled ?? false;
 
-  return isAvailable && hasInAppAgentEntitlement && Boolean(organization);
+  return (
+    instanceEnabled &&
+    isAvailable &&
+    hasInAppAgentEntitlement &&
+    Boolean(organization)
+  );
 }

@@ -28,7 +28,10 @@ import {
   toPersistableAgentEvent,
   type PersistedConversationEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
-import { getInAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
+import {
+  getInAppAgentModelConfig,
+  isInAppAgentInstanceEnabled,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   claimQueuedRun,
   clearRunMcpApiKeyPointer,
@@ -153,6 +156,12 @@ export async function executeInAppAgentRun(params: {
 
   try {
     // ---- Revalidate at claim; nothing from enqueue time is trusted. ----
+    if (!isInAppAgentInstanceEnabled()) {
+      throw new InAppAgentRunInitError(
+        "Assistant is not enabled on this instance",
+      );
+    }
+
     const modelConfig = getInAppAgentModelConfig({ modelId: run.model });
 
     if (!modelConfig) {
