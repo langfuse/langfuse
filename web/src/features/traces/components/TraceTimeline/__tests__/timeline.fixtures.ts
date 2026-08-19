@@ -85,6 +85,14 @@ export function score(
     level?: "trace" | "observation";
     comment?: string;
     metadata?: string;
+    /**
+     * A categorical score's own label. Worth setting when a test needs its width
+     * to be EXACT: the measurer prices every digit at the widest digit's width,
+     * on purpose (a ticking duration must not jitter), so a numeric value is
+     * reserved a couple of px over — enough slack to hide a small mispricing
+     * elsewhere in the same sum.
+     */
+    stringValue?: string;
   } = {},
 ): NonNullable<TimelineBarProps["scores"]>[number] {
   return {
@@ -93,8 +101,8 @@ export function score(
     environment: "default",
     name,
     value,
-    stringValue: null,
-    dataType: "NUMERIC",
+    stringValue: extras.stringValue ?? null,
+    dataType: extras.stringValue ? "CATEGORICAL" : "NUMERIC",
     source: "API",
     authorUserId: null,
     comment: extras.comment ?? null,

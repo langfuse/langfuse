@@ -39,8 +39,35 @@ const SUBTREE_DURATION_TITLE =
  * under-reservation into a clipped last item.
  */
 const CLUSTER_ITEM_GAP_PX = 8;
-// An icon carries no text to measure, so it gets a flat reservation.
-const ICON_WIDTH_PX = 22;
+/** The speech bubble of a comment icon, plus its own `mr-1`. */
+const ICON_GLYPH_PX = 20;
+/** Its count badge overlaps the bubble by `-ml-2`, so only the rest is width. */
+const ICON_BADGE_OVERLAP_PX = 7;
+/** `px-[0.2rem]` both sides plus the badge's 1px border. */
+const ICON_BADGE_CHROME_PX = 8;
+/** `min-w-[0.8rem]` floors a single digit. */
+const ICON_BADGE_MIN_PX = 12;
+
+/**
+ * A comment icon is its bubble plus a count badge, and the badge grows with the
+ * count — 99 comments is wider than 9, and "99+" wider again. A flat number for
+ * "an icon" under-reserved every 2-digit count, which is the direction that
+ * clips: the badge is in the flow now, so what it takes is what it takes.
+ *
+ * The digits are measured at the cluster's own font, a little larger than the
+ * badge's `text-[8px]`, which over-reserves by a px or two and never under.
+ */
+function commentIconWidth(
+  count: number,
+  measurer: TimelineBarProps["measurer"],
+): number {
+  const label = count > 99 ? "99+" : String(count);
+  const badge = Math.max(
+    measurer.measure(label) + ICON_BADGE_CHROME_PX,
+    ICON_BADGE_MIN_PX,
+  );
+  return ICON_GLYPH_PX - ICON_BADGE_OVERLAP_PX + badge;
+}
 /** `px-2.5` both sides plus the 1px border of a score chip. */
 const SCORE_CHIP_CHROME_PX = 22;
 /** `max-w-20` truncates a score's name. */
@@ -57,10 +84,32 @@ const SCORE_VALUE_SEPARATOR_PX = 8;
 const SCORE_VALUE_ICON_PX = 16;
 /** `px-1` both sides of a ScoreTag level pill; the label itself is measured. */
 const SCORE_PILL_CHROME_PX = 8;
-/** The "+N" button for groups past `maxVisible`. */
-const SCORE_OVERFLOW_PX = 28;
+/** `px-1` both sides of the "+N" button for groups past `maxVisible`. */
+const SCORE_OVERFLOW_CHROME_PX = 8;
+/**
+ * The button renders `font-bold`, which sets wider than the regular-weight probe
+ * the measurer is seeded from. Small, but it is width, and unpaid width clips.
+ */
+const SCORE_OVERFLOW_BOLD_PX = 2;
 /** `gap-1` on the score-badges wrapper — not the cluster's own `gap-2`. */
-const SCORE_GROUP_GAP_PX = 4;
+export const SCORE_GROUP_GAP_PX = 4;
+
+/**
+ * The trailing "+N" button, plus the `gap-1` before it. Its digits are measured
+ * because a flat number for it under-priced every count past 9 — a node can
+ * carry a dozen distinct score names, and "+10" is wider than "+9".
+ */
+export function overflowButtonWidth(
+  hidden: number,
+  measurer: TimelineBarProps["measurer"],
+): number {
+  return (
+    measurer.measure(`+${hidden}`) +
+    SCORE_OVERFLOW_CHROME_PX +
+    SCORE_OVERFLOW_BOLD_PX +
+    SCORE_GROUP_GAP_PX
+  );
+}
 
 /**
  * What `GroupedScoreBadges` will actually take, measured rather than guessed.
@@ -140,7 +189,8 @@ export function scoreBadgesWidth(
     .slice(0, maxVisible);
 
   // Groups past the cap collapse into a "+N" button, which is also width.
-  const overflow = groups.length > maxVisible ? SCORE_OVERFLOW_PX : 0;
+  const hidden = groups.length - maxVisible;
+  const overflow = hidden > 0 ? overflowButtonWidth(hidden, measurer) : 0;
   return widths.reduce(
     (total, width, index) =>
       total + width + (index > 0 ? SCORE_GROUP_GAP_PX : 0),
@@ -274,12 +324,14 @@ export function TimelineBar({
     fitsCluster(durationText);
   const showSubtreeText = subtreeText != null && fitsCluster(subtreeText);
   const showCostText = costText != null && fitsCluster(costText);
-  // Icons carry no text to measure, so they get a flat reservation — charged
-  // through the SAME running budget. Checking both against one leftover let a
-  // comment icon and score badges each be admitted on the same 48px, and their
-  // combined width then clipped the badges inside the cluster's overflow box.
+  // Both are charged through the SAME running budget. Checking each against one
+  // leftover let a comment icon and score badges both be admitted on the same
+  // 48px, and their combined width then clipped the badges inside the cluster's
+  // overflow box.
   const showCommentIcon =
-    showComments && Boolean(commentCount) && fitsWidth(ICON_WIDTH_PX);
+    showComments &&
+    Boolean(commentCount) &&
+    fitsWidth(commentIconWidth(commentCount!, measurer));
   const showScoreBadges =
     showScores &&
     Boolean(scores?.length) &&
@@ -356,9 +408,14 @@ export function TimelineBar({
         )}
         {showScoreBadges && (
           <div className="flex max-h-5 gap-1" data-testid="timeline-bar-scores">
+            {/* Not expandable here: the cluster's width was measured for exactly
+                `MAX_SCORE_GROUPS` chips, so expanding in place would clip the
+                chips already on screen instead of revealing the hidden ones. The
+                hover preview shows them, and the row's title lists them. */}
             <GroupedScoreBadges
               scores={scores!}
               maxVisible={MAX_SCORE_GROUPS}
+              expandable={false}
             />
           </div>
         )}
@@ -375,8 +432,13 @@ export function TimelineBar({
   return (
     <>
       <div
+        // When the lane is too narrow for even one item, the cluster is not drawn
+        // at all — and the title listing what was dropped went with it, so the
+        // narrowest rows were the ones that never mentioned their own comments or
+        // scores. The bar is always there, so it carries the fallback.
+        title={cluster ? undefined : clusterTitle}
         className={cn(
-          "border-border bg-muted absolute top-1/2 flex h-4 -translate-y-1/2 overflow-hidden rounded-sm border",
+          "border-border absolute top-1/2 flex h-4 -translate-y-1/2 overflow-hidden rounded-sm border",
           // Dashed when in-flight (no measurable duration yet).
           row.durationMs == null && "border-dashed",
           // A clipped edge loses its rounding, so the bar reads as continuing.
@@ -386,6 +448,11 @@ export function TimelineBar({
         )}
         style={{ left: `${row.x}px`, width: `${row.width}px` }}
       >
+        {/* Two SEGMENTS, and the ground belongs to them rather than to the
+            frame: a translucent waiting segment over an opaque frame of the same
+            colour composites straight back to that colour, so the wait and the
+            completion read identically and only the divider says there was a
+            split at all. */}
         {firstTokenWidth == null ? null : (
           <div
             className="bg-muted h-full border-r border-gray-400 opacity-60"
@@ -393,6 +460,7 @@ export function TimelineBar({
             title="Time to first token"
           />
         )}
+        <div className="bg-muted h-full flex-1" />
       </div>
       {cluster}
     </>

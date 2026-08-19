@@ -167,11 +167,20 @@ export const GroupedScoreBadges = <
   maxVisible,
   compact,
   badgeClassName,
+  expandable = true,
 }: {
   scores: T[];
   maxVisible?: number;
   compact?: boolean;
   badgeClassName?: string;
+  /**
+   * Whether "+N" expands the hidden chips IN PLACE. A caller that has measured a
+   * box for exactly `maxVisible` chips has to say no: expanding is unbounded by
+   * construction, so inside a clipping box it does not reveal the hidden scores,
+   * it cuts the visible ones. The hover preview stays either way, which is the
+   * part that actually shows them.
+   */
+  expandable?: boolean;
 }) => {
   const groupedScores = groupScoresByName(scores);
 
@@ -191,12 +200,12 @@ export const GroupedScoreBadges = <
 
   const { visibleScores, hiddenScores } = partitionScores(
     groupedScores,
-    expanded ? undefined : maxVisible,
+    expanded && expandable ? undefined : maxVisible,
   );
 
   const overflowButtonClassName = cn(
     badgeVariants({ variant: "tertiary" }),
-    "cursor-pointer",
+    expandable ? "cursor-pointer" : "cursor-default",
     compact ? "px-0.5 py-0 leading-tight" : "px-1",
     "text-xs font-bold",
     badgeClassName,
@@ -223,10 +232,12 @@ export const GroupedScoreBadges = <
               // the hover-card preview.
               aria-label={`Show ${hiddenScores.length} more score${hiddenScores.length === 1 ? "" : "s"}`}
               // Chips render inside clickable rows (tree nodes, table rows) —
-              // expanding must not also select/navigate the row.
+              // expanding must not also select/navigate the row. Still swallowed
+              // when expansion is off, or the row would react to a click aimed at
+              // the preview.
               onClick={(event) => {
                 event.stopPropagation();
-                setExpanded(true);
+                if (expandable) setExpanded(true);
               }}
               className={overflowButtonClassName}
             >

@@ -1,6 +1,12 @@
-import { expect, waitFor } from "storybook/test";
+import { expect, userEvent, waitFor } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
-import { MAX_SCORE_GROUPS, TimelineBar, scoreBadgesWidth } from "./TimelineBar";
+import {
+  MAX_SCORE_GROUPS,
+  SCORE_GROUP_GAP_PX,
+  TimelineBar,
+  overflowButtonWidth,
+  scoreBadgesWidth,
+} from "./TimelineBar";
 import {
   createTextMeasurer,
   createTextMeasurerFrom,
@@ -225,6 +231,19 @@ export const AnnotatedMixedLevelScoresAreNeverClipped = meta.story({
  * them. This one prices the same scores the bar prices, measures the DOM the
  * badges actually produced, and compares the two numbers.
  */
+/**
+ * A measurer seeded from what the DOM is ACTUALLY setting the chips in, the way
+ * the app seeds one from a tick-label probe. Pricing text against a font nothing
+ * renders in would make a band assertion pass for the wrong reason.
+ */
+const measurerFor = (element: HTMLElement) => {
+  const style = getComputedStyle(element);
+  return createTextMeasurerFrom(
+    document.createElement("canvas").getContext("2d"),
+    `${style.fontSize} ${style.fontFamily}`,
+  );
+};
+
 // Every width-bearing feature at once: two levels in one group (two pills), two
 // values under one name (comma + separator), a value carrying BOTH a comment and
 // metadata (two icons), and a name at the truncation limit.
@@ -254,21 +273,11 @@ export const ScorePricingNeverUnderReserves = meta.story({
       if (!el) throw new Error("the badges were not admitted at all");
       return el;
     });
-    // Seed the measurer from the chip's own computed font, the way the app seeds
-    // it from a tick-label probe: pricing text against a font the DOM is not
-    // using would make this pass for the wrong reason.
-    const chipText = rendered.querySelector<HTMLElement>(
-      "div[title='quality']",
+    const priced = scoreBadgesWidth(
+      PRICED_SCORES,
+      measurerFor(rendered),
+      MAX_SCORE_GROUPS,
     );
-    if (!chipText) throw new Error("no chip to read a font from");
-    const style = getComputedStyle(chipText);
-    const context = document.createElement("canvas").getContext("2d");
-    const measurer = createTextMeasurerFrom(
-      context,
-      `${style.fontSize} ${style.fontFamily}`,
-    );
-
-    const priced = scoreBadgesWidth(PRICED_SCORES, measurer, MAX_SCORE_GROUPS);
     // Under a clipping ancestor the box would report the SMALLER of natural and
     // available, which would make any under-price look safe. Compare against a
     // width that is actually the badges' own.
@@ -282,6 +291,202 @@ export const ScorePricingNeverUnderReserves = meta.story({
     // And within a few px above, which is what makes the line above bite: with
     // loose slack anywhere in the sum, a whole missing term still "passes".
     await expect(priced - actual).toBeLessThan(12);
+  },
+});
+
+// Thirteen distinct names, all the same shape, so the three admitted chips are
+// interchangeable and the only variable left is the "+10" button. Categorical, so
+// every chip is measured exactly and the band below is tight enough to be about
+// the button rather than about the slack in three numeric values.
+const MANY_SCORES = Array.from({ length: 13 }, (_, index) =>
+  score(`score-${String.fromCharCode(97 + index)}`, 0, {
+    stringValue: "good",
+  }),
+);
+
+/**
+ * The same invariant with the overflow button in play. A flat reservation for
+ * "+N" was fine until a node carried ten hidden groups and the button grew a
+ * second digit — which the cluster then clipped, having priced one.
+ */
+export const OverflowButtonIsPricedFromItsDigits = meta.story({
+  name: "(Test) Overflow Button Is Priced From Its Digits",
+  args: {
+    showScores: true,
+    scores: MANY_SCORES,
+    row: makeRow({ x: 0, width: 120, labelX: 126 }),
+  },
+  play: async ({ canvasElement }) => {
+    const rendered = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>(
+        "[data-testid='timeline-bar-scores']",
+      );
+      if (!el) throw new Error("the badges were not admitted at all");
+      return el;
+    });
+    // Ten hidden groups, so the button is two digits wide — the case a flat
+    // reservation got wrong.
+    await expect(rendered.textContent).toContain("+10");
+    await expect(rendered.scrollWidth).toBeLessThanOrEqual(
+      rendered.clientWidth,
+    );
+    const priced = scoreBadgesWidth(
+      MANY_SCORES,
+      measurerFor(rendered),
+      MAX_SCORE_GROUPS,
+    );
+    const actual = rendered.getBoundingClientRect().width;
+    await expect(priced).toBeGreaterThanOrEqual(actual);
+
+    // And the button against ITS own box, which is the sharp version: a
+    // cluster-wide band cannot isolate this term, because pricing deliberately
+    // charges the WIDEST groups while the DOM renders the alphabetically first
+    // ones, and that difference is bigger than a digit.
+    const button = rendered.querySelector<HTMLElement>("button");
+    if (!button) throw new Error("no overflow button");
+    const charged =
+      overflowButtonWidth(10, measurerFor(rendered)) - SCORE_GROUP_GAP_PX;
+    const drawn = button.getBoundingClientRect().width;
+    await expect(charged).toBeGreaterThanOrEqual(drawn);
+    await expect(charged - drawn).toBeLessThan(4);
+  },
+});
+
+/**
+ * A comment count is a badge hanging off the corner of its bubble. It used to
+ * hang outside the icon's own box, so the cluster's clip cut it — and only ever
+ * for a 2-digit count, which is why it survived the single-digit stories.
+ */
+export const CommentCountIsNeverClipped = meta.story({
+  name: "(Test) Comment Count Is Never Clipped",
+  args: {
+    showComments: true,
+    commentCount: 42,
+    showDuration: false,
+    // Room to spare, so the icon is certainly drawn and this is about its shape.
+    row: makeRow({ x: 0, width: 500, labelPlacement: "hidden" }),
+  },
+  play: async ({ canvasElement }) => {
+    const cluster = canvasElement.querySelector<HTMLElement>(
+      "div[style*='max-width']",
+    );
+    if (!cluster) throw new Error("metric cluster not found");
+    if (!cluster.textContent?.includes("42")) {
+      // Dropped rather than clipped is the other acceptable outcome, and then
+      // the row still has to say the comments exist.
+      await expect(cluster.title).toContain("42 comments");
+      return;
+    }
+    // Admitted: the count has to be whole, inside the icon's box and inside the
+    // cluster's.
+    const badge = cluster.querySelector<HTMLElement>(
+      "[data-testid='comment-count']",
+    );
+    if (!badge) throw new Error("no count badge");
+    const icon = badge.parentElement!.getBoundingClientRect();
+    await expect(badge.getBoundingClientRect().right).toBeLessThanOrEqual(
+      icon.right + 0.5,
+    );
+    await expect(cluster.scrollWidth).toBeLessThanOrEqual(
+      cluster.clientWidth + 0.5,
+    );
+  },
+});
+
+/**
+ * And the same count against a budget that leaves room for the bubble but not for
+ * its badge. Whichever way it goes — drawn whole or refused — the cluster must not
+ * end up holding half a number, which is what a flat "an icon is 22px" produced
+ * once the badge became part of the icon's footprint.
+ */
+export const CommentCountIsPricedFromItsDigits = meta.story({
+  name: "(Test) Comment Count Is Priced From Its Digits",
+  args: {
+    showComments: true,
+    commentCount: 42,
+    showDuration: false,
+    // 24px of lane left after the bar: a two-digit count needs a little more.
+    row: makeRow({ x: 0, width: 610, labelPlacement: "hidden" }),
+  },
+  play: async ({ canvasElement }) => {
+    const cluster = canvasElement.querySelector<HTMLElement>(
+      "div[style*='max-width']",
+    );
+    if (cluster) {
+      // Admitted: whole, or not at all — never a half-drawn number.
+      await expect(cluster.scrollWidth).toBeLessThanOrEqual(
+        cluster.clientWidth + 0.5,
+      );
+      if (!cluster.textContent?.includes("42")) {
+        await expect(cluster.title).toContain("42 comments");
+      }
+      return;
+    }
+    // Refused, which is the correct outcome at this width — and then the bar
+    // itself has to say the comments exist, since there is no cluster left to.
+    const bar = canvasElement.querySelector<HTMLElement>("div[title]");
+    if (!bar) throw new Error("nothing on the row mentions the comments");
+    await expect(bar.title).toContain("42 comments");
+  },
+});
+
+/**
+ * "+N" cannot expand in place here. The cluster was measured for three chips, so
+ * an unbounded expansion inside its clip does not reveal the hidden scores — it
+ * cuts the ones already on screen.
+ */
+export const ExpandingOverflowCannotClipTheCluster = meta.story({
+  name: "(Test) Expanding Overflow Cannot Clip The Cluster",
+  args: {
+    showScores: true,
+    scores: MANY_SCORES,
+    row: makeRow({ x: 0, width: 120, labelX: 126 }),
+  },
+  play: async ({ canvasElement }) => {
+    const cluster = canvasElement.querySelector<HTMLElement>(
+      "div[style*='max-width']",
+    );
+    if (!cluster) throw new Error("metric cluster not found");
+    const button = canvasElement.querySelector<HTMLElement>(
+      "button[aria-label*='more score']",
+    );
+    if (!button) throw new Error("no overflow button");
+    const before = cluster.textContent;
+    await userEvent.click(button);
+    // Nothing expanded, and nothing was cut.
+    await expect(cluster.textContent).toBe(before);
+    await expect(cluster.scrollWidth).toBeLessThanOrEqual(
+      cluster.clientWidth + 0.5,
+    );
+  },
+});
+
+/**
+ * A streaming bar is two phases in one bar, told apart by shade. The frame must
+ * not paint the ground: a translucent wait over an opaque frame of the same
+ * colour composites back to that colour, and the split disappears.
+ */
+export const StreamingPhasesReadAsTwoShades = meta.story({
+  name: "(Test) Streaming Phases Read As Two Shades",
+  args: {
+    row: makeRow({ x: 40, width: 400, firstTokenX: 160, labelX: 446 }),
+  },
+  play: async ({ canvasElement }) => {
+    const waiting = canvasElement.querySelector<HTMLElement>(
+      "div[title='Time to first token']",
+    );
+    if (!waiting) throw new Error("no first-token segment");
+    const completion = waiting.nextElementSibling as HTMLElement | null;
+    if (!completion) throw new Error("no completion segment");
+    // Same hue, different shade — and the difference has to survive whatever the
+    // frame paints behind them.
+    const frame = waiting.parentElement!;
+    await expect(getComputedStyle(frame).backgroundColor).toMatch(
+      /rgba\(0, 0, 0, 0\)|transparent/,
+    );
+    await expect(Number(getComputedStyle(waiting).opacity)).toBeLessThan(
+      Number(getComputedStyle(completion).opacity),
+    );
   },
 });
 
