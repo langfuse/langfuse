@@ -3,6 +3,8 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import {
   IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
 import {
@@ -21,6 +23,10 @@ import {
   useInAppAgentWindowShellPanelControl,
 } from "./InAppAgentWindowShell";
 import { getDrawerMessages } from "./utils/utils";
+import {
+  getBackgroundRunNotice,
+  getSettledActivityOutcome,
+} from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
 
 function InAppAgentWindowStoryShell({
   children,
@@ -1433,6 +1439,244 @@ export const Error = meta.story({
   },
 });
 
+const stepLimitRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.SUCCEEDED,
+  errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
+  cancelRequested: false,
+};
+
+export const StepLimit = meta.story({
+  args: {
+    selectedConversationId: "conversation-1",
+    executionUi: {
+      notice: getBackgroundRunNotice(stepLimitRun),
+      activityOutcome: getSettledActivityOutcome(stepLimitRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate yesterday's errors.",
+        },
+      },
+      {
+        id: "assistant-reasoning-1",
+        timestamp: new Date("2026-08-06T15:20:00.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking yesterday first.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-text-1",
+        runId: "run-0",
+        timestamp: new Date("2026-08-06T15:20:12.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Yesterday was quiet.",
+        },
+      },
+      {
+        id: "user-2",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Keep inspecting traces until you find the spike.",
+        },
+      },
+      {
+        id: "assistant-tool-2",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_getTraces",
+              status: "succeeded",
+              args: JSON.stringify({ limit: 10 }),
+              result: JSON.stringify({ data: [] }),
+            },
+            {
+              type: "tool",
+              name: "langfuse_queryMetrics",
+              status: "succeeded",
+              args: JSON.stringify({ view: "traces" }),
+              result: JSON.stringify({ data: [] }),
+            },
+          ],
+        },
+      },
+      {
+        id: "assistant-text-2",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Latency is up on the last two batches, but I still need to inspect the remaining traces.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Too many steps in one turn",
+    );
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Send another message",
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Worked for 12s" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Stopped after 51s" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+  },
+});
+
+const failedRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.FAILED,
+  errorCode: InAppAgentRunErrorCode.RUN_TIMEOUT,
+  cancelRequested: false,
+};
+
+export const Failed = meta.story({
+  args: {
+    selectedConversationId: "conversation-1",
+    executionUi: {
+      notice: getBackgroundRunNotice(failedRun),
+      activityOutcome: getSettledActivityOutcome(failedRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate latency",
+        },
+      },
+      {
+        id: "assistant-reasoning",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking the slow traces.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Still inspecting the remaining traces.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "The run exceeded the maximum duration.",
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Failed after 51s" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+  },
+});
+
+const failedBeforeFirstTokenRun = {
+  id: "run-2",
+  status: InAppAgentRunStatus.FAILED,
+  errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
+  cancelRequested: false,
+};
+
+export const FailedBeforeFirstToken = meta.story({
+  args: {
+    selectedConversationId: "conversation-1",
+    executionUi: {
+      notice: getBackgroundRunNotice(failedBeforeFirstTokenRun),
+      activityOutcome: getSettledActivityOutcome(failedBeforeFirstTokenRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate yesterday's errors.",
+        },
+      },
+      {
+        id: "assistant-reasoning-1",
+        timestamp: new Date("2026-08-06T15:20:00.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking yesterday first.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-text-1",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:20:12.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Yesterday was quiet.",
+        },
+      },
+      {
+        id: "user-2",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Now look at today's traces.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "No worker picked this up",
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Worked for 12s" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: /Failed after/ }),
+    ).not.toBeInTheDocument();
+  },
+});
+
 /**
  * Every activity state in the row it belongs to, sharing one fixed-width slot
  * so the column stays straight despite the dots being narrower than the icons.
@@ -1558,19 +1802,38 @@ export const BackgroundRun = meta.story({
   },
 });
 
+const cancelledRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.CANCELLED,
+  errorCode: InAppAgentRunErrorCode.CANCELLED,
+  cancelRequested: false,
+};
+
+const backgroundStopUserMessage = {
+  id: "user-1",
+  role: "user" as const,
+  content: {
+    type: "text" as const,
+    text: "Summarize recent ingestion errors.",
+  },
+};
+
+const backgroundStopReasoning = {
+  id: "assistant-reasoning",
+  timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+  role: "assistant" as const,
+  content: {
+    type: "reasoning" as const,
+    text: "I'll look at recent ingestion errors first.",
+    isStreaming: false,
+  },
+};
+
 export const BackgroundRunStops = meta.story({
   args: {
     isAssistantTurnInProgress: true,
-    messages: [
-      {
-        id: "user-1",
-        role: "user",
-        content: {
-          type: "text",
-          text: "Summarize recent ingestion errors.",
-        },
-      },
-    ],
+    selectedConversationId: "conversation-1",
+    messages: [backgroundStopUserMessage, backgroundStopReasoning],
   },
   render: function Render(args) {
     const [phase, setPhase] = useState<"running" | "stopping" | "settled">(
@@ -1599,17 +1862,12 @@ export const BackgroundRunStops = meta.story({
         messages={
           isSettled
             ? [
-                {
-                  id: "user-1",
-                  role: "user",
-                  content: {
-                    type: "text",
-                    text: "Summarize recent ingestion errors.",
-                  },
-                },
+                backgroundStopUserMessage,
+                backgroundStopReasoning,
                 {
                   id: "assistant-1",
                   runId: "run-1",
+                  timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
                   role: "assistant",
                   content: {
                     type: "text",
@@ -1621,9 +1879,16 @@ export const BackgroundRunStops = meta.story({
         }
         executionUi={
           isSettled
-            ? { notice: null, stop: null }
+            ? {
+                notice: getBackgroundRunNotice(cancelledRun),
+                activityOutcome: getSettledActivityOutcome(cancelledRun),
+                stop: null,
+              }
             : {
-                notice: phase === "stopping" ? "Stopping the run…" : null,
+                notice:
+                  phase === "stopping"
+                    ? { text: "Stopping the run…", tone: "info" }
+                    : null,
                 stop: {
                   status: phase === "stopping" ? "stopping" : "available",
                   onStop: () => {
@@ -1633,6 +1898,21 @@ export const BackgroundRunStops = meta.story({
               }
         }
       />
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Stop run" }));
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Stopping the run…",
+    );
+    await waitFor(
+      () =>
+        expect(
+          canvas.getByRole("button", { name: "Stopped after 51s" }),
+        ).toBeVisible(),
+      { timeout: 3_000 },
     );
   },
 });

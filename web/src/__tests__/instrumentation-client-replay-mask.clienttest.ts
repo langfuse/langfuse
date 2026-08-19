@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * HIPAA / non-EU-US Session Replay masking guard.
  *

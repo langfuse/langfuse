@@ -4,8 +4,7 @@ import { useState } from "react";
 import { Check, Loader2, Wrench } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
-import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
+import { InAppAgentToolCallDetails } from "./InAppAgentToolCallDetails";
 import {
   getInAppAgentToolDisplayName,
   type InAppAgentToolCallContent,
@@ -74,11 +73,7 @@ export function InAppAgentToolCallCard({
             </span>
           </div>
           <div className="mt-2 space-y-2">
-            <InAppAgentToolPayload
-              label="Arguments"
-              value={tool.args}
-              variant="default"
-            />
+            <InAppAgentToolCallDetails tool={tool} />
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
@@ -163,12 +158,7 @@ export function InAppAgentToolCallCard({
             </span>
           </summary>
           <div className="mt-2 space-y-2">
-            <InAppAgentToolPayload
-              label="Arguments"
-              value={tool.args}
-              variant="default"
-            />
-            <InAppAgentToolResultPayload tool={tool} />
+            <InAppAgentToolCallDetails tool={tool} />
           </div>
         </details>
       )}

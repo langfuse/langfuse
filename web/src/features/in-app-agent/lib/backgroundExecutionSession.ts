@@ -1,16 +1,17 @@
 import type { AgentSubscriber } from "@ag-ui/client";
 
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
 import type {
-  AgUiRunAgentInput,
+  AgUiContext,
   AgUiMessage,
   InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
-  createInAppAgentMessageId,
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
   parseInAppAgentInterruptEvent,
 } from "@langfuse/shared/in-app-agent";
+import { createInAppAgentMessageId } from "../ids";
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
   createInAppAgentDisplayState,
@@ -21,7 +22,7 @@ import {
 
 export type BackgroundExecutionRunCommand = {
   message: string;
-  context: AgUiRunAgentInput["context"];
+  context: AgUiContext;
 };
 
 export type ApprovalDecision = {
@@ -84,7 +85,7 @@ type BackgroundExecutionAgent = {
   addMessage(message: AgUiMessage): void;
   setMessages(messages: AgUiMessage[]): void;
   subscribe(subscriber: AgentSubscriber): { unsubscribe(): void };
-  runAgent(input: { context: AgUiRunAgentInput["context"] }): Promise<unknown>;
+  runAgent(input: { context: AgUiContext }): Promise<unknown>;
   connectAgent(): Promise<unknown>;
   abortRun(): void;
   setCursor(cursor: number): void;
@@ -573,6 +574,68 @@ export function getBackgroundRunFailureMessage(
     BACKGROUND_RUN_FAILURE_MESSAGES[errorCode ?? ""] ??
     "The run failed. Try again."
   );
+}
+
+export type BackgroundRunNoticeTone = "info" | "warning";
+
+export type BackgroundRunNotice = {
+  text: string;
+  tone: BackgroundRunNoticeTone;
+};
+
+const STEP_LIMIT_NOTICE =
+  "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.";
+
+export function getBackgroundRunNotice(
+  run: BackgroundExecutionRunView | null,
+): BackgroundRunNotice | null {
+  if (!run) {
+    return null;
+  }
+
+  if (isCancellableBackgroundRun(run.status) && run.cancelRequested) {
+    return { text: "Stopping the run…", tone: "info" };
+  }
+
+  if (run.status === InAppAgentRunStatus.FAILED) {
+    return {
+      text: getBackgroundRunFailureMessage(run.errorCode ?? null),
+      tone: "info",
+    };
+  }
+
+  if (
+    run.status === InAppAgentRunStatus.SUCCEEDED &&
+    run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT
+  ) {
+    return { text: STEP_LIMIT_NOTICE, tone: "warning" };
+  }
+
+  return null;
+}
+
+export type SettledActivityOutcome = "worked" | "stopped" | "failed";
+
+export function getSettledActivityOutcome(
+  run: BackgroundExecutionRunView | null,
+): SettledActivityOutcome {
+  if (!run) {
+    return "worked";
+  }
+
+  if (
+    (run.status === InAppAgentRunStatus.SUCCEEDED &&
+      run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT) ||
+    run.status === InAppAgentRunStatus.CANCELLED
+  ) {
+    return "stopped";
+  }
+
+  if (run.status === InAppAgentRunStatus.FAILED) {
+    return "failed";
+  }
+
+  return "worked";
 }
 
 const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {

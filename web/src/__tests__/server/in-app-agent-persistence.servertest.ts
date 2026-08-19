@@ -1,5 +1,7 @@
-vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
+  const actual = await vi.importActual(
+    "@langfuse/shared/src/server/llm/llmText",
+  );
   return {
     ...actual,
     generateLLMText: vi.fn(),
@@ -13,31 +15,31 @@ import { randomUUID } from "crypto";
 import { vi } from "vitest";
 import waitForExpect from "wait-for-expect";
 
-import {
-  InAppAgentRunErrorCode,
-  InAppAgentRunStatus,
-  type InAppAgentRunRequest,
-  type Plan,
-} from "@langfuse/shared";
+import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
-  generateLLMText,
   getScoreById,
 } from "@langfuse/shared/src/server";
+import { generateLLMText } from "@langfuse/shared/src/server/llm/llmText";
 import { env } from "@/src/env.mjs";
 import {
-  createInAppAgentConversationId,
-  createInAppAgentRunId,
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
 } from "@langfuse/shared/in-app-agent";
 import {
+  createInAppAgentConversationId,
+  createInAppAgentRunId,
+} from "@/src/features/in-app-agent/ids";
+import {
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
   type AgUiEvent,
-  type InAppAgentWatchFrame,
 } from "@langfuse/shared/in-app-agent";
+import type { InAppAgentRunRequest } from "@langfuse/shared/in-app-agent";
+import type { InAppAgentWatchFrame } from "@/src/features/in-app-agent/watchFrames";
 import {
   deserializeInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
@@ -54,7 +56,7 @@ import {
   toPersistableAgentEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import { finishClaimedRun } from "@langfuse/shared/in-app-agent/server/runLifecycle";
-import { watchConversationFrames } from "@langfuse/shared/in-app-agent/server/watch";
+import { watchConversationFrames } from "@/src/features/in-app-agent/server/watch";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 
@@ -244,18 +246,16 @@ describe("in-app agent persistence", () => {
     });
   });
 
-  it("rejects users without the in-app agent entitlement", async () => {
+  it("allows oss-plan users to list conversations", async () => {
     const { caller, projectId } = await createCaller(
       `user-${randomUUID()}`,
       "oss",
     );
 
-    await expect(caller.listConversations({ projectId })).rejects.toMatchObject(
-      {
-        code: "FORBIDDEN",
-        message: expect.stringContaining("in-app-agent"),
-      },
-    );
+    await expect(caller.listConversations({ projectId })).resolves.toEqual({
+      conversations: [],
+      nextCursor: undefined,
+    });
   });
 
   const startCompactRun = async (params: {

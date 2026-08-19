@@ -39,6 +39,24 @@ evaluating, and debugging AI applications.
   ticket-prefixed branch name is the one place the identifier belongs.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
+- Human handoff: assume the reader does not remember the ticket. Lead with
+  a one-sentence TL;DR. Prefer one or two human actions per message; if
+  you need more, keep every point simple and super readable. Do not dump
+  long agent-only reports by default.
+- For product or UI changes, give a preview URL
+  (`pr-<N>.preview.langfuse.com`) and exact click-path test steps, including
+  the seed command or sandbox URL (`http://localhost:3000`) to reproduce
+  the data. Attach proof of the fix (screenshot, short video, or
+  before/after). Humans can ask for more detail.
+- After opening a PR, leave a short last comment on what a reviewer should
+  doubt — the curious, questionable parts — not a changelog.
+- Open PRs as reviewable, not as drafts, unless a human asks for a draft.
+- When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review
+  comments appear on a PR you own: do not reply. Keep each thread open
+  until you either apply the fix and resolve it, or skip it because you
+  are sure, tell the human in plain language (and invite them to doubt
+  that skip), then resolve it. Do not post `@claude review` again unless
+  a human asks for another pass.
 
 ## Project Structure
 
@@ -96,9 +114,12 @@ langfuse/
   not be used to interpolate container service configuration.
 - After changing web or worker production code, rerun
   `bash scripts/agents/start-cursor-cloud.sh` before browser signoff.
-- Open a same-repo draft PR after local verification and test the resulting
-  `pr-<N>.preview.langfuse.com` deployment with synthetic data before marking
-  the PR ready. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
+- Open a same-repo reviewable PR after local verification (not a draft) and
+  test the resulting `pr-<N>.preview.langfuse.com` deployment with synthetic
+  data. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
+- Use Linear's git branch name (`lfe-XXXX-short-title`). Never create a
+  `cursor/` branch, even if a Cursor Cloud prompt suggests that prefix.
+  Repo guidance wins.
 
 ## Local Data Inspection
 
