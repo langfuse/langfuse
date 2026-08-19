@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
 
@@ -767,6 +768,27 @@ describe("executeInAppAgentRun", () => {
     expect(failed.status).toBe("FAILED");
     expect(failed.errorCode).toBe("init_failed");
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+  });
+
+  it("claims a run when LANGFUSE_AWS_BEDROCK_REGION is unset", async () => {
+    const originalRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+    (
+      sharedEnv as { LANGFUSE_AWS_BEDROCK_REGION?: string }
+    ).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+
+    try {
+      const { projectId, run } = await seedBackgroundRun();
+      scenarioRef.current = completingScenario;
+
+      await executeInAppAgentRun({ projectId, runId: run.id });
+
+      const finished = await getRun(projectId, run.id);
+      expect(finished.status).toBe("SUCCEEDED");
+    } finally {
+      (
+        sharedEnv as { LANGFUSE_AWS_BEDROCK_REGION?: string }
+      ).LANGFUSE_AWS_BEDROCK_REGION = originalRegion;
+    }
   });
 
   it("keeps the MCP-key pointer when the delete fails, for reconciliation to retry", async () => {

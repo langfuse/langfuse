@@ -943,7 +943,9 @@ async function createMastraAdapter(params: {
   onToolExecutionEnd?: (toolCallId: string) => void;
 }) {
   const bedrock = createAmazonBedrock({
-    region: params.options.model.region,
+    ...(params.options.model.region
+      ? { region: params.options.model.region }
+      : {}),
     ...createDefaultBedrockProviderAuth(
       params.awsProfile ? { profile: params.awsProfile } : undefined,
     ),

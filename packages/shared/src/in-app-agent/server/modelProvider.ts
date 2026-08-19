@@ -5,7 +5,7 @@ export type InAppAgentModelConfig = {
   provider: "bedrock";
   modelId: string;
   titleModelId: string;
-  region: string;
+  region?: string;
 };
 
 /**
@@ -16,6 +16,10 @@ export type InAppAgentModelConfig = {
  * Bedrock only, but callers do not need to know which provider supplies the
  * model. A future provider can add another branch here without changing the
  * worker or title-generation call sites.
+ *
+ * Region is optional: Cloud web historically omits LANGFUSE_AWS_BEDROCK_REGION
+ * and lets the AWS SDK use the task region. Missing region must not treat the
+ * model as unconfigured.
  */
 export function getInAppAgentModelConfig(params?: {
   modelId?: string | null;
@@ -23,7 +27,7 @@ export function getInAppAgentModelConfig(params?: {
   const modelId = params?.modelId ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
   const region = env.LANGFUSE_AWS_BEDROCK_REGION;
 
-  if (!modelId || !region) {
+  if (!modelId) {
     return undefined;
   }
 
