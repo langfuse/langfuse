@@ -29,8 +29,8 @@ describe("truncate", () => {
   });
 
   it("counts code points, not UTF-16 code units, for the limit", () => {
-    expect(truncate("🎉".repeat(8), 16)).toBe("🎉".repeat(8));
-  });
+   expect(truncate("🎉".repeat(9), 16)).toBe("🎉".repeat(9));
+});
 
   it("does not split surrogate pairs when the cut lands mid-pair", () => {
     const input = "a" + "🎉".repeat(20);
