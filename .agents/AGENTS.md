@@ -49,9 +49,9 @@ evaluating, and debugging AI applications.
   the data. Humans can ask for more detail.
 - After opening a PR, leave a short last comment on what a reviewer should
   doubt — the curious, questionable parts — not a changelog.
-- When Claude review comments appear on a PR you own: do not reply. Keep
-  each thread open until you either apply the fix and resolve it, or skip
-  the fix for a stated reason and still resolve it.
+- When Claude or Greptile review comments appear on a PR you own: do not
+  reply. Keep each thread open until you either apply the fix and resolve
+  it, or skip the fix for a stated reason and still resolve it.
 
 ## Project Structure
 

@@ -1,10 +1,11 @@
 ---
 name: cursor-agents-workflow
 description: |
-  Human handoff, Linear branch names, Claude review comments, preview test
-  steps, and review-doubt notes for Cursor agents. Use when a Cursor Cloud or
-  Cursor desktop agent implements a Linear issue, opens a GitHub PR, asks a
-  human to test, or handles Claude code-review comments.
+  Human handoff, Linear branch names, Claude and Greptile review comments,
+  preview test steps, and review-doubt notes for Cursor agents. Use when a
+  Cursor Cloud or Cursor desktop agent implements a Linear issue, opens a
+  GitHub PR, asks a human to test, or handles Claude or Greptile code-review
+  comments.
 ---
 
 # Cursor Agents Workflow
@@ -27,17 +28,17 @@ Copy Linear's git branch name. Do not invent a `cursor/` name.
 Correct: `lfe-12345-short-descriptive-title`  
 Wrong: `cursor/short-descriptive-title-8c78`
 
-## Claude review comments
+## Bot review comments
 
-When Claude (Claude Code, `claude[bot]`, or the security-review action) leaves
-review comments on a PR you own:
+When Claude (Claude Code, `claude[bot]`, or the security-review action) or
+Greptile (`greptile-apps[bot]`) leaves review comments on a PR you own:
 
 1. Keep each thread open. Do not reply in the thread.
 2. Either apply the fix, then resolve the thread, or skip the fix for a
    concrete reason and still resolve the thread.
 3. If you skip, put the reason in the PR's "What to doubt" note.
 
-Do not leave Claude threads unresolved. Do not argue. Human reviewer comments
+Do not leave those threads unresolved. Do not argue. Human reviewer comments
 are different: those may need a real reply and must stay open until a human
 says otherwise.
 
