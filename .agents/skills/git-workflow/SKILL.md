@@ -3,8 +3,8 @@ name: git-workflow
 description: |
   Langfuse repo Git, GitHub, commit, branch, pull request, issue search,
   release, and production-promotion workflow. Use when staging, committing,
-  pushing, opening PRs, choosing a Linear git branch name, handling Claude
-  or Greptile review comments, searching GitHub issues, or changing
+  pushing, opening PRs, choosing a Linear git branch name, handling Claude,
+  Greptile, or Codex review comments, searching GitHub issues, or changing
   release/promotion behavior.
 ---
 
@@ -56,12 +56,14 @@ operations.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
 - When the PR is ready for a human, post one last comment that names what
   to doubt in review (risky edges, not a summary of the diff).
-- Claude or Greptile review comments (`claude[bot]`, Claude Code,
-  security-review action, `greptile-apps[bot]`): do not reply. Keep the
-  thread open until you apply the fix and resolve it, or skip it because
-  you are sure, tell the human in plain language (and invite them to doubt
-  that skip), then resolve it. Human reviewer comments stay open and may
-  need a real reply.
+- Claude, Greptile, or Codex review comments (`claude[bot]`, Claude Code,
+  security-review action, `greptile-apps[bot]`,
+  `chatgpt-codex-connector[bot]`): do not reply. Keep the thread open until
+  you apply the fix and resolve it, or skip it because you are sure, tell
+  the human in plain language (and invite them to doubt that skip), then
+  resolve it. Do not post `@claude review` again unless a human asks for
+  another pass. Human reviewer comments stay open and may need a real
+  reply.
 
 ## Release
 

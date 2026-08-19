@@ -46,14 +46,17 @@ evaluating, and debugging AI applications.
 - For product or UI changes, give a preview URL
   (`pr-<N>.preview.langfuse.com`) and exact click-path test steps, including
   the seed command or sandbox URL (`http://localhost:3000`) to reproduce
-  the data. Humans can ask for more detail.
+  the data. Attach proof of the fix (screenshot, short video, or
+  before/after). Humans can ask for more detail.
 - After opening a PR, leave a short last comment on what a reviewer should
   doubt — the curious, questionable parts — not a changelog.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
-- When Claude or Greptile review comments appear on a PR you own: do not
-  reply. Keep each thread open until you either apply the fix and resolve
-  it, or skip it because you are sure, tell the human in plain language
-  (and invite them to doubt that skip), then resolve it.
+- When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review
+  comments appear on a PR you own: do not reply. Keep each thread open
+  until you either apply the fix and resolve it, or skip it because you
+  are sure, tell the human in plain language (and invite them to doubt
+  that skip), then resolve it. Do not post `@claude review` again unless
+  a human asks for another pass.
 
 ## Project Structure
 

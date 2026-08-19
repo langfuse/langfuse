@@ -185,7 +185,9 @@ PR (not a draft) and test its `pr-<N>.preview.langfuse.com` deployment.
 Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on
-`http://localhost:3000`), and one PR comment on what a reviewer should doubt.
+`http://localhost:3000`), proof of the fix for user-visible changes
+(screenshot, video, or before/after), and one PR comment on what a reviewer
+should doubt.
 Prefer one or two human actions at a time; if you need more, keep each
 point simple and super readable. Preview data and any attached artifacts
 must remain synthetic. Previews normally run Mon-Fri 08:00-24:00

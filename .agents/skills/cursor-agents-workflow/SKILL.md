@@ -1,11 +1,11 @@
 ---
 name: cursor-agents-workflow
 description: |
-  Human handoff, Linear branch names, reviewable (non-draft) PRs, Claude and
-  Greptile review comments, preview test steps, and review-doubt notes for
-  Cursor agents. Use when a Cursor Cloud or Cursor desktop agent implements
-  a Linear issue, opens a GitHub PR, asks a human to test, or handles Claude
-  or Greptile code-review comments.
+  Human handoff, Linear branch names, reviewable (non-draft) PRs, Claude,
+  Greptile, and Codex review comments, preview test steps, and review-doubt
+  notes for Cursor agents. Use when a Cursor Cloud or Cursor desktop agent
+  implements a Linear issue, opens a GitHub PR, asks a human to test, or
+  handles Claude, Greptile, or Codex code-review comments.
 ---
 
 # Cursor Agents Workflow
@@ -35,10 +35,17 @@ Open the GitHub PR as reviewable, not as a draft. Draft PRs hide the work
 from reviewers and skip Claude/Greptile review workflows. Use a draft only
 when a human asks for one.
 
+Cursor Cloud PRs are opened as the Langfuse user who launched the agent. On
+a non-draft same-repo PR from a write-access user, github-actions posts
+`@claude review` automatically. Do not post that comment yourself on open.
+Do not post `@claude review` again after addressing comments unless a human
+asks for another pass.
+
 ## Bot review comments
 
-When Claude (Claude Code, `claude[bot]`, or the security-review action) or
-Greptile (`greptile-apps[bot]`) leaves review comments on a PR you own:
+When Claude (Claude Code, `claude[bot]`, or the security-review action),
+Greptile (`greptile-apps[bot]`), or Codex (`chatgpt-codex-connector[bot]`)
+leaves review comments on a PR you own:
 
 1. Keep each thread open. Do not reply in the thread.
 2. If the finding is right: apply the fix, then resolve the thread.
@@ -73,6 +80,9 @@ Test this: https://pr-123.preview.langfuse.com/project/<id>/traces
 Data: demo project is enough.
 Sandbox: same path on http://localhost:3000 after the cloud stack is up.
 ```
+
+For user-visible behavior, attach proof of the fix: a screenshot, short
+video, or before/after. Docs-only changes can skip this.
 
 ## What to doubt
 
