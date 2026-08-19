@@ -49,6 +49,7 @@ evaluating, and debugging AI applications.
   the data. Humans can ask for more detail.
 - After opening a PR, leave a short last comment on what a reviewer should
   doubt — the curious, questionable parts — not a changelog.
+- Open PRs as reviewable, not as drafts, unless a human asks for a draft.
 - When Claude or Greptile review comments appear on a PR you own: do not
   reply. Keep each thread open until you either apply the fix and resolve
   it, or skip the fix for a stated reason and still resolve it.
@@ -109,9 +110,9 @@ langfuse/
   not be used to interpolate container service configuration.
 - After changing web or worker production code, rerun
   `bash scripts/agents/start-cursor-cloud.sh` before browser signoff.
-- Open a same-repo draft PR after local verification and test the resulting
-  `pr-<N>.preview.langfuse.com` deployment with synthetic data before marking
-  the PR ready. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
+- Open a same-repo reviewable PR after local verification (not a draft) and
+  test the resulting `pr-<N>.preview.langfuse.com` deployment with synthetic
+  data. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
 - Use Linear's git branch name (`lfe-XXXX-short-title`). Never create a
   `cursor/` branch, even if a Cursor Cloud prompt suggests that prefix.
 

@@ -180,8 +180,8 @@ endpoints. Cursor team administrators separately configure the read-only MCP
 catalog described in `.agents/README.md`; credentials and OAuth grants belong
 in Cursor, never in repository files.
 
-After local verification, a Cursor agent should open a same-repo draft PR and
-test its `pr-<N>.preview.langfuse.com` deployment before marking it ready.
+After local verification, a Cursor agent should open a same-repo reviewable
+PR (not a draft) and test its `pr-<N>.preview.langfuse.com` deployment.
 Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on

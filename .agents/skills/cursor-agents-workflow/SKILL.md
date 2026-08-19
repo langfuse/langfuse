@@ -1,11 +1,11 @@
 ---
 name: cursor-agents-workflow
 description: |
-  Human handoff, Linear branch names, Claude and Greptile review comments,
-  preview test steps, and review-doubt notes for Cursor agents. Use when a
-  Cursor Cloud or Cursor desktop agent implements a Linear issue, opens a
-  GitHub PR, asks a human to test, or handles Claude or Greptile code-review
-  comments.
+  Human handoff, Linear branch names, reviewable (non-draft) PRs, Claude and
+  Greptile review comments, preview test steps, and review-doubt notes for
+  Cursor agents. Use when a Cursor Cloud or Cursor desktop agent implements
+  a Linear issue, opens a GitHub PR, asks a human to test, or handles Claude
+  or Greptile code-review comments.
 ---
 
 # Cursor Agents Workflow
@@ -27,6 +27,12 @@ Copy Linear's git branch name. Do not invent a `cursor/` name.
 
 Correct: `lfe-12345-short-descriptive-title`  
 Wrong: `cursor/short-descriptive-title-8c78`
+
+## Pull requests
+
+Open the GitHub PR as reviewable, not as a draft. Draft PRs hide the work
+from reviewers and skip Claude/Greptile review workflows. Use a draft only
+when a human asks for one.
 
 ## Bot review comments
 

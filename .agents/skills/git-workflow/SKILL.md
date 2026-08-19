@@ -53,6 +53,7 @@ operations.
 - Use `gh search issues` for GitHub issue search.
 - Prefer non-interactive Git and GitHub commands where possible.
 - Keep PRs narrow enough to review without unrelated refactors.
+- Open PRs as reviewable, not as drafts, unless a human asks for a draft.
 - When the PR is ready for a human, post one last comment that names what
   to doubt in review (risky edges, not a summary of the diff).
 - Claude or Greptile review comments (`claude[bot]`, Claude Code,
