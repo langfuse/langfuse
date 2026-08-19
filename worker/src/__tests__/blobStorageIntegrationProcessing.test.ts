@@ -404,6 +404,89 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(row.lastError).toMatch(/connection refused/i);
       expect(row.lastFailureNotificationSentAt).toBeNull();
     });
+
+    // A concurrent run (distinct jobId, so not queue-deduped) can win the
+    // disable claim first. The loser must stay silent: the winner already sent
+    // the terminal "disabled" email, and the loser's only fallback is the
+    // informational "will retry at the next scheduled export" variant, which is
+    // false for an integration that is now off.
+    it("does not notify when a concurrent run won the customer-fault disable claim", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockRecordIncrement.mockClear();
+      // Land the winner's disable between the handler's enabled check and the
+      // terminal catch, then raise the same fault the winner disabled on.
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await prisma.blobStorageIntegration.updateMany({
+          where: { projectId },
+          data: { enabled: false },
+        });
+        throw accessDeniedError();
+      });
+
+      await expect(runAttempt(projectId, 4)).rejects.toThrow(/access denied/i);
+      await settleBackgroundTasks();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toMatch(/access denied/i);
+      // Null proves the loser suppressed its email: the informational fallback
+      // would have taken the cooldown claim and stamped this.
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+      // Only the worker that actually flipped enabled true->false counts it.
+      expect(mockRecordIncrement).not.toHaveBeenCalledWith(
+        BLOB_INTEGRATION_DISABLED_METRIC,
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    // When the failure can't even be written down (Postgres unavailable), the
+    // run knows nothing about the row's state. It must not claim a disable it
+    // failed to persist, but it must still say something rather than dropping
+    // the failure silently. `update` is only called on this terminal path, so
+    // spying on it isolates the persistence failure from the export itself.
+    it("falls back to the informational email when persisting the failure fails", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockRecordIncrement.mockClear();
+      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
+        accessDeniedError(),
+      );
+      const updateSpy = vi
+        .spyOn(prisma.blobStorageIntegration, "update")
+        .mockRejectedValueOnce(new Error("database unavailable"));
+
+      try {
+        await expect(runAttempt(projectId, 4)).rejects.toThrow(
+          /access denied/i,
+        );
+        await settleBackgroundTasks();
+      } finally {
+        updateSpy.mockRestore();
+      }
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // Nothing was written, so the fault is invisible to the row and the
+      // integration keeps running — even though this was a classified fault on
+      // the final attempt, which would otherwise have disabled it.
+      expect(row.enabled).toBe(true);
+      expect(row.lastError).toBeNull();
+      expect(mockRecordIncrement).not.toHaveBeenCalledWith(
+        BLOB_INTEGRATION_DISABLED_METRIC,
+        expect.anything(),
+        expect.anything(),
+      );
+      // The informational email still goes out, observable via its cooldown
+      // claim, so an unwritable failure is not a silent one.
+      expect(row.lastFailureNotificationSentAt).not.toBeNull();
+    });
   });
 
   // LFE-14894: an integration deleted mid-run makes the job obsolete — it must

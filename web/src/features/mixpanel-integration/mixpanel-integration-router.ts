@@ -2,9 +2,9 @@ import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
-  assertRacedCreateAllowed,
-  resolveAnalyticsExportSource,
-} from "@/src/features/analytics-integrations/server/analyticsExportSource";
+  assertPersistedExportSourceAllowed,
+  resolveExportSource,
+} from "@/src/features/analytics-integrations/server/exportSource";
 import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -19,6 +19,7 @@ import { getDisplayCredential } from "@/src/features/analytics-integrations/serv
 import {
   AnalyticsIntegrationExportSource,
   LangfuseNotFoundError,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 
 export const mixpanelIntegrationRouter = createTRPCRouter({
@@ -45,7 +46,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         const { encryptedMixpanelProjectToken, exportSource, ...config } =
           dbConfig;
 
-        // Write-only credential: never return the plaintext token (LFE-14384).
+        // Write-only credential: never return the plaintext token (write-only credential).
         return {
           config: {
             ...config,
@@ -105,7 +106,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         });
 
       // Write-only credential: blank/omitted keeps the persisted encrypted
-      // value (LFE-14384).
+      // value (write-only credential).
       const encryptedMixpanelProjectToken = input.mixpanelProjectToken
         ? encrypt(input.mixpanelProjectToken)
         : existingIntegration?.encryptedMixpanelProjectToken;
@@ -115,11 +116,12 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           message: "Mixpanel Project Token is required",
         });
       }
-      const createDefaultExportSource = await resolveAnalyticsExportSource({
+      const createExportSource = await resolveExportSource({
         db: ctx.prisma,
         projectId: input.projectId,
         requestedExportSource: input.exportSource,
         existingIntegration,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
       });
 
       await auditLog({
@@ -140,24 +142,22 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
             mixpanelRegion: config.mixpanelRegion,
             encryptedMixpanelProjectToken,
             enabled: config.enabled,
-            exportSource: config.exportSource ?? createDefaultExportSource,
+            exportSource: createExportSource,
           },
           update: {
             encryptedMixpanelProjectToken,
             mixpanelRegion: config.mixpanelRegion,
             enabled: config.enabled,
             // undefined → Prisma omits the column → preserves the persisted
-            // value on partial updates (LFE-10296).
+            // value on partial updates.
             exportSource: config.exportSource,
           },
         });
 
-        await assertRacedCreateAllowed({
-          tx,
-          projectId: input.projectId,
-          requestedExportSource: input.exportSource,
+        assertPersistedExportSourceAllowed({
           existingIntegration,
           result,
+          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
         });
       });
     }),

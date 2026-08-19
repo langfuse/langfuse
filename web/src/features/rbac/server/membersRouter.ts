@@ -652,6 +652,25 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
+      // Project-level role assignments require the rbac-project-roles entitlement
+      // (Team/Enterprise cloud, Enterprise self-hosted). Mirror the create path.
+      // Clearing a role (null / NONE) stays allowed so orgs can clean up after a
+      // plan downgrade without needing the paid entitlement.
+      if (input.projectRole !== null && input.projectRole !== Role.NONE) {
+        const entitled = hasEntitlement({
+          entitlement: "rbac-project-roles",
+          sessionUser: ctx.session.user,
+          orgId: input.orgId,
+        });
+        if (!entitled) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Organization does not have the required entitlement to set project roles",
+          });
+        }
+      }
+
       const project = await ctx.prisma.project.findFirst({
         where: {
           id: input.projectId,

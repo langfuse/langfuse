@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { deriveComposerSegments } from "@/src/features/search-bar/lib/composer-segments";
 import { explainSegment } from "@/src/features/search-bar/lib/explain";
 import { FIELDS } from "@/src/features/search-bar/lib/fields";

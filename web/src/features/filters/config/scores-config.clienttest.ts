@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getScoreFilterConfig, observationScopeFilter } from "./scores-config";
 
 describe("getScoreFilterConfig", () => {

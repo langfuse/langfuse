@@ -10,20 +10,24 @@ import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  InAppAgentRunErrorCode,
-  InAppAgentRunStatus,
-  type Plan,
-} from "@langfuse/shared";
+import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
+  IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+} from "@langfuse/shared/in-app-agent";
+import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-  IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
-} from "@langfuse/shared/in-app-agent";
+} from "@/src/features/in-app-agent/ids";
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
+import {
+  IN_APP_AGENT_HEARTBEAT_STALE_MS,
+  IN_APP_AGENT_QUEUE_TIMEOUT_MS,
+  IN_APP_AGENT_RUN_MAX_DURATION_MS,
+} from "@langfuse/shared/in-app-agent/server/tunables";
 import { env } from "@/src/env.mjs";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -93,9 +97,9 @@ describe("in-app agent background runs", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
   const originalMaxActiveRunsPerUser =
-    sharedEnv.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER;
+    env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER;
   const originalMaxActiveRunsPerOrg =
-    sharedEnv.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG;
+    env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
@@ -113,9 +117,9 @@ describe("in-app agent background runs", () => {
     vi.useRealTimers();
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
       originalMaxActiveRunsPerUser;
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG =
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG =
       originalMaxActiveRunsPerOrg;
   });
 
@@ -365,7 +369,7 @@ describe("in-app agent background runs", () => {
       userId,
     });
 
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG = 1;
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG = 1;
 
     await expect(
       caller.startRun({
@@ -399,13 +403,13 @@ describe("in-app agent background runs", () => {
       userId,
       createdAt: new Date(
         Date.now() -
-          sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
-          sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS -
+          IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+          IN_APP_AGENT_RUN_MAX_DURATION_MS -
           60_000,
       ),
     });
 
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
 
     const { runId } = await caller.startRun({
       projectId,
@@ -430,8 +434,8 @@ describe("in-app agent background runs", () => {
     // its slot in the accounting, or the ceiling leaks while hung runs pile up.
     const overdue = new Date(
       Date.now() -
-        sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
-        sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS -
+        IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+        IN_APP_AGENT_RUN_MAX_DURATION_MS -
         60_000,
     );
     await prisma.inAppAgentRun.create({
@@ -448,7 +452,7 @@ describe("in-app agent background runs", () => {
       },
     });
 
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
 
     await expect(
       caller.startRun({
@@ -477,13 +481,11 @@ describe("in-app agent background runs", () => {
         request: { kind: "userMessage", context: [] },
         createdAt: new Date(Date.now() - 5 * 60_000),
         claimedAt: new Date(Date.now() - 5 * 60_000),
-        heartbeatAt: new Date(
-          Date.now() - sharedEnv.LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS * 3,
-        ),
+        heartbeatAt: new Date(Date.now() - IN_APP_AGENT_HEARTBEAT_STALE_MS * 3),
       },
     });
 
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
 
     const { runId } = await caller.startRun({
       projectId,
@@ -593,7 +595,7 @@ describe("in-app agent background runs", () => {
     });
     expect(decisionEvent.event).toMatchObject({
       name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
-      value: { toolCallId: "tool-call-grant", scope: "conversation" },
+      value: { toolCallId: "tool-call-grant" },
     });
   });
 

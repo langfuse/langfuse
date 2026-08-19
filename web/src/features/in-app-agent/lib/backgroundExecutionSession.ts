@@ -1,12 +1,17 @@
-import type { AbstractAgent, AgentSubscriber } from "@ag-ui/client";
-import { z } from "zod";
+import type { AgentSubscriber } from "@ag-ui/client";
 
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
 import type {
+  AgUiContext,
   AgUiMessage,
   InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
-import { AgUiMessageSchema } from "@langfuse/shared/in-app-agent";
+import {
+  AgUiMessageSchema,
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  parseInAppAgentInterruptEvent,
+} from "@langfuse/shared/in-app-agent";
+import { createInAppAgentMessageId } from "../ids";
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
   createInAppAgentDisplayState,
@@ -15,7 +20,10 @@ import {
   type InAppAgentDisplayState,
 } from "./display";
 
-export type AgentInput = Parameters<AbstractAgent["runAgent"]>[0];
+export type BackgroundExecutionRunCommand = {
+  message: string;
+  context: AgUiContext;
+};
 
 export type ApprovalDecision = {
   runId: string;
@@ -60,8 +68,9 @@ export type BackgroundExecutionView = {
 };
 
 export type BackgroundExecutionSession = {
+  readonly conversationId: string;
   hydrateAndAttach(): Promise<void>;
-  run(input: AgentInput): Promise<void>;
+  run(command: BackgroundExecutionRunCommand): Promise<void> | null;
   cancel(): Promise<void>;
   decide(input: ApprovalDecision): Promise<void>;
   detach(): void;
@@ -71,10 +80,12 @@ export type BackgroundExecutionSession = {
 };
 
 type BackgroundExecutionAgent = {
+  threadId: string;
   messages: readonly unknown[];
+  addMessage(message: AgUiMessage): void;
   setMessages(messages: AgUiMessage[]): void;
   subscribe(subscriber: AgentSubscriber): { unsubscribe(): void };
-  runAgent(input: AgentInput): Promise<unknown>;
+  runAgent(input: { context: AgUiContext }): Promise<unknown>;
   connectAgent(): Promise<unknown>;
   abortRun(): void;
   setCursor(cursor: number): void;
@@ -105,6 +116,7 @@ type BackgroundExecutionAgentSubscriber = Pick<
 >;
 
 export class BackgroundExecutionSessionController implements BackgroundExecutionSession {
+  readonly conversationId: string;
   private readonly agent: BackgroundExecutionAgent;
   private readonly hydrate: () => Promise<BackgroundExecutionHydration>;
   private readonly cancelRun: (runId: string) => Promise<unknown>;
@@ -138,6 +150,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     onError?: (error: unknown) => void;
     initialView?: Partial<BackgroundExecutionView>;
   }) {
+    this.conversationId = config.agent.threadId;
     this.agent = config.agent;
     this.hydrate = config.hydrate;
     this.cancelRun = config.cancelRun;
@@ -244,15 +257,32 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     }
   }
 
-  async run(input: AgentInput): Promise<void> {
+  run(command: BackgroundExecutionRunCommand): Promise<void> | null {
     if (
       this.view.attachment.status === "attaching" ||
-      this.view.attachment.status === "attached"
+      this.view.attachment.status === "attached" ||
+      (this.view.currentRun &&
+        isCancellableBackgroundRun(this.view.currentRun.status))
     ) {
-      return;
+      return null;
     }
 
+    return this.executeRun(command);
+  }
+
+  private async executeRun(
+    command: BackgroundExecutionRunCommand,
+  ): Promise<void> {
     const generation = ++this.attachGeneration;
+    const userMessage = {
+      id: createInAppAgentMessageId(),
+      role: "user",
+      content: command.message,
+    } satisfies AgUiMessage;
+    this.agent.addMessage(userMessage);
+    if (!this.view.messages.some((message) => message.id === userMessage.id)) {
+      this.observeMessages([...this.view.messages, userMessage]);
+    }
     this.setView({
       ...this.view,
       currentRun: null,
@@ -260,7 +290,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     });
 
     try {
-      await this.agent.runAgent(input);
+      await this.agent.runAgent({ context: command.context });
     } catch (error) {
       if (generation !== this.attachGeneration) {
         return;
@@ -524,49 +554,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.listeners.forEach((listener) => {
       listener();
     });
-  }
-}
-
-const MastraSuspendEventSchema = z.object({
-  type: z.literal("mastra_suspend"),
-  toolCallId: z.string().min(1),
-  toolName: z.string().min(1),
-  args: z.unknown().optional(),
-  runId: z.string().min(1),
-});
-
-export function parseInAppAgentInterruptEvent(
-  event: unknown,
-): InAppAgentToolApprovalRequest | null {
-  if (
-    !event ||
-    typeof event !== "object" ||
-    !("name" in event) ||
-    event.name !== "on_interrupt"
-  ) {
-    return null;
-  }
-
-  const value = "value" in event ? event.value : undefined;
-  const parsedValue = typeof value === "string" ? parseJson(value) : value;
-  const interrupt = MastraSuspendEventSchema.safeParse(parsedValue);
-
-  return interrupt.success
-    ? {
-        type: "tool_approval_request",
-        toolCallId: interrupt.data.toolCallId,
-        toolName: interrupt.data.toolName,
-        args: interrupt.data.args,
-        runId: interrupt.data.runId,
-      }
-    : null;
-}
-
-function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
   }
 }
 
