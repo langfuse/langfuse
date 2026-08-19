@@ -1520,14 +1520,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
 
-    // A deterministic customer-config/credential fault can't succeed until the
-    // customer fixes it. Once BullMQ exhausts its retries, disable the
-    // integration so it stops re-scheduling and spamming.
     const isFinalAttempt = isFinalBullmqAttempt(job, error);
-    // Defined => disable; also tags the disable log + metric. No attempt-count
-    // gate: a deterministic fault cannot succeed on a retry, and the failures
-    // metric is emitted per failed attempt, so retrying one only lights the
-    // monitor for a fault nothing will clear.
+    // Defined => disable, on the first occurrence: a config fault cannot succeed
+    // on a retry, and the failures metric counts every failed attempt.
     const customerFaultReason = classifyCustomerFault(error);
 
     const outcome = await recordTerminalExportError({
@@ -1542,26 +1537,22 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     switch (outcome.kind) {
       case "disabled-by-us":
-        // Awaited, not fire-and-forget: the job resolves next, and the
-        // scheduler only enqueues enabled integrations, so an interrupted
-        // dispatch would leave the export off with nobody told and no retry.
+        // Awaited: the integration is now off, so the scheduler never revisits
+        // it and nothing would carry an interrupted dispatch.
         await notifyBlobStorageExportFailed(projectId, true);
-        return; // resolve: retrying a config fault only lights the monitor
+        return; // resolving is the point; a throw would light the monitor
       case "lost-disable-race":
-        return; // the winner sent the terminal email; ours would contradict it
+        return; // the winner sent the terminal email
       case "error-recorded":
-        // Transient or unclassified, so it keeps retrying. The email waits for
-        // the retries to run out — sent earlier it fires even when a later
-        // attempt succeeds — and is skipped once the integration is off, where
-        // "will retry at the next scheduled export" is no longer true.
+        // Skipped once the integration is off: "will retry at the next
+        // scheduled export" is no longer true.
         if (isFinalAttempt && outcome.stillEnabled) {
           notifyBlobStorageExportFailedInBackground(projectId, false);
         }
         break;
       case "persist-failed":
-        // Nothing was written, so we cannot claim the fault is handled. Stay on
-        // the retry path and reclassify; no email, because its "will retry"
-        // text is the one thing we do know is true.
+        // Nothing was written, so we cannot claim the fault is handled: retry
+        // and reclassify. No email — "will retry" is all we could honestly say.
         break;
       // A plain switch over a union is not exhaustiveness-checked; the never
       // assignment below is what makes a missing case fail to compile.
@@ -1659,8 +1650,8 @@ async function recordTerminalExportError({
   }
 }
 
-// Fire-and-forget variant for the paths that rethrow: the job is about to fail
-// and BullMQ will retry, so nothing depends on the dispatch completing.
+// Fire-and-forget variant for the paths that rethrow: the job is about to fail and
+// be retried, so nothing depends on the dispatch completing.
 function notifyBlobStorageExportFailedInBackground(
   projectId: string,
   disabled = false,
@@ -1668,8 +1659,9 @@ function notifyBlobStorageExportFailedInBackground(
   notifyBlobStorageExportFailed(projectId, disabled);
 }
 
-// Swallows every failure: notification trouble must not turn a deliberate
-// resolve back into a job failure.
+// Logs and swallows every failure: notification trouble must not turn a
+// deliberate resolve back into a job failure. Delivery is therefore best-effort
+// even on the awaited path; the persisted lastError is the durable signal.
 async function notifyBlobStorageExportFailed(
   projectId: string,
   disabled = false,
