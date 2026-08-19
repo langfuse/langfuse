@@ -1,5 +1,4 @@
 import { api } from "@/src/utils/api";
-import { useRouter } from "next/router";
 import {
   getDatasetTabs,
   DATASET_TABS,
@@ -28,26 +27,49 @@ import { DatasetVersionWarningBanner } from "@/src/features/datasets/components/
 import { useState } from "react";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 
-function DatasetItemsView() {
-  const router = useRouter();
-  const projectId = router.query.projectId as string;
-  const datasetId = router.query.datasetId as string;
+export default function DatasetItemsPage() {
+  const route = useReadyRouteParams(["projectId", "datasetId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DatasetItemsView
+      projectId={route.params.projectId}
+      datasetId={route.params.datasetId}
+    />
+  );
+}
 
+function DatasetItemsView({
+  projectId,
+  datasetId,
+}: {
+  projectId: string;
+  datasetId: string;
+}) {
   const { selectedVersion, resetToLatest } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
 
   const [isVersionPanelOpen, setIsVersionPanelOpen] = useState(false);
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
-  const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery({
-    projectId,
-    datasetId,
-  });
+  const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery(
+    {
+      projectId,
+      datasetId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
   const showOnboarding =
     totalDatasetItemCount.isSuccess && totalDatasetItemCount.data === 0;
