@@ -1,7 +1,10 @@
+const mockFinalizeEvaluatorBlocks = vi.hoisted(() => vi.fn());
+
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
+    finalizeEvaluatorBlocks: mockFinalizeEvaluatorBlocks,
     generateLLMText: vi.fn(),
   };
 });
@@ -21,6 +24,7 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { AuthMethod } from "@/src/features/llm-api-key/types";
 import {
   createOrgProjectAndApiKey,
+  EvaluatorBlockSource,
   generateLLMText,
 } from "@langfuse/shared/src/server";
 
@@ -67,6 +71,7 @@ describe("llmApiKey.all RPC", () => {
     const setup = await createOrgProjectAndApiKey();
     projectId = setup.projectId;
     orgId = setup.orgId;
+    mockFinalizeEvaluatorBlocks.mockReset().mockResolvedValue(undefined);
     mockGenerateLLMText.mockReset().mockResolvedValue({} as never);
 
     session = {
@@ -1464,6 +1469,16 @@ describe("llmApiKey.all RPC", () => {
       });
 
       await caller.llmApiKey.delete({ projectId, id: connection.id });
+
+      expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledOnce();
+      expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledWith({
+        projectId,
+        source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
+        evaluatorIdsByReason: {
+          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]: [v2OnProvider],
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]: [v2OnDefaultModel],
+        },
+      });
 
       const evaluators = await prisma.evaluator.findMany({
         where: { projectId },
