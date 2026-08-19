@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc",
     "build:test": "tsc",
-    "build:docker-image": "docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
+    "build:docker-image": "tsc && docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
     "start": "node ./dist/server.js",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

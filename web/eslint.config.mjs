@@ -79,6 +79,8 @@ export default [
             "io-message-header",
             // Used by parent arbitrary selectors to tune IO preview body spacing and borders.
             "io-message-content",
+            // posthog-js block class: elements carrying it are excluded from session recordings.
+            "ph-no-capture",
             // Component-level selector hook for code block wrappers, not a Tailwind utility.
             "codeblock",
             // Sonner root hook used by group-[.toaster] descendant variants.

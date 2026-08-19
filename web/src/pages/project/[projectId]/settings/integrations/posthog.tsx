@@ -31,8 +31,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import {
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   validateExportSource,
-  type BlobExportWriteMode,
+  type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -156,21 +157,26 @@ const PostHogIntegrationSettings = ({
 }: {
   state?: NonNullable<RouterOutput["posthogIntegration"]["get"]["config"]>;
   projectId: string;
-  writeMode: BlobExportWriteMode;
+  writeMode: V4WriteMode;
   // Raw ISO string, not a Date: a Date built in the parent's JSX would be a new
   // reference on every render and would defeat the memo below.
   projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const integrationCreatedAt = state?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
     () =>
       buildExportSourceContext({
         writeMode,
         isCloud: isLangfuseCloud,
         projectCreatedAt: new Date(projectCreatedAt),
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
       }),
-    [writeMode, isLangfuseCloud, projectCreatedAt],
+    [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
   );
   const {
     options: exportSourceOptions,
@@ -178,12 +184,12 @@ const PostHogIntegrationSettings = ({
     defaultValue: defaultExportSource,
   } = getExportSourceFieldState(state?.exportSource, exportSourceCtx);
 
-  // Blocked-save validation instead of silent rewrite (LFE-10296).
+  // Blocked-save validation instead of silent rewrite.
   const formSchema = useMemo(
     () =>
       posthogIntegrationFormSchema.superRefine((data, ctx) => {
         // The credential is write-only: blank keeps the saved key, so it is
-        // only required when no integration exists yet (LFE-14384).
+        // only required when no integration exists yet.
         if (!state && !data.posthogProjectApiKey) {
           ctx.addIssue({
             code: "custom",

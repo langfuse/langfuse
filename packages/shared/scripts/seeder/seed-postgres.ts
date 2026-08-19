@@ -3,7 +3,7 @@ import { parseArgs } from "node:util";
 import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
-import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "../../src/in-app-agent/server/prompts/in-app-agent-system-prompt";
+import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "../../src/in-app-agent/server/systemPrompt";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
