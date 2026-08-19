@@ -198,11 +198,6 @@ describe("model-usage selection", () => {
     );
     return {
       tx: {
-        evalTemplate: { findMany: vi.fn().mockResolvedValue([]) },
-        jobConfiguration: {
-          findMany: vi.fn().mockResolvedValue([]),
-          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-        },
         evaluator: {
           findMany: evaluatorFindMany,
           updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -241,18 +236,15 @@ describe("model-usage selection", () => {
 });
 
 describe("unblockEvaluatorsUsingDefaultModel", () => {
-  it("clears default-model blocks only on v2 evaluators", async () => {
-    const jobConfigurationUpdateMany = vi.fn().mockResolvedValue({ count: 2 });
+  it("clears default-model blocks on evaluators", async () => {
     const evaluatorUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
     const tx = {
-      jobConfiguration: { updateMany: jobConfigurationUpdateMany },
       evaluator: { updateMany: evaluatorUpdateMany },
     } as never;
 
     await expect(
       unblockEvaluatorsUsingDefaultModel({ tx, projectId: "project-1" }),
     ).resolves.toEqual({
-      unblockedJobConfigCount: 0,
       unblockedEvaluatorCount: 1,
     });
 
@@ -267,7 +259,6 @@ describe("unblockEvaluatorsUsingDefaultModel", () => {
         blockMessage: null,
       },
     };
-    expect(jobConfigurationUpdateMany).not.toHaveBeenCalled();
     expect(evaluatorUpdateMany).toHaveBeenCalledWith(expectedUpdate);
   });
 });

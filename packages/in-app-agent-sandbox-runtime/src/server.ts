@@ -306,7 +306,10 @@ function runCommand(
     startedAt: string;
     completedAt: string;
   }>((resolve, reject) => {
-    const child = spawn("sh", ["-lc", command], { cwd: WORKSPACE_ROOT });
+    const child = spawn("sh", ["-lc", command], {
+      cwd: WORKSPACE_ROOT,
+      detached: true,
+    });
     let stdout = "";
     let stderr = "";
     let settled = false;
@@ -350,7 +353,23 @@ function runCommand(
             }
 
             settled = true;
-            child.kill("SIGKILL");
+            if (child.pid) {
+              try {
+                // Process-group termination is best-effort:
+                // descendants can escape by creating a new session or process group.
+                // A sandbox should have lifetime limits as the final containment boundary.
+                process.kill(-child.pid, "SIGKILL");
+              } catch (error) {
+                logSandboxServer("bash.processGroupKillError", {
+                  requestId,
+                  pid: child.pid,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+                child.kill("SIGKILL");
+              }
+            } else {
+              child.kill("SIGKILL");
+            }
             resolve({
               stdout,
               stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,

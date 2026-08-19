@@ -166,6 +166,7 @@ export const events = {
     "delete",
     "test",
     "default_model_update",
+    "reactivate",
     "empty_state_template_select",
     "empty_state_browse_library",
     "empty_state_detect_topics",
@@ -343,6 +344,11 @@ export const events = {
   v4_migration: [
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
+    // Discoverability pair for the table delay badge: `shown` is the
+    // exposure denominator (badge actually rendered), `hovered` counts
+    // noticed-but-not-clicked (pill expanded long enough to read).
+    "delay_badge_shown",
+    "delay_badge_hovered",
     "project_chip_clicked",
     "contact_book_call_clicked",
     "contact_support_clicked",

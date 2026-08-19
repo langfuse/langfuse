@@ -1,4 +1,5 @@
 import { UiColumnMappings } from "../../tableDefinitions";
+import { EvalExecutionMetadataKey } from "../../features/evals/evalExecutionMetadata";
 
 export const tracesTableUiColumnDefinitions: UiColumnMappings = [
   {
@@ -75,14 +76,13 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Evaluator ID",
     uiTableId: "evaluatorId",
     clickhouseTableName: "traces",
-    clickhouseSelect: "t.metadata['evaluator_id']",
+    clickhouseSelect: `t.metadata['${EvalExecutionMetadataKey.EVALUATOR_ID}']`,
   },
   {
     uiTableName: "Rule ID",
     uiTableId: "ruleId",
     clickhouseTableName: "traces",
-    clickhouseSelect:
-      "if(notEmpty(t.metadata['rule_id']), t.metadata['rule_id'], t.metadata['job_configuration_id'])",
+    clickhouseSelect: `if(notEmpty(t.metadata['${EvalExecutionMetadataKey.EVALUATION_RULE_ID}']), t.metadata['${EvalExecutionMetadataKey.EVALUATION_RULE_ID}'], t.metadata['${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}'])`,
   },
   {
     uiTableName: "Version",

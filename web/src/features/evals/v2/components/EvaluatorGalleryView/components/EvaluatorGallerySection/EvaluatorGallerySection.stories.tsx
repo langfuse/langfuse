@@ -141,6 +141,7 @@ export const Recommended = meta.story({
     await expect(canvas.getByText("Detect language match")).toBeInTheDocument();
     await expect(canvas.queryByText("Any application")).not.toBeInTheDocument();
     await expect(canvas.queryByText("Set up")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("3")).not.toBeInTheDocument();
     await expect(
       canvas.queryByLabelText("About Safety / Security"),
     ).not.toBeInTheDocument();

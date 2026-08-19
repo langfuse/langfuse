@@ -22,7 +22,6 @@ export function RuleNameStep({
       number={3}
       title="Name rule"
       description="Choose a name that describes what this rule evaluates."
-      defaultOpen={name.length > 0}
       onOpenChange={onOpenChange}
     >
       <div className="max-w-xl space-y-2">

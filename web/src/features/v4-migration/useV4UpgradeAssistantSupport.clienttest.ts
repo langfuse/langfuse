@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it, vi } from "vitest";
 
 import { V4_CODING_AGENT_PROMPT } from "./useV4UpgradeAssistantSupport";

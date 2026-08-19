@@ -68,8 +68,9 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("evaluator execution metrics", () => {
-    it("returns evaluator costs from the last seven days", async () => {
+    it("returns evaluator costs from the last seven days excluding test runs", async () => {
       const evaluatorId = randomUUID();
+      const testTraceId = randomUUID();
       const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
 
       await createEventsCh([
@@ -85,6 +86,20 @@ describe("Clickhouse Events Repository Test", () => {
           metadata_names: ["evaluator_id"],
           metadata_values: [evaluatorId],
           cost_details: { total: 20 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "SPAN",
+          metadata_names: ["evaluator_id", "evaluator_test"],
+          metadata_values: [evaluatorId, "true"],
+          cost_details: { total: 0.1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "GENERATION",
+          cost_details: { total: 0.9 },
         }),
       ]);
 
@@ -187,7 +202,7 @@ describe("Clickhouse Events Repository Test", () => {
       await createEventsCh([
         createEvent({
           project_id: projectId,
-          metadata_names: ["rule_id", "job_configuration_id"],
+          metadata_names: ["evaluation_rule_id", "job_configuration_id"],
           metadata_values: [ruleId, randomUUID()],
           cost_details: { total: 4 },
         }),
@@ -200,13 +215,13 @@ describe("Clickhouse Events Repository Test", () => {
         createEvent({
           project_id: projectId,
           start_time: eightDaysAgo,
-          metadata_names: ["rule_id"],
+          metadata_names: ["evaluation_rule_id"],
           metadata_values: [ruleId],
           cost_details: { total: 50 },
         }),
       ]);
 
-      // `rule_id` wins when both keys are present; executions written before
+      // `evaluation_rule_id` wins when both keys are present; executions written before
       // the rename resolve through `job_configuration_id`.
       await expect(
         getTotalCostByRule(projectId, [ruleId, legacyRuleId]),
@@ -218,7 +233,7 @@ describe("Clickhouse Events Repository Test", () => {
       );
     });
 
-    it("returns the last five traces using rule_id only", async () => {
+    it("returns the last five traces using evaluation_rule_id only", async () => {
       const ruleId = randomUUID();
       const legacyRuleId = randomUUID();
       const traceIds = Array.from({ length: 6 }, () => randomUUID());
@@ -231,7 +246,7 @@ describe("Clickhouse Events Repository Test", () => {
             project_id: projectId,
             trace_id: traceId,
             start_time: now - index * 1_000_000,
-            metadata_names: ["rule_id", "job_configuration_id"],
+            metadata_names: ["evaluation_rule_id", "job_configuration_id"],
             metadata_values: [ruleId, randomUUID()],
           }),
         ),

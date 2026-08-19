@@ -3,7 +3,7 @@ import {
   getEvaluatorBlockMetadata,
   type EvaluatorBlockReason,
 } from "@langfuse/shared";
-import { AlertTriangle, ExternalLinkIcon } from "lucide-react";
+import { AlertTriangle, ExternalLinkIcon, RefreshCcw } from "lucide-react";
 import Link from "next/link";
 import { Fragment } from "react";
 
@@ -43,11 +43,17 @@ export function EvaluatorBlockedBanner({
   blockedAt,
   blockReason,
   blockMessage,
+  canReactivate,
+  reactivationPending,
+  onReactivate,
 }: {
   projectId: string;
   blockedAt: Date;
   blockReason: EvaluatorBlockReason | null;
   blockMessage: string | null;
+  canReactivate: boolean;
+  reactivationPending: boolean;
+  onReactivate: () => void;
 }) {
   const reason = blockReason ?? "EVAL_MODEL_CONFIG_INVALID";
   const blockMetadata = getEvaluatorBlockMetadata(reason);
@@ -94,6 +100,20 @@ export function EvaluatorBlockedBanner({
                 {resolutionAction.label}
               </Link>
             </Button>
+
+            {canReactivate ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                loading={reactivationPending}
+                onClick={onReactivate}
+                className="h-8 px-3"
+              >
+                <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+                Reactivate
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

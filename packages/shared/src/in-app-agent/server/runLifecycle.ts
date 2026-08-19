@@ -1,22 +1,21 @@
+import { LangfuseConflictError } from "../../index";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   InAppAgentRunStatusSchema,
-  LangfuseConflictError,
-} from "../../index";
+} from "../../features/inAppAgent/types";
 import { Prisma } from "../../db";
 import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
-import {
-  buildInAppAgentApprovalDecisionEvent,
-  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
-} from "../backgroundWatch";
+import { buildInAppAgentApprovalDecisionEvent } from "../approvalEvents";
 import type { AgUiEvent } from "../schema";
-import type { InAppAgentPrefixedLangfuseMcpToolName } from "./tools";
+import type { InAppAgentPrefixedLangfuseMcpToolName } from "./mcpPolicy";
 import {
   InAppAgentRunRequestSchema,
+  resolveInAppAgentRootRunId,
   type InAppAgentRunRequest,
 } from "../../features/inAppAgent/types";
+import { IN_APP_AGENT_UNSETTLED_RUN_STATUSES } from "../constants";
 import {
   ACTIVE_RUN_CONFLICT_MESSAGE,
   lockConversation,
@@ -219,7 +218,13 @@ export async function decideToolApproval(params: {
         projectId: params.projectId,
         conversationId: params.conversationId,
       },
-      select: { status: true, finishedAt: true, request: true },
+      select: {
+        status: true,
+        finishedAt: true,
+        claimedAt: true,
+        createdAt: true,
+        request: true,
+      },
     });
 
     if (
@@ -271,6 +276,21 @@ export async function decideToolApproval(params: {
     const parentRequest = InAppAgentRunRequestSchema.safeParse(
       parentRun.request,
     );
+    // Preserve tracing lineage across durable approval continuation runs.
+    const continuationNumber =
+      parentRequest.success && parentRequest.data.kind === "approvalDecision"
+        ? (parentRequest.data.continuationNumber ?? 1) + 1
+        : 1;
+    const rootRunId = resolveInAppAgentRootRunId(
+      parentRun.request,
+      params.parentRunId,
+    );
+    const traceStartedAt =
+      parentRequest.success &&
+      parentRequest.data.kind === "approvalDecision" &&
+      parentRequest.data.traceStartedAt
+        ? parentRequest.data.traceStartedAt
+        : (parentRun.claimedAt ?? parentRun.createdAt).toISOString();
 
     // Persist the grant in the same transaction as the exactly-once decision CAS.
     if (params.alwaysAllowToolName) {
@@ -308,9 +328,6 @@ export async function decideToolApproval(params: {
         toolCallId: params.toolCallId,
         approved: params.approved,
         decidedByUserId: params.decidedByUserId,
-        ...(params.alwaysAllowToolName
-          ? { scope: "conversation" as const }
-          : {}),
       }),
     });
 
@@ -325,6 +342,12 @@ export async function decideToolApproval(params: {
         request: {
           kind: "approvalDecision",
           parentRunId: params.parentRunId,
+          rootRunId,
+          traceStartedAt,
+          ...(parentRun.finishedAt
+            ? { approvalRequestedAt: parentRun.finishedAt.toISOString() }
+            : {}),
+          continuationNumber,
           toolCallId: params.toolCallId,
           approved: params.approved,
           context: parentRequest.success ? parentRequest.data.context : [],

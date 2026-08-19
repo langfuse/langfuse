@@ -15,6 +15,7 @@ export function EvaluatorSetupFooter({
   initialSnapshot,
   isEditing,
   isSaving,
+  nameAIAssistanceAvailable,
   onClose,
   onSave,
 }: {
@@ -22,6 +23,7 @@ export function EvaluatorSetupFooter({
   initialSnapshot: string;
   isEditing: boolean;
   isSaving: boolean;
+  nameAIAssistanceAvailable: boolean;
   onClose: () => void;
   onSave: () => void;
 }) {
@@ -41,8 +43,7 @@ export function EvaluatorSetupFooter({
           description: state.description.trim() || null,
           definition,
         }),
-        canSubmit:
-          Boolean(definition && state.name.trim()) && hasCompleteMappings,
+        canSubmit: Boolean(definition) && hasCompleteMappings,
         nameMissing: !state.name.trim(),
       };
     }),
@@ -51,9 +52,18 @@ export function EvaluatorSetupFooter({
   const saveButton = (
     <Button
       type="button"
-      disabled={!canSubmit || (isEditing && !hasUnsavedChanges) || isSaving}
+      disabled={
+        !canSubmit ||
+        (nameMissing && !nameAIAssistanceAvailable) ||
+        (isEditing && !hasUnsavedChanges) ||
+        isSaving
+      }
       loading={isSaving}
-      className={nameMissing ? "pointer-events-none" : undefined}
+      className={
+        nameMissing && !nameAIAssistanceAvailable
+          ? "pointer-events-none"
+          : undefined
+      }
       onClick={onSave}
     >
       {isEditing ? "Save changes" : "Create evaluator"}
@@ -65,7 +75,7 @@ export function EvaluatorSetupFooter({
       <Button type="button" variant="outline" onClick={onClose}>
         {hasUnsavedChanges ? "Cancel" : "Close"}
       </Button>
-      {nameMissing ? (
+      {nameMissing && !nameAIAssistanceAvailable ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex cursor-not-allowed">{saveButton}</span>

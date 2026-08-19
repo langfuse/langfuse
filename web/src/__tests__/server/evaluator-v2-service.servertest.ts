@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared/src/server";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import type * as EnvModule from "@/src/env.mjs";
+import type * as EvaluatorPreflightModule from "@/src/features/evals/server/evaluator-preflight";
 import type * as TestEvaluatorModule from "@/src/features/evals/v2/server/evaluators/testEvaluator";
 import type * as EvaluatorValidationModule from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
 import {
@@ -22,6 +23,7 @@ import {
 import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import {
   EvaluatorConfigurationError,
+  EvaluatorModelConfigurationError,
   EvaluatorVersionConflictError,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
 import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
@@ -35,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   generateLangfuseAIText: vi.fn(),
   getRecentEvaluatorExecutionTraces: vi.fn(),
   assertEvaluatorConfigurationValid: vi.fn(),
+  getEvaluatorDefinitionPreflightError: vi.fn(),
   testEvaluator: vi.fn(),
   env: {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
@@ -80,6 +83,15 @@ vi.mock(
   async (importOriginal) => ({
     ...(await importOriginal<typeof EvaluatorValidationModule>()),
     assertEvaluatorConfigurationValid: mocks.assertEvaluatorConfigurationValid,
+  }),
+);
+
+vi.mock(
+  "@/src/features/evals/server/evaluator-preflight",
+  async (importOriginal) => ({
+    ...(await importOriginal<typeof EvaluatorPreflightModule>()),
+    getEvaluatorDefinitionPreflightError:
+      mocks.getEvaluatorDefinitionPreflightError,
   }),
 );
 
@@ -137,6 +149,8 @@ beforeEach(() => {
   mocks.getRecentEvaluatorExecutionTraces.mockReset();
   mocks.assertEvaluatorConfigurationValid.mockReset();
   mocks.assertEvaluatorConfigurationValid.mockResolvedValue(undefined);
+  mocks.getEvaluatorDefinitionPreflightError.mockReset();
+  mocks.getEvaluatorDefinitionPreflightError.mockResolvedValue(null);
   mocks.testEvaluator.mockReset();
   mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
   mocks.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "test-small-model";
@@ -268,6 +282,81 @@ describe("EvaluatorService", () => {
       name: "Invalid update",
       versions: [expect.objectContaining({ version: 1 })],
     });
+  });
+
+  it("stores an evaluator with an invalid model configuration as blocked", async () => {
+    const service = createService();
+    mocks.assertEvaluatorConfigurationValid.mockRejectedValueOnce(
+      new EvaluatorModelConfigurationError(
+        'No valid LLM model found for evaluator "Invalid model". No default evaluation model configured.',
+      ),
+    );
+
+    const evaluator = await service.create(llmInput("Invalid model"), null);
+
+    expect(evaluator).toMatchObject({
+      name: "Invalid model",
+      blockedAt: expect.any(Date),
+      blockReason: "DEFAULT_EVAL_MODEL_MISSING",
+      blockMessage:
+        "Evaluator paused: no default evaluation model is configured. Set a default evaluation model or update the evaluator template, then reactivate it.",
+      versions: [expect.objectContaining({ version: 1 })],
+    });
+
+    mocks.assertEvaluatorConfigurationValid.mockRejectedValueOnce(
+      new EvaluatorModelConfigurationError(
+        'No valid LLM model found for evaluator "Invalid model". The configured model is unavailable.',
+      ),
+    );
+    const updated = await service.update(
+      {
+        ...llmInput("Invalid model"),
+        evaluatorId: evaluator.id,
+        definition: {
+          ...llmInput("Invalid model").definition,
+          provider: "openai",
+          model: "missing-model",
+        },
+      },
+      null,
+    );
+
+    expect(updated).toMatchObject({
+      blockedAt: expect.any(Date),
+      blockReason: "EVAL_MODEL_CONFIG_INVALID",
+      blockMessage:
+        "Evaluator paused: no valid evaluation model is configured. Update the evaluator template or default evaluation model, then reactivate it.",
+      versions: [expect.objectContaining({ version: 2 })],
+    });
+  });
+
+  it("reactivates a blocked evaluator only after its model test succeeds", async () => {
+    const service = createService();
+    mocks.assertEvaluatorConfigurationValid.mockRejectedValueOnce(
+      new EvaluatorModelConfigurationError("No default model configured"),
+    );
+    const evaluator = await service.create(llmInput("Reactivate model"), null);
+
+    mocks.getEvaluatorDefinitionPreflightError.mockResolvedValueOnce(
+      "The model test failed",
+    );
+    await expect(
+      service.reactivate({ projectId, evaluatorId: evaluator.id }),
+    ).rejects.toThrow("The model test failed");
+    await expect(service.get(projectId, evaluator.id)).resolves.toMatchObject({
+      blockedAt: expect.any(Date),
+      blockReason: "DEFAULT_EVAL_MODEL_MISSING",
+    });
+
+    await expect(
+      service.reactivate({ projectId, evaluatorId: evaluator.id }),
+    ).resolves.toMatchObject({
+      id: evaluator.id,
+      blockedAt: null,
+      blockReason: null,
+      blockMessage: null,
+    });
+    expect(mocks.getEvaluatorDefinitionPreflightError).toHaveBeenCalledTimes(2);
   });
 
   it("creates and updates an evaluator through name-based upsert", async () => {

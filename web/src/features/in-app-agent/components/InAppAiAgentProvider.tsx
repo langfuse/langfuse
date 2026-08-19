@@ -16,21 +16,21 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
-import {
-  createInAppAgentConversationId,
-  createInAppAgentMessageId,
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
-} from "@langfuse/shared/in-app-agent";
+import { createInAppAgentConversationId } from "../ids";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
-  isActiveInAppAgentRunStatus,
   type AgUiMessage,
-  type InAppAgentMessageFeedback,
-  type InAppAgentMessageFeedbackValue,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
+import { isActiveInAppAgentRunStatus } from "../watchFrames";
+import type {
+  InAppAgentMessageFeedback,
+  InAppAgentMessageFeedbackValue,
+  InAppAgentUiMessage,
+} from "../schema";
 import {
   createInAppAgentDisplayState,
   deserializeInAppAgentDisplayState,
@@ -47,7 +47,6 @@ import { InAppAgentBackgroundClient } from "@/src/features/in-app-agent/lib/back
 import {
   BackgroundExecutionSessionController,
   isCancellableBackgroundRun,
-  type AgentInput,
   type BackgroundExecutionRunView,
   type BackgroundExecutionSession,
   type BackgroundExecutionView,
@@ -59,16 +58,10 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
-  createInAppAgentMessageEntryPointContext,
-  createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
-  type InAppAgentMessageEntryPoint,
 } from "@/src/features/in-app-agent/context";
-import type {
-  InAppAgentQuickActionAttribution,
-  InAppAgentSubmitOptions,
-} from "@/src/features/in-app-agent/quickActions";
+import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getInAppAgentError,
@@ -326,7 +319,6 @@ function InAppAiAgentProviderInner({
     () => new Set(),
   );
   const [error, setError] = useState<InAppAgentError | null>(null);
-  const agentRef = useRef<InAppAgentBackgroundClient | null>(null);
   const backgroundSessionRef = useRef<BackgroundExecutionSession | null>(null);
   const [backgroundSession, setBackgroundSession] =
     useState<BackgroundExecutionSession | null>(null);
@@ -660,7 +652,6 @@ function InAppAiAgentProviderInner({
     backgroundSessionRef.current?.dispose();
     backgroundSessionRef.current = null;
     setBackgroundSession(null);
-    agentRef.current = null;
     toolCallNamesRef.current.clear();
     handledToolCallIdsRef.current.clear();
     clearLoadingEvents();
@@ -777,10 +768,10 @@ function InAppAiAgentProviderInner({
     setSubmittingConversationId(null);
   }, []);
 
-  const getOrCreateAgent = useCallback(
+  const getOrCreateBackgroundSession = useCallback(
     (conversationId: string, initialMessages: AgUiMessage[]) => {
-      if (agentRef.current?.threadId === conversationId) {
-        return agentRef.current;
+      if (backgroundSessionRef.current?.conversationId === conversationId) {
+        return backgroundSessionRef.current;
       }
 
       resetAgent();
@@ -826,8 +817,6 @@ function InAppAiAgentProviderInner({
           return started;
         },
       });
-
-      agentRef.current = agent;
 
       const nextBackgroundSession = new BackgroundExecutionSessionController({
         agent,
@@ -915,7 +904,7 @@ function InAppAiAgentProviderInner({
       backgroundSessionRef.current = nextBackgroundSession;
       setBackgroundSession(nextBackgroundSession);
 
-      return agent;
+      return nextBackgroundSession;
     },
     [
       cancelRunMutation,
@@ -932,14 +921,9 @@ function InAppAiAgentProviderInner({
     ],
   );
 
-  const createRunInput = useCallback(
-    (
-      runParameters?: AgentInput,
-      quickActionAttribution?: InAppAgentQuickActionAttribution,
-      messageEntryPoint?: InAppAgentMessageEntryPoint,
-    ): AgentInput => ({
-      ...runParameters,
-      context: createInAppAgentScreenContext({
+  const createRunContext = useCallback(
+    () =>
+      createInAppAgentScreenContext({
         currentUrl: window.location.href,
       }).concat(
         createInAppAgentUserContext({
@@ -950,16 +934,7 @@ function InAppAiAgentProviderInner({
               ? Array.from(navigator.languages)
               : [navigator.language],
         }),
-        quickActionAttribution
-          ? createInAppAgentQuickActionAttributionContext(
-              quickActionAttribution,
-            )
-          : [],
-        messageEntryPoint
-          ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
-          : [],
       ),
-    }),
     [session.data?.user?.name],
   );
 
@@ -1093,24 +1068,17 @@ function InAppAiAgentProviderInner({
           : [];
         // TODO: Avoid hydrating the full history once the agent client can send
         // only the latest user turn; the server rebuilds history from persistence.
-        const agent = getOrCreateAgent(conversationId, initialMessages);
-
-        if (agent.isRunning) {
+        const backgroundSession = getOrCreateBackgroundSession(
+          conversationId,
+          initialMessages,
+        );
+        const execution = backgroundSession.run({
+          message: content,
+          context: createRunContext(),
+        });
+        if (!execution) {
           return false;
         }
-
-        // Start background turns from the persisted transcript and cursor.
-        if (shouldRestorePersistedMessages) {
-          agent.setMessages(initialMessages);
-        }
-
-        const userMessage = {
-          id: createInAppAgentMessageId(),
-          role: "user",
-          content,
-        } satisfies AgUiMessage;
-
-        agent.addMessage(userMessage);
         const entryPoint = options?.entryPoint ?? "chat";
         if (startsNewConversation) {
           capture("in_app_agent:new_chat_started", {
@@ -1125,20 +1093,12 @@ function InAppAiAgentProviderInner({
         }
         capture("in_app_agent:new_chat_turn", { entryPoint });
         startedRun = true;
-        const backgroundSession = backgroundSessionRef.current;
-
-        if (!backgroundSession) {
-          throw new Error("Background execution session is unavailable");
-        }
-
         clearLoadingEvents();
-        backgroundSession
-          .run(createRunInput(undefined, options?.quickAction, entryPoint))
-          .catch((error: unknown) => {
-            if (backgroundSession.getSnapshot().attachment.status !== "error") {
-              setError(getInAppAgentError(error));
-            }
-          });
+        execution.catch((error: unknown) => {
+          if (backgroundSession.getSnapshot().attachment.status !== "error") {
+            setError(getInAppAgentError(error));
+          }
+        });
         return true;
       } catch (error) {
         setError(getInAppAgentError(error));
@@ -1155,8 +1115,8 @@ function InAppAiAgentProviderInner({
       capture,
       clearLoadingEvents,
       error,
-      createRunInput,
-      getOrCreateAgent,
+      createRunContext,
+      getOrCreateBackgroundSession,
       isSelectedConversationHydrating,
       isRunning,
       releaseSubmitLock,
@@ -1229,10 +1189,12 @@ function InAppAiAgentProviderInner({
         conversationQuery.data?.conversation.id === conversationId
           ? conversationQuery.data.messages.filter(isAgentConversationMessage)
           : [];
-      getOrCreateAgent(conversationId, initialMessages);
-      await backgroundSessionRef.current?.hydrateAndAttach();
+      await getOrCreateBackgroundSession(
+        conversationId,
+        initialMessages,
+      ).hydrateAndAttach();
     },
-    [conversationQuery.data, getOrCreateAgent],
+    [conversationQuery.data, getOrCreateBackgroundSession],
   );
   const attachToConversationRef = useRef(attachToConversation);
   attachToConversationRef.current = attachToConversation;
@@ -1325,12 +1287,10 @@ function InAppAiAgentProviderInner({
       conversationQuery.data?.conversation.id === selectedConversationId
         ? conversationQuery.data.messages.filter(isAgentConversationMessage)
         : [];
-    getOrCreateAgent(selectedConversationId, initialMessages);
-    const backgroundSession = backgroundSessionRef.current;
-
-    if (!backgroundSession) {
-      return;
-    }
+    const backgroundSession = getOrCreateBackgroundSession(
+      selectedConversationId,
+      initialMessages,
+    );
 
     backgroundSession.cancel().catch((error: unknown) => {
       showErrorToast("Failed to stop the run", getAgentErrorMessage(error));
@@ -1338,7 +1298,7 @@ function InAppAiAgentProviderInner({
   }, [
     conversationQuery.data,
     currentBackgroundRun,
-    getOrCreateAgent,
+    getOrCreateBackgroundSession,
     selectedConversationId,
   ]);
 
@@ -1359,12 +1319,10 @@ function InAppAiAgentProviderInner({
           conversationQuery.data?.conversation.id === params.conversationId
             ? conversationQuery.data.messages.filter(isAgentConversationMessage)
             : [];
-        getOrCreateAgent(params.conversationId, initialMessages);
-        const backgroundSession = backgroundSessionRef.current;
-
-        if (!backgroundSession) {
-          throw new Error("Background execution session is unavailable");
-        }
+        const backgroundSession = getOrCreateBackgroundSession(
+          params.conversationId,
+          initialMessages,
+        );
 
         await backgroundSession.decide({
           runId,
@@ -1378,7 +1336,7 @@ function InAppAiAgentProviderInner({
         return false;
       }
     },
-    [conversationQuery.data, getOrCreateAgent],
+    [conversationQuery.data, getOrCreateBackgroundSession],
   );
 
   const resumeToolApproval = useCallback(
@@ -1569,7 +1527,7 @@ function isAgentConversationMessage(message: unknown): message is AgUiMessage {
 function mergeMessagesWithFeedback(
   messages: readonly AgUiMessage[],
   feedbackByMessageId: Record<string, InAppAgentMessageFeedback> | undefined,
-): readonly AgUiMessage[] {
+): readonly InAppAgentUiMessage[] {
   if (!feedbackByMessageId || Object.keys(feedbackByMessageId).length === 0) {
     return messages;
   }

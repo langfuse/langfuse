@@ -100,7 +100,6 @@ vi.mock("@langfuse/shared/src/db", async () => {
 });
 
 vi.mock("@/src/features/evals/server/unstable-public-api/queries", () => ({
-  publicV2RuleInclude: () => ({}),
   findPublicV2EvaluatorByIdOrThrow: vi.fn().mockResolvedValue(evaluator),
   findPublicV2EvaluatorInFamilyOrThrow: vi.fn().mockResolvedValue(evaluator),
   findPublicV2EvaluationRule: vi.fn(),

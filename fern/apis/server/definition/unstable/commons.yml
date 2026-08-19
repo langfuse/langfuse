@@ -465,6 +465,37 @@ types:
           variable: expected_output
           source: expected_output
 
+  EvaluationRuleReadMapping:
+    docs: |
+      Maps an evaluator variable to target data, as returned by read endpoints.
+
+      Reads are more permissive than writes in two ways, so that data configured before a
+      migration stays readable and repairable:
+      - `source` is `null` when a mapping was never fully configured. Set a concrete `source` to fix it.
+      - every `source` value is allowed regardless of the rule `target`, because an evaluator's
+        default mapping is stored independently of the rules that use it.
+
+      Requests always require a concrete `source` that is valid for the selected `target`.
+    properties:
+      variable:
+        type: string
+        docs: Prompt variable name without braces.
+      source:
+        type: nullable<EvaluationRuleMappingSource>
+        docs: Source field populating the variable, or `null` when the mapping is incomplete.
+      jsonPath:
+        type: optional<string>
+        docs: Optional JSONPath selector applied to the selected source.
+    examples:
+      - name: ConfiguredReadMapping
+        value:
+          variable: input
+          source: input
+      - name: IncompleteReadMapping
+        value:
+          variable: input
+          source: null
+
   EvaluationRuleFilter:
     docs: |
       One filter condition used to decide whether a live-ingested target should be evaluated.

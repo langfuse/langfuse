@@ -489,6 +489,7 @@ export const handleBatchActionJob = async (
     let evaluators;
     let evaluatorLabels: string[];
     try {
+      // for jobs dispatched after eval v2 migration
       if (evalVersion === "v2") {
         const stableEvaluators = await prisma.evaluator.findMany({
           where: { id: { in: selectedEvaluatorIds }, projectId },
@@ -503,16 +504,23 @@ export const handleBatchActionJob = async (
               take: 1,
               select: { id: true, variableMapping: true },
             },
+            assignments: {
+              where: { projectId },
+              orderBy: { evaluationRuleId: "asc" },
+              take: 1,
+              select: { evaluationRuleId: true },
+            },
           },
         });
 
         evaluatorLabels = stableEvaluators.map(({ name }) => name);
-        // A batch run addresses evaluators directly, so there is no rule:
-        // `ruleId` stays null and the evaluator id anchors the job execution.
-        // The user's table selection already picked the rows, so filter=[] and
-        // sampling=1 make every streamed observation match.
+        // A batch run addresses the evaluator directly (`ruleId` stays null),
+        // but uses a deterministic associated rule as its legacy execution
+        // anchor so existing readers can still find it.
         evaluators = stableEvaluators.map((evaluator) => ({
-          id: evaluator.id,
+          // use the first rule ID so that we stay compatible with the way the old job execution
+          // log works
+          id: evaluator.assignments[0]?.evaluationRuleId ?? evaluator.id,
           ruleId: null,
           projectId,
           filter: [] as [],
@@ -535,6 +543,7 @@ export const handleBatchActionJob = async (
           ],
         }));
       } else {
+        // for jobs dispatched before eval v2 migration but processed by new workers
         const rawEvaluators = await prisma.evaluationRule.findMany({
           where: {
             id: { in: selectedEvaluatorIds },

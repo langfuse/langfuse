@@ -20,11 +20,11 @@ export {
   type CodeEvalSourceCodeLanguage,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
-export const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
+const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
 
-export type CodeEvalDiagnosticSeverity = "error" | "warning";
+type CodeEvalDiagnosticSeverity = "error" | "warning";
 
-export type CodeEvalDiagnostic = {
+type CodeEvalDiagnostic = {
   from: number;
   to: number;
   severity: CodeEvalDiagnosticSeverity;
@@ -611,7 +611,7 @@ export async function validateCodeEvalSourceWithLanguage({
   return validateCodeEvalSourceWithTypescript(source);
 }
 
-export async function validateCodeEvalSourceWithTypescript(
+async function validateCodeEvalSourceWithTypescript(
   source: string,
 ): Promise<CodeEvalValidationResult> {
   const tsModule = await import("@typescript/typescript6");
@@ -684,7 +684,7 @@ export async function formatPythonCodeEvalSourceWithRuff(source: string) {
   return ruffWorkspace.format(source);
 }
 
-export function validateCodeEvalSource(
+function validateCodeEvalSource(
   source: string,
   tsModule: TypeScriptModule,
 ): CodeEvalValidationResult {
@@ -1143,6 +1143,6 @@ function sortDiagnostics(diagnostics: CodeEvalDiagnostic[]) {
   return [...diagnostics].sort((a, b) => a.from - b.from || a.to - b.to);
 }
 
-export function getUtf8ByteLength(value: string) {
+function getUtf8ByteLength(value: string) {
   return new TextEncoder().encode(value).length;
 }

@@ -13,4 +13,4 @@ The new data model is
 - Rule assignments (association table handling the n:m relationship)
 
 Traces captured during the eval executions in the past only captured `job_configuration_id`.
-Only new runs capture `evaluator_id` and `rule_id`.
+Only new runs capture `evaluator_id` and `evaluation_rule_id`.

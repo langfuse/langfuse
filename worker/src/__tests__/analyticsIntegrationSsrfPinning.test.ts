@@ -151,6 +151,8 @@ import {
   POSTHOG_INTEGRATION_DISABLED_METRIC,
 } from "../features/posthog/handlePostHogIntegrationProjectJob";
 import {
+  CircularRedirectError,
+  MaxRedirectsExceededError,
   OutboundUrlValidationError,
   RedirectValidationError,
 } from "@langfuse/shared/src/server";
@@ -290,6 +292,23 @@ describe("outbound validation classification", () => {
       ),
     ).toBeDefined();
   });
+
+  // A redirect loop or exhausted budget can never succeed on retry — the job
+  // would re-read the same events from ClickHouse and hit the same chain every
+  // attempt — so both must classify as terminal on the very first attempt.
+  it("treats an exhausted redirect budget and a redirect loop as terminal", () => {
+    expect(
+      findOutboundUrlValidationError(
+        new MaxRedirectsExceededError(10, ["http://a/", "http://b/"]),
+      ),
+    ).toBeDefined();
+
+    expect(
+      findOutboundUrlValidationError(
+        new CircularRedirectError(["http://a/", "http://b/", "http://a/"]),
+      ),
+    ).toBeDefined();
+  });
 });
 
 /**
@@ -388,5 +407,45 @@ describe("terminal outbound failure reporting", () => {
         { logSubject: "Mixpanel outbound send", jobSubject: "Mixpanel export" },
       ),
     ).toThrow("Blocked IP address detected: 127.0.0.1");
+  });
+
+  // Neither a redirect loop nor an exhausted budget was ever checked for
+  // safety — outbound-url/fetch.ts detects both before validating the hop that
+  // would have closed the loop or exceeded the budget — so the message must
+  // not claim a security block, and must not claim the destination was safe
+  // either.
+  it("labels an exhausted redirect budget distinctly from an SSRF block, and calls the destination unverified", () => {
+    const thrown = captureRethrow(
+      new MaxRedirectsExceededError(10, ["http://a/", "http://b/"]),
+    );
+
+    expect(isUnrecoverableError(thrown)).toBe(true);
+    const message = (thrown as Error).message;
+    expect(message).toContain("too many redirects");
+    expect(message).toContain("final destination not verified");
+    expect(message).not.toContain("blocked by SSRF protection");
+  });
+
+  it("labels a redirect loop distinctly from an SSRF block, and calls the destination unverified", () => {
+    const thrown = captureRethrow(
+      new CircularRedirectError(["http://a/", "http://b/", "http://a/"]),
+    );
+
+    expect(isUnrecoverableError(thrown)).toBe(true);
+    const message = (thrown as Error).message;
+    expect(message).toContain("redirect loop");
+    expect(message).toContain("final destination not verified");
+    expect(message).not.toContain("blocked by SSRF protection");
+  });
+
+  it("keeps calling an actual policy block a security block", () => {
+    const thrown = captureRethrow(
+      new OutboundUrlValidationError(
+        "blocked-ip",
+        "Blocked IP address detected: 127.0.0.1",
+      ),
+    );
+
+    expect((thrown as Error).message).toContain("blocked by SSRF protection");
   });
 });

@@ -7,7 +7,7 @@ import { JobConfigState } from "@langfuse/shared/src/db";
  * surface (tRPC, MCP, public API) through `assertActiveRuleLimitNotExceeded`, so
  * the documented contract cannot drift per entry point.
  */
-export const MAX_ACTIVE_EVALUATION_RULES = 50;
+export const MAX_ACTIVE_EVALUATION_RULES = 500;
 
 export class ActiveEvaluationRuleLimitError extends LangfuseConflictError {
   readonly limit = MAX_ACTIVE_EVALUATION_RULES;

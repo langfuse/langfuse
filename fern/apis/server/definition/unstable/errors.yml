@@ -175,7 +175,7 @@ types:
             field: name
       - name: ActiveEvaluationRuleLimit
         value:
-          message: This project already has the maximum number of active evaluation rules (50). Disable an existing active evaluation rule before enabling another one.
+          message: This project already has the maximum number of active evaluation rules (500). Disable an existing active evaluation rule before enabling another one.
           code: conflict
           details:
             limit: 50
@@ -240,7 +240,7 @@ errors:
       Typical unstable-eval examples:
       - evaluator version changed during concurrent creation
       - an evaluation rule name already exists in the project, so the caller should PATCH the existing resource instead
-      - enabling another evaluation rule would exceed the project limit of 50 active evaluation rules
+      - enabling another evaluation rule would exceed the project limit of 500 active evaluation rules
       - the underlying state changed between read and write operations, so the client should retry
 
       Recovery guidance:

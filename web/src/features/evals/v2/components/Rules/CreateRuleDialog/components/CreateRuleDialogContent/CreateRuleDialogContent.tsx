@@ -25,8 +25,9 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/search-bar/lib/filter-aliases";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
+import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 
-export function resolveInitialRuleFilters(initialFilter?: FilterState) {
+function resolveInitialRuleFilters(initialFilter?: FilterState) {
   return initialFilter ?? EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS;
 }
 
@@ -78,22 +79,21 @@ export function CreateRuleDialogContent({
   const activation = useActivationConfirmation({ projectId });
   const hasRequestedName = useRef(false);
   const suggestName = api.evalsV2.rules.suggestName.useMutation({
-    onSuccess: (suggested) => {
-      if (suggested) {
-        ruleSetupStore.getState().actions.setName(suggested);
-      }
-    },
+    onError: trpcErrorToast,
   });
 
-  const requestNameSuggestion = () => {
-    if (!nameAIAssistanceAvailable) return;
+  const requestNameSuggestion = async () => {
+    if (!nameAIAssistanceAvailable) return null;
     hasRequestedName.current = true;
     const state = ruleSetupStore.getState();
-    suggestName.mutate({
+    const suggested = await suggestName.mutateAsync({
       projectId,
       filter: state.filter,
       sampling: state.sampling,
     });
+    const name = suggested?.trim() || null;
+    if (name) state.actions.setName(name);
+    return name;
   };
   const createRule = api.evalsV2.rules.create.useMutation({
     onError: trpcErrorToast,
@@ -138,7 +138,14 @@ export function CreateRuleDialogContent({
   };
 
   const requestActivation = async () => {
-    const draft = ruleSetupStore.getState();
+    let draft = ruleSetupStore.getState();
+    const name = await prepareNameForSave({
+      currentName: draft.name,
+      generateName: nameAIAssistanceAvailable ? requestNameSuggestion : null,
+      setName: draft.actions.setName,
+    });
+    if (!name) return;
+    draft = ruleSetupStore.getState();
     const llmEvaluatorIds = draft.assignments
       .map(({ evaluatorId }) => evaluatorId)
       .filter(
@@ -195,7 +202,11 @@ export function CreateRuleDialogContent({
                   ? { state: "unavailable" }
                   : suggestName.isPending
                     ? { state: "generating" }
-                    : { state: "idle", onGenerate: requestNameSuggestion }
+                    : {
+                        state: "idle",
+                        onGenerate: () =>
+                          requestNameSuggestion().catch(() => undefined),
+                      }
               }
               onNameStepOpenChange={(stepOpen) => {
                 const state = ruleSetupStore.getState();
@@ -205,7 +216,7 @@ export function CreateRuleDialogContent({
                   !state.name &&
                   !hasRequestedName.current
                 ) {
-                  requestNameSuggestion();
+                  requestNameSuggestion().catch(() => undefined);
                 }
               }}
             />
@@ -214,8 +225,10 @@ export function CreateRuleDialogContent({
             ruleSetupStore={ruleSetupStore}
             activationPending={activation.estimate.status === "estimating"}
             mutationPending={createRule.isPending}
+            nameGenerationPending={suggestName.isPending}
             isEditing={false}
             canEdit
+            nameAIAssistanceAvailable={nameAIAssistanceAvailable}
             onCancel={() => onOpenChange(false)}
             onSave={() => requestActivation().catch(() => undefined)}
           />

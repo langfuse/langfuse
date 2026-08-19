@@ -1,12 +1,13 @@
 import { randomUUID } from "crypto";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  createInAppAgentConversationId,
-  createInAppAgentRunId,
-} from "@langfuse/shared/in-app-agent";
+import { ResumeForwardedPropsSchema } from "./runtime/types";
+import { env } from "../../env";
+
+const createConversationId = () => `aconv_${randomUUID()}`;
+const createRunId = () => `arun_${randomUUID()}`;
 
 vi.hoisted(() => {
   // This suite uses mocked agent execution and does not exercise a sandbox
@@ -34,6 +35,9 @@ type AgentScenario = (ctx: {
   };
   signal: AbortSignal;
   options: {
+    awsBedrock: {
+      profile?: string;
+    };
     langfuseMcp: {
       toolPolicy: {
         available: ReadonlySet<string>;
@@ -54,17 +58,13 @@ const scenarioRef = vi.hoisted(() => ({
   current: undefined as AgentScenario | undefined,
   failApiKeyDelete: false,
   apiKeyDeleteCalls: 0,
+  titleInferenceCalls: 0,
 }));
 
-vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("@langfuse/shared/in-app-agent/server")
-    >();
-
+vi.mock("./runtime/agent", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./runtime/agent")>();
   return {
     ...actual,
-    IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: 50,
     createAgUiStream: async (params: {
       input: never;
       signal: AbortSignal;
@@ -92,6 +92,16 @@ vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
     },
   };
 });
+
+vi.mock(
+  "@langfuse/shared/in-app-agent/server/tunables",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@langfuse/shared/in-app-agent/server/tunables")
+    >()),
+    IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: 50,
+  }),
+);
 
 vi.mock("@langfuse/shared/src/server/auth/apiKeys", async (importOriginal) => {
   const actual =
@@ -169,7 +179,7 @@ async function seedBackgroundRun(opts?: {
   });
   const conversation = await prisma.inAppAgentConversation.create({
     data: {
-      id: createInAppAgentConversationId(),
+      id: createConversationId(),
       projectId,
       createdByUserId: user.id,
       title: "background test",
@@ -178,7 +188,7 @@ async function seedBackgroundRun(opts?: {
   });
   const run = await prisma.inAppAgentRun.create({
     data: {
-      id: createInAppAgentRunId(),
+      id: createRunId(),
       projectId,
       conversationId: conversation.id,
       triggeredByUserId: user.id,
@@ -203,6 +213,10 @@ const getInAppAgentApiKeys = (projectId: string) =>
 async function seedApprovedContinuation(opts?: {
   context?: Array<{ description: string; value: string }>;
   alwaysAllowedTools?: string[];
+  continuationNumber?: number;
+  rootRunId?: string;
+  traceStartedAt?: string;
+  approvalRequestedAt?: string;
 }) {
   const seeded = await seedBackgroundRun({
     alwaysAllowedTools: opts?.alwaysAllowedTools,
@@ -210,7 +224,7 @@ async function seedApprovedContinuation(opts?: {
   const { projectId, conversation, run, user } = seeded;
   const parentRun = await prisma.inAppAgentRun.create({
     data: {
-      id: createInAppAgentRunId(),
+      id: createRunId(),
       projectId,
       conversationId: conversation.id,
       triggeredByUserId: user.id,
@@ -234,8 +248,18 @@ async function seedApprovedContinuation(opts?: {
       request: {
         kind: "approvalDecision",
         parentRunId: parentRun.id,
+        ...(opts?.rootRunId ? { rootRunId: opts.rootRunId } : {}),
+        ...(opts?.traceStartedAt
+          ? { traceStartedAt: opts.traceStartedAt }
+          : {}),
+        ...(opts?.approvalRequestedAt
+          ? { approvalRequestedAt: opts.approvalRequestedAt }
+          : {}),
         toolCallId: "tc-1",
         approved: true,
+        ...(opts?.continuationNumber
+          ? { continuationNumber: opts.continuationNumber }
+          : {}),
         ...(opts?.context ? { context: opts.context } : {}),
       },
     },
@@ -245,7 +269,50 @@ async function seedApprovedContinuation(opts?: {
 }
 
 describe("executeInAppAgentRun", () => {
+  beforeEach(() => {
+    scenarioRef.titleInferenceCalls = 0;
+  });
+
+  it("does not regenerate the conversation title after executing a user-message run", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+
+    scenarioRef.current = completingScenario;
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    expect(scenarioRef.titleInferenceCalls).toBe(0);
+  });
+
+  it("prefers the ambient AWS profile over the configured agent profile", async () => {
+    const workerEnv = env as {
+      AWS_PROFILE?: string;
+      LANGFUSE_IN_APP_AGENT_AWS_PROFILE?: string;
+    };
+    const originalAwsProfile = workerEnv.AWS_PROFILE;
+    const originalConfiguredProfile =
+      workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
+    workerEnv.AWS_PROFILE = "developer-profile";
+    workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = "playground";
+
+    const { projectId, run } = await seedBackgroundRun();
+    scenarioRef.current = async ({ options }) => {
+      expect(options.awsBedrock.profile).toBe("developer-profile");
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    try {
+      await executeInAppAgentRun({ projectId, runId: run.id });
+    } finally {
+      workerEnv.AWS_PROFILE = originalAwsProfile;
+      workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = originalConfiguredProfile;
+    }
+  });
+
   it("passes persisted continuation context to the agent input", async () => {
+    const rootRunId = "root-run-1";
+    const traceStartedAt = "2026-08-14T10:00:00.000Z";
+    const approvalRequestedAt = "2026-08-14T10:00:05.000Z";
     const context = [
       {
         description: "current_url",
@@ -253,10 +320,25 @@ describe("executeInAppAgentRun", () => {
       },
       { description: "browser_languages", value: '["de-DE"]' },
     ];
-    const { projectId, run } = await seedApprovedContinuation({ context });
+    const { projectId, run } = await seedApprovedContinuation({
+      context,
+      continuationNumber: 3,
+      rootRunId,
+      traceStartedAt,
+      approvalRequestedAt,
+    });
 
     scenarioRef.current = async ({ input, options }) => {
       expect(input.context).toEqual(context);
+      const resume = ResumeForwardedPropsSchema.parse(input.forwardedProps)
+        .command.resume;
+      expect(resume).toMatchObject({
+        continuationNumber: 3,
+        rootRunId,
+        traceStartedAt,
+        approvalRequestedAt,
+        approvalDecidedAt: run.createdAt.toISOString(),
+      });
       await options.onComplete();
       await options.onFinish();
     };
@@ -322,7 +404,6 @@ describe("executeInAppAgentRun", () => {
     expect(finished.claimedAt).not.toBeNull();
     expect(finished.heartbeatAt).not.toBeNull();
     expect(finished.errorCode).toBeNull();
-
     // Key was minted and linked during the run, deleted and unlinked after.
     expect(keysDuringRun).toBe(1);
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);

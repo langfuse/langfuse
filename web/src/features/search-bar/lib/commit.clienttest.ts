@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";

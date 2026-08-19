@@ -195,6 +195,20 @@ export const evaluatorRouter = createTRPCRouter({
       );
     }),
 
+  reactivate: protectedProjectProcedure
+    .input(EvaluatorIdSchema)
+    .mutation(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evalTemplate:CUD",
+      });
+      return serviceForContext(ctx).reactivate({
+        projectId: ctx.session.projectId,
+        evaluatorId: input.evaluatorId,
+      });
+    }),
+
   delete: protectedProjectProcedure
     .input(EvaluatorIdSchema)
     .mutation(async ({ input, ctx }) => {

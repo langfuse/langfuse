@@ -43,7 +43,7 @@ export function EvaluatorGallerySection({
   return (
     <section className="flex scroll-mt-1 flex-col gap-3">
       {isRecommended ? (
-        <EvaluatorRecommendedCards label={section.label} count={totalCount}>
+        <EvaluatorRecommendedCards label={section.label}>
           {shownTemplates.map((template) => (
             <EvaluatorRecommendedCard
               key={getGalleryTemplateId(template)}
@@ -65,9 +65,6 @@ export function EvaluatorGallerySection({
                   {EVALUATOR_GALLERY_SAFETY_CALLOUT}
                 </InfoTooltip>
               ) : null}
-              <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
-                {totalCount}
-              </span>
             </div>
             <div className="border-t" />
           </div>

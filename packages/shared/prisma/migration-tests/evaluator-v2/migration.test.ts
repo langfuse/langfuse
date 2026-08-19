@@ -331,8 +331,8 @@ async function seedFixture(legacyPrisma: PrismaClient) {
         timeScope: ["NEW"],
       },
       {
-        // same project, template and mapping as `rule-managed`, but a different score name, so it
-        // must keep its own evaluator and block state.
+        // same project, template, mapping and score name as `rule-managed`, but blocked. Keeping
+        // block status in the grouping key preserves the unblocked rule's legacy behaviour.
         id: "rule-managed-duplicate",
         createdAt: new Date("2025-04-05T03:00:00Z"),
         updatedAt: new Date("2025-04-05T04:00:00Z"),
@@ -343,7 +343,7 @@ async function seedFixture(legacyPrisma: PrismaClient) {
         blockReason: EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE,
         blockMessage: "duplicate blocked later",
         evalTemplateId: "managed-used-v1",
-        scoreName: "Managed score duplicate",
+        scoreName: "Managed score",
         filter: [],
         targetObject: "observation",
         variableMapping: { output: "output" },
@@ -703,18 +703,22 @@ if (existingDatabaseUrl) {
       expect(assignments).toBe(configurationsWithTemplates);
     });
 
-    it("creates one evaluator per project, template, variable mapping and score name", async () => {
-      // score_name belongs in the key: it is what the worker writes as the score name, so two
-      // configurations that agree on project, template and mapping but disagree on score name are
-      // different evaluators. Omitting it here passes on fixtures that never vary score name
-      // within a group, but understates the expectation on real data, where a single project
-      // routinely runs one template under many score names.
+    it("creates one evaluator per project, template, variable mapping, score name and block status", async () => {
+      // score_name belongs in the key because it is what the worker writes as the score name.
+      // Block status belongs there to preserve whether each legacy rule was executable; using the
+      // exact blocked_at timestamp would unnecessarily split configurations blocked together.
       const [counts] = await prisma.$queryRaw<
         Array<{ expected: bigint; actual: bigint }>
       >`
         SELECT
           (
-            SELECT count(DISTINCT (project_id, eval_template_id, variable_mapping, score_name))
+            SELECT count(DISTINCT (
+              project_id,
+              eval_template_id,
+              variable_mapping,
+              score_name,
+              blocked_at IS NOT NULL
+            ))
             FROM job_configurations
             WHERE job_type = 'EVAL' AND eval_template_id IS NOT NULL
           )::bigint AS expected,
@@ -830,7 +834,7 @@ if (existingDatabaseUrl) {
           id: "rule-managed-duplicate",
           projectId: "project-a",
           createdByUserId: null,
-          name: "Managed score duplicate",
+          name: "Managed score",
           status: "ACTIVE",
         },
         {
@@ -890,9 +894,9 @@ if (existingDatabaseUrl) {
       });
 
       // Nine job configurations reference a template but only eight evaluators come out of them:
-      // `rule-key-order-b` folds into `rule-key-order-a`. Despite sharing a template and mapping,
-      // `rule-managed-duplicate` stays separate because its score name differs. `unattached-v2`
-      // is the ninth evaluator, from the template family no rule uses.
+      // `rule-key-order-b` folds into `rule-key-order-a`. Despite sharing a template, mapping and
+      // score name, `rule-managed-duplicate` stays separate because its block status differs.
+      // `unattached-v2` is the ninth evaluator, from the template family no rule uses.
       expect(evaluators).toEqual([
         {
           id: "rule-current",
@@ -936,11 +940,11 @@ if (existingDatabaseUrl) {
           blockMessage: null,
         },
         {
-          // Same project, template and mapping as rule-managed, but a different score name.
+          // Same project, template, mapping and score name as rule-managed, but blocked.
           id: "rule-managed-duplicate",
           projectId: "project-a",
           createdByUserId: null,
-          name: "Managed score duplicate",
+          name: "Managed score",
           type: "LLM_AS_JUDGE",
           description: null,
           createdAt: new Date("2025-04-05T03:00:00Z"),

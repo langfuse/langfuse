@@ -64,6 +64,7 @@ import {
   evaluatorTableFilterOptions,
 } from "../constants/tableFilterColumns";
 import type { GalleryTemplate } from "../types/templateGallery";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
 
@@ -518,6 +519,7 @@ export default function EvaluatorsPage() {
     <Page
       headerProps={{
         title: "Evaluators",
+        titleBadges: <V4MigrationUpdateRequiredBadge />,
         help: {
           description:
             "Create reusable evaluator definitions and test them before activation.",

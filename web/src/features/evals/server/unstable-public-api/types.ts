@@ -17,7 +17,6 @@ import type {
   PublicEvaluationRuleLegacyTargetType,
   PublicEvaluatorModelConfigType,
   PublicEvaluatorOutputDefinitionType,
-  PublicObservationEvaluationRuleMappingType,
   PublicCodeEvaluatorSourceCodeLanguageType,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
@@ -37,7 +36,8 @@ type ApiEvaluatorRecordBase = {
   name: string;
   version: number;
   variables: string[];
-  mapping: PublicObservationEvaluationRuleMappingType[] | null;
+  // Read shape: an evaluator default can be incomplete or name experiment-only sources.
+  mapping: PublicEvaluationRuleReadMappingType[] | null;
   evaluationRuleCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -51,14 +51,14 @@ export type StoredPublicV2EvaluationRule = EvaluationRule & {
   >;
 };
 
-export type ApiLlmAsJudgeEvaluatorRecord = ApiEvaluatorRecordBase & {
+type ApiLlmAsJudgeEvaluatorRecord = ApiEvaluatorRecordBase & {
   type: typeof PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
   prompt: string;
   outputDefinition: PublicEvaluatorOutputDefinitionType;
   modelConfig: PublicEvaluatorModelConfigType | null;
 };
 
-export type ApiCodeEvaluatorRecord = ApiEvaluatorRecordBase & {
+type ApiCodeEvaluatorRecord = ApiEvaluatorRecordBase & {
   type: typeof PUBLIC_EVALUATOR_TYPE_CODE;
   variables: Array<(typeof CODE_EVAL_TEMPLATE_VARIABLES)[number]>;
   sourceCode: string;
@@ -92,7 +92,7 @@ export type ApiWritableEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
   mapping: PublicEvaluationRuleReadMappingType[];
 };
 
-export type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
+type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
   evaluators: Array<{
     evaluator: PublicEvaluationRuleEvaluatorType;
     mapping: LegacyEvaluationRuleMappingType[] | null;

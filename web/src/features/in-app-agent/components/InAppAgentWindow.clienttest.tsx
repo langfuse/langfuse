@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { ScanSearch } from "lucide-react";
-import { InAppAgentRunStatus } from "@langfuse/shared";
+import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   InAppAgentWindow,
@@ -130,7 +130,7 @@ function selectTab(name: string) {
 }
 
 describe("InAppAgentWindow quick actions", () => {
-  it("switches tabs, resets on route change, and submits the action prompt with attribution", async () => {
+  it("switches tabs, resets on route change, and submits the action prompt with analytics", async () => {
     const onSubmit = vi.fn().mockResolvedValue(true);
     const { rerender } = render(windowElement({ onSubmit }));
 
@@ -172,12 +172,7 @@ describe("InAppAgentWindow quick actions", () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
         "Help me create a new prompt in Langfuse prompt management, including choosing between a text and chat prompt, defining its variables, and setting a label.",
-        {
-          quickAction: {
-            key: "create-prompt",
-            category: "prompts",
-          },
-        },
+        undefined,
       );
     });
     expect(capture).toHaveBeenCalledWith("in_app_agent:quick_action_started", {
