@@ -43,6 +43,11 @@ const h = vi.hoisted(() => {
 
   const mixpanelIntegrationUpdate = vi.fn();
 
+  // Set by a test to make the mocked MixpanelClient's flush() reject once,
+  // simulating a classified-fault-shaped HTTP error (e.g. 401) from the
+  // Mixpanel API. Cleared in beforeEach so it never leaks between tests.
+  const flushError: { value: Error | undefined } = { value: undefined };
+
   const defaultIntegration = () => ({
     projectId: "project-1",
     enabled: true,
@@ -65,6 +70,7 @@ const h = vi.hoisted(() => {
     mixpanelIntegrationUpdate,
     defaultIntegration,
     db,
+    flushError,
   };
 });
 
@@ -72,6 +78,11 @@ vi.mock("../features/mixpanel/mixpanelClient", () => ({
   MixpanelClient: class {
     addEvent = vi.fn();
     flush = vi.fn().mockImplementation(async () => {
+      if (h.flushError.value) {
+        const err = h.flushError.value;
+        h.flushError.value = undefined; // reject once, then behave
+        throw err;
+      }
       h.timeline.push("flush");
     });
     getBatchSize = vi.fn().mockReturnValue(0);
@@ -130,11 +141,33 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 
 // Import after mocks are registered.
-import { handleMixpanelIntegrationProjectJob } from "../features/mixpanel/handleMixpanelIntegrationProjectJob";
-import { getScoresForAnalyticsIntegrations } from "@langfuse/shared/src/server";
+import {
+  handleMixpanelIntegrationProjectJob,
+  MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC,
+} from "../features/mixpanel/handleMixpanelIntegrationProjectJob";
+import {
+  getScoresForAnalyticsIntegrations,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import { env } from "../env";
 
-function makeJob() {
+// opts.attempts: 5 mirrors the real queue's defaultJobOptions (see
+// packages/shared/src/server/redis/mixpanelIntegrationProcessingQueue.ts) so
+// this fixture matches what BullMQ actually hands the handler, now that
+// PR2's disable-on-fault wiring will read job.opts/attemptsMade via the
+// shared bullmqAttempts predicate. The original fixture had no `opts` field
+// at all, which silently modeled a job shape BullMQ never produces.
+function makeJob(attemptsMade = 0) {
+  return {
+    data: { id: "job-1", payload: { projectId: "project-1" } },
+    attemptsMade,
+    opts: { attempts: 5 },
+  } as unknown as Parameters<typeof handleMixpanelIntegrationProjectJob>[0];
+}
+
+// Deliberately mirrors the pre-fix fixture shape (no `opts` at all) for the
+// negative case below: a job missing its attempts budget must not disable.
+function makeJobWithoutOpts() {
   return {
     data: { id: "job-1", payload: { projectId: "project-1" } },
     attemptsMade: 0,
@@ -265,5 +298,92 @@ describe("handleMixpanelIntegrationProjectJob legacy-mode enriched guard (LFE-11
     await handleMixpanelIntegrationProjectJob(makeJob());
 
     expect(h.mixpanelIntegrationUpdate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// PR1 of the customer-fault auto-disable work is entirely non-behavioral:
+// classifier + shared disable handler + fail-closed attempt predicate are
+// introduced as building blocks (see customerFaultClassification.test.ts,
+// disableIntegrationOnCustomerFault.test.ts, bullmqAttempts.test.ts), but
+// nothing wires them into this handler yet — that lands in a separate PR.
+// These pin today's (and this PR's) actual behavior: a classified-fault-
+// shaped error still just propagates, and the integration is never disabled,
+// regardless of what job.opts looks like.
+describe("handleMixpanelIntegrationProjectJob customer-fault wiring (PR1: not yet wired)", () => {
+  beforeEach(() => {
+    h.timeline.length = 0;
+    h.mixpanelIntegrationUpdate.mockClear();
+    h.db.integration = h.defaultIntegration();
+    h.flushError.value = undefined;
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+  });
+
+  it("still throws a 401-shaped error and never calls update to disable the integration", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+
+    await expect(handleMixpanelIntegrationProjectJob(makeJob())).rejects.toBe(
+      unauthorized,
+    );
+
+    // The only prisma.mixpanelIntegration.update call site today is the
+    // success path (advancing lastSyncAt) — an error before that point means
+    // update is never reached at all, disable or otherwise.
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+  });
+
+  // Pins the fail-closed predicate decision at the job level: a job built
+  // without `opts` at all (the shape the original, pre-fix `makeJob()` used)
+  // must not be treated any differently — it must not disable either.
+  it("a job with no opts still does not disable on a classified-fault-shaped error", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+
+    await expect(
+      handleMixpanelIntegrationProjectJob(makeJobWithoutOpts()),
+    ).rejects.toBe(unauthorized);
+
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("handleMixpanelIntegrationProjectJob customer-fault observability", () => {
+  beforeEach(() => {
+    h.timeline.length = 0;
+    h.mixpanelIntegrationUpdate.mockClear();
+    h.db.integration = h.defaultIntegration();
+    h.flushError.value = undefined;
+    vi.mocked(recordIncrement).mockClear();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+  });
+
+  it("records the customer-fault metric with reason and attempt, then still rethrows", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+
+    await expect(handleMixpanelIntegrationProjectJob(makeJob(2))).rejects.toBe(
+      unauthorized,
+    );
+
+    expect(recordIncrement).toHaveBeenCalledWith(
+      MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC,
+      1,
+      { reason: "credentials", attempt: 2 },
+    );
+  });
+
+  it("does not record the customer-fault metric for an unclassified error", async () => {
+    const infraError = new Error("connection reset");
+    Object.assign(infraError, { code: "ECONNRESET" });
+    h.flushError.value = infraError;
+
+    await expect(handleMixpanelIntegrationProjectJob(makeJob())).rejects.toBe(
+      infraError,
+    );
+
+    expect(recordIncrement).not.toHaveBeenCalled();
   });
 });
