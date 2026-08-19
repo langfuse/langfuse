@@ -55,7 +55,6 @@ describe("prepareEvaluatorGallery", () => {
         template.source === "managed" ? template.key : null,
       ),
     ).toEqual([
-      "language",
       "chat-intent",
       "out-of-scope-request",
       "user-disagreement",
