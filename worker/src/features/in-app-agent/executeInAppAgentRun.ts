@@ -1,5 +1,5 @@
 import { Role } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAITraceSinkParams,
   logger,
@@ -144,16 +144,26 @@ export async function executeInAppAgentRun(params: {
     if (!mcpApiKey) return Promise.resolve();
     const keyId = mcpApiKey.id;
     mcpApiKeyCleanup ??= (async () => {
-      await deleteApiKeyFromDb({
-        prisma,
-        id: keyId,
-        entityId: projectId,
-        scope: "PROJECT",
-        redis,
-      });
-      // Pointer is nulled only after the delete is confirmed; if the delete
-      // failed above, the terminal run keeps the pointer so reconciliation
-      // retries the cleanup.
+      try {
+        await deleteApiKeyFromDb({
+          prisma,
+          id: keyId,
+          entityId: projectId,
+          scope: "PROJECT",
+          redis,
+        });
+      } catch (error) {
+        // A concurrent cleanup (onFinish vs outer catch) or a prior delete
+        // already removed the row. Treat that as success so the pointer can
+        // still be cleared.
+        if (
+          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+          error.code !== "P2025"
+        ) {
+          throw error;
+        }
+      }
+      // Pointer is nulled after delete succeeds or the key is already gone.
       await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
     })().catch((error: unknown) => {
       mcpApiKeyCleanup = undefined;

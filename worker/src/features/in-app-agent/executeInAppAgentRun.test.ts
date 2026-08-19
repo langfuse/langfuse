@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
@@ -948,6 +948,35 @@ describe("executeInAppAgentRun", () => {
     // run remains the discoverable owner of the orphaned key.
     expect(finished.mcpApiKeyId).not.toBeNull();
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(1);
+  });
+
+  it("treats a missing MCP key as cleaned up and still nulls the pointer", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
+
+    scenarioRef.current = async ({ options }) => {
+      const keys = await getInAppAgentApiKeys(projectId);
+      expect(keys).toHaveLength(1);
+      await prisma.apiKey.delete({ where: { id: keys[0].id } });
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    try {
+      await executeInAppAgentRun({ projectId, runId: run.id });
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    const finished = await getRun(projectId, run.id);
+    expect(finished.status).toBe("SUCCEEDED");
+    expect(finished.mcpApiKeyId).toBeNull();
+    expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+    expect(
+      errorSpy.mock.calls.filter(([message]) =>
+        String(message).includes("Failed to clean up in-app agent MCP API key"),
+      ),
+    ).toHaveLength(0);
   });
 
   it("aborts active runs on shutdown as FAILED (worker_shutdown)", async () => {
