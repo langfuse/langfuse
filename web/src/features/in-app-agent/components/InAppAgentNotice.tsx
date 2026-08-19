@@ -28,7 +28,7 @@ export function InAppAgentNotice({
   tone: keyof typeof NOTICE_TONE_CLASSES;
 }) {
   return (
-    <div className="shrink-0 px-2 pb-2">
+    <div className="shrink-0 px-1.5 pb-2">
       <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
         <div
           role={role}

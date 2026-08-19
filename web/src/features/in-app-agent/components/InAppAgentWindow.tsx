@@ -1544,12 +1544,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </div>
         )}
         {isAssistantTurnInProgress && pendingToolCalls.length === 0 ? (
-          <div
-            className={cn(
-              "pointer-events-none relative h-px w-full shrink-0 select-none",
-              isExpanded && "mx-auto max-w-3xl",
-            )}
-          >
+          <div className="pointer-events-none relative mx-auto h-px w-[calc(100%-1.5rem)] max-w-[calc(48rem-0.75rem)] shrink-0 select-none">
             <div className="absolute top-0 h-4 w-full -translate-y-full overflow-hidden">
               <div className="absolute top-0 h-12 w-full bg-radial from-(--color-3) to-transparent to-60% bg-center opacity-25" />
             </div>
@@ -1558,18 +1553,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 aria-hidden="true"
                 className={cn("h-[4rem]", styles.loadingGradient)}
               />
-              {isExpanded && (
-                <>
-                  {/* Gradient overlays for expanded state so that the edges fade out */}
-                  {/* Match the assistant surface (bg-background) so edges fade cleanly */}
-                  <div className="from-background absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
-                  <div className="from-background absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
-                </>
-              )}
+              {/* Match the assistant surface so the loading animation fades at both edges. */}
+              <div className="from-background absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
+              <div className="from-background absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
             </div>
           </div>
         ) : null}
-        <div className={cn("p-1.5", isExpanded && "pt-0")}>
+        <div
+          className={cn(
+            "p-1.5",
+            (isExpanded || isAssistantTurnInProgress) && "pt-0",
+          )}
+        >
           {/* The composer separates from the transcript by elevation, not by a
               rule: one hairline edge, a lifted surface, and a footer band a
               step off the input. `overflow-hidden` keeps that band inside the
@@ -1635,7 +1630,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     executionStop?.onStop();
                   }}
                 >
-                  <Square className="size-3" />
+                  <Square className="text-muted-foreground size-3 fill-current" />
                 </Button>
               ) : (
                 <Button

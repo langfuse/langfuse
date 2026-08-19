@@ -305,7 +305,7 @@ function TextMessageWithActions({
     <>
       <button
         type="button"
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-md p-1 outline-none focus-visible:ring-2"
+        className="text-muted-foreground/50 hover:text-muted-foreground focus-visible:ring-ring rounded-md p-1 outline-none focus-visible:ring-2"
         aria-label={isCopied ? "Message copied" : "Copy message"}
         title={isCopied ? "Copied" : "Copy message"}
         onClick={handleCopy}
