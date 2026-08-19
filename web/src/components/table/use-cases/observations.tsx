@@ -56,6 +56,10 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  formatObservationCost,
+  isObservationCostDisplayable,
+} from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
@@ -858,8 +862,13 @@ export default function ObservationsTable({
       size: 120,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("totalCost");
+        const type = row.original.type;
 
-        return value !== undefined ? (
+        if (!isObservationCostDisplayable(value, type)) {
+          return <span>{formatObservationCost(value, type)}</span>;
+        }
+
+        return (
           <BreakdownTooltip
             details={row.original.costDetails}
             isCost
@@ -870,7 +879,7 @@ export default function ObservationsTable({
               <InfoIcon className="h-3 w-3" />
             </div>
           </BreakdownTooltip>
-        ) : undefined;
+        );
       },
       enableHiding: true,
       enableSorting,
@@ -1266,9 +1275,11 @@ export default function ObservationsTable({
               outputCost: number | undefined;
             } = row.getValue("cost");
 
-            return value.inputCost !== undefined ? (
-              <span>{usdFormatter(value.inputCost)}</span>
-            ) : undefined;
+            return (
+              <span>
+                {formatObservationCost(value.inputCost, row.original.type)}
+              </span>
+            );
           },
           enableHiding: true,
           defaultHidden: true,
@@ -1286,9 +1297,11 @@ export default function ObservationsTable({
               outputCost: number | undefined;
             } = row.getValue("cost");
 
-            return value.outputCost !== undefined ? (
-              <span>{usdFormatter(value.outputCost)}</span>
-            ) : undefined;
+            return (
+              <span>
+                {formatObservationCost(value.outputCost, row.original.type)}
+              </span>
+            );
           },
           enableHiding: true,
           defaultHidden: true,
