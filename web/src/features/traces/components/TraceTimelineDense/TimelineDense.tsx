@@ -47,6 +47,7 @@
  * and absolutely-positioned rows are the wrong substrate. That is the next spike.
  */
 
+import { type CSSProperties } from "react";
 import { useTheme } from "next-themes";
 import {
   useCallback,
@@ -64,6 +65,10 @@ import {
   Plus,
 } from "lucide-react";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import {
+  tooltipPlacement,
+  type TooltipPlacement,
+} from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/ui/layer";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
@@ -1614,13 +1619,15 @@ export function TimelineDense({
         {focused && pointerPos && !dragging && pointerPos.x > gutterWidth ? (
           <Layer name="tooltip">
             <div
-              className="border-border bg-background text-foreground pointer-events-none fixed flex max-w-[min(320px,90vw)] flex-col gap-0.5 rounded border px-1.5 py-1 shadow-md"
-              style={{
-                left: `${Math.round(pointerPos.clientX + (pointerPos.clientX > window.innerWidth * 0.6 ? -12 : 12))}px`,
-                top: `${Math.round(pointerPos.clientY + (pointerPos.clientY > window.innerHeight * 0.6 ? -12 : 12))}px`,
-                transform: `translate(${pointerPos.clientX > window.innerWidth * 0.6 ? "-100%" : "0"}, ${pointerPos.clientY > window.innerHeight * 0.6 ? "-100%" : "0"})`,
-                fontSize: "10px",
-              }}
+              className="border-border bg-background text-foreground pointer-events-none fixed flex flex-col gap-0.5 rounded border px-1.5 py-1 shadow-md"
+              style={tooltipStyle(
+                tooltipPlacement({
+                  clientX: pointerPos.clientX,
+                  clientY: pointerPos.clientY,
+                  viewportWidth: window.innerWidth,
+                  viewportHeight: window.innerHeight,
+                }),
+              )}
               data-testid="timeline-dense-tooltip"
             >
               {/* Two rows, like a tree row: identity, then the metrics. One row
@@ -1684,6 +1691,17 @@ export function TimelineDense({
  * its name, indented by depth. Shared by the in-flow rail and the peek overlay so
  * the two cannot drift apart.
  */
+/** The placement as inline style. Split out so the geometry stays pure. */
+function tooltipStyle(placement: TooltipPlacement): CSSProperties {
+  return {
+    left: `${Math.round(placement.left)}px`,
+    top: `${Math.round(placement.top)}px`,
+    transform: placement.transform,
+    maxWidth: `${Math.round(placement.maxWidth)}px`,
+    fontSize: "10px",
+  };
+}
+
 function GutterContent({
   node,
   width,
