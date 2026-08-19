@@ -304,6 +304,9 @@ type DropdownMenuItemWithSecondaryActionProps = {
   };
 } & DropdownMenuItemAction;
 
+const relForTarget = (target: React.ComponentProps<typeof Link>["target"]) =>
+  target === "_blank" ? "noopener noreferrer" : undefined;
+
 const dropdownMenuItemPrimaryActionVariants = cva(
   "flex min-w-0 flex-1 cursor-pointer items-center px-2 py-1.5",
 );
@@ -345,11 +348,7 @@ const DropdownMenuItemWithSecondaryAction = (
         <Link
           href={secondaryAction.href}
           target={secondaryAction.target}
-          rel={
-            secondaryAction.target === "_blank"
-              ? "noopener noreferrer"
-              : undefined
-          }
+          rel={relForTarget(secondaryAction.target)}
           aria-label={secondaryAction.ariaLabel}
           aria-disabled={isDisabled}
           tabIndex={isDisabled ? -1 : undefined}
@@ -416,7 +415,7 @@ const DropdownMenuItemWithSecondaryAction = (
           }}
           href={props.href}
           target={props.target}
-          rel={props.target === "_blank" ? "noopener noreferrer" : undefined}
+          rel={relForTarget(props.target)}
           aria-disabled={isDisabled}
           tabIndex={isDisabled ? -1 : undefined}
           className={dropdownMenuItemPrimaryActionVariants()}
