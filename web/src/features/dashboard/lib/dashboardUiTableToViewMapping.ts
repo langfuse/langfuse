@@ -120,7 +120,6 @@ const viewFilterDefinitions: Record<
     defineField(
       "level",
       sourceSpec("Status", { uiTableId: "level", aliases: ["Level"] }),
-      sourceSpec("Level", { uiTableId: "level" }),
     ),
     defineField(
       "toolNames",
