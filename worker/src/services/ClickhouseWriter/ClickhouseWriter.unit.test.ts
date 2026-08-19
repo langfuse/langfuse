@@ -6,6 +6,12 @@ import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 
+// The module mock exposes a fake redis client; expose it in a mock-friendly
+// shape so the tests can assert on quarantine persistence and force failures.
+const redisClientMock = serverExports.redis as unknown as {
+  rpush: ReturnType<typeof vi.fn>;
+};
+
 // Mock recordHistogram, recordCount, recordGauge
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original = (await importOriginal()) as {};
@@ -20,6 +26,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
       debug: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
+    },
+    redis: {
+      rpush: vi.fn().mockResolvedValue(1),
     },
   };
 });
@@ -163,7 +172,7 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
 
-  it("should drop records after max attempts", async () => {
+  it("should quarantine records instead of dropping them after max attempts", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
       .mockRejectedValue(new Error("DB Error"));
@@ -182,12 +191,54 @@ describe("ClickhouseWriter", () => {
         call[0].includes("Max attempts reached"),
       ),
     ).toBe(true);
+    // The record is removed from the working queue...
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    // ...but its complete payload is preserved for recovery (no silent drop).
     expect(serverExports.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.rows_quarantined",
+      1,
+      { entity_type: TableName.Traces },
+    );
+    expect(serverExports.recordIncrement).not.toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.rows_dropped",
       1,
       { entity_type: TableName.Traces },
     );
+    expect(redisClientMock.rpush).toHaveBeenCalledWith(
+      expect.stringContaining(TableName.Traces),
+      expect.stringContaining('"id":"1"'),
+    );
+  });
+
+  it("does not leak the record payload to logs when the Redis quarantine is unavailable", async () => {
+    const sensitive = "SENSITIVE_PAYLOAD_8f3a";
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValue(new Error("DB Error"));
+
+    // Keep Redis failing so the quarantine write is deferred to the bounded
+    // in-memory buffer (and any background retry keeps failing) rather than
+    // being persisted or written to the log.
+    redisClientMock.rpush.mockRejectedValue(new Error("Redis down"));
+
+    writer.addToQueue(TableName.Traces, {
+      id: "1",
+      input: sensitive,
+    } as any);
+
+    for (let i = 0; i < writer.maxAttempts; i++) {
+      await vi.advanceTimersByTimeAsync(writer.writeInterval);
+    }
+
+    // The sensitive payload must never reach the (unredacted) application log.
+    const allLogs = JSON.stringify(logger.error.mock.calls);
+    expect(allLogs).not.toContain(sensitive);
+
+    // But the complete payload is retained (bounded) in memory for a later
+    // retry instead of being silently dropped.
+    const pending = (writer as any)["pendingQuarantineRecords"];
+    expect(pending).toHaveLength(1);
+    expect(pending[0].payload).toContain(sensitive);
   });
 
   it("should shutdown gracefully", async () => {

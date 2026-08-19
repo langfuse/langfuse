@@ -1,0 +1,202 @@
+Scope: all 8 workspace projects
+? Verifying lockfile against supply-chain policies (2316 entries)...
+[WARN] Request took 16572ms: https://registry.npmjs.org/@ai-sdk%2Fdeepseek
+[WARN] Request took 17059ms: https://registry.npmjs.org/@ai-sdk%2Fprovider-utils
+[WARN] Request took 13611ms: https://registry.npmjs.org/@aws-sdk%2Fregion-config-resolver
+[WARN] Request took 18423ms: https://registry.npmjs.org/@ai-sdk%2Fmcp
+[WARN] Request took 17657ms: https://registry.npmjs.org/@aws-sdk%2Fcredential-provider-http
+[WARN] Request took 17663ms: https://registry.npmjs.org/@aws-sdk%2Fcore
+[WARN] Request took 12433ms: https://registry.npmjs.org/@aws-sdk%2Futil-arn-parser
+[WARN] Request took 15994ms: https://registry.npmjs.org/@asamuzakjp%2Fcss-color
+[WARN] Request took 16623ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-flexible-checksums
+[WARN] Request took 18812ms: https://registry.npmjs.org/@ai-sdk%2Fanthropic
+[WARN] Request took 16654ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-expect-continue
+[WARN] Request took 17974ms: https://registry.npmjs.org/@aws-sdk%2Feventstream-handler-node
+[WARN] Request took 18851ms: https://registry.npmjs.org/@ai-sdk%2Fgoogle
+[WARN] Request took 16407ms: https://registry.npmjs.org/@ag-ui%2Flanggraph
+[WARN] Request took 14778ms: https://registry.npmjs.org/@aws-sdk%2Ftypes
+[WARN] Request took 16668ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-logger
+[WARN] Request took 18879ms: https://registry.npmjs.org/@ai-sdk%2Fopenai-compatible
+[WARN] Request took 18885ms: https://registry.npmjs.org/@ai-sdk%2Fopenai
+[WARN] Request took 16683ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-location-constraint
+[WARN] Request took 16733ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-host-header
+[WARN] Request took 18042ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-bucket-endpoint
+[WARN] Request took 18055ms: https://registry.npmjs.org/@aws-sdk%2Fcredential-provider-web-identity
+[WARN] Request took 18910ms: https://registry.npmjs.org/@ai-sdk%2Fazure
+[WARN] Request took 18075ms: https://registry.npmjs.org/@aws-sdk%2Fcredential-provider-env
+[WARN] Request took 18918ms: https://registry.npmjs.org/@ai-sdk%2Fgateway
+[WARN] Request took 18089ms: https://registry.npmjs.org/@aws-sdk%2Fcredential-provider-process
+[WARN] Request took 16236ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-recursion-detection
+[WARN] Request took 16129ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-websocket
+[WARN] Request took 18948ms: https://registry.npmjs.org/@ai-sdk%2Famazon-bedrock
+[WARN] Request took 14852ms: https://registry.npmjs.org/@aws-sdk%2Fsignature-v4-multi-region
+[WARN] Request took 16272ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-eventstream
+[WARN] Request took 16210ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-ssec
+[WARN] Request took 16170ms: https://registry.npmjs.org/@aws-sdk%2Fnested-clients
+[WARN] Request took 18987ms: https://registry.npmjs.org/@aws-sdk%2Fclient-bedrock-agent-runtime
+[WARN] Request took 19012ms: https://registry.npmjs.org/@ai-sdk%2Fgoogle-vertex
+[WARN] Request took 14934ms: https://registry.npmjs.org/@aws-sdk%2Ftoken-providers
+[WARN] Request took 16264ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-user-agent
+[WARN] Request took 19029ms: https://registry.npmjs.org/@aws-sdk%2Fclient-bedrock-runtime
+[WARN] Request took 16306ms: https://registry.npmjs.org/@aws-sdk%2Fmiddleware-sdk-s3
+[WARN] Request took 18212ms: https://registry.npmjs.org/@aws-sdk%2Fcredential-provider-sso
+[WARN] Request took 18459ms: https://registry.npmjs.org/@aws-sdk%2Fcredential-provider-cognito-identity
+[WARN] Request took 18468ms: https://registry.npmjs.org/@aws-sdk%2Fcredential-provider-ini
+[WARN] Request took 18487ms: https://registry.npmjs.org/@aws-sdk%2Fcredential-provider-node
+..                                       | Progress: resolved 1, reused 0, downloaded 0, added 0
+..                                       | +787 -631 +++++++++++++++------------
+[WARN] Request took 18856ms: https://registry.npmjs.org/@aws-sdk%2Fcredential-providers
+[WARN] Request took 17987ms: https://registry.npmjs.org/@aws-sdk%2Flib-storage
+[WARN] Request took 13773ms: https://registry.npmjs.org/@anthropic-ai%2Fsdk
+[WARN] Request took 16081ms: https://registry.npmjs.org/@aws-sdk%2Fs3-request-presigner
+[WARN] Request took 20218ms: https://registry.npmjs.org/@aws-sdk%2Fclient-sesv2
+[WARN] Request took 20246ms: https://registry.npmjs.org/@aws-sdk%2Fclient-cloudwatch
+[WARN] Request took 20285ms: https://registry.npmjs.org/@aws-sdk%2Fclient-cognito-identity
+[WARN] Request took 20320ms: https://registry.npmjs.org/@aws-sdk%2Fclient-lambda
+[WARN] Request took 20663ms: https://registry.npmjs.org/pnpm
+
+   Ôò¡ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔò«
+   Ôöé                                          Ôöé
+   Ôöé   Update available! 11.10.0 ÔåÆ 11.22.0.   Ôöé
+   Ôöé   Changelog: https://pnpm.io/v/11.22.0   Ôöé
+   Ôöé     To update, run: pnpm add -g pnpm     Ôöé
+   Ôöé                                          Ôöé
+   Ôò░ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔò»
+
+..                                       | Progress: resolved 787, reused 131, downloaded 0, added 0
+[WARN] Request took 20531ms: https://registry.npmjs.org/@aws-sdk%2Fclient-s3
+[WARN] Request took 20779ms: https://registry.npmjs.org/@aws-sdk%2Fclient-kendra
+..                                       | Progress: resolved 787, reused 234, downloaded 57, added 1
+..                                       | Progress: resolved 787, reused 234, downloaded 112, added 2
+..                                       | Progress: resolved 787, reused 235, downloaded 138, added 3
+..                                       | Progress: resolved 787, reused 235, downloaded 227, added 5
+..                                       | Progress: resolved 787, reused 235, downloaded 269, added 5
+..                                       | Progress: resolved 787, reused 235, downloaded 289, added 5
+..                                       | Progress: resolved 787, reused 235, downloaded 334, added 5
+..                                       | Progress: resolved 787, reused 235, downloaded 425, added 7
+..                                       | Progress: resolved 787, reused 235, downloaded 469, added 14
+..                                       | Progress: resolved 787, reused 235, downloaded 506, added 15
+..                                       | Progress: resolved 787, reused 235, downloaded 542, added 18
+..                                       | Progress: resolved 787, reused 235, downloaded 547, added 35
+..                                       | Progress: resolved 787, reused 235, downloaded 547, added 52
+..                                       | Progress: resolved 787, reused 235, downloaded 548, added 132
+[WARN] Request took 10457ms: https://registry.npmjs.org/@prisma%2Fengines
+..                                       | Progress: resolved 787, reused 235, downloaded 549, added 166
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 194
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 204
+[WARN] Request took 13135ms: https://registry.npmjs.org/@prisma%2Fdebug
+[WARN] Request took 13534ms: https://registry.npmjs.org/@prisma%2Fget-platform
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 233
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 280
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 315
+[WARN] Request took 15778ms: https://registry.npmjs.org/@prisma%2Ffetch-engine
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 339
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 355
+[WARN] Request took 18283ms: https://registry.npmjs.org/@prisma%2Fclient
+Ô£ô Lockfile passes supply-chain policies (2316 entries in 43.9s)
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 397
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 454
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 466
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 553
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 578
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 619
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 621
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 623
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 624
+..                                       | Progress: resolved 787, reused 235, downloaded 550, added 625, done
+.../node_modules/unrs-resolver postinstall$ napi-postinstall unrs-resolver 1.11.1 check
+.../sharp@0.34.5/node_modules/sharp install$ node install/check.js || npm run build
+.../node_modules/@sentry/cli postinstall$ node ./scripts/install.js
+.../sharp@0.34.5/node_modules/sharp install: Done
+.../node_modules/@sentry/cli postinstall: Done
+.../node_modules/unrs-resolver postinstall: Done
+.../node_modules/@prisma/client postinstall$ node scripts/postinstall.js
+.../node_modules/@prisma/client postinstall: Done
+
+dependencies:
+- @aws-sdk/client-s3 3.1079.0
++ @aws-sdk/client-s3 3.1024.0
+- @opentelemetry/resource-detector-aws 2.20.0
++ @opentelemetry/resource-detector-aws 2.19.0
+- @opentelemetry/resource-detector-container 0.8.11
++ @opentelemetry/resource-detector-container 0.8.10
+- @opentelemetry/resources 2.9.0
++ @opentelemetry/resources 2.8.0
+- bullmq 5.79.2
++ bullmq 5.76.3
+- exponential-backoff 3.1.3
++ exponential-backoff 3.1.2
+- helmet 7.2.0
++ helmet 7.1.0
+- ioredis 5.11.1
++ ioredis 5.10.1
+- pg 8.22.0
++ pg 8.13.0
+- posthog-node 5.39.4
++ posthog-node 5.38.4
+- stripe 17.7.0
++ stripe 17.4.0
+- tiktoken 1.0.22
++ tiktoken 1.0.20
+- uuid 14.0.1
++ uuid 14.0.0
+
+devDependencies:
+- @types/pg 8.20.0
++ @types/pg 8.15.6
+- @vitest/coverage-v8 4.1.9
++ @vitest/coverage-v8 4.1.8
+- google-auth-library 10.9.0
++ google-auth-library 10.6.2
+- msw 2.14.6
++ msw 2.6.5
+- prettier 3.9.4
++ prettier 3.8.3
+- tsc-watch 6.3.1
++ tsc-watch 6.2.0
+- tsx 4.23.0
++ tsx 4.20.5
+- typescript 5.9.3
++ typescript 5.9.2
+- vitest 4.1.9
++ vitest 4.1.8
+
+.. postinstall$ node -e "const fs = require('node:fs'); const cp = require('node:child_process'); if (!fs.existsSync('scripts/postinstall.sh')) { console.log('Skipping repo postinstall helper: scripts/postinstall.sh is not present in this install context.'); process.exit(0); } cp.execSync('bash scripts/postinstall.sh', { stdio: 'inherit' });"
+.. postinstall: <3>WSL (9 - Relay) ERROR: CreateProcessCommon:818: execvpe(/bin/bash) failed: No such file or directory
+.. postinstall: node:child_process:1000
+.. postinstall:     throw err;
+.. postinstall:     ^
+.. postinstall: Error: Command failed: bash scripts/postinstall.sh
+.. postinstall:     at genericNodeError (node:internal/errors:985:15)
+.. postinstall:     at wrappedFn (node:internal/errors:539:14)
+.. postinstall:     at checkExecSyncError (node:child_process:925:11)
+.. postinstall:     at Object.execSync (node:child_process:997:15)
+.. postinstall:     at [eval]:1:257
+.. postinstall:     at runScriptInThisContext (node:internal/vm:219:10)
+.. postinstall:     at node:internal/process/execution:451:12
+.. postinstall:     at [eval]-wrapper:6:24
+.. postinstall:     at runScriptInContext (node:internal/process/execution:449:60)
+.. postinstall:     at evalFunction (node:internal/process/execution:283:30) {
+.. postinstall:   status: 1,
+.. postinstall:   signal: null,
+.. postinstall:   output: [ null, null, null ],
+.. postinstall:   pid: 10712,
+.. postinstall:   stdout: null,
+.. postinstall:   stderr: null
+.. postinstall: }
+.. postinstall: Node.js v24.17.0
+.. postinstall: Failed
+[ELIFECYCLE] Command failed with exit code 1.
+[ERROR] Command failed with exit code 1: "C:\Program Files\nodejs\node.exe" "C:\Users\jacop\AppData\Local\pnpm\store\v11\links\@\pnpm\11.10.0\76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d\node_modules\pnpm\bin\pnpm.mjs" install
+
+pnpm: Command failed with exit code 1: "C:\Program Files\nodejs\node.exe" "C:\Users\jacop\AppData\Local\pnpm\store\v11\links\@\pnpm\11.10.0\76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d\node_modules\pnpm\bin\pnpm.mjs" install
+    at getFinalError (file:///C:/Users/jacop/AppData/Local/pnpm/store/v11/links/@/pnpm/11.10.0/76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d/node_modules/pnpm/dist/pnpm.mjs:36339:14)
+    at makeError (file:///C:/Users/jacop/AppData/Local/pnpm/store/v11/links/@/pnpm/11.10.0/76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d/node_modules/pnpm/dist/pnpm.mjs:38646:21)
+    at getSyncResult (file:///C:/Users/jacop/AppData/Local/pnpm/store/v11/links/@/pnpm/11.10.0/76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d/node_modules/pnpm/dist/pnpm.mjs:40490:10)
+    at spawnSubprocessSync (file:///C:/Users/jacop/AppData/Local/pnpm/store/v11/links/@/pnpm/11.10.0/76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d/node_modules/pnpm/dist/pnpm.mjs:40450:14)
+    at execaCoreSync (file:///C:/Users/jacop/AppData/Local/pnpm/store/v11/links/@/pnpm/11.10.0/76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d/node_modules/pnpm/dist/pnpm.mjs:40380:23)
+    at callBoundExeca (file:///C:/Users/jacop/AppData/Local/pnpm/store/v11/links/@/pnpm/11.10.0/76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d/node_modules/pnpm/dist/pnpm.mjs:42908:23)
+    at boundExeca (file:///C:/Users/jacop/AppData/Local/pnpm/store/v11/links/@/pnpm/11.10.0/76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d/node_modules/pnpm/dist/pnpm.mjs:42885:49)
+    at sync (file:///C:/Users/jacop/AppData/Local/pnpm/store/v11/links/@/pnpm/11.10.0/76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d/node_modules/pnpm/dist/pnpm.mjs:43044:10)
+    at runPnpmCli (file:///C:/Users/jacop/AppData/Local/pnpm/store/v11/links/@/pnpm/11.10.0/76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d/node_modules/pnpm/dist/pnpm.mjs:247663:5)
+    at runDepsStatusCheck (file:///C:/Users/jacop/AppData/Local/pnpm/store/v11/links/@/pnpm/11.10.0/76d2911469b7a49ed798aa9aec24424501c0ac48a510d3990c9971e82b59452d/node_modules/pnpm/dist/pnpm.mjs:249406:7)
