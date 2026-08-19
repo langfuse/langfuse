@@ -4,6 +4,7 @@ import {
   getLangfuseAITraceSinkParams,
   logger,
   redis,
+  traceException,
 } from "@langfuse/shared/src/server";
 import {
   createAndAddApiKeysToDb,
@@ -37,6 +38,7 @@ import {
   clearRunMcpApiKeyPointer,
   finishClaimedRun,
   heartbeatClaimedRun,
+  reconcileConversationRuns,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import {
   createInAppAgentMcpRunOverride,
@@ -82,7 +84,7 @@ export async function executeInAppAgentRun(params: {
   const awsProfile = env.AWS_PROFILE ?? env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
 
   // Claim CAS: zero rows means duplicate delivery or a run reconciled away
-  // while queued — ack and exit, Postgres owns correctness.
+  // while queued. Reconcile then ack — Postgres owns correctness.
   const run = await claimQueuedRun({ prisma, projectId, runId });
 
   if (!run) {
@@ -90,6 +92,20 @@ export async function executeInAppAgentRun(params: {
       projectId,
       runId,
     });
+
+    const existing = await prisma.inAppAgentRun.findUnique({
+      where: { id_projectId: { id: runId, projectId } },
+      select: { conversationId: true },
+    });
+
+    if (existing) {
+      await reconcileConversationRuns({
+        prisma,
+        projectId,
+        conversationId: existing.conversationId,
+      });
+    }
+
     return;
   }
 
@@ -574,9 +590,12 @@ export async function executeInAppAgentRun(params: {
       }),
     });
     await cleanupMcpApiKeyLogged();
-
+    // Terminal persist succeeded; ACK so the job does not sit in the DLQ.
+    // Loop failures used to rethrow. Record the APM error without failing
+    // the BullMQ job. Init failures were already ACK'd and stay off
+    // Error Tracking.
     if (!(error instanceof InAppAgentRunInitError)) {
-      throw error;
+      traceException(error);
     }
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
