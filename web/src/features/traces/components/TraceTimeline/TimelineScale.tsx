@@ -13,6 +13,10 @@
  * everything-inside-the-box rule as everything else.
  */
 
+import {
+  TICK_LABEL_GAP_PX,
+  TICK_LABEL_INSET_PX,
+} from "../../fns/timeline/layout";
 import { type TimelineScaleProps } from "./types";
 
 export function TimelineScale({ ticks, laneWidth }: TimelineScaleProps) {
@@ -31,10 +35,21 @@ export function TimelineScale({ ticks, laneWidth }: TimelineScaleProps) {
             {/* maxWidth is the structural guarantee: layout() already drops a
                 tick whose label would not fit, but it predicts the width from
                 measured glyphs, and a prediction must not be the only thing
-                keeping the axis inside the box. */}
+                keeping the axis inside the box.
+
+                The offset and the clamp both come from the constant layout()
+                reserves with, so the prediction and the render cannot drift. */}
             <span
-              className="text-muted-foreground absolute left-1 overflow-hidden text-xs whitespace-nowrap"
-              style={{ maxWidth: `${Math.max(laneWidth - tick.x - 4, 0)}px` }}
+              className="text-muted-foreground absolute overflow-hidden text-xs whitespace-nowrap"
+              style={{
+                // Inside the tick's border, so the gap — while the clamp pays for
+                // the border too, which is what layout() reserved.
+                left: `${TICK_LABEL_GAP_PX}px`,
+                maxWidth: `${Math.max(
+                  laneWidth - tick.x - TICK_LABEL_INSET_PX,
+                  0,
+                )}px`,
+              }}
               title={tick.label}
             >
               {tick.label}

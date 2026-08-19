@@ -172,8 +172,23 @@ const EPSILON = 0.5;
 const MAX_TICKS = 64;
 const MIN_TICK_GAP_PX = 56;
 const TICK_LABEL_PADDING_PX = 16;
-/** Matches the renderer's label offset from its tick line. */
-const TICK_LABEL_INSET_PX = 6;
+/** The tick line itself — a `border-l`, which the label is positioned inside of. */
+export const TICK_LINE_PX = 1;
+/** The gap between that line and its label. */
+export const TICK_LABEL_GAP_PX = 4;
+/**
+ * What a label costs to the right of its tick's `x`: the line, then the gap.
+ * Derived rather than written down, and exported, because the renderer positions
+ * with the same two facts.
+ *
+ * There were three numbers for this one distance — 6 here, a `left-1` in the CSS
+ * and a literal 4 in the label's own clamp — and every one of them was wrong: the
+ * label sits inside the tick's 1px border, so its offset from `x` is 5. 6 dropped
+ * a tick that would have rendered whole; 4 would have admitted one whose label
+ * then gets truncated by its clamp. A reservation that does not match the render
+ * is wrong even when it errs safely, because nothing says which way it errs next.
+ */
+export const TICK_LABEL_INSET_PX = TICK_LINE_PX + TICK_LABEL_GAP_PX;
 
 // Nice tick steps in ms. Above a minute they land on time-nice boundaries so
 // hour-scale traces get clean labels instead of "1500s".
