@@ -179,6 +179,93 @@ describe("sandbox runtime docker container", () => {
         }),
       });
 
+      const sensitiveFileContent = "customer-read-content-must-not-be-logged";
+      await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "write",
+          path: "sensitive.txt",
+          content: sensitiveFileContent,
+        }),
+      });
+      await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "read",
+          path: "sensitive.txt",
+        }),
+      });
+
+      const sensitiveOldText = "customer-edit-old-text-must-not-be-logged";
+      const sensitiveNewText = "customer-edit-new-text-must-not-be-logged";
+      await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "write",
+          path: "edit-sensitive.txt",
+          content: sensitiveOldText,
+        }),
+      });
+      await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "edit",
+          path: "edit-sensitive.txt",
+          oldText: sensitiveOldText,
+          newText: sensitiveNewText,
+        }),
+      });
+
+      const sensitiveToolCallContent =
+        "customer-tool-call-content-must-not-be-logged";
+      await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command: "true",
+          toolCallFiles: [
+            {
+              path: "/workspace/tool_calls/sensitive.txt",
+              content: sensitiveToolCallContent,
+            },
+          ],
+        }),
+      });
+
+      const sensitiveCommand =
+        "printf customer-stdout-must-not-be-logged; printf customer-stderr-must-not-be-logged >&2 # customer-command-must-not-be-logged";
+      await requestJson(baseUrl, "/sandbox", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bash",
+          command: sensitiveCommand,
+        }),
+      });
+
+      const logs = await getContainerLogs(container!);
+      expect(logs).not.toContain(sensitiveFileContent);
+      expect(logs).not.toContain(sensitiveOldText);
+      expect(logs).not.toContain(sensitiveNewText);
+      expect(logs).not.toContain(sensitiveToolCallContent);
+      expect(logs).not.toContain("customer-command-must-not-be-logged");
+      expect(logs).not.toContain("customer-stdout-must-not-be-logged");
+      expect(logs).not.toContain("customer-stderr-must-not-be-logged");
+      expect(logs).toContain(
+        `"contentBytes":${Buffer.byteLength(sensitiveFileContent, "utf8")}`,
+      );
+      expect(logs).toContain(
+        `"oldTextLength":${sensitiveOldText.length},"newTextLength":${sensitiveNewText.length}`,
+      );
+      expect(logs).toContain(
+        `"commandBytes":${Buffer.byteLength(sensitiveCommand, "utf8")}`,
+      );
+      expect(logs).toContain(
+        `"stdoutBytes":${Buffer.byteLength("customer-stdout-must-not-be-logged", "utf8")}`,
+      );
+      expect(logs).toContain(
+        `"stderrBytes":${Buffer.byteLength("customer-stderr-must-not-be-logged", "utf8")}`,
+      );
+
       const escaped = await requestJson(baseUrl, "/sandbox", {
         method: "POST",
         body: JSON.stringify({
@@ -384,12 +471,7 @@ async function waitForHealth(baseUrl: string, container: Docker.Container) {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
-  const logs = await container
-    .logs({ stdout: true, stderr: true, tail: 50 })
-    .catch(() => Buffer.from(""));
-  const logText = Buffer.isBuffer(logs)
-    ? logs.toString("utf8")
-    : await readStreamToString(logs);
+  const logText = await getContainerLogs(container);
 
   throw new Error(
     [
@@ -419,6 +501,15 @@ async function waitForContainerFile(
   }
 
   throw new Error(`Container file did not appear: ${filePath}`);
+}
+
+async function getContainerLogs(container: Docker.Container) {
+  const logs = await container
+    .logs({ stdout: true, stderr: true, tail: 50 })
+    .catch(() => Buffer.from(""));
+  return Buffer.isBuffer(logs)
+    ? logs.toString("utf8")
+    : await readStreamToString(logs);
 }
 
 function readStreamToString(stream: NodeJS.ReadableStream) {

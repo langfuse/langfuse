@@ -536,7 +536,7 @@ export class InAppAgentInstrumentation {
       this.endWithError(
         typeof event.message === "string"
           ? event.message
-          : "Unknown in-app agent error",
+          : "Unknown assistant error",
       );
       return;
     }

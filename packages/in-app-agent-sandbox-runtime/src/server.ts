@@ -14,9 +14,13 @@ import {
   type EditSandboxOperation,
   type ReadSandboxOperation,
   type SandboxFile,
-  type SandboxOperation,
   type WriteSandboxOperation,
 } from "./contracts.js";
+import {
+  summarizeBashResult,
+  summarizeOperation,
+  summarizeReadResult,
+} from "./logging.js";
 
 const SERVER_PORT = 5000;
 const WORKSPACE_ROOT = "/workspace";
@@ -193,7 +197,7 @@ async function readOperation(body: ReadSandboxOperation, requestId: string) {
   logSandboxServer("read.complete", {
     requestId,
     path: body.path,
-    result,
+    result: summarizeReadResult(filePath, content),
   });
   return { result };
 }
@@ -257,7 +261,7 @@ async function bashOperation(body: BashSandboxOperation, requestId: string) {
   const result = await runCommand(body.command, body.timeoutMs, requestId);
   logSandboxServer("bash.complete", {
     requestId,
-    result,
+    result: summarizeBashResult(result),
   });
   return { result };
 }
@@ -359,7 +363,7 @@ function runCommand(
     logSandboxServer("bash.start", {
       requestId,
       pid: child.pid ?? null,
-      command,
+      commandBytes: Buffer.byteLength(command, "utf8"),
       timeoutMs: timeoutMs ?? null,
     });
 
@@ -464,32 +468,6 @@ function runCommand(
 function logSandboxServer(event: string, details?: Record<string, unknown>) {
   const payload = details ? ` ${JSON.stringify(details)}` : "";
   console.log(`[sandbox] ${new Date().toISOString()} ${event}${payload}`);
-}
-
-function summarizeOperation(body: SandboxOperation) {
-  switch (body.operation) {
-    case "read":
-      return { operation: body.operation, path: body.path };
-    case "write":
-      return {
-        operation: body.operation,
-        path: body.path,
-        contentBytes: Buffer.byteLength(body.content, "utf8"),
-      };
-    case "edit":
-      return {
-        operation: body.operation,
-        path: body.path,
-        oldTextLength: body.oldText.length,
-        newTextLength: body.newText.length,
-      };
-    case "bash":
-      return {
-        operation: body.operation,
-        timeoutMs: body.timeoutMs ?? null,
-        command: body.command,
-      };
-  }
 }
 
 function resolveSandboxPath(requestPath: string) {
