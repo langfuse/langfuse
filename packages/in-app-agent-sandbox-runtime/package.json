@@ -11,6 +11,8 @@
     "build:test": "tsc",
     "build:docker-image": "tsc && docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
     "start": "node ./dist/server.js",
+    "test": "vitest run --project unit",
+    "test:e2e": "pnpm run build && vitest run --project e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -21,6 +23,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.3.0",
     "prettier": "^3.8.3",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
   }
 }

@@ -119,6 +119,14 @@
       "cache": true,
       "outputLogs": "errors-only"
     },
+    "@repo/in-app-agent-sandbox-runtime#test": {
+      "dependsOn": [],
+      "cache": true
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
     "worker#dev": {
       "cache": false,
       "persistent": true
