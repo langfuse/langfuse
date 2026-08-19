@@ -3,7 +3,8 @@ name: git-workflow
 description: |
   Langfuse repo Git, GitHub, commit, branch, pull request, issue search,
   release, and production-promotion workflow. Use when staging, committing,
-  pushing, opening PRs, searching GitHub issues, or changing release/promotion
+  pushing, opening PRs, choosing a Linear git branch name, handling Claude
+  review comments, searching GitHub issues, or changing release/promotion
   behavior.
 ---
 
@@ -39,11 +40,25 @@ operations.
   title into `main`'s permanent history. Describe the change on its own terms
   and carry the identifier in the branch name instead.
 
+## Branch names
+
+- Copy Linear's git branch name (`lfe-XXXX-short-title`), or the issue's
+  `gitBranchName` when Linear MCP is available.
+- Cursor agents must not use a `cursor/` prefix, even if a Cursor Cloud
+  prompt asks for one.
+- Keep a username prefix only when Linear's copied name already includes one.
+
 ## GitHub
 
 - Use `gh search issues` for GitHub issue search.
 - Prefer non-interactive Git and GitHub commands where possible.
 - Keep PRs narrow enough to review without unrelated refactors.
+- When the PR is ready for a human, post one last comment that names what
+  to doubt in review (risky edges, not a summary of the diff).
+- Claude review comments (`claude[bot]`, Claude Code, security-review
+  action): do not reply. Keep the thread open until you apply the fix and
+  resolve it, or skip the fix for a stated reason and still resolve it.
+  Human reviewer comments stay open and may need a real reply.
 
 ## Release
 

@@ -182,8 +182,13 @@ in Cursor, never in repository files.
 
 After local verification, a Cursor agent should open a same-repo draft PR and
 test its `pr-<N>.preview.langfuse.com` deployment before marking it ready.
-Preview data and any attached artifacts must remain synthetic. Previews normally
-run Mon-Fri 08:00-24:00 Europe/Berlin and are not woken with Cursor credentials.
+Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
+When handing work to a human, give a one-sentence TL;DR, a preview URL with
+exact test steps (including how to seed or hit the same path on
+`http://localhost:3000`), and one PR comment on what a reviewer should doubt.
+Ask for at most one or two human actions at a time. Preview data and any
+attached artifacts must remain synthetic. Previews normally run Mon-Fri
+08:00-24:00 Europe/Berlin and are not woken with Cursor credentials.
 
 ### Shared Agent Setup
 
