@@ -1,5 +1,5 @@
 import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
-import { Link2, ListTree, Plus, Unlink } from "lucide-react";
+import { Link2, Plus, Unlink } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -27,6 +27,7 @@ import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/va
 import { getRuleNavigationUrl } from "@/src/features/evals/v2/utils/ruleNavigation";
 import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
+import { RuleRelationshipButton } from "@/src/features/evals/v2/components/Rules/EvaluatorRuleRelationships/RuleRelationshipButton";
 
 function keepSheetOpenForRelationshipOverlay(
   event: Event & { preventDefault: () => void },
@@ -37,30 +38,6 @@ function keepSheetOpenForRelationshipOverlay(
   ) {
     event.preventDefault();
   }
-}
-
-function RuleCount({ count }: { count: number }) {
-  return (
-    <span className="bg-muted ml-1 rounded-full px-1.5 py-0.5 text-xs tabular-nums">
-      {count}
-    </span>
-  );
-}
-
-function RuleRelationshipButton({
-  count,
-  onClick,
-}: {
-  count: number;
-  onClick: () => void;
-}) {
-  return (
-    <Button type="button" variant="outline" onClick={onClick}>
-      <ListTree className="mr-2 h-4 w-4" />
-      Rules
-      <RuleCount count={count} />
-    </Button>
-  );
 }
 
 export function EvaluatorRuleRelationships({
@@ -86,6 +63,9 @@ export function EvaluatorRuleRelationships({
     <>
       <RuleRelationshipButton
         count={assignments.data?.length ?? 0}
+        shouldCallAttention={
+          !assignments.isPending && assignments.data?.length === 0
+        }
         onClick={() => setOpen(true)}
       />
       <EvaluatorRuleRelationshipsSheet
