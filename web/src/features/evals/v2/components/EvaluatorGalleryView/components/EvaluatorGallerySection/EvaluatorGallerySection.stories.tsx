@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { expect, fn, userEvent } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../../../.storybook/preview";
 import { EvaluatorGallerySection } from "./EvaluatorGallerySection";
+import { EVALUATOR_GALLERY_SAFETY_CALLOUT } from "../../../../constants/evaluatorGallery";
 import type {
   GallerySection,
   GalleryTemplate,
@@ -61,7 +62,7 @@ const listSection: GallerySection = {
 
 const recommendedSection: GallerySection = {
   key: "recommended",
-  label: "Recommended for you",
+  label: "Recommended starting points",
   description: "A curated starter set of templates.",
   templates: [
     { ...template, key: "chat-intent", name: "Classify chat intent" },
@@ -72,6 +73,31 @@ const recommendedSection: GallerySection = {
       icon: "shield",
     },
     { ...template, key: "language", name: "Detect language match" },
+  ],
+};
+
+const safetySection: GallerySection = {
+  key: "safety",
+  label: "Safety / Security",
+  description:
+    "Monitors policy adherence, privacy leakage, and adversarial prompts.",
+  templates: [
+    {
+      ...template,
+      key: "prompt-injection",
+      name: "Detect prompt injection",
+      icon: "shield",
+      categories: ["safety"],
+      description: "Flag prompts that try to override instructions.",
+    },
+    {
+      ...template,
+      key: "pii-leakage",
+      name: "Detect PII leakage",
+      icon: "shield",
+      categories: ["safety"],
+      description: "Flag responses that reveal personal data.",
+    },
   ],
 };
 
@@ -106,7 +132,7 @@ export const Recommended = meta.story({
   },
   play: async ({ canvas }) => {
     await expect(
-      canvas.getByRole("heading", { name: "Recommended for you" }),
+      canvas.getByRole("heading", { name: "Recommended starting points" }),
     ).toBeInTheDocument();
     await expect(canvas.getByText("Classify chat intent")).toBeInTheDocument();
     await expect(
@@ -115,6 +141,40 @@ export const Recommended = meta.story({
     await expect(canvas.getByText("Detect language match")).toBeInTheDocument();
     await expect(canvas.queryByText("Any application")).not.toBeInTheDocument();
     await expect(canvas.queryByText("Set up")).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByLabelText("About Safety / Security"),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByText(EVALUATOR_GALLERY_SAFETY_CALLOUT),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const Safety = meta.story({
+  args: {
+    section: safetySection,
+    expanded: false,
+    onExpandedChange: fn(),
+    onSelectTemplate: fn(),
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByRole("heading", { name: "Safety / Security" }),
+    ).toBeInTheDocument();
+    const hint = canvas.getByLabelText("About Safety / Security");
+    await expect(hint).toBeInTheDocument();
+    await expect(
+      canvas.queryByText(EVALUATOR_GALLERY_SAFETY_CALLOUT),
+    ).not.toBeInTheDocument();
+    await userEvent.hover(hint);
+    await expect(
+      await within(document.body).findByRole("tooltip", undefined, {
+        timeout: 2000,
+      }),
+    ).toHaveTextContent(EVALUATOR_GALLERY_SAFETY_CALLOUT);
+    await expect(
+      canvas.getByText("Detect prompt injection"),
+    ).toBeInTheDocument();
   },
 });
 

@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { EvaluatorRecommendedCard } from "./components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
 import { EvaluatorRecommendedCards } from "./components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
 import { EvaluatorTemplateRow } from "./components/EvaluatorTemplateRow/EvaluatorTemplateRow";
@@ -10,6 +11,8 @@ import type {
 import {
   EVALUATOR_GALLERY_PREVIEW_SIZE,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
+  EVALUATOR_GALLERY_SAFETY_CALLOUT,
+  EVALUATOR_GALLERY_SAFETY_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
 import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { getGalleryTemplateId } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
@@ -28,6 +31,7 @@ export function EvaluatorGallerySection({
 }) {
   const isRecommended =
     section.key === EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY;
+  const isSafety = section.key === EVALUATOR_GALLERY_SAFETY_SECTION_KEY;
   const shownTemplates = expanded
     ? section.templates
     : section.templates.slice(0, EVALUATOR_GALLERY_PREVIEW_SIZE);
@@ -39,7 +43,7 @@ export function EvaluatorGallerySection({
   return (
     <section className="flex scroll-mt-1 flex-col gap-3">
       {isRecommended ? (
-        <EvaluatorRecommendedCards label={section.label}>
+        <EvaluatorRecommendedCards label={section.label} count={totalCount}>
           {shownTemplates.map((template) => (
             <EvaluatorRecommendedCard
               key={getGalleryTemplateId(template)}
@@ -56,6 +60,11 @@ export function EvaluatorGallerySection({
               <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
                 {section.label}
               </h4>
+              {isSafety ? (
+                <InfoTooltip label={`About ${section.label}`}>
+                  {EVALUATOR_GALLERY_SAFETY_CALLOUT}
+                </InfoTooltip>
+              ) : null}
               <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
                 {totalCount}
               </span>

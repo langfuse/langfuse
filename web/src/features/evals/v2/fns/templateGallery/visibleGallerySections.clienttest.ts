@@ -50,7 +50,7 @@ const customSection = {
 
 const recommendedSection = {
   key: "recommended",
-  label: "Recommended for you",
+  label: "Recommended starting points",
   description: "Starter set.",
   templates: [
     { ...template, key: "chat-intent", name: "Classify chat intent" },
@@ -66,7 +66,7 @@ const qualitySection = {
 
 const navigationItems = [
   { key: "custom", label: "Your templates", count: 12 },
-  { key: "recommended", label: "Recommended for you", count: 1 },
+  { key: "recommended", label: "Recommended starting points", count: 1 },
   { key: "quality", label: "Quality", count: 1 },
 ] satisfies GalleryNavigationItem[];
 
