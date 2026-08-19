@@ -3,6 +3,7 @@ import { expect, fn, userEvent } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../../../.storybook/preview";
 import { EvaluatorGallerySection } from "./EvaluatorGallerySection";
+import { EVALUATOR_GALLERY_SAFETY_CALLOUT } from "../../../../constants/evaluatorGallery";
 import type {
   GallerySection,
   GalleryTemplate,
@@ -75,6 +76,31 @@ const recommendedSection: GallerySection = {
   ],
 };
 
+const safetySection: GallerySection = {
+  key: "safety",
+  label: "Safety / Security",
+  description:
+    "Monitors policy adherence, privacy leakage, and adversarial prompts.",
+  templates: [
+    {
+      ...template,
+      key: "prompt-injection",
+      name: "Detect prompt injection",
+      icon: "shield",
+      categories: ["safety"],
+      description: "Flag prompts that try to override instructions.",
+    },
+    {
+      ...template,
+      key: "pii-leakage",
+      name: "Detect PII leakage",
+      icon: "shield",
+      categories: ["safety"],
+      description: "Flag responses that reveal personal data.",
+    },
+  ],
+};
+
 const meta = preview.meta({ component: EvaluatorGallerySection });
 
 export const Collapsed = meta.story({
@@ -115,6 +141,29 @@ export const Recommended = meta.story({
     await expect(canvas.getByText("Detect language match")).toBeInTheDocument();
     await expect(canvas.queryByText("Any application")).not.toBeInTheDocument();
     await expect(canvas.queryByText("Set up")).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByText(EVALUATOR_GALLERY_SAFETY_CALLOUT),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const Safety = meta.story({
+  args: {
+    section: safetySection,
+    expanded: false,
+    onExpandedChange: fn(),
+    onSelectTemplate: fn(),
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByRole("heading", { name: "Safety / Security" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText(EVALUATOR_GALLERY_SAFETY_CALLOUT),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText("Detect prompt injection"),
+    ).toBeInTheDocument();
   },
 });
 

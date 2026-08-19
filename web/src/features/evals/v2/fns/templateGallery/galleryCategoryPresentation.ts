@@ -15,6 +15,7 @@ import {
   EVALUATOR_GALLERY_ALL_SECTION_KEY,
   EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
+  EVALUATOR_GALLERY_SAFETY_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
 
 export type GalleryCategoryPresentation = {
@@ -59,7 +60,7 @@ export const GALLERY_CATEGORY_PRESENTATION: Record<
     icon: FileSearch,
     iconClassName: "text-dark-teal",
   },
-  safety: {
+  [EVALUATOR_GALLERY_SAFETY_SECTION_KEY]: {
     icon: Shield,
     iconClassName: "text-dark-red",
   },

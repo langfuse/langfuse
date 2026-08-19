@@ -1,5 +1,6 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Info } from "lucide-react";
 
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { EvaluatorRecommendedCard } from "./components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
 import { EvaluatorTemplateRow } from "./components/EvaluatorTemplateRow/EvaluatorTemplateRow";
 import type {
@@ -9,6 +10,8 @@ import type {
 import {
   EVALUATOR_GALLERY_PREVIEW_SIZE,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
+  EVALUATOR_GALLERY_SAFETY_CALLOUT,
+  EVALUATOR_GALLERY_SAFETY_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
 import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { getGalleryTemplateId } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
@@ -27,6 +30,7 @@ export function EvaluatorGallerySection({
 }) {
   const isRecommended =
     section.key === EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY;
+  const isSafety = section.key === EVALUATOR_GALLERY_SAFETY_SECTION_KEY;
   const shownTemplates = expanded
     ? section.templates
     : section.templates.slice(0, EVALUATOR_GALLERY_PREVIEW_SIZE);
@@ -49,6 +53,14 @@ export function EvaluatorGallerySection({
         </div>
         <div className="border-t" />
       </div>
+      {isSafety ? (
+        <Alert variant="info" className="py-2">
+          <Info className="text-dark-blue h-4 w-4" />
+          <AlertDescription>
+            {EVALUATOR_GALLERY_SAFETY_CALLOUT}
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {isRecommended ? (
         <div className="grid grid-cols-3 gap-3">
           {shownTemplates.map((template) => (
