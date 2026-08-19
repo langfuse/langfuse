@@ -1604,7 +1604,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     executionStop?.onStop();
                   }}
                 >
-                  <Square className="size-3" />
+                  <Square className="text-muted-foreground size-3 fill-current" />
                 </Button>
               ) : (
                 <Button
