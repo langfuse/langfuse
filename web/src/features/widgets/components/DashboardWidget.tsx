@@ -33,6 +33,7 @@ import {
 } from "@/src/features/dashboard/lib/buildTableFilterHref";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import {
   buildWidgetExport,
@@ -586,6 +587,10 @@ export function DashboardWidget({
         widget_id: placement.widgetId,
         dashboard_id: dashboardId,
       });
+      showSuccessToast({
+        title: "Widget copied",
+        description: "Paste it on any dashboard with Cmd/Ctrl+V.",
+      });
     } catch {
       showErrorToast("Copy failed", "Could not write to the clipboard.");
     }
@@ -667,13 +672,6 @@ export function DashboardWidget({
                   <PencilIcon size={16} />
                 </button>
               ) : null}
-              <button
-                onClick={handleDelete}
-                className="text-muted-foreground hover:text-destructive hidden group-hover:block"
-                aria-label="Delete widget"
-              >
-                <TrashIcon size={16} />
-              </button>
             </>
           )}
           <DropdownMenu>
@@ -709,7 +707,7 @@ export function DashboardWidget({
               )}
               <DropdownMenuItem onClick={handleCopyToClipboard}>
                 <CopyIcon className="mr-2 h-4 w-4" />
-                Copy widget as JSON
+                Copy widget
               </DropdownMenuItem>
               {onDuplicateWidget && (
                 <DropdownMenuItem
@@ -736,6 +734,18 @@ export function DashboardWidget({
                 <DownloadIcon className="mr-2 h-4 w-4" />
                 Download data as CSV
               </DropdownMenuItem>
+              {!readOnly && (hasCUDAccess || isLockedEditable) && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleDelete}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <TrashIcon className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

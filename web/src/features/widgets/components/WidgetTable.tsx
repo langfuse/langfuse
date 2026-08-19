@@ -141,6 +141,10 @@ function WidgetActionsCell({
         kind: "widget",
         widget_id: widgetId,
       });
+      showSuccessToast({
+        title: "Widget copied",
+        description: "Paste it on any dashboard with Cmd/Ctrl+V.",
+      });
     } catch (error) {
       showErrorToast(
         "Failed to copy widget",
@@ -168,7 +172,7 @@ function WidgetActionsCell({
       });
       utils.dashboardWidgets.invalidate();
       showSuccessToast({
-        title: "Widget duplicated",
+        title: "Widget cloned",
         description: `Created "${exportSource.name} (Copy)".`,
       });
     } catch (error) {
@@ -190,7 +194,7 @@ function WidgetActionsCell({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={handleCopyToClipboard}>
             <Copy className="mr-2 h-4 w-4" />
-            Copy widget as JSON
+            Copy widget
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!hasCUDAccess} onClick={handleDuplicate}>
             <CopyPlus className="mr-2 h-4 w-4" />
