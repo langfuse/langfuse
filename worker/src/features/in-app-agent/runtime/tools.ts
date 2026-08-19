@@ -31,6 +31,10 @@ import {
   TracingSearchType,
 } from "@langfuse/shared";
 import {
+  InAppAgentSandboxBashArgsSchema,
+  InAppAgentSandboxEditArgsSchema,
+  InAppAgentSandboxReadArgsSchema,
+  InAppAgentSandboxWriteArgsSchema,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
@@ -45,36 +49,26 @@ export function createSandboxTools(sandbox: InAppAgentSandbox) {
     read: createTool({
       id: "read",
       description: "Read a file.",
-      inputSchema: z.object({ path: z.string().min(1) }),
+      inputSchema: InAppAgentSandboxReadArgsSchema,
       execute: async ({ path }) => sandbox.read({ path }),
     }),
     write: createTool({
       id: "write",
       description: "Create or overwrite a file.",
-      inputSchema: z.object({
-        path: z.string().min(1),
-        content: z.string(),
-      }),
+      inputSchema: InAppAgentSandboxWriteArgsSchema,
       execute: async ({ path, content }) => sandbox.write({ path, content }),
     }),
     edit: createTool({
       id: "edit",
       description: "Replace an exact text span inside a file with new text.",
-      inputSchema: z.object({
-        path: z.string().min(1),
-        oldText: z.string(),
-        newText: z.string(),
-      }),
+      inputSchema: InAppAgentSandboxEditArgsSchema,
       execute: async ({ path, oldText, newText }) =>
         sandbox.edit({ path, oldText, newText }),
     }),
     bash: createTool({
       id: "bash",
       description: "Run a shell command.",
-      inputSchema: z.object({
-        command: z.string().min(1),
-        timeoutMs: z.number().int().positive().max(120_000).default(120_000),
-      }),
+      inputSchema: InAppAgentSandboxBashArgsSchema,
       execute: async ({ command, timeoutMs }) =>
         sandbox.bash({ command, timeoutMs }),
     }),

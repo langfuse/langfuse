@@ -9,6 +9,7 @@ import { outlierTrafficScenario } from "./outlier-traffic";
 import { scoredTracesScenario } from "./scored-traces";
 import { sessionShapesScenario } from "./session-shapes";
 import { supportAgentScenario } from "./support-agent";
+import { timelineShapesScenario } from "./timeline-shapes";
 import { traceTreeScenario } from "./trace-tree";
 import { ScenarioDefinition } from "./types";
 
@@ -28,6 +29,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "annotation-queue": annotationQueueScenario,
   "custom-models": customModelsScenario,
   "support-agent": supportAgentScenario,
+  "timeline-shapes": timelineShapesScenario,
 };
 
 export * from "./types";
