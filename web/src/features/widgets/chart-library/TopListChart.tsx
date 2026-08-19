@@ -78,8 +78,12 @@ export const TopListChart: React.FC<ChartProps> = ({
     [data],
   );
 
-  const maxValue = useMemo(
-    () => Math.max(...rows.map((r) => r.value), 0),
+  // Bars encode magnitude relative to the largest |value|; the signed value
+  // in the adjacent column carries the sign. This keeps negative metrics
+  // (e.g. an averaged -1..1 score) visually ranked instead of collapsing
+  // every bar to zero width.
+  const maxMagnitude = useMemo(
+    () => Math.max(...rows.map((r) => Math.abs(r.value)), 0),
     [rows],
   );
 
@@ -120,7 +124,7 @@ export const TopListChart: React.FC<ChartProps> = ({
             <div
               className="h-full rounded-sm"
               style={{
-                width: `${maxValue > 0 ? (Math.max(row.value, 0) / maxValue) * 100 : 0}%`,
+                width: `${maxMagnitude > 0 ? (Math.abs(row.value) / maxMagnitude) * 100 : 0}%`,
                 backgroundColor: `hsl(var(--chart-1) / ${subtleFill ? 0.15 : 0.3})`,
               }}
             />
