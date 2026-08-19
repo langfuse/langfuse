@@ -16,7 +16,6 @@ describe("managedEvaluatorTemplateService", () => {
       "exact-match",
     ]);
     expect(recommendedTemplates.templates.map(({ key }) => key)).toEqual([
-      "language",
       "chat-intent",
       "out-of-scope-request",
     ]);
