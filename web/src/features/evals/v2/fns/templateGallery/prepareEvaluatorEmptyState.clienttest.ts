@@ -36,7 +36,7 @@ describe("prepareEvaluatorEmptyState", () => {
 
   it("locks the Detect Topics assistant prompt used by the empty-state experiment", () => {
     expect(DETECT_TOPICS_ASSISTANT_PROMPT).toBe(
-      "Identify 5-10 common topics in my traces and create a categorical LLM as a judge evaluator running on root observations of my traces. Make sure to add a 'other' category as well",
+      "Identify 5-10 common topics in my traces and create a categorical LLM as a judge evaluator running on root observations of my traces. Make sure to add an 'other' category as well",
     );
   });
 });
