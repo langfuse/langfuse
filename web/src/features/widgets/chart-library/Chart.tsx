@@ -210,7 +210,6 @@ const ChartComponent = ({
           <TopListChart
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
-            showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
@@ -274,7 +273,6 @@ const ChartComponent = ({
         return (
           <TopListChart
             data={renderedData.slice(0, rowLimit)}
-            showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
           />
         );

@@ -1,4 +1,4 @@
-// Dev-only test bed for LFE-14961 (dashboard widget chart spacing).
+// Dev-only test bed for dashboard widget chart spacing.
 // Renders the HORIZONTAL_BAR widget chart in several spacing strategies at
 // several row counts so the options can be compared side by side.
 // Not linked from anywhere; visit /dev/widget-bar-spacing directly.
@@ -26,6 +26,7 @@ import {
 } from "@/src/features/widgets/chart-library/utils";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { numberFormatter } from "@/src/utils/numbers";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 const TRACE_NAMES = [
   "in-app-agent-conversation",
@@ -183,10 +184,14 @@ const CopyNameButton: React.FC<{ name: string }> = ({ name }) => {
       aria-label={`Copy "${name}"`}
       title={`Copy "${name}"`}
       className="text-muted-foreground hover:bg-background/60 hover:text-foreground pointer-events-auto rounded p-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
-      onClick={() => {
-        navigator.clipboard.writeText(name).catch(() => {});
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
+      onClick={async () => {
+        try {
+          await copyTextToClipboard(name);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        } catch (error) {
+          console.error("Unable to copy to clipboard", error);
+        }
       }}
     >
       {copied ? (
@@ -448,7 +453,7 @@ export default function WidgetBarSpacingTestPage() {
       {!bare && (
         <>
           <h1 className="text-xl font-bold">
-            LFE-14961 · dashboard widget bar chart spacing variants
+            Dashboard widget bar chart spacing variants
           </h1>
           <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
             Each section fixes the row count and shows all variants side by side

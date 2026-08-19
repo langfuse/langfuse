@@ -9,11 +9,11 @@ export type BarListDataPoint = {
 
 /**
  * Chart area for the horizontal bar cards (Traces, User consumption). The
- * TopListChart lays its rows out with a fixed 16–56px rhythm and scrolls
+ * TopListChart lays its rows out with a fixed 20–56px rhythm and scrolls
  * internally when they don't fit, so this wrapper only has to bound the
  * height: `flex-1 min-h-0` takes the card's leftover space and the chart
- * fills it. No measurement, no expand state. (LFE-14961, replaces the
- * fit-row-count dance from LFE-11035/LFE-11060)
+ * fills it. No measurement, no expand state; replaces the previous
+ * fit-row-count height-measuring hook.
  */
 export function BarListChartArea({
   data,

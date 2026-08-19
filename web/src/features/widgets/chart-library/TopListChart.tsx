@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
@@ -27,11 +28,17 @@ const CopyDimensionButton: React.FC<{ value: string }> = ({ value }) => {
       aria-label={`Copy "${value}"`}
       title={`Copy "${value}"`}
       className="text-muted-foreground hover:bg-background/60 hover:text-foreground pointer-events-auto shrink-0 rounded p-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
-      onClick={(e) => {
+      onClick={async (e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(value).catch(() => {});
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
+        try {
+          // Shared util: falls back to execCommand on non-secure contexts
+          // (plain-HTTP self-hosted deployments).
+          await copyTextToClipboard(value);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        } catch (error) {
+          console.error("Unable to copy to clipboard", error);
+        }
       }}
     >
       {copied ? (
@@ -48,7 +55,7 @@ const CopyDimensionButton: React.FC<{ value: string }> = ({ value }) => {
  * shows the metric value in a left column and the dimension label on top of a
  * subtle proportional bar (top-list pattern à la Datadog). Rows keep a
  * readable rhythm regardless of how few or many there are — few rows sit
- * top-aligned instead of being spread across the tile (LFE-14961) — and the
+ * top-aligned instead of being spread across the tile — and the
  * dimension name is copyable on hover.
  */
 export const TopListChart: React.FC<ChartProps> = ({
