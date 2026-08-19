@@ -1152,6 +1152,8 @@ async function createMastraAdapter(params: {
             !isFinal
           ) {
             params.stepLimitState.wrapUp = true;
+            // instructions() is snapshotted at stream start; feedback reaches the next call.
+            return { feedback: STEP_LIMIT_WRAP_UP_INSTRUCTION };
           }
         },
         ...(params.options.sandboxWorkspaceWasReset

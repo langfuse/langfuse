@@ -606,13 +606,16 @@ describe("createAgUiStream", () => {
       "Do not call any more tools",
     );
 
-    await onIterationComplete?.({
+    const wrapUp = await onIterationComplete?.({
       iteration: IN_APP_AGENT_MAX_STEPS - 1,
       maxIterations: IN_APP_AGENT_MAX_STEPS,
       isFinal: false,
       finishReason: "tool-calls",
     });
 
+    expect(wrapUp).toEqual({
+      feedback: expect.stringContaining("<step_limit_wrap_up>"),
+    });
     expect(readAgentInstructions(agentConfig)).toContain(
       "Do not call any more tools",
     );
