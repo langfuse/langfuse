@@ -57,6 +57,18 @@ describe("formatTrpcZodValidationDescription", () => {
     );
   });
 
+  it("extracts an issue list prefixed with human text", () => {
+    const error = trpcError({
+      code: "BAD_REQUEST",
+      httpStatus: 400,
+      message: `Invalid input, ${ZOD4_TOO_SMALL_MESSAGE}`,
+    });
+
+    expect(formatTrpcZodValidationDescription(error)).toBe(
+      "name: Too small: expected string to have >=1 characters",
+    );
+  });
+
   it("joins multiple issues and uses flattenError when the message is not JSON", () => {
     const error = trpcError({
       code: "BAD_REQUEST",

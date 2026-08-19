@@ -362,6 +362,16 @@ describe("isExpectedTrpcClientError", () => {
         trpcServerError({
           code: "BAD_REQUEST",
           httpStatus: 400,
+          path: "traces.byId",
+          message: `Invalid input, ${ZOD4_TOO_SMALL_MESSAGE}`,
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
           path: "prompts.create",
           message: "Invalid input",
           zodError: {

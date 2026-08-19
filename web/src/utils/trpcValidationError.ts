@@ -34,10 +34,13 @@ export const parseZodIssueList = (
   message: string,
 ): Array<{ path: unknown; message: string }> | null => {
   const trimmed = message.trim();
-  if (!trimmed.startsWith("[")) return null;
+  // tRPC sometimes prefixes the Zod 4 JSON issue list, e.g.
+  // `Invalid input, [{ "code": "too_small", ... }]`.
+  const start = trimmed.indexOf("[");
+  if (start === -1) return null;
 
   try {
-    const parsed: unknown = JSON.parse(trimmed);
+    const parsed: unknown = JSON.parse(trimmed.slice(start));
     if (!Array.isArray(parsed) || parsed.length === 0) return null;
 
     const issues: Array<{ path: unknown; message: string }> = [];
