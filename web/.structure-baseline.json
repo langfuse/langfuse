@@ -1000,7 +1000,6 @@
    "src/features/events/components/EventsTable.tsx -> src/features/search-bar/components/EventsSearchBarRow.tsx",
    "src/features/events/components/EventsTable.tsx -> src/features/search-bar/hooks/useEventsSearchBar.ts",
    "src/features/events/components/EventsTable.tsx -> src/features/search-bar/hooks/useObservedMetadata.ts",
-   "src/features/events/components/EventsTable.tsx -> src/features/search-bar/hooks/useSearchBarEnabled.ts",
    "src/features/events/components/EventsTable.tsx -> src/features/search-bar/lib/ai-context.ts",
    "src/features/events/components/EventsTable.tsx -> src/features/search-bar/lib/filter-state-to-query.ts",
    "src/features/events/components/EventsTable.tsx -> src/features/search-bar/lib/metadata-paths.ts",
