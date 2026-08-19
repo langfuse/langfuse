@@ -57,6 +57,11 @@ export async function assertInAppAgentAvailable({
     throw new ForbiddenError("Assistant is not enabled for this organization");
   }
 
+  return project.organization;
+}
+
+/** Only startRun and approval continuation dispatch to the model. */
+export function assertInAppAgentModelConfigured() {
   if (!getInAppAgentModelConfig()) {
     throw new BaseError(
       "PreconditionFailedError",
@@ -65,6 +70,4 @@ export async function assertInAppAgentAvailable({
       true,
     );
   }
-
-  return project.organization;
 }
