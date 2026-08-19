@@ -93,3 +93,22 @@ export const getAddCategoryActionLabel = (
   }
   return "Add new category";
 };
+
+export const appendCategoryToExisting = (
+  categories: ScoreConfigCategoryDomain[],
+  label: string,
+):
+  | { ok: true; categories: ScoreConfigCategoryDomain[] }
+  | { ok: false; error: string } => {
+  const trimmed = label.trim();
+  const error = validateNewCategoryLabel(trimmed, categories);
+  if (error) return { ok: false, error };
+
+  return {
+    ok: true,
+    categories: [
+      ...categories,
+      { label: trimmed, value: nextCategoryValue(categories) },
+    ],
+  };
+};

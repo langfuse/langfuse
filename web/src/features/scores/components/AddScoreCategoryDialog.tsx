@@ -15,10 +15,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  nextCategoryValue,
-  validateNewCategoryLabel,
-} from "@/src/features/scores/lib/annotationFormHelpers";
+import { validateNewCategoryLabel } from "@/src/features/scores/lib/annotationFormHelpers";
 import { type AnalyticsData } from "@/src/features/scores/types";
 
 export function AddScoreCategoryDialog({
@@ -40,7 +37,7 @@ export function AddScoreCategoryDialog({
   const existingCategories = config.categories ?? [];
   const validationError = validateNewCategoryLabel(label, existingCategories);
 
-  const updateScoreConfig = api.scoreConfigs.update.useMutation({
+  const appendCategory = api.scoreConfigs.appendCategory.useMutation({
     onSuccess: async () => {
       capture(
         "score_configs:add_category_inline",
@@ -59,14 +56,10 @@ export function AddScoreCategoryDialog({
 
   const handleConfirm = () => {
     if (validationError) return;
-    const trimmed = label.trim();
-    updateScoreConfig.mutate({
+    appendCategory.mutate({
       projectId,
       id: config.id,
-      categories: [
-        ...existingCategories,
-        { label: trimmed, value: nextCategoryValue(existingCategories) },
-      ],
+      label: label.trim(),
     });
   };
 
@@ -112,14 +105,14 @@ export function AddScoreCategoryDialog({
               type="button"
               variant="outline"
               onClick={onClose}
-              disabled={updateScoreConfig.isPending}
+              disabled={appendCategory.isPending}
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={!!validationError}
-              loading={updateScoreConfig.isPending}
+              loading={appendCategory.isPending}
             >
               Add category
             </Button>

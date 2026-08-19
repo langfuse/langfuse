@@ -1,4 +1,5 @@
 import {
+  appendCategoryToExisting,
   getAddCategoryActionLabel,
   nextCategoryValue,
   validateNewCategoryLabel,
@@ -50,5 +51,33 @@ describe("getAddCategoryActionLabel", () => {
     expect(getAddCategoryActionLabel("internal_user", ["internal_user"])).toBe(
       "Add new category",
     );
+  });
+});
+
+describe("appendCategoryToExisting", () => {
+  const existing = [{ label: "internal_user", value: 0 }];
+
+  it("appends onto the latest list so a later add does not drop an earlier one", () => {
+    const first = appendCategoryToExisting(existing, "pen_testing");
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const second = appendCategoryToExisting(first.categories, "just_testing");
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+
+    expect(second.categories.map((category) => category.label)).toEqual([
+      "internal_user",
+      "pen_testing",
+      "just_testing",
+    ]);
+  });
+
+  it("rejects a duplicate against the list being appended to", () => {
+    const result = appendCategoryToExisting(existing, "internal_user");
+    expect(result).toEqual({
+      ok: false,
+      error: "A category with this name already exists",
+    });
   });
 });
