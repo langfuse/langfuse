@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, type ReactNode, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import {
   MovableResizablePanel,
@@ -60,6 +66,58 @@ export function useInAppAgentWindowShellPanelControl({
   });
 }
 
+/**
+ * Holds a top/bottom-anchored fixed element on the *visible* viewport while the
+ * on-screen keyboard is up.
+ *
+ * A phone's keyboard shrinks the visual viewport but not the layout viewport
+ * that `position: fixed` measures from, so `bottom: 0` lands behind the
+ * keyboard. Recomputed from what the viewport reports on every event and never
+ * accumulated: no number of open/close cycles can leave it out of phase, and
+ * anything unexpected clamps back to the plain CSS anchoring. Written straight
+ * onto the element because a keyboard transition streams events and the
+ * assistant is an expensive tree to re-render.
+ */
+function useVisibleViewportAnchoring(
+  element: HTMLElement | null,
+  isEnabled: boolean,
+) {
+  useEffect(() => {
+    // External system: the visual viewport. `resize` fires when the keyboard
+    // opens or closes, `scroll` when Safari slides the visible band instead to
+    // reveal a focused field. Absent on older browsers — CSS then owns it.
+    const viewport = window.visualViewport;
+    if (!isEnabled || !element || !viewport) {
+      return;
+    }
+
+    const anchor = () => {
+      const bandTop = Math.max(0, Math.round(viewport.offsetTop));
+      const hiddenBelowBand = Math.max(
+        0,
+        Math.round(window.innerHeight - viewport.height - bandTop),
+      );
+
+      element.style.bottom = `${hiddenBelowBand}px`;
+      // `max()` so the banner keeps the top edge whenever it is the lower of
+      // the two; written at all only while the band is scrolled.
+      element.style.top =
+        bandTop > 0 ? `max(var(--banner-offset), ${bandTop}px)` : "";
+    };
+
+    anchor();
+    viewport.addEventListener("resize", anchor);
+    viewport.addEventListener("scroll", anchor);
+
+    return () => {
+      viewport.removeEventListener("resize", anchor);
+      viewport.removeEventListener("scroll", anchor);
+      element.style.bottom = "";
+      element.style.top = "";
+    };
+  }, [element, isEnabled]);
+}
+
 type InAppAgentWindowShellProps = {
   children: (props: { isHeaderDragHandleEnabled: boolean }) => ReactNode;
   floatingPanelHandle: MovableResizablePanelHandle;
@@ -80,6 +138,14 @@ export function InAppAgentWindowShell({
   panelRef,
 }: InAppAgentWindowShellProps) {
   const isHandheld = useIsHandheld();
+  // State, not a ref: the drawer portals into its layer container, which itself
+  // resolves in an effect, so the node arrives a commit late and has to be the
+  // dependency that arms the anchoring.
+  const [drawerElement, setDrawerElement] = useState<HTMLDivElement | null>(
+    null,
+  );
+
+  useVisibleViewportAnchoring(drawerElement, isHandheld && open);
 
   // A phone has one presentation: the whole screen below the banner. A real
   // (Vaul) modal drawer — the same treatment as the support / migration
@@ -103,8 +169,15 @@ export function InAppAgentWindowShell({
         }}
         dismissible={false}
         forceDirection="bottom"
+        // Vaul's own keyboard dodge is off: it TOGGLES a "keyboard is open" flag
+        // on every large visual-viewport step instead of reading the direction,
+        // so one extra step — iOS reports a closing keyboard in two — inverts it
+        // and the next dismissal is skipped, stranding the drawer at keyboard
+        // height. It also writes an inline `height`, over-constraining this box.
+        repositionInputs={false}
       >
         <DrawerContent
+          ref={setDrawerElement}
           id="in-app-agent-drawer"
           size="full"
           // `h-auto` at every breakpoint so top/bottom anchoring owns the
@@ -112,8 +185,7 @@ export function InAppAgentWindowShell({
           // and the `md:` half survives tailwind-merge — a landscape phone is
           // both handheld and wider than `md`, and `top` + `bottom` + `height`
           // over-constrains the box, dropping `bottom` and pushing the composer
-          // off-screen by the banner offset. Vaul still overrides the height to
-          // dodge the on-screen keyboard.
+          // off-screen by the banner offset.
           className="top-banner-offset inset-x-0 bottom-0 h-auto rounded-none border-0 md:h-auto"
           onEscapeKeyDown={(event) => {
             event.preventDefault();

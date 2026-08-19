@@ -11,14 +11,22 @@ import {
   TriggerDomain,
   TriggerEventAction,
   ActionDomain,
+  ActionTypes,
   AutomationDomain,
   ActionDomainWithSecrets,
   SafeActionConfig,
   isWebhookActionConfig,
   WebhookActionConfigWithSecrets,
   isSafeWebhookActionConfig,
+  isSlackActionConfig,
+  isGitHubDispatchActionConfig,
   convertToSafeWebhookConfig,
+  convertToSafeGitHubDispatchConfig,
+  SafeWebhookActionConfigSchema,
+  SlackActionConfigSchema,
+  SafeGitHubDispatchActionConfigSchema,
 } from "../../domain/automations";
+import { InternalServerError } from "../../errors";
 import { FilterState } from "../../types";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
 
@@ -73,7 +81,9 @@ export const getActionByIdWithSecrets = async ({
     };
   }
 
-  // For SLACK and others, return as stored (already safe)
+  // SLACK and GITHUB_DISPATCH need no header decryption, so the stored config
+  // is returned verbatim. Secrets are included by design here - callers that
+  // hand configs to a client must use getActionById instead.
   return actionConfig as ActionDomainWithSecrets;
 };
 
@@ -165,23 +175,89 @@ const getDisplayHeaders = (config: WebhookActionConfigWithSecrets) => {
   return displayHeaders;
 };
 
-const convertActionToDomain = (action: Action): ActionDomain => {
-  if (isWebhookActionConfig(action.config)) {
-    const config = action.config;
-    config.displayHeaders = getDisplayHeaders(config);
+/**
+ * Fallback for a stored config that does not parse as its own action type:
+ * projects it onto the keys its safe schema declares. Every secret is omitted
+ * from those schemas, so no secret can survive the projection, while legacy or
+ * hand-edited rows still read back instead of failing the whole request.
+ */
+const pickSafeConfigFields = (
+  config: Action["config"],
+  type: ActionTypes,
+  safeKeys: string[],
+): SafeActionConfig => {
+  const storedFields =
+    typeof config === "object" && config !== null && !Array.isArray(config)
+      ? (config as Record<string, unknown>)
+      : {};
 
-    return {
-      ...action,
-      config: convertToSafeWebhookConfig(config),
-    };
-  }
-
-  // For SLACK (or future types) return config as-is
+  // The values are not schema-valid, hence the assertion. What it does not
+  // paper over is the secret: only `safeKeys` can appear in the result.
   return {
-    ...action,
-    config: action.config as SafeActionConfig,
-  } as ActionDomain;
+    ...Object.fromEntries(
+      safeKeys
+        .filter((key) => key in storedFields)
+        .map((key) => [key, storedFields[key]]),
+    ),
+    type,
+  } as SafeActionConfig;
 };
+
+/**
+ * Reduces a stored action config to the fields that may leave the server.
+ * `automations:read` is held by every project role, so anything returned here
+ * is readable by VIEWERs. The switch is exhaustive over `ActionTypes`: a new
+ * action type is a compile error until it has a sanitizer, rather than
+ * inheriting a pass-through that ships its credentials to all readers.
+ */
+const convertToSafeActionConfig = (action: Action): SafeActionConfig => {
+  const actionType: ActionTypes = action.type;
+
+  switch (actionType) {
+    case "WEBHOOK":
+      if (isWebhookActionConfig(action.config)) {
+        const config = action.config;
+        config.displayHeaders = getDisplayHeaders(config);
+
+        return convertToSafeWebhookConfig(config);
+      }
+      return pickSafeConfigFields(
+        action.config,
+        actionType,
+        Object.keys(SafeWebhookActionConfigSchema.shape),
+      );
+    case "SLACK":
+      // Slack configs hold no secrets, so the stored shape is already safe.
+      if (isSlackActionConfig(action.config)) {
+        return action.config;
+      }
+      return pickSafeConfigFields(
+        action.config,
+        actionType,
+        Object.keys(SlackActionConfigSchema.shape),
+      );
+    case "GITHUB_DISPATCH":
+      if (isGitHubDispatchActionConfig(action.config)) {
+        return convertToSafeGitHubDispatchConfig(action.config);
+      }
+      return pickSafeConfigFields(
+        action.config,
+        actionType,
+        Object.keys(SafeGitHubDispatchActionConfigSchema.shape),
+      );
+    default: {
+      const unhandledActionType: never = actionType;
+      throw new InternalServerError(
+        `Action ${action.id} has unhandled action type ${unhandledActionType}`,
+      );
+    }
+  }
+};
+
+export const convertActionToDomain = (action: Action): ActionDomain => ({
+  ...action,
+  config: convertToSafeActionConfig(action),
+});
 
 export const getAutomationById = async ({
   projectId,

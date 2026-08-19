@@ -36,7 +36,8 @@
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
-  helpers, eval/model-pricing helpers, and other frontend-safe utilities.
+  helpers, eval/model-pricing helpers, product path builders, and other
+  frontend-safe utilities.
   Includes the unicode-decoding JSON serialization helpers (`stringify`,
   `stringifyForCsv` in `src/utils/stringify.ts`) used by both the server
   trace-download route and client-side download/copy paths; the server barrel
@@ -45,7 +46,8 @@
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
   AI SDK-native LLM execution helpers (`generateLLMText` and
-  `streamLLMText`), and server test utilities.
+  `streamLLMText`), Bedrock default-credential provider auth
+  (`createDefaultBedrockProviderAuth`), and server test utilities.
 - `@langfuse/shared/src/db` via `src/db.ts`: Prisma client singleton plus
   Prisma namespace/types for direct database access. Never route this into
   frontend-safe code.
@@ -55,18 +57,18 @@
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
-  client-safe in-app-agent contracts (AG-UI schemas, constants, id helpers).
-  `AgUiRunAgentInput` is a compile-time-only execution contract; there is no
-  runtime input or browser runtime-state schema. Never re-export server code
-  here.
-- `@langfuse/shared/in-app-agent/server` (plus per-module subpaths via the
-  `./in-app-agent/server/*` wildcard) via `src/in-app-agent/server/`:
-  the in-app-agent runtime (Mastra/Bedrock/MCP loop, tools, persistence,
-  sandbox), consumed by web's router/watch adapters and the worker execution
-  processor.
+  client-safe durable in-app-agent contracts: AG-UI messages/events/context,
+  run requests/status/errors, approval events, constants, message helpers,
+  and interrupt parsing. Never re-export server code here.
+- In-app-agent server contracts use explicit subpaths only:
+  `persistence`, `runLifecycle`, `tunables`, `eventCompaction`, `mcpPolicy`,
+  `toolResults`, `toolErrors`, `systemPrompt`, and `modelProvider`. These are
+  storage/lifecycle, durable cross-process policy, or instance-model contracts;
+  the Mastra runtime and sandbox belong to the worker.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
-  `@langfuse/shared/src/server/ee/ingestionMasking`, and
+  `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
@@ -154,6 +156,11 @@ the same PR.
 
 - Keep backward compatibility in queue payloads when possible during rolling
   deployments.
+- Register recurring cron jobs through
+  `src/server/redis/scheduleRecurringJob.ts` (BullMQ job schedulers), never
+  via the deprecated `Queue.add(name, data, { repeat })` API. When changing a
+  cron pattern, append the old pattern to `previousPatterns` so the legacy
+  md5-keyed schedule is cleaned up on boot.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
 - Avoid exposing server-only modules through `src/index.ts` if they must remain
   frontend-safe.

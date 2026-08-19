@@ -42,6 +42,7 @@ import {
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { SingleSelect } from "@/src/features/filters/components/single-select";
 import { FilterToken } from "@/src/features/filters/components/FilterToken";
+import { getColumnOptionsForFilterRow } from "@/src/features/filters/lib/filter-transform";
 import {
   type WipFilterState,
   type WipFilterCondition,
@@ -445,6 +446,7 @@ export function InlineFilterBuilder({
   columnIdentifier = "name",
   disabled,
   columnsWithCustomSelect,
+  columnsHiddenUnlessSelected,
   stringObjectValueOptions,
   onStringObjectKeyChange,
   compact = false,
@@ -458,6 +460,11 @@ export function InlineFilterBuilder({
   columnIdentifier?: ColumnIdentifier;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
+  /**
+   * Column ids/names that stay in the picker only for rows that already use
+   * them. Used to grandfather retired columns without offering them on new rows.
+   */
+  columnsHiddenUnlessSelected?: readonly string[];
   /** Per-key value suggestions for opt-in stringObject columns (metadata). */
   stringObjectValueOptions?: Record<string, SingleValueOption[]>;
   /** Fires when a suggestion-enabled stringObject key changes, so the parent can load its values. */
@@ -509,6 +516,7 @@ export function InlineFilterBuilder({
         onChange={setWipFilterState}
         disabled={disabled}
         columnsWithCustomSelect={columnsWithCustomSelect}
+        columnsHiddenUnlessSelected={columnsHiddenUnlessSelected}
         stringObjectValueOptions={stringObjectValueOptions}
         onStringObjectKeyChange={onStringObjectKeyChange}
         compact={compact}
@@ -554,6 +562,7 @@ function FilterBuilderForm({
   onChange,
   disabled,
   columnsWithCustomSelect = [],
+  columnsHiddenUnlessSelected = [],
   stringObjectValueOptions = {},
   onStringObjectKeyChange,
   compact = false,
@@ -565,6 +574,11 @@ function FilterBuilderForm({
   onChange: Dispatch<SetStateAction<WipFilterState>>;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
+  /**
+   * Column ids/names that stay in the picker only for rows that already use
+   * them. Used to grandfather retired columns without offering them on new rows.
+   */
+  columnsHiddenUnlessSelected?: readonly string[];
   /** Per-key value suggestions for opt-in stringObject columns (metadata). */
   stringObjectValueOptions?: Record<string, SingleValueOption[]>;
   /** Fires when a suggestion-enabled stringObject key changes, so the parent can load its values. */
@@ -654,6 +668,11 @@ function FilterBuilderForm({
       column?.type === "stringObject" &&
       columnsWithCustomSelect.includes(column.id);
     const columnLabel = column ? column.name : "Column";
+    const columnsForPicker = getColumnOptionsForFilterRow(
+      columns,
+      filter.column,
+      columnsHiddenUnlessSelected,
+    );
 
     const columnCombobox = (
       <Popover
@@ -686,7 +705,7 @@ function FilterBuilderForm({
             <InputCommandList>
               <InputCommandEmpty>No options found.</InputCommandEmpty>
               <InputCommandGroup>
-                {columns.map((option) => {
+                {columnsForPicker.map((option) => {
                   const hasAlert = !!option.alert;
                   const severity = option.alert?.severity ?? "warning";
                   const alertStyles = getAlertStyles(severity);
