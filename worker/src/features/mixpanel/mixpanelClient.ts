@@ -147,8 +147,14 @@ export class MixpanelClient {
           `Failed to send events to Mixpanel: ${response.status} ${response.statusText}`,
           { body: errorText },
         );
-        throw new Error(
-          `Mixpanel API error: ${response.status} ${response.statusText}`,
+        // statusCode lets the shared customer-fault classifier's generic
+        // status-extraction path recognize this error without a
+        // Mixpanel-specific branch (see classifyCustomerFault).
+        throw Object.assign(
+          new Error(
+            `Mixpanel API error: ${response.status} ${response.statusText}`,
+          ),
+          { statusCode: response.status },
         );
       }
 
