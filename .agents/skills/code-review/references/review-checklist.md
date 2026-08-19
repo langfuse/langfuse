@@ -60,6 +60,12 @@ This is the canonical shared review checklist for Langfuse.
 - For changes that add a new integration, secret-bearing field, redirect
   follower, or RBAC scope, run the rest of the
   [`security-review/references/checklist.md`](../../security-review/references/checklist.md).
+- For changes that shape what a read route returns — a repository or domain
+  converter, a `Safe*` type, a response projection — a catch-all branch that
+  returns the stored value for unhandled types, or an `as Safe*` assertion
+  standing in place of a sanitizer, is a finding: feature read scopes are held
+  by VIEWER. See
+  [`security-review/references/secret-read-paths.md`](../../security-review/references/secret-read-paths.md).
 
 ## JavaScript / TypeScript Style
 

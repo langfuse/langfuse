@@ -62,7 +62,7 @@ jobs:
       # No pinned version on purpose: the action reads "packageManager" from
       # package.json, so pnpm bumps that update pipeline.yml cannot strand
       # this satellite workflow on a mismatched pin (which hard-fails the
-      # action, as the 2026-07-06 11.4.0→11.10.0 bump did).
+      # action, as a previous partially pinned pnpm bump did).
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] scheduled cache warmer for test-job dependency caches only; runs on main, no released artifacts are built or published from this cached state

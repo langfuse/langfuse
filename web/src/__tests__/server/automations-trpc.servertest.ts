@@ -1,6 +1,6 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "@langfuse/shared/src/db";
+import { type Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
@@ -2833,6 +2833,130 @@ describe("automations trpc", () => {
         "https://api.github.com/repos/new-owner/new-repo/dispatches",
       );
       expect(dbConfig.eventType).toBe("new-event-type");
+    });
+  });
+
+  describe("automations read path secret redaction", () => {
+    async function createGitHubDispatchAutomation(
+      projectId: string,
+      config: Prisma.InputJsonObject,
+    ) {
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId,
+          type: "GITHUB_DISPATCH",
+          config,
+        },
+      });
+
+      return prisma.automation.create({
+        data: {
+          projectId,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "GitHub Dispatch Read Path",
+        },
+      });
+    }
+
+    // VIEWER holds automations:read, the only scope both read routes require.
+    function viewerCaller(session: Session) {
+      const viewerSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          admin: false,
+          organizations: [
+            {
+              ...session.user!.organizations[0],
+              role: "MEMBER",
+              projects: [
+                {
+                  ...session.user!.organizations[0].projects[0],
+                  role: "VIEWER",
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({ session: viewerSession, headers: {} }),
+        prisma,
+      });
+    }
+
+    it("should not expose the stored githubToken to a project VIEWER", async () => {
+      const { project, session } = await prepare();
+
+      const automation = await createGitHubDispatchAutomation(project.id, {
+        type: "GITHUB_DISPATCH",
+        url: "https://api.github.com/repos/owner/repo/dispatches",
+        eventType: "langfuse-prompt-created",
+        githubToken: encrypt("ghp_read_path_token_123"),
+        displayGitHubToken: "ghp_...123",
+      });
+
+      const caller = viewerCaller(session);
+
+      const automations = await caller.automations.getAutomations({
+        projectId: project.id,
+      });
+
+      expect(automations).toHaveLength(1);
+      const listedConfig = automations[0].action.config as Record<
+        string,
+        unknown
+      >;
+      expect(listedConfig).not.toHaveProperty("githubToken");
+      expect(listedConfig.displayGitHubToken).toBe("ghp_...123");
+
+      const single = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: automation.id,
+      });
+
+      const singleConfig = single.action.config as Record<string, unknown>;
+      expect(singleConfig).not.toHaveProperty("githubToken");
+      expect(singleConfig.displayGitHubToken).toBe("ghp_...123");
+    });
+
+    it("should not expose the githubToken of a config that fails to parse", async () => {
+      const { project, session } = await prepare();
+
+      // displayGitHubToken is missing, so the config does not parse as a
+      // GITHUB_DISPATCH config and only the field allowlist can strip it.
+      const automation = await createGitHubDispatchAutomation(project.id, {
+        type: "GITHUB_DISPATCH",
+        url: "https://api.github.com/repos/owner/repo/dispatches",
+        eventType: "langfuse-prompt-created",
+        githubToken: encrypt("ghp_read_path_token_456"),
+      });
+
+      const caller = viewerCaller(session);
+
+      const single = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: automation.id,
+      });
+
+      const config = single.action.config as Record<string, unknown>;
+      expect(config).not.toHaveProperty("githubToken");
+      expect(config.type).toBe("GITHUB_DISPATCH");
+      expect(config.eventType).toBe("langfuse-prompt-created");
     });
   });
 });
