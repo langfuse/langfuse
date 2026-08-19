@@ -468,7 +468,11 @@ describe("executeInAppAgentRun", () => {
 
     scenarioRef.current = async ({ options }) => {
       await options.onEvent(textChunk("Still calling tools"));
-      await options.onComplete({ truncatedByStepLimit: true });
+      // Truncation implies the cap was reached: wrap-up fires one step earlier.
+      await options.onComplete({
+        reachedStepLimit: true,
+        truncatedByStepLimit: true,
+      });
       await options.onFinish();
     };
 
