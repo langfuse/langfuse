@@ -2,8 +2,11 @@ import { EventType } from "@ag-ui/core";
 import type { AgentSubscriber } from "@ag-ui/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import { InAppAgentBackgroundClient } from "./backgroundAgentClient";
 import {
@@ -105,7 +108,9 @@ const finalMessage = {
 
 function createAgent() {
   return {
+    threadId: "conversation-1",
     messages: [],
+    addMessage: vi.fn(),
     setMessages: vi.fn(),
     setCursor: vi.fn(),
     runAgent: vi.fn().mockResolvedValue(undefined),
@@ -152,6 +157,8 @@ describe("BackgroundExecutionSessionController", () => {
     expect(agent.setCursor).toHaveBeenCalledWith(7);
     expect(agent.connectAgent).toHaveBeenCalledOnce();
     expect(hydrate).toHaveBeenCalledOnce();
+    expect(session.run({ message: "ignored", context: [] })).toBeNull();
+    expect(agent.addMessage).not.toHaveBeenCalled();
     expect(session.getSnapshot()).toMatchObject({
       messages: [message],
       eventCursor: 7,
@@ -516,19 +523,24 @@ describe("BackgroundExecutionSessionController", () => {
 
   it("keeps run-start failures outside attachment state", async () => {
     const startError = new Error("start failed");
+    const agent = {
+      ...createAgent(),
+      runAgent: vi.fn().mockRejectedValue(startError),
+    };
     const session = new BackgroundExecutionSessionController({
-      agent: {
-        ...createAgent(),
-        runAgent: vi.fn().mockRejectedValue(startError),
-      },
+      agent,
       hydrate: vi.fn().mockResolvedValue(runningView),
       cancelRun: vi.fn(),
       decideApproval: vi.fn(),
     });
 
-    await expect(session.run({ context: [] } as never)).rejects.toBe(
+    await expect(session.run({ message: "hello", context: [] })).rejects.toBe(
       startError,
     );
+    expect(agent.addMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "user", content: "hello" }),
+    );
+    expect(agent.runAgent).toHaveBeenCalledWith({ context: [] });
     expect(session.getSnapshot().attachment).toEqual({
       status: "detached",
     });
@@ -548,7 +560,7 @@ describe("BackgroundExecutionSessionController", () => {
       decideApproval: vi.fn(),
     });
 
-    await expect(session.run({ context: [] } as never)).rejects.toBe(
+    await expect(session.run({ message: "hello", context: [] })).rejects.toBe(
       watchError,
     );
     expect(session.getSnapshot().attachment).toMatchObject({

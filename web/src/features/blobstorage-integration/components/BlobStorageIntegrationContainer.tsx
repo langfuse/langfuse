@@ -6,7 +6,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import {
-  type BlobExportWriteMode,
+  type V4WriteMode,
   type BlobStorageIntegration,
   type ExportSourceContext,
 } from "@langfuse/shared";
@@ -31,7 +31,7 @@ export const BlobStorageIntegrationContainer = ({
 }: {
   config: Partial<BlobStorageIntegration> | null;
   projectId: string;
-  writeMode: BlobExportWriteMode;
+  writeMode: V4WriteMode;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();

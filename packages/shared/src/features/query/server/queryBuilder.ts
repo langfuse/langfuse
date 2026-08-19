@@ -19,6 +19,7 @@ import type {
 import {
   query as queryModel,
   getValidAggregationsForMeasureType,
+  SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
 import { getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors";
@@ -178,7 +179,7 @@ export class QueryBuilder {
   }
 
   private getViewDeclaration(
-    viewName: z.infer<typeof views>,
+    viewName: z.infer<typeof views> | typeof SCORES_LISTABLE_COUNT_VIEW,
   ): ViewDeclarationType {
     return getViewDeclaration(viewName, this.version);
   }

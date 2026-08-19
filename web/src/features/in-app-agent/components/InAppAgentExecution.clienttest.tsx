@@ -6,8 +6,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { EventType } from "@ag-ui/core";
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";

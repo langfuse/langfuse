@@ -49,6 +49,7 @@ import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
 import {
   BLOB_INTEGRATION_DISABLED_METRIC,
   classifyCustomerFault,
+  type CustomerFaultReason,
 } from "./isCustomerFaultError";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
@@ -60,8 +61,8 @@ import {
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
-  isLegacyBlobExportSource,
-  isLegacyBlobExporter,
+  isLegacyExportSource,
+  isLegacyExporter,
   resolveBlobExportTuning,
   DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES,
 } from "@langfuse/shared";
@@ -91,7 +92,7 @@ export const BlobExportFormat = {
   CSV_GZIP: "csv-gzip",
   JSONL_RAW: "jsonl-raw",
   JSONL_GZIP: "jsonl-gzip",
-  // LFE-10463: ClickHouse-native columnar export; compression is internal to
+  // ClickHouse-native columnar export; compression is internal to
   // Parquet, so there is no separate raw/gzip split.
   PARQUET: "parquet",
 } as const;
@@ -430,7 +431,7 @@ const processBlobStorageExport = async (config: {
       span.setAttribute("blob.config.rawPassthrough", config.rawPassthrough);
 
       // Event-loop delay during the stream: if it spikes, lock renewal can't
-      // fire and the job re-enqueues as stalled (LFE-10063). Torn down below.
+      // fire and the job re-enqueues as stalled. Torn down below.
       const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
       eventLoopDelay.enable();
 
@@ -464,7 +465,7 @@ const processBlobStorageExport = async (config: {
         const parquetEligible =
           config.fileType === BlobStorageIntegrationFileType.PARQUET;
 
-        // Raw passthrough (LFE-10402) is opt-in per project and only valid for
+        // Raw passthrough is opt-in per project and only valid for
         // JSONL output of the enriched-observation tables — the only formats
         // where ClickHouse FORMAT JSONEachRow bytes map 1:1 to the file. Any
         // other request falls back to the standard path. The integration-level
@@ -566,7 +567,7 @@ const processBlobStorageExport = async (config: {
         let fileStream: Readable;
 
         if (parquetEligible) {
-          // LFE-10463: stream raw FORMAT Parquet bytes straight to upload — no JS
+          // Stream raw FORMAT Parquet bytes straight to upload — no JS
           // parse/enrich/serialize, no gzip, no row counting (binary has no row
           // boundaries, so sourceStats.rows stays 0). Field-group projection,
           // latency ms→s, and dropped price columns are baked into the SQL. The
@@ -1104,7 +1105,7 @@ const writeBlobExportManifest = async (params: {
   );
 };
 
-// LFE-10896: drop a plain-text deprecation notice into the export destination
+// Drop a plain-text deprecation notice into the export destination
 // for legacy-source projects. Best-effort — a failure to write the notice must
 // not fail the export run, so it is called after the manifest commit point and
 // swallows its own error.
@@ -1265,7 +1266,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
-  // Legacy-source deprecation is a Cloud policy (isLegacyBlobExporter exempts
+  // Legacy-source deprecation is a Cloud policy (isLegacyExporter exempts
   // self-hosted), so the deprecation notice below is Cloud-only too.
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -1429,7 +1430,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     // Cloud-only v3-deprecation notice; both sides best-effort (never fail the run).
     if (isCloud) {
-      if (isLegacyBlobExportSource(blobStorageIntegration.exportSource)) {
+      if (isLegacyExportSource(blobStorageIntegration.exportSource)) {
         await writeBlobExportDeprecationNotice({
           storageService,
           prefix: blobStorageIntegration.prefix || undefined,
@@ -1439,7 +1440,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         // Gate cleanup on "old enough to have written a notice": otherwise every
         // enriched-only export adds a needless per-run s3:DeleteObject on the
         // destination, which is write-only for many customers.
-        isLegacyBlobExporter(blobStorageIntegration.createdAt, isCloud)
+        isLegacyExporter(blobStorageIntegration.createdAt, isCloud)
       ) {
         await removeBlobExportDeprecationNotice({
           storageService,
@@ -1524,85 +1525,49 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // 0-based, so the final attempt is attempts - 1.
     const isFinalAttempt =
       (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
-    // The reason bucket doubles as the disable decision (defined => disable) and
-    // as the tag on the disable log + metric below.
+    // Defined => disable; also tags the disable log + metric.
     const customerFaultReason = classifyCustomerFault(error);
-    const disableForCustomerFault =
-      isFinalAttempt && customerFaultReason !== undefined;
 
-    // True only for the worker that actually flips enabled true→false, so the
-    // "disabled" email (which bypasses the cooldown) is sent exactly once and
-    // never claims a state we failed to write. The atomic claim also dedups
-    // concurrent terminal failures — e.g. a scheduled run racing a manual Run
-    // Now across pods, which have distinct jobIds and so aren't queue-deduped.
-    let persistedDisable = false;
-    let disableClaimRan = false;
-    // Assume enabled when the read-back fails; worst case is today's email.
-    let enabledAfterPersist = true;
-    try {
-      const updated = await prisma.blobStorageIntegration.update({
-        where: { projectId },
-        data: {
-          lastError: errorMessage,
-          lastErrorAt: new Date(),
-          runStartedAt: null,
-        },
-      });
-      enabledAfterPersist = updated.enabled;
-      if (disableForCustomerFault) {
-        const { count } = await prisma.blobStorageIntegration.updateMany({
-          where: { projectId, enabled: true },
-          data: { enabled: false },
-        });
-        disableClaimRan = true;
-        persistedDisable = count === 1;
-        if (persistedDisable) {
-          // Tag by reason so SSRF/abuse disables (ssrf_blocked_endpoint) can be
-          // separated from customer misconfig, and a mass-disable regression is
-          // visible as a spike in the non-SSRF buckets after rollout.
-          const reason = customerFaultReason ?? "unknown";
-          recordIncrement(BLOB_INTEGRATION_DISABLED_METRIC, 1, { reason });
-          logger.warn(
-            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer fault (reason=${reason}): ${errorMessage}`,
-            { blobStorageDisableReason: reason, projectId },
-          );
-        }
-      }
-    } catch (persistError) {
-      if (isRecordNotFoundError(persistError)) {
-        // Integration deleted mid-run: nothing to persist, nobody to notify —
-        // the notification would reference a config that no longer exists.
-        // Complete the obsolete job instead of failing it.
-        logger.info(
-          `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after error: ${errorMessage}`,
-        );
-        return;
-      }
-      logger.error(
-        `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
-        persistError,
-      );
+    const outcome = await recordTerminalExportError({
+      projectId,
+      errorMessage,
+      disableReason: isFinalAttempt ? customerFaultReason : undefined,
+    });
+
+    if (outcome.kind === "integration-deleted") {
+      return; // obsolete job: complete it rather than fail it
     }
 
-    // Notify only after BullMQ exhausts its retries — an email on an earlier
-    // attempt fires even when a later retry succeeds, and would double up
-    // with the "disabled" email on customer faults. Skip only when a
-    // concurrent terminal failure won the disable claim (the winner already
-    // notified); if the claim never ran because persistence threw, fall back
-    // to the informational email so the failure isn't silent.
-    const lostDisableRaceToConcurrentRun =
-      disableForCustomerFault && disableClaimRan && !persistedDisable;
-    // The informational email promises a retry at the next scheduled run,
-    // which is false once the integration is disabled (a concurrent run's
-    // customer-fault disable or a user toggle mid-run) — skip it then.
-    const disabledOutFromUnderUs =
-      !disableForCustomerFault && !enabledAfterPersist;
-    if (
-      isFinalAttempt &&
-      !lostDisableRaceToConcurrentRun &&
-      !disabledOutFromUnderUs
-    ) {
-      notifyBlobStorageExportFailedInBackground(projectId, persistedDisable);
+    // Only the informational email waits for the retries to run out; sent
+    // earlier it fires even when a later attempt succeeds. A disable is already
+    // terminal, so it ignores the attempt count.
+    switch (outcome.kind) {
+      case "disabled-by-us":
+        notifyBlobStorageExportFailedInBackground(projectId, true);
+        break;
+      case "lost-disable-race":
+        break; // the winner sent the terminal email; ours would contradict it
+      case "error-recorded":
+        // Skipped once the integration is off: "will retry at the next
+        // scheduled export" is no longer true.
+        if (isFinalAttempt && outcome.stillEnabled) {
+          notifyBlobStorageExportFailedInBackground(projectId, false);
+        }
+        break;
+      case "persist-failed":
+        // Row state unknown, so say something rather than nothing.
+        if (isFinalAttempt) {
+          notifyBlobStorageExportFailedInBackground(projectId, false);
+        }
+        break;
+      // A plain switch over a union is not exhaustiveness-checked; the never
+      // assignment below is what makes a missing case fail to compile.
+      default: {
+        const _exhaustiveCheck: never = outcome;
+        throw new Error(
+          `Unhandled terminal export outcome: ${JSON.stringify(_exhaustiveCheck)}`,
+        );
+      }
     }
 
     const chain = errorChainText(error);
@@ -1619,6 +1584,77 @@ export const handleBlobStorageIntegrationProjectJob = async (
     throw rethrown;
   }
 };
+
+// What the terminal bookkeeping for a failed run did. Each case is a situation
+// some earlier revision guarded against, named so the notification decision can
+// switch over them instead of recombining flags.
+type TerminalExportErrorOutcome =
+  | { kind: "integration-deleted" } // deleted mid-run: job is obsolete
+  | { kind: "persist-failed" } // write failed, so the row's state is unknown
+  // No disable attempted: not a customer fault, or retries remain. stillEnabled
+  // false means a concurrent disable or user toggle landed mid-run.
+  | { kind: "error-recorded"; stillEnabled: boolean }
+  | { kind: "disabled-by-us" }
+  | { kind: "lost-disable-race" };
+
+// Persists the failure and, when asked, makes the atomic enabled true→false
+// claim. That claim is what keeps the terminal email exactly-once across runs
+// racing the same fault (distinct jobIds, so not queue-deduped) and stops it
+// claiming a state we failed to write.
+async function recordTerminalExportError({
+  projectId,
+  errorMessage,
+  disableReason,
+}: {
+  projectId: string;
+  errorMessage: string;
+  disableReason: CustomerFaultReason | undefined;
+}): Promise<TerminalExportErrorOutcome> {
+  try {
+    const updated = await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: {
+        lastError: errorMessage,
+        lastErrorAt: new Date(),
+        runStartedAt: null,
+      },
+    });
+
+    if (disableReason === undefined) {
+      return { kind: "error-recorded", stillEnabled: updated.enabled };
+    }
+
+    const { count } = await prisma.blobStorageIntegration.updateMany({
+      where: { projectId, enabled: true },
+      data: { enabled: false },
+    });
+    if (count !== 1) return { kind: "lost-disable-race" };
+
+    // Tag by reason so SSRF/abuse disables (ssrf_blocked_endpoint) can be
+    // separated from customer misconfig, and a mass-disable regression is
+    // visible as a spike in the non-SSRF buckets after rollout.
+    recordIncrement(BLOB_INTEGRATION_DISABLED_METRIC, 1, {
+      reason: disableReason,
+    });
+    logger.warn(
+      `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer fault (reason=${disableReason}): ${errorMessage}`,
+      { blobStorageDisableReason: disableReason, projectId },
+    );
+    return { kind: "disabled-by-us" };
+  } catch (persistError) {
+    if (isRecordNotFoundError(persistError)) {
+      logger.info(
+        `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after error: ${errorMessage}`,
+      );
+      return { kind: "integration-deleted" };
+    }
+    logger.error(
+      `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
+      persistError,
+    );
+    return { kind: "persist-failed" };
+  }
+}
 
 function notifyBlobStorageExportFailedInBackground(
   projectId: string,

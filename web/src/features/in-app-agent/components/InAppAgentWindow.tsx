@@ -47,12 +47,11 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import {
-  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
-  type InAppAgentMessageFeedbackValue,
-  type InAppAgentMessageSource,
-} from "@langfuse/shared/in-app-agent";
-import { deduplicateBy } from "@/src/utils/arrays";
+import type {
+  InAppAgentMessageFeedbackValue,
+  InAppAgentMessageSource,
+} from "../schema";
+import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import { ConversationActivityIndicator } from "@/src/features/in-app-agent/components/ConversationActivityIndicator";
@@ -64,6 +63,7 @@ import {
   type InAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
+import { deduplicateBy } from "@/src/utils/arrays";
 import messageStyles from "./InAppAgentMessage.module.css";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
@@ -1366,12 +1366,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       quickActionCategory: context,
                       position,
                     });
-                    submitInput(action.prompt, {
-                      quickAction: {
-                        key: action.id,
-                        category: context,
-                      },
-                    });
+                    submitInput(action.prompt);
                   }}
                 />
               </div>

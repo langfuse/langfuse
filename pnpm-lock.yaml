@@ -239,9 +239,6 @@ importers:
       '@ag-ui/core':
         specifier: ^0.0.52
         version: 0.0.52
-      '@ag-ui/mastra':
-        specifier: 1.1.1
-        version: 1.1.1(@ag-ui/client@0.0.52)(@ag-ui/core@0.0.52)(@copilotkit/runtime@1.63.1(1060c54502e6f347b0aa0d1cbe91322c))(@mastra/client-js@1.21.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))
       '@ai-sdk/amazon-bedrock':
         specifier: ^5.0.25
         version: 5.0.25(zod@4.3.6)
@@ -269,9 +266,6 @@ importers:
       '@aws-sdk/client-lambda':
         specifier: 'catalog:'
         version: 3.1074.0
-      '@aws-sdk/client-lambda-microvms':
-        specifier: 'catalog:'
-        version: 3.1074.0
       '@aws-sdk/client-s3':
         specifier: 'catalog:'
         version: 3.1074.0
@@ -296,12 +290,6 @@ importers:
       '@google-cloud/storage':
         specifier: ^7.19.0
         version: 7.19.0
-      '@mastra/core':
-        specifier: 1.46.0
-        version: 1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6)
-      '@mastra/mcp':
-        specifier: 1.8.1
-        version: 1.8.1(@cfworker/json-schema@4.1.1)(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)
       '@opentelemetry/api':
         specifier: '>=1.0.0 <1.10.0'
         version: 1.9.1
@@ -314,9 +302,6 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^2.9.0
         version: 2.9.0(@opentelemetry/api@1.9.1)
-      '@paralleldrive/cuid2':
-        specifier: ^2.2.2
-        version: 2.2.2
       '@prisma/client':
         specifier: ^6.19.3
         version: 6.19.3(@typescript/typescript6@6.0.2)(prisma@6.19.3(@typescript/typescript6@6.0.2)(magicast@0.5.2))
@@ -341,9 +326,6 @@ importers:
       ai:
         specifier: ^7.0.0
         version: 7.0.8(zod@4.3.6)
-      ai-sdk-amazon-bedrock-v4:
-        specifier: npm:@ai-sdk/amazon-bedrock@4.0.81
-        version: '@ai-sdk/amazon-bedrock@4.0.81(zod@4.3.6)'
       ajv:
         specifier: ^8.18.0
         version: 8.20.0
@@ -380,9 +362,6 @@ importers:
       jsonpath-plus:
         specifier: 10.3.0
         version: 10.3.0
-      langfuse:
-        specifier: 3.38.4
-        version: 3.38.4
       langfuse-langchain:
         specifier: 3.38.20
         version: 3.38.20(langchain@1.3.0(@langchain/core@1.1.48(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(openai@6.33.0(ws@8.21.1)(zod@4.3.6))(ws@8.21.1))(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(openai@6.33.0(ws@8.21.1)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(ws@8.21.1)(zod-to-json-schema@3.25.2(zod@4.3.6)))
@@ -425,9 +404,6 @@ importers:
       winston:
         specifier: ^3.15.0
         version: 3.15.0
-      yaml:
-        specifier: ^2.9.0
-        version: 2.9.0
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -441,9 +417,6 @@ importers:
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../config-typescript
-      '@types/dockerode':
-        specifier: ^4.0.1
-        version: 4.0.1
       '@types/lodash':
         specifier: ^4.17.24
         version: 4.17.24
@@ -456,9 +429,6 @@ importers:
       '@types/react':
         specifier: 19.2.14
         version: 19.2.14
-      dockerode:
-        specifier: ^4.0.9
-        version: 4.0.12
       dotenv-cli:
         specifier: ^7.4.4
         version: 7.4.4
@@ -486,9 +456,6 @@ importers:
       '@ag-ui/core':
         specifier: ^0.0.52
         version: 0.0.52
-      '@ag-ui/mastra':
-        specifier: 1.1.1
-        version: 1.1.1(@ag-ui/client@0.0.52)(@ag-ui/core@0.0.52)(@copilotkit/runtime@1.63.1(1060c54502e6f347b0aa0d1cbe91322c))(@mastra/client-js@1.21.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.8.0
         version: 0.8.0(bullmq@5.76.3)
@@ -498,12 +465,6 @@ importers:
       '@aws-crypto/sha256-browser':
         specifier: ^5.2.0
         version: 5.2.0
-      '@aws-sdk/client-lambda-microvms':
-        specifier: 'catalog:'
-        version: 3.1074.0
-      '@aws-sdk/credential-providers':
-        specifier: 'catalog:'
-        version: 3.1074.0
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
         version: 0.1.2(@opentelemetry/api@1.9.1)(@trpc/server@11.13.4(typescript@7.0.2))
@@ -555,15 +516,6 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
-      '@mastra/client-js':
-        specifier: 1.21.1
-        version: 1.21.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6)
-      '@mastra/core':
-        specifier: 1.46.0
-        version: 1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6)
-      '@mastra/mcp':
-        specifier: 1.8.1
-        version: 1.8.1(@cfworker/json-schema@4.1.1)(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)
       '@modelcontextprotocol/sdk':
         specifier: 1.29.0
         version: 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
@@ -603,6 +555,9 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^2.9.0
         version: 2.9.0(@opentelemetry/api@1.9.1)
+      '@paralleldrive/cuid2':
+        specifier: 2.2.2
+        version: 2.2.2
       '@prisma/instrumentation':
         specifier: ^6.19.3
         version: 6.19.3(@opentelemetry/api@1.9.1)
@@ -708,9 +663,6 @@ importers:
       '@uiw/react-codemirror':
         specifier: ^4.25.8
         version: 4.25.8(@babel/runtime@7.29.7)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.42.0)(@lezer/common@1.5.1))(@codemirror/language@6.12.3)(@codemirror/lint@6.9.6)(@codemirror/search@6.7.0)(@codemirror/state@6.6.0)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.42.0)(codemirror@6.0.1(@lezer/common@1.5.1))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      ai-sdk-amazon-bedrock-v4:
-        specifier: npm:@ai-sdk/amazon-bedrock@4.0.81
-        version: '@ai-sdk/amazon-bedrock@4.0.81(zod@4.3.6)'
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -731,7 +683,7 @@ importers:
         version: 1.0.4(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       core-js:
         specifier: ^3.38.1
-        version: 3.38.1
+        version: 3.50.0
       cors:
         specifier: ^2.8.6
         version: 2.8.6
@@ -758,7 +710,7 @@ importers:
         version: 8.0.4
       dompurify:
         specifier: ^3.4.12
-        version: 3.4.12
+        version: 3.4.13
       elkjs:
         specifier: ^0.11.1
         version: 0.11.1
@@ -802,11 +754,11 @@ importers:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       posthog-js:
-        specifier: ^1.390.2
-        version: 1.390.2(preact-render-to-string@5.2.6(preact@10.29.7))
+        specifier: ^1.415.7
+        version: 1.415.7(preact-render-to-string@5.2.6(preact@10.29.8))
       posthog-node:
-        specifier: ^5.45.2
-        version: 5.45.2(rxjs@7.8.1)
+        specifier: ^5.48.1
+        version: 5.48.1(rxjs@7.8.1)
       prexit:
         specifier: ^2.2.0
         version: 2.2.0
@@ -955,9 +907,6 @@ importers:
       '@types/d3-zoom':
         specifier: ^3.0.8
         version: 3.0.8
-      '@types/dockerode':
-        specifier: ^4.0.1
-        version: 4.0.1
       '@types/lodash':
         specifier: ^4.17.24
         version: 4.17.24
@@ -982,9 +931,6 @@ importers:
       dependency-cruiser:
         specifier: ^18.1.0
         version: 18.1.0
-      dockerode:
-        specifier: ^4.0.9
-        version: 4.0.12
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -1051,15 +997,33 @@ importers:
 
   worker:
     dependencies:
+      '@ag-ui/core':
+        specifier: ^0.0.52
+        version: 0.0.52
+      '@ag-ui/mastra':
+        specifier: 1.1.1
+        version: 1.1.1(@ag-ui/client@0.0.57)(@ag-ui/core@0.0.52)(@copilotkit/runtime@1.63.1(1060c54502e6f347b0aa0d1cbe91322c))(@mastra/client-js@1.21.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))
       '@anthropic-ai/tokenizer':
         specifier: ^0.0.4
         version: 0.0.4
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.8.0
         version: 0.8.0(bullmq@5.76.3)
+      '@aws-sdk/client-lambda-microvms':
+        specifier: 'catalog:'
+        version: 3.1074.0
+      '@aws-sdk/credential-providers':
+        specifier: 'catalog:'
+        version: 3.1074.0
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
+      '@mastra/core':
+        specifier: 1.46.0
+        version: 1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6)
+      '@mastra/mcp':
+        specifier: 1.8.1
+        version: 1.8.1(@cfworker/json-schema@4.1.1)(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -1102,6 +1066,9 @@ importers:
       '@prisma/instrumentation':
         specifier: ^6.19.3
         version: 6.19.3(@opentelemetry/api@1.9.1)
+      ai-sdk-amazon-bedrock-v4:
+        specifier: npm:@ai-sdk/amazon-bedrock@4.0.81
+        version: '@ai-sdk/amazon-bedrock@4.0.81(zod@4.3.6)'
       bullmq:
         specifier: ^5.76.3
         version: 5.76.3
@@ -1117,6 +1084,9 @@ importers:
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
+      dockerode:
+        specifier: ^4.0.9
+        version: 4.0.12
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
@@ -1132,6 +1102,9 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      langfuse:
+        specifier: 3.38.4
+        version: 3.38.4
       lodash:
         specifier: 4.18.1
         version: 4.18.1
@@ -1139,8 +1112,8 @@ importers:
         specifier: ^7.3.0
         version: 7.3.0
       posthog-node:
-        specifier: ^5.45.2
-        version: 5.45.2(rxjs@7.8.1)
+        specifier: ^5.48.1
+        version: 5.48.1(rxjs@7.8.1)
       stripe:
         specifier: ^17.4.0
         version: 17.4.0
@@ -1150,6 +1123,9 @@ importers:
       uuid:
         specifier: ^14.0.0
         version: 14.0.0
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -1163,6 +1139,9 @@ importers:
       '@types/cors':
         specifier: ^2.8.17
         version: 2.8.19
+      '@types/dockerode':
+        specifier: ^4.0.1
+        version: 4.0.1
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -3883,11 +3862,14 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
-  '@posthog/core@1.43.1':
-    resolution: {integrity: sha512-hGM8f5sp3we6Em/RQHXbmyYm554hUx9+9jhf92ZQgDS4/xW72KHyZiO9wcFye+qAx2cJAOhOCDIznmO1FV8IbA==}
+  '@posthog/browser-common@0.5.0':
+    resolution: {integrity: sha512-8DaxVZS1bQPbA514RePurLNbYjei3P4jhnC206DwVv5XThmZM3QdlsXenI2ujE3pLbgQ79hYn9o1Kda8I3WK/Q==}
 
-  '@posthog/types@1.397.0':
-    resolution: {integrity: sha512-Pa7FtsBo3V0XrhY4y8Xquwp8U07syuZ2IGQdlsRyxhz0yejQLceFjI58UssCXE5zDCDj3km5l7H3ufD6rHChCg==}
+  '@posthog/core@1.47.0':
+    resolution: {integrity: sha512-LW62V+9yx7G7mLd+EYpwW0PiaPZI8XRJ1tLuhw+9fXHpugLp8XQD5JuCQ2kIXvoUfyx1DpKfGQY3dUnzMOIn7Q==}
+
+  '@posthog/types@1.402.3':
+    resolution: {integrity: sha512-nnqKIGUqggeNbCZg6of/hYN+4shYZUoPFkILIIpYq0p9HDX8PgOrnrtBAUH8kr1MOmDh2nm+fY5Ceks7A5y6BQ==}
 
   '@prisma/client@6.19.3':
     resolution: {integrity: sha512-mKq3jQFhjvko5LTJFHGilsuQs+W+T3Gm451NzuTDGQxwCzwXHYnIu2zGkRoW+Exq3Rob7yp2MfzSrdIiZVhrBg==}
@@ -7084,8 +7066,8 @@ packages:
     resolution: {integrity: sha512-yCEafptTtb4bk7GLEQoM8KVJpxAfdBJYaXyzQEgQQQgYrZiDp8SJmGKlYza6CYjEDNstAdNdKA3UuoULlEbS6w==}
     engines: {node: '>=12.13'}
 
-  core-js@3.38.1:
-    resolution: {integrity: sha512-OP35aUorbU3Zvlx7pjsFdu1rGNnD4pgw/CWoYzRY3t2EzoVT7shKHY1dlAy3f41cGIO7ZDPQimhGFTlEYkG/Hw==}
+  core-js@3.50.0:
+    resolution: {integrity: sha512-BRWgOLKkFeCgRudR6zrs8p9XJZcE14grzKMMssoYrk6krtuEZ7MTKPIY5RzOnqsEKIR9kst7wNzphttraT+Yqw==}
 
   core-util-is@1.0.2:
     resolution: {integrity: sha512-3lqz5YjWTYnW6dlDa5TLaTCcShfar1e40rmcJVwCBJC6mWlFuj0eCHIElmG1g5kyuJ/GD+8Wn4FFCcz4gJPfaQ==}
@@ -7525,8 +7507,8 @@ packages:
     resolution: {integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==}
     engines: {node: '>= 4'}
 
-  dompurify@3.4.12:
-    resolution: {integrity: sha512-zQvGet8Z2sWbQhCmfFz/T5QWH2oBmjnqK3qvOjaqaNLrLEF912WamU+ohnTp0TCep/MFVHpdJuCZEdFOdTnEFg==}
+  dompurify@3.4.13:
+    resolution: {integrity: sha512-2vmYIoqjze2d+kakP8S/nS5shfsl587kzwEjcGlTdiksUVgFHnFCsLYDVj/JNqJVOQZGSYBTmuycv0PodwmnMQ==}
 
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
@@ -8023,8 +8005,8 @@ packages:
     resolution: {integrity: sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==}
     engines: {node: ^12.20 || >= 14.13}
 
-  fflate@0.4.8:
-    resolution: {integrity: sha512-FJqqoDBR00Mdj9ppamLa/Y7vxm+PRmNWA67N846RvsoYVMKB4q3y/de5PA7gUmRMYK/8CMz2GDZQmCRN1wBcWA==}
+  fflate@0.4.9:
+    resolution: {integrity: sha512-zdxgIEddhfsyCaWpJ2SdXEP8ZMrKJ6+5jl4OupODcywU0IhRk6gdXuVGcPICyfx2H97hVK7xmJtRLPjkxAX8Vw==}
 
   fflate@0.8.1:
     resolution: {integrity: sha512-/exOvEuc+/iaUm105QIiOt4LpBdMTWsXxqR0HDF35vx3fmaKzw7354gTilCh5rkzEt8WYyG//ku3h3nRmd7CHQ==}
@@ -10072,11 +10054,11 @@ packages:
     resolution: {integrity: sha512-DTPx3RWSSnWyzLxQnlH0rJP+EW5ekl16ZU4/psbIhA0e53kJfdgaN5vKM+xP7yJtXVu+nfdVFmlgFDEKAe4Pyw==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.390.2:
-    resolution: {integrity: sha512-z1zh0mMokecCILXxabmo5Xag6uCVYEDhP2JnMYLNxwmKN7d7u1S94XYmhUTF3iyAo2JOg6c7n86mGaTXliz4MA==}
+  posthog-js@1.415.7:
+    resolution: {integrity: sha512-wczdBPDh6vr/Knft0HaJ+naO5NXVaML9Zk9ufoeejO16WrA0TeiX3yqv160eoqWVnWOU5tniYs8hMcxMLmpz2Q==}
 
-  posthog-node@5.45.2:
-    resolution: {integrity: sha512-QhHw/xL0ntMG/DzqA/qdiKu8JY8ChK5Obm8m1nMJor5sjJ7+pfVJSx1yAynC7iUAJfJ9V+OhBNhDCyi5IFWC0Q==}
+  posthog-node@5.48.1:
+    resolution: {integrity: sha512-BxLX2SqGEQhPqCPTalpyo0RRv1NMbf7UaN7q9d/ED77ksD6XOmE7ko2vIKO8F0zPL1NtKxIi+DYXap9lvR0RaA==}
     engines: {node: ^20.20.0 || >=22.22.0}
     peerDependencies:
       rxjs: ^7.0.0
@@ -10100,8 +10082,8 @@ packages:
     peerDependencies:
       preact: '>=10'
 
-  preact@10.29.7:
-    resolution: {integrity: sha512-DCHYrK/B10yUD3ZjLfhZ3WIE/9Vf9VFUODcRE2dRomTYDpJk6z6L9wecSfhfE6M9ZTHUdyQkoC46arIDhEV84Q==}
+  preact@10.29.8:
+    resolution: {integrity: sha512-ej2aVZ+vZ8WO7tvlQWRM9N63A0KzF9q4mWJfDUHgYaIofWY9hu74QdnQrjoPMmZi2/nZ5gN0bJCQF49xQqx09Q==}
     peerDependencies:
       preact-render-to-string: '>=5'
     peerDependenciesMeta:
@@ -11687,8 +11669,11 @@ packages:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
     engines: {node: '>= 8'}
 
-  web-vitals@5.2.0:
-    resolution: {integrity: sha512-i2z98bEmaCqSDiHEDu+gHl/dmR4Q+TxFmG3/13KkMO+o8UxQzCqWaDRCiLgEa41nlO4VpXSI0ASa1xWmO9sBlA==}
+  web-vitals@5.3.0:
+    resolution: {integrity: sha512-q6LWsLatGYZp5VGBIOvbTj6JBV2nOmC8KvWztXBmwJcfFAzhwKwbOxhUH306XY3CcaZDUlSmSuNPBsCn0bFu+g==}
+
+  web-vitals@6.0.0:
+    resolution: {integrity: sha512-Guaibvy/+uNtL6Bsu4jmMJGzuSl91oeRH5iO9pPRbYftnFUr3yqT1TUNX/OE4o9HexuEMU3Kb/Wg7iKhlffZUA==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -12014,28 +11999,15 @@ snapshots:
       - ws
       - zod-to-json-schema
 
-  '@ag-ui/mastra@1.1.1(@ag-ui/client@0.0.52)(@ag-ui/core@0.0.52)(@copilotkit/runtime@1.63.1(1060c54502e6f347b0aa0d1cbe91322c))(@mastra/client-js@1.21.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))':
+  '@ag-ui/mastra@1.1.1(@ag-ui/client@0.0.57)(@ag-ui/core@0.0.52)(@copilotkit/runtime@1.63.1(1060c54502e6f347b0aa0d1cbe91322c))(@mastra/client-js@1.21.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))':
     dependencies:
       '@ag-ui/a2ui-toolkit': 0.0.4
-      '@ag-ui/client': 0.0.52
+      '@ag-ui/client': 0.0.57
       '@ag-ui/core': 0.0.52
       '@ai-sdk/ui-utils': 1.2.11(zod@4.3.6)
       '@copilotkit/runtime': 1.63.1(1060c54502e6f347b0aa0d1cbe91322c)
       '@mastra/client-js': 1.21.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6)
       '@mastra/core': 1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6)
-      fast-json-patch: 3.1.1
-      rxjs: 7.8.1
-      zod: 4.3.6
-
-  '@ag-ui/mastra@1.1.1(@ag-ui/client@0.0.52)(@ag-ui/core@0.0.52)(@copilotkit/runtime@1.63.1(1060c54502e6f347b0aa0d1cbe91322c))(@mastra/client-js@1.21.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6))(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))':
-    dependencies:
-      '@ag-ui/a2ui-toolkit': 0.0.4
-      '@ag-ui/client': 0.0.52
-      '@ag-ui/core': 0.0.52
-      '@ai-sdk/ui-utils': 1.2.11(zod@4.3.6)
-      '@copilotkit/runtime': 1.63.1(1060c54502e6f347b0aa0d1cbe91322c)
-      '@mastra/client-js': 1.21.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6)
-      '@mastra/core': 1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6)
       fast-json-patch: 3.1.1
       rxjs: 7.8.1
       zod: 4.3.6
@@ -14341,32 +14313,6 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@mastra/client-js@1.21.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/ui-utils': 1.2.11(zod@4.3.6)
-      '@lukeed/uuid': 2.0.1
-      '@mastra/core': 1.37.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6)
-      '@mastra/schema-compat': 1.2.10(zod@4.3.6)
-      canonicalize: 1.0.8
-      jose: 6.2.3
-      json-schema: 0.4.0
-      zod: 4.3.6
-    transitivePeerDependencies:
-      - '@bufbuild/protobuf'
-      - '@cfworker/json-schema'
-      - '@grpc/grpc-js'
-      - '@hono/standard-validator'
-      - '@standard-community/standard-json'
-      - '@standard-community/standard-openapi'
-      - '@types/json-schema'
-      - ai
-      - bufferutil
-      - express
-      - openapi-types
-      - rxjs
-      - supports-color
-      - utf-8-validate
-
   '@mastra/core@1.37.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6)':
     dependencies:
       '@a2a-js/sdk': 0.3.13(@bufbuild/protobuf@2.12.0)(@grpc/grpc-js@1.14.4)(express@5.2.1)
@@ -14396,57 +14342,7 @@ snapshots:
       p-map: 7.0.4
       p-retry: 7.1.1
       picomatch: 4.0.5
-      posthog-node: 5.45.2(rxjs@7.8.1)
-      tokenx: 1.3.0
-      ws: 8.21.1
-      xxhash-wasm: 1.1.0
-      zod: 4.3.6
-    transitivePeerDependencies:
-      - '@bufbuild/protobuf'
-      - '@cfworker/json-schema'
-      - '@grpc/grpc-js'
-      - '@hono/standard-validator'
-      - '@standard-community/standard-json'
-      - '@standard-community/standard-openapi'
-      - '@types/json-schema'
-      - ai
-      - bufferutil
-      - express
-      - openapi-types
-      - rxjs
-      - supports-color
-      - utf-8-validate
-
-  '@mastra/core@1.37.1(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(openapi-types@12.1.3)(rxjs@7.8.1)(zod@4.3.6)':
-    dependencies:
-      '@a2a-js/sdk': 0.3.13(@bufbuild/protobuf@2.12.0)(@grpc/grpc-js@1.14.4)(express@5.2.1)
-      '@ai-sdk/provider-utils-v5': '@ai-sdk/provider-utils@4.0.33(zod@4.3.6)'
-      '@ai-sdk/provider-utils-v6': '@ai-sdk/provider-utils@4.0.33(zod@4.3.6)'
-      '@ai-sdk/provider-v5': '@ai-sdk/provider@2.0.3'
-      '@ai-sdk/provider-v6': '@ai-sdk/provider@3.0.10'
-      '@ai-sdk/ui-utils-v5': '@ai-sdk/ui-utils@1.2.11(zod@4.3.6)'
-      '@isaacs/ttlcache': 2.1.5
-      '@lukeed/uuid': 2.0.1
-      '@mastra/schema-compat': 1.2.10(zod@4.3.6)
-      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
-      '@sindresorhus/slugify': 2.2.1
-      '@standard-schema/spec': 1.1.0
-      ajv: 8.20.0
-      chat: 4.29.0(ai@7.0.8(zod@4.3.6))(zod@4.3.6)
-      croner: 10.0.1
-      dotenv: 17.4.2
-      execa: 9.6.1
-      fastq: 1.20.1
-      gray-matter: 4.0.3
-      hono: 4.12.27
-      hono-openapi: 1.3.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(hono@4.12.27)(openapi-types@12.1.3)
-      ignore: 7.0.6
-      json-schema: 0.4.0
-      lru-cache: 11.2.7
-      p-map: 7.0.4
-      p-retry: 7.1.1
-      picomatch: 4.0.5
-      posthog-node: 5.45.2(rxjs@7.8.1)
+      posthog-node: 5.48.1(rxjs@7.8.1)
       tokenx: 1.3.0
       ws: 8.21.1
       xxhash-wasm: 1.1.0
@@ -14494,50 +14390,7 @@ snapshots:
       p-map: 7.0.4
       p-retry: 7.1.1
       picomatch: 4.0.5
-      posthog-node: 5.45.2(rxjs@7.8.1)
-      tokenx: 1.3.0
-      ws: 8.21.1
-      xxhash-wasm: 1.1.0
-      zod: 4.3.6
-    transitivePeerDependencies:
-      - '@bufbuild/protobuf'
-      - '@cfworker/json-schema'
-      - '@grpc/grpc-js'
-      - ai
-      - bufferutil
-      - express
-      - rxjs
-      - supports-color
-      - utf-8-validate
-
-  '@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6)':
-    dependencies:
-      '@a2a-js/sdk': 0.3.13(@bufbuild/protobuf@2.12.0)(@grpc/grpc-js@1.14.4)(express@5.2.1)
-      '@ai-sdk/provider-utils-v5': '@ai-sdk/provider-utils@4.0.33(zod@4.3.6)'
-      '@ai-sdk/provider-utils-v6': '@ai-sdk/provider-utils@4.0.33(zod@4.3.6)'
-      '@ai-sdk/provider-v5': '@ai-sdk/provider@2.0.3'
-      '@ai-sdk/provider-v6': '@ai-sdk/provider@3.0.10'
-      '@isaacs/ttlcache': 2.1.5
-      '@lukeed/uuid': 2.0.1
-      '@mastra/schema-compat': 1.3.0(zod@4.3.6)
-      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
-      '@sindresorhus/slugify': 2.2.1
-      '@standard-schema/spec': 1.1.0
-      ajv: 8.20.0
-      chat: 4.29.0(ai@7.0.8(zod@4.3.6))(zod@4.3.6)
-      croner: 10.0.1
-      dotenv: 17.4.2
-      execa: 9.6.1
-      fastq: 1.20.1
-      gray-matter: 4.0.3
-      ignore: 7.0.6
-      jpeg-js: 0.4.4
-      json-schema: 0.4.0
-      lru-cache: 11.2.7
-      p-map: 7.0.4
-      p-retry: 7.1.1
-      picomatch: 4.0.5
-      posthog-node: 5.45.2(rxjs@7.8.1)
+      posthog-node: 5.48.1(rxjs@7.8.1)
       tokenx: 1.3.0
       ws: 8.21.1
       xxhash-wasm: 1.1.0
@@ -14556,20 +14409,6 @@ snapshots:
   '@mastra/mcp@1.8.1(@cfworker/json-schema@4.1.1)(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)':
     dependencies:
       '@mastra/core': 1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.230(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6)
-      '@modelcontextprotocol/ext-apps': 1.7.2(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)
-      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
-      exit-hook: 5.1.0
-      fast-deep-equal: 3.1.3
-    transitivePeerDependencies:
-      - '@cfworker/json-schema'
-      - react
-      - react-dom
-      - supports-color
-      - zod
-
-  '@mastra/mcp@1.8.1(@cfworker/json-schema@4.1.1)(@mastra/core@1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)':
-    dependencies:
-      '@mastra/core': 1.46.0(@bufbuild/protobuf@2.12.0)(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@7.0.8(zod@4.3.6))(express@5.2.1)(rxjs@7.8.1)(zod@4.3.6)
       '@modelcontextprotocol/ext-apps': 1.7.2(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)
       '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
       exit-hook: 5.1.0
@@ -15371,11 +15210,16 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
-  '@posthog/core@1.43.1':
+  '@posthog/browser-common@0.5.0':
     dependencies:
-      '@posthog/types': 1.397.0
+      '@posthog/core': 1.47.0
+      '@posthog/types': 1.402.3
 
-  '@posthog/types@1.397.0': {}
+  '@posthog/core@1.47.0':
+    dependencies:
+      '@posthog/types': 1.402.3
+
+  '@posthog/types@1.402.3': {}
 
   '@prisma/client@6.19.3(@typescript/typescript6@6.0.2)(prisma@6.19.3(@typescript/typescript6@6.0.2)(magicast@0.5.2))':
     optionalDependencies:
@@ -18567,21 +18411,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  chat@4.29.0(ai@7.0.8(zod@4.3.6))(zod@4.3.6):
-    dependencies:
-      '@workflow/serde': 4.1.0-beta.2
-      mdast-util-to-string: 4.0.0
-      remark-gfm: 4.0.1
-      remark-parse: 11.0.0
-      remark-stringify: 11.0.0
-      remend: 1.3.0
-      unified: 11.0.5
-    optionalDependencies:
-      ai: 7.0.8(zod@4.3.6)
-      zod: 4.3.6
-    transitivePeerDependencies:
-      - supports-color
-
   check-error@2.1.3: {}
 
   cheerio-select@2.1.0:
@@ -18766,7 +18595,7 @@ snapshots:
     dependencies:
       is-what: 4.1.16
 
-  core-js@3.38.1: {}
+  core-js@3.50.0: {}
 
   core-util-is@1.0.2: {}
 
@@ -19234,7 +19063,7 @@ snapshots:
     dependencies:
       domelementtype: 2.3.0
 
-  dompurify@3.4.12:
+  dompurify@3.4.13:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -19936,7 +19765,7 @@ snapshots:
       node-domexception: 1.0.0
       web-streams-polyfill: 3.3.3
 
-  fflate@0.4.8: {}
+  fflate@0.4.9: {}
 
   fflate@0.8.1: {}
 
@@ -21417,7 +21246,7 @@ snapshots:
       d3-sankey: 0.12.3
       dagre-d3-es: 7.0.14
       dayjs: 1.11.20
-      dompurify: 3.4.12
+      dompurify: 3.4.13
       es-toolkit: 1.45.1
       katex: 0.16.45
       khroma: 2.1.0
@@ -21785,8 +21614,8 @@ snapshots:
       next: 16.3.0(@babel/core@7.29.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       oauth: 0.9.15
       openid-client: 5.7.1
-      preact: 10.29.7(preact-render-to-string@5.2.6)
-      preact-render-to-string: 5.2.6(preact@10.29.7)
+      preact: 10.29.8(preact-render-to-string@5.2.6)
+      preact-render-to-string: 5.2.6(preact@10.29.8)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
       uuid: 11.1.1
@@ -22395,22 +22224,24 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.390.2(preact-render-to-string@5.2.6(preact@10.29.7)):
+  posthog-js@1.415.7(preact-render-to-string@5.2.6(preact@10.29.8)):
     dependencies:
-      '@posthog/core': 1.43.1
-      '@posthog/types': 1.397.0
-      core-js: 3.38.1
-      dompurify: 3.4.12
-      fflate: 0.4.8
-      preact: 10.29.7(preact-render-to-string@5.2.6)
+      '@posthog/browser-common': 0.5.0
+      '@posthog/core': 1.47.0
+      '@posthog/types': 1.402.3
+      core-js: 3.50.0
+      dompurify: 3.4.13
+      fflate: 0.4.9
+      preact: 10.29.8(preact-render-to-string@5.2.6)
       query-selector-shadow-dom: 1.0.1
-      web-vitals: 5.2.0
+      web-vitals: 5.3.0
+      web-vitals-soft-navs: web-vitals@6.0.0
     transitivePeerDependencies:
       - preact-render-to-string
 
-  posthog-node@5.45.2(rxjs@7.8.1):
+  posthog-node@5.48.1(rxjs@7.8.1):
     dependencies:
-      '@posthog/core': 1.43.1
+      '@posthog/core': 1.47.0
     optionalDependencies:
       rxjs: 7.8.1
 
@@ -22421,14 +22252,14 @@ snapshots:
   pprof-format@2.2.1:
     optional: true
 
-  preact-render-to-string@5.2.6(preact@10.29.7):
+  preact-render-to-string@5.2.6(preact@10.29.8):
     dependencies:
-      preact: 10.29.7(preact-render-to-string@5.2.6)
+      preact: 10.29.8(preact-render-to-string@5.2.6)
       pretty-format: 3.8.0
 
-  preact@10.29.7(preact-render-to-string@5.2.6):
+  preact@10.29.8(preact-render-to-string@5.2.6):
     optionalDependencies:
-      preact-render-to-string: 5.2.6(preact@10.29.7)
+      preact-render-to-string: 5.2.6(preact@10.29.8)
 
   prelude-ls@1.2.1: {}
 
@@ -24237,7 +24068,9 @@ snapshots:
 
   web-streams-polyfill@3.3.3: {}
 
-  web-vitals@5.2.0: {}
+  web-vitals@5.3.0: {}
+
+  web-vitals@6.0.0: {}
 
   webidl-conversions@3.0.1: {}
 
