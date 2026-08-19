@@ -2,6 +2,10 @@ import { env } from "@/src/env.mjs";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { validateSignupEligibility } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import {
+  emailSchema,
+  normalizeEmail,
+} from "@/src/features/auth/lib/emailSchema";
 import { getGclidFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
@@ -10,7 +14,7 @@ import { z } from "zod/v4";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 
 const signupVerifySchema = z.object({
-  email: z.email(),
+  email: emailSchema,
   name: StringNoHTMLNonEmpty.refine((value) => noUrlCheck(value), {
     message: "Input should not contain a URL",
   }).refine((value) => /^[a-zA-Z0-9\s]+$/.test(value), {
@@ -44,7 +48,7 @@ export default async function handler(
   }
 
   const { email, name } = parsed.data;
-  const normalizedEmail = email.toLowerCase();
+  const normalizedEmail = normalizeEmail(email);
 
   // Run eligibility checks (signup disabled, SSO enforcement, etc.)
   const eligibilityError = await validateSignupEligibility({

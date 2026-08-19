@@ -1,5 +1,6 @@
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import * as z from "zod";
+import { emailSchema } from "@/src/features/auth/lib/emailSchema";
 
 export const passwordSchema = z
   .string()
@@ -32,7 +33,7 @@ export const nameSchema = StringNoHTMLNonEmpty.max(
 
 export const signupSchema = z.object({
   name: nameSchema,
-  email: z.email(),
+  email: emailSchema,
   password: passwordSchema,
   referralSource: z.string().optional(),
 });
