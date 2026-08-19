@@ -21,7 +21,7 @@ const CopyDimensionButton: React.FC<{ value: string }> = ({ value }) => {
       type="button"
       aria-label={`Copy "${value}"`}
       title={`Copy "${value}"`}
-      className="text-muted-foreground hover:bg-background/60 hover:text-foreground pointer-events-auto shrink-0 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+      className="text-muted-foreground hover:bg-background/60 hover:text-foreground pointer-events-auto shrink-0 rounded p-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
       onClick={(e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(value).catch(() => {});
@@ -88,7 +88,7 @@ export const TopListChart: React.FC<ChartProps> = ({
       {rows.map((row, i) => (
         <div
           key={`${row.dimension}-${i}`}
-          className="group hover:bg-accent/60 flex items-center gap-2 rounded-sm transition-opacity"
+          className="group/row hover:bg-accent/60 flex items-center gap-2 rounded-sm transition-opacity"
           style={{
             flex: `0 1 ${MAX_ROW_PX}px`,
             minHeight: MIN_ROW_PX,

@@ -182,7 +182,7 @@ const CopyNameButton: React.FC<{ name: string }> = ({ name }) => {
     <button
       aria-label={`Copy "${name}"`}
       title={`Copy "${name}"`}
-      className="text-muted-foreground hover:bg-background/60 hover:text-foreground pointer-events-auto rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+      className="text-muted-foreground hover:bg-background/60 hover:text-foreground pointer-events-auto rounded p-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
       onClick={() => {
         navigator.clipboard.writeText(name).catch(() => {});
         setCopied(true);
@@ -223,7 +223,7 @@ const TopList: React.FC<{
       {rows.map((r) => (
         <div
           key={r.name}
-          className="group hover:bg-accent/60 flex shrink-0 items-center gap-2 rounded-sm transition-opacity"
+          className="group/row hover:bg-accent/60 flex shrink-0 items-center gap-2 rounded-sm transition-opacity"
           style={{ height: rowH }}
         >
           <div className="w-14 shrink-0 text-right text-sm font-bold tabular-nums">
