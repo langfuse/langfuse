@@ -5,7 +5,6 @@ import {
   extractObservationVariables,
   logger,
   recordIncrement,
-  type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
@@ -42,19 +41,6 @@ import { type ObservationForEval } from "./types";
  * Dependencies for processing observation evals.
  * Allows S3 operations to be injected for testability.
  */
-export type ObservationEvalExecutionBaseParams = {
-  projectId: string;
-  organizationId: string;
-  jobExecutionId: string;
-  job: JobExecution;
-  config: JobConfiguration;
-  extractedVariables: ExtractedVariable[];
-  hasExperimentContext: boolean;
-  environment: string;
-  executionMetadata: Record<string, string>;
-  deps: EvalExecutionDeps;
-};
-
 export interface ObservationEvalProcessorDeps {
   downloadObservationFromS3: (path: string) => Promise<string>;
   evalExecutionDeps: EvalExecutionDeps;
@@ -63,7 +49,7 @@ export interface ObservationEvalProcessorDeps {
 /**
  * Creates production dependencies for the observation eval processor.
  */
-export function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
+function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
   return {
     downloadObservationFromS3: async (path: string) => {
       const s3Client = getEvalS3StorageClient();

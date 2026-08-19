@@ -161,7 +161,7 @@ export function toStoredMappingList(
   );
 }
 
-export function parseStoredOutputDefinition(
+function parseStoredOutputDefinition(
   template: Pick<StoredPublicEvaluatorTemplate, "id" | "outputDefinition">,
 ): PublicEvaluatorOutputDefinitionType {
   const parsed = PersistedEvalOutputDefinitionSchema.safeParse(
@@ -234,7 +234,7 @@ export function toStoredOutputDefinition(
   }
 }
 
-export function toApiModelConfig(
+function toApiModelConfig(
   template: Pick<
     StoredPublicEvaluatorTemplate,
     "provider" | "model" | "modelParams"
@@ -330,7 +330,7 @@ export function toApiMappings(
   });
 }
 
-export function toApiLegacyMappings(
+function toApiLegacyMappings(
   mappings: unknown,
 ): LegacyEvaluationRuleMappingType[] {
   const parsed = variableMappingList.safeParse(mappings);

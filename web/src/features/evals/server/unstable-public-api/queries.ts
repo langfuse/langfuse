@@ -7,11 +7,11 @@ import type {
 } from "./types";
 import { toStoredEvaluatorType } from "./adapters";
 
-export function getPrismaClient(client?: PrismaClientLike) {
+function getPrismaClient(client?: PrismaClientLike) {
   return client ?? prisma;
 }
 
-export const publicV2RuleInclude = (projectId: string) => ({
+const publicV2RuleInclude = (projectId: string) => ({
   assignments: {
     where: { projectId, evaluator: { projectId } },
     orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],

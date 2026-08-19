@@ -11,11 +11,6 @@ import { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json
 
 export { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json-path-compatibility";
 
-// Legacy eval targets (TRACE, DATASET) use full variable mapping UI with object selector
-// Modern eval targets (EVENT, EXPERIMENT) use simplified UI with just column selection
-export const isLegacyEvalTarget = (target: string): boolean =>
-  target === "trace" || target === "dataset";
-
 export const evalConfigFormSchema = z
   .object({
     scoreName: z.string(),

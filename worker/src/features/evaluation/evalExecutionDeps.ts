@@ -24,7 +24,7 @@ type StructuredOutputSchema = z.ZodType;
 /**
  * Result of fetching model configuration.
  */
-export type ModelConfigResult =
+type ModelConfigResult =
   | {
       valid: true;
       config: {
@@ -46,7 +46,7 @@ export type ModelConfigResult =
 /**
  * Parameters for calling the LLM.
  */
-export interface LLMCallParams {
+interface LLMCallParams {
   messages: ChatMessage[];
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
   structuredOutputSchema: StructuredOutputSchema;
@@ -62,7 +62,7 @@ export interface LLMCallParams {
 /**
  * Update data for job execution status.
  */
-export interface UpdateJobExecutionData {
+interface UpdateJobExecutionData {
   status: JobExecutionStatus;
   endTime?: Date;
   jobOutputScoreId?: string;
@@ -72,7 +72,7 @@ export interface UpdateJobExecutionData {
 /**
  * Parameters for uploading a score to S3.
  */
-export interface UploadScoreParams {
+interface UploadScoreParams {
   projectId: string;
   scoreId: string;
   eventId: string;
@@ -82,7 +82,7 @@ export interface UploadScoreParams {
 /**
  * Parameters for enqueueing score ingestion.
  */
-export interface EnqueueScoreIngestionParams {
+interface EnqueueScoreIngestionParams {
   projectId: string;
   scoreId: string;
   eventId: string;
@@ -91,7 +91,7 @@ export interface EnqueueScoreIngestionParams {
 /**
  * Parameters for updating a job execution.
  */
-export interface UpdateJobExecutionParams {
+interface UpdateJobExecutionParams {
   id: string;
   projectId: string;
   data: UpdateJobExecutionData;
@@ -100,7 +100,7 @@ export interface UpdateJobExecutionParams {
 /**
  * Parameters for fetching model configuration.
  */
-export interface FetchModelConfigParams {
+interface FetchModelConfigParams {
   projectId: string;
   provider?: string;
   model?: string;

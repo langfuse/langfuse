@@ -78,7 +78,6 @@ type StableEvaluator = Evaluator & { versions: EvaluatorVersion[] };
 
 type TransactionClient = Prisma.TransactionClient;
 
-export type LegacyTemplate = ReturnType<typeof toLegacyEvaluatorTemplate>;
 export type LegacyConfig = ReturnType<typeof toLegacyConfig>;
 
 function managedTemplateId(key: string) {

@@ -1691,7 +1691,7 @@ const snakeToCamel = (s: string) =>
 // Returns the typed value extracted from a database row. The shared LLM
 // evaluator runtime stringifies it during prompt substitution; code-based
 // evaluators consume the typed value directly.
-export const parseDatabaseRowValue = (
+const parseDatabaseRowValue = (
   dbRow: Record<string, unknown>,
   mapping: z.infer<typeof variableMapping>,
 ): unknown => {
@@ -1720,28 +1720,4 @@ export const parseDatabaseRowValue = (
   }
 
   return value;
-};
-
-export const parseUnknownToString = (value: unknown): string => {
-  if (value === null || value === undefined) {
-    return "";
-  }
-
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return value.toString();
-  }
-
-  if (typeof value === "object") {
-    return JSON.stringify(value);
-  }
-
-  if (typeof value === "symbol") {
-    return value.toString();
-  }
-
-  return String(value);
 };

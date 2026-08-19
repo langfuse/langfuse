@@ -189,7 +189,7 @@ export type EvalTemplateFormPreFill = {
   shouldUseDefaultModel?: boolean;
 };
 
-export const InnerEvalTemplateForm = (props: {
+const InnerEvalTemplateForm = (props: {
   projectId: string;
   useDialog: boolean;
   // pre-filled values from langfuse-defined template or template from db

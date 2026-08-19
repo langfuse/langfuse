@@ -27,7 +27,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 
-export function resolveInitialRuleFilters(initialFilter?: FilterState) {
+function resolveInitialRuleFilters(initialFilter?: FilterState) {
   return initialFilter ?? EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS;
 }
 
