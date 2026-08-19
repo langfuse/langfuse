@@ -223,5 +223,3 @@ function DatasetItemsView({
     </Page>
   );
 }
-
-export default DatasetItemsView;
