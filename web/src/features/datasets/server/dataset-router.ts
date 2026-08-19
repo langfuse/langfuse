@@ -2174,11 +2174,37 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
+      const existingHeaders = parseStoredRemoteExperimentHeaders(
+        dataset.remoteExperimentRequestHeaders,
+      );
+      const submittedHeadersByLowerKey = input.requestHeaders
+        ? Object.fromEntries(
+            Object.entries(input.requestHeaders).map(([key, value]) => [
+              key.trim().toLowerCase(),
+              value,
+            ]),
+          )
+        : undefined;
+      const reusesSecretHeader = Object.entries(existingHeaders).some(
+        ([key, header]) =>
+          header.secret &&
+          (input.requestHeaders === undefined ||
+            submittedHeadersByLowerKey?.[
+              key.trim().toLowerCase()
+            ]?.value.trim() === ""),
+      );
+
+      if (input.url !== dataset.remoteExperimentUrl && reusesSecretHeader) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Secret headers must be re-entered when changing the remote experiment URL",
+        });
+      }
+
       const { requestHeaders, displayHeaders } = processRemoteExperimentHeaders(
         input.requestHeaders,
-        parseStoredRemoteExperimentHeaders(
-          dataset.remoteExperimentRequestHeaders,
-        ),
+        existingHeaders,
       );
 
       const signingSecret =
