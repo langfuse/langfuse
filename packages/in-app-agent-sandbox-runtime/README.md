@@ -36,7 +36,7 @@ This produces `langfuse-in-app-agent-sandbox:latest`.
 
 ## Testing
 
-Unit tests cover the sandbox operation contracts:
+Unit tests:
 
 ```bash
 pnpm --filter @repo/in-app-agent-sandbox-runtime run test
