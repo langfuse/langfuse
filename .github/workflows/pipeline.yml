@@ -338,6 +338,8 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: typecheck sandbox runtime
+        run: pnpm --filter @repo/in-app-agent-sandbox-runtime run typecheck
       - name: run sandbox runtime unit tests
         run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test
       - name: run sandbox runtime docker e2e tests

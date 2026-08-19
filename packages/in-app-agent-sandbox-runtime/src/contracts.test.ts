@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SandboxFileSchema, SandboxOperationSchema } from "./contracts.ts";
+import { SandboxFileSchema, SandboxOperationSchema } from "./contracts.js";
 
 describe("SandboxOperationSchema", () => {
   it("accepts each supported sandbox operation", () => {

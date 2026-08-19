@@ -123,7 +123,7 @@
       "dependsOn": [],
       "cache": true
     },
-    "test:e2e": {
+    "@repo/in-app-agent-sandbox-runtime#test:e2e": {
       "dependsOn": ["build"],
       "cache": false
     },

@@ -13,6 +13,7 @@
     "start": "node ./dist/server.js",
     "test": "vitest run src",
     "test:e2e": "pnpm run build && vitest run tests",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
