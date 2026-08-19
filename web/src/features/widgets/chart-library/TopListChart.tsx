@@ -12,7 +12,7 @@ import {
 // (charts must stay a pure function of their box — see BarListChartArea).
 const MAX_ROW_PX = 56;
 const MIN_ROW_PX = 16;
-const ROW_GAP_PX = 4;
+const ROW_GAP_PX = 1;
 
 const CopyDimensionButton: React.FC<{ value: string }> = ({ value }) => {
   const [copied, setCopied] = useState(false);

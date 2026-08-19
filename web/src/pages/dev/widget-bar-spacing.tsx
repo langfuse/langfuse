@@ -209,7 +209,7 @@ const TopList: React.FC<{
   minRowPx?: number;
   maxRowPx?: number;
 }> = ({ rows, availableHeightPx, minRowPx = 16, maxRowPx = 56 }) => {
-  const GAP = 4;
+  const GAP = 1;
   const max = Math.max(...rows.map((r) => r.value), 1);
   const fit = (availableHeightPx - GAP * (rows.length - 1)) / rows.length;
   const rowH = Math.max(minRowPx, Math.min(maxRowPx, Math.floor(fit)));
