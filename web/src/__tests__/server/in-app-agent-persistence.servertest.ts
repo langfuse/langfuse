@@ -1,7 +1,5 @@
-vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
-  const actual = await vi.importActual(
-    "@langfuse/shared/src/server/llm/llmText",
-  );
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
     generateLLMText: vi.fn(),
@@ -19,9 +17,9 @@ import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
+  generateLLMText,
   getScoreById,
 } from "@langfuse/shared/src/server";
-import { generateLLMText } from "@langfuse/shared/src/server/llm/llmText";
 import { env } from "@/src/env.mjs";
 import {
   InAppAgentRunErrorCode,
@@ -246,16 +244,18 @@ describe("in-app agent persistence", () => {
     });
   });
 
-  it("allows oss-plan users to list conversations", async () => {
+  it("rejects users without the in-app agent entitlement", async () => {
     const { caller, projectId } = await createCaller(
       `user-${randomUUID()}`,
       "oss",
     );
 
-    await expect(caller.listConversations({ projectId })).resolves.toEqual({
-      conversations: [],
-      nextCursor: undefined,
-    });
+    await expect(caller.listConversations({ projectId })).rejects.toMatchObject(
+      {
+        code: "FORBIDDEN",
+        message: expect.stringContaining("in-app-agent"),
+      },
+    );
   });
 
   const startCompactRun = async (params: {

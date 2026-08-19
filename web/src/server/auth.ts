@@ -6,7 +6,6 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
-import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
   verifyPassword,
@@ -880,7 +879,6 @@ export async function getAuthOptions(signupAttribution?: {
             environment: {
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
-              inAppAgentEnabled: isInAppAgentInstanceEnabled(),
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
