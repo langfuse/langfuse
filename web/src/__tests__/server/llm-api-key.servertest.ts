@@ -95,7 +95,6 @@ describe("llmApiKey.all RPC", () => {
           },
         ],
         featureFlags: {
-          searchBar: false,
           templateFlag: true,
           excludeClickhouseRead: false,
           observationEvals: false,
