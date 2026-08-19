@@ -17,6 +17,7 @@ import {
 } from "@/src/features/in-app-agent/quickActions";
 import {
   getBackgroundRunNotice,
+  getSettledActivityOutcome,
   isCancellableBackgroundRun,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
 import {
@@ -90,6 +91,7 @@ export function ControlledInAppAgentWindow(
   });
   const windowExecutionUi: InAppAgentWindowExecutionUi = {
     notice: getBackgroundRunNotice(execution.run),
+    activityOutcome: getSettledActivityOutcome(execution.run),
     stop:
       execution.run && isCancellableBackgroundRun(execution.run.status)
         ? {

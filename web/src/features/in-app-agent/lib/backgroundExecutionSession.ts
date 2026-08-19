@@ -576,32 +576,66 @@ export function getBackgroundRunFailureMessage(
   );
 }
 
+export type BackgroundRunNoticeTone = "info" | "warning";
+
+export type BackgroundRunNotice = {
+  text: string;
+  tone: BackgroundRunNoticeTone;
+};
+
 const STEP_LIMIT_NOTICE =
-  "The assistant stopped at the step limit before a final answer. Send another message to continue.";
+  "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.";
 
 export function getBackgroundRunNotice(
   run: BackgroundExecutionRunView | null,
-): string | null {
+): BackgroundRunNotice | null {
   if (!run) {
     return null;
   }
 
   if (isCancellableBackgroundRun(run.status) && run.cancelRequested) {
-    return "Stopping the run…";
+    return { text: "Stopping the run…", tone: "info" };
   }
 
   if (run.status === InAppAgentRunStatus.FAILED) {
-    return getBackgroundRunFailureMessage(run.errorCode ?? null);
+    return {
+      text: getBackgroundRunFailureMessage(run.errorCode ?? null),
+      tone: "info",
+    };
   }
 
   if (
     run.status === InAppAgentRunStatus.SUCCEEDED &&
     run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT
   ) {
-    return STEP_LIMIT_NOTICE;
+    return { text: STEP_LIMIT_NOTICE, tone: "warning" };
   }
 
   return null;
+}
+
+export type SettledActivityOutcome = "worked" | "stopped" | "failed";
+
+export function getSettledActivityOutcome(
+  run: BackgroundExecutionRunView | null,
+): SettledActivityOutcome {
+  if (!run) {
+    return "worked";
+  }
+
+  if (
+    (run.status === InAppAgentRunStatus.SUCCEEDED &&
+      run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT) ||
+    run.status === InAppAgentRunStatus.CANCELLED
+  ) {
+    return "stopped";
+  }
+
+  if (run.status === InAppAgentRunStatus.FAILED) {
+    return "failed";
+  }
+
+  return "worked";
 }
 
 const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {

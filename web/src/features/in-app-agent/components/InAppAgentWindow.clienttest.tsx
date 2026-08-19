@@ -518,6 +518,123 @@ describe("InAppAgentWindow activity", () => {
     ).toBeVisible();
   });
 
+  it("labels a step-limited latest turn as stopped after the duration", () => {
+    render(
+      windowElement({
+        executionUi: {
+          notice: {
+            text: "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.",
+            tone: "warning",
+          },
+          activityOutcome: "stopped",
+          stop: null,
+        },
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "Investigate errors" },
+          },
+          {
+            id: "assistant-reasoning-1",
+            timestamp: new Date("2026-08-06T15:20:00.000Z").getTime(),
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "Checking yesterday first.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-answer-1",
+            runId: "run-1",
+            timestamp: new Date("2026-08-06T15:20:12.000Z").getTime(),
+            role: "assistant",
+            content: { type: "text", text: "Yesterday was quiet." },
+          },
+          {
+            id: "user-2",
+            role: "user",
+            content: { type: "text", text: "Keep going through today" },
+          },
+          {
+            id: "assistant-reasoning-2",
+            timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "Looking at today's errors.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-answer-2",
+            runId: "run-2",
+            timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+            role: "assistant",
+            content: {
+              type: "text",
+              text: "Still checking the remaining traces.",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Worked for 12s" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Stopped after 51s" }),
+    ).toBeVisible();
+  });
+
+  it("labels a failed latest turn as failed after the duration", () => {
+    render(
+      windowElement({
+        executionUi: {
+          notice: {
+            text: "The run exceeded the maximum duration.",
+            tone: "info",
+          },
+          activityOutcome: "failed",
+          stop: null,
+        },
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "Investigate latency" },
+          },
+          {
+            id: "assistant-reasoning",
+            timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "Checking the slow traces.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-answer",
+            runId: "run-1",
+            timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+            role: "assistant",
+            content: {
+              type: "text",
+              text: "Still inspecting the remaining traces.",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Failed after 51s" }),
+    ).toBeVisible();
+  });
+
   it("keeps the activity drawer collapsed and shows technical names when opened", () => {
     render(
       windowElement({

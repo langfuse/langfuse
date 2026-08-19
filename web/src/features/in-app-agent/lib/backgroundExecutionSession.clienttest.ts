@@ -1383,9 +1383,10 @@ describe("getBackgroundRunNotice", () => {
       getBackgroundRunNotice(
         run({ errorCode: InAppAgentRunErrorCode.STEP_LIMIT }),
       ),
-    ).toBe(
-      "The assistant stopped at the step limit before a final answer. Send another message to continue.",
-    );
+    ).toEqual({
+      text: "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.",
+      tone: "warning",
+    });
   });
 
   it("does not show a notice for a successful run", () => {
