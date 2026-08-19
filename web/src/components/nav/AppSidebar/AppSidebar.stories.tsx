@@ -28,6 +28,10 @@ const setCurrentTimestamp = (timestamp: number) => {
 
 const meta = preview.meta({
   component: AppSidebar,
+  // Fullscreen: the docked sidebar is `position: fixed` to the iframe, so
+  // Storybook's default 1rem padded layout sat the inset chrome 16px below
+  // the logo strip and made the T-junction look broken.
+  parameters: { layout: "fullscreen" },
   render: (args) => <SidebarStory open args={args} />,
   args: {
     navItems: {
@@ -278,9 +282,10 @@ export const ChromeRowAlignment = meta.story({
     // Storybook viewport uses the mobile sheet instead).
     if (sidebarBox.width === 0) return;
 
-    // The shared contract is the divider Y: both rows are the same
-    // min-h-11 + border-b box. The sidebar `border-r` sits 1px outside
-    // this row's content box, so do not assert left/right edges.
+    // Same box geometry (the shared min-h-11 + border-b class). Absolute Y
+    // also matches when this file uses `layout: fullscreen` so the fixed
+    // sidebar and the in-flow inset share an origin.
+    await expect(Math.abs(sidebarBox.height - pageBox.height)).toBeLessThan(1);
     await expect(Math.abs(sidebarBox.bottom - pageBox.bottom)).toBeLessThan(1);
   },
 });
