@@ -221,9 +221,15 @@ importers:
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../config-typescript
+      '@types/dockerode':
+        specifier: ^4.0.1
+        version: 4.0.1
       '@types/node':
         specifier: ^24.3.0
         version: 24.3.0
+      dockerode:
+        specifier: ^4.0.12
+        version: 4.0.12
       prettier:
         specifier: ^3.8.3
         version: 3.8.3

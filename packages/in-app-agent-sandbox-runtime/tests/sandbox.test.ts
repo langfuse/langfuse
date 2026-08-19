@@ -1,19 +1,17 @@
-import { execFile } from "node:child_process";
+import { readdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 
+import Docker from "dockerode";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const execFileAsync = promisify(execFile);
 const PACKAGE_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 );
 const IMAGE_TAG = "langfuse-in-app-agent-sandbox:e2e";
 const MICROVM_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
-const DOCKER_BUILD_TIMEOUT_MS = 5 * 60 * 1000;
 const HEALTH_TIMEOUT_MS = 30_000;
 
 type JsonResponse = {
@@ -22,49 +20,37 @@ type JsonResponse = {
 };
 
 describe("sandbox runtime docker container", () => {
-  let containerName = "";
+  const docker = new Docker();
+  let container: Docker.Container | undefined;
   let baseUrl = "";
 
   beforeAll(async () => {
-    await runDocker(["build", ".", "-t", IMAGE_TAG], {
-      cwd: PACKAGE_ROOT,
-      timeout: DOCKER_BUILD_TIMEOUT_MS,
+    await buildSandboxImage(docker);
+
+    container = await docker.createContainer({
+      Image: IMAGE_TAG,
+      name: `langfuse-in-app-agent-sandbox-e2e-${randomUUID().slice(0, 8)}`,
+      ExposedPorts: { "5000/tcp": {} },
+      HostConfig: {
+        PortBindings: {
+          "5000/tcp": [{ HostIp: "127.0.0.1", HostPort: "0" }],
+        },
+      },
     });
+    await container.start();
 
-    containerName = `langfuse-in-app-agent-sandbox-e2e-${randomUUID().slice(0, 8)}`;
-    await runDocker([
-      "run",
-      "-d",
-      "--name",
-      containerName,
-      "-p",
-      "127.0.0.1::5000",
-      IMAGE_TAG,
-    ]);
-
-    const hostPort = (
-      await runDocker([
-        "inspect",
-        "-f",
-        '{{(index (index .NetworkSettings.Ports "5000/tcp") 0).HostPort}}',
-        containerName,
-      ])
-    ).stdout.trim();
-
+    const inspect = await container.inspect();
+    const hostPort = inspect.NetworkSettings.Ports["5000/tcp"]?.[0]?.HostPort;
     if (!hostPort) {
       throw new Error("Docker did not publish sandbox server port 5000");
     }
 
     baseUrl = `http://127.0.0.1:${hostPort}`;
-    await waitForHealth(baseUrl, containerName);
+    await waitForHealth(baseUrl, container);
   }, 300_000);
 
   afterAll(async () => {
-    if (!containerName) {
-      return;
-    }
-
-    await runDocker(["rm", "-f", containerName]).catch(() => undefined);
+    await container?.remove({ force: true }).catch(() => undefined);
   });
 
   it(
@@ -226,7 +212,55 @@ describe("sandbox runtime docker container", () => {
   );
 });
 
-async function waitForHealth(baseUrl: string, containerName: string) {
+async function buildSandboxImage(docker: Docker) {
+  const src = [
+    "Dockerfile",
+    "package.json",
+    ...(await listRelativeFiles(path.join(PACKAGE_ROOT, "dist"), "dist")),
+  ];
+  const stream = await docker.buildImage(
+    { context: PACKAGE_ROOT, src },
+    { t: IMAGE_TAG },
+  );
+
+  await new Promise<void>((resolve, reject) => {
+    docker.modem.followProgress(stream, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
+
+async function listRelativeFiles(
+  absDir: string,
+  relativePrefix: string,
+): Promise<string[]> {
+  const entries = await readdir(absDir, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const relativePath = `${relativePrefix}/${entry.name}`;
+    if (entry.isDirectory()) {
+      files.push(
+        ...(await listRelativeFiles(
+          path.join(absDir, entry.name),
+          relativePath,
+        )),
+      );
+      continue;
+    }
+
+    files.push(relativePath);
+  }
+
+  return files;
+}
+
+async function waitForHealth(baseUrl: string, container: Docker.Container) {
   const startedAt = Date.now();
   let lastError: unknown;
 
@@ -244,20 +278,33 @@ async function waitForHealth(baseUrl: string, containerName: string) {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
-  const logs = await runDocker(["logs", "--tail", "50", containerName]).catch(
-    () => ({ stdout: "", stderr: "" }),
-  );
+  const logs = await container
+    .logs({ stdout: true, stderr: true, tail: 50 })
+    .catch(() => Buffer.from(""));
+  const logText = Buffer.isBuffer(logs)
+    ? logs.toString("utf8")
+    : await readStreamToString(logs);
 
   throw new Error(
     [
       `Sandbox container did not become healthy within ${HEALTH_TIMEOUT_MS}ms.`,
       lastError instanceof Error ? lastError.message : String(lastError ?? ""),
-      logs.stdout,
-      logs.stderr,
+      logText,
     ]
       .filter(Boolean)
       .join("\n"),
   );
+}
+
+function readStreamToString(stream: NodeJS.ReadableStream) {
+  return new Promise<string>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on("data", (chunk: Buffer | string) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    stream.on("error", reject);
+  });
 }
 
 async function requestJson(
@@ -282,68 +329,4 @@ async function requestJson(
   }
 
   return { status: response.status, body };
-}
-
-async function runDocker(
-  args: string[],
-  options: { cwd?: string; timeout?: number } = {},
-) {
-  try {
-    return await execFileAsync("docker", args, {
-      cwd: options.cwd,
-      timeout: options.timeout,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-  } catch (error) {
-    if (!isDockerPermissionError(error)) {
-      throw annotateDockerError(args, error);
-    }
-
-    try {
-      return await execFileAsync("sudo", ["-n", "docker", ...args], {
-        cwd: options.cwd,
-        timeout: options.timeout,
-        maxBuffer: 10 * 1024 * 1024,
-      });
-    } catch (sudoError) {
-      throw annotateDockerError(["sudo", "-n", "docker", ...args], sudoError);
-    }
-  }
-}
-
-function isDockerPermissionError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  const stderr =
-    error !== null &&
-    typeof error === "object" &&
-    "stderr" in error &&
-    typeof error.stderr === "string"
-      ? error.stderr
-      : "";
-
-  return /permission denied/i.test(`${message}\n${stderr}`);
-}
-
-function annotateDockerError(args: string[], error: unknown) {
-  const stderr =
-    error !== null &&
-    typeof error === "object" &&
-    "stderr" in error &&
-    typeof error.stderr === "string"
-      ? error.stderr.trim()
-      : "";
-  const stdout =
-    error !== null &&
-    typeof error === "object" &&
-    "stdout" in error &&
-    typeof error.stdout === "string"
-      ? error.stdout.trim()
-      : "";
-  const message = error instanceof Error ? error.message : String(error);
-
-  return new Error(
-    [`docker ${args.join(" ")} failed: ${message}`, stdout, stderr]
-      .filter(Boolean)
-      .join("\n"),
-  );
 }
