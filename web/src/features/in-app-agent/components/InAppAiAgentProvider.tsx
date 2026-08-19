@@ -1592,7 +1592,8 @@ export function useInAppAiAgent() {
 
 /** Whether a run would be admitted for this project. Client mirror of
  * assertInAppAgentAvailable: instance switch, entitlement, and org AI
- * Features. Use this for task CTAs that start a run. More restrictive than
+ * Features. Use this for polling and other paths that must not hit the
+ * server when org AI Features is off. More restrictive than
  * useIsInAppAgentLauncherVisible. */
 export function useCanUseInAppAgent() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
@@ -1607,10 +1608,10 @@ export function useCanUseInAppAgent() {
   );
 }
 
-/** Whether to show the global launcher (nav button and window host). Looser
- * than useCanUseInAppAgent: with org AI Features off the launcher still
- * shows, and clicking it opens the dialog that turns it on. Hidden entirely
- * when the instance-wide switch is off. Do not use this to gate task CTAs. */
+/** Whether to show Assistant entry points (nav launcher, v4/eval CTAs).
+ * Looser than useCanUseInAppAgent: with org AI Features off they still
+ * show, and clicking opens the dialog that turns it on. Hidden entirely
+ * when the instance-wide switch is off. */
 export function useIsInAppAgentLauncherVisible() {
   const { isAvailable } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");

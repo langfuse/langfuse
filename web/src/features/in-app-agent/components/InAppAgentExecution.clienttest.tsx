@@ -304,9 +304,9 @@ describe("in-app agent execution", () => {
     window.sessionStorage.clear();
   });
 
-  // Polling uses useCanUseInAppAgent (org AI Features on). The launcher uses
+  // Polling uses useCanUseInAppAgent (org AI Features on). Entry points use
   // useIsInAppAgentLauncherVisible, which still shows when AI Features are off
-  // so clicking it can open the enable dialog. Polling with it off turns every
+  // so clicking can open the enable dialog. Polling with it off turns every
   // page load and window focus into a Forbidden toast.
   it("polls for activity only once AI features are on", () => {
     sessionMocks.aiFeaturesEnabled = false;
