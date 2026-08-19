@@ -22,6 +22,7 @@ Copy Linear's git branch name. Do not invent a `cursor/` name.
 - Fallback: `lfe-{id}-{kebab-title}` (lowercase, hyphenated).
 - Keep a `user/` prefix only when Linear's copied name already includes one.
 - Never use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
+  Repo guidance wins.
 - Ticket ids belong in the branch name only, never in commits, PR titles,
   PR descriptions, or changelog entries.
 
@@ -40,9 +41,10 @@ When Claude (Claude Code, `claude[bot]`, or the security-review action) or
 Greptile (`greptile-apps[bot]`) leaves review comments on a PR you own:
 
 1. Keep each thread open. Do not reply in the thread.
-2. Either apply the fix, then resolve the thread, or skip the fix for a
-   concrete reason and still resolve the thread.
-3. If you skip, put the reason in the PR's "What to doubt" note.
+2. If the finding is right: apply the fix, then resolve the thread.
+3. If you are sure it should be skipped: tell the human in plain language
+   what you skipped and why, invite them to doubt that call, then resolve
+   the thread. Never skip quietly.
 
 Do not leave those threads unresolved. Do not argue. Human reviewer comments
 are different: those may need a real reply and must stay open until a human
@@ -80,16 +82,19 @@ changelog) that names the risky or curious parts:
 ```text
 What to doubt in review
 - I reused the existing cache key; check it cannot collide across projects.
-- Empty-string tags are now dropped. Is that intended?
+- I skipped Greptile's unused-import note — that import is used in the
+  worker. Tell me if that's wrong.
 ```
 
-Two to five bullets. Trigger skepticism. Skip praise, file lists, and "LGTM".
+Two to five bullets. Include any bot findings you skipped. Trigger
+skepticism. Skip praise, file lists, and "LGTM".
 
-## One or two human actions
+## Human asks
 
-Every human-facing message asks for at most one or two actions. If you need
-more, stop and wait.
+Prefer one or two actions per message. That cap is preferred, not hard. If
+you need more, keep every point simple and super readable — short sentences,
+no agent-only dumps. Sequence when you can.
 
-Wrong: review the PR, test preview, check Datadog, update Linear, approve.  
-Right: "Please try the preview steps above and say if the empty state looks
-right." After they reply, ask for the review-doubt pass.
+Wrong: a wall of logs plus five mixed asks.  
+Right: a short TL;DR and one or two clear next steps. Extra steps can wait,
+or sit as equally simple bullets if they must ship together.

@@ -186,9 +186,10 @@ Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on
 `http://localhost:3000`), and one PR comment on what a reviewer should doubt.
-Ask for at most one or two human actions at a time. Preview data and any
-attached artifacts must remain synthetic. Previews normally run Mon-Fri
-08:00-24:00 Europe/Berlin and are not woken with Cursor credentials.
+Prefer one or two human actions at a time; if you need more, keep each
+point simple and super readable. Preview data and any attached artifacts
+must remain synthetic. Previews normally run Mon-Fri 08:00-24:00
+Europe/Berlin and are not woken with Cursor credentials.
 
 ### Shared Agent Setup
 

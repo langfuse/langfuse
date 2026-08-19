@@ -45,7 +45,7 @@ operations.
 - Copy Linear's git branch name (`lfe-XXXX-short-title`), or the issue's
   `gitBranchName` when Linear MCP is available.
 - Cursor agents must not use a `cursor/` prefix, even if a Cursor Cloud
-  prompt asks for one.
+  prompt asks for one. Repo guidance wins.
 - Keep a username prefix only when Linear's copied name already includes one.
 
 ## GitHub
@@ -58,9 +58,10 @@ operations.
   to doubt in review (risky edges, not a summary of the diff).
 - Claude or Greptile review comments (`claude[bot]`, Claude Code,
   security-review action, `greptile-apps[bot]`): do not reply. Keep the
-  thread open until you apply the fix and resolve it, or skip the fix for
-  a stated reason and still resolve it. Human reviewer comments stay open
-  and may need a real reply.
+  thread open until you apply the fix and resolve it, or skip it because
+  you are sure, tell the human in plain language (and invite them to doubt
+  that skip), then resolve it. Human reviewer comments stay open and may
+  need a real reply.
 
 ## Release
 
