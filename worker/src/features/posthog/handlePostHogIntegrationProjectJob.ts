@@ -444,15 +444,10 @@ export const handlePostHogIntegrationProjectJob = async (
     ).slice(0, 1000);
 
     if (reason === undefined) {
-      // Defensive fallback for a validation failure the classifier does not
-      // recognise. Every OutboundUrlValidationErrorCode that exists today either
-      // classifies above and disables the integration — including one raised on
-      // a redirect hop, which reaches the classifier through the redirect
-      // error's `cause` — or is transient (dns-lookup-failed), which this helper
-      // deliberately leaves on the retry path. So nothing should reach here; a
-      // future uncoded block stays terminal rather than retried, because a policy
-      // block cannot succeed on the next attempt, and leaves the integration
-      // enabled so a corrected endpoint recovers on the next scheduled run.
+      // Defensive fallback: every code today either classifies above and
+      // disables (including one raised on a redirect hop, reached through the
+      // redirect error's `cause`) or is transient. An unrecognised block stays
+      // terminal, but leaves the integration enabled to recover next run.
       rethrowIfOutboundValidationFailure(error, {
         logSubject: `[POSTHOG] Outbound send for project ${projectId}`,
         jobSubject: `PostHog integration for project ${projectId}`,

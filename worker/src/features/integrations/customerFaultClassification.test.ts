@@ -202,11 +202,8 @@ describe("isCustomerFaultError", () => {
     });
 
     it("classifies an SSRF block raised on a redirect hop as customer_fault", () => {
-      // The rejection the analytics exporters actually hit in production: the
-      // configured host answers with a 3xx whose target is a blocked host. The
-      // typed code reaches this classifier only through the redirect error's
-      // `cause`; without it the fault reads as unclassifiable and the
-      // integration stays enabled, retrying the same blocked hop every cycle.
+      // The production shape: the configured host answers 3xx with a blocked
+      // target. The typed code reaches here only via the redirect `cause`.
       const redirectBlock = new RedirectValidationError(
         "Blocked hostname detected",
         "http://169.254.169.254/latest/meta-data/",
@@ -222,8 +219,7 @@ describe("isCustomerFaultError", () => {
     });
 
     it("keeps a dns-lookup-failed on a redirect hop out of customer_fault", () => {
-      // Same wrapper, transient inner code: reaching the inner error through
-      // `cause` must not turn a resolver hiccup into a permanent disable.
+      // Same wrapper, transient inner code: must not become a permanent disable.
       const redirectDnsFailure = new RedirectValidationError(
         "DNS lookup failed for host.example",
         "https://host.example/batch/",

@@ -10,20 +10,18 @@ const SENSITIVE_REDIRECT_HEADERS = new Set([
   WebhookSignatureHeader,
 ]);
 
+// A Location header may carry userinfo, so a rejected target can hold a
+// password. Strip it before the URL reaches a log line or a retained error.
+const URL_CREDENTIALS = /([a-z][a-z0-9+.-]*:\/\/)[^/?#\s@]*@/gi;
+
+export const redactUrlCredentials = (text: string): string =>
+  text.replace(URL_CREDENTIALS, "$1***@");
+
 /**
- * Custom error for redirect validation failures.
- *
- * `cause` is required, not optional: consumers classify a rejection off the
- * inner error's typed `code` (see OutboundUrlValidationErrorCode), and folding
- * the inner failure into this message alone silently drops that code. An
- * integration whose redirect target is a blocked host then reads as
- * unclassifiable rather than as the customer-config fault it is, and stays
- * enabled to retry the same blocked hop on every scheduled run.
- *
- * Passed through the `Error` options bag so `cause` lands as a NON-enumerable
- * property: a structured logger copies every enumerable field of an error into
- * its log line, and the rejected target embedded in the inner message may carry
- * userinfo credentials from a `Location` header.
+ * Custom error for redirect validation failures. `cause` is required so the
+ * inner error's typed `code` survives for classification, and goes through the
+ * options bag so it stays non-enumerable — a structured logger serializes every
+ * enumerable field, and the rejected target may carry credentials.
  */
 export class RedirectValidationError extends Error {
   constructor(
@@ -243,10 +241,13 @@ export async function fetchWithSecureRedirects(
         );
       } catch (error) {
         logger.warn("Redirect validation failed", {
-          from: currentUrl,
-          to: redirectUrl,
+          from: redactUrlCredentials(currentUrl),
+          to: redactUrlCredentials(redirectUrl),
           redirectDepth,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error:
+            error instanceof Error
+              ? redactUrlCredentials(error.message)
+              : "Unknown error",
         });
 
         throw new RedirectValidationError(

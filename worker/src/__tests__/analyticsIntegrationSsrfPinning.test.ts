@@ -226,13 +226,9 @@ describe("PostHog integration project job — SSRF connect-time pinning", () => 
 });
 
 /**
- * A redirect hop that lands on a blocked host is the same customer-config fault
- * as a blocked configured host: the deny-list is entirely private/reserved
- * space and the env whitelist is consulted first, so such a target can never be
- * a working endpoint, while leaving the integration enabled hands a prober a
- * fresh outbound attempt on every scheduled cycle. That makes the typed `code`
- * load-bearing — it has to survive the RedirectValidationError re-wrap, or the
- * handler's classifier cannot see the fault and the integration stays enabled.
+ * A blocked redirect target is the same customer-config fault as a blocked
+ * configured host, so it must disable too: the typed `code` has to survive the
+ * RedirectValidationError re-wrap for the classifier to see it.
  */
 describe("PostHog integration project job — SSRF block on a redirect hop", () => {
   const exporterHost = "https://exporter.analytics.example";
@@ -253,11 +249,9 @@ describe("PostHog integration project job — SSRF block on a redirect hop", () 
         new Response(null, { status: 302, headers: { Location: metadataUrl } }),
       );
 
-  // Only the pre-check for the harness host is stubbed — the same modelling
-  // choice the connect-time tests above make ("the host validated as public").
-  // Every other URL, i.e. the redirect target, goes through the REAL validator,
-  // so the fault the handler classifies is a genuine OutboundUrlValidationError
-  // and not a shape this test invented.
+  // Stub the pre-check for the harness host only (as the tests above do); the
+  // redirect target goes through the real validator, so the classified fault is
+  // a genuine OutboundUrlValidationError and not a shape invented here.
   async function useRealValidatorForRedirectTargets() {
     const actual = await vi.importActual<
       typeof import("@langfuse/shared/src/server")
@@ -271,8 +265,7 @@ describe("PostHog integration project job — SSRF block on a redirect hop", () 
   it("disables the integration when a redirect target is a blocked host", async () => {
     await useRealValidatorForRedirectTargets();
     h.db.integration.posthogHostName = exporterHost;
-    // Stubbed at the socket boundary, so no connect-time lookup runs and the
-    // only policy that can reject anything here is redirect-target validation.
+    // Stubbed at the socket boundary: only redirect validation can reject here.
     const fetchSpy = redirectOnce();
 
     let thrown: unknown;
@@ -282,11 +275,9 @@ describe("PostHog integration project job — SSRF block on a redirect hop", () 
       thrown = error;
     }
 
-    // Non-vacuous: the 302 really was served, so the block came from the
-    // redirect hop rather than from the configured host never being reached.
+    // Non-vacuous: the 302 was served, so the block came from the redirect hop.
     expect(fetchSpy).toHaveBeenCalled();
-    // Must not throw — a throw would increment type:failed and fire the monitor
-    // once an hour for a fault that cannot clear on its own.
+    // Must not throw: that would fire the Failures monitor every cycle.
     expect(thrown).toBeUndefined();
     expect(h.recordIncrement).toHaveBeenCalledWith(
       POSTHOG_INTEGRATION_DISABLED_METRIC,
@@ -299,9 +290,8 @@ describe("PostHog integration project job — SSRF block on a redirect hop", () 
     expect(h.dispatchProjectNotification).toHaveBeenCalled();
   }, 40_000);
 
-  // The contract the disable above rests on, asserted directly at the throw
-  // site: the re-wrap keeps the inner typed error reachable, and keeps it OFF
-  // the enumerable surface a structured logger copies into its log line.
+  // The contract the disable rests on: the inner typed error stays reachable,
+  // and stays off the enumerable surface a logger serializes.
   it("keeps the inner validation error reachable as a non-enumerable cause", async () => {
     const actual = await vi.importActual<
       typeof import("@langfuse/shared/src/server")
