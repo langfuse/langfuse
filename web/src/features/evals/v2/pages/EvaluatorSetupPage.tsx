@@ -59,6 +59,12 @@ type InitialEvaluator = {
   blockMessage: string | null;
 };
 
+export function shouldOfferRuleAttachment(evaluator: {
+  blockedAt: Date | null;
+}) {
+  return evaluator.blockedAt === null;
+}
+
 export function EvaluatorSetupPage(
   props:
     | {
@@ -319,6 +325,10 @@ export function EvaluatorSetupPage(
       capture("evaluators:create", { evaluatorType: state.type });
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });
+      if (!shouldOfferRuleAttachment(evaluator)) {
+        await router.push(`/project/${projectId}/evals/${evaluator.id}`);
+        return;
+      }
       setSavedEvaluator({
         id: evaluator.id,
         name,
