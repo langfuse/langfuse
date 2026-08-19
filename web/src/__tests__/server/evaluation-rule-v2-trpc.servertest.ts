@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
-import { prisma } from "@langfuse/shared/src/db";
+import { EvalTargetObject } from "@langfuse/shared";
+import { JobConfigState, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { appRouter } from "@/src/server/api/root";
@@ -149,6 +150,76 @@ describe("evaluation rule v2 tRPC", () => {
     await expect(
       caller.evalsV2.rules.get({ projectId, ruleId: created.id }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("filters the rule table to rules that require an upgrade", async () => {
+    await Promise.all([
+      prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Actionable trace rule",
+          status: JobConfigState.ACTIVE,
+          targetObject: EvalTargetObject.TRACE,
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+        },
+      }),
+      prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Backfill-only trace rule",
+          status: JobConfigState.ACTIVE,
+          targetObject: EvalTargetObject.TRACE,
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["EXISTING"],
+        },
+      }),
+      prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Inactive trace rule",
+          status: JobConfigState.INACTIVE,
+          targetObject: EvalTargetObject.TRACE,
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+        },
+      }),
+      prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Modern observation rule",
+          status: JobConfigState.ACTIVE,
+          targetObject: EvalTargetObject.EVENT,
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+        },
+      }),
+    ]);
+
+    const listed = await caller.evalsV2.rules.list({
+      projectId,
+      filter: [
+        {
+          column: "upgradeRequired",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+
+    expect(listed.rules.map(({ name }) => name)).toEqual([
+      "Actionable trace rule",
+    ]);
+    expect(listed.totalItems).toBe(1);
   });
 
   it("creates a disabled rule", async () => {

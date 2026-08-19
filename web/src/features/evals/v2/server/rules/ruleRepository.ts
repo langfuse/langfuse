@@ -3,10 +3,10 @@ import {
   Prisma,
   type PrismaClient,
 } from "@langfuse/shared/src/db";
-import type {
+import {
   EvalTargetObject,
-  FilterState,
-  ObservationVariableMapping,
+  type FilterState,
+  type ObservationVariableMapping,
 } from "@langfuse/shared";
 import {
   compilePrismaFilters,
@@ -80,6 +80,19 @@ function ruleWhere(params: {
         return {
           status: enabled ? JobConfigState.ACTIVE : JobConfigState.INACTIVE,
         };
+      },
+    },
+    upgradeRequired: {
+      boolean: (filter) => {
+        const required = filter.operator === "=" ? filter.value : !filter.value;
+        const condition = {
+          targetObject: {
+            in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
+          },
+          status: JobConfigState.ACTIVE,
+          timeScope: { has: "NEW" },
+        } satisfies Prisma.EvaluationRuleWhereInput;
+        return required ? condition : { NOT: condition };
       },
     },
   } satisfies Record<
@@ -402,6 +415,7 @@ export async function listRulesForEvaluator(params: {
             name: true,
             status: true,
             targetObject: true,
+            timeScope: true,
             filter: true,
             sampling: true,
           },
@@ -417,6 +431,7 @@ export async function listRulesForEvaluator(params: {
         name: evaluationRule.name,
         enabled: evaluationRule.status === JobConfigState.ACTIVE,
         targetObject: evaluationRule.targetObject,
+        timeScope: evaluationRule.timeScope,
         filter: evaluationRule.filter as FilterState,
         sampling: evaluationRule.sampling.toNumber(),
       },

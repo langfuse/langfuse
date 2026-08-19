@@ -241,9 +241,9 @@ describe("processObservationEval", () => {
           }),
           template: expect.objectContaining({ id: version.id }),
           executionMetadata: expect.objectContaining({
-            rule_id: rule.id,
+            evaluation_rule_id: rule.id,
             job_configuration_id: rule.id,
-            assignment_id: assignment.id,
+            evaluation_rule_assignment_id: assignment.id,
             evaluator_id: evaluator.id,
             evaluator_version_id: version.id,
           }),

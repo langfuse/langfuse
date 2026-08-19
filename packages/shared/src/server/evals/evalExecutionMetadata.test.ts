@@ -34,9 +34,9 @@ describe("buildEvalExecutionMetadata", () => {
       }),
     ).toEqual({
       job_execution_id: "job-1",
-      rule_id: "rule-1",
+      evaluation_rule_id: "rule-1",
       job_configuration_id: "rule-1",
-      assignment_id: "assignment-1",
+      evaluation_rule_assignment_id: "assignment-1",
       evaluator_id: "evaluator-1",
       evaluator_version_id: "version-2",
       target_trace_id: "trace-1",

@@ -1,3 +1,5 @@
+import { EvalExecutionMetadataKey } from "../../features/evals/evalExecutionMetadata";
+
 export function buildEvalExecutionMetadata(
   params:
     | {
@@ -22,25 +24,36 @@ export function buildEvalExecutionMetadata(
   const metadata =
     params.type === "TEST"
       ? {
-          evaluator_id: params.evaluatorId,
-          evaluator_test: "true",
-          target_trace_id: params.targetTraceId,
-          target_observation_id: params.targetObservationId,
+          [EvalExecutionMetadataKey.EVALUATOR_ID]: params.evaluatorId,
+          [EvalExecutionMetadataKey.EVALUATOR_TEST]: "true",
+          [EvalExecutionMetadataKey.TARGET_TRACE_ID]: params.targetTraceId,
+          [EvalExecutionMetadataKey.TARGET_OBSERVATION_ID]:
+            params.targetObservationId,
         }
       : {
-          job_execution_id: params.jobExecutionId,
-          job_configuration_id: params.jobConfigurationId,
+          [EvalExecutionMetadataKey.JOB_EXECUTION_ID]: params.jobExecutionId,
+          [EvalExecutionMetadataKey.JOB_CONFIGURATION_ID]:
+            params.jobConfigurationId,
           ...(params.evaluationRuleId
-            ? { rule_id: params.evaluationRuleId }
+            ? {
+                [EvalExecutionMetadataKey.EVALUATION_RULE_ID]:
+                  params.evaluationRuleId,
+              }
             : {}),
           ...(params.assignmentId
-            ? { assignment_id: params.assignmentId }
+            ? {
+                [EvalExecutionMetadataKey.EVALUATION_RULE_ASSIGNMENT_ID]:
+                  params.assignmentId,
+              }
             : {}),
-          evaluator_id: params.evaluatorId,
-          evaluator_version_id: params.evaluatorVersionId,
-          target_trace_id: params.targetTraceId,
-          target_observation_id: params.targetObservationId,
-          target_dataset_item_id: params.targetDatasetItemId,
+          [EvalExecutionMetadataKey.EVALUATOR_ID]: params.evaluatorId,
+          [EvalExecutionMetadataKey.EVALUATOR_VERSION_ID]:
+            params.evaluatorVersionId,
+          [EvalExecutionMetadataKey.TARGET_TRACE_ID]: params.targetTraceId,
+          [EvalExecutionMetadataKey.TARGET_OBSERVATION_ID]:
+            params.targetObservationId,
+          [EvalExecutionMetadataKey.TARGET_DATASET_ITEM_ID]:
+            params.targetDatasetItemId,
         };
 
   return Object.fromEntries(
