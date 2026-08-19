@@ -81,7 +81,7 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     description:
       "See a whole trace at once — every observation a single dense line, coloured by type — then zoom and pan it like a map.",
     details:
-      "The Compact Timeline replaces the trace panel's Timeline view. It fits the entire trace into the space available on both axes instead of scrolling: rows shrink to a 4px line, and colour carries the observation type where there is no room for a name. Scroll to pan, pinch to zoom both time and rows together, and double-click an observation to fly to it at a readable size — at which point the rows grow their names back and the tree gutter returns. Hovering the left edge peeks the names without moving the bars.",
+      "The Compact Timeline replaces the trace panel's Timeline view. It fits the entire trace into the space available on both axes instead of scrolling: rows shrink to a single-pixel line, and colour carries the observation type where there is no room for a name. Scroll to pan, pinch to zoom both time and rows together, and double-click an observation to fly to it at a readable size — at which point the rows grow their names back and the tree gutter returns. Hovering the left edge peeks the names without moving the bars.",
     feedbackUrl: "https://github.com/orgs/langfuse/discussions",
     illustration: {
       light: compactTimelineLightIllustration,

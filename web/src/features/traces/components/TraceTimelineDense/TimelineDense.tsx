@@ -857,6 +857,9 @@ export function TimelineDense({
   );
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // A click that never arrived (a drag, a tap outside a row) must not leave the
+    // suppression armed for the next real one.
+    focusedByTap.current = false;
     // Touch has no hover, so a tap on the rail is the toggle — but only a FIRST
     // finger. A pinch whose first finger happens to land near the left edge was
     // otherwise swallowed by this branch and never became a pinch at all.
@@ -865,6 +868,11 @@ export function TimelineDense({
     if (
       touches.current.points.size === 0 &&
       (pointer === "coarse" || event.pointerType === "touch") &&
+      // There has to BE something to toggle. At hairline density the left side
+      // takes no width, so this collapsed to "the leftmost 6px" and a tap there
+      // set an override with nothing to show for it — which then sprang the names
+      // open later, the moment a focus zoom grew the rows enough to honour it.
+      canShowNames &&
       offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX
     ) {
       setOverride(isOpen ? "collapsed" : "expanded");
@@ -1084,6 +1092,13 @@ export function TimelineDense({
    * relied upon: two taps close in time and place, on the same row.
    */
   const lastTap = useRef({ at: 0, x: 0, y: 0 });
+  /**
+   * Set when a double-tap has just fired, so the tap's own click does not also
+   * select. `event.detail` cannot carry this on touch: WebKit neither synthesises
+   * `dblclick` from taps nor counts them, so both taps report `detail: 1` and a
+   * detail-based guard only ever catches a mouse.
+   */
+  const focusedByTap = useRef(false);
   const maybeDoubleTap = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "mouse") return; // the mouse has a real dblclick
     if (touches.current.points.size > 1 || gesture.current.dragging) return;
@@ -1101,7 +1116,10 @@ export function TimelineDense({
         rowHeight,
         prepared.rows.length,
       );
-      if (index != null) focusRow(index);
+      if (index != null) {
+        focusedByTap.current = true;
+        focusRow(index);
+      }
       return;
     }
     lastTap.current = { at: now, x: event.clientX, y: event.clientY };
@@ -1395,7 +1413,9 @@ export function TimelineDense({
                 // The first click of the pair already selected the row, so the
                 // second one only focuses.
                 onClick={(event) => {
-                  if (event.detail > 1) return;
+                  // A double-click delivers two clicks; a double-TAP delivers two
+                  // clicks that both look like the first one.
+                  if (event.detail > 1 || focusedByTap.current) return;
                   onSelect(node.id);
                 }}
                 onDoubleClick={() => focusRow(node.index)}
@@ -1683,15 +1703,13 @@ function GutterContent({
   // open gutter caps on the width it actually has instead — deep traces still
   // need a cap (a 1401-deep chain would push every name out of the box), but it
   // is the one the gutter can afford, leaving room for the icon and a name.
-  const depth = showName
-    ? Math.min(
-        node.depth,
-        Math.max(
-          Math.floor((width - GUTTER_ICON - GUTTER_NAME_MIN) / GUTTER_INDENT),
-          0,
-        ),
+  const depthCap = showName
+    ? Math.max(
+        Math.floor((width - GUTTER_ICON - GUTTER_NAME_MIN) / GUTTER_INDENT),
+        0,
       )
-    : Math.min(node.depth, RAIL_MAX_DEPTH);
+    : RAIL_MAX_DEPTH;
+  const depth = Math.min(node.depth, depthCap);
   const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
   // The square must end up INSIDE the rail, so its size and its indent are both
   // bounded by the width it has to live in — not by the row height alone.
@@ -1704,7 +1722,12 @@ function GutterContent({
     : Math.min(depth * RAIL_INDENT + 1, Math.max(width - squareSize - 1, 0));
   /** x of this row's own rail, and of its parent's. */
   const railX = depth * GUTTER_INDENT + GUTTER_RAIL;
-  const parentRailX = (depth - 1) * GUTTER_INDENT + GUTTER_RAIL;
+  // The PARENT's RENDERED depth, which is not always one less than this row's:
+  // past the cap a parent and its child both flatten to the same indent, and an
+  // elbow drawn an indent to the left of a spine that never went there is a tree
+  // whose lines stop meeting — for the whole flattened tail of a deep trace.
+  const parentRailX =
+    Math.min(node.depth - 1, depthCap) * GUTTER_INDENT + GUTTER_RAIL;
 
   return (
     <div

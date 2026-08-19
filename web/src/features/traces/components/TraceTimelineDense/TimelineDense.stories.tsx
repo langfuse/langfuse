@@ -1443,3 +1443,164 @@ export const HoverOpensATooltip = meta.story({
     );
   },
 });
+
+/**
+ * A tree's lines have to meet. The open gutter caps how deep it will indent — a
+ * 1401-deep chain would otherwise push every name out of the box — and past that
+ * cap a parent and its child flatten to the SAME indent. The connector was still
+ * drawn one indent to the left of where the parent's spine actually descends, so
+ * every generation past the cap hung off nothing.
+ */
+export const DeepConnectorsStillMeet = meta.story({
+  name: "(Test) Deep Connectors Still Meet",
+  args: {
+    // Deeper than any gutter this narrow can indent, so the tail is flattened.
+    roots: deepNesting(12),
+    box: PHONE,
+    gutter: "expanded",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const rows = [
+      ...canvasElement.querySelectorAll<HTMLElement>(
+        '[data-testid="timeline-dense-content"] > div',
+      ),
+    ];
+    await expect(rows.length).toBeGreaterThan(8);
+
+    // A chain, so the row above is the parent: where a row's own spine descends
+    // is exactly where its child's connector must rise to.
+    const spineOf = (row: HTMLElement) =>
+      row.querySelector<HTMLElement>('div[class*="bottom-0"][class*="w-px"]');
+    const stubOf = (row: HTMLElement) =>
+      row.querySelector<HTMLElement>('div[class*="top-0"][class*="w-px"]');
+
+    let checked = 0;
+    for (let index = 1; index < rows.length; index++) {
+      const parentSpine = spineOf(rows[index - 1]!);
+      const stub = stubOf(rows[index]!);
+      if (!parentSpine || !stub) continue;
+      await expect(stub.getBoundingClientRect().left).toBeCloseTo(
+        parentSpine.getBoundingClientRect().left,
+        0,
+      );
+      checked++;
+    }
+    // Including the flattened tail, which is where this used to break.
+    await expect(checked).toBeGreaterThan(6);
+  },
+});
+
+/**
+ * At hairline density the left side takes no width at all, so there is no rail to
+ * tap — and a tap in the leftmost few px used to set the names override anyway.
+ * Nothing happened, visibly: the override sat there until a double-tap zoomed the
+ * rows tall enough to honour it, and then the names sprang open on their own.
+ */
+export const AHairlineTapDoesNotArmTheNames = meta.story({
+  name: "(Test) A Hairline Tap Does Not Arm The Names",
+  args: {
+    roots: manySpans(600),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "coarse",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+    const names = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-peek"] span[title], [data-testid="timeline-dense-content"] > div span[title]',
+      ).length;
+
+    const rect = surface.getBoundingClientRect();
+    // 600 rows in 600px: 1px each, no rail, nothing on the left to tap.
+    await expect(readout()).toContain("1.0px rows");
+    touch(surface, "pointerdown", 1, rect.left + 2, rect.top + 200);
+    touch(surface, "pointerup", 1, rect.left + 2, rect.top + 200);
+    await expect(names()).toBe(0);
+
+    // Now zoom in far enough that rows COULD hold a name. Nothing asked for them.
+    const x = rect.left + rect.width * 0.6;
+    const y = rect.top + 200;
+    for (const _ of [1, 2]) {
+      touch(surface, "pointerdown", 1, x, y);
+      touch(surface, "pointerup", 1, x, y);
+    }
+    await waitFor(() => expect(readout()).toContain("26.0px rows"));
+    await expect(names()).toBe(0);
+  },
+});
+
+/**
+ * A double-tap to focus must select once, like a double-click does. `event.detail`
+ * cannot tell: WebKit neither synthesises `dblclick` from taps nor counts them, so
+ * both taps arrive as an ordinary first click and a detail-based guard sees
+ * nothing. Selecting twice is not free — it captures an analytics event and
+ * reopens the detail panel.
+ */
+export const ADoubleTapSelectsOnce = meta.story({
+  name: "(Test) A Double Tap Selects Once",
+  args: {
+    roots: manySpans(40),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "coarse",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const rect = surface.getBoundingClientRect();
+    const x = rect.left + rect.width * 0.6;
+    const y = rect.top + 200;
+    const row = document.elementFromPoint(x, y)?.closest("div");
+    if (!row) throw new Error("no row under the tap");
+
+    for (const _ of [1, 2]) {
+      touch(surface, "pointerdown", 1, x, y);
+      touch(surface, "pointerup", 1, x, y);
+      // The compatibility click a tap produces: first-click detail, every time.
+      row.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          detail: 1,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    }
+    const onSelect = args.onSelect as ReturnType<typeof fn>;
+    await expect(onSelect.mock.calls.length).toBe(1);
+  },
+});
