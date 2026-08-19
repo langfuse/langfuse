@@ -110,4 +110,23 @@ describe("app shell chrome row", () => {
 
     expect(container.querySelector(".h-1.flex-1.border-b")).toBeNull();
   });
+
+  it("keeps the page-header chrome divider full-width on container pages", () => {
+    render(
+      <SidebarPresenceProvider>
+        <SidebarProvider>
+          <PageHeader title="Settings" container />
+        </SidebarProvider>
+      </SidebarPresenceProvider>,
+    );
+
+    const row = screen.getByTestId(APP_SHELL_CHROME_ROW_TEST_ID);
+    expect(row.className).toContain("border-b");
+    expect(row.className).not.toContain("lg:mx-auto");
+    expect(row.className).not.toContain("max-w-screen");
+
+    const inner = row.firstElementChild;
+    expect(inner).toBeInstanceOf(HTMLElement);
+    expect((inner as HTMLElement).className).toContain("lg:mx-auto");
+  });
 });

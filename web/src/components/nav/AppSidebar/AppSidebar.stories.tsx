@@ -95,7 +95,7 @@ const SidebarStory = ({
         <>
           <div
             data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
-            className={cn(APP_SHELL_CHROME_ROW_CLASS, "gap-3")}
+            className={cn(APP_SHELL_CHROME_ROW_CLASS, "gap-3 px-3")}
           >
             <span className="text-muted-foreground text-sm">Toggle</span>
             <span className="bg-light-red text-dark-red rounded-md px-1 text-xs">

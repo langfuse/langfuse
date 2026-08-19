@@ -92,56 +92,61 @@ const PageHeader = ({
     >
       <div className="flex flex-col justify-center">
         {/* Top Row — same min-h-11 + border-b box as the sidebar logo strip
-            so the sidebar `border-r` T-junction is a single pixel. */}
+            so the sidebar `border-r` T-junction is a single pixel. The
+            divider stays on this full-width box; container max-width only
+            caps the inner content so settings pages don't leave a gap. */}
         <div
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
-          className={cn(
-            APP_SHELL_CHROME_ROW_CLASS,
-            // No extra vertical padding: min-h-11 + border-b already is the
-            // 44px box. Extra py would grow the row past the sidebar strip
-            // (border-box counts padding inside min-height, then 32px
-            // controls no longer fit). justify-between (not ml-auto on the
-            // slot) so the controls sit right when the row fits on one line
-            // but fall back to the LEFT edge when they wrap to their own
-            // line on narrow viewports (a line with a single flex item
-            // renders as flex-start).
-            "flex-wrap justify-between gap-3",
-            container && containerLayoutClassName,
-          )}
+          className={APP_SHELL_CHROME_ROW_CLASS}
         >
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            {showSidebarChrome ? (
-              <>
-                <SidebarTrigger />
-                {/* Brand the app in the top bar while the sidebar (which
-                    owns the logo) is off-canvas below `md`. Hidden on
-                    desktop where the sidebar logo is visible. */}
-                <TopbarBrand className="md:hidden" />
-              </>
-            ) : (
-              leadingControl && (
-                <div className="flex items-center">{leadingControl}</div>
-              )
+          <div
+            className={cn(
+              // No extra vertical padding: min-h-11 + border-b already is
+              // the 44px box. Extra py would grow the row past the sidebar
+              // strip (border-box counts padding inside min-height, then
+              // 32px controls no longer fit). justify-between (not ml-auto
+              // on the slot) so the controls sit right when the row fits on
+              // one line but fall back to the LEFT edge when they wrap to
+              // their own line on narrow viewports (a line with a single
+              // flex item renders as flex-start).
+              "flex w-full flex-wrap items-center justify-between gap-3 px-3",
+              container && containerLayoutClassName,
             )}
-            <div>
-              {envLabel.visible && (
-                <EnvLabelBadge
-                  region={envLabel.region}
-                  onClick={envLabel.dismiss}
-                />
+          >
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              {showSidebarChrome ? (
+                <>
+                  <SidebarTrigger />
+                  {/* Brand the app in the top bar while the sidebar (which
+                      owns the logo) is off-canvas below `md`. Hidden on
+                      desktop where the sidebar logo is visible. */}
+                  <TopbarBrand className="md:hidden" />
+                </>
+              ) : (
+                leadingControl && (
+                  <div className="flex items-center">{leadingControl}</div>
+                )
               )}
+              <div>
+                {envLabel.visible && (
+                  <EnvLabelBadge
+                    region={envLabel.region}
+                    onClick={envLabel.dismiss}
+                  />
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <BreadcrumbComponent items={breadcrumb} />
+                {breadcrumbBadges}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <BreadcrumbComponent items={breadcrumb} />
-              {breadcrumbBadges}
+            {/* Slot for page-level controls (time range, auto-refresh)
+                hoisted from a list table via PageHeaderControlsPortal.
+                Empty on pages that don't use it. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <PageHeaderControlsSlotTarget />
+              <InAppAiAgentButton />
             </div>
-          </div>
-          {/* Slot for page-level controls (time range, auto-refresh)
-              hoisted from a list table via PageHeaderControlsPortal.
-              Empty on pages that don't use it. */}
-          <div className="flex flex-wrap items-center gap-2">
-            <PageHeaderControlsSlotTarget />
-            <InAppAiAgentButton />
           </div>
         </div>
 
