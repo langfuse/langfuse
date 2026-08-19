@@ -1,13 +1,29 @@
 import { EventType } from "@ag-ui/core";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InAppAgentRunStatus } from "../../features/inAppAgent/types";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+} from "../../features/inAppAgent/types";
 import type { PrismaClient } from "../../db";
 import {
   createQueuedRun,
   reconcileConversationRuns,
   requestRunCancellation,
 } from "./runLifecycle";
+
+const metricMocks = vi.hoisted(() => ({
+  recordRunTerminalOutcome: vi.fn(),
+}));
+
+vi.mock("./runMetrics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./runMetrics")>()),
+  recordRunTerminalOutcome: metricMocks.recordRunTerminalOutcome,
+}));
+
+beforeEach(() => {
+  metricMocks.recordRunTerminalOutcome.mockClear();
+});
 
 describe("in-app agent run lifecycle races", () => {
   it("does not admit a run after the conversation is deleted", async () => {
@@ -148,5 +164,43 @@ describe("in-app agent run lifecycle races", () => {
         where: expect.objectContaining({ heartbeatAt: observedHeartbeat }),
       }),
     );
+    expect(metricMocks.recordRunTerminalOutcome).not.toHaveBeenCalled();
+  });
+
+  it("reports a reconciled run's outcome once, after the transition commits", async () => {
+    const tx = {
+      inAppAgentRun: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "run-1",
+            status: InAppAgentRunStatus.QUEUED,
+            createdAt: new Date(Date.now() - 10 * 60_000),
+            claimedAt: null,
+            heartbeatAt: null,
+            finishedAt: null,
+          },
+        ]),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const prisma = {
+      $transaction: async (callback: (transaction: typeof tx) => unknown) =>
+        callback(tx),
+    } as unknown as PrismaClient;
+
+    await expect(
+      reconcileConversationRuns({
+        prisma,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      }),
+    ).resolves.toEqual([
+      { runId: "run-1", errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT },
+    ]);
+    expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledTimes(1);
+    expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledWith({
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
+    });
   });
 });

@@ -239,6 +239,11 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  // Read-only lifecycle reporter. Off by default: it only produces metrics, and
+  // one elected worker per region is enough.
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   // The ambient host profile takes precedence over the agent-specific default
   // so local developer credentials win when both are configured.
   AWS_PROFILE: z.string().optional(),
@@ -645,6 +650,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(60_000),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()

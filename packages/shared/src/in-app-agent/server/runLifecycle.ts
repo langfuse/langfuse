@@ -7,6 +7,10 @@ import {
 import { Prisma } from "../../db";
 import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
+import {
+  cancelErrorCodeForStatus,
+  recordRunTerminalOutcome,
+} from "./runMetrics";
 import { buildInAppAgentApprovalDecisionEvent } from "../approvalEvents";
 import type { AgUiEvent } from "../schema";
 import type { InAppAgentPrefixedLangfuseMcpToolName } from "./mcpPolicy";
@@ -108,6 +112,13 @@ export async function finishClaimedRun(params: {
       errorMessage: params.errorMessage ?? null,
     },
   });
+
+  if (count > 0) {
+    recordRunTerminalOutcome({
+      status: params.status,
+      errorCode: params.errorCode ?? null,
+    });
+  }
 
   return count > 0;
 }
@@ -415,7 +426,7 @@ export async function requestRunCancellation(params: {
   conversationId: string;
   runId: string;
 }): Promise<CancelRunResult> {
-  return params.prisma.$transaction(async (tx) => {
+  const result = await params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
     const run = await tx.inAppAgentRun.findFirst({
@@ -440,6 +451,17 @@ export async function requestRunCancellation(params: {
       runStatus: parsedStatus.data,
     });
   });
+
+  // A RUNNING run is only signalled here; the worker writes its own terminal
+  // state, so only an immediate cancel settles the run in this call.
+  if (result.cancelledImmediately) {
+    recordRunTerminalOutcome({
+      status: InAppAgentRunStatus.CANCELLED,
+      errorCode: cancelErrorCodeForStatus(result.status),
+    });
+  }
+
+  return result;
 }
 
 async function cancelRunInTransaction(params: {
@@ -544,6 +566,15 @@ export async function reconcileConversationRuns(params: {
       conversationId: params.conversationId,
     }),
   );
+
+  // Reconciliation is the only authority that fails a stalled run, and it is
+  // read-triggered, so this is the sole signal that it happened at all.
+  for (const run of reconciled) {
+    recordRunTerminalOutcome({
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: run.errorCode,
+    });
+  }
 
   return reconciled;
 }
