@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { hasOrganizationAccess } from "./checkOrganizationAccess";
 import { hasProjectAccess } from "./checkProjectAccess";
 

@@ -60,7 +60,7 @@ export default function Experiments() {
     <Page
       headerProps={{
         title: "Experiments",
-        titleBadges: <V4MigrationDelayBadge />,
+        titleBadges: <V4MigrationDelayBadge page="experiments" />,
         actionButtonsRight: (
           <div className="flex items-center gap-2">
             <Dialog

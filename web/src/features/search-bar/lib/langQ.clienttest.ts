@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import type { ASTNode } from "@/src/features/search-bar/lib/ast";
 import { parse, serialize, termAt } from "@/src/features/search-bar/lib/langQ";
 import {

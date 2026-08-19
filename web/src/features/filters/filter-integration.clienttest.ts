@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * Integration tests for filter query encoding/decoding through full URL lifecycle.
  * These tests verify the complete flow: FilterState → URL → FilterState

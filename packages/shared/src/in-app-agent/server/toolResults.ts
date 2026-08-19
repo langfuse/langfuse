@@ -1,7 +1,10 @@
+import { EventType } from "@ag-ui/core";
+
 import {
   IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "../constants";
+import type { AgUiEvent } from "../schema";
 
 export type SilentInAppAgentMcpToolOutput = {
   type: typeof IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE;
@@ -43,4 +46,25 @@ export function isSilentInAppAgentMcpToolOutput(
     value.type === IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE &&
     "output" in value
   );
+}
+
+/** Withhold private persisted event payloads from browser-facing streams. */
+export function toPublicInAppAgentEvent(event: AgUiEvent): AgUiEvent {
+  if (event.type === EventType.RUN_STARTED && event.input !== undefined) {
+    const publicEvent = { ...event };
+    delete publicEvent.input;
+    return publicEvent;
+  }
+
+  if (
+    event.type === EventType.TOOL_CALL_RESULT &&
+    typeof event.content === "string"
+  ) {
+    return {
+      ...event,
+      content: getPublicInAppAgentMcpToolResultContent(event.content),
+    };
+  }
+
+  return event;
 }

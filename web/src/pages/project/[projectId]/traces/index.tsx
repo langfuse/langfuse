@@ -60,7 +60,7 @@ export default function Traces() {
     <Page
       headerProps={{
         title: "Tracing",
-        titleBadges: <V4MigrationDelayBadge />,
+        titleBadges: <V4MigrationDelayBadge page="traces" />,
         help: {
           description: (
             <>

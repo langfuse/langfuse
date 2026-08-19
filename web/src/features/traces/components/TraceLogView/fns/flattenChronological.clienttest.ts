@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 // @vitest-environment jsdom
 
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
