@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { buildTraceDetailPath } from "@/src/utils/product-url";
 
 describe("buildTraceDetailPath", () => {
   it("builds a trace path without query params", () => {

@@ -11,7 +11,7 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
-import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { buildTraceDetailPath } from "@/src/utils/product-url";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
