@@ -16,8 +16,9 @@ describe("managedEvaluatorTemplateService", () => {
       "exact-match",
     ]);
     expect(recommendedTemplates.templates.map(({ key }) => key)).toEqual([
-      "chat-intent",
       "out-of-scope-request",
+      "quality-criterion",
+      "topic-classifier",
     ]);
     expect(codeTemplates.categories.length).toBeGreaterThan(0);
   });

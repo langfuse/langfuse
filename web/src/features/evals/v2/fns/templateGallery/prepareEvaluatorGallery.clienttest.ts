@@ -42,7 +42,11 @@ describe("prepareEvaluatorGallery", () => {
       recommendedSection?.templates.map((template) =>
         template.source === "managed" ? template.key : null,
       ),
-    ).toEqual(["chat-intent", "out-of-scope-request"]);
+    ).toEqual([
+      "topic-classifier",
+      "out-of-scope-request",
+      "quality-criterion",
+    ]);
     const conversationSection = gallery.sections.find(
       ({ key }) => key === "conversation",
     );

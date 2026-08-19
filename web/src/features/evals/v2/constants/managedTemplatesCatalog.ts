@@ -16,7 +16,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
   categories: [
     {
       key: "recommended",
-      label: "Recommended for you",
+      label: "Recommended starting points",
       description:
         "A curated starter set of templates that works well for most teams.",
       icon: "sparkles",
@@ -68,7 +68,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
     {
       key: "chat-intent",
       name: "Detect Chat Intent",
-      categories: ["conversation", "recommended"],
+      categories: ["conversation"],
       icon: "message-square",
       description:
         "Classifies the user's primary request into one predefined intent category.",
@@ -597,7 +597,7 @@ Assistant output: {{assistant_output}}`,
     {
       key: "quality-criterion",
       name: "Judge on one Quality criterion",
-      categories: ["quality"],
+      categories: ["quality", "recommended"],
       icon: "scale",
       description: "Checks whether output follows a defined quality criterion.",
       maintainer: "langfuse",
@@ -644,7 +644,7 @@ Assistant output: {{assistant_output}}`,
     {
       key: "topic-classifier",
       name: "Classify input topic",
-      categories: ["classifier"],
+      categories: ["classifier", "recommended"],
       icon: "tags",
       description:
         "Assigns the input, output, or conversation to one of a predefined set of topics.",

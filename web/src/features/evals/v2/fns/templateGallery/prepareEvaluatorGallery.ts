@@ -1,37 +1,16 @@
-import {
-  Code2,
-  FileSearch,
-  Gauge,
-  ListFilter,
-  MessagesSquare,
-  Shield,
-  Sparkles,
-  User,
-  type LucideIcon,
-} from "lucide-react";
-
 import type {
   CustomEvaluatorTemplate,
   GalleryNavigationItem,
   GallerySection,
 } from "@/src/features/evals/v2/types/templateGallery";
+import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
 import { EVALUATOR_GALLERY_PROJECT_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
 
-const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  gauge: Gauge,
-  shield: Shield,
-  "file-search": FileSearch,
-  "list-filter": ListFilter,
-  "messages-square": MessagesSquare,
-  "code-2": Code2,
-  sparkles: Sparkles,
-};
-
 const RECOMMENDED_TEMPLATE_ORDER = [
-  "chat-intent",
+  "topic-classifier",
   "out-of-scope-request",
-  "language",
+  "quality-criterion",
 ] as const;
 
 const RECOMMENDED_TEMPLATE_RANK = new Map<string, number>(
@@ -89,8 +68,10 @@ export function prepareEvaluatorGallery({
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-            label: "Your Templates",
-            icon: User,
+            label: "Your templates",
+            icon: getGalleryCategoryPresentation(
+              EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
+            ).icon,
             count: customTemplateCount,
           },
         ]
@@ -99,7 +80,7 @@ export function prepareEvaluatorGallery({
       .map((category) => ({
         key: category.key,
         label: category.label,
-        icon: CATEGORY_ICONS[category.icon],
+        icon: getGalleryCategoryPresentation(category.key).icon,
         count: managedByCategory.get(category.key)?.length ?? 0,
       }))
       .filter(({ count }) => count > 0),
@@ -109,7 +90,7 @@ export function prepareEvaluatorGallery({
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-            label: "Your Templates",
+            label: "Your templates",
             description: "Start from a template this project already created.",
             totalCount: customTemplateCount,
             templates: filteredCustom.map((template) => ({

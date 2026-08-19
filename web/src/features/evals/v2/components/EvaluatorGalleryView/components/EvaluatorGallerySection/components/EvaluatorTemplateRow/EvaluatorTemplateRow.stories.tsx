@@ -1,11 +1,11 @@
-import { fn } from "storybook/test";
+import { expect, fn } from "storybook/test";
 import {
   EvalTemplateSourceCodeLanguageEnum,
   EvalTemplateTypeEnum,
 } from "@langfuse/shared";
 
 import preview from "../../../../../../../../../../.storybook/preview";
-import { EvaluatorTemplateCard } from "./EvaluatorTemplateCard";
+import { EvaluatorTemplateRow } from "./EvaluatorTemplateRow";
 import type { GalleryTemplate } from "../../../../../../types/templateGallery";
 
 const managedTemplate = {
@@ -29,16 +29,16 @@ const managedTemplate = {
   },
 } satisfies GalleryTemplate;
 
-const meta = preview.meta({ component: EvaluatorTemplateCard });
+const meta = preview.meta({ component: EvaluatorTemplateRow });
 
 export const Managed = meta.story({
-  args: { template: managedTemplate, onSelect: fn() },
-});
-
-export const PartnerMaintained = meta.story({
   args: {
-    template: { ...managedTemplate, maintainer: "ragas" },
+    template: managedTemplate,
     onSelect: fn(),
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Answer relevance")).toBeInTheDocument();
+    await expect(canvas.queryByText("NUMERIC")).not.toBeInTheDocument();
   },
 });
 
