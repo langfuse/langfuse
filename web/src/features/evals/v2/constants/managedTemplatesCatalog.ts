@@ -16,7 +16,7 @@ export const MANAGED_TEMPLATES_CATALOG = {
   categories: [
     {
       key: "recommended",
-      label: "Recommended for you",
+      label: "Recommended starting points",
       description:
         "A curated starter set of templates that works well for most teams.",
       icon: "sparkles",

@@ -61,7 +61,7 @@ const listSection: GallerySection = {
 
 const recommendedSection: GallerySection = {
   key: "recommended",
-  label: "Recommended for you",
+  label: "Recommended starting points",
   description: "A curated starter set of templates.",
   templates: [
     { ...template, key: "chat-intent", name: "Classify chat intent" },
@@ -106,7 +106,7 @@ export const Recommended = meta.story({
   },
   play: async ({ canvas }) => {
     await expect(
-      canvas.getByRole("heading", { name: "Recommended for you" }),
+      canvas.getByRole("heading", { name: "Recommended starting points" }),
     ).toBeInTheDocument();
     await expect(canvas.getByText("Classify chat intent")).toBeInTheDocument();
     await expect(

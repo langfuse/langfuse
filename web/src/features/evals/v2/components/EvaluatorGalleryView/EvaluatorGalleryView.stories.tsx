@@ -92,7 +92,7 @@ const sections: GallerySection[] = [
   },
   {
     key: "recommended",
-    label: "Recommended for you",
+    label: "Recommended starting points",
     description: "A curated starter set of templates.",
     templates: [
       {
@@ -182,7 +182,7 @@ const defaultArgs = {
   onSearchChange: fn(),
   navigationItems: [
     { key: "custom", label: "Your templates", icon: User, count: 2 },
-    { key: "recommended", label: "Recommended for you", count: 3 },
+    { key: "recommended", label: "Recommended starting points", count: 3 },
     { key: "conversation", label: "Conversational / Chatbots", count: 2 },
     { key: "quality", label: "Quality", count: 7 },
   ],
@@ -250,7 +250,7 @@ export const SelectsCategory = meta.story({
       canvas.getByRole("heading", { name: "Quality" }),
     ).toBeInTheDocument();
     await expect(
-      canvas.queryByRole("heading", { name: "Recommended for you" }),
+      canvas.queryByRole("heading", { name: "Recommended starting points" }),
     ).not.toBeInTheDocument();
     await expect(
       canvas.queryByRole("heading", { name: "Your templates" }),
