@@ -27,7 +27,18 @@ const WORKSPACE_ROOT = "/workspace";
 const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
 const MICROVM_RUNTIME_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
 const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024;
+const COMMAND_TERMINATION_GRACE_MS = 1_000;
 let requestCounter = 0;
+let sandboxOperationTail: Promise<unknown> = Promise.resolve();
+
+function runSandboxOperationExclusive<T>(task: () => Promise<T>): Promise<T> {
+  const result = sandboxOperationTail.then(task, task);
+  sandboxOperationTail = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
 
 const server = createServer(async (request, response) => {
   const requestId = `req-${++requestCounter}`;
@@ -142,21 +153,27 @@ async function routeRequest(request: IncomingMessage, requestId: string) {
       requestId,
       operation: summarizeOperation(body),
     });
-    await syncToolCallFiles(body.toolCallFiles, requestId);
 
-    if (body.operation === "read") {
-      return { statusCode: 200, body: await readOperation(body, requestId) };
-    }
+    return runSandboxOperationExclusive(async () => {
+      await syncToolCallFiles(body.toolCallFiles, requestId);
 
-    if (body.operation === "write") {
-      return { statusCode: 200, body: await writeOperation(body, requestId) };
-    }
+      if (body.operation === "read") {
+        return { statusCode: 200, body: await readOperation(body, requestId) };
+      }
 
-    if (body.operation === "edit") {
-      return { statusCode: 200, body: await editOperation(body, requestId) };
-    }
+      if (body.operation === "write") {
+        return {
+          statusCode: 200,
+          body: await writeOperation(body, requestId),
+        };
+      }
 
-    return { statusCode: 200, body: await bashOperation(body, requestId) };
+      if (body.operation === "edit") {
+        return { statusCode: 200, body: await editOperation(body, requestId) };
+      }
+
+      return { statusCode: 200, body: await bashOperation(body, requestId) };
+    });
   }
 
   return { statusCode: 404, body: { error: "Not found" } };
@@ -317,8 +334,31 @@ function runCommand(
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let timedOut = false;
+    let terminationGraceTimeoutId: NodeJS.Timeout | undefined;
     const startedAt = new Date().toISOString();
     const startedAtMs = Date.now();
+
+    const resolveTimedOutCommand = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (terminationGraceTimeoutId) {
+        clearTimeout(terminationGraceTimeoutId);
+      }
+      resolve({
+        stdout,
+        stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
+        exitCode: 124,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      });
+    };
 
     logSandboxServer("bash.start", {
       requestId,
@@ -356,7 +396,7 @@ function runCommand(
               return;
             }
 
-            settled = true;
+            timedOut = true;
             if (child.pid) {
               try {
                 // Process-group termination is best-effort:
@@ -374,23 +414,26 @@ function runCommand(
             } else {
               child.kill("SIGKILL");
             }
-            resolve({
-              stdout,
-              stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
-              exitCode: 124,
-              startedAt,
-              completedAt: new Date().toISOString(),
-            });
+
+            terminationGraceTimeoutId = setTimeout(() => {
+              if (settled) {
+                return;
+              }
+
+              logSandboxServer("bash.terminationGraceExceeded", {
+                requestId,
+                pid: child.pid ?? null,
+                graceMs: COMMAND_TERMINATION_GRACE_MS,
+              });
+              child.stdout.destroy();
+              child.stderr.destroy();
+              resolveTimedOutCommand();
+            }, COMMAND_TERMINATION_GRACE_MS);
           }, timeoutMs);
 
     child.on("close", (code) => {
       if (settled) {
         return;
-      }
-
-      settled = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
       }
 
       logSandboxServer("bash.processComplete", {
@@ -402,6 +445,15 @@ function runCommand(
         stderrBytes: Buffer.byteLength(stderr, "utf8"),
       });
 
+      if (timedOut) {
+        resolveTimedOutCommand();
+        return;
+      }
+
+      settled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       resolve({
         stdout,
         stderr,
