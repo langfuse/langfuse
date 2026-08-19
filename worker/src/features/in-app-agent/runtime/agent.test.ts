@@ -546,6 +546,21 @@ describe("createAgUiStream", () => {
     });
   });
 
+  it("omits Bedrock region when the model config has none", async () => {
+    const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
+
+    await initializeBasicTracedAgent("run-default-bedrock-region", {
+      provider: "bedrock",
+      modelId: "test-model",
+      titleModelId: "test-model",
+    });
+
+    expect(createAmazonBedrock).toHaveBeenCalledWith({
+      apiKey: "",
+      credentialProvider: expect.any(Function),
+    });
+  });
+
   it("forwards model stream parts when finish tracing throws", async () => {
     instrumentationMocks.instrumentation.recordModelStreamPart
       .mockImplementationOnce(() => undefined)
