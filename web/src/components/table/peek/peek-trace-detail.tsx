@@ -11,7 +11,7 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
-import { buildTraceDetailPath } from "@/src/utils/product-url";
+import { buildTraceDetailPath } from "@langfuse/shared/src/server";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
