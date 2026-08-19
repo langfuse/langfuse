@@ -39,7 +39,7 @@
     },
     "packages/in-app-agent-sandbox-runtime": {
       "entry": ["src/server.ts"],
-      "project": ["src/**/*.ts"],
+      "project": ["src/**/*.ts", "tests/**/*.ts"],
     },
     "packages/config-eslint": {
       "project": ["*.js"],

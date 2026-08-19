@@ -2,6 +2,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { Role, type Plan } from "@langfuse/shared";
+import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
 import type { Session } from "next-auth";
 
 // Session fixture sub-object types; casts keep the runtime fixtures unchanged
@@ -125,6 +126,16 @@ async function createTestUser() {
 
 describe("membersRouter.create - organization member limit enforcement", () => {
   describe("cloud:hobby plan (2 member limit)", () => {
+    const hobbyMemberLimit =
+      entitlementAccess["cloud:hobby"].entitlementLimits[
+        "organization-member-count"
+      ];
+    if (typeof hobbyMemberLimit !== "number" || hobbyMemberLimit < 2) {
+      throw new Error(
+        "expected cloud:hobby organization-member-count to be a number >= 2; the concurrency tests need one free seat above the owner",
+      );
+    }
+
     it("should allow adding a member when within limit", async () => {
       const { org, caller } = await prepare("cloud:hobby");
 
@@ -172,6 +183,74 @@ describe("membersRouter.create - organization member limit enforcement", () => {
         }),
       ).rejects.toThrow(/exceeds the limit/i);
     });
+
+    it("does not admit more members than the limit under concurrent requests", async () => {
+      // Counting outside a transaction lets concurrent requests all observe
+      // the same pre-insert count and all pass the check, so the limit only
+      // holds if the count-check-create sequence is serialized.
+      const { org, caller } = await prepare("cloud:hobby");
+
+      // Org already has 1 member (the owner), so exactly one of the
+      // concurrent requests may create a membership.
+      const users = await Promise.all(
+        Array.from({ length: 5 }, () => createTestUser()),
+      );
+
+      const results = await Promise.allSettled(
+        users.map((user) =>
+          caller.members.create({
+            orgId: org.id,
+            email: user.email!,
+            orgRole: Role.MEMBER,
+          }),
+        ),
+      );
+
+      const memberCount = await prisma.organizationMembership.count({
+        where: { orgId: org.id },
+      });
+      expect(memberCount).toBe(hobbyMemberLimit);
+
+      const rejected = results.filter((r) => r.status === "rejected");
+      expect(results.length - rejected.length).toBe(1);
+      // every loser lost to the limit check, not to an incidental error
+      for (const result of rejected) {
+        expect(String(result.reason)).toMatch(/exceeds the limit/i);
+      }
+    }, 25_000);
+
+    it("does not admit more invitations than the limit under concurrent requests", async () => {
+      // Same race on the invitation branch, which creates a different row
+      // type behind the same shared seat limit.
+      const { org, caller } = await prepare("cloud:hobby");
+
+      const emails = Array.from(
+        { length: 5 },
+        () => `concurrent-${uuidv4().substring(0, 8)}@test.com`,
+      );
+
+      const results = await Promise.allSettled(
+        emails.map((email) =>
+          caller.members.create({
+            orgId: org.id,
+            email,
+            orgRole: Role.MEMBER,
+          }),
+        ),
+      );
+
+      const inviteCount = await prisma.membershipInvitation.count({
+        where: { orgId: org.id },
+      });
+      // owner + 1 invitation = the hobby limit
+      expect(inviteCount).toBe(hobbyMemberLimit - 1);
+
+      const rejected = results.filter((r) => r.status === "rejected");
+      expect(results.length - rejected.length).toBe(1);
+      for (const result of rejected) {
+        expect(String(result.reason)).toMatch(/exceeds the limit/i);
+      }
+    }, 25_000);
 
     it("should throw FORBIDDEN when exceeding member limit with pending invitations", async () => {
       const { org, caller, ownerUser } = await prepare("cloud:hobby");
