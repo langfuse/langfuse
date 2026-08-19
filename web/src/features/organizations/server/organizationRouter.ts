@@ -194,13 +194,13 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       if (
-        input.aiTelemetryEnabled !== undefined &&
+        (input.aiFeaturesEnabled !== undefined ||
+          input.aiTelemetryEnabled !== undefined) &&
         !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       ) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message:
-            "AI telemetry controls are only available on Langfuse Cloud.",
+          message: "AI features are not available in self-hosted deployments.",
         });
       }
 

@@ -37,6 +37,7 @@
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@langfuse/shared": "workspace:*",
     "@aws-sdk/client-lambda-microvms": "catalog:",
+    "@aws-sdk/credential-providers": "catalog:",
     "@mastra/core": "1.46.0",
     "@mastra/mcp": "1.8.1",
     "@opentelemetry/api": "^1.9.1",
