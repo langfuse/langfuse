@@ -14,16 +14,31 @@ import {
   type EditSandboxOperation,
   type ReadSandboxOperation,
   type SandboxFile,
-  type SandboxOperation,
   type WriteSandboxOperation,
 } from "./contracts.js";
+import {
+  summarizeBashResult,
+  summarizeOperation,
+  summarizeReadResult,
+} from "./logging.js";
 
 const SERVER_PORT = 5000;
 const WORKSPACE_ROOT = "/workspace";
 const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
 const MICROVM_RUNTIME_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
 const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024;
+const COMMAND_TERMINATION_GRACE_MS = 1_000;
 let requestCounter = 0;
+let sandboxOperationTail: Promise<unknown> = Promise.resolve();
+
+function runSandboxOperationExclusive<T>(task: () => Promise<T>): Promise<T> {
+  const result = sandboxOperationTail.then(task, task);
+  sandboxOperationTail = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
 
 const server = createServer(async (request, response) => {
   const requestId = `req-${++requestCounter}`;
@@ -138,21 +153,27 @@ async function routeRequest(request: IncomingMessage, requestId: string) {
       requestId,
       operation: summarizeOperation(body),
     });
-    await syncToolCallFiles(body.toolCallFiles, requestId);
 
-    if (body.operation === "read") {
-      return { statusCode: 200, body: await readOperation(body, requestId) };
-    }
+    return runSandboxOperationExclusive(async () => {
+      await syncToolCallFiles(body.toolCallFiles, requestId);
 
-    if (body.operation === "write") {
-      return { statusCode: 200, body: await writeOperation(body, requestId) };
-    }
+      if (body.operation === "read") {
+        return { statusCode: 200, body: await readOperation(body, requestId) };
+      }
 
-    if (body.operation === "edit") {
-      return { statusCode: 200, body: await editOperation(body, requestId) };
-    }
+      if (body.operation === "write") {
+        return {
+          statusCode: 200,
+          body: await writeOperation(body, requestId),
+        };
+      }
 
-    return { statusCode: 200, body: await bashOperation(body, requestId) };
+      if (body.operation === "edit") {
+        return { statusCode: 200, body: await editOperation(body, requestId) };
+      }
+
+      return { statusCode: 200, body: await bashOperation(body, requestId) };
+    });
   }
 
   return { statusCode: 404, body: { error: "Not found" } };
@@ -176,7 +197,7 @@ async function readOperation(body: ReadSandboxOperation, requestId: string) {
   logSandboxServer("read.complete", {
     requestId,
     path: body.path,
-    result,
+    result: summarizeReadResult(filePath, content),
   });
   return { result };
 }
@@ -240,7 +261,7 @@ async function bashOperation(body: BashSandboxOperation, requestId: string) {
   const result = await runCommand(body.command, body.timeoutMs, requestId);
   logSandboxServer("bash.complete", {
     requestId,
-    result,
+    result: summarizeBashResult(result),
   });
   return { result };
 }
@@ -306,17 +327,43 @@ function runCommand(
     startedAt: string;
     completedAt: string;
   }>((resolve, reject) => {
-    const child = spawn("sh", ["-lc", command], { cwd: WORKSPACE_ROOT });
+    const child = spawn("sh", ["-lc", command], {
+      cwd: WORKSPACE_ROOT,
+      detached: true,
+    });
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let timedOut = false;
+    let terminationGraceTimeoutId: NodeJS.Timeout | undefined;
     const startedAt = new Date().toISOString();
     const startedAtMs = Date.now();
+
+    const resolveTimedOutCommand = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (terminationGraceTimeoutId) {
+        clearTimeout(terminationGraceTimeoutId);
+      }
+      resolve({
+        stdout,
+        stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
+        exitCode: 124,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      });
+    };
 
     logSandboxServer("bash.start", {
       requestId,
       pid: child.pid ?? null,
-      command,
+      commandBytes: Buffer.byteLength(command, "utf8"),
       timeoutMs: timeoutMs ?? null,
     });
 
@@ -349,25 +396,44 @@ function runCommand(
               return;
             }
 
-            settled = true;
-            child.kill("SIGKILL");
-            resolve({
-              stdout,
-              stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
-              exitCode: 124,
-              startedAt,
-              completedAt: new Date().toISOString(),
-            });
+            timedOut = true;
+            if (child.pid) {
+              try {
+                // Process-group termination is best-effort:
+                // descendants can escape by creating a new session or process group.
+                // A sandbox should have lifetime limits as the final containment boundary.
+                process.kill(-child.pid, "SIGKILL");
+              } catch (error) {
+                logSandboxServer("bash.processGroupKillError", {
+                  requestId,
+                  pid: child.pid,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+                child.kill("SIGKILL");
+              }
+            } else {
+              child.kill("SIGKILL");
+            }
+
+            terminationGraceTimeoutId = setTimeout(() => {
+              if (settled) {
+                return;
+              }
+
+              logSandboxServer("bash.terminationGraceExceeded", {
+                requestId,
+                pid: child.pid ?? null,
+                graceMs: COMMAND_TERMINATION_GRACE_MS,
+              });
+              child.stdout.destroy();
+              child.stderr.destroy();
+              resolveTimedOutCommand();
+            }, COMMAND_TERMINATION_GRACE_MS);
           }, timeoutMs);
 
     child.on("close", (code) => {
       if (settled) {
         return;
-      }
-
-      settled = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
       }
 
       logSandboxServer("bash.processComplete", {
@@ -379,6 +445,15 @@ function runCommand(
         stderrBytes: Buffer.byteLength(stderr, "utf8"),
       });
 
+      if (timedOut) {
+        resolveTimedOutCommand();
+        return;
+      }
+
+      settled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       resolve({
         stdout,
         stderr,
@@ -393,32 +468,6 @@ function runCommand(
 function logSandboxServer(event: string, details?: Record<string, unknown>) {
   const payload = details ? ` ${JSON.stringify(details)}` : "";
   console.log(`[sandbox] ${new Date().toISOString()} ${event}${payload}`);
-}
-
-function summarizeOperation(body: SandboxOperation) {
-  switch (body.operation) {
-    case "read":
-      return { operation: body.operation, path: body.path };
-    case "write":
-      return {
-        operation: body.operation,
-        path: body.path,
-        contentBytes: Buffer.byteLength(body.content, "utf8"),
-      };
-    case "edit":
-      return {
-        operation: body.operation,
-        path: body.path,
-        oldTextLength: body.oldText.length,
-        newTextLength: body.newText.length,
-      };
-    case "bash":
-      return {
-        operation: body.operation,
-        timeoutMs: body.timeoutMs ?? null,
-        command: body.command,
-      };
-  }
 }
 
 function resolveSandboxPath(requestPath: string) {

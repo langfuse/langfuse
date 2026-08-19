@@ -77,6 +77,7 @@ export const createBackendActivityTracker = ({
           cloudRegion,
           organizationId,
           ...(projectId ? { projectId } : {}),
+          userId,
         },
         timestamp,
         disableGeoip: true,

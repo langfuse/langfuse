@@ -1,6 +1,9 @@
 import preview from "../../../../../.storybook/preview";
 import { TimelineV2 } from "./TimelineV2";
-import { longTailTrace, manySpans } from "./__tests__/timelineV2.fixtures";
+import {
+  longTailTrace,
+  manySpans,
+} from "../../fns/timeline/__tests__/timelineV2.fixtures";
 
 const meta = preview.meta({
   component: TimelineV2,

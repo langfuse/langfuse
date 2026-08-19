@@ -31,6 +31,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/llm/llmText": {
+      "import": "./dist/src/server/llm/llmText.js",
+      "require": "./dist/src/server/llm/llmText.js"
+    },
     "./src/server/auth/apiKeys": {
       "import": "./dist/src/server/auth/apiKeys.js",
       "require": "./dist/src/server/auth/apiKeys.js"
@@ -98,6 +102,10 @@
     "./in-app-agent/server/systemPrompt": {
       "import": "./dist/src/in-app-agent/server/systemPrompt.js",
       "require": "./dist/src/in-app-agent/server/systemPrompt.js"
+    },
+    "./in-app-agent/server/modelProvider": {
+      "import": "./dist/src/in-app-agent/server/modelProvider.js",
+      "require": "./dist/src/in-app-agent/server/modelProvider.js"
     }
   },
   "scripts": {
