@@ -203,4 +203,138 @@ describe("in-app agent run lifecycle races", () => {
       errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
     });
   });
+
+  it("records a queued cancel with the cancelled error code after commit", async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ deletedAt: null }]),
+      inAppAgentRun: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ status: InAppAgentRunStatus.QUEUED }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const prisma = {
+      $transaction: async (callback: (transaction: typeof tx) => unknown) =>
+        callback(tx),
+    } as unknown as PrismaClient;
+
+    await expect(
+      requestRunCancellation({
+        prisma,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        runId: "run-1",
+      }),
+    ).resolves.toEqual({
+      cancelledImmediately: true,
+      status: InAppAgentRunStatus.CANCELLED,
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
+    });
+    expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledTimes(1);
+    expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledWith({
+      status: InAppAgentRunStatus.CANCELLED,
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
+    });
+  });
+
+  it("records a prior stale run when admitting a new message", async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ deletedAt: null }]),
+      inAppAgentRun: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "run-old",
+            status: InAppAgentRunStatus.QUEUED,
+            createdAt: new Date(Date.now() - 10 * 60_000),
+            claimedAt: null,
+            heartbeatAt: null,
+            finishedAt: null,
+          },
+        ]),
+        updateMany: vi.fn(
+          async ({ data }: { data: { status?: InAppAgentRunStatus } }) => ({
+            count: data.status === InAppAgentRunStatus.FAILED ? 1 : 0,
+          }),
+        ),
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: "run-1" }),
+      },
+      inAppAgentEvent: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      inAppAgentConversation: {
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+    const prisma = {
+      $transaction: async (callback: (transaction: typeof tx) => unknown) =>
+        callback(tx),
+    } as unknown as PrismaClient;
+
+    await createQueuedRun({
+      prisma,
+      runId: "run-1",
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      triggeredByUserId: "user-1",
+      model: "test-model",
+      request: { kind: "userMessage", context: [] },
+      runStartedEvent: {
+        type: EventType.RUN_STARTED,
+        threadId: "conversation-1",
+        runId: "run-1",
+      },
+    });
+
+    expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledTimes(1);
+    expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledWith({
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
+    });
+  });
+
+  it("does not record a reconciled outcome when admitting the next run fails", async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ deletedAt: null }]),
+      inAppAgentRun: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "run-old",
+            status: InAppAgentRunStatus.QUEUED,
+            createdAt: new Date(Date.now() - 10 * 60_000),
+            claimedAt: null,
+            heartbeatAt: null,
+            finishedAt: null,
+          },
+        ]),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findFirst: vi.fn().mockResolvedValue({ id: "active-run" }),
+        create: vi.fn(),
+      },
+    };
+    const prisma = {
+      $transaction: async (callback: (transaction: typeof tx) => unknown) =>
+        callback(tx),
+    } as unknown as PrismaClient;
+
+    await expect(
+      createQueuedRun({
+        prisma,
+        runId: "run-1",
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        triggeredByUserId: "user-1",
+        model: "test-model",
+        request: { kind: "userMessage", context: [] },
+        runStartedEvent: {
+          type: EventType.RUN_STARTED,
+          threadId: "conversation-1",
+          runId: "run-1",
+        },
+      }),
+    ).rejects.toThrow("Assistant is already responding in this conversation");
+    expect(metricMocks.recordRunTerminalOutcome).not.toHaveBeenCalled();
+  });
 });

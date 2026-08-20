@@ -81,27 +81,20 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
 
   private async reconcileAndReportUnsettledRuns(): Promise<void> {
     const now = Date.now();
-    const [activeByStatusRows, candidates] = await Promise.all([
-      prisma.inAppAgentRun.groupBy({
-        by: ["status"],
-        where: { status: { in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES] } },
-        _count: { _all: true },
-      }),
-      prisma.inAppAgentRun.findMany({
-        where: staleRunWhere(now),
-        select: {
-          id: true,
-          projectId: true,
-          conversationId: true,
-          status: true,
-          createdAt: true,
-          claimedAt: true,
-          heartbeatAt: true,
-          finishedAt: true,
-        },
-        take: SCAN_LIMIT,
-      }),
-    ]);
+    const candidates = await prisma.inAppAgentRun.findMany({
+      where: staleRunWhere(now),
+      select: {
+        id: true,
+        projectId: true,
+        conversationId: true,
+        status: true,
+        createdAt: true,
+        claimedAt: true,
+        heartbeatAt: true,
+        finishedAt: true,
+      },
+      take: SCAN_LIMIT,
+    });
 
     if (candidates.length === SCAN_LIMIT) {
       logger.warn(
@@ -126,6 +119,8 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
     const reconciledIds = new Set<string>();
 
     for (const { projectId, conversationId } of staleConversations.values()) {
+      await this.extendLockOnProgress();
+
       try {
         const reconciled = await reconcileConversationRuns({
           prisma,
@@ -161,6 +156,12 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
         });
       }
     }
+
+    const activeByStatusRows = await prisma.inAppAgentRun.groupBy({
+      by: ["status"],
+      where: { status: { in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES] } },
+      _count: { _all: true },
+    });
 
     const activeByStatus = new Map<string, number>(
       IN_APP_AGENT_UNSETTLED_RUN_STATUSES.map((status) => [status, 0]),

@@ -12,6 +12,7 @@ import {
   LangfuseInternalTraceEnvironment,
   logger,
 } from "../../server";
+import { isSettledInAppAgentRunStatus } from "../constants";
 import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
@@ -251,7 +252,11 @@ export async function appendRunEvents(params: {
   // Emitted after the transaction commits so a rolled-back flush cannot inflate
   // the outcome count. The fenced path returns false and is deliberately silent:
   // whichever writer won the CAS already recorded that run's outcome.
-  if (appended && params.finish) {
+  if (
+    appended &&
+    params.finish &&
+    isSettledInAppAgentRunStatus(params.finish.status)
+  ) {
     recordRunTerminalOutcome({
       status: params.finish.status,
       errorCode: params.finish.errorCode ?? null,
