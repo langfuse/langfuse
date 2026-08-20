@@ -32,6 +32,19 @@ type VerifyAuthHeaderOptions = {
   allowInAppAgentKey?: boolean;
 };
 
+const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
+
+/**
+ * Public keys are read straight out of a client-controlled Authorization
+ * header, so on the paths where the key was not found in the database they may
+ * contain arbitrary bytes -- including newlines and terminal control
+ * characters. The text log formatter interpolates `message` verbatim, so escape
+ * and length-bound the value before logging it, to stop an unauthenticated
+ * caller forging log lines (CWE-117).
+ */
+const sanitizeKeyForLog = (publicKey: string): string =>
+  JSON.stringify(publicKey.slice(0, MAX_LOGGED_PUBLIC_KEY_LENGTH));
+
 export class ApiAuthService {
   prisma: PrismaClient;
   redis: Redis | Cluster | null;
@@ -113,7 +126,9 @@ export class ApiAuthService {
               });
 
               if (!slowKey) {
-                logger.error(`No key found for public key: ${publicKey}`);
+                logger.error(
+                  `No key found for public key: ${sanitizeKeyForLog(publicKey)}`,
+                );
                 if (this.redis) {
                   logger.info(
                     `No key found, storing ${API_KEY_NON_EXISTENT} in redis`,
@@ -151,7 +166,9 @@ export class ApiAuthService {
             }
 
             if (!finalApiKey) {
-              logger.info(`No project id found for key: ${publicKey}`);
+              logger.info(
+                `No project id found for key: ${sanitizeKeyForLog(publicKey)}`,
+              );
               throw new Error("Invalid credentials");
             }
 
@@ -311,7 +328,9 @@ export class ApiAuthService {
       },
     });
     if (!dbKey) {
-      logger.info(`No api key found for public key: ${publicKey}`);
+      logger.info(
+        `No api key found for public key: ${sanitizeKeyForLog(publicKey)}`,
+      );
       throw new Error("Invalid public key");
     }
     return dbKey;
