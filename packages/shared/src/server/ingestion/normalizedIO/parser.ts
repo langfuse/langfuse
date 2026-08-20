@@ -833,6 +833,17 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
       if (part) return part;
       break;
     }
+    case "source": {
+      // AI SDK source parts: stream-positioned document/url references with
+      // no text anchor. Anchored citations live on their text part's
+      // providerMetadata.citations; anchor-less ones stay parts — one
+      // vocabulary, two carriers, matching what the source actually gives us.
+      return {
+        type: "custom",
+        kind: "source",
+        value: toJsonValue(value),
+      };
+    }
     case "refusal": {
       // Refusal text stays part of the conversation stream; the flag keeps
       // refusal observations findable (e.g. eval filters on providerMetadata).
@@ -932,6 +943,17 @@ function appendParts(target: NormalizedMessagePart[], values: unknown[]): void {
   }
 }
 
+// FunctionMessage maps to the deprecated "function" role so the legacy
+// function-result handling (name as tool name) applies.
+const LANGCHAIN_ROLE_BY_CLASS: Record<string, string> = {
+  SystemMessage: "system",
+  HumanMessage: "user",
+  AIMessage: "assistant",
+  AIMessageChunk: "assistant",
+  ToolMessage: "tool",
+  FunctionMessage: "function",
+};
+
 function normalizeMessage(
   value: unknown,
   fallbackRole: "user" | "assistant",
@@ -948,6 +970,23 @@ function normalizeMessage(
   if (semanticKernelContent) {
     return normalizeMessage(
       asRecord(semanticKernelContent.message) ?? semanticKernelContent,
+      fallbackRole,
+      source,
+    );
+  }
+
+  // LangChain serialization envelope: instrumentation that dumps LangChain
+  // message objects (dumpd) wraps the actual message in constructor kwargs,
+  // with the class path in `id` (e.g. ["langchain_core", "messages",
+  // "AIMessage"]) supplying the role.
+  const langchainKwargs =
+    value.lc !== undefined ? asRecord(value.kwargs) : undefined;
+  if (langchainKwargs) {
+    const classPath = Array.isArray(value.id) ? value.id : [];
+    const className = optionalString(classPath[classPath.length - 1]);
+    const role = className ? LANGCHAIN_ROLE_BY_CLASS[className] : undefined;
+    return normalizeMessage(
+      { ...(role ? { role } : {}), ...langchainKwargs },
       fallbackRole,
       source,
     );
@@ -1016,6 +1055,23 @@ function normalizeMessage(
   const additionalKwargs = asRecord(value.additional_kwargs);
   appendParts(parts, parseArray(additionalKwargs?.tool_calls) ?? []);
 
+  // LangChain invalid_tool_calls: attempts the model made whose arguments
+  // could not be parsed. Kept in the stream as flagged tool calls (raw args
+  // as input) so evals can filter them; excluded from the tool columns.
+  for (const invalidCall of parseArray(value.invalid_tool_calls) ?? []) {
+    const part = normalizeToolCall(invalidCall);
+    if (!part) continue;
+    parts.push({
+      ...part,
+      providerMetadata: toProviderMetadata(
+        compact({
+          invalid: true,
+          error: optionalString(asRecord(invalidCall)?.error),
+        }),
+      ),
+    });
+  }
+
   // OpenAI fields that live beside `content` on assistant/response messages.
   const refusal = optionalString(value.refusal);
   if (refusal) {
@@ -1073,10 +1129,16 @@ function normalizeMessage(
   }
 
   // Anthropic carries stop_reason on the response envelope beside `content`;
-  // some instrumentation flattens finish_reason onto the message itself.
-  // Choice/candidate-level values are wired in by collectMessages.
+  // some instrumentation flattens finish_reason onto the message itself;
+  // LangChain nests it under response_metadata. Choice/candidate-level
+  // values are wired in by collectMessages.
+  const responseMetadata = asRecord(value.response_metadata);
   const finishReason = normalizeFinishReason(
-    value.stop_reason ?? value.finish_reason ?? value.finishReason,
+    value.stop_reason ??
+      value.finish_reason ??
+      value.finishReason ??
+      responseMetadata?.finish_reason ??
+      responseMetadata?.stop_reason,
   );
 
   return parts.length > 0

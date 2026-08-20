@@ -21,6 +21,10 @@ export function toToolColumns(io: NormalizedIO): ToolColumns {
 
     for (const part of message.parts) {
       if (part.type !== "tool-call") continue;
+      // Columns count executable calls only; attempts whose arguments could
+      // not be parsed (KnownPartFlags.invalid) stay out — legacy parity, the
+      // legacy extractor never saw unparsed calls.
+      if (part.providerMetadata?.invalid === true) continue;
 
       tool_call_names.push(part.toolName);
       tool_calls.push(

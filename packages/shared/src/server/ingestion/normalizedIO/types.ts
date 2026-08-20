@@ -32,6 +32,12 @@ export type KnownPartFlags = {
   refusal?: true;
   /** Part was produced as reasoning output (e.g. AI SDK reasoning-file). */
   reasoning?: true;
+  /**
+   * Tool call the model attempted but instrumentation could not parse
+   * (e.g. LangChain invalid_tool_calls: malformed JSON arguments). Excluded
+   * from the tool columns, which count executable calls only.
+   */
+  invalid?: true;
 };
 
 /** Known flags plus free-form provider values. */

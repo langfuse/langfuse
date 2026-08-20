@@ -42,7 +42,11 @@ raw formats.
    AI-SDK pass (after Anthropic). Same pass should also revisit
    `mcp_list_tools` (its `tools[]` belong in toolDefinitions but the part
    parser has no accumulator access; currently a `custom` part).
-7. **providerMetadata persistence**: several semantics now ride on part-level
+7. **LangChain tool_call_chunks**: deliberately ignored — they are streaming
+   deltas (partial JSON fragments per index) and redundant with the parsed
+   `tool_calls` on final messages. Later: merge and parse them only when
+   `tool_calls` is absent (mid-stream captures).
+8. **providerMetadata persistence**: several semantics now ride on part-level
    `providerMetadata` (refusal flags, audio transcripts, citations,
    media-token `source`). We need a good story for saving and querying it —
    e.g. eval filters like "all observations that contained a refusal" depend

@@ -85,6 +85,14 @@ const outputMessages = [
         data: { type: "url", url: "https://example.com/scratchpad.png" },
         mediaType: "image/png",
       },
+      // Anchor-less document reference (AI SDK source part).
+      {
+        type: "source",
+        sourceType: "url",
+        id: "src_1",
+        url: "https://example.com/rag-docs",
+        title: "RAG integration docs",
+      },
       {
         type: "tool_call",
         id: outputToolCallId,
@@ -228,6 +236,19 @@ export const vercelAiSdkOutputToolCallFixture = {
             content: { kind: "url", url: "https://example.com/scratchpad.png" },
             // Reasoning provenance rides as a known flag, not a part type.
             providerMetadata: { reasoning: true },
+          },
+          {
+            // Anchor-less citations stay stream-positioned parts; anchored
+            // ones live on their text part's providerMetadata.citations.
+            type: "custom",
+            kind: "source",
+            value: {
+              type: "source",
+              sourceType: "url",
+              id: "src_1",
+              url: "https://example.com/rag-docs",
+              title: "RAG integration docs",
+            },
           },
           {
             type: "tool-call",
