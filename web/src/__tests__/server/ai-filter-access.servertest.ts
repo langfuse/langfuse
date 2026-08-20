@@ -1,9 +1,25 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma, type Role } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import type { Session } from "next-auth";
+import type * as SharedServerModule from "@langfuse/shared/src/server";
+
+const llmMocks = vi.hoisted(() => ({
+  generateLangfuseAIText: vi.fn(async () => "[]"),
+}));
+
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual<typeof SharedServerModule>(
+    "@langfuse/shared/src/server",
+  );
+  return {
+    ...actual,
+    generateLangfuseAIText: llmMocks.generateLangfuseAIText,
+  };
+});
 
 // Both Ask AI endpoints only generate a filter over data the caller can
 // already read, so they are gated on `project:read` — a VIEWER must get in.
@@ -79,8 +95,8 @@ describe("Ask AI filter generation access", () => {
   });
 
   // The org's `aiFeaturesEnabled` is off, so both calls still fail on the
-  // org-level AI gate (or the self-hosted precondition) right after the RBAC
-  // check — no LLM is reached. Only the RBAC verdict is asserted here.
+  // org-level AI gate right after the RBAC check — no LLM is reached. Only
+  // the RBAC verdict is asserted here.
   it("lets a VIEWER through the RBAC gate on both endpoints", async () => {
     const { project, caller } = await prepare("VIEWER");
 
@@ -121,42 +137,54 @@ describe("Ask AI filter generation access", () => {
     ).rejects.toThrow(NO_ACCESS);
   });
 
-  it("does not reject Ask AI as Cloud-only on self-hosted", async () => {
+  it("generates Ask AI filters on self-hosted without a tracing project", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const originalAiFeaturesProjectId =
+      sharedEnv.LANGFUSE_AI_FEATURES_PROJECT_ID;
+
     (
       env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
     ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    (
+      env as { LANGFUSE_AWS_BEDROCK_MODEL?: string }
+    ).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (
+      env as { LANGFUSE_AWS_BEDROCK_SMALL_MODEL?: string }
+    ).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = undefined;
+    (
+      sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+    ).LANGFUSE_AI_FEATURES_PROJECT_ID = undefined;
+    llmMocks.generateLangfuseAIText.mockClear();
 
     try {
       const { project, org, caller } = await prepare("VIEWER");
       await prisma.organization.update({
         where: { id: org.id },
-        data: { aiFeaturesEnabled: true },
+        data: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
       });
 
-      const naturalLanguageMessage = await failureMessage(
-        caller.naturalLanguageFilters.createCompletion({
-          projectId: project.id,
-          prompt: "traces from today",
-        }),
-      );
-      const searchBarMessage = await failureMessage(
+      await expect(
         caller.searchBar.generateFilter({
           projectId: project.id,
           prompt: "traces from today",
         }),
-      );
-
-      expect(naturalLanguageMessage).not.toContain(
-        "not available in self-hosted deployments",
-      );
-      expect(searchBarMessage).not.toContain(
-        "not available in self-hosted deployments",
-      );
+      ).resolves.toMatchObject({ filters: [] });
+      expect(llmMocks.generateLangfuseAIText).toHaveBeenCalledOnce();
     } finally {
       (
         env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
       ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+      (
+        env as { LANGFUSE_AWS_BEDROCK_MODEL?: string }
+      ).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+      (
+        env as { LANGFUSE_AWS_BEDROCK_SMALL_MODEL?: string }
+      ).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+      (
+        sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+      ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
     }
   });
 });
