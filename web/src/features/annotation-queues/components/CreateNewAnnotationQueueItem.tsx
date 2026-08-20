@@ -51,7 +51,12 @@ export const CreateNewAnnotationQueueItem = ({
       objectId,
       objectType,
     },
-    { enabled: session.status === "authenticated" },
+    {
+      enabled:
+        session.status === "authenticated" &&
+        Boolean(projectId) &&
+        Boolean(objectId),
+    },
   );
   const utils = api.useUtils();
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation();

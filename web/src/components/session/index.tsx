@@ -362,6 +362,7 @@ export const SessionPage: React.FC<{
       projectId: projectId,
     },
     {
+      enabled: Boolean(projectId) && Boolean(sessionId),
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -402,11 +403,14 @@ export const SessionPage: React.FC<{
     [sessionDetailStore, setShowCorrections],
   );
 
-  const sessionComments = api.comments.getByObjectId.useQuery({
-    projectId,
-    objectId: sessionId,
-    objectType: "SESSION",
-  });
+  const sessionComments = api.comments.getByObjectId.useQuery(
+    {
+      projectId,
+      objectId: sessionId,
+      objectType: "SESSION",
+    },
+    { enabled: Boolean(projectId) && Boolean(sessionId) },
+  );
 
   const onDownloadSessionAsJson = useCallback(async () => {
     await downloadSessionAsJson({
@@ -893,7 +897,7 @@ const LoadedSessionEventsPage: React.FC<{
       objectId: sessionId,
       objectType: "SESSION",
     },
-    { enabled: userSession.status === "authenticated" },
+    { enabled: userSession.status === "authenticated" && Boolean(sessionId) },
   );
 
   const traceCommentCounts =
@@ -902,7 +906,7 @@ const LoadedSessionEventsPage: React.FC<{
         projectId,
         sessionId,
       },
-      { enabled: userSession.status === "authenticated" },
+      { enabled: userSession.status === "authenticated" && Boolean(sessionId) },
     );
 
   const peekNavigationConfig = React.useMemo(
