@@ -30,6 +30,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { ArchiveScoreConfigPopoverController } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
 import { UpsertScoreConfigDialog } from "@/src/features/score-configs/components/UpsertScoreConfigDialog";
+import { PopoverAnchor } from "@/src/components/ui/popover";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -189,11 +190,13 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
           >
             {({ disabled, Trigger }) => (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
+                <PopoverAnchor asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </PopoverAnchor>
                 <DropdownMenuContent>
                   <DropdownMenuItem
                     key={configId}
