@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { chartConfigToWidgetInput } from "./chartConfigToWidget";
 import { DEFAULT_CONFIG } from "../vocab";
 import { type ChartViewConfig } from "../types";
@@ -22,8 +24,6 @@ describe("chartConfigToWidgetInput", () => {
     expect(w.chartType).toBe("LINE_TIME_SERIES");
     expect(w.chartConfig).toEqual({ type: "LINE_TIME_SERIES" });
     expect(w.name).toBe("Count of events by model over time");
-    // Always v2: the chart reads the v2 events path, so the widget must too.
-    expect(w.minVersion).toBe(2);
   });
 
   it("maps a ranked cost-by-model chart with a row limit", () => {

@@ -1,6 +1,6 @@
 import { Card } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -59,9 +59,7 @@ export default function ConfigureRetention() {
       .then(() => {
         form.reset();
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportTrpcErrorWithoutToast(error, "projects"));
   }
 
   return (
@@ -129,17 +127,18 @@ export default function ConfigureRetention() {
                 </FormItem>
               )}
             />
-            <ActionButton
-              variant="secondary"
-              hasAccess={hasAccess}
-              hasEntitlement={hasEntitlement}
-              loading={setRetention.isPending}
-              disabled={form.getValues().retention === null}
-              className="mt-4"
-              type="submit"
-            >
-              Save
-            </ActionButton>
+            <div className="mt-4">
+              <ActionButton
+                variant="secondary"
+                hasAccess={hasAccess}
+                hasEntitlement={hasEntitlement}
+                loading={setRetention.isPending}
+                disabled={form.getValues().retention === null}
+                type="submit"
+              >
+                Save
+              </ActionButton>
+            </div>
           </form>
         </Form>
       </Card>

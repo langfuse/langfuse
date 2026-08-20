@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -191,9 +192,11 @@ const DropdownMenuContent = React.forwardRef<
     { children, className, header, sideOffset = 4, maxHeight, style, ...props },
     ref,
   ) => {
+    // The early return is intentional: the sticky header sits outside the padded
+    // body so its background and border span the full scroll container. Keep the
+    // header and headerless paths explicit rather than consolidating them through
+    // local variables.
     if (header != null) {
-      // The sticky header sits outside the padded body so its background and
-      // border cover the full width of the scroll container.
       return (
         <DropdownContentWrapper
           ref={ref}
@@ -255,13 +258,15 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 const DropdownMenuItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
+    allowPointerEventsWhenDisabled?: boolean;
     inset?: boolean;
   }
->(({ className, inset, ...props }, ref) => (
+>(({ allowPointerEventsWhenDisabled, className, inset, ...props }, ref) => (
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden transition-colors select-none data-disabled:pointer-events-none data-disabled:opacity-50",
+      "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden transition-colors select-none data-disabled:opacity-50",
+      !allowPointerEventsWhenDisabled && "data-disabled:pointer-events-none",
       inset && "pl-8",
       className,
     )}
@@ -288,6 +293,7 @@ type DropdownMenuItemAction = {
 );
 
 type DropdownMenuItemWithSecondaryActionProps = {
+  disabled?: { reason: string };
   icon?: LucideIcon;
   title: string;
   secondaryAction?: DropdownMenuItemAction & {
@@ -310,14 +316,18 @@ const DropdownMenuItemWithSecondaryAction = (
   const secondaryAction = props.secondaryAction;
   const PrimaryActionIcon = props.icon;
   const SecondaryActionIcon = secondaryAction?.icon;
+  const isDisabled = props.disabled !== undefined;
+  const primaryActionRef = React.useRef<HTMLAnchorElement | HTMLButtonElement>(
+    null,
+  );
   const primaryContent = (
     <>
       {PrimaryActionIcon && (
         <PrimaryActionIcon className="mr-1.5 size-4" aria-hidden="true" />
       )}
       <span
-        className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
-        title={props.title}
+        className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+        title={props.disabled?.reason ?? props.title}
       >
         {props.title}
       </span>
@@ -325,19 +335,31 @@ const DropdownMenuItemWithSecondaryAction = (
   );
   let secondaryActionContent: React.ReactNode = null;
 
+  // The secondary action is intentionally pointer-only and cannot be targeted
+  // with the keyboard; the parent remains the row's sole menu item.
   if (secondaryAction && SecondaryActionIcon) {
     if (secondaryAction.href !== undefined) {
       secondaryActionContent = (
         <Link
           href={secondaryAction.href}
           aria-label={secondaryAction.ariaLabel}
+          aria-disabled={isDisabled}
+          tabIndex={isDisabled ? -1 : undefined}
           className={dropdownMenuItemSecondaryActionVariants()}
           onClick={(event) => {
             event.stopPropagation();
+            if (isDisabled) {
+              event.preventDefault();
+              return;
+            }
             secondaryAction.onBeforeAction?.();
           }}
           onAuxClick={(event) => {
             event.stopPropagation();
+            if (isDisabled) {
+              event.preventDefault();
+              return;
+            }
             if (event.button === 1) {
               secondaryAction.onBeforeAction?.();
             }
@@ -351,6 +373,7 @@ const DropdownMenuItemWithSecondaryAction = (
         <button
           type="button"
           aria-label={secondaryAction.ariaLabel}
+          disabled={isDisabled}
           className={dropdownMenuItemSecondaryActionVariants()}
           onClick={(event) => {
             event.stopPropagation();
@@ -365,41 +388,66 @@ const DropdownMenuItemWithSecondaryAction = (
   }
 
   return (
-    <div className="flex h-8">
+    <DropdownMenuItem
+      allowPointerEventsWhenDisabled
+      className="h-8 p-0 data-disabled:cursor-not-allowed"
+      disabled={isDisabled}
+      title={props.disabled?.reason}
+      onClick={(event) => {
+        if (isDisabled) return;
+        if (event.target !== event.currentTarget) return;
+
+        event.preventDefault();
+        primaryActionRef.current?.click();
+      }}
+    >
       {props.href !== undefined ? (
-        <DropdownMenuItem asChild className="h-8 min-w-0 flex-1 p-0">
-          <Link
-            href={props.href}
-            className={dropdownMenuItemPrimaryActionVariants()}
-            onClick={() => {
+        <Link
+          ref={(element) => {
+            primaryActionRef.current = element;
+          }}
+          href={props.href}
+          aria-disabled={isDisabled}
+          tabIndex={isDisabled ? -1 : undefined}
+          className={dropdownMenuItemPrimaryActionVariants()}
+          onClick={(event) => {
+            if (isDisabled) {
+              event.preventDefault();
+              return;
+            }
+            props.onBeforeAction?.();
+          }}
+          onAuxClick={(event) => {
+            if (isDisabled) {
+              event.preventDefault();
+              return;
+            }
+            if (event.button === 1) {
               props.onBeforeAction?.();
-            }}
-            onAuxClick={(event) => {
-              if (event.button === 1) {
-                props.onBeforeAction?.();
-              }
-            }}
-          >
-            {primaryContent}
-          </Link>
-        </DropdownMenuItem>
+            }
+          }}
+        >
+          {primaryContent}
+        </Link>
       ) : (
-        <DropdownMenuItem asChild className="h-8 min-w-0 flex-1 p-0">
-          <button
-            type="button"
-            className={dropdownMenuItemPrimaryActionVariants()}
-            onClick={() => {
-              props.onBeforeAction?.();
-              props.onClick();
-            }}
-          >
-            {primaryContent}
-          </button>
-        </DropdownMenuItem>
+        <button
+          ref={(element) => {
+            primaryActionRef.current = element;
+          }}
+          type="button"
+          disabled={isDisabled}
+          className={dropdownMenuItemPrimaryActionVariants()}
+          onClick={() => {
+            props.onBeforeAction?.();
+            props.onClick();
+          }}
+        >
+          {primaryContent}
+        </button>
       )}
 
       {secondaryActionContent}
-    </div>
+    </DropdownMenuItem>
   );
 };
 

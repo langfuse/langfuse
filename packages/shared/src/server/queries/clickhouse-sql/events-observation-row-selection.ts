@@ -1,5 +1,6 @@
 import { eventsTableCols } from "../../../eventsTable";
 import { InvalidRequestError } from "../../../errors";
+import type { OrderByState } from "../../../interfaces/orderBy";
 import type { TracingSearchType } from "../../../interfaces/search";
 import { findUiColumnMapping } from "../../../tableDefinitions";
 import type { FilterCondition } from "../../../types";
@@ -22,6 +23,10 @@ import {
   eventsScoresAggregation,
   eventsTracesScoresAggregationFromObservationStart,
 } from "./query-fragments";
+import {
+  planScoreFilterPushdown,
+  resolveScoreDataRequirement,
+} from "./score-filter-pushdown";
 import { clickhouseSearchCondition } from "./search";
 
 const EVENT_SEARCH_COLUMNS = [
@@ -61,52 +66,19 @@ export type EventsObservationRowSelectionInput = {
   filter: FilterCondition[] | null;
   searchQuery?: string;
   searchType?: TracingSearchType[];
+  /** Used to add the required score CTE and keep its source complete. */
+  orderBy?: OrderByState;
 };
 
-type ObservationScoreDependency = {
-  cte: ReturnType<typeof eventsScoresAggregation>;
-  joinTable: string;
-  joinCondition: string;
-  selectExpressions?: string[];
-  /**
-   * Blob export: also join the trace-score CTE (with tuple encoding) so the
-   * `ts.*` select expressions resolve and trace-level scores land in the
-   * export like they do in the UI's unified Scores column (LFE-10596).
-   */
-  includeTraceScores?: boolean;
-};
+type ScoreProjection = "none" | "blob-export";
 
-type ObservationScoreDependencyFactory = (input: {
-  projectId: string;
-  startTimeFrom: string | null;
-}) => ObservationScoreDependency;
-
-const buildObservationScoreFilterDependency: ObservationScoreDependencyFactory =
-  ({ projectId, startTimeFrom }) => ({
-    cte: eventsScoresAggregation({ projectId, startTimeFrom }),
-    joinTable: "scores_agg AS s",
-    joinCondition: "ON s.observation_id = e.span_id",
-  });
-
-const buildBlobExportObservationScoreDependency: ObservationScoreDependencyFactory =
-  ({ projectId, startTimeFrom }) => ({
-    cte: eventsScoresAggregation({
-      projectId,
-      startTimeFrom,
-      includeTupleEncoding: true,
-    }),
-    joinTable: "scores_agg s",
-    joinCondition:
-      "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
-    selectExpressions: [
-      "s.scores_avg as scores_avg",
-      "s.score_categories as score_categories",
-      "s.score_categories_tuples as score_categories_tuples",
-      "ts.scores_avg as trace_scores_avg",
-      "ts.score_categories_tuples as trace_score_categories_tuples",
-    ],
-    includeTraceScores: true,
-  });
+const BLOB_EXPORT_SCORE_SELECTS = [
+  "s.scores_avg as scores_avg",
+  "s.score_categories as score_categories",
+  "s.score_categories_tuples as score_categories_tuples",
+  "ts.scores_avg as trace_scores_avg",
+  "ts.score_categories_tuples as trace_score_categories_tuples",
+];
 
 // LFE-10596: in v4 the events table splits scores into observation-scoped
 // columns (`s.scores_avg` / `s.score_categories` / `s.score_booleans`, joined
@@ -250,8 +222,9 @@ const buildEventsObservationRowSelectionInternal = (
     filter,
     searchQuery,
     searchType,
+    orderBy,
   }: EventsObservationRowSelectionInput,
-  observationScoreDependencyFactory?: ObservationScoreDependencyFactory,
+  scoreProjection: ScoreProjection,
 ): {
   queryBuilder: EventsQueryBuilder;
   filterGroups: EventsObservationFilterGroups;
@@ -269,82 +242,106 @@ const buildEventsObservationRowSelectionInternal = (
   // Observation-scoped score filters are rewritten into a level-agnostic
   // union across the obs (`s.`) and trace (`ts.`) score columns (LFE-10596),
   // for every caller of this planner (events list, blob export, stream).
+  const rawEventsFilters = createFilterFromFilterState(
+    filter ?? [],
+    eventsTableUiColumnDefinitions,
+    eventsTableCols,
+  );
+  const includeScoreProjection = scoreProjection === "blob-export";
+  const orderByColumn = findUiColumnMapping(
+    eventsTableUiColumnDefinitions,
+    orderBy?.column,
+  );
+  const scoreOrderField =
+    orderByColumn?.clickhouseTableName === "scores"
+      ? orderByColumn.clickhouseSelect
+      : undefined;
+  const ordersByTraceScore = scoreOrderField?.startsWith("ts.") ?? false;
+  const ordersByObservationScore =
+    scoreOrderField !== undefined && !ordersByTraceScore;
+  const scoreDataRequirement = resolveScoreDataRequirement({
+    selectsScoreData: includeScoreProjection,
+    ordersByScoreData: scoreOrderField !== undefined,
+  });
+  const scoreRowsFilter = planScoreFilterPushdown({
+    filters: new FilterList(rawEventsFilters),
+    scoreDataRequirement,
+  });
   const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      filter ?? [],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ).map(toLevelAgnosticScoreFilter),
+    rawEventsFilters.map(toLevelAgnosticScoreFilter),
   );
   const startTimeFrom = extractTimeFilter(eventsFilter);
   const hasObservationScoreFilter = filterGroups.observationScores.length > 0;
-  const queryBuilder = new EventsQueryBuilder({ projectId });
-  const observationScoreDependency =
-    observationScoreDependencyFactory?.({ projectId, startTimeFrom }) ??
-    (hasObservationScoreFilter
-      ? buildObservationScoreFilterDependency({ projectId, startTimeFrom })
-      : undefined);
-  // The trace-score CTE is needed for explicit trace-only filters, for the
-  // level-agnostic union (an observation-scoped filter now references `ts.*`
-  // too), and whenever the score dependency selects `ts.*` so trace-level
-  // scores land in exports like they do in the UI's unified Scores column.
-  const hasTraceScoreFilter =
+  const needsObservationScores =
+    hasObservationScoreFilter ||
+    ordersByObservationScore ||
+    includeScoreProjection;
+  // Observation score filters are level-agnostic and therefore need both
+  // observation and trace aggregates. Blob exports project both explicitly.
+  const needsTraceScores =
     filterGroups.traceScores.length > 0 ||
     hasObservationScoreFilter ||
-    Boolean(observationScoreDependency?.includeTraceScores);
-  const search = eventSearchCondition({ query: searchQuery, searchType });
+    ordersByTraceScore ||
+    includeScoreProjection;
+  const queryBuilder = new EventsQueryBuilder({ projectId });
 
-  if (observationScoreDependency) {
+  if (needsObservationScores) {
     queryBuilder
-      .withCTE("scores_agg", observationScoreDependency.cte)
+      .withCTE(
+        "scores_agg",
+        eventsScoresAggregation({
+          projectId,
+          startTimeFrom,
+          includeTupleEncoding: includeScoreProjection,
+          scoreRowsFilter,
+        }),
+      )
       .leftJoin(
-        observationScoreDependency.joinTable,
-        observationScoreDependency.joinCondition,
+        includeScoreProjection ? "scores_agg s" : "scores_agg AS s",
+        includeScoreProjection
+          ? "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id"
+          : "ON s.observation_id = e.span_id",
       );
-
-    if (observationScoreDependency.selectExpressions) {
-      queryBuilder.selectRaw(...observationScoreDependency.selectExpressions);
-    }
   }
 
-  queryBuilder
-    .when(hasTraceScoreFilter, (builder) =>
-      builder.withCTE(
+  if (needsTraceScores) {
+    queryBuilder
+      .withCTE(
         "trace_scores_agg",
         eventsTracesScoresAggregationFromObservationStart({
           projectId,
           startTimeFrom,
           hasScoreAggregationFilters: true,
-          includeTupleEncoding: Boolean(
-            observationScoreDependency?.includeTraceScores,
-          ),
+          scoreRowsFilter,
+          includeTupleEncoding: includeScoreProjection,
         }),
-      ),
-    )
-    .when(hasTraceScoreFilter, (builder) =>
-      builder.leftJoin(
+      )
+      .leftJoin(
         "trace_scores_agg AS ts",
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
-      ),
-    )
+      );
+  }
+
+  if (includeScoreProjection) {
+    queryBuilder.selectRaw(...BLOB_EXPORT_SCORE_SELECTS);
+  }
+
+  const search = eventSearchCondition({ query: searchQuery, searchType });
+  queryBuilder
     .when(
       search.requiresEventsFull || filtersRequireEventsFull(eventsFilter),
       (builder) => builder.forceFullTable(),
-    );
-
-  queryBuilder.applyFilters(eventsFilter).where(search);
+    )
+    .applyFilters(eventsFilter)
+    .where(search);
 
   return { queryBuilder, filterGroups, search, startTimeFrom };
 };
 
 export const buildEventsObservationRowSelection = (
   input: EventsObservationRowSelectionInput,
-) => buildEventsObservationRowSelectionInternal(input);
+) => buildEventsObservationRowSelectionInternal(input, "none");
 
 export const buildEventsObservationRowSelectionForBlobExport = (
   input: EventsObservationRowSelectionInput,
-) =>
-  buildEventsObservationRowSelectionInternal(
-    input,
-    buildBlobExportObservationScoreDependency,
-  );
+) => buildEventsObservationRowSelectionInternal(input, "blob-export");

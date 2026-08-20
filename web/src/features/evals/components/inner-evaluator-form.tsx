@@ -37,15 +37,18 @@ import {
   observationVariableMapping,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { TRPCClientError } from "@trpc/client";
+import { reportError } from "@/src/utils/reportError";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   evalConfigFormSchema,
+  getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
+  RETIRED_TRACE_FILTER_COLUMNS,
   getTargetDisplayName,
   inferDefaultMapping,
   type LangfuseObject,
@@ -92,6 +95,7 @@ import {
   isExperimentTarget,
   isLegacyEvalTarget,
   isTraceTarget,
+  shouldShowLegacyTracePreview,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   useUserFacingTarget,
@@ -113,6 +117,7 @@ import {
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 // Lazy load tables
 const TracesTable = lazy(
@@ -155,13 +160,16 @@ const TracesPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            <TracesTable
-              projectId={projectId}
-              hideControls
-              externalFilterState={filterState}
-              externalDateRange={dateRange}
-              limitRows={10}
-            />
+            {/* Match peek tables: preview state stays local and never touches the URL. */}
+            <PeekTableStateProvider>
+              <TracesTable
+                projectId={projectId}
+                hideControls
+                externalFilterState={filterState}
+                externalDateRange={dateRange}
+                limitRows={10}
+              />
+            </PeekTableStateProvider>
           </Suspense>
         </div>
       </>
@@ -232,22 +240,27 @@ const ObservationsPreview = memo(
                   </span>
                 </div>
               </div>
-            ) : isBetaEnabled ? (
-              <EventsTable
-                projectId={projectId}
-                hideControls
-                externalFilterState={filterState}
-                externalDateRange={dateRange}
-                limitRows={10}
-              />
             ) : (
-              <ObservationsTable
-                projectId={projectId}
-                hideControls
-                externalFilterState={filterState}
-                externalDateRange={dateRange}
-                limitRows={10}
-              />
+              // Keep the evaluator preview isolated from the parent route's table state.
+              <PeekTableStateProvider>
+                {isBetaEnabled ? (
+                  <EventsTable
+                    projectId={projectId}
+                    hideControls
+                    externalFilterState={filterState}
+                    externalDateRange={dateRange}
+                    limitRows={10}
+                  />
+                ) : (
+                  <ObservationsTable
+                    projectId={projectId}
+                    hideControls
+                    externalFilterState={filterState}
+                    externalDateRange={dateRange}
+                    limitRows={10}
+                  />
+                )}
+              </PeekTableStateProvider>
             )}
           </Suspense>
         </div>
@@ -325,10 +338,15 @@ export const InnerEvaluatorForm = (props: {
   hideAdvancedSettings?: boolean;
   hideTargetSelection?: boolean;
   hidePreviewTable?: boolean;
+  hideRootObservationFilter?: boolean;
+  showPreviewTargetBadge?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
-  renderFooter?: (params: { isLoading: boolean }) => React.ReactNode;
+  renderFooter?: (params: {
+    isLoading: boolean;
+    isSaveDisabled: boolean;
+  }) => React.ReactNode;
   oldConfigId?: string;
 }) => {
   const capture = usePostHogClientCapture();
@@ -341,6 +359,13 @@ export const InnerEvaluatorForm = (props: {
 
   // Destructure eval capabilities passed from parent
   const { allowLegacy } = props.evalCapabilities;
+
+  // Existing legacy evaluators must keep rendering their (read-only) legacy
+  // target UI in edit mode even when new legacy setups are not allowed.
+  const showLegacyTargetOptions =
+    allowLegacy ||
+    (props.mode === "edit" &&
+      isLegacyEvalTarget(props.existingEvaluator?.targetObject ?? ""));
 
   // Custom hooks for managing evaluator state
   const {
@@ -355,7 +380,11 @@ export const InnerEvaluatorForm = (props: {
     observationEvalFilterOptions,
     experimentEvalFilterOptions,
     datasetFilterOptions,
-  } = useEvalConfigFilterOptions({ projectId: props.projectId });
+  } = useEvalConfigFilterOptions({
+    projectId: props.projectId,
+    useEventsTable: isBetaEnabled,
+    includeLegacyTraceOptions: showLegacyTargetOptions,
+  });
 
   const targetState = useEvaluatorTargetState();
 
@@ -449,6 +478,9 @@ export const InnerEvaluatorForm = (props: {
   }) as UseFormReturn<EvalFormType>;
 
   const currentMapping = form.watch("mapping") ?? [];
+  const hasJsonPathCompatibilityError = currentMapping.some((mappingRow) =>
+    Boolean(getActiveJsonPathCompatibilityWarning(mappingRow)),
+  );
   const syncStatus = useVariableMappingSync({
     templateVars: isCodeEvalConfig ? [] : props.evalTemplate?.vars,
     currentMapping: currentMapping,
@@ -509,15 +541,13 @@ export const InnerEvaluatorForm = (props: {
   ]);
 
   const utils = api.useUtils();
+  // No onError override: the react-query default (handleTrpcError) owns
+  // classification, Sentry capture, and the standard error toast.
   const createJobMutation = api.evals.createJob.useMutation({
     onSuccess: () => utils.models.invalidate(),
-    // Defining onError replaces the react-query default that shows the
-    // standard error toast, so trigger it explicitly.
-    onError: trpcErrorToast,
   });
   const updateJobMutation = api.evals.updateEvalJob.useMutation({
     onSuccess: () => utils.evals.invalidate(),
-    onError: trpcErrorToast,
   });
   const [availableVariables, setAvailableVariables] = useState<
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
@@ -697,10 +727,17 @@ export const InnerEvaluatorForm = (props: {
         }
       })
       .catch((error) => {
-        // Mutation failures are surfaced via the onError toast; this catch
-        // also swallows post-success errors (onFormSuccess, router.push),
-        // so keep a console trace for those.
-        console.error("Evaluator form submission failed", error);
+        // Mutation failures were already classified + toasted by the
+        // react-query default onError; only post-success errors
+        // (onFormSuccess, router.push) need reporting here. reportError
+        // captures with an area tag and warns — console.error would mint a
+        // second, unclassified Sentry event via captureConsoleIntegration.
+        if (!(error instanceof TRPCClientError)) {
+          reportError(error, {
+            area: "evals",
+            extra: { context: "evaluator-form-post-submit" },
+          });
+        }
       });
   }
 
@@ -852,7 +889,7 @@ export const InnerEvaluatorForm = (props: {
                             <CircleDot className="h-3.5 w-3.5" />
                             Observations
                           </TabsTrigger>
-                          {allowLegacy && (
+                          {showLegacyTargetOptions && (
                             <TabsTrigger
                               value="trace"
                               disabled={props.disabled || props.mode === "edit"}
@@ -889,7 +926,7 @@ export const InnerEvaluatorForm = (props: {
             {/* Second tab bar for experiment data source selection */}
             {!props.hideTargetSelection &&
               userFacingTarget === "offline-experiment" &&
-              props.evalCapabilities.allowLegacy && (
+              showLegacyTargetOptions && (
                 <div className="flex flex-col gap-2">
                   <FormLabel className="text-sm">Experiment Method</FormLabel>
                   <Tabs
@@ -1123,6 +1160,12 @@ export const InnerEvaluatorForm = (props: {
                         // Event evaluators - use observation columns
                         return observationEvalFilterColsWithOptions(
                           observationEvalFilterOptions,
+                        ).filter(
+                          (column) =>
+                            !(
+                              props.hideRootObservationFilter &&
+                              column.id === "isRootObservation"
+                            ),
                         );
                       } else if (isTraceTarget(target)) {
                         return tracesTableColsWithOptions(
@@ -1189,6 +1232,11 @@ export const InnerEvaluatorForm = (props: {
                                       ? ["tags", "name", "calledToolNames"]
                                       : undefined
                                 }
+                                columnsHiddenUnlessSelected={
+                                  isTraceTarget(target)
+                                    ? RETIRED_TRACE_FILTER_COLUMNS
+                                    : undefined
+                                }
                               />
                             )}
                           </div>
@@ -1211,7 +1259,12 @@ export const InnerEvaluatorForm = (props: {
                 {/* Preview based on target type */}
                 {previewTableVisible && (
                   <>
-                    {isTraceTarget(form.watch("target")) && (
+                    {/* The traces preview reads the legacy traces table, which
+                        is not the v4 user's experience — never show it there. */}
+                    {shouldShowLegacyTracePreview(
+                      form.watch("target"),
+                      isBetaEnabled,
+                    ) && (
                       <TracesPreview
                         projectId={props.projectId}
                         filterState={watchedFilter}
@@ -1315,6 +1368,7 @@ export const InnerEvaluatorForm = (props: {
           compatibilityCheckWasPerformed={
             props.evalCapabilities.compatibilityCheckWasPerformed
           }
+          showPreviewTargetBadge={props.showPreviewTargetBadge}
         />
       )}
     </div>
@@ -1324,13 +1378,17 @@ export const InnerEvaluatorForm = (props: {
     createJobMutation.isPending || updateJobMutation.isPending;
 
   const formFooter = props.renderFooter ? (
-    props.renderFooter({ isLoading: mutationIsLoading })
+    props.renderFooter({
+      isLoading: mutationIsLoading,
+      isSaveDisabled: hasJsonPathCompatibilityError,
+    })
   ) : (
     <div className="flex w-full flex-col items-end gap-4">
       {!props.disabled ? (
         <Button
           type="submit"
           loading={mutationIsLoading}
+          disabled={hasJsonPathCompatibilityError}
           className="mt-3 max-w-fit"
         >
           {props.mode === "edit" ? "Update" : "Execute"}

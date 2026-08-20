@@ -11,6 +11,13 @@ import { executeQuery } from "@langfuse/shared/query/server";
 import { validateQuery } from "@langfuse/shared/query";
 const DEFAULT_ROW_LIMIT = 100;
 
+export function isMetricsV2Available(): boolean {
+  return (
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" &&
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy"
+  );
+}
+
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Metrics V2",
@@ -18,7 +25,7 @@ export default withMiddlewares({
     querySchema: GetMetricsV2Query,
     responseSchema: GetMetricsV2Response,
     fn: async ({ query, auth }) => {
-      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
+      if (!isMetricsV2Available()) {
         throw new LangfuseNotFoundError(
           "The metrics v2 API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
         );

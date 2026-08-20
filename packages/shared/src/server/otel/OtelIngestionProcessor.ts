@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   ForbiddenError,
   ObservationLevel,
+  type ObservationLevelType,
   ObservationType,
   ObservationTypeDomain,
 } from "../../";
@@ -21,6 +22,9 @@ import {
   UsageDetails,
   normalizeToolsForObservation,
   normalizeToolMetadataForObservation,
+  normalizeEnvironment,
+  DEFAULT_TRACE_ENVIRONMENT,
+  LangfuseInternalTraceEnvironment,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -29,6 +33,35 @@ import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+
+// Foreign level vocabularies observed from OTel senders (OTel severity
+// names, python logging, loguru, console) mapped onto the Langfuse enum.
+//  The classic ingestion API keeps its strict enum; only the
+// OTel adapter translates. Unknown values return undefined so the caller's
+// status-derived fallback applies instead of masking it with DEFAULT.
+const OBSERVATION_LEVEL_ALIASES: Record<string, ObservationLevelType> = {
+  DEBUG: ObservationLevel.DEBUG,
+  TRACE: ObservationLevel.DEBUG,
+  VERBOSE: ObservationLevel.DEBUG,
+  DEFAULT: ObservationLevel.DEFAULT,
+  INFO: ObservationLevel.DEFAULT,
+  LOG: ObservationLevel.DEFAULT,
+  NOTICE: ObservationLevel.DEFAULT,
+  OK: ObservationLevel.DEFAULT,
+  SUCCESS: ObservationLevel.DEFAULT,
+  WARNING: ObservationLevel.WARNING,
+  WARN: ObservationLevel.WARNING,
+  ERROR: ObservationLevel.ERROR,
+  FATAL: ObservationLevel.ERROR,
+  CRITICAL: ObservationLevel.ERROR,
+};
+
+function parseObservationLevel(
+  value: unknown,
+): ObservationLevelType | undefined {
+  if (typeof value !== "string") return undefined;
+  return OBSERVATION_LEVEL_ALIASES[value.trim().toUpperCase()];
+}
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -60,12 +93,63 @@ export interface OtelIngestionProcessorConfig {
   fileKey?: string;
 }
 
+interface MetadataDropContext {
+  domain: string;
+  attributeKey: string;
+  dropScope: object;
+}
+
+/**
+ * Tracks the total number of array slots that dotted attribute paths would
+ * materialize. A path is reserved transactionally: when it would exceed the
+ * limit, none of its array lengths are committed.
+ *
+ * Multiple attributes can point into the same array, so only growth beyond
+ * that array's previously reserved length consumes budget. For example,
+ * `0.role` and `0.content` together reserve one slot, while `9999.content`
+ * reserves 10,000 slots even though it is only one attribute.
+ */
+class ArraySlotBudget {
+  private usedSlots = 0;
+  private readonly lengthsByPath = new Map<string, number>();
+
+  constructor(private readonly maxSlots: number) {}
+
+  tryReserve(pathParts: readonly string[]): boolean {
+    const pendingLengths = new Map<string, number>();
+    let additionalSlots = 0;
+
+    for (let index = 0; index < pathParts.length; index++) {
+      const segment = pathParts[index];
+      if (!/^\d+$/.test(segment)) continue;
+
+      const arrayPath = pathParts.slice(0, index).join(".");
+      const previousLength =
+        pendingLengths.get(arrayPath) ?? this.lengthsByPath.get(arrayPath) ?? 0;
+      const requiredLength = Number(segment) + 1;
+      if (requiredLength > previousLength) {
+        additionalSlots += requiredLength - previousLength;
+        pendingLengths.set(arrayPath, requiredLength);
+      }
+    }
+
+    if (this.usedSlots + additionalSlots > this.maxSlots) return false;
+
+    this.usedSlots += additionalSlots;
+    pendingLengths.forEach((length, path) =>
+      this.lengthsByPath.set(path, length),
+    );
+    return true;
+  }
+}
+
 interface CreateTraceEventParams {
   traceId: string;
   startTimeISO: string;
   attributes: Record<string, unknown>;
   resourceAttributes: Record<string, unknown>;
   resourceAttributeMetadata: Record<string, unknown>;
+  spanAttributeMetadata: Record<string, unknown>;
   scopeSpan: any;
   scopeAttributes: Record<string, unknown>;
   isLangfuseSDKSpans: boolean;
@@ -157,8 +241,20 @@ const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
 export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
+  private static readonly OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC =
+    "langfuse.ingestion.otel.array_attribute_dropped";
+
+  // Flattened OTel message attributes name array slots directly, so cap the
+  // total logical array length before reconstructing the value.
+  private static readonly MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS = 10_001;
+
+  private static readonly METADATA_DROP_WARN_CAP = 10;
+  private static readonly ARRAY_ATTRIBUTE_DROP_WARN_CAP = 10;
 
   private seenTraces: Set<string> = new Set();
+  private reportedMetadataDrops = new WeakMap<object, Set<string>>();
+  private metadataDropWarnCount = 0;
+  private arrayAttributeDropWarnCount = 0;
   private isInitialized = false;
   private traceEventCounts = {
     shallow: 0,
@@ -295,10 +391,12 @@ export class OtelIngestionProcessor {
                 const spanMetadata = this.extractMetadata(
                   spanAttributes,
                   "observation",
+                  span,
                 );
                 const traceMetadata = this.extractMetadata(
                   spanAttributes,
                   "trace",
+                  span,
                 );
 
                 const { input, output, filteredAttributes } =
@@ -368,8 +466,10 @@ export class OtelIngestionProcessor {
                   eventBytes,
                 });
 
-                const experimentFields =
-                  this.extractExperimentFields(spanAttributes);
+                const experimentFields = this.extractExperimentFields(
+                  spanAttributes,
+                  span,
+                );
 
                 const spanContext = {
                   spanId,
@@ -442,9 +542,11 @@ export class OtelIngestionProcessor {
                   endTimeISO,
 
                   level:
-                    spanAttributes[
-                      LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
-                    ] ??
+                    parseObservationLevel(
+                      spanAttributes[
+                        LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
+                      ],
+                    ) ??
                     (span.status?.code === 2
                       ? ObservationLevel.ERROR
                       : scopeSpan?.scope?.name === "livekit-agents" &&
@@ -805,10 +907,12 @@ export class OtelIngestionProcessor {
     const spanAttributeMetadata = this.extractMetadata(
       attributes,
       "observation",
+      span,
     );
     const resourceAttributeMetadata = this.extractMetadata(
       resourceAttributes,
       "trace",
+      resourceAttributes,
     );
     const { startTimeISO, endTimeISO } =
       OtelIngestionProcessor.resolveSpanTimestamps({
@@ -830,6 +934,7 @@ export class OtelIngestionProcessor {
         attributes,
         resourceAttributes,
         resourceAttributeMetadata,
+        spanAttributeMetadata,
         scopeSpan,
         scopeAttributes,
         isLangfuseSDKSpans,
@@ -871,6 +976,7 @@ export class OtelIngestionProcessor {
       attributes,
       resourceAttributes,
       resourceAttributeMetadata,
+      spanAttributeMetadata,
       scopeSpan,
       scopeAttributes,
       isLangfuseSDKSpans,
@@ -905,8 +1011,8 @@ export class OtelIngestionProcessor {
           this.extractName(span.name, attributes),
         metadata: {
           ...resourceAttributeMetadata,
-          ...this.extractMetadata(attributes, "trace"),
-          ...this.extractMetadata(attributes, "observation"),
+          ...this.extractMetadata(attributes, "trace", span),
+          ...spanAttributeMetadata,
           ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
           resourceAttributes,
           scope: {
@@ -938,7 +1044,7 @@ export class OtelIngestionProcessor {
         name: attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string,
         metadata: {
           ...resourceAttributeMetadata,
-          ...this.extractMetadata(attributes, "trace"),
+          ...this.extractMetadata(attributes, "trace", span),
           // removed to not remove trace metadata->attributes through subsequent observations
           // ...(isLangfuseSDKSpans
           //   ? {}
@@ -1073,7 +1179,9 @@ export class OtelIngestionProcessor {
       ),
       metadata: normalizedToolMetadata.metadata,
       level:
-        attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
+        parseObservationLevel(
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
+        ) ??
         (span.status?.code === 2
           ? ObservationLevel.ERROR
           : scopeSpan?.scope?.name === "livekit-agents" &&
@@ -1417,6 +1525,15 @@ export class OtelIngestionProcessor {
     return undefined;
   }
 
+  /**
+   * Rebuilds observation input/output from flattened adapter attributes.
+   *
+   * TraceLoop and OpenInference encode structured messages in attribute names;
+   * for example, `gen_ai.prompt.0.content` becomes `[{ content: value }]`.
+   * Numeric path segments therefore become JavaScript array indices. The total
+   * logical slots across all nested arrays are bounded, since dimensions can
+   * otherwise multiply into a huge sparse structure during serialization.
+   */
   private convertKeyPathToNestedObject(
     input: Record<string, unknown>,
     prefix: string,
@@ -1425,7 +1542,21 @@ export class OtelIngestionProcessor {
       return input[prefix];
     }
 
-    const keys = Object.keys(input).map((key) => key.replace(`${prefix}.`, ""));
+    const keys: string[] = [];
+    const overBudgetKeys: string[] = [];
+    const arraySlotBudget = new ArraySlotBudget(
+      OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS,
+    );
+    for (const inputKey of Object.keys(input)) {
+      const key = inputKey.replace(`${prefix}.`, "");
+      if (!arraySlotBudget.tryReserve(key.split("."))) {
+        overBudgetKeys.push(key);
+        continue;
+      }
+
+      keys.push(key);
+    }
+    this.recordArrayAttributesDropped(prefix, overBudgetKeys);
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
     // Blocklist to prevent prototype pollution via crafted OTel attribute keys
@@ -1453,7 +1584,8 @@ export class OtelIngestionProcessor {
       const result: any[] = [];
       for (const key of keys) {
         const pathParts = key.split(".");
-        const index = parseInt(pathParts[0], 10);
+        const indexSegment = pathParts[0];
+        const index = Number(indexSegment);
         if (!result[index]) {
           result[index] = Object.create(null);
         }
@@ -1482,6 +1614,28 @@ export class OtelIngestionProcessor {
       }
     }
     return result;
+  }
+
+  private recordArrayAttributesDropped(prefix: string, keys: string[]): void {
+    if (keys.length === 0) return;
+
+    recordIncrement(
+      OtelIngestionProcessor.OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC,
+      keys.length,
+      { reason: "reconstruction_budget_exceeded", prefix },
+    );
+    if (
+      this.arrayAttributeDropWarnCount <
+      OtelIngestionProcessor.ARRAY_ATTRIBUTE_DROP_WARN_CAP
+    ) {
+      this.arrayAttributeDropWarnCount += 1;
+      logger.warn("OTEL array attribute dropped", {
+        projectId: this.projectId,
+        prefix,
+        reason: "reconstruction_budget_exceeded",
+        droppedAttributeCount: keys.length,
+      });
+    }
   }
 
   private extractInputAndOutput(params: {
@@ -2089,14 +2243,57 @@ export class OtelIngestionProcessor {
 
     for (const key of environmentAttributeKeys) {
       if (attributes[key]) {
-        return attributes[key] as string;
+        return normalizeEnvironment(attributes[key], {
+          isLangfuseInternal: this.isLangfuseInternal,
+        });
       }
       if (resourceAttributes[key]) {
-        return resourceAttributes[key] as string;
+        return normalizeEnvironment(resourceAttributes[key], {
+          isLangfuseInternal: this.isLangfuseInternal,
+        });
       }
     }
 
-    return "default";
+    const openRouterEnvironment =
+      this.extractOpenRouterFailedRequestEnvironment(
+        attributes,
+        resourceAttributes,
+      );
+    if (openRouterEnvironment) {
+      return normalizeEnvironment(openRouterEnvironment);
+    }
+
+    return DEFAULT_TRACE_ENVIRONMENT;
+  }
+
+  private extractOpenRouterFailedRequestEnvironment(
+    attributes: Record<string, unknown>,
+    resourceAttributes: Record<string, unknown>,
+  ): LangfuseInternalTraceEnvironment.LLMJudge | undefined {
+    if (
+      resourceAttributes["service.name"] !== "openrouter" ||
+      attributes["openrouter.source"] !== "openrouter"
+    ) {
+      return undefined;
+    }
+
+    const completion = this.parseJsonPayload(attributes["gen_ai.completion"]);
+    if (
+      !OtelIngestionProcessor.isPlainObject(completion) ||
+      completion.completion !== null ||
+      !OtelIngestionProcessor.isPlainObject(completion.rawRequest) ||
+      !OtelIngestionProcessor.isPlainObject(completion.rawRequest.trace)
+    ) {
+      return undefined;
+    }
+
+    // OpenRouter Broadcast can omit custom trace metadata when a request fails,
+    // but echoes the original request here. Recover only our reserved evaluator
+    // marker so failed judge calls cannot be scheduled as fresh evaluations.
+    return completion.rawRequest.trace.environment ===
+      LangfuseInternalTraceEnvironment.LLMJudge
+      ? LangfuseInternalTraceEnvironment.LLMJudge
+      : undefined;
   }
 
   private extractName(
@@ -2147,14 +2344,31 @@ export class OtelIngestionProcessor {
   private extractMetadata(
     attributes: Record<string, unknown>,
     domain: "trace" | "observation",
+    dropScope: object,
   ): Record<string, unknown> {
     const metadataKeyPrefix =
       domain === "observation"
         ? LangfuseOtelSpanAttributes.OBSERVATION_METADATA
         : LangfuseOtelSpanAttributes.TRACE_METADATA;
 
+    // A falsy-present primary key dies at the `||` fallback below and never
+    // reaches the parser: count it here, emission-only. Falsy compat values
+    // survive the fallback and are counted by the parser itself.
+    const primaryValue = attributes[metadataKeyPrefix];
+    if (primaryValue !== undefined && primaryValue !== null && !primaryValue) {
+      this.recordMetadataDropped(
+        typeof primaryValue === "string" ? "parse_failure" : "primitive",
+        { domain, attributeKey: metadataKeyPrefix, dropScope },
+      );
+    }
+
     const topLevelMetadata = this.parseMetadataAttribute(
-      attributes[metadataKeyPrefix] || attributes["langfuse.metadata"],
+      primaryValue || attributes["langfuse.metadata"],
+      {
+        domain,
+        attributeKey: primaryValue ? metadataKeyPrefix : "langfuse.metadata",
+        dropScope,
+      },
     );
     const langfuseMetadata = this.extractPrefixedMetadataAttributes({
       attributes,
@@ -2222,18 +2436,23 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     instrumentationScopeName: string,
   ): Record<string, unknown> {
+    let explicitModelParameters: Record<string, unknown> | undefined;
     if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS]) {
       try {
-        return this.sanitizeModelParams(
+        explicitModelParameters = this.sanitizeModelParams(
           JSON.parse(
             attributes[
               LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS
             ] as string,
           ),
-        );
+        ) as Record<string, unknown>;
       } catch {
         // Fallthrough
       }
+    }
+
+    if (explicitModelParameters && instrumentationScopeName !== "ai") {
+      return explicitModelParameters;
     }
 
     // Genkit
@@ -2249,6 +2468,11 @@ export class OtelIngestionProcessor {
 
     // Vercel AI SDK
     if (instrumentationScopeName === "ai") {
+      const providerMetadata = this.parseJsonPayload(
+        attributes["ai.response.providerMetadata"],
+      );
+      const responseServiceTier = providerMetadata?.openai?.serviceTier;
+
       return {
         maxSteps:
           "ai.settings.maxSteps" in attributes
@@ -2286,8 +2510,17 @@ export class OtelIngestionProcessor {
           "gen_ai.request.temperature" in attributes
             ? (attributes["gen_ai.request.temperature"]?.toString() ?? null)
             : null,
+        service_tier:
+          typeof responseServiceTier === "string"
+            ? responseServiceTier
+            : "gen_ai.request.service_tier" in attributes
+              ? (attributes["gen_ai.request.service_tier"]?.toString() ?? null)
+              : null,
+        ...explicitModelParameters,
       };
     }
+
+    if (explicitModelParameters) return explicitModelParameters;
 
     if (attributes["llm.invocation_parameters"]) {
       try {
@@ -2309,13 +2542,19 @@ export class OtelIngestionProcessor {
       }
     }
 
-    const modelParameters = Object.keys(attributes).filter((key) =>
-      key.startsWith("gen_ai.request."),
+    const modelParameterPrefixes = [
+      "gen_ai.request.",
+      "llm.invocation_parameters.",
+    ];
+    const modelParameters = modelParameterPrefixes.flatMap((prefix) =>
+      Object.keys(attributes)
+        .filter((key) => key.startsWith(prefix))
+        .map((key) => ({ key, prefix })),
     );
 
     return this.sanitizeModelParams(
-      modelParameters.reduce((acc: any, key) => {
-        const modelParamKey = key.replace("gen_ai.request.", "");
+      modelParameters.reduce((acc: any, { key, prefix }) => {
+        const modelParamKey = key.replace(prefix, "");
         if (modelParamKey !== "model") {
           acc[modelParamKey] = attributes[key];
         }
@@ -2592,6 +2831,39 @@ export class OtelIngestionProcessor {
       if (Object.keys(usageDetails).length > 0) return usageDetails;
     }
 
+    if (
+      instrumentationScopeName === "gcp.vertex.agent" &&
+      "gcp.vertex.agent.llm_response" in attributes
+    ) {
+      const usageDetails: Record<string, number | undefined> =
+        this.extractGenericGenAiUsageDetails(attributes);
+
+      // prompt tokens include cached tokens, so the blob cache-read count is subtracted from input
+      if (usageDetails["input_cached_tokens"] === undefined) {
+        const llmResponse = this.parseJsonPayload(
+          attributes["gcp.vertex.agent.llm_response"],
+        );
+        const cachedTokens =
+          llmResponse?.usage_metadata?.cached_content_token_count;
+
+        if (
+          typeof cachedTokens === "number" &&
+          !Number.isNaN(cachedTokens) &&
+          cachedTokens > 0
+        ) {
+          usageDetails["input_cached_tokens"] = cachedTokens;
+          if (usageDetails["input"] !== undefined) {
+            usageDetails["input"] = Math.max(
+              usageDetails["input"] - cachedTokens,
+              0,
+            );
+          }
+        }
+      }
+
+      return usageDetails;
+    }
+
     return this.extractGenericGenAiUsageDetails(attributes);
   }
 
@@ -2634,6 +2906,7 @@ export class OtelIngestionProcessor {
       rawUsageDetails["total_tokens"] ?? rawUsageDetails["total"];
     const cacheReadTokens =
       rawUsageDetails["cache_read.input_tokens"] ??
+      rawUsageDetails["cache_read_input_tokens"] ??
       rawUsageDetails["cache_read_tokens"] ??
       rawUsageDetails["details.cache_read_tokens"] ??
       rawUsageDetails["details.cache_read_input_tokens"] ??
@@ -2641,11 +2914,18 @@ export class OtelIngestionProcessor {
       rawUsageDetails["input_cached_tokens"];
     const cacheCreationTokens =
       rawUsageDetails["cache_creation.input_tokens"] ??
+      rawUsageDetails["cache_creation_input_tokens"] ??
       rawUsageDetails["cache_write_tokens"] ??
       rawUsageDetails["details.cache_write_tokens"] ??
       rawUsageDetails["details.cache_creation_input_tokens"] ??
       rawUsageDetails["prompt_details.cache_write"] ??
       rawUsageDetails["input_cache_creation"];
+    // Reasoning/audio details are included in the emitted output token count
+    // and are therefore subtracted from output below to avoid double counting.
+    const outputReasoningTokens =
+      rawUsageDetails["reasoning.output_tokens"] ??
+      rawUsageDetails["completion_details.reasoning"];
+    const outputAudioTokens = rawUsageDetails["completion_details.audio"];
 
     const normalizedUsageDetails = Object.entries(rawUsageDetails).reduce(
       (acc: Record<string, number>, [key, value]) => {
@@ -2660,17 +2940,22 @@ export class OtelIngestionProcessor {
             "total_tokens",
             "total",
             "cache_read.input_tokens",
+            "cache_read_input_tokens",
             "cache_read_tokens",
             "details.cache_read_tokens",
             "details.cache_read_input_tokens",
             "prompt_details.cache_read",
             "input_cached_tokens",
             "cache_creation.input_tokens",
+            "cache_creation_input_tokens",
             "cache_write_tokens",
             "details.cache_write_tokens",
             "details.cache_creation_input_tokens",
             "prompt_details.cache_write",
             "input_cache_creation",
+            "reasoning.output_tokens",
+            "completion_details.reasoning",
+            "completion_details.audio",
           ].includes(key)
         ) {
           return acc;
@@ -2694,7 +2979,10 @@ export class OtelIngestionProcessor {
     }
 
     if (outputTokens !== undefined) {
-      normalizedUsageDetails.output = outputTokens;
+      normalizedUsageDetails.output = Math.max(
+        outputTokens - (outputReasoningTokens ?? 0) - (outputAudioTokens ?? 0),
+        0,
+      );
     }
 
     if (totalTokens !== undefined) {
@@ -2707,6 +2995,14 @@ export class OtelIngestionProcessor {
 
     if (cacheCreationTokens !== undefined) {
       normalizedUsageDetails.input_cache_creation = cacheCreationTokens;
+    }
+
+    if (outputReasoningTokens !== undefined) {
+      normalizedUsageDetails.output_reasoning_tokens = outputReasoningTokens;
+    }
+
+    if (outputAudioTokens !== undefined) {
+      normalizedUsageDetails.output_audio_tokens = outputAudioTokens;
     }
 
     return normalizedUsageDetails;
@@ -2817,18 +3113,64 @@ export class OtelIngestionProcessor {
     return [];
   }
 
-  private parseMetadataAttribute(value: unknown): Record<string, unknown> {
-    if (!value) {
+  // One increment per dropped attribute VALUE: deduped per drop scope —
+  // the span object for span attributes (shared across both worker
+  // pipelines) or the per-resourceSpan attributes object for resource
+  // attributes — on (attribute key, reason). Distinct spans/resourceSpans
+  // in one job count separately; the first-seen domain wins the tag.
+  // Warns are capped per instance, increments are not.
+  private recordMetadataDropped(
+    reason: string,
+    context: MetadataDropContext,
+  ): void {
+    const { domain, attributeKey, dropScope } = context;
+    let seen = this.reportedMetadataDrops.get(dropScope);
+    if (!seen) {
+      seen = new Set();
+      this.reportedMetadataDrops.set(dropScope, seen);
+    }
+    const dedupeKey = `${attributeKey}|${reason}`;
+    if (seen.has(dedupeKey)) {
+      return;
+    }
+    seen.add(dedupeKey);
+
+    recordIncrement("langfuse.ingestion.metadata_dropped", 1, {
+      reason,
+      source: "otel",
+      domain,
+    });
+    if (
+      this.metadataDropWarnCount < OtelIngestionProcessor.METADATA_DROP_WARN_CAP
+    ) {
+      this.metadataDropWarnCount += 1;
+      logger.warn("OTEL metadata attribute dropped", {
+        projectId: this.projectId,
+        reason,
+        domain,
+        attributeKey,
+      });
+    }
+  }
+
+  private parseMetadataAttribute(
+    value: unknown,
+    context: MetadataDropContext,
+  ): Record<string, unknown> {
+    if (value === undefined || value === null) {
       return {};
     }
 
     if (typeof value === "string") {
       try {
         const parsed = JSON.parse(value);
-        return parsed && typeof parsed === "object"
-          ? (parsed as Record<string, unknown>)
-          : {};
+        if (parsed && typeof parsed === "object") {
+          return parsed as Record<string, unknown>;
+        }
+        this.recordMetadataDropped("non_object_top_level", context);
+        return {};
       } catch {
+        this.recordMetadataDropped("parse_failure", context);
         return {};
       }
     }
@@ -2837,6 +3179,7 @@ export class OtelIngestionProcessor {
       return value as Record<string, unknown>;
     }
 
+    this.recordMetadataDropped("primitive", context);
     return {};
   }
 
@@ -2868,10 +3211,16 @@ export class OtelIngestionProcessor {
   private extractMetadataFromPrefix(params: {
     attributes: Record<string, unknown>;
     prefix: string;
+    domain: string;
+    dropScope: object;
   }): Record<string, unknown> {
-    const { attributes, prefix } = params;
+    const { attributes, prefix, domain, dropScope } = params;
     return {
-      ...this.parseMetadataAttribute(attributes[prefix]),
+      ...this.parseMetadataAttribute(attributes[prefix], {
+        domain,
+        attributeKey: prefix,
+        dropScope,
+      }),
       ...this.extractPrefixedMetadataAttributes({
         attributes,
         prefixes: [prefix],
@@ -2883,7 +3232,10 @@ export class OtelIngestionProcessor {
    * Extracts experiment-related fields from span attributes.
    * Returns undefined for fields that are not present.
    */
-  private extractExperimentFields(attributes: Record<string, unknown>): {
+  private extractExperimentFields(
+    attributes: Record<string, unknown>,
+    dropScope: object,
+  ): {
     experimentId?: string;
     experimentName?: string;
     experimentDescription?: string;
@@ -2920,6 +3272,8 @@ export class OtelIngestionProcessor {
       this.extractMetadataFromPrefix({
         attributes,
         prefix: LangfuseOtelSpanAttributes.EXPERIMENT_METADATA,
+        domain: "experiment",
+        dropScope,
       }),
     );
 
@@ -2928,6 +3282,8 @@ export class OtelIngestionProcessor {
       this.extractMetadataFromPrefix({
         attributes,
         prefix: LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_METADATA,
+        domain: "experiment_item",
+        dropScope,
       }),
     );
 

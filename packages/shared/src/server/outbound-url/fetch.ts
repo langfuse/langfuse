@@ -1,12 +1,13 @@
 import { addSecureOutboundConnectionValidation } from "./connection";
 import type { OutboundUrlValidationWhitelist } from "./validation";
 import { logger } from "../logger";
+import { WebhookSignatureHeader } from "../../domain/webhooks";
 
 const SENSITIVE_REDIRECT_HEADERS = new Set([
   "authorization",
   "cookie",
   "proxy-authorization",
-  "x-langfuse-signature",
+  WebhookSignatureHeader,
 ]);
 
 /**

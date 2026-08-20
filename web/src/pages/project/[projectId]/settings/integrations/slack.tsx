@@ -1,5 +1,5 @@
 import ContainerPage from "@/src/components/layouts/container-page";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
 import { SlackConnectionCard } from "@/src/features/slack/components/SlackConnectionCard";
 import {

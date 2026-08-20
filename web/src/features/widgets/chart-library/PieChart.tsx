@@ -137,5 +137,3 @@ export const PieChart: React.FC<ChartProps> = ({
     </ChartContainer>
   );
 };
-
-export default PieChart;

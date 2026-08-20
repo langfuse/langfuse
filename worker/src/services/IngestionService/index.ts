@@ -8,6 +8,7 @@ import {
   ObservationLevel,
   PrismaClient,
   Prompt,
+  safeJsonParse,
   type JsonNested,
 } from "@langfuse/shared";
 import {
@@ -41,6 +42,7 @@ import {
   TraceUpsertQueue,
   UsageCostType,
   findModel,
+  hasPricingTierUsageDetails,
   matchPricingTier,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
@@ -53,10 +55,10 @@ import {
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
   type IngestionAttribution,
+  type PricingTierMatchAttributes,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
-import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import {
   convertJsonSchemaToRecord,
@@ -67,6 +69,7 @@ import {
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
+import { applyObservationFieldOverflow } from "../../features/observation-field-overflow/processObservationFieldOverflow";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -79,7 +82,43 @@ function parseUInt16(value: string | null | undefined): number | undefined {
   return num;
 }
 
+function toPricingAttributeRecord(value: unknown): Record<string, string> {
+  const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
+
+  if (
+    !parsedValue ||
+    typeof parsedValue !== "object" ||
+    Array.isArray(parsedValue)
+  ) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(parsedValue).flatMap(([key, attributeValue]) =>
+      typeof attributeValue === "string" ||
+      typeof attributeValue === "number" ||
+      typeof attributeValue === "boolean"
+        ? [[key, String(attributeValue)]]
+        : [],
+    ),
+  );
+}
+
 export type EventInput = InternalTraceEventInput;
+
+function parseEventModelParameters(
+  value: EventInput["modelParameters"],
+): string | object | number | boolean | null {
+  if (!value) return {};
+  if (typeof value !== "string") return value;
+
+  try {
+    return JSON.parse(value) as string | object | number | boolean | null;
+  } catch {
+    return value;
+  }
+}
+
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
@@ -94,6 +133,27 @@ type MergeAndWriteParams = {
   forwardToEventsTable: boolean;
   attribution: IngestionAttribution;
 };
+
+type PricingTierMatchAttributeValues = {
+  modelParameters?: unknown;
+  metadata?: unknown;
+};
+
+/**
+ * Returns a new event record whose `event_bytes` value is the UTF-8 size of
+ * the final JSONEachRow payload, excluding the self-referential accounting
+ * field. The supplied record is not mutated.
+ */
+function withSerializedEventByteLength(
+  eventRecord: EventRecordInsertType,
+): EventRecordInsertType {
+  const { event_bytes: _eventBytes, ...eventWithoutSize } = eventRecord;
+
+  return {
+    ...eventWithoutSize,
+    event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
+  };
+}
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -240,6 +300,9 @@ export class IngestionService {
     // fields as strings, so stringify at this schema boundary.
     const input = this.stringify(eventData.input);
     const output = this.stringify(eventData.output);
+    const modelParameters = parseEventModelParameters(
+      eventData.modelParameters,
+    );
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -248,6 +311,11 @@ export class IngestionService {
       { id: eventData.spanId, project_id: eventData.projectId },
       "events",
     );
+
+    const shouldEnrichUsageAndCost =
+      Boolean(eventData.modelName) ||
+      Object.keys(eventData.providedUsageDetails ?? {}).length > 0 ||
+      Object.keys(eventData.providedCostDetails ?? {}).length > 0;
 
     // Perform lookups for prompt and model/usage enrichment
     const [prompt, generationUsage] = await Promise.all([
@@ -263,10 +331,14 @@ export class IngestionService {
             label: undefined,
           })
         : null,
-      // Lookup model and enrich usage/cost details (includes tokenization if needed)
-      eventData.modelName
+      // Promote provided usage/cost and enrich from the model when available.
+      shouldEnrichUsageAndCost
         ? this.getGenerationUsage({
             projectId: eventData.projectId,
+            pricingMatchAttributeValues: {
+              modelParameters,
+              metadata: eventData.metadata,
+            },
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -338,11 +410,11 @@ export class IngestionService {
       // Model
       model_id: generationUsage?.internal_model_id || "",
       provided_model_name: eventData.modelName,
-      model_parameters: eventData.modelParameters
-        ? typeof eventData.modelParameters === "string"
-          ? JSON.parse(eventData.modelParameters)
-          : eventData.modelParameters
-        : {},
+      // Evaluation scheduling consumes this enriched record before it is
+      // written and expects parsed model parameters. The established runtime
+      // contract is therefore wider than the ClickHouse insert type declares.
+      model_parameters:
+        modelParameters as EventRecordInsertType["model_parameters"],
 
       // Usage & Cost
       provided_usage_details: eventData.providedUsageDetails ?? {},
@@ -414,12 +486,25 @@ export class IngestionService {
   /**
    * Writes an event record directly to the events_full table.
    * A materialized view auto-populates events_core from events_full.
+   * Legacy observation writes and staging-based dual writes intentionally do
+   * not use field overflow.
    * Use createEventRecord() first to get the record, then call this to write.
+   *
+   * Enqueues a new record whose `event_bytes` describes the final normalized
+   * event rather than the raw OTEL span measured before media processing. The
+   * supplied record is not mutated.
    *
    * @param eventRecord - The event record to write
    */
-  public writeEventRecord(eventRecord: EventRecordInsertType): void {
-    this.clickHouseWriter.addToQueue(TableName.EventsFull, eventRecord);
+  public async writeEventRecord(
+    eventRecord: EventRecordInsertType,
+  ): Promise<void> {
+    const persistedRecord = await applyObservationFieldOverflow(eventRecord);
+
+    this.clickHouseWriter.addToQueue(
+      TableName.EventsFull,
+      withSerializedEventByteLength(persistedRecord),
+    );
   }
 
   private async processDatasetRunItemEventList(params: {
@@ -545,6 +630,7 @@ export class IngestionService {
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minTimestamp));
     const unexpectedScoreValidationErrors: unknown[] = [];
+    let expectedScoreValidationDrops = 0;
     const [clickhouseScoreRecord, scoreRecords] = await Promise.all([
       this.getClickhouseRecord({
         projectId,
@@ -599,9 +685,11 @@ export class IngestionService {
             // Gracefully handle any score schema validation errors, skip the score insert and reject silently.
           } catch (error) {
             if (
-              !(error instanceof InvalidRequestError) &&
-              !(error instanceof LangfuseNotFoundError)
+              error instanceof InvalidRequestError ||
+              error instanceof LangfuseNotFoundError
             ) {
+              expectedScoreValidationDrops += 1;
+            } else {
               unexpectedScoreValidationErrors.push(error);
             }
 
@@ -631,6 +719,16 @@ export class IngestionService {
         unexpectedScoreValidationErrors,
         `Unexpected error(s) validating score batch for project: ${projectId} and score: ${entityId}`,
       );
+    }
+
+    // Count drops only on an attempt that proceeds: a rethrowing batch is
+    // redelivered, and counting it would inflate the metric once per retry.
+    for (let i = 0; i < expectedScoreValidationDrops; i++) {
+      recordIncrement("langfuse.ingestion.metadata_dropped", 1, {
+        reason: "score_validation_dropped",
+        source: "api",
+        domain: "score",
+      });
     }
 
     if (scoreRecords.length === 0 && !clickhouseScoreRecord) {
@@ -890,6 +988,21 @@ export class IngestionService {
     const rawOutput =
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
       clickhouseObservationRecord?.output;
+    const pricingEventIndex = observationRecords.findLastIndex(
+      (record) => Object.keys(record.provided_usage_details ?? {}).length > 0,
+    );
+    const pricingEvent = timeSortedEvents[pricingEventIndex];
+    const pricingMatchAttributeValues:
+      | PricingTierMatchAttributeValues
+      | undefined = pricingEvent
+      ? {
+          modelParameters:
+            "modelParameters" in pricingEvent.body
+              ? pricingEvent.body.modelParameters
+              : undefined,
+          metadata: pricingEvent.body.metadata,
+        }
+      : undefined;
     const normalizedTools = normalizeToolsForObservation(
       rawInput,
       rawOutput,
@@ -934,6 +1047,7 @@ export class IngestionService {
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
+      pricingMatchAttributeValues,
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -1150,6 +1264,7 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
+    pricingMatchAttributeValues?: PricingTierMatchAttributeValues;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1173,7 +1288,8 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const { projectId, observationRecord } = params;
+    const { projectId, observationRecord, pricingMatchAttributeValues } =
+      params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1187,15 +1303,45 @@ export class IngestionService {
       internalModel,
     );
 
-    // Match pricing tier based on usage_details
+    // Match pricing tier based on usage_details. Skip when usage is empty
+    // (e.g. tokenization skipped because costs were provided, or ERROR-level
+    // generations): matching {} would stamp a tier chosen against a fabricated
+    // all-zero usage vector instead of leaving the tier unset.
     let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
     let usage_pricing_tier_id: string | null = null;
     let usage_pricing_tier_name: string | null = null;
-
-    if (pricingTiers.length > 0 && final_usage_details.usage_details) {
+    if (
+      pricingTiers.length > 0 &&
+      hasPricingTierUsageDetails(final_usage_details.usage_details)
+    ) {
+      const attributeSources = new Set(
+        pricingTiers.flatMap((tier) =>
+          tier.isDefault
+            ? []
+            : tier.conditions.flatMap((condition) =>
+                "source" in condition ? [condition.source] : [],
+              ),
+        ),
+      );
+      const pricingMatchAttributes: PricingTierMatchAttributes | undefined =
+        attributeSources.size > 0
+          ? {
+              modelParameters: attributeSources.has("model_parameters")
+                ? toPricingAttributeRecord(
+                    pricingMatchAttributeValues?.modelParameters,
+                  )
+                : {},
+              metadata: attributeSources.has("metadata")
+                ? toPricingAttributeRecord(
+                    pricingMatchAttributeValues?.metadata,
+                  )
+                : {},
+            }
+          : undefined;
       const matchedTier = matchPricingTier(
         pricingTiers,
         final_usage_details.usage_details,
+        pricingMatchAttributes,
       );
 
       if (matchedTier) {
@@ -1239,7 +1385,13 @@ export class IngestionService {
   private async getUsageUnits(
     observationRecord: Pick<
       ObservationRecordInsertType,
-      "provided_usage_details" | "level" | "input" | "output" | "id"
+      | "project_id"
+      | "provided_usage_details"
+      | "provided_cost_details"
+      | "level"
+      | "input"
+      | "output"
+      | "id"
     >,
     model: Model | null | undefined,
   ): Promise<
@@ -1252,10 +1404,19 @@ export class IngestionService {
       observationRecord.provided_usage_details,
     );
 
+    // Provided costs are authoritative: calculateUsageCosts ignores computed
+    // usage once any cost point is provided, so tokenised counts could never
+    // affect costs — leave usage_details blank instead of paying for
+    // tokenisation.
+    const hasProvidedCostDetails = Object.values(
+      observationRecord.provided_cost_details ?? {},
+    ).some((value) => value != null);
+
     if (
-      // Manual tokenisation when no user provided usage and generation has not status ERROR
+      // Manual tokenisation when no user provided usage or cost and generation has not status ERROR
       model &&
       Object.keys(providedUsageDetails).length === 0 &&
+      !hasProvidedCostDetails &&
       observationRecord.level !== ObservationLevel.ERROR
     ) {
       try {
@@ -1278,18 +1439,30 @@ export class IngestionService {
                 }),
               ]);
             } catch (error) {
+              // No synchronous fallback: payloads that make the worker thread
+              // exceed its timeout would block the event loop for minutes if
+              // re-tokenized on the main thread. Absent counts are
+              // detectable by users, unlike a 0 or a bytes-based estimate.
               logger.warn(
-                `Async tokenization has failed. Falling back to synchronous tokenization`,
-                error,
+                `Async tokenization failed for observation ${observationRecord.id} in project ${observationRecord.project_id}. Skipping token counts.`,
+                {
+                  projectId: observationRecord.project_id,
+                  observationId: observationRecord.id,
+                  modelId: model.id,
+                  tokenizerId: model.tokenizerId,
+                  inputBytes:
+                    typeof observationRecord.input === "string"
+                      ? observationRecord.input.length
+                      : undefined,
+                  outputBytes:
+                    typeof observationRecord.output === "string"
+                      ? observationRecord.output.length
+                      : undefined,
+                  error,
+                },
               );
-              newInputCount = tokenCount({
-                text: observationRecord.input,
-                model,
-              });
-              newOutputCount = tokenCount({
-                text: observationRecord.output,
-                model,
-              });
+              span.setAttribute("langfuse.tokenization.skipped", true);
+              recordIncrement("langfuse.tokenisation.skipped", 1);
             }
 
             // Tracing

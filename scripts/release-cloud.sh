@@ -25,6 +25,9 @@ trigger_cloud_promotion() {
 }
 
 main() {
+  # Cloud promotion always ships `main`. The shared preflight also accepts
+  # OSS maintenance branches (e.g. `v3`), so pin this entry point to main.
+  ensure_on_main_branch
   run_release_preflight
   trigger_cloud_promotion
 }

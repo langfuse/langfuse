@@ -2,7 +2,10 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
 import { useState, useRef, useEffect } from "react";
 import { PromptVersionDiffDialog } from "./PromptVersionDiffDialog";
-import { Timeline, TimelineItem } from "@/src/components/ui/timeline";
+import {
+  Timeline,
+  TimelineItem,
+} from "@/src/features/prompts/components/timeline";
 import { Badge } from "@/src/components/ui/badge";
 import { CommandItem } from "@/src/components/ui/command";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";

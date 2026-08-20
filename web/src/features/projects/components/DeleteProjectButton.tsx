@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -17,7 +18,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -66,9 +67,7 @@ export function DeleteProjectButton() {
       .then(() => {
         window.location.href = env.NEXT_PUBLIC_BASE_PATH ?? "/"; // browser reload to refresh jwt
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportNonTrpcError(error, "projects"));
   };
 
   return (

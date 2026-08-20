@@ -4,15 +4,13 @@ import {
   buildWidgetOrderBy,
   getResultUnit,
   isV2BreakdownChart,
-  requiresV2,
+  resolveWidgetRenderVersion,
   toQueryChartConfig,
   validateQuery,
   type QueryType,
-  type ViewVersion,
   type metricAggregations,
   type views,
 } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
@@ -44,6 +42,7 @@ import {
 } from "@/src/features/widgets/utils/import-export-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
 import { isPasteablePlacementPayload } from "@/src/features/dashboard/utils/dashboard-import-export";
 import {
   DropdownMenu,
@@ -54,6 +53,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import {
   formatMetricName,
+  mergeWidgetAndDashboardFilters,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
   getWidgetMetricPresentation,
@@ -137,21 +137,18 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
-  const widgetRequiresV2 = requiresV2({
-    view: widget.data?.view ?? "traces",
-    dimensions: widget.data?.dimensions ?? [],
-    measures:
-      widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
-    filters: widget.data?.filters ?? [],
+  const metricsVersion = resolveWidgetRenderVersion({
+    shape: {
+      view: widget.data?.view ?? "traces",
+      dimensions: widget.data?.dimensions ?? [],
+      measures:
+        widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ??
+        [],
+      filters: widget.data?.filters ?? [],
+    },
+    persistedMinVersion: widget.data?.minVersion,
+    newestReadableVersion: isBetaEnabled ? "v2" : "v1",
   });
-  // If widget requires v2 features (minVersion >= 2), must use v2.
-  // Otherwise follow the beta toggle.
-  const metricsVersion: ViewVersion =
-    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
-      ? "v2"
-      : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
-        ? "v2"
-        : "v1";
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",
@@ -238,24 +235,26 @@ export function DashboardWidget({
         })
       : { type: chartType };
 
+    const view = (widget.data?.view as z.infer<typeof views>) ?? "traces";
+
+    // A widget's own environment filter overrides the dashboard's global
+    // environment selector; other dashboard-global filters still merge in.
+    // (LFE-14333 — see mergeWidgetAndDashboardFilters.)
+    const mergedFilters = mergeWidgetAndDashboardFilters({
+      view,
+      widgetFilters: widget.data?.filters ?? [],
+      dashboardFilters: filterState,
+    });
+
     return {
-      view: (widget.data?.view as z.infer<typeof views>) ?? "traces",
+      view,
       dimensions: widget.data?.dimensions ?? [],
       metrics:
         widget.data?.metrics.map((metric) => ({
           measure: metric.measure,
           aggregation: metric.agg as z.infer<typeof metricAggregations>,
         })) ?? [],
-      filters: [
-        ...mapLegacyUiTableFilterToView(
-          (widget.data?.view as z.infer<typeof views>) ?? "traces",
-          widget.data?.filters ?? [],
-        ),
-        ...mapLegacyUiTableFilterToView(
-          (widget.data?.view as z.infer<typeof views>) ?? "traces",
-          filterState,
-        ),
-      ],
+      filters: mergedFilters,
       timeDimension: isTimeSeries ? { granularity: "auto" as const } : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
@@ -271,6 +270,12 @@ export function DashboardWidget({
         : ({ valid: true } as const),
     [widgetQuery, metricsVersion, widget.data],
   );
+  useCaptureWidgetHighCardinalityError({
+    validation: queryValidation,
+    surface: "dashboard_tile",
+    chartType: widget.data?.chartType,
+    isV4: metricsVersion === "v2",
+  });
   const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
@@ -468,21 +473,31 @@ export function DashboardWidget({
   // global) translated to the traces/observations table's applicable filters,
   // plus the widget's time range. Filters the table can't express are dropped
   // (surfaced as a hint), never errored. The widget-filter merge mirrors the
-  // query build above (widget.data.filters + dashboard filterState).
+  // query build above via mergeWidgetAndDashboardFilters, so the environment
+  // override applies here too: a widget with its own environment filter must
+  // deep-link to a table scoped to ITS environment, not one carrying both the
+  // widget's and the dashboard selector's contradictory environment filters
+  // (which the table treats as applicable → empty table). (LFE-14333)
+  // buildTableFilterHref maps to view space again internally; that re-map is
+  // idempotent for the already-canonical columns this helper returns
+  // (isCanonicalViewFilterColumn short-circuits them), so no filter is
+  // double-mapped or dropped.
   const tableView = useMemo(() => {
     const view = widget.data?.view;
     if (!view) return undefined;
-    const mergedFilters: FilterState = [
-      ...(widget.data?.filters ?? []),
-      ...filterState,
-    ];
+    const mergedFilters = mergeWidgetAndDashboardFilters({
+      view: view as z.infer<typeof views>,
+      widgetFilters: widget.data?.filters ?? [],
+      dashboardFilters: filterState,
+    });
     return buildTableFilterHref(
       projectId,
       view as z.infer<typeof views>,
       mergedFilters,
       dateRange,
+      isBetaEnabled ? "v4" : "v3",
     );
-  }, [projectId, widget.data, filterState, dateRange]);
+  }, [projectId, widget.data, filterState, dateRange, isBetaEnabled]);
 
   const handleViewAsTable = () => {
     if (!tableView) return;

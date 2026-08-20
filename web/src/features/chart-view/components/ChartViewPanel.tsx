@@ -1,15 +1,17 @@
+/* eslint-disable @repo/no-style-props */
 import React, { useCallback, useState } from "react";
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
+import { cn } from "@/src/utils/tailwind";
 import {
   type AggregationFn,
   type ChartViewConfig,
   type DimensionKey,
   type MetricKey,
 } from "../types";
-import { describeConfig } from "../vocab";
+import { describeConfig, getMetric } from "../vocab";
 import { ChartCanvas } from "./ChartCanvas";
 import {
   AggregationSelect,
@@ -35,6 +37,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
   emptyMessage,
   granularitySlot,
   chartActions,
+  className,
 }: {
   config: ChartViewConfig;
   onConfigChange: (patch: Partial<ChartViewConfig>) => void;
@@ -45,8 +48,13 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
   granularitySlot?: React.ReactNode;
   /** Right-aligned actions next to the chart subtitle (e.g. "Add to dashboard"). */
   chartActions?: React.ReactNode;
+  /** Root class passthrough. The panel fills a bounded-height flex ancestor via
+   *  `flex-1`; a standalone caller (e.g. a story) can give it an explicit height
+   *  here instead of relying on a host. */
+  className?: string;
 }) {
   const [open, setOpen] = useState(true);
+  const metric = getMetric(config.metric);
 
   const onMetric = useCallback(
     (metric: MetricKey) => onConfigChange({ metric }),
@@ -66,11 +74,16 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
   );
 
   return (
-    <div className="flex min-h-0 flex-1">
-      {/* Canvas */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 p-3">
+    <div className={cn("flex min-h-0 flex-1 flex-col md:flex-row", className)}>
+      {/* Canvas — floored on mobile so a tall stacked config panel can't shrink
+          the chart to 0 on short viewports (flex-basis:0 gets none of a negative
+          deficit); desktop keeps min-h-0 for the side-by-side row. */}
+      <div className="flex min-h-64 min-w-0 flex-1 flex-col gap-1 p-3 md:min-h-0">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-foreground text-sm font-bold">
+          <div
+            className="text-foreground min-w-0 truncate text-sm font-bold"
+            title={describeConfig(config)}
+          >
             {describeConfig(config)}
           </div>
           {chartActions}
@@ -88,8 +101,14 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
           ) : (
             <ChartCanvas
               data={data}
-              config={config}
-              emptyMessage={emptyMessage}
+              chartType={config.chartType}
+              breakdown={config.breakdown}
+              aggregation={config.aggregation}
+              metricLabel={metric.label}
+              metricUnit={metric.unit}
+              emptyMessage={
+                emptyMessage ?? "No events match the current filters."
+              }
             />
           )}
         </div>
@@ -97,7 +116,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
 
       {/* Config panel */}
       {open ? (
-        <div className="flex w-72 shrink-0 flex-col gap-3 overflow-y-auto border-l p-3">
+        <div className="flex w-full flex-col gap-3 overflow-y-auto border-t p-3 md:w-72 md:shrink-0 md:border-t-0 md:border-l">
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold">Visualize</span>
             <Button
@@ -134,7 +153,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
           ) : null}
         </div>
       ) : (
-        <div className="flex shrink-0 flex-col items-center border-l p-1.5">
+        <div className="flex flex-col items-center border-t p-1.5 md:shrink-0 md:border-t-0 md:border-l">
           <Button
             variant="ghost"
             size="icon-xs"

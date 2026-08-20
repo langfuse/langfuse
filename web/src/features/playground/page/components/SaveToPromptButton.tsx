@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Check, Save } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState } from "react";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 
 export default function TableIdOrName({
@@ -11,7 +12,7 @@ export default function TableIdOrName({
     <div
       title={value}
       className={cn(
-        "inline-block max-w-full overflow-hidden rounded py-0.5 text-xs font-bold text-nowrap text-ellipsis",
+        "inline-block max-w-full overflow-hidden rounded py-0.5 text-xs text-nowrap text-ellipsis",
         className,
       )}
     >

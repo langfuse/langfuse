@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * @fileoverview PivotTable Chart Component
  *
@@ -414,5 +415,3 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     </div>
   );
 };
-
-export default PivotTable;

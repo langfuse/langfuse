@@ -5,9 +5,9 @@
     "catalog": "off",
   },
   "ignoreIssues": {
-    "web/**": ["files", "exports", "types", "duplicates"],
-    "packages/shared/**": ["files", "exports", "types", "duplicates"],
-    "worker/**": ["files", "exports", "types", "duplicates"],
+    "web/**": ["files", "exports", "types"],
+    "packages/shared/**": ["files", "exports", "types"],
+    "worker/**": ["files", "exports", "types"],
   },
   "workspaces": {
     "worker": {
@@ -39,10 +39,15 @@
     },
     "packages/in-app-agent-sandbox-runtime": {
       "entry": ["src/server.ts"],
-      "project": ["src/**/*.ts"],
+      "project": ["src/**/*.ts", "tests/**/*.ts"],
     },
     "packages/config-eslint": {
       "project": ["*.js"],
+      // eslint-plugin-import loads these from the resolver names in next.js settings.
+      "ignoreDependencies": [
+        "eslint-import-resolver-node",
+        "eslint-import-resolver-typescript",
+      ],
     },
     "packages/eslint-plugin": {
       "project": ["src/**/*.ts"],

@@ -1,9 +1,12 @@
 import { useRouter } from "next/router";
 import { DatasetsTable } from "@/src/features/datasets/components/DatasetsTable";
 import Page from "@/src/components/layouts/page";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { ButtonWithIcon } from "@/src/components/ButtonWithIcon";
+import { DialogTrigger } from "@/src/components/ui/dialog";
+import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
 import { api } from "@/src/utils/api";
 import { DatasetsOnboarding } from "@/src/components/onboarding/DatasetsOnboarding";
+import { LockIcon, PlusIcon } from "lucide-react";
 import { useQueryParam, StringParam } from "use-query-params";
 
 export default function Datasets() {
@@ -54,11 +57,27 @@ export default function Datasets() {
           href: "https://langfuse.com/docs/evaluation/dataset-runs/datasets",
         },
         actionButtonsRight: (
-          <DatasetActionButton
+          <CreateDatasetDialogController
             projectId={projectId}
-            mode="create"
-            folderPrefix={currentFolderPath || undefined}
-          />
+            target={
+              currentFolderPath
+                ? { type: "folder", prefix: currentFolderPath }
+                : { type: "root" }
+            }
+          >
+            {({ disabled, openDialog }) => (
+              <DialogTrigger asChild>
+                <ButtonWithIcon
+                  size="default"
+                  disabled={disabled !== undefined}
+                  onClick={openDialog}
+                  variant="default"
+                  icon={disabled === undefined ? PlusIcon : LockIcon}
+                  text="New dataset"
+                />
+              </DialogTrigger>
+            )}
+          </CreateDatasetDialogController>
         ),
       }}
     >

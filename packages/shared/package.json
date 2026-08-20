@@ -31,6 +31,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/llm/llmText": {
+      "import": "./dist/src/server/llm/llmText.js",
+      "require": "./dist/src/server/llm/llmText.js"
+    },
     "./src/server/auth/apiKeys": {
       "import": "./dist/src/server/auth/apiKeys.js",
       "require": "./dist/src/server/auth/apiKeys.js"
@@ -62,6 +66,46 @@
     "./monitors/server": {
       "import": "./dist/src/features/monitors/server.js",
       "require": "./dist/src/features/monitors/server.js"
+    },
+    "./in-app-agent": {
+      "import": "./dist/src/in-app-agent/index.js",
+      "require": "./dist/src/in-app-agent/index.js"
+    },
+    "./in-app-agent/server/persistence": {
+      "import": "./dist/src/in-app-agent/server/persistence.js",
+      "require": "./dist/src/in-app-agent/server/persistence.js"
+    },
+    "./in-app-agent/server/runLifecycle": {
+      "import": "./dist/src/in-app-agent/server/runLifecycle.js",
+      "require": "./dist/src/in-app-agent/server/runLifecycle.js"
+    },
+    "./in-app-agent/server/tunables": {
+      "import": "./dist/src/in-app-agent/server/tunables.js",
+      "require": "./dist/src/in-app-agent/server/tunables.js"
+    },
+    "./in-app-agent/server/eventCompaction": {
+      "import": "./dist/src/in-app-agent/server/eventCompaction.js",
+      "require": "./dist/src/in-app-agent/server/eventCompaction.js"
+    },
+    "./in-app-agent/server/mcpPolicy": {
+      "import": "./dist/src/in-app-agent/server/mcpPolicy.js",
+      "require": "./dist/src/in-app-agent/server/mcpPolicy.js"
+    },
+    "./in-app-agent/server/toolResults": {
+      "import": "./dist/src/in-app-agent/server/toolResults.js",
+      "require": "./dist/src/in-app-agent/server/toolResults.js"
+    },
+    "./in-app-agent/server/toolErrors": {
+      "import": "./dist/src/in-app-agent/server/toolErrors.js",
+      "require": "./dist/src/in-app-agent/server/toolErrors.js"
+    },
+    "./in-app-agent/server/systemPrompt": {
+      "import": "./dist/src/in-app-agent/server/systemPrompt.js",
+      "require": "./dist/src/in-app-agent/server/systemPrompt.js"
+    },
+    "./in-app-agent/server/modelProvider": {
+      "import": "./dist/src/in-app-agent/server/modelProvider.js",
+      "require": "./dist/src/in-app-agent/server/modelProvider.js"
     }
   },
   "scripts": {
@@ -94,7 +138,9 @@
     "seed": "dotenv -e ../../.env -- tsx scripts/seeder/seed-postgres.ts"
   },
   "dependencies": {
-    "@ai-sdk/amazon-bedrock": "^5.0.8",
+    "@ag-ui/client": "^0.0.52",
+    "@ag-ui/core": "^0.0.52",
+    "@ai-sdk/amazon-bedrock": "^5.0.25",
     "@ai-sdk/anthropic": "^4.0.5",
     "@ai-sdk/azure": "^4.0.5",
     "@ai-sdk/google": "^4.0.6",
@@ -145,7 +191,7 @@
     "oci-objectstorage": "^2.125.0",
     "safe-regex2": "^5.0.0",
     "slackify-markdown": "^5.0.0",
-    "undici": "^7.28.0",
+    "undici": "^7.29.0",
     "uuid": "^14.0.0",
     "winston": "^3.15.0",
     "zod": "^4.3.6"
@@ -159,11 +205,11 @@
     "@types/nodemailer": "^8.0.1",
     "@types/react": "19.2.14",
     "dotenv-cli": "^7.4.4",
-    "eslint": "^9.39.2",
+    "eslint": "catalog:",
     "prisma": "^6.19.3",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   },
   "peerDependencies": {
     "@types/react": "~19.2.14",

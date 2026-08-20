@@ -4,7 +4,7 @@ import {
 } from "@/src/features/public-api/types/models";
 import { listModelsForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
-import { buildModelUrl } from "@/src/utils/product-url";
+import { buildModelUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [listModelsTool, handleListModels] = defineTool({

@@ -175,6 +175,10 @@ export const MonitorChartPreview = ({
             rowLimit={1000}
             thresholds={thresholds}
             metricFormatter={metricFormatter}
+            // Both queries feed `data`; while either is still pending it can
+            // be spuriously `[]`, which would otherwise flash "No data"
+            // before the real result (or the leading point) arrives.
+            isLoading={queryResult.isPending || scalarResult.isPending}
           />
           <ChartLoadingState
             isLoading={queryResult.isError}

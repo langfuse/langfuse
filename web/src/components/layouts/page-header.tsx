@@ -1,4 +1,6 @@
-import { EnvLabel } from "@/src/components/EnvLabel";
+/* eslint-disable @repo/no-style-props */
+import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
+import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
@@ -13,30 +15,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import {
+  PageTabs,
+  type PageTabsProps,
+} from "@/src/components/layouts/page-tabs";
 import { cn } from "@/src/utils/tailwind";
-import Link from "next/link";
-import { useRouter } from "next/router";
-import { type ParsedUrlQuery } from "querystring";
 import { type ReactNode } from "react";
-
-type TabDefinition = {
-  value: string;
-  label: string;
-  href?: string;
-  onClick?: () => void;
-  querySelector?: (
-    query: ParsedUrlQuery,
-  ) => Record<string, string | string[] | undefined>;
-  disabled?: boolean;
-  className?: string;
-};
-
-type PageTabsProps = {
-  tabs: TabDefinition[];
-  activeTab: string;
-  className?: string;
-  listClassName?: string;
-};
+import {
+  APP_SHELL_CHROME_ROW_CLASS,
+  APP_SHELL_CHROME_ROW_TEST_ID,
+} from "@/src/components/layouts/app-shell-chrome";
 
 const containerLayoutClassName =
   "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
@@ -49,6 +37,14 @@ export type PageHeaderProps = {
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
+  actionButtonsRightClassName?: string;
+  /** Mobile-only: the same actions rendered as full-width labeled menu rows
+   * (icon + label), for the compact header's `⋯` overflow. Pages pass a
+   * `layout="menu"` variant of their actions here (mirrors the table peek's
+   * `actionsMenu`). When omitted, the mobile header falls back to folding the
+   * inline `actionButtonsRight`/`actionButtonsLeft` nodes as-is. Desktop
+   * `PageHeader` ignores this. */
+  actionButtonsMenu?: React.ReactNode;
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;
@@ -67,6 +63,7 @@ const PageHeader = ({
   itemType,
   actionButtonsLeft,
   actionButtonsRight,
+  actionButtonsRightClassName,
   breadcrumb,
   help,
   titleTooltip,
@@ -78,8 +75,8 @@ const PageHeader = ({
   titleBadges,
   breadcrumbBadges,
 }: PageHeaderProps) => {
-  const router = useRouter();
   const hasAppSidebar = useHasAppSidebar();
+  const envLabel = useEnvLabel();
   // The sidebar trigger + brand mark only make sense where a real AppSidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
@@ -94,22 +91,29 @@ const PageHeader = ({
       id="page-header"
     >
       <div className="flex flex-col justify-center">
-        {/* Top Row */}
-        <div className="border-b">
+        {/* Top Row — same min-h-11 + border-b box as the sidebar logo strip
+            so the sidebar `border-r` T-junction is a single pixel. The
+            divider stays on this full-width box; container max-width only
+            caps the inner content so settings pages don't leave a gap. */}
+        <div
+          data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
+          className={APP_SHELL_CHROME_ROW_CLASS}
+        >
           <div
             className={cn(
-              // py-1.5 (not py-2) so a 32px control in the right-aligned slot
-              // fits inside the 44px (min-h-11) row without growing it; the
-              // min-height keeps rows without controls at the same height.
-              // justify-between (not ml-auto on the slot) so the controls sit
-              // right when the row fits on one line but fall back to the LEFT
-              // edge when they wrap to their own line on narrow viewports (a
-              // line with a single flex item renders as flex-start).
-              "flex min-h-11 flex-wrap items-center justify-between gap-3 px-3 py-1.5",
+              // No extra vertical padding: min-h-11 + border-b already is
+              // the 44px box. Extra py would grow the row past the sidebar
+              // strip (border-box counts padding inside min-height, then
+              // 32px controls no longer fit). justify-between (not ml-auto
+              // on the slot) so the controls sit right when the row fits on
+              // one line but fall back to the LEFT edge when they wrap to
+              // their own line on narrow viewports (a line with a single
+              // flex item renders as flex-start).
+              "flex h-full w-full flex-wrap items-center justify-between gap-3 px-3 leading-none",
               container && containerLayoutClassName,
             )}
           >
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="flex min-h-5 min-w-0 flex-wrap items-center gap-3">
               {showSidebarChrome ? (
                 <>
                   <SidebarTrigger />
@@ -124,9 +128,14 @@ const PageHeader = ({
                 )
               )}
               <div>
-                <EnvLabel />
+                {envLabel.visible && (
+                  <EnvLabelBadge
+                    region={envLabel.region}
+                    onClick={envLabel.dismiss}
+                  />
+                )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex translate-y-px items-center gap-2">
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>
@@ -216,61 +225,23 @@ const PageHeader = ({
               )}
             </div>
 
-            {/* Right side content — right-aligned by the row's
-                justify-between while it shares the line with the title;
-                left-aligned once it wraps to its own line. */}
-            <div className="flex flex-wrap items-center gap-1">
+            {/* Right side content. Pages can override the default alignment
+                when wrapped actions should retain a shared right edge. */}
+            <div
+              className={cn(
+                "flex flex-wrap items-center gap-1",
+                actionButtonsRightClassName,
+              )}
+            >
               {actionButtonsRight}
             </div>
           </div>
 
           {tabsProps && (
-            <div className={cn("ml-2", tabsProps.className)}>
-              <div
-                className={cn(
-                  "inline-flex h-8 items-center justify-start",
-                  tabsProps.listClassName,
-                )}
-              >
-                {tabsProps.tabs.map((tab) => {
-                  const tabClassName = cn(
-                    "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground font-bold inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
-                    tab.value === tabsProps.activeTab
-                      ? "border-primary-accent text-foreground bg-transparent shadow-none"
-                      : "",
-                    tab.disabled && "pointer-events-none opacity-50",
-                    tab.className,
-                  );
-
-                  if (tab.onClick) {
-                    return (
-                      <button
-                        key={tab.value}
-                        type="button"
-                        onClick={tab.onClick}
-                        className={tabClassName}
-                        disabled={tab.disabled}
-                      >
-                        {tab.label}
-                      </button>
-                    );
-                  }
-
-                  return (
-                    <Link
-                      key={tab.value}
-                      href={{
-                        pathname: tab.href ?? "",
-                        query: tab.querySelector?.(router.query),
-                      }}
-                      className={tabClassName}
-                    >
-                      {tab.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
+            <PageTabs
+              {...tabsProps}
+              className={cn("ml-2", tabsProps.className)}
+            />
           )}
         </div>
       </div>

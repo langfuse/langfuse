@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   type CustomHeights,
@@ -84,10 +84,9 @@ export default function EvalLogTable({
       cell: (row) => {
         const status = row.getValue();
         return (
-          <StatusBadge
-            className="w-fit self-start"
-            type={status.toLowerCase()}
-          />
+          <div className="w-fit self-start">
+            <StatusBadge type={status.toLowerCase()} />
+          </div>
         );
       },
     }),
