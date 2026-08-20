@@ -1,8 +1,10 @@
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { z } from "zod";
-import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
+import {
+  getObservationsV2FromEventsTableForPublicApi,
+  buildObservationUrl,
+} from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
-import { buildObservationUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   ExpandMetadataKeysSchema,

@@ -1,4 +1,10 @@
+// Must stay the first import: installs a `crypto.randomUUID` fallback for
+// non-secure (plain-HTTP) origins before any other module can call it
+// (LFE-10858).
+import "@/src/polyfills/crypto-random-uuid";
+
 import { type AppType } from "next/app";
+import Head from "next/head";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
@@ -8,7 +14,7 @@ import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuPr
 
 import { api } from "@/src/utils/api";
 
-import NextAdapterPages from "next-query-params/pages";
+import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWithReadyGuard";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
@@ -70,12 +76,14 @@ if (typeof window !== "undefined") {
   };
 }
 
+import { ResilientSessionProvider } from "@/src/features/auth/components/ResilientSessionProvider";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
-import { InAppAiAgentProvider } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
+import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
@@ -95,6 +103,8 @@ if (
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
     session_recording: {
+      maskAllInputs: true,
+      maskTextSelector: "*",
       maskCapturedNetworkRequestFn(request) {
         request.requestBody = request.requestBody ? "REDACTED" : undefined;
         request.responseBody = request.responseBody ? "REDACTED" : undefined;
@@ -102,7 +112,7 @@ if (
       },
     },
     autocapture: false,
-    enable_heatmaps: false,
+    enable_heatmaps: true,
     persistence: "cookie",
   });
 }
@@ -112,6 +122,9 @@ const MyApp: AppType<{ session: Session | null }> = ({
   pageProps: { session, ...pageProps },
 }) => {
   const router = useRouter();
+  const skipAppLayout =
+    "skipAppLayout" in Component && Component.skipAppLayout === true;
+  const authBasePath = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`;
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
@@ -128,47 +141,74 @@ const MyApp: AppType<{ session: Session | null }> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const page = (
+    <>
+      <Component {...pageProps} />
+      <UserTracking />
+    </>
+  );
+
   return (
-    <QueryParamProvider
-      adapter={NextAdapterPages}
-      options={{ enableBatching: true }}
-    >
-      <TooltipProvider>
-        <CommandMenuProvider>
-          <PostHogProvider client={posthog}>
-            <SessionProvider
-              session={session}
-              refetchOnWindowFocus={true}
-              refetchInterval={5 * 60} // 5 minutes
-              basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
-            >
-              <DetailPageListsProvider>
-                <MarkdownContextProvider>
-                  <ThemeProvider
-                    attribute="class"
-                    enableSystem
-                    disableTransitionOnChange
-                  >
-                    <ScoreCacheProvider>
-                      <CorrectionCacheProvider>
-                        <SupportDrawerProvider defaultOpen={false}>
-                          <InAppAiAgentProvider defaultOpen={false}>
-                            <AppLayout>
-                              <Component {...pageProps} />
-                              <UserTracking />
-                            </AppLayout>
-                          </InAppAiAgentProvider>
-                        </SupportDrawerProvider>
-                      </CorrectionCacheProvider>
-                    </ScoreCacheProvider>
-                  </ThemeProvider>
-                </MarkdownContextProvider>
-              </DetailPageListsProvider>
-            </SessionProvider>
-          </PostHogProvider>
-        </CommandMenuProvider>
-      </TooltipProvider>
-    </QueryParamProvider>
+    <>
+      {/* Replaces Next's default `width=device-width` (next/head dedupes by
+          name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
+          sub-16px field; iOS ignores `user-scalable=no` for user gestures, so
+          the engine-level zoom block is `touch-action` on `#__next` and the
+          overlay layers — NOT on html/body, which WebKit ignores for page
+          pinch (styles/globals.css). `viewport-fit=cover` is what makes
+          `env(safe-area-inset-*)` non-zero. */}
+      <Head>
+        <meta
+          name="viewport"
+          content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
+        />
+      </Head>
+      <QueryParamProvider
+        adapter={NextAdapterPagesWithReadyGuard}
+        options={{ enableBatching: true }}
+      >
+        <TooltipProvider>
+          <CommandMenuProvider>
+            <PostHogProvider client={posthog}>
+              <SessionProvider
+                session={session}
+                refetchOnWindowFocus={true}
+                refetchInterval={5 * 60} // 5 minutes
+                basePath={authBasePath}
+              >
+                <ResilientSessionProvider basePath={authBasePath}>
+                  <DetailPageListsProvider>
+                    <MarkdownContextProvider>
+                      <ThemeProvider
+                        attribute="class"
+                        enableSystem
+                        disableTransitionOnChange
+                      >
+                        <ScoreCacheProvider>
+                          <CorrectionCacheProvider>
+                            <SupportDrawerProvider defaultOpen={false}>
+                              <V4MigrationPanelProvider defaultOpen={false}>
+                                <InAppAiAgentProvider defaultOpen={false}>
+                                  {skipAppLayout ? (
+                                    page
+                                  ) : (
+                                    <AppLayout>{page}</AppLayout>
+                                  )}
+                                </InAppAiAgentProvider>
+                              </V4MigrationPanelProvider>
+                            </SupportDrawerProvider>
+                          </CorrectionCacheProvider>
+                        </ScoreCacheProvider>
+                      </ThemeProvider>
+                    </MarkdownContextProvider>
+                  </DetailPageListsProvider>
+                </ResilientSessionProvider>
+              </SessionProvider>
+            </PostHogProvider>
+          </CommandMenuProvider>
+        </TooltipProvider>
+      </QueryParamProvider>
+    </>
   );
 };
 

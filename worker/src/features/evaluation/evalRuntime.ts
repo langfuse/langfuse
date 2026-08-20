@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import {
   ChatMessageRole,
   ChatMessageType,
@@ -10,31 +9,6 @@ import { compileTemplateString } from "../utils";
 export interface CompileEvalPromptParams {
   templatePrompt: string;
   variables: ExtractedVariable[];
-}
-
-function sha256Base64Url(value: string) {
-  return createHash("sha256").update(value).digest("base64url");
-}
-
-export function buildEvalPromptCacheKey(params: {
-  projectId: string;
-  templateId: string;
-  templateVersion: number;
-  provider: string;
-  model: string;
-}): string {
-  // Versioned cache bucket for requests that share the same reusable evaluator
-  // prompt prefix on the same model endpoint. Per-run variables and output
-  // definitions are intentionally excluded to avoid fragmenting prompt caches.
-  const payload = [
-    params.projectId,
-    params.templateId,
-    String(params.templateVersion),
-    params.provider,
-    params.model,
-  ].join("\x00");
-
-  return `lf-eval-v1-${sha256Base64Url(payload)}`;
 }
 
 export function compileEvalPrompt(params: CompileEvalPromptParams): string {

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -31,7 +32,9 @@ const ScrollBar = React.forwardRef<
     ref={ref}
     orientation={orientation}
     className={cn(
-      "flex touch-none transition-colors select-none",
+      // z-[1]: overlay scrollbars must paint above sticky in-content rows
+      // (e.g. the filter sidebar's sticky facet headers); local stacking only.
+      "z-[1] flex touch-none transition-colors select-none",
       orientation === "vertical" &&
         "h-full w-2.5 border-l border-l-transparent p-px",
       orientation === "horizontal" &&

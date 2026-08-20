@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Archive } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -56,7 +57,7 @@ export const ArchiveScoreConfigButton = ({
         onClick={(e) => e.stopPropagation()}
         className="max-w-[500px]"
       >
-        <h2 className="mb-3 font-semibold">
+        <h2 className="mb-3 font-bold">
           {isArchived ? "Restore config" : "Archive config"}
         </h2>
         <p className="mb-3 text-sm">

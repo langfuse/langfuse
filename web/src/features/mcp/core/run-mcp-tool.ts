@@ -1,9 +1,11 @@
 import { BaseError } from "@langfuse/shared";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import { addUserToSpan, instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind, type Span } from "@opentelemetry/api";
+import { ZodError } from "zod";
 
 import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
+import { isUserInputError } from "./errors";
 import type { ServerContext } from "../types";
 
 type McpToolAttribute = string | number | boolean;
@@ -22,10 +24,17 @@ export const runMcpTool = async <TResult>({
   instrumentAsync(
     { name: spanName, spanKind: SpanKind.INTERNAL },
     async (span) => {
+      addUserToSpan(
+        {
+          projectId: context.projectId,
+          orgId: context.orgId,
+          apiKeyId: context.apiKeyId,
+        },
+        span,
+      );
+
       span.setAttributes({
-        "langfuse.project.id": context.projectId,
-        "langfuse.org.id": context.orgId,
-        "mcp.api_key_id": context.apiKeyId,
+        ...(context.userAgent ? { user_agent: context.userAgent } : {}),
         ...Object.fromEntries(
           Object.entries(attributes ?? {}).filter(
             (entry): entry is [string, McpToolAttribute] =>
@@ -35,8 +44,23 @@ export const runMcpTool = async <TResult>({
       });
 
       try {
-        return await fn(span);
+        const result = await fn(span);
+        span.setAttribute("mcp.outcome", "success");
+        return result;
       } catch (error) {
+        // Keep telemetry aligned with formatErrorForUser, which reports Zod
+        // validation failures as InvalidParams. Response validators should
+        // wrap schema-drift failures in a server-side BaseError.
+        const isRequestError =
+          error instanceof ZodError ||
+          isUserInputError(error) ||
+          (error instanceof BaseError && error.httpCode < 500);
+
+        span.setAttribute(
+          "mcp.outcome",
+          isRequestError ? "request_error" : "server_error",
+        );
+
         // Expose the error cause on the span so trace analyses can group by
         // cause instead of a single error class name.
         if (error instanceof BaseError) {

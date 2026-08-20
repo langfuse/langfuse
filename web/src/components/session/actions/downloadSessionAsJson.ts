@@ -44,7 +44,7 @@ export function buildSessionExportData({
   };
 }
 
-function downloadJsonFile({
+export function downloadJsonFile({
   data,
   fileName,
 }: {

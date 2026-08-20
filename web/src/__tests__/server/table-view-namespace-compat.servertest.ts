@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   DefaultViewService,
@@ -33,7 +33,9 @@ const createTableViewPreset = async ({
       columnOrder: [],
       columnVisibility: {},
       searchQuery: null,
-      orderBy: null,
+      // Preserve the runtime value; Prisma's types only accept
+      // Prisma.JsonNull/DbNull for nullable Json inputs.
+      orderBy: null as unknown as Prisma.NullableJsonNullValueInput,
     },
   });
 

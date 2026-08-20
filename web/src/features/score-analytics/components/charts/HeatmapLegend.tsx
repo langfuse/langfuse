@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { getHeatmapCellColor } from "@/src/features/score-analytics/lib/color-scales";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
@@ -54,9 +55,7 @@ export function HeatmapLegend({
     return (
       <div className={cn("flex flex-col gap-2", className)}>
         {title && (
-          <div className="text-muted-foreground text-xs font-medium">
-            {title}
-          </div>
+          <div className="text-muted-foreground text-xs font-bold">{title}</div>
         )}
         <div className="flex flex-col gap-1">
           {colors

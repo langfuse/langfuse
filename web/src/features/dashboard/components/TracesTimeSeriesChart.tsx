@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { type FilterState } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
@@ -207,7 +208,11 @@ export const TracesAndObservationsTimeSeriesChart = ({
                   }
                 />
                 {!isEmptyTimeSeries({ data: item.data }) ? (
-                  <div className="h-80 w-full shrink-0">
+                  // The height is the flex basis (floor); grow lets the chart absorb
+                  // extra tile height. On grid (lg) screens the floor is smaller so
+                  // tiles fit narrow viewports — grow recovers the height above the
+                  // grid's rowHeight floor. (LFE-10813)
+                  <div className="h-80 w-full shrink-0 grow lg:h-56">
                     <DashboardLineTimeSeriesChart
                       data={item.data}
                       label={item.chartMetricLabel}
@@ -228,6 +233,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                     }
                     description="Traces contain details about LLM applications and can be created using the SDK."
                     href="https://langfuse.com/docs/observability/overview"
+                    className="h-auto grow"
                   />
                 )}
               </>

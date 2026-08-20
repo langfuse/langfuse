@@ -7,7 +7,7 @@ import {
   type ViewVersion,
   type views,
   type metricAggregations,
-  requiresV2,
+  resolveWidgetRenderVersion,
   validateQuery,
   toQueryChartConfig,
   isV2BreakdownChart,
@@ -117,24 +117,16 @@ export function useWidgetQuery({
 
   // Compute version based on widget requirements and beta toggle
   const version: ViewVersion = useMemo(() => {
-    const widgetRequiresV2 = requiresV2({
-      view: widgetConfig.view,
-      dimensions: widgetConfig.dimensions,
-      measures: widgetConfig.metrics.map((m) => ({ measure: m.measure })),
-      filters: widgetConfig.filters,
+    return resolveWidgetRenderVersion({
+      shape: {
+        view: widgetConfig.view,
+        dimensions: widgetConfig.dimensions,
+        measures: widgetConfig.metrics.map((m) => ({ measure: m.measure })),
+        filters: widgetConfig.filters,
+      },
+      persistedMinVersion: widgetConfig.minVersion,
+      newestReadableVersion: isBetaEnabled ? "v2" : "v1",
     });
-
-    // If widget requires v2 features (minVersion >= 2), must use v2.
-    // Otherwise follow the beta toggle (except for traces view which has no v2).
-    if (widgetRequiresV2 || (widgetConfig.minVersion ?? 1) >= 2) {
-      return "v2";
-    }
-
-    if (isBetaEnabled && widgetConfig.view !== "traces") {
-      return "v2";
-    }
-
-    return "v1";
   }, [widgetConfig, isBetaEnabled]);
 
   // Build the query

@@ -23,8 +23,10 @@ const VALUE_COLUMNS: Array<{ col: string; label: string }> = [
   { col: "promptName", label: "promptName" },
   { col: "scores_avg", label: "scores.<name> (numeric)" },
   { col: "score_categories", label: "scores.<name> (categorical)" },
+  { col: "score_booleans", label: "scores.<name> (boolean)" },
   { col: "trace_scores_avg", label: "traceScores.<name> (numeric)" },
   { col: "trace_score_categories", label: "traceScores.<name> (categorical)" },
+  { col: "trace_score_booleans", label: "traceScores.<name> (boolean)" },
 ];
 
 // Filter-options columns the AI prompt grounds on (lazy mode: requested when

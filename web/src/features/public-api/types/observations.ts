@@ -1,6 +1,7 @@
 import {
   type Observation,
   commaSeparatedEnumArray,
+  deprecationResponseZod,
   type EventsObservation,
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   ObservationLevel,
@@ -178,6 +179,9 @@ export const transformDbToApiObservation = (
     bookmarked,
 
     public: _public,
+
+    // Exclude the V2-only logical root flag from V1 responses.
+    isRootObservation: _isRootObservation,
     ...rest
   } = observation as EventsObservation &
     ObservationPriceFields & {
@@ -234,6 +238,7 @@ export const GetObservationsV1Response = z
   .object({
     data: z.array(APIObservation),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 
@@ -242,7 +247,11 @@ export const GetObservationV1Query = z.object({
   observationId: z.string(),
   useEventsTable: useEventsTableSchema,
 });
-export const GetObservationV1Response = APIObservation;
+// `_deprecation` at the response level, not on the shared `APIObservation`
+// (which is also the list element type).
+export const GetObservationV1Response = APIObservation.extend({
+  _deprecation: deprecationResponseZod.optional(),
+});
 
 /**
  * Cursor schema for v2 observations pagination
@@ -327,10 +336,15 @@ export const GetObservationsV2Query = z.object({
   type: ObservationType.nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
+  sessionId: z.string().nullish(),
   level: z.enum(ObservationLevel).nullish(),
   traceId: z.string().nullish(),
   version: z.string().nullish(),
   parentObservationId: z.string().nullish(),
+  isRootObservation: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .optional(),
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime.optional(),
   toStartTime: stringDateTime.optional(),
@@ -354,6 +368,7 @@ const APIObservationV2 = z
     type: z.string(),
 
     // Basic fields (field group: basic)
+    isRootObservation: z.boolean().optional(),
     name: z.string().nullable().optional(),
     level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]).optional(),
     statusMessage: z.string().nullable().optional(),

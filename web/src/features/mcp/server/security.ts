@@ -68,6 +68,14 @@ function getAllowedMcpOriginsAndHostnames() {
 }
 
 export function validateMcpRequestSecurity(req: NextApiRequest): string | null {
+  const originHeader = Array.isArray(req.headers.origin)
+    ? req.headers.origin[0]
+    : req.headers.origin;
+
+  if (env.LANGFUSE_MCP_ALLOWED_HOSTS.includes("*")) {
+    return originHeader ?? null;
+  }
+
   const { allowedHostnames, allowedOrigins } =
     getAllowedMcpOriginsAndHostnames();
 
@@ -89,9 +97,6 @@ export function validateMcpRequestSecurity(req: NextApiRequest): string | null {
     throw new ForbiddenError(`Invalid Host header: ${hostHeader}`);
   }
 
-  const originHeader = Array.isArray(req.headers.origin)
-    ? req.headers.origin[0]
-    : req.headers.origin;
   if (!originHeader) {
     return null;
   }

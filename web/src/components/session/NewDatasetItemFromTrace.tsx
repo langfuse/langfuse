@@ -7,6 +7,7 @@ export const NewDatasetItemFromTraceId = (props: {
   traceId: string;
   timestamp: Date;
   buttonVariant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
 }) => {
   // SessionIO already fetches the trace, so this doesn't add an extra request
   const trace = api.traces.byId.useQuery(
@@ -36,6 +37,7 @@ export const NewDatasetItemFromTraceId = (props: {
       output={trace.data.output ?? null}
       metadata={trace.data.metadata ?? null}
       buttonVariant={props.buttonVariant}
+      size={props.size}
     />
   );
 };

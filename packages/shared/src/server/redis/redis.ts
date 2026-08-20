@@ -3,13 +3,33 @@ import type { QueueBaseOptions } from "bullmq";
 import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
+import {
+  buildRedisErrorContext,
+  formatRedisErrorMessage,
+  getLastNodeError,
+} from "./redisErrorContext";
+
+const logRedisError = (
+  prefix: string,
+  error: unknown,
+  nodeAddress?: string,
+) => {
+  const context = buildRedisErrorContext(error, nodeAddress);
+  logger.error(formatRedisErrorMessage(prefix, context), context);
+};
 
 const defaultRedisOptions: Partial<RedisOptions> = {
   enableReadyCheck: true,
   maxRetriesPerRequest: null,
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
   keepAlive: 10000, // 10s — prevents middleboxes from killing idle connections
-  socketTimeout: 30000, // 30s — forces reconnect if no data received, prevents hung moveToCompleted() from blocking concurrency slots forever
+  // Forces reconnect if no data received, prevents hung moveToCompleted() from
+  // blocking concurrency slots forever. ioredis arms the watchdog for any
+  // defined value (0 would time out instantly), so disabling requires omitting
+  // the option entirely.
+  ...(env.REDIS_SOCKET_TIMEOUT_MS > 0
+    ? { socketTimeout: env.REDIS_SOCKET_TIMEOUT_MS }
+    : {}),
 };
 
 const REDIS_SCAN_COUNT = 1000;
@@ -140,8 +160,20 @@ const createRedisClusterInstance = (
 
   const cluster = new Cluster(nodes, clusterOptions);
 
+  // The `node error` event is the only place ioredis reports which node failed.
+  let lastNodeFailure: { error: unknown; address: string } | undefined;
+  cluster.on("node error", (error: unknown, address: string) => {
+    lastNodeFailure = { error, address };
+  });
+
   cluster.on("error", (error) => {
-    logger.error("Redis cluster error", error);
+    const lastNodeError = getLastNodeError(error);
+    const nodeAddress =
+      lastNodeError !== undefined && lastNodeFailure?.error === lastNodeError
+        ? lastNodeFailure.address
+        : undefined;
+
+    logRedisError("Redis cluster error", error, nodeAddress);
   });
 
   return cluster;
@@ -194,7 +226,7 @@ const createRedisSentinelInstance = (
   });
 
   instance.on("error", (error) => {
-    logger.error("Redis sentinel error", error);
+    logRedisError("Redis sentinel error", error);
   });
 
   return instance;
@@ -242,7 +274,7 @@ export const createNewRedisInstance = (
       : null;
 
   instance?.on("error", (error) => {
-    logger.error("Redis error", error);
+    logRedisError("Redis error", error);
   });
 
   return instance;
@@ -327,6 +359,23 @@ export const safeMultiDel = async (
     // In single-node mode, can delete all keys at once
     await redis.del(keys);
   }
+};
+
+/**
+ * Execute multiple Redis GET operations safely in cluster mode.
+ * MGET requires all keys to hash to the same slot; fall back to per-key GET.
+ */
+export const safeMultiGet = async (
+  redis: Redis | Cluster | null,
+  keys: string[],
+): Promise<(string | null)[]> => {
+  if (!redis || keys.length === 0) return [];
+
+  if (env.REDIS_CLUSTER_ENABLED === "true") {
+    return Promise.all(keys.map(async (key: string) => redis.get(key)));
+  }
+
+  return redis.mget(keys);
 };
 
 const scanKeysForNode = async (

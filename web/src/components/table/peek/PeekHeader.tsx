@@ -206,7 +206,7 @@ export function PeekHeader({
     <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
       <div
         ref={headerRef}
-        className="bg-header flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
+        className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
       >
         <div className="flex min-w-0 flex-row items-center gap-2">
           {/* Badge never truncates: it shows the full label or just the icon. */}
@@ -214,7 +214,7 @@ export function PeekHeader({
             <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />
           </div>
           <span
-            className="truncate text-sm font-medium focus:outline-hidden"
+            className="truncate text-sm font-bold focus:outline-hidden"
             tabIndex={0}
             title={typeof title === "string" ? title : undefined}
           >

@@ -1,13 +1,7 @@
 import { z } from "zod";
-import { LLMJSONSchema } from "@langfuse/shared";
+import { LLMJSONSchema, LLMToolNameSchema } from "@langfuse/shared";
 
-export const LLMToolNameSchema = z
-  .string()
-  .regex(
-    /^[a-zA-Z0-9\._-]+$/,
-    "Name must contain only alphanumeric letters, hyphens, periods and underscores",
-  )
-  .min(1, "Name is required");
+export { LLMToolNameSchema } from "@langfuse/shared";
 
 export const LLMToolInput = z.object({
   name: LLMToolNameSchema,

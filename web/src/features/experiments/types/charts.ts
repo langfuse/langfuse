@@ -19,15 +19,19 @@ export type MetricOption = {
 export type ScoreFilterOptions = {
   obs_scores_avg?: string[];
   obs_score_categories?: Record<string, string[]>;
+  obs_score_booleans?: string[];
   experiment_scores_avg?: string[];
   experiment_score_categories?: Record<string, string[]>;
+  experiment_score_booleans?: string[];
 };
 
 export type ExperimentItemScoreFilterOptions = {
   obs_scores_avg?: string[];
   obs_score_categories?: Record<string, string[]>;
+  obs_score_booleans?: string[];
   trace_scores_avg?: string[];
   trace_score_categories?: Record<string, string[]>;
+  trace_score_booleans?: string[];
 };
 
 export type ScoreLevel = "obs" | "experiment";

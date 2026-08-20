@@ -2,10 +2,19 @@ import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
-import { PostUnstableDashboardWidgetResponse } from "@/src/features/public-api/types/unstable-dashboard-widgets";
+import {
+  DeleteUnstableDashboardWidgetResponse,
+  GetUnstableDashboardWidgetsResponse,
+  PatchUnstableDashboardWidgetResponse,
+  PostUnstableDashboardWidgetResponse,
+} from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { UnstablePublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
+import { DashboardWidgetViews } from "@langfuse/shared/src/db";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  DashboardService,
+} from "@langfuse/shared/src/server";
 import type { z } from "zod";
 
 const baseWidgetBody = {
@@ -16,8 +25,17 @@ const baseWidgetBody = {
   metrics: [{ measure: "count", agg: "count" as const }],
   filters: [],
   chartType: "NUMBER" as const,
+};
+
+const legacyTracesWidgetInput = {
+  name: "Legacy traces widget",
+  description: "Seeded outside the unstable API",
+  view: DashboardWidgetViews.TRACES,
+  dimensions: [{ field: "name" }],
+  metrics: [{ measure: "count", agg: "count" as const }],
+  filters: [],
+  chartType: "NUMBER" as const,
   chartConfig: { type: "NUMBER" as const },
-  minVersion: 2,
 };
 
 const expectUnstableError = (
@@ -50,7 +68,8 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       name: "API widget",
       view: "observations",
       chartType: "NUMBER",
-      minVersion: 2,
+      // chartConfig is derived from chartType when omitted
+      chartConfig: { type: "NUMBER" },
     });
 
     await expect(
@@ -62,6 +81,8 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       projectId,
       name: "API widget",
       view: "OBSERVATIONS",
+      // The submitted shape is fully expressible in v1.
+      minVersion: 1,
     });
 
     await expect(
@@ -79,20 +100,41 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     });
   });
 
-  it("defaults supported views to minVersion 2", async () => {
-    const { auth } = await createOrgProjectAndApiKey();
-    const { minVersion: _minVersion, ...bodyWithoutMinVersion } =
-      baseWidgetBody;
+  it("creates and persists a boolean score widget", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
 
     const response = await makeZodVerifiedAPICall(
       PostUnstableDashboardWidgetResponse,
       "POST",
       "/api/public/unstable/dashboard-widgets",
-      bodyWithoutMinVersion,
+      {
+        ...baseWidgetBody,
+        name: "Boolean score widget",
+        view: "scores-boolean",
+        dimensions: [{ field: "booleanValue" }],
+        metrics: [{ measure: "value", agg: "avg" }],
+        filters: [
+          {
+            column: "booleanValue",
+            type: "boolean",
+            operator: "=",
+            value: true,
+          },
+        ],
+      },
       auth,
     );
 
-    expect(response.body.minVersion).toBe(2);
+    expect(response.body).toMatchObject({
+      view: "scores-boolean",
+      dimensions: [{ field: "booleanValue" }],
+      metrics: [{ measure: "value", agg: "avg" }],
+    });
+    await expect(
+      prisma.dashboardWidget.findUniqueOrThrow({
+        where: { id: response.body.id, projectId },
+      }),
+    ).resolves.toMatchObject({ view: DashboardWidgetViews.SCORES_BOOLEAN });
   });
 
   it("rejects traces widgets", async () => {
@@ -104,7 +146,6 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       {
         ...baseWidgetBody,
         view: "traces",
-        minVersion: 2,
       },
       auth,
     );
@@ -115,16 +156,93 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     });
   });
 
-  it("rejects legacy minVersion values", async () => {
+  it("lists, updates, and deletes legacy traces widgets", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    const legacyWidget = await DashboardService.createWidget(
+      projectId,
+      legacyTracesWidgetInput,
+    );
+
+    const listResponse = await makeZodVerifiedAPICall(
+      GetUnstableDashboardWidgetsResponse,
+      "GET",
+      "/api/public/unstable/dashboard-widgets",
+      undefined,
+      auth,
+    );
+    expect(listResponse.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: legacyWidget.id,
+          view: "traces",
+        }),
+      ]),
+    );
+
+    const patchResponse = await makeZodVerifiedAPICall(
+      PatchUnstableDashboardWidgetResponse,
+      "PATCH",
+      `/api/public/unstable/dashboard-widgets/${legacyWidget.id}`,
+      { name: "Renamed legacy traces widget" },
+      auth,
+    );
+    expect(patchResponse.body).toMatchObject({
+      id: legacyWidget.id,
+      name: "Renamed legacy traces widget",
+      view: "traces",
+    });
+
+    await makeZodVerifiedAPICall(
+      DeleteUnstableDashboardWidgetResponse,
+      "DELETE",
+      `/api/public/unstable/dashboard-widgets/${legacyWidget.id}`,
+      undefined,
+      auth,
+    );
+  });
+
+  it("preserves minVersion on patches that do not change the view", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    const v1Widget = await DashboardService.createWidget(projectId, {
+      ...legacyTracesWidgetInput,
+      name: "Legacy v1 observations widget",
+      view: DashboardWidgetViews.OBSERVATIONS,
+    });
+    await prisma.dashboardWidget.update({
+      where: { id: v1Widget.id },
+      // `id` is valid in v1 but uiHidden in v2, making a validation/persistence
+      // version mismatch observable on the following name-only PATCH.
+      data: { minVersion: 1, dimensions: [{ field: "id" }] },
+    });
+
+    await makeZodVerifiedAPICall(
+      PatchUnstableDashboardWidgetResponse,
+      "PATCH",
+      `/api/public/unstable/dashboard-widgets/${v1Widget.id}`,
+      { name: "Renamed v1 observations widget" },
+      auth,
+    );
+    const afterRename = await prisma.dashboardWidget.findUniqueOrThrow({
+      where: { id: v1Widget.id, projectId },
+    });
+    expect(afterRename.minVersion).toBe(1);
+  });
+
+  it("rejects patching a widget into the legacy traces view", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 
-    const response = await makeAPICall(
+    const createResponse = await makeZodVerifiedAPICall(
+      PostUnstableDashboardWidgetResponse,
       "POST",
       "/api/public/unstable/dashboard-widgets",
-      {
-        ...baseWidgetBody,
-        minVersion: 1,
-      },
+      baseWidgetBody,
+      auth,
+    );
+
+    const response = await makeAPICall(
+      "PATCH",
+      `/api/public/unstable/dashboard-widgets/${createResponse.body.id}`,
+      { view: "traces" },
       auth,
     );
 
@@ -134,7 +252,7 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     });
   });
 
-  it("returns unstable invalid_body errors for malformed widget JSON", async () => {
+  it("rejects a chartConfig.type that contradicts chartType", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 
     const response = await makeAPICall(
@@ -149,7 +267,7 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
 
     expectUnstableError(response, {
       status: 400,
-      code: "invalid_body",
+      code: "invalid_request",
     });
   });
 

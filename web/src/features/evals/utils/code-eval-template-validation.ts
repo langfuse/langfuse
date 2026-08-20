@@ -1,4 +1,4 @@
-import type * as ts from "typescript";
+import type * as ts from "@typescript/typescript6";
 import type { Diagnostic as RuffDiagnostic } from "@astral-sh/ruff-wasm-web";
 import {
   PYTHON_CODE_EVAL_CONTRACT,
@@ -9,6 +9,8 @@ import {
 export {
   DEFAULT_PYTHON_CODE_EVAL_SOURCE,
   DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+  PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS,
+  PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS,
   PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   formatAndStripCodeEvalSourceForSubmit,
@@ -612,7 +614,7 @@ export async function validateCodeEvalSourceWithLanguage({
 export async function validateCodeEvalSourceWithTypescript(
   source: string,
 ): Promise<CodeEvalValidationResult> {
-  const tsModule = await import("typescript");
+  const tsModule = await import("@typescript/typescript6");
   return validateCodeEvalSource(source, tsModule);
 }
 

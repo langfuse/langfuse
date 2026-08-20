@@ -1,15 +1,13 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
 
-import type { ModelParams } from "../../types";
 import type { TranslatedProviderOptions } from "./types";
 import { ensureBaseURLSuffix, isPlainObject } from "./utils";
 
 /**
- * LangChain's secure Google AI Studio client appends the SDK-generated path
- * (`/v1beta/models/...`) to the stored base URL, so the stored value is an
- * origin-style prefix without the API version. The AI SDK's `baseURL` includes
- * the version (default `https://generativelanguage.googleapis.com/v1beta`).
+ * The stored Google AI Studio base URL is an origin-style prefix without the
+ * generated `/v1beta/models/...` path. The AI SDK's `baseURL` includes the
+ * version (default `https://generativelanguage.googleapis.com/v1beta`).
  */
 export function toGoogleAIStudioBaseURL(
   baseURL: string | null | undefined,
@@ -18,7 +16,7 @@ export function toGoogleAIStudioBaseURL(
 }
 
 export function buildGoogleAIStudioModel(params: {
-  modelParams: ModelParams;
+  modelId: string;
   apiKey: string;
   baseURL?: string | null;
   fetch: typeof fetch;
@@ -29,9 +27,9 @@ export function buildGoogleAIStudioModel(params: {
     fetch: params.fetch,
   });
 
-  // Note: extra headers are intentionally not sent — the LangChain engine's
-  // Google AI Studio client only injects the API key header.
-  return provider(params.modelParams.model);
+  // Extra headers are intentionally not sent; only the API key header belongs
+  // on this request path.
+  return provider(params.modelId);
 }
 
 const GOOGLE_THINKING_LEVELS = new Set(["minimal", "low", "medium", "high"]);
@@ -40,17 +38,17 @@ const GOOGLE_THINKING_LEVELS = new Set(["minimal", "low", "medium", "high"]);
  * Translation of Langfuse `modelParams.providerOptions` (plus the Vertex-only
  * `modelParams.maxReasoningTokens`) to AI SDK Google provider options.
  *
- * The LangChain engine parses `providerOptions` with a non-strict zod schema
- * ({ thinkingBudget?, thinkingLevel? }) — unknown keys are silently stripped,
- * never sent — so stripping them here is exact parity, unlike the other
- * adapters where unknown keys reach the request body.
+ * Persisted Google options use a non-strict shape
+ * ({ thinkingBudget?, thinkingLevel? }); unknown keys were never sent and are
+ * intentionally stripped here, unlike adapters whose stored options are
+ * request-body passthroughs.
  *
- * LangChain then derives a wire `thinkingConfig` from the model family:
+ * The compatibility mapper derives wire `thinkingConfig` from the model family:
  * `gemini-2.5*` gets `thinkingBudget`, everything else gets `thinkingLevel`,
  * converting between the two representations when needed. We mirror the
- * direct cases and decline the conversion cases (budget-only on a
- * level-family model or vice versa), since replicating LangChain's
- * model-specific conversion tables would silently drift.
+ * direct cases and reject the conversion cases (budget-only on a
+ * level-family model or vice versa), since guessing a model-specific
+ * conversion would silently drift.
  */
 export function translateGoogleProviderOptions(params: {
   providerOptions: Record<string, unknown> | undefined;
@@ -74,14 +72,14 @@ export function translateGoogleProviderOptions(params: {
     rawThinkingBudget !== undefined &&
     typeof rawThinkingBudget !== "number"
   ) {
-    // LangChain's schema parse would throw; decline so it does.
+    // The persisted schema rejected this shape; keep it a configuration error.
     return { ok: false, unknownKeys: ["thinkingBudget"] };
   }
   if (rawThinkingLevel !== undefined && typeof rawThinkingLevel !== "string") {
     return { ok: false, unknownKeys: ["thinkingLevel"] };
   }
 
-  // LangChain precedence: maxReasoningTokens ?? thinkingBudget.
+  // Persisted precedence: maxReasoningTokens ?? thinkingBudget.
   const thinkingBudget = maxReasoningTokens ?? rawThinkingBudget;
   const thinkingLevel = rawThinkingLevel?.toLowerCase();
 
@@ -118,14 +116,14 @@ function buildThinkingConfig(params: {
   let { thinkingBudget, thinkingLevel } = params;
 
   if (model.startsWith("gemini-2.5")) {
-    // Budget-family model. LangChain converts a lone thinkingLevel into a
-    // token budget via model-specific tables; decline instead of guessing.
+    // Budget-family model. A lone thinkingLevel would require a model-specific
+    // conversion table; reject instead of guessing.
     if (thinkingBudget === undefined) {
       return { ok: false, unknownKeys: ["thinkingLevel"] };
     }
 
-    // Mirror LangChain exactly, quirks included, so flipping the engine flag
-    // never changes what a given config sends: `includeThoughts` is computed
+    // Preserve the established request shape, quirks included:
+    // `includeThoughts` is computed
     // BEFORE the 2.5-pro 128-token clamp (an explicit budget of 128 hides
     // thoughts while 1-127 gets clamped to 128 with thoughts visible), the
     // `>= 0` bound intentionally exempts negative budgets from clamping, and
@@ -158,7 +156,7 @@ function buildThinkingConfig(params: {
 
   const includeThoughts = thinkingLevel !== "minimal";
 
-  // LangChain remaps unsupported levels for the pro families.
+  // Remap unsupported levels for the pro families.
   if (model.startsWith("gemini-3-pro")) {
     if (thinkingLevel === "minimal") thinkingLevel = "low";
     else if (thinkingLevel === "medium") thinkingLevel = "high";

@@ -1,4 +1,10 @@
 import type { Session } from "next-auth";
+
+// Session fixture sub-object types; casts keep the runtime fixtures unchanged
+// while satisfying newer required fields on the session user type.
+type SessionUser = NonNullable<Session["user"]>;
+type SessionOrg = SessionUser["organizations"][number];
+type SessionFeatureFlags = SessionUser["featureFlags"];
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -39,13 +45,13 @@ describe("organization API keys trpc", () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
-          projects: [],
-        },
+          projects: [] as SessionOrg["projects"],
+        } as SessionOrg,
       ],
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
-      },
+      } as SessionFeatureFlags,
       admin: true,
     },
     environment: {} as any,
@@ -65,13 +71,13 @@ describe("organization API keys trpc", () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
-          projects: [],
-        },
+          projects: [] as SessionOrg["projects"],
+        } as SessionOrg,
       ],
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
-      },
+      } as SessionFeatureFlags,
       admin: false,
     },
     environment: {} as any,
@@ -91,28 +97,37 @@ describe("organization API keys trpc", () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
-          projects: [],
-        },
+          projects: [] as SessionOrg["projects"],
+        } as SessionOrg,
       ],
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
-      },
+      } as SessionFeatureFlags,
       admin: false,
     },
     environment: {} as any,
   };
 
-  const ownerCtx = createInnerTRPCContext({ session: ownerSession });
+  const ownerCtx = createInnerTRPCContext({
+    session: ownerSession,
+    headers: {},
+  });
   const ownerCaller = appRouter.createCaller({ ...ownerCtx, prisma });
 
-  const memberCtx = createInnerTRPCContext({ session: memberSession });
+  const memberCtx = createInnerTRPCContext({
+    session: memberSession,
+    headers: {},
+  });
   const memberCaller = appRouter.createCaller({ ...memberCtx, prisma });
 
-  const adminCtx = createInnerTRPCContext({ session: adminSession });
+  const adminCtx = createInnerTRPCContext({
+    session: adminSession,
+    headers: {},
+  });
   const adminCaller = appRouter.createCaller({ ...adminCtx, prisma });
 
-  const unAuthedCtx = createInnerTRPCContext({ session: null });
+  const unAuthedCtx = createInnerTRPCContext({ session: null, headers: {} });
   const unAuthedCaller = appRouter.createCaller({ ...unAuthedCtx, prisma });
 
   describe("organizationApiKeys.byOrganizationId", () => {

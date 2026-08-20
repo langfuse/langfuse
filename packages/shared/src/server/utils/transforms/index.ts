@@ -5,7 +5,10 @@ import { transformStreamToCsv } from "./transformStreamToCsv";
 import { transformStreamToJson } from "./transformStreamToJson";
 import { transformStreamToJsonl } from "./transformStreamToJsonl";
 
-export { stringify, stringifyForCsv } from "./stringify";
+// stringify lives in the client-safe utils so the web client (legacy trace
+// download, log view copy/download) serializes through the exact same helper
+// as the server-side trace download route.
+export { stringify, stringifyForCsv } from "../../../utils/stringify";
 
 export const streamTransformations: Record<
   BatchExportFileFormat,

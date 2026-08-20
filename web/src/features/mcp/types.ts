@@ -1,3 +1,4 @@
+import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import type { McpToolName } from "./server/bootstrap";
 
 /**
@@ -51,20 +52,25 @@ export interface ServerContext {
   /** Public key used for authentication */
   publicKey: string;
 
+  /** Billing plan of the organization, for plan-based rate limiting */
+  plan: ApiAccessScope["plan"];
+
+  /** Org-level rate limit overrides from the cloud config */
+  rateLimitOverrides: ApiAccessScope["rateLimitOverrides"];
+
+  /** User agent from the MCP client's HTTP request */
+  userAgent?: string;
+
   /** In-app-agent-specific MCP authorization state. */
   inAppAgent?: InAppAgentContext;
 }
 
-/**
- * In-app-agent MCP access is explicit: `read` allows only tools annotated with `readOnlyHint`.
- * To allow mutating operations, `single-tool-override` can include a specific MCP registry tool name that the in-app agent is allowed to invoke.
- * Human approval is enforced earlier in the in-app agent runtime before any override is minted.
- */
+/** In-app agent MCP access is read-only unless a prior approval mints a mutating-tool allowlist. */
 export type InAppAgentContext =
   | {
       permissions: "read";
     }
   | {
-      permissions: "single-tool-override";
-      allowedToolName: McpToolName;
+      permissions: "tool-allowlist";
+      allowedToolNames: McpToolName[];
     };

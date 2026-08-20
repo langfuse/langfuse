@@ -51,12 +51,18 @@ export type SpanCtx = {
 
 type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>;
 
+/** instrumentAsync runs an async callback inside a fresh OTel span. */
 export async function instrumentAsync<T>(
   ctx: SpanCtx,
   callback: AsyncCallbackFn<T>,
 ): Promise<T> {
   const activeContext = ctx.startNewTrace
-    ? opentelemetry.ROOT_CONTEXT
+    ? // Sever the parent trace but carry baggage onto the new root.
+      opentelemetry.propagation.setBaggage(
+        opentelemetry.ROOT_CONTEXT,
+        opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
+          opentelemetry.propagation.createBaggage(),
+      )
     : ctx.traceContext
       ? opentelemetry.propagation.extract(
           opentelemetry.context.active(),
@@ -95,12 +101,18 @@ export async function instrumentAsync<T>(
 
 type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
 
+/** instrumentSync runs a callback inside a fresh OTel span. */
 export function instrumentSync<T>(
   ctx: SpanCtx,
   callback: SyncCallbackFn<T>,
 ): T {
   const activeContext = ctx.startNewTrace
-    ? opentelemetry.ROOT_CONTEXT
+    ? // Sever the parent trace but carry baggage onto the new root.
+      opentelemetry.propagation.setBaggage(
+        opentelemetry.ROOT_CONTEXT,
+        opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
+          opentelemetry.propagation.createBaggage(),
+      )
     : ctx.traceContext
       ? opentelemetry.propagation.extract(
           opentelemetry.context.active(),
@@ -198,7 +210,6 @@ export const addUserToSpan = (
   attributes: {
     userId?: string;
     projectId?: string;
-    email?: string;
     orgId?: string;
     plan?: string;
     apiKeyId?: string;
@@ -222,12 +233,6 @@ export const addUserToSpan = (
       value: attributes.userId,
     });
     activeSpan.setAttribute("user.id", attributes.userId);
-  }
-  if (attributes.email) {
-    baggage = baggage.setEntry("user.email", {
-      value: attributes.email,
-    });
-    activeSpan.setAttribute("user.email", attributes.email);
   }
   if (attributes.projectId) {
     baggage = baggage.setEntry("langfuse.project.id", {
@@ -314,7 +319,7 @@ const flushMetricsToCloudWatch = () => {
 
 // Metrics ending with these suffixes have their tags flattened into the
 // CloudWatch metric name (excluding "unit"). Other metrics are unaffected.
-const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate"];
+const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate", ".dlq_oldest_age"];
 
 function buildCloudWatchKey(
   stat: string,

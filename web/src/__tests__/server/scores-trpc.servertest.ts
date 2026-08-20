@@ -1,5 +1,16 @@
-const mockAddScoreDelete = vi.fn();
-const mockAddBatchAction = vi.fn();
+const {
+  mockAddScoreDelete,
+  mockAddBatchAction,
+  mockGetEventsGroupedByTraceTags,
+  mockGetEventsGroupedByTraceName,
+  mockGetEventsGroupedByUserId,
+} = vi.hoisted(() => ({
+  mockAddScoreDelete: vi.fn(),
+  mockAddBatchAction: vi.fn(),
+  mockGetEventsGroupedByTraceTags: vi.fn(async () => []),
+  mockGetEventsGroupedByTraceName: vi.fn(async () => []),
+  mockGetEventsGroupedByUserId: vi.fn(async () => []),
+}));
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const originalModule = await vi.importActual("@langfuse/shared/src/server");
@@ -15,6 +26,9 @@ vi.mock("@langfuse/shared/src/server", async () => {
         add: mockAddBatchAction,
       })),
     },
+    getEventsGroupedByTraceTags: mockGetEventsGroupedByTraceTags,
+    getEventsGroupedByTraceName: mockGetEventsGroupedByTraceName,
+    getEventsGroupedByUserId: mockGetEventsGroupedByUserId,
   };
 });
 
@@ -24,6 +38,8 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { ScoreConfigDataType } from "@langfuse/shared";
 import {
+  createEvent,
+  createEventsCh,
   createObservation,
   createObservationsCh,
   createTrace,
@@ -35,7 +51,14 @@ import {
   QueueJobs,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
 import { randomUUID } from "crypto";
+
+const maybeEvents =
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+    ? describe
+    : describe.skip;
 
 describe("scores trpc", () => {
   let projectId: string;
@@ -48,6 +71,9 @@ describe("scores trpc", () => {
     orgId = setup.orgId;
     mockAddScoreDelete.mockClear();
     mockAddBatchAction.mockClear();
+    mockGetEventsGroupedByTraceTags.mockClear();
+    mockGetEventsGroupedByTraceName.mockClear();
+    mockGetEventsGroupedByUserId.mockClear();
 
     const session: Session = {
       expires: "1",
@@ -62,6 +88,9 @@ describe("scores trpc", () => {
             role: "OWNER",
             plan: "cloud:hobby",
             cloudConfig: undefined,
+            metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,
@@ -69,6 +98,9 @@ describe("scores trpc", () => {
                 retentionDays: 30,
                 deletedAt: null,
                 name: "Test Project",
+                hasTraces: false,
+                metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
@@ -76,14 +108,257 @@ describe("scores trpc", () => {
         featureFlags: {
           excludeClickhouseRead: false,
           templateFlag: true,
+          searchBar: false,
+          v4BetaToggleVisible: false,
+          observationEvals: false,
+          experimentsV4Enabled: false,
         },
         admin: true,
       },
       environment: {} as any,
     };
 
-    const ctx = createInnerTRPCContext({ session });
+    const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });
+  });
+
+  describe("scores.all", () => {
+    it("does not match empty boolean representations when filtering boolean values", async () => {
+      const trueBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-true",
+        data_type: "BOOLEAN",
+        value: 1,
+        string_value: "True",
+      });
+      const falseBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-false",
+        data_type: "BOOLEAN",
+        value: 0,
+        string_value: "False",
+      });
+      const emptyBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-empty",
+        data_type: "BOOLEAN",
+        value: 1,
+        string_value: "",
+      });
+      const numericScore = createTraceScore({
+        project_id: projectId,
+        name: "numeric-score",
+        data_type: "NUMERIC",
+        value: 0.7,
+        string_value: null,
+      });
+
+      await createScoresCh([
+        trueBooleanScore,
+        falseBooleanScore,
+        emptyBooleanScore,
+        numericScore,
+      ]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "booleanValue",
+            type: "stringOptions" as const,
+            operator: "none of" as const,
+            value: ["false"],
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" as const },
+        page: 0,
+        limit: 50,
+      };
+
+      const result = await caller.scores.all(payload);
+      const resultFromEvents = await caller.scores.allFromEvents(payload);
+
+      expect(result.scores.map((score) => score.id)).toEqual([
+        trueBooleanScore.id,
+      ]);
+      expect(resultFromEvents.scores.map((score) => score.id)).toEqual([
+        trueBooleanScore.id,
+      ]);
+    });
+  });
+
+  describe("observation scope filter", () => {
+    it("lists trace-level scores for a trace-level owner span and for no other span", async () => {
+      const traceId = randomUUID();
+      const rootObservationId = randomUUID();
+      const childObservationId = randomUUID();
+
+      const traceLevelScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "trace-level-score",
+      });
+      const rootObservationScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: rootObservationId,
+        name: "root-observation-score",
+      });
+      const childObservationScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: childObservationId,
+        name: "child-observation-score",
+      });
+
+      await createScoresCh([
+        traceLevelScore,
+        rootObservationScore,
+        childObservationScore,
+      ]);
+
+      const scoreIdsFor = async (
+        observationId: string,
+        includeTraceLevelScores: boolean,
+      ) => {
+        const payload = {
+          projectId,
+          filter: [
+            {
+              column: "traceId",
+              type: "string" as const,
+              operator: "=" as const,
+              value: traceId,
+            },
+            ...observationScopeFilter(observationId, includeTraceLevelScores),
+          ],
+          orderBy: { column: "timestamp", order: "DESC" as const },
+          page: 0,
+          limit: 50,
+        };
+        const [v3, v4] = await Promise.all([
+          caller.scores.all(payload),
+          caller.scores.allFromEvents(payload),
+        ]);
+        return {
+          v3: v3.scores.map((score) => score.id).sort(),
+          v4: v4.scores.map((score) => score.id).sort(),
+        };
+      };
+
+      // Trace-level owner: its own score plus the trace-level one, each once.
+      const owner = await scoreIdsFor(rootObservationId, true);
+      const expectedOwnerScoreIds = [
+        traceLevelScore.id,
+        rootObservationScore.id,
+      ].sort();
+      expect(owner.v3).toEqual(expectedOwnerScoreIds);
+      expect(owner.v4).toEqual(expectedOwnerScoreIds);
+
+      // Any other span stays observation-scoped.
+      const child = await scoreIdsFor(childObservationId, false);
+      expect(child.v3).toEqual([childObservationScore.id]);
+      expect(child.v4).toEqual([childObservationScore.id]);
+    });
+  });
+
+  maybeEvents("scores.allFromEvents trace-name filters", () => {
+    it("keeps scores for semantic roots without a stored trace name", async () => {
+      const traceId = randomUUID();
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "semantic-root-score",
+        value: 0.9,
+      });
+
+      await createEventsCh([
+        createEvent({
+          trace_id: traceId,
+          project_id: projectId,
+          parent_span_id: "external-parent",
+          is_app_root: true,
+          name: "semantic-root-trace",
+          trace_name: "",
+        }),
+      ]);
+      await createScoresCh([score]);
+
+      const result = await caller.scores.allFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "traceName",
+            operator: "=",
+            value: "semantic-root-trace",
+            type: "string",
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" },
+        page: 0,
+        limit: 50,
+      });
+
+      expect(result.scores.map(({ id }) => id)).toContain(score.id);
+    });
+  });
+
+  describe("scores.createAnnotationScore", () => {
+    it("rejects empty stringValue for boolean annotation scores", async () => {
+      const configId = randomUUID();
+      const scoreName = `boolean-annotation-score-${configId.slice(0, 8)}`;
+
+      await expect(
+        caller.scores.createAnnotationScore({
+          projectId,
+          name: scoreName,
+          value: 1,
+          stringValue: "",
+          dataType: "BOOLEAN",
+          scoreTarget: { type: "trace", traceId: randomUUID() },
+          configId,
+          environment: "default",
+        } as any),
+      ).rejects.toThrow();
+    });
+
+    it("accepts explicit boolean annotation stringValue labels", async () => {
+      const traceId = randomUUID();
+      const configId = randomUUID();
+      const scoreName = `boolean-annotation-score-${configId.slice(0, 8)}`;
+
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+        }),
+      ]);
+      await prisma.scoreConfig.create({
+        data: {
+          id: configId,
+          projectId,
+          name: scoreName,
+          dataType: ScoreConfigDataType.BOOLEAN,
+          categories: [
+            { label: "True", value: 1 },
+            { label: "False", value: 0 },
+          ],
+        },
+      });
+
+      const score = await caller.scores.createAnnotationScore({
+        projectId,
+        name: scoreName,
+        value: 1,
+        stringValue: "True",
+        dataType: "BOOLEAN",
+        scoreTarget: { type: "trace", traceId },
+        configId,
+        environment: "default",
+      });
+
+      expect(score.stringValue).toBe("True");
+    });
   });
 
   describe("scores.deleteMany", () => {
@@ -259,10 +534,26 @@ describe("scores trpc", () => {
     });
   });
 
+  describe("scores.filterOptions", () => {
+    it("returns static boolean value options for both scores views", async () => {
+      await expect(
+        caller.scores.filterOptions({ projectId }),
+      ).resolves.toMatchObject({
+        booleanValue: [{ value: "true" }, { value: "false" }],
+      });
+
+      await expect(
+        caller.scores.filterOptionsFromEvents({ projectId }),
+      ).resolves.toMatchObject({
+        booleanValue: [{ value: "true" }, { value: "false" }],
+      });
+    });
+  });
+
   describe("scoreConfigs.all", () => {
     it("should paginate score configs deterministically when createdAt timestamps tie", async () => {
       const sharedCreatedAt = new Date("2100-05-12T00:00:00.000Z");
-      const configIds = [randomUUID(), randomUUID(), randomUUID()];
+      const configIds: string[] = [randomUUID(), randomUUID(), randomUUID()];
 
       await prisma.scoreConfig.createMany({
         data: configIds.map((id, index) => ({

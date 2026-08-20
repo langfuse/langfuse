@@ -18,7 +18,6 @@ import {
   createDatasetRunItemsCh,
   createDatasetRunItem,
   createOrgProjectAndApiKey,
-  LLMCompletionError,
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
@@ -34,19 +33,17 @@ import {
 } from "../features/evaluation/evalService";
 import { requiresDatabaseLookup } from "../features/evaluation/traceFilterUtils";
 
-// Mock fetchLLMCompletion module with default passthrough behavior
+// Mock the shared LLM runtime with default passthrough behavior.
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    fetchLLMCompletion: vi
-      .fn()
-      .mockImplementation(actual.fetchLLMCompletion as any),
+    generateLLMText: vi.fn().mockImplementation(actual.generateLLMText as any),
   };
 });
 
 // Import the mocked function
-import { fetchLLMCompletion } from "@langfuse/shared/src/server";
+import { generateLLMText } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -1253,6 +1250,53 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs.length).toBe(0);
     }, 10_000);
 
+    test("deterministically creates nested samples across configs", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = "trace-456";
+      const sampledOutConfigId = randomUUID();
+      const sampledInConfigId = randomUUID();
+
+      await prisma.jobConfiguration.createMany({
+        data: [
+          {
+            id: sampledOutConfigId,
+            projectId,
+            filter: JSON.parse("[]"),
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("0.5"),
+            targetObject: EvalTargetObject.TRACE,
+            scoreName: "score",
+            variableMapping: JSON.parse("[]"),
+          },
+          {
+            id: sampledInConfigId,
+            projectId,
+            filter: JSON.parse("[]"),
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("0.9"),
+            targetObject: EvalTargetObject.TRACE,
+            scoreName: "score",
+            variableMapping: JSON.parse("[]"),
+          },
+        ],
+      });
+
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: { projectId, traceId },
+        jobTimestamp,
+      });
+
+      const jobs = await prisma.jobExecution.findMany({
+        where: { projectId },
+      });
+
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0].jobConfigurationId).toBe(sampledInConfigId);
+    }, 10_000);
+
     test("does not create eval job for existing traces if time scope is EXISTING but handler enforces NEW only", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
@@ -1954,15 +1998,11 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         delay: 1000,
       };
 
-      await expect(evaluate({ event: payload })).rejects.toThrowError(
-        new LLMCompletionError({
-          message:
-            "401 status code (no body)\n" +
-            "\n" +
-            "Troubleshooting URL: https://docs.langchain.com/oss/javascript/langchain/errors/MODEL_AUTHENTICATION/\n",
-          responseStatusCode: 401,
-        }),
-      );
+      await expect(evaluate({ event: payload })).rejects.toMatchObject({
+        name: "AI_APICallError",
+        statusCode: 401,
+        isRetryable: false,
+      });
 
       const jobs = await prisma.jobExecution.findMany({
         where: { projectId },
@@ -2139,8 +2179,8 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
     test("handles LLM timeout gracefully", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       // Set up the mock to simulate timeout for this test only
-      const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
-      mockFetchLLMCompletion.mockRejectedValueOnce(
+      const mockGenerateLLMText = vi.mocked(generateLLMText);
+      mockGenerateLLMText.mockRejectedValueOnce(
         new ApiError("Request timeout after 120000ms", 500),
       );
 
@@ -2244,7 +2284,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].status.toString()).toBe("PENDING");
 
       // Clean up the mock after this test
-      mockFetchLLMCompletion.mockReset();
+      mockGenerateLLMText.mockReset();
     }, 15_000);
   });
 
@@ -3043,15 +3083,15 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      // Mock fetchLLMCompletion to capture the traceSinkParams
+      // Mock the LLM runtime to capture the trace parameters.
       let capturedTraceSinkParams: any = null;
 
-      vi.mocked(fetchLLMCompletion).mockImplementationOnce(
-        async (params: any) => {
-          capturedTraceSinkParams = params.traceSinkParams;
-          return { score: 0.8, reasoning: "Good response" };
-        },
-      );
+      vi.mocked(generateLLMText).mockImplementationOnce((async (
+        params: any,
+      ) => {
+        capturedTraceSinkParams = params.trace;
+        return { output: { score: 0.8, reasoning: "Good response" } };
+      }) as any);
 
       await evaluate({
         event: {
@@ -3060,7 +3100,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      // Verify traceSinkParams were passed to fetchLLMCompletion
+      // Verify trace parameters were passed to the shared LLM runtime.
       expect(capturedTraceSinkParams).toBeDefined();
       expect(capturedTraceSinkParams.targetProjectId).toBe(projectId);
       expect(capturedTraceSinkParams.traceId).toMatch(/^[a-f0-9]{32}$/);
@@ -3085,10 +3125,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       const jobExecutionId = randomUUID();
       const templateId = randomUUID();
 
-      vi.mocked(fetchLLMCompletion).mockResolvedValueOnce({
-        score: 0,
-        reasoning: "The response is safe and not toxic.",
-      });
+      vi.mocked(generateLLMText).mockResolvedValueOnce({
+        output: {
+          score: 0,
+          reasoning: "The response is safe and not toxic.",
+        },
+      } as any);
 
       await upsertTrace({
         id: traceId,
@@ -3180,55 +3222,58 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
   });
 
   describe("internal trace environment filtering", () => {
-    test("does not create eval jobs for trace-upsert with LLMJudge environment", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
+    test.each([LangfuseInternalTraceEnvironment.LLMJudge, "llm-as-a-judge"])(
+      "does not create eval jobs for trace-upsert with %s environment",
+      async (environment) => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const traceId = randomUUID();
 
-      // Create trace with LLMJudge environment
-      await upsertTrace({
-        id: traceId,
-        project_id: projectId,
-        environment: LangfuseInternalTraceEnvironment.LLMJudge,
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-        created_at: convertDateToClickhouseDateTime(new Date()),
-        updated_at: convertDateToClickhouseDateTime(new Date()),
-      });
+        await upsertTrace({
+          id: traceId,
+          project_id: projectId,
+          environment,
+          timestamp: convertDateToClickhouseDateTime(new Date()),
+          created_at: convertDateToClickhouseDateTime(new Date()),
+          updated_at: convertDateToClickhouseDateTime(new Date()),
+        });
 
-      // Create an active eval configuration
-      await prisma.jobConfiguration.create({
-        data: {
-          id: randomUUID(),
+        // Create an active eval configuration
+        await prisma.jobConfiguration.create({
+          data: {
+            id: randomUUID(),
+            projectId,
+            filter: JSON.parse("[]"),
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: EvalTargetObject.TRACE,
+            scoreName: "score",
+            variableMapping: JSON.parse("[]"),
+          },
+        });
+
+        const payload = {
           projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.TRACE,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-        },
-      });
+          traceId,
+          traceEnvironment: environment,
+        };
 
-      const payload = {
-        projectId,
-        traceId,
-        traceEnvironment: LangfuseInternalTraceEnvironment.LLMJudge,
-      };
+        // Attempt to create eval jobs
+        await createEvalJobs({
+          sourceEventType: "trace-upsert",
+          event: payload,
+          jobTimestamp,
+        });
 
-      // Attempt to create eval jobs
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      });
+        // Verify no eval jobs were created
+        const jobs = await prisma.jobExecution.findMany({
+          where: { projectId },
+        });
 
-      // Verify no eval jobs were created
-      const jobs = await prisma.jobExecution.findMany({
-        where: { projectId },
-      });
-
-      expect(jobs.length).toBe(0);
-    }, 10_000);
+        expect(jobs.length).toBe(0);
+      },
+      10_000,
+    );
 
     test("does not create eval jobs for trace-upsert with PromptExperiments environment", async () => {
       const { projectId } = await createOrgProjectAndApiKey();

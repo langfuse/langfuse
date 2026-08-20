@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
 import {
+  classifySearchError,
   DEFAULT_SEARCH_TYPE,
   planCommit,
 } from "@/src/features/search-bar/lib/commit";
@@ -31,6 +32,10 @@ import {
   createSearchBarStore,
   type SearchBarStore,
 } from "@/src/features/search-bar/store/searchBarStore";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+
+/** How a search-bar commit was triggered — the `trigger` analytics dimension. */
+export type SearchCommitTrigger = "enter" | "blur" | "pick";
 
 /** Order-independent scope-set equality (scopes are unique). */
 function sameScopes(a: TracingSearchType[], b: TracingSearchType[]): boolean {
@@ -61,6 +66,7 @@ function filterIdentity(f: FilterState[number]): string {
 
 export function useEventsSearchBar({
   projectId,
+  tableName,
   enabled,
   filterState,
   searchQuery,
@@ -71,6 +77,8 @@ export function useEventsSearchBar({
   setSearchType,
 }: {
   projectId: string;
+  /** Table this bar filters — the `tableName` analytics dimension. */
+  tableName: string;
   enabled: boolean;
   /** The user's explicit facet filters (sidebar `explicitFilterState`). */
   filterState: FilterState;
@@ -83,9 +91,11 @@ export function useEventsSearchBar({
   setSearchType: (type: TracingSearchType[]) => void;
 }): {
   store: SearchBarStore;
-  commit: () => string | null;
+  commit: (trigger?: SearchCommitTrigger) => string | null;
   applyFilters: (filters: FilterState) => void;
 } {
+  const capture = usePostHogClientCapture();
+
   // Latest observed options, read inside commit and by the store's draft
   // validation so both route `scores.<name>` by the same observed score type.
   const observedRef = useRef(observed);
@@ -171,44 +181,106 @@ export function useEventsSearchBar({
     [mergeWithSkipped],
   );
 
-  const commit = useCallback((): string | null => {
-    const result = planCommit(
-      store.getState().draft,
-      scoreTypeContextFromObserved(observedRef.current),
-    );
-    if (result.status === "invalid") {
-      store.getState().actions.revealInvalid();
-      return null;
-    }
-    const { setFilterState, setSearchQuery, setSearchType } = applyRef.current;
-    // Re-attach the filters the grammar can't represent so the commit never
-    // drops them (no-silent-drop contract; shared with the AI apply path).
-    const committedFilters = mergeWithSkipped(result.filters);
-    setFilterState(committedFilters);
-    setSearchQuery(result.searchQuery);
-    // Only write searchType when it actually changed. planCommit coerces a
-    // draft with no scope token to the default (`["id","content"]` — ids+names
-    // +input+output); the bar's default deliberately differs from the legacy
-    // toolbar's `["id"]`, so it IS written to the URL (that's how the content
-    // lane persists). The guard just avoids a redundant rewrite when unchanged.
-    if (!sameScopes(result.searchType, searchTypeRef.current)) {
-      setSearchType(result.searchType);
-    }
-    if (result.canonical.length > 0) {
-      recordRecentSearch(projectId, result.canonical);
-    }
-    // Return the CANONICAL committed text in its RESTING form (trailing space) —
-    // exactly what the resetTo effect re-derives on the next render (same
-    // filters + searchQuery/searchType). The composer drops the caret after it,
-    // so the echo string-compares equal and the space survives even when the
-    // commit reorders the query (e.g. `refund level:ERROR` → `level:ERROR refund`).
-    return restingDraft(
-      filterStateToQueryText(committedFilters, {
-        searchQuery: result.searchQuery,
-        searchType: result.searchType,
-      }).text,
-    );
-  }, [store, projectId, mergeWithSkipped]);
+  // The committed text at the last render — the dedup baseline so a blur that
+  // changed nothing does not emit a phantom `filters:search_submitted`.
+  const committedTextRef = useRef(committedText);
+  committedTextRef.current = committedText;
+
+  // The draft that last emitted a `filters:search_error`, so a blur that
+  // re-fails the SAME input does not double-emit (an explicit enter/pick retry
+  // still counts — a repeated attempt is signal).
+  const lastErrorTextRef = useRef<string | null>(null);
+
+  const commit = useCallback(
+    (trigger: SearchCommitTrigger = "enter"): string | null => {
+      const draftText = store.getState().draft;
+      const result = planCommit(
+        draftText,
+        scoreTypeContextFromObserved(observedRef.current),
+      );
+      if (result.status === "invalid") {
+        store.getState().actions.revealInvalid();
+        // Analytics (LFE-10781): a non-empty typed query was rejected (a UI
+        // error). METADATA ONLY — `orAttempted`/`reason` come from the AST shape
+        // + static diagnostic messages, `queryLength` is a char count; the query
+        // TEXT is never sent. The grammar bar is v4-only, so isV4 is always true.
+        // `orAttempted:true` (an OR between conditions — the parked cross-field
+        // OR, LFE-10421) is the headline demand signal. Fires once per failed
+        // commit: a blur that re-fails the same input is deduped.
+        const trimmed = draftText.trim();
+        const isBlurRefail =
+          trigger === "blur" && draftText === lastErrorTextRef.current;
+        if (trimmed.length > 0 && !isBlurRefail) {
+          const { orAttempted, reason } = classifySearchError(
+            result.ast,
+            result.diagnostics,
+          );
+          capture("filters:search_error", {
+            tableName,
+            orAttempted,
+            reason,
+            queryLength: trimmed.length,
+            trigger,
+            isV4: true,
+          });
+        }
+        lastErrorTextRef.current = draftText;
+        return null;
+      }
+      // A valid commit clears the error-dedup baseline so a later re-failure of
+      // the same text still emits.
+      lastErrorTextRef.current = null;
+      const { setFilterState, setSearchQuery, setSearchType } =
+        applyRef.current;
+      // Re-attach the filters the grammar can't represent so the commit never
+      // drops them (no-silent-drop contract; shared with the AI apply path).
+      const committedFilters = mergeWithSkipped(result.filters);
+      setFilterState(committedFilters);
+      setSearchQuery(result.searchQuery);
+      // Only write searchType when it actually changed. planCommit coerces a
+      // draft with no scope token to the default (`["id","content"]` — ids+names
+      // +input+output); the bar's default deliberately differs from the legacy
+      // toolbar's `["id"]`, so it IS written to the URL (that's how the content
+      // lane persists). The guard just avoids a redundant rewrite when unchanged.
+      if (!sameScopes(result.searchType, searchTypeRef.current)) {
+        setSearchType(result.searchType);
+      }
+      if (result.canonical.length > 0) {
+        recordRecentSearch(projectId, result.canonical);
+      }
+      // Return the CANONICAL committed text in its RESTING form (trailing space) —
+      // exactly what the resetTo effect re-derives on the next render (same
+      // filters + searchQuery/searchType). The composer drops the caret after it,
+      // so the echo string-compares equal and the space survives even when the
+      // commit reorders the query (e.g. `refund level:ERROR` → `level:ERROR refund`).
+      const committed = restingDraft(
+        filterStateToQueryText(committedFilters, {
+          searchQuery: result.searchQuery,
+          searchType: result.searchType,
+        }).text,
+      );
+
+      // Analytics (LFE-10781). METADATA ONLY — `queryLength` is a CHAR COUNT, we
+      // never send the query text itself. A blur that produced no change is a
+      // no-op (the resting draft re-settling), so it does not emit; an explicit
+      // enter/pick always counts even when re-submitting the same query. The
+      // grammar bar is a v4-only surface, so isV4 is always true.
+      if (trigger !== "blur" || committed !== committedTextRef.current) {
+        capture("filters:search_submitted", {
+          tableName,
+          filterCount: committedFilters.length,
+          hasFreeText: (result.searchQuery ?? "").trim().length > 0,
+          searchType: result.searchType,
+          queryLength: committed.trim().length,
+          trigger,
+          isV4: true,
+        });
+      }
+
+      return committed;
+    },
+    [store, projectId, tableName, mergeWithSkipped, capture],
+  );
 
   return { store, commit, applyFilters };
 }

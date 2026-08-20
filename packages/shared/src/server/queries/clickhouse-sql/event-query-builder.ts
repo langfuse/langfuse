@@ -1,7 +1,12 @@
 import {
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
-  ObservationFieldGroupPublicApi,
+  type ObservationFieldGroupPublicApi,
 } from "../../../domain/observation-field-groups";
+import {
+  eventsTableIsRootObservationSql,
+  eventsTableTraceNameAggregationSql,
+  eventsTableTraceNameSelectSql,
+} from "../../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
@@ -105,6 +110,10 @@ const buildOrderByClause = (
 const EVENTS_FIELDS = {
   // Aggregates
   count: "count(*) as count",
+  // uniq() is the approximate distinct aggregate (HLL-based, bounded memory);
+  // uniqExact would build an unbounded hash set when the filtered set spans
+  // millions of traces.
+  uniqueTraceCount: 'uniq(e.trace_id) as "unique_trace_count"',
 
   // Identity & basic fields
   id: "e.span_id as id",
@@ -113,6 +122,8 @@ const EVENTS_FIELDS = {
   environment: 'e.environment as "environment"',
   type: "e.type as type",
   parentObservationId: 'e.parent_span_id as "parent_observation_id"',
+  isRootObservation: `toBool(${eventsTableIsRootObservationSql}) as "is_root_observation"`,
+  isAppRoot: 'e.is_app_root as "is_app_root"',
   name: "e.name as name",
   level: "e.level as level",
   statusMessage: 'e.status_message as "status_message"',
@@ -121,7 +132,8 @@ const EVENTS_FIELDS = {
   public: "e.public as public",
   userId: 'e.user_id as "user_id"',
   sessionId: 'e.session_id as "session_id"',
-  traceName: 'e.trace_name as "trace_name"',
+  // String-typed on purpose; see eventsTableTraceNameSelectSql (LFE-14924).
+  traceName: `${eventsTableTraceNameSelectSql} as "trace_name"`,
 
   // Time fields
   startTime: 'e.start_time as "start_time"',
@@ -203,6 +215,7 @@ const EVENTS_FIELDS = {
 const FIELD_SETS = {
   // Aggregates
   count: ["count"],
+  countWithUniqueTraces: ["count", "uniqueTraceCount"],
 
   // List query field sets (for getObservationsWithModelDataFromEventsTable)
   base: [
@@ -375,6 +388,7 @@ const FIELD_SETS = {
     "public",
     "userId",
     "sessionId",
+    "isRootObservation",
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],
@@ -435,6 +449,7 @@ const FIELD_SETS = {
     "traceId",
     "projectId",
     "parentObservationId",
+    "isAppRoot",
     "type",
     "name",
     "environment",
@@ -511,7 +526,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   projectId: "project_id",
 
   // Aggregated fields
-  name: "argMaxIf(trace_name, event_ts, trace_name <> '') AS name",
+  name: `${eventsTableTraceNameAggregationSql} AS name`,
   timestamp: "min(start_time) as timestamp",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
@@ -531,6 +546,8 @@ const EVENTS_AGGREGATION_FIELDS = {
     "date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds",
   observation_ids:
     "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
+  observation_count:
+    "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
 
   bookmarked:
     "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",
@@ -765,6 +782,19 @@ abstract class AbstractQueryBuilder {
 abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   protected ctes: string[] = [];
   protected joins: string[] = [];
+  protected sampleRowCount: number | null = null;
+
+  /** sampleRows caps the base table read at `rows` events via ClickHouse SAMPLE. */
+  sampleRows(rows: number): this {
+    if (rows > 0) {
+      this.sampleRowCount = Math.floor(rows);
+    }
+    return this;
+  }
+
+  protected buildSampleSection(): string {
+    return this.sampleRowCount === null ? "" : ` SAMPLE ${this.sampleRowCount}`;
+  }
 
   /**
    * Add a CTE (Common Table Expression) to the query
@@ -931,7 +961,7 @@ abstract class BaseEventsQueryBuilder<
 
     // FROM - choose table based on data requirements
     const tableName = this.getTableName();
-    parts.push(`FROM ${tableName} e`);
+    parts.push(`FROM ${tableName} e${this.buildSampleSection()}`);
 
     // JOINs
     const joinSection = this.buildJoinSection();
@@ -997,7 +1027,11 @@ abstract class BaseEventsQueryBuilder<
 export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_FIELDS
 > {
-  private ioFields: { truncated: boolean; charLimit?: number } | null = null;
+  private ioFields:
+    | { mode: "full" }
+    | { mode: "truncated"; charLimit?: number }
+    | { mode: "sizeCapped"; inlineChars: number; previewChars: number }
+    | null = null;
   // Metadata expansion config: null = use truncated (default), string[] = expand specific keys, empty array = expand all
   private metadataExpansionKeys: string[] | null = null;
   private shouldForceFullTable = false;
@@ -1066,7 +1100,22 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    * Add IO fields with optional truncation
    */
   selectIO(truncated = false, charLimit?: number): this {
-    this.ioFields = { truncated, charLimit };
+    this.ioFields = truncated
+      ? { mode: "truncated", charLimit }
+      : { mode: "full" };
+    return this;
+  }
+
+  /**
+   * Add IO fields with a per-field size cap: fields whose full length is
+   * within `inlineChars` come back whole; larger fields come back as a
+   * `previewChars` head. True lengths are exposed as `input_length` /
+   * `output_length` so callers can tell a preview from full content.
+   * Metadata values are capped with the same policy. Reads events_full
+   * (true lengths + full under-cap values).
+   */
+  selectIOWithSizeCap(inlineChars: number, previewChars: number): this {
+    this.ioFields = { mode: "sizeCapped", inlineChars, previewChars };
     return this;
   }
 
@@ -1095,6 +1144,10 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     ) {
       fieldsToExclude.push("metadata");
     }
+    // Size-capped I/O caps metadata values too (custom SELECT expression below)
+    if (this.ioFields?.mode === "sizeCapped") {
+      fieldsToExclude.push("metadata");
+    }
 
     const fieldsToProcess = [...this.selectFields].filter(
       (f) => !fieldsToExclude.includes(f),
@@ -1108,13 +1161,51 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     // Add I/O fields if configured
     // Note: needsFullTable() is responsible for choosing events_core/events_full (truncated vs full I/O)
     if (this.ioFields) {
-      if (this.ioFields.truncated && this.ioFields.charLimit !== undefined) {
+      if (
+        this.ioFields.mode === "truncated" &&
+        this.ioFields.charLimit !== undefined
+      ) {
         fieldExpressions.push(
           `leftUTF8(input, ${this.ioFields.charLimit}) as input, leftUTF8(output, ${this.ioFields.charLimit}) as output`,
+        );
+      } else if (this.ioFields.mode === "sizeCapped") {
+        const { inlineChars, previewChars } = this.ioFields;
+        // lengthUTF8() is computed inline instead of reading the materialized
+        // input_length/output_length columns: the full value is read by this
+        // select anyway, and not every deployment's events_full is guaranteed
+        // to carry the materialized columns.
+        fieldExpressions.push(
+          `if(lengthUTF8(e.input) <= ${inlineChars}, e.input, leftUTF8(e.input, ${previewChars})) as input`,
+          `if(lengthUTF8(e.output) <= ${inlineChars}, e.output, leftUTF8(e.output, ${previewChars})) as output`,
+          `lengthUTF8(e.input) as input_length`,
+          `lengthUTF8(e.output) as output_length`,
         );
       } else {
         fieldExpressions.push("input, output");
       }
+    }
+
+    // Size-capped metadata: same per-value policy as I/O, plus a truncation
+    // flag and the shipped size so callers can budget and surface capping.
+    // Mirrors the arrayReverse shape of the default metadata expression.
+    if (
+      this.ioFields?.mode === "sizeCapped" &&
+      this.selectFields.has("metadata")
+    ) {
+      const { inlineChars, previewChars } = this.ioFields;
+      fieldExpressions.push(
+        `mapFromArrays(arrayReverse(e.metadata_names), arrayMap(v -> if(lengthUTF8(v) <= ${inlineChars}, v, leftUTF8(v, ${previewChars})), arrayReverse(e.metadata_values))) as metadata`,
+        // The flag checks only each key's WINNING value. A duplicate key ships
+        // both entries in the Map's JSON, and the client's JSON.parse keeps the
+        // last textual duplicate — with the arrayReverse above that resolves to
+        // the FIRST occurrence in the original arrays. A capped value that is
+        // shadowed by a small winner must not raise the flag (verified against
+        // ClickHouse + JSON.parse semantics).
+        `arrayExists((v, i) -> lengthUTF8(v) > ${inlineChars} AND arrayFirstIndex(n -> n = e.metadata_names[i], e.metadata_names) = i, e.metadata_values, arrayEnumerate(e.metadata_values)) as metadata_truncated`,
+        // Shipped metadata weight: every (capped) value counts, duplicates
+        // included, because duplicates are physically in the response.
+        `arraySum(arrayMap(v -> if(lengthUTF8(v) <= ${inlineChars}, lengthUTF8(v), ${previewChars}), e.metadata_values)) as metadata_length`,
+      );
     }
 
     // Add metadata field with expansion if configured
@@ -1153,8 +1244,10 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    * - events_full: full I/O and metadata (when full data is needed)
    */
   private needsFullTable(): boolean {
-    // Need full I/O? (truncated = false means we need full data)
-    const needsFullIO = this.ioFields !== null && !this.ioFields.truncated;
+    // Need full I/O? (anything but the truncated mode needs full data;
+    // sizeCapped needs true lengths + full under-cap values)
+    const needsFullIO =
+      this.ioFields !== null && this.ioFields.mode !== "truncated";
 
     // Need full metadata? (any expansion requested — specific keys or all)
     const needsFullMetadata =
@@ -1366,6 +1459,10 @@ const EVENTS_SESSION_AGGREGATION_FIELDS = {
   trace_tags: "groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
+  metadata_names:
+    "argMax(metadata_names, tuple(start_time, event_ts, span_id)) AS metadata_names",
+  metadata_values:
+    "argMax(metadata_values, tuple(start_time, event_ts, span_id)) AS metadata_values",
   total_observations:
     "uniqIf(span_id, parent_span_id != '') AS total_observations",
   duration:
@@ -1391,6 +1488,10 @@ const SESSION_AGGREGATION_FIELD_SETS = {
   all: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS) as Array<
     keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
   >,
+  base: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS).filter(
+    (field) => field !== "metadata_names" && field !== "metadata_values",
+  ) as Array<keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS>,
+  metadata: ["metadata_names", "metadata_values"],
 } as const;
 
 /**
@@ -1779,7 +1880,7 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
     parts.push(`SELECT ${this.selectExpression}`);
 
     // FROM - use events_core for reads (lightweight table with truncated I/O)
-    parts.push("FROM events_core e");
+    parts.push(`FROM events_core e${this.buildSampleSection()}`);
 
     // JOINs
     const joinSection = this.buildJoinSection();

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
@@ -9,7 +10,7 @@ import {
   type ColumnDefinition,
   type OrderByState,
   type TableViewPresetState,
-  type TableViewPresetTableName,
+  TableViewPresetTableName,
   type TracingSearchType,
 } from "@langfuse/shared";
 import {
@@ -47,10 +48,8 @@ import {
   DropdownMenuSubContent,
 } from "@/src/components/ui/dropdown-menu";
 import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
-import {
-  DataTableRefreshButton,
-  type RefreshInterval,
-} from "@/src/components/table/data-table-refresh-button";
+import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
+import { type RefreshInterval } from "@/src/components/table/utils/refresh-intervals";
 import {
   getSearchButtonLabel,
   getSearchMode,
@@ -147,6 +146,11 @@ interface DataTableToolbarProps<TData, TValue> {
   };
   orderByState?: OrderByState;
   viewConfig?: TableViewConfig;
+  /** Analytics table identity (LFE-10781) for the popover filter builder's
+   * `filters:applied`/`filters:cleared` events. Tables with a `viewConfig`
+   * already supply it via `viewConfig.tableName`; tables WITHOUT one (users,
+   * dataset runs/items) must pass this so the event isn't labeled "unknown". */
+  tableName?: string;
   filterWithAI?: boolean;
   className?: string;
   rowClassName?: string;
@@ -219,6 +223,7 @@ export function DataTableToolbar<TData, TValue>({
   rowClassName,
   orderByState,
   viewConfig,
+  tableName,
   filterWithAI = false,
   viewModeToggle,
   leadingControls,
@@ -469,6 +474,18 @@ export function DataTableToolbar<TData, TValue>({
             onChange={setFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
             filterWithAI={filterWithAI}
+            // Analytics (LFE-10781): the table's own identity, so popover
+            // filters:applied/cleared events aren't mislabeled "unknown". Prefer
+            // an explicit `tableName` (tables without a viewConfig — users,
+            // dataset runs/items), else the view's table. The v4 events table
+            // filters via the grammar bar (it omits filterColumnDefinition here,
+            // so this popover is a v3/legacy surface); derive isV4 from the
+            // ObservationsEvents view for consistency + future-proofing.
+            tableName={tableName ?? viewConfig?.tableName ?? "unknown"}
+            isV4={
+              viewConfig?.tableName ===
+              TableViewPresetTableName.ObservationsEvents
+            }
           />
         )}
 

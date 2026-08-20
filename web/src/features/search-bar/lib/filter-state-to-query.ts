@@ -54,13 +54,15 @@ function scorePathOf(column: string, key: string): string | null {
   // (`scores."Rouge Score"`); resolveField unquotes it on the way back.
   if (
     column === SCORE_COLUMNS.observation.numeric ||
-    column === SCORE_COLUMNS.observation.categorical
+    column === SCORE_COLUMNS.observation.categorical ||
+    column === SCORE_COLUMNS.observation.boolean
   ) {
     return `scores.${quoteIfNeeded(key)}`;
   }
   if (
     column === SCORE_COLUMNS.trace.numeric ||
-    column === SCORE_COLUMNS.trace.categorical
+    column === SCORE_COLUMNS.trace.categorical ||
+    column === SCORE_COLUMNS.trace.boolean
   ) {
     return `traceScores.${quoteIfNeeded(key)}`;
   }
@@ -198,6 +200,12 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       if (path === null) return null;
       const op = filter.operator === "=" ? "=" : filter.operator;
       return filterNode(path, op, [String(filter.value)]);
+    }
+    case "booleanObject": {
+      const path = scorePathOf(filter.column, filter.key);
+      if (path === null) return null;
+      const node = filterNode(path, "=", [String(filter.value)]);
+      return filter.operator === "<>" ? negate(node) : node;
     }
     case "categoryOptions": {
       const path = scorePathOf(filter.column, filter.key);
@@ -433,6 +441,8 @@ function normalizeValuesFor(
     return values; // text — verbatim
   }
   if (ref.type === "scores") {
+    if (resolveScoreType(scoreTypes, ref.level, ref.key) === "boolean")
+      return values.map((v) => v.toLowerCase());
     // Numeric / unknown scores get Number-canonicalized by lowerNumeric; a
     // known-CATEGORICAL score keeps its label verbatim (a numeric-looking label
     // like "2.0" must NOT be rewritten to "2"). normalizeNumberString only

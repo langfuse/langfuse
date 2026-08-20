@@ -50,7 +50,7 @@ const makeMembership = ({
       metadata: orgMetadata,
       projects,
     },
-  }) as RealOrganizationMembership;
+  }) as unknown as RealOrganizationMembership;
 
 const makePrisma = (organizationMemberships: RealOrganizationMembership[]) =>
   ({
@@ -136,7 +136,9 @@ describe("getCloudSignupOnboardingStatus", () => {
 
   it("uses the onboarding survey as the completion marker", async () => {
     const incomplete = makeCompletionPrisma();
-    await expect(getStatus(incomplete.tx)).resolves.toEqual({
+    await expect(
+      getStatus(incomplete.tx as unknown as StatusPrisma),
+    ).resolves.toEqual({
       completed: false,
     });
 
@@ -150,7 +152,9 @@ describe("getCloudSignupOnboardingStatus", () => {
       ],
     });
 
-    await expect(getStatus(completed.tx)).resolves.toEqual({
+    await expect(
+      getStatus(completed.tx as unknown as StatusPrisma),
+    ).resolves.toEqual({
       completed: true,
       redirectTo: "/project/project-1",
     });

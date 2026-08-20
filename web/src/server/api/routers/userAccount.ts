@@ -8,8 +8,14 @@ import { StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import {
+  getFeaturePreviewOptOutFlag,
+  receivesFeaturePreviewsByDefault,
+} from "@/src/features/feature-flags/utils";
+import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -101,22 +107,21 @@ export const userAccountRouter = createTRPCRouter({
       z.object({
         // Allowlist of user-toggleable Feature Preview flags (the Feature
         // Preview modal). Keep in sync with the modal's preview registry.
-        // TODO(remove ~2026-06-19): "searchBar" is retired — the bar is now GA
-        // on the v4 events tables (see useSearchBarEnabled) and no longer has a
-        // dialog tile. Kept in the allowlist as dead plumbing for a safe
-        // rollback; drop once the GA rollout is confirmed stable.
-        flag: z.enum(["searchBar"]),
+        flag: z.enum(featurePreviewFlags),
         enabled: z.boolean(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      if (input.enabled && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      const canEnableFeaturePreviews =
+        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
+        ctx.session.user.v4BetaEnabled === true;
+
+      if (input.enabled && !canEnableFeaturePreviews) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message:
-            "Feature previews are not available in self-hosted deployments.",
+          message: `Feature previews require ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
         });
       }
 
@@ -128,7 +133,7 @@ export const userAccountRouter = createTRPCRouter({
         async (tx) => {
           const currentUser = await tx.user.findUnique({
             where: { id: userId },
-            select: { featureFlags: true },
+            select: { featureFlags: true, email: true },
           });
           if (!currentUser) {
             throw new TRPCError({
@@ -136,9 +141,15 @@ export const userAccountRouter = createTRPCRouter({
               message: "User not found",
             });
           }
+          const optOutFlag = getFeaturePreviewOptOutFlag(input.flag);
+          const featureFlagsWithoutOverride = currentUser.featureFlags.filter(
+            (flag) => flag !== input.flag && flag !== optOutFlag,
+          );
           const nextFeatureFlags = input.enabled
-            ? Array.from(new Set([...currentUser.featureFlags, input.flag]))
-            : currentUser.featureFlags.filter((flag) => flag !== input.flag);
+            ? [...featureFlagsWithoutOverride, input.flag]
+            : receivesFeaturePreviewsByDefault(currentUser.email)
+              ? [...featureFlagsWithoutOverride, optOutFlag]
+              : featureFlagsWithoutOverride;
           await tx.user.update({
             where: { id: userId },
             data: { featureFlags: { set: nextFeatureFlags } },

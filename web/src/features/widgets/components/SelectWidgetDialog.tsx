@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
   DialogContent,
@@ -10,18 +11,27 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { PlusIcon } from "lucide-react";
 import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/src/components/ui/table";
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/src/components/ui/tabs";
 import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
+import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
+import { type HomeDashboardPresetId } from "@langfuse/shared";
+import {
+  isSuggestedWidgetView,
+  type ViewVersion,
+} from "@langfuse/shared/query";
+import {
+  getSuggestedHomePresetIds,
+  HOME_PRESET_METADATA,
+} from "@/src/features/dashboard/components/home-preset-registry";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
 
 export type WidgetItem = {
   id: string;
@@ -33,11 +43,60 @@ export type WidgetItem = {
   updatedAt: Date;
 };
 
+const rowClassName =
+  "flex w-full items-center gap-4 rounded-lg border p-3 text-left hover:bg-accent/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
+
+function RowIllustration({ type }: { type: string }) {
+  return (
+    <div className="bg-muted/40 flex h-14 w-[5.5rem] shrink-0 items-center justify-center rounded-md">
+      <ChartTypeIllustration
+        type={type as DashboardWidgetChartType | "CUSTOM"}
+        className="h-11 w-16"
+      />
+    </div>
+  );
+}
+
+function WidgetRow({
+  widget,
+  onClick,
+}: {
+  widget: WidgetItem;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} className={rowClassName}>
+      <RowIllustration type={widget.chartType} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-bold" title={widget.name}>
+          {widget.name}
+        </div>
+        {widget.description ? (
+          <div
+            className="text-muted-foreground truncate text-xs"
+            title={widget.description}
+          >
+            {widget.description}
+          </div>
+        ) : null}
+        <div className="text-muted-foreground/80 mt-0.5 text-xs">
+          {getChartTypeDisplayName(
+            widget.chartType as DashboardWidgetChartType,
+          )}{" "}
+          · {startCase(widget.view.toLowerCase())}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 interface SelectWidgetDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
   onSelectWidget: (widget: WidgetItem) => void;
+  /** Adds a Langfuse Home card as a preset placement. */
+  onSelectPreset?: (presetId: HomeDashboardPresetId) => void;
   dashboardId: string;
 }
 
@@ -46,12 +105,23 @@ export function SelectWidgetDialog({
   onOpenChange,
   projectId,
   onSelectWidget,
+  onSelectPreset,
   dashboardId,
 }: SelectWidgetDialogProps) {
   const router = useRouter();
-  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
+  const capture = usePostHogClientCapture();
 
-  // Fetch widgets
+  const openCapturedRef = useRef(false);
+  useEffect(() => {
+    if (open && !openCapturedRef.current) {
+      capture("dashboard:add_widget_dialog_open", {
+        dashboard_id: dashboardId,
+      });
+    }
+    openCapturedRef.current = open;
+  }, [open, dashboardId, capture]);
+
+  // Fetch widgets (project-owned and Langfuse-maintained)
   const widgets = api.dashboardWidgets.all.useQuery(
     {
       projectId,
@@ -65,99 +135,170 @@ export function SelectWidgetDialog({
     },
   );
 
-  const handleNavigateToNewWidget = () => {
-    router.push(`/project/${projectId}/widgets/new?dashboardId=${dashboardId}`);
-  };
+  // Suggestions obey the same view allowlist the widget editor uses for new
+  // definitions, so v4 users are never offered a v3 trace-based widget.
+  // Legacy trace widgets stay listed and editable under /widgets. (LFE-14444)
+  const { isBetaEnabled, isInitializing } = useV4Beta();
+  const suggestedVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const allProjectWidgets = widgets.data?.widgets ?? [];
+  const projectWidgets = allProjectWidgets.filter((widget) =>
+    isSuggestedWidgetView(widget.view, suggestedVersion),
+  );
+  const hiddenWidgetCount = allProjectWidgets.length - projectWidgets.length;
+  const suggestedPresetIds = getSuggestedHomePresetIds(suggestedVersion);
+  // Replaces the generic empty state when it hid every widget, so the two can
+  // never contradict each other.
+  const hiddenWidgetsNote =
+    hiddenWidgetCount > 0
+      ? `${hiddenWidgetCount} trace-based widget${hiddenWidgetCount === 1 ? "" : "s"} hidden — the Traces view is not available for new charts. Manage them under Widgets.`
+      : null;
 
-  const handleAddWidget = () => {
-    if (selectedWidgetId) {
-      const selectedWidget = widgets.data?.widgets.find(
-        (widget) => widget.id === selectedWidgetId,
-      );
-      if (selectedWidget) {
-        onSelectWidget(selectedWidget as WidgetItem);
-        onOpenChange(false);
-      }
-    }
+  const selectWidget = (widget: WidgetItem) => {
+    capture("dashboard:widget_added", {
+      kind: "project_widget",
+      widget_id: widget.id,
+      chart_type: widget.chartType,
+      view: widget.view,
+      dashboard_id: dashboardId,
+    });
+    onSelectWidget(widget);
+    onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px]">
+      <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>
-          <DialogTitle>Select widget to add</DialogTitle>
+          <DialogTitle>Add widget</DialogTitle>
         </DialogHeader>
 
         <DialogBody>
-          <div className="max-h-[400px] overflow-y-auto">
-            {widgets.isPending ? (
-              <div className="py-8 text-center">Loading widgets...</div>
-            ) : widgets.isError ? (
-              <div className="text-destructive py-8 text-center">
-                Error: {widgets.error.message}
-              </div>
-            ) : widgets.data?.widgets.length === 0 ? (
-              <div className="text-muted-foreground py-8 text-center">
-                No widgets found. Create a new widget to get started.
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>View Type</TableHead>
-                    <TableHead>Chart Type</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {widgets.data?.widgets.map((widget) => (
-                    <TableRow
-                      key={widget.id}
-                      onClick={() => setSelectedWidgetId(widget.id)}
-                      className={`hover:bg-muted cursor-pointer ${
-                        selectedWidgetId === widget.id ? "bg-muted" : ""
-                      }`}
-                    >
-                      <TableCell density="comfortable" className="font-medium">
-                        {widget.name}
-                      </TableCell>
-                      <TableCell
-                        density="comfortable"
-                        className="truncate"
-                        title={widget.description}
-                      >
-                        {widget.description}
-                      </TableCell>
-                      <TableCell density="comfortable">
-                        {startCase(widget.view.toLowerCase())}
-                      </TableCell>
-                      <TableCell density="comfortable">
-                        {getChartTypeDisplayName(
-                          widget.chartType as DashboardWidgetChartType,
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
+          {/* isInitializing: an unresolved session reads as v1, which would
+              briefly offer the unfiltered list to a v4 user. */}
+          {widgets.isPending || isInitializing ? (
+            <div className="py-8 text-center">Loading widgets...</div>
+          ) : widgets.isError ? (
+            <div className="text-destructive py-8 text-center">
+              Error: {widgets.error.message}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 p-1">
+              <InAppAgentWidgetComposer
+                onSubmitted={() => onOpenChange(false)}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  capture("dashboard:new_widget_form_open", {
+                    source: "add_widget_dialog",
+                    dashboard_id: dashboardId,
+                  });
+                  router.push(
+                    `/project/${projectId}/widgets/new?dashboardId=${dashboardId}`,
+                  );
+                }}
+                className={`${rowClassName} border-dashed`}
+              >
+                <RowIllustration type="CUSTOM" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold">Custom Chart</div>
+                  <div className="text-muted-foreground text-xs">
+                    Pick a data view, metrics, and chart type from scratch
+                  </div>
+                </div>
+              </button>
+
+              <Tabs
+                // Open on the project tab when it has something to say — a
+                // hidden-widget note included, so it is not missed.
+                defaultValue={
+                  projectWidgets.length > 0 || hiddenWidgetsNote
+                    ? "project"
+                    : "home-cards"
+                }
+                onValueChange={(tab) =>
+                  capture("dashboard:add_widget_tab_switch", { tab })
+                }
+              >
+                <TabsList>
+                  <TabsTrigger value="project">
+                    Your widgets ({projectWidgets.length})
+                  </TabsTrigger>
+                  {onSelectPreset && (
+                    <TabsTrigger value="home-cards">
+                      Home cards ({suggestedPresetIds.length})
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+                <TabsContent value="project">
+                  <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
+                    {projectWidgets.map((widget) => (
+                      <WidgetRow
+                        key={widget.id}
+                        widget={widget as WidgetItem}
+                        onClick={() => selectWidget(widget as WidgetItem)}
+                      />
+                    ))}
+                    {projectWidgets.length === 0 ? (
+                      <div className="text-muted-foreground py-8 text-center text-sm">
+                        {hiddenWidgetsNote ??
+                          "No saved widgets in this project yet — build one with Custom Chart."}
+                      </div>
+                    ) : hiddenWidgetsNote ? (
+                      <div className="text-muted-foreground px-1 py-2 text-xs">
+                        {hiddenWidgetsNote}
+                      </div>
+                    ) : null}
+                  </div>
+                </TabsContent>
+                {onSelectPreset && (
+                  <TabsContent value="home-cards">
+                    <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
+                      {suggestedPresetIds.map((presetId) => {
+                        const meta = HOME_PRESET_METADATA[presetId];
+                        return (
+                          <button
+                            key={presetId}
+                            type="button"
+                            onClick={() => {
+                              onSelectPreset(presetId);
+                              onOpenChange(false);
+                            }}
+                            className={rowClassName}
+                          >
+                            <RowIllustration type={meta.illustration} />
+                            <div className="min-w-0 flex-1">
+                              <div
+                                className="truncate font-bold"
+                                title={meta.name}
+                              >
+                                {meta.name}
+                              </div>
+                              <div
+                                className="text-muted-foreground truncate text-xs"
+                                title={meta.description}
+                              >
+                                {meta.description}
+                              </div>
+                              <div className="text-muted-foreground/80 mt-0.5 text-xs">
+                                Home card · fixed configuration
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </TabsContent>
+                )}
+              </Tabs>
+            </div>
+          )}
         </DialogBody>
 
-        <DialogFooter className="mt-4 flex justify-between">
-          <Button onClick={handleNavigateToNewWidget} variant="outline">
-            <PlusIcon className="mr-2 h-4 w-4" />
-            Create New Widget
+        <DialogFooter className="mt-4">
+          <Button onClick={() => onOpenChange(false)} variant="outline">
+            Cancel
           </Button>
-          <div className="flex gap-2">
-            <Button onClick={() => onOpenChange(false)} variant="outline">
-              Cancel
-            </Button>
-            <Button onClick={handleAddWidget} disabled={!selectedWidgetId}>
-              Add Selected Widget
-            </Button>
-          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

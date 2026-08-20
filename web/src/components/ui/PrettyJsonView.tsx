@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
@@ -47,7 +48,7 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
-import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
+import { env } from "@/src/env.mjs";
 import {
   convertRowIdToKeyPath,
   getRowChildren,
@@ -60,6 +61,8 @@ import {
   type MetadataFilterActions,
 } from "@/src/components/table/ValueCell";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
+import { LargeStringFallback } from "@/src/components/ui/LargeStringFallback";
 
 // Constants for table layout
 const INDENTATION_PER_LEVEL = 16;
@@ -182,7 +185,7 @@ function isMarkdownContent(json: unknown): {
   content?: string;
 } {
   const contentSize = JSON.stringify(json || {}).length;
-  if (contentSize > MARKDOWN_RENDER_CHARACTER_LIMIT) {
+  if (contentSize > env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT) {
     return { isMarkdown: false };
   }
 
@@ -543,7 +546,7 @@ function JsonPrettyTable({
               )}
             </div>
             <span
-              className={`ml-1 ${MONO_TEXT_CLASSES} cursor-text font-medium`}
+              className={`ml-1 ${MONO_TEXT_CLASSES} cursor-text`}
               style={{ maxWidth: availableTextWidth }}
             >
               {itemBadgeType && (
@@ -787,9 +790,41 @@ export function PrettyJsonView(props: {
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
   metadataActions?: MetadataFilterActions;
+  /** Collapse long string content to a preview (from raw `role === "system"`,
+      since the title can carry a message `name` instead of the role). */
+  isSystemPrompt?: boolean;
 }) {
+  // Large plain-string gate (LFE-10991): a multi-MB top-level string skips
+  // deepParseJson's object-only `maxSize` guard, so without this it would run
+  // several full-length main-thread passes (parse, the markdown-probe
+  // `JSON.stringify`, unicode decode — some of them twice, including inside the
+  // always-mounted hidden JSON viewer) and mount the unvirtualized react18-json
+  // tree with the whole string, blocking the tab and inflating memory. The body
+  // renders a bounded preview + download instead.
+  //
+  // Gate on the SETTLED value only. During an async worker parse the parsed
+  // value is not ready (`parsedJson === undefined`, `isParsing` true) and the
+  // raw `json` may be a *stringified* payload whose JSON-quoted form is itself
+  // >2M chars (e.g. the JSON tab passes raw `json` alongside a not-yet-ready
+  // `parsedJson`). Gating on that raw form would flash the fallback — and offer
+  // a quoted-form download — before the parse settles to the real value. The
+  // unvirtualized render we protect against does not run during parse anyway,
+  // so fall through to the normal loading/parsing state in that window.
+  const largeStringValue = useMemo(() => {
+    if (props.isParsing) return null;
+    const settled =
+      props.parsedJson !== undefined ? props.parsedJson : props.json;
+    return isLargeRenderString(settled) ? settled : null;
+  }, [props.parsedJson, props.json, props.isParsing]);
+
   // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
+    // Skip all parse/decode work on very large plain strings (see gate above);
+    // the raw string is rendered through the bounded fallback, not decoded.
+    if (largeStringValue !== null) {
+      return largeStringValue;
+    }
+
     // If pre-parsed data is provided, use it directly (skip parsing)
     if (props.parsedJson !== undefined) {
       return decodeUnicodeInJson(props.parsedJson);
@@ -814,7 +849,7 @@ export function PrettyJsonView(props: {
     // Decode \uXXXX escapes so Python SDK (ensure_ascii=True) traces display
     // non-ASCII characters correctly in the trace detail view.
     return decodeUnicodeInJson(result);
-  }, [props.json, props.parsedJson, props.isParsing]);
+  }, [props.json, props.parsedJson, props.isParsing, largeStringValue]);
 
   // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
   // nested string fields in place. Because baseTableData[].rawChildData holds
@@ -874,13 +909,19 @@ export function PrettyJsonView(props: {
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
   const { isMarkdown, content: markdownContent } = useMemo(
-    () => isMarkdownContent(parsedJson),
-    [parsedJson],
+    // Skip the markdown probe for gated large strings: isMarkdownContent runs
+    // `JSON.stringify` on the whole value, an O(n) pass over the multi-MB string.
+    () =>
+      largeStringValue !== null
+        ? { isMarkdown: false as const, content: undefined }
+        : isMarkdownContent(parsedJson),
+    [parsedJson, largeStringValue],
   );
 
   const baseTableData = useMemo(() => {
     try {
       if (
+        largeStringValue === null &&
         actualCurrentView === "pretty" &&
         parsedJson !== null &&
         parsedJson !== undefined &&
@@ -945,7 +986,7 @@ export function PrettyJsonView(props: {
       console.error("Error transforming JSON to table data:", error);
       return [];
     }
-  }, [parsedJson, isChatML, isMarkdown, actualCurrentView]);
+  }, [parsedJson, isChatML, isMarkdown, actualCurrentView, largeStringValue]);
 
   // state precedence: external state before smart expansion
   const finalExpansionState: ExpandedState = useMemo(() => {
@@ -1214,7 +1255,11 @@ export function PrettyJsonView(props: {
     }),
   );
   const shouldUseTableView =
-    isPrettyView && !isChatML && !isMarkdown && !emptyValueDisplay;
+    largeStringValue === null &&
+    isPrettyView &&
+    !isChatML &&
+    !isMarkdown &&
+    !emptyValueDisplay;
 
   const getBackgroundColorClass = () =>
     cn(
@@ -1226,8 +1271,10 @@ export function PrettyJsonView(props: {
 
   const body = (
     <>
-      {props.isLoading || props.isParsing ? (
-        <div className="io-message-content">
+      {largeStringValue !== null ? (
+        <LargeStringFallback title={props.title} value={largeStringValue} />
+      ) : props.isLoading || props.isParsing ? (
+        <div className="io-message-content ph-no-capture">
           <div
             className={cn(
               getContainerClasses(
@@ -1250,7 +1297,7 @@ export function PrettyJsonView(props: {
           </div>
         </div>
       ) : emptyValueDisplay && isPrettyView ? (
-        <div className="io-message-content">
+        <div className="io-message-content ph-no-capture">
           <div
             className={cn(
               "flex items-center",
@@ -1267,7 +1314,7 @@ export function PrettyJsonView(props: {
           </div>
         </div>
       ) : isMarkdownMode ? (
-        <div className="io-message-content">
+        <div className="io-message-content ph-no-capture">
           {shouldRenderStandaloneMedia ? (
             standaloneMediaReferenceStrings.map((referenceString, index) => (
               <LangfuseMediaView
@@ -1279,6 +1326,7 @@ export function PrettyJsonView(props: {
             <MarkdownView
               markdown={markdownContent || ""}
               media={props.media}
+              isSystemPrompt={props.isSystemPrompt}
             />
           )}
         </div>
@@ -1286,7 +1334,7 @@ export function PrettyJsonView(props: {
         <>
           {/* Always render JsonPrettyTable to preserve internal React Table state */}
           <div
-            className="io-message-content"
+            className="io-message-content ph-no-capture"
             style={{ display: shouldUseTableView ? "flex" : "none" }}
           >
             <div
@@ -1324,7 +1372,7 @@ export function PrettyJsonView(props: {
 
           {/* Always render JSONView to preserve its state too */}
           <div
-            className="io-message-content"
+            className="io-message-content ph-no-capture"
             style={{ display: shouldUseTableView ? "none" : "block" }}
           >
             <JSONView
@@ -1352,7 +1400,7 @@ export function PrettyJsonView(props: {
           <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
             Media
           </div>
-          <div className="flex flex-wrap gap-2 pt-1 pb-4">
+          <div className="ph-no-capture flex flex-wrap gap-2 px-2 pt-1 pb-4">
             {remainingMarkdownMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
@@ -1371,7 +1419,7 @@ export function PrettyJsonView(props: {
             <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
               Media
             </div>
-            <div className="flex flex-wrap gap-2 pt-1 pb-4">
+            <div className="ph-no-capture flex flex-wrap gap-2 px-2 pt-1 pb-4">
               {props.media.map((m) => (
                 <LangfuseMediaView
                   mediaAPIReturnValue={m}
@@ -1419,7 +1467,7 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
-              {!shouldUseTableView && !isMarkdownMode && (
+              {!shouldUseTableView && !isMarkdownMode && !largeStringValue && (
                 <Button
                   variant="ghost"
                   size="icon-xs"

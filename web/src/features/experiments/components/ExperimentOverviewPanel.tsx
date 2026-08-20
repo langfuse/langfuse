@@ -1,23 +1,12 @@
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
-import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 import Link from "next/link";
-import { ExternalLink, InfoIcon } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { ExperimentMetadataSection } from "./ExperimentMetadataSection";
 import {
   ExperimentOverviewField,
   ExperimentOverviewSectionHeading,
 } from "./ExperimentOverviewField";
-
-const EXPERIMENT_BASELINE_DOCS_URL =
-  "https://langfuse.com/docs/evaluation/dataset-runs";
 
 const isSafeHttpUrl = (value: string | undefined) => {
   if (!value) return false;
@@ -32,7 +21,6 @@ const isSafeHttpUrl = (value: string | undefined) => {
 
 type ExperimentOverviewPanelProps = {
   projectId: string;
-  hasBaseline: boolean;
   experiment?: {
     id: string;
     name: string;
@@ -43,22 +31,11 @@ type ExperimentOverviewPanelProps = {
     metadata: Record<string, string>;
     startTime: Date;
   };
-  // Comparison selector props
-  comparisonIds: string[];
-  onComparisonIdsChange: (ids: string[]) => void;
-  // Baseline controls props
-  onBaselineChange: (id: string) => void;
-  onBaselineClear: () => void;
 };
 
 export function ExperimentOverviewPanel({
   projectId,
-  hasBaseline,
   experiment,
-  comparisonIds,
-  onComparisonIdsChange,
-  onBaselineChange,
-  onBaselineClear,
 }: ExperimentOverviewPanelProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
@@ -97,71 +74,17 @@ export function ExperimentOverviewPanel({
 
   return (
     <div className="space-y-4">
-      <div className="bg-background sticky -top-4 z-30 -mx-4 -mt-4 space-y-4 px-4 pt-4 pb-4">
-        <h3 className="text-lg font-semibold">Experiment Details</h3>
+      <h3 className="text-lg font-bold">Baseline details</h3>
 
-        <div>
-          <ExperimentOverviewSectionHeading>
-            <span className="inline-flex items-center gap-1.5">
-              Baseline
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="What is a baseline experiment?"
-                    className="text-muted-foreground hover:text-primary"
-                  >
-                    <InfoIcon className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[280px]">
-                  The baseline is the reference experiment run used to compare
-                  all other selected runs.
-                </TooltipContent>
-              </Tooltip>
-              <Link
-                href={EXPERIMENT_BASELINE_DOCS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open experiment baseline documentation"
-                className="text-muted-foreground hover:text-primary"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-              </Link>
-            </span>
-          </ExperimentOverviewSectionHeading>
-          <ExperimentBaselineControls
-            projectId={projectId}
-            baselineId={experiment?.id}
-            baselineName={experiment?.name}
-            onBaselineChange={onBaselineChange}
-            onBaselineClear={onBaselineClear}
-            canClearBaseline={comparisonIds.length > 0}
-          />
-        </div>
-
-        <div className="border-t pt-4">
-          <ExperimentOverviewSectionHeading>
-            Compare with
-          </ExperimentOverviewSectionHeading>
-          <ExperimentComparisonSelector
-            projectId={projectId}
-            baselineExperimentId={experiment?.id}
-            selectedIds={comparisonIds}
-            onSelectedIdsChange={onComparisonIdsChange}
-          />
-        </div>
-      </div>
-
-      {hasBaseline && experiment ? (
+      {experiment ? (
         <>
-          <div className="border-t pt-4">
+          <div>
             <ExperimentOverviewSectionHeading>
               Overview
             </ExperimentOverviewSectionHeading>
             <div className="space-y-3 text-sm">
               <ExperimentOverviewField label="Name">
-                <div className="font-medium">{experiment.name}</div>
+                <div className="font-bold">{experiment.name}</div>
               </ExperimentOverviewField>
 
               {experiment.description && (
@@ -251,7 +174,11 @@ export function ExperimentOverviewPanel({
 
           <ExperimentMetadataSection metadata={additionalMetadata} />
         </>
-      ) : null}
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          Select a baseline to view its details.
+        </p>
+      )}
     </div>
   );
 }

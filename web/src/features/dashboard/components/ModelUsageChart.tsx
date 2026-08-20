@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
@@ -387,9 +388,14 @@ export const ModelUsageChart = ({
                 queryResult.isPending ? (
                   <NoDataOrLoading
                     isLoading={isLoading || queryResult.isPending}
+                    className="h-auto grow"
                   />
                 ) : (
-                  <div className="h-80 w-full shrink-0">
+                  // The height is the flex basis (floor); grow lets the chart absorb
+                  // extra tile height. On grid (lg) screens the floor is smaller so
+                  // tiles fit narrow viewports — grow recovers the height above the
+                  // grid's rowHeight floor. (LFE-10813)
+                  <div className="h-80 w-full shrink-0 grow lg:h-56">
                     <DashboardLineTimeSeriesChart
                       data={item.data}
                       label={item.chartMetricLabel}

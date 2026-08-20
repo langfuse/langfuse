@@ -1,14 +1,12 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { LanguageModel } from "ai";
 
-import type { ModelParams } from "../../types";
 import type { TranslatedProviderOptions } from "./types";
 import { ensureBaseURLSuffix, isPlainObject } from "./utils";
 
 /**
- * LangChain's `anthropicApiUrl` is the API origin — the underlying
- * @anthropic-ai/sdk appends `/v1/messages` itself. The AI SDK instead expects
- * the `/v1` prefix to be part of `baseURL` (default
+ * The stored Anthropic base URL is the API origin, without `/v1/messages`.
+ * The AI SDK expects the `/v1` prefix to be part of `baseURL` (default
  * `https://api.anthropic.com/v1`) and appends only `/messages`.
  */
 export function toAnthropicBaseURL(
@@ -18,7 +16,7 @@ export function toAnthropicBaseURL(
 }
 
 export function buildAnthropicModel(params: {
-  modelParams: ModelParams;
+  modelId: string;
   apiKey: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
@@ -31,7 +29,7 @@ export function buildAnthropicModel(params: {
     fetch: params.fetch,
   });
 
-  return provider(params.modelParams.model);
+  return provider(params.modelId);
 }
 
 // Keys the AI SDK Anthropic provider accepts verbatim (camelCase, already
@@ -51,29 +49,26 @@ const ANTHROPIC_THINKING_TYPES = new Set(["adaptive", "enabled", "disabled"]);
  * Translation of Langfuse `modelParams.providerOptions` to AI SDK Anthropic
  * provider options.
  *
- * The LangChain engine merges `providerOptions` verbatim into the Anthropic
- * request body (`invocationKwargs`), so users configured snake_case Anthropic
- * body params — most importantly `thinking: { type, budget_tokens }`. The AI
+ * Persisted provider options contain snake_case Anthropic request-body fields,
+ * most importantly `thinking: { type, budget_tokens }`. The AI
  * SDK accepts a typed camelCase whitelist under `providerOptions.anthropic`
- * and silently drops unknown keys; any key we cannot translate makes the
- * dispatcher decline to LangChain instead.
+ * and silently drops unknown keys; the compatibility boundary rejects any key
+ * it cannot translate.
  *
- * Note the Claude Fable/Mythos guard from the LangChain path is unnecessary
- * here: the AI SDK only serializes `thinking` when it is explicitly enabled
- * or adaptive, so an omitted config never sends `{ type: "disabled" }`.
+ * The AI SDK only serializes `thinking` when it is explicitly enabled or
+ * adaptive, so an omitted config never sends `{ type: "disabled" }` for
+ * Claude Fable/Mythos.
  *
- * Known engine difference (accepted): with `thinking` enabled the AI SDK
- * sends `max_tokens = maxOutputTokens + budgetTokens` (the budget counts
- * toward the limit), where LangChain sent `max_tokens` verbatim and Anthropic
- * rejected configs whose budget met or exceeded it. Strictly more permissive;
- * pinned in requestShape.test.ts.
+ * With `thinking` enabled the AI SDK sends
+ * `max_tokens = maxOutputTokens + budgetTokens` because the budget counts
+ * toward the limit. This behavior is pinned in requestShape.test.ts.
  */
 export function translateAnthropicProviderOptions(
   providerOptions: Record<string, unknown> | undefined,
   options?: {
     /**
-     * The LangChain Vertex-Claude path silently strips a `model` override from
-     * `invocationKwargs`; mirror that instead of declining.
+     * Vertex-Claude connections historically ignore a provider-level `model`
+     * override in favor of the selected Vertex model ID.
      */
     dropModelOverride?: boolean;
   },

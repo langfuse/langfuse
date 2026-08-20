@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import {
   JsonSkeleton,
   stringifyJsonNode,
@@ -5,7 +6,7 @@ import {
   JSONView,
 } from "@/src/components/ui/CodeJsonViewer";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
-import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useRef, useState } from "react";
 import {
@@ -57,7 +58,7 @@ function renderStringWithMediaReferences(value: string) {
 
   return segments.map((segment, index) =>
     segment.type === "media" ? (
-      <JsonMediaTag
+      <MediaReferenceTag
         key={`${segment.value}-${index}`}
         descriptor={segment.descriptor}
       />
@@ -101,7 +102,7 @@ const IOTableCellContent = ({
   return singleLine ? (
     <div
       className={cn(
-        "h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
+        "ph-no-capture h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
         paddingClassName,
         className,
       )}
@@ -237,7 +238,7 @@ export const IOTableCell = ({
         </div>
       </HoverCardTrigger>
       <HoverCardContent
-        className="max-h-[40vh] w-[400px] overflow-y-auto"
+        className="ph-no-capture max-h-[40vh] w-[400px] overflow-y-auto"
         side="top"
         align="start"
       >

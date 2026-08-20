@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BlobStorageIntegrationFormSchema,
   blobStorageIntegrationFormSchema,
-  parquetEnabledFromTuning,
 } from "@/src/features/blobstorage-integration/types";
 import {
   AnalyticsIntegrationExportSource,
@@ -86,22 +85,6 @@ describe("blob storage form — exportFieldGroups validation", () => {
     });
 
     expect(onSubmit).toHaveBeenCalledOnce();
-  });
-});
-
-describe("parquetEnabledFromTuning", () => {
-  it.each([
-    [{ parquet: true }, true],
-    [{ parquet: true, gzipLevel: 1 }, true],
-    [{ parquet: false }, false],
-    [{ gzipLevel: 1 }, false],
-    [{}, false],
-    [null, false],
-    [undefined, false],
-    ["parquet", false],
-    [["parquet"], false],
-  ])("%o → %s", (input, expected) => {
-    expect(parquetEnabledFromTuning(input)).toBe(expected);
   });
 });
 

@@ -1,7 +1,7 @@
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -29,12 +29,21 @@ import {
 } from "@/src/components/ui/tooltip";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
+import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import {
-  AnalyticsIntegrationExportSource,
-  EXPORT_SOURCE_OPTIONS,
-  isLegacyBlobExportAllowed,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+  validateExportSource,
+  type V4WriteMode,
+  type ExportSourceContext,
 } from "@langfuse/shared";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+// Shared export-source UI adapters; policy in export-source-policy.ts.
+import {
+  buildExportSourceContext,
+  getExportSourceFieldState,
+  getExportSourceUnavailableMessage,
+  isExportSourceSelectable,
+} from "@/src/features/analytics-integrations/exportSource";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -42,9 +51,10 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
 import { Info, ExternalLink } from "lucide-react";
@@ -64,12 +74,18 @@ export default function PosthogIntegrationSettings() {
     },
   );
 
+  const { project } = useQueryProject();
+
+  // A persisted fault outranks active/inactive: it is the state the admin has
+  // to act on, and it is cleared by the next successful sync.
   const status =
     state.isLoading || !hasAccess
       ? undefined
-      : state.data?.enabled
-        ? "active"
-        : "inactive";
+      : state.data?.config?.lastError
+        ? "error"
+        : state.data?.config?.enabled
+          ? "active"
+          : "inactive";
 
   return (
     <ContainerPage
@@ -110,24 +126,24 @@ export default function PosthogIntegrationSettings() {
           <Header title="Configuration" />
           <Card className="p-3">
             <PostHogLogo className="text-foreground mb-4 w-36" />
-            <PostHogIntegrationSettings
-              state={state.data}
-              projectId={projectId}
-              isLoading={state.isLoading}
-            />
+            {!state.data || !project ? (
+              <IntegrationSettingsSkeleton />
+            ) : (
+              <PostHogIntegrationSettings
+                // Draft lifetime = entity identity, so background refetches
+                // cannot reset a draft in progress.
+                key={`${projectId}:${state.data.config ? "configured" : "new"}`}
+                state={state.data.config ?? undefined}
+                projectId={projectId}
+                writeMode={state.data.writeMode}
+                projectCreatedAt={project.createdAt}
+              />
+            )}
           </Card>
         </>
       )}
-      {state.data?.enabled && (
-        <>
-          <Header title="Status" className="mt-8" />
-          <p className="text-primary text-sm">
-            Data synced until:{" "}
-            {state.data?.lastSyncAt
-              ? new Date(state.data.lastSyncAt).toLocaleString()
-              : "Never (pending)"}
-          </p>
-        </>
+      {state.data?.config && (
+        <PostHogStatusSection config={state.data.config} />
       )}
     </ContainerPage>
   );
@@ -136,55 +152,78 @@ export default function PosthogIntegrationSettings() {
 const PostHogIntegrationSettings = ({
   state,
   projectId,
-  isLoading,
+  writeMode,
+  projectCreatedAt,
 }: {
-  state?: RouterOutput["posthogIntegration"]["get"];
+  state?: NonNullable<RouterOutput["posthogIntegration"]["get"]["config"]>;
   projectId: string;
-  isLoading: boolean;
+  writeMode: V4WriteMode;
+  // Raw ISO string, not a Date: a Date built in the parent's JSX would be a new
+  // reference on every render and would defeat the memo below.
+  projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { project } = useQueryProject();
+  const integrationCreatedAt = state?.createdAt;
+  const exportSourceCtx: ExportSourceContext = useMemo(
+    () =>
+      buildExportSourceContext({
+        writeMode,
+        isCloud: isLangfuseCloud,
+        projectCreatedAt: new Date(projectCreatedAt),
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+      }),
+    [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
+  );
+  const {
+    options: exportSourceOptions,
+    showField: showExportSourceField,
+    defaultValue: defaultExportSource,
+  } = getExportSourceFieldState(state?.exportSource, exportSourceCtx);
 
-  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS). The
-  // Export Source field is hidden in that case; the form value is pinned to
-  // EVENTS via the default below. Mirrors blob-storage settings (LFE-9688 / 9830).
-  const isPostCutoffCloud =
-    project?.createdAt != null &&
-    !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
-  const showExportSourceField = isBetaEnabled && !isPostCutoffCloud;
+  // Blocked-save validation instead of silent rewrite.
+  const formSchema = useMemo(
+    () =>
+      posthogIntegrationFormSchema.superRefine((data, ctx) => {
+        // The credential is write-only: blank keeps the saved key, so it is
+        // only required when no integration exists yet.
+        if (!state && !data.posthogProjectApiKey) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["posthogProjectApiKey"],
+            message: "PostHog Project API Key is required",
+          });
+        }
+        if (!isExportSourceSelectable(data.exportSource, exportSourceCtx)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["exportSource"],
+            message:
+              "This export source is not available on this deployment. Select an available export source to save.",
+          });
+        }
+      }),
+    [exportSourceCtx, state],
+  );
 
   const posthogForm = useForm({
-    resolver: zodResolver(posthogIntegrationFormSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       posthogHostname: state?.posthogHostName ?? "",
-      posthogProjectApiKey: state?.posthogApiKey ?? "",
+      posthogProjectApiKey: "",
       enabled: state?.enabled ?? false,
-      exportSource: isPostCutoffCloud
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : (state?.exportSource ??
-          (isBetaEnabled
-            ? AnalyticsIntegrationExportSource.EVENTS
-            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS)),
+      exportSource: defaultExportSource,
     },
-    disabled: isLoading,
   });
 
-  useEffect(() => {
-    posthogForm.reset({
-      posthogHostname: state?.posthogHostName ?? "",
-      posthogProjectApiKey: state?.posthogApiKey ?? "",
-      enabled: state?.enabled ?? false,
-      exportSource: isPostCutoffCloud
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : (state?.exportSource ??
-          (isBetaEnabled
-            ? AnalyticsIntegrationExportSource.EVENTS
-            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS)),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  const watchedExportSource = posthogForm.watch("exportSource");
+  const watchedValidation =
+    watchedExportSource != null
+      ? validateExportSource(watchedExportSource, exportSourceCtx)
+      : ({ ok: true } as const);
 
   const utils = api.useUtils();
   const mut = api.posthogIntegration.update.useMutation({
@@ -235,8 +274,16 @@ const PostHogIntegrationSettings = ({
             <FormItem>
               <FormLabel>Posthog Project API Key</FormLabel>
               <FormControl>
-                <PasswordInput {...field} />
+                <PasswordInput
+                  {...field}
+                  placeholder={state?.posthogApiKeyDisplay}
+                />
               </FormControl>
+              {state && (
+                <FormDescription>
+                  Leave blank to keep the current API key.
+                </FormDescription>
+              )}
               <FormMessage />
             </FormItem>
           )}
@@ -257,9 +304,9 @@ const PostHogIntegrationSettings = ({
                       side="bottom"
                       className="max-w-[350px] space-y-2 p-3"
                     >
-                      {EXPORT_SOURCE_OPTIONS.map((option) => (
+                      {exportSourceOptions.map((option) => (
                         <div key={option.value} className="space-y-0.5">
-                          <div className="font-medium">{option.label}</div>
+                          <div className="font-bold">{option.label}</div>
                           <div className="text-muted-foreground text-xs">
                             {option.description}
                           </div>
@@ -286,9 +333,15 @@ const PostHogIntegrationSettings = ({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {EXPORT_SOURCE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                    {exportSourceOptions.map((option) => (
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        disabled={option.unavailable}
+                      >
+                        {option.unavailable
+                          ? `${option.label} (not available on this deployment)`
+                          : option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -301,6 +354,14 @@ const PostHogIntegrationSettings = ({
               </FormItem>
             )}
           />
+        )}
+        {!watchedValidation.ok && (
+          <Alert variant="destructive">
+            <AlertTitle>Saved export source is no longer available</AlertTitle>
+            <AlertDescription>
+              {getExportSourceUnavailableMessage(watchedValidation.reason)}
+            </AlertDescription>
+          </Alert>
         )}
         <FormField
           control={posthogForm.control}
@@ -328,14 +389,13 @@ const PostHogIntegrationSettings = ({
         <Button
           loading={mut.isPending}
           onClick={posthogForm.handleSubmit(onSubmit)}
-          disabled={isLoading}
         >
           Save
         </Button>
         <Button
           variant="ghost"
           loading={mutDelete.isPending}
-          disabled={isLoading || !!!state}
+          disabled={!state}
           onClick={() => {
             if (
               confirm(

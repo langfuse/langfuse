@@ -6,6 +6,7 @@ import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 
+fix/15959-clickhouse-writer-quarantine
 // The module mock exposes a fake redis client; expose it in a mock-friendly
 // shape so the tests can assert on quarantine persistence and force failures.
 const redisClientMock = serverExports.redis as unknown as {
@@ -13,11 +14,14 @@ const redisClientMock = serverExports.redis as unknown as {
 };
 
 // Mock recordHistogram, recordCount, recordGauge
+// Mock recordHistogram, recordDistribution, recordCount, recordGauge
+main
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original = (await importOriginal()) as {};
   return {
     ...original,
     recordHistogram: vi.fn(),
+    recordDistribution: vi.fn(),
     recordIncrement: vi.fn(),
     recordCount: vi.fn(),
     recordGauge: vi.fn(),
@@ -241,6 +245,27 @@ describe("ClickhouseWriter", () => {
     expect(pending[0].payload).toContain(sensitive);
   });
 
+  it("should retry client request timeouts within the same flush", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValueOnce(new Error("Timeout error."))
+      .mockResolvedValueOnce();
+
+    writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
+
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+    // let the backOff retry delay elapse
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(mockInsert).toHaveBeenCalledTimes(2);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    expect(serverExports.recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.rows_dropped",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
   it("should shutdown gracefully", async () => {
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
     const mockInsert = vi
@@ -349,7 +374,8 @@ describe("ClickhouseWriter", () => {
   });
 
   it("should report wait time and processing time metrics correctly", async () => {
-    const metricsDistributionSpy = vi.spyOn(serverExports, "recordHistogram");
+    const histogramSpy = vi.spyOn(serverExports, "recordHistogram");
+    const distributionSpy = vi.spyOn(serverExports, "recordDistribution");
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
@@ -358,16 +384,36 @@ describe("ClickhouseWriter", () => {
 
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
-    expect(metricsDistributionSpy).toHaveBeenCalledWith(
+    expect(histogramSpy).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.wait_time",
       expect.any(Number),
       { unit: "milliseconds" },
     );
 
-    expect(metricsDistributionSpy).toHaveBeenCalledWith(
+    expect(histogramSpy).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.processing_time",
       expect.any(Number),
       { unit: "milliseconds" },
+    );
+
+    expect(distributionSpy).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.time_distribution",
+      expect.any(Number),
+      {
+        entity_type: TableName.Traces,
+        type: "wait",
+        unit: "milliseconds",
+      },
+    );
+
+    expect(distributionSpy).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.time_distribution",
+      expect.any(Number),
+      {
+        entity_type: TableName.Traces,
+        type: "processing",
+        unit: "milliseconds",
+      },
     );
   });
 

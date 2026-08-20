@@ -3,13 +3,18 @@ import {
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
+import { renderLevelIcon } from "@/src/components/level-colors";
 
 export type TraceOmittableFilterColumn = "userId" | "sessionId";
 
 export const traceFilterConfig: FilterConfig = {
   tableName: "traces",
 
-  columnDefinitions: tracesTableCols,
+  // Bookmarking is gone from the UI, so the sidebar no longer knows the
+  // column: a `bookmarked` filter left in a saved view or an old deep link is
+  // dropped rather than silently narrowing the rows nobody can widen again.
+  // The shared definition stays for the public API.
+  columnDefinitions: tracesTableCols.filter((col) => col.id !== "bookmarked"),
 
   defaultExpanded: ["environment", "traceName"],
 
@@ -62,13 +67,6 @@ export const traceFilterConfig: FilterConfig = {
       label: "Release",
     },
     {
-      type: "boolean" as const,
-      column: "bookmarked",
-      label: "Bookmarked",
-      trueLabel: "Bookmarked",
-      falseLabel: "Not bookmarked",
-    },
-    {
       type: "numeric" as const,
       column: "commentCount",
       label: "Comment Count",
@@ -81,9 +79,13 @@ export const traceFilterConfig: FilterConfig = {
       label: "Comment Content",
     },
     {
+      // Product direction is to call observation levels "Status" everywhere
+      // (display relabel only here; the column id / grammar field stays
+      // `level` until the cross-surface rename lands).
       type: "categorical" as const,
       column: "level",
-      label: "Level",
+      label: "Status",
+      renderIcon: renderLevelIcon,
     },
     {
       type: "numeric" as const,
@@ -147,6 +149,11 @@ export const traceFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "scores_avg",
       label: "Numeric Scores",
+    },
+    {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
     },
   ],
 };

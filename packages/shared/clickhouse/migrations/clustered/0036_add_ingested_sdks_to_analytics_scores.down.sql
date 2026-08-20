@@ -1,4 +1,5 @@
-CREATE OR REPLACE VIEW analytics_scores ON CLUSTER default AS
+DROP VIEW IF EXISTS analytics_scores ON CLUSTER default;
+CREATE VIEW analytics_scores ON CLUSTER default AS
 SELECT
     project_id,
     toStartOfHour(timestamp) AS hour,

@@ -59,7 +59,10 @@ export function TableActionDialog({
   const isInProgress = api.table.getIsBatchActionInProgress.useQuery(
     {
       projectId,
-      tableName,
+      // Batch action rows are keyed by (projectId, actionId, tableName); an
+      // action that registers under a different table than the hosting view
+      // overrides the poll target via action.tableName.
+      tableName: action.tableName ?? tableName,
       actionId: action.id,
     },
     {

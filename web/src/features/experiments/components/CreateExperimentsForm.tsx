@@ -36,6 +36,7 @@ import { type CreateExperiment } from "@/src/features/experiments/types";
 import { MultiStepExperimentForm } from "@/src/features/experiments/components/MultiStepExperimentForm";
 import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";
 import { RemoteExperimentTriggerModal } from "@/src/features/experiments/components/RemoteExperimentTriggerModal";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
@@ -70,6 +71,7 @@ export const CreateExperimentsForm = ({
   showSDKRunInfoPage?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
   const [showPromptForm, setShowPromptForm] = useState(false);
   const [showRemoteExperimentUpsertForm, setShowRemoteExperimentUpsertForm] =
     useState(false);
@@ -228,7 +230,7 @@ export const CreateExperimentsForm = ({
                 </ul>
                 {!fixedDatasetId ? (
                   <div className="mt-4 space-y-2">
-                    <div className="text-sm font-medium">Dataset</div>
+                    <div className="text-sm font-bold">Dataset</div>
                     <Popover
                       open={datasetPopoverOpen}
                       onOpenChange={setDatasetPopoverOpen}
@@ -394,6 +396,7 @@ export const CreateExperimentsForm = ({
       promptDefault={promptDefault}
       handleExperimentSettled={handleExperimentSettled}
       handleExperimentSuccess={handleExperimentSuccess}
+      enableLegacyNameValidation={!isInitializing && !isExperimentsBetaActive}
     />
   );
 };

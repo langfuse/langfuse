@@ -8,26 +8,28 @@ import {
   ChatMessageType,
   LangfuseInternalTraceEnvironment,
   logger,
+  generateLangfuseAIText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
+  getLangfuseAITraceSinkParams,
+  isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import { parseFiltersFromCompletion, getLangfuseClient } from "./utils";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  fetchLangfuseAICompletion,
-  getLangfuseAITraceSinkParams,
-  isLangfuseAITracingConfigured,
-} from "@/src/features/ai-features/server/bedrockCompletion";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
     .input(CreateNaturalLanguageFilterCompletion)
     .mutation(async ({ input, ctx }) => {
       try {
+        // Generating a filter reads nothing a project member cannot already
+        // read by hand, so membership is the right bar; whether the org uses
+        // AI at all is governed by `aiFeaturesEnabled` below.
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "prompts:CUD",
+          scope: "project:read",
         });
 
         if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -118,12 +120,13 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           userPrompt: input.prompt,
           currentDatetime,
         });
-        const llmCompletion = await fetchLangfuseAICompletion({
+        const llmCompletion = await generateLangfuseAIText({
           messages: messages.map((m: ChatMessage) => ({
             ...m,
             type: ChatMessageType.PublicAPICreated,
           })),
           maxTokens: 1000,
+          timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
                 environment:
@@ -148,10 +151,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
         logger.info(
           `LLM completion received: ${JSON.stringify(llmCompletion, null, 2)}`,
         );
-
-        if (typeof llmCompletion !== "string") {
-          throw new Error("Expected LLM completion to be a string");
-        }
 
         const parsedFilters = parseFiltersFromCompletion(llmCompletion);
 

@@ -11,6 +11,7 @@ import {
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { cn } from "@/src/utils/tailwind";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/router";
@@ -43,6 +44,7 @@ export const DetailPageNav = (props: {
   );
 
   const capture = usePostHogClientCapture();
+  const { isBetaEnabled: isV4 } = useV4Beta();
   const router = useRouter();
   const currentIndex = entries.findIndex((entry) => entry.id === currentId);
   const previousPageEntry =
@@ -51,7 +53,22 @@ export const DetailPageNav = (props: {
     currentIndex < entries.length - 1 ? entries[currentIndex + 1] : undefined;
 
   const navigateToEntry = useCallback(
-    (entry: ListEntry) => {
+    (
+      entry: ListEntry,
+      direction: "previous" | "next",
+      method: "button" | "keyboard",
+    ) => {
+      // Single seam for both triggers so K/J navigation counts too (it
+      // used to be button-only). `listKey` is a static list identifier and
+      // `isPeek` distinguishes peek-header nav from full detail pages.
+      capture("navigate_detail_pages:button_click_prev_or_next", {
+        direction,
+        method,
+        listKey,
+        isPeek: router.query.peek !== undefined,
+        isV4,
+      });
+
       if (onNavigate) {
         onNavigate(entry);
         return;
@@ -64,7 +81,7 @@ export const DetailPageNav = (props: {
         }),
       );
     },
-    [onNavigate, path, router],
+    [onNavigate, path, router, capture, listKey, isV4],
   );
 
   const pulseShortcut = useCallback(
@@ -109,10 +126,10 @@ export const DetailPageNav = (props: {
 
       if (event.key === "k" && previousPageEntry) {
         pulseShortcut("previous");
-        navigateToEntry(previousPageEntry);
+        navigateToEntry(previousPageEntry, "previous", "keyboard");
       } else if (event.key === "j" && nextPageEntry) {
         pulseShortcut("next");
-        navigateToEntry(nextPageEntry);
+        navigateToEntry(nextPageEntry, "next", "keyboard");
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -138,8 +155,7 @@ export const DetailPageNav = (props: {
               disabled={!previousPageEntry}
               onClick={() => {
                 if (previousPageEntry) {
-                  capture("navigate_detail_pages:button_click_prev_or_next");
-                  navigateToEntry(previousPageEntry);
+                  navigateToEntry(previousPageEntry, "previous", "button");
                 }
               }}
             >
@@ -163,8 +179,7 @@ export const DetailPageNav = (props: {
               disabled={!nextPageEntry}
               onClick={() => {
                 if (nextPageEntry) {
-                  capture("navigate_detail_pages:button_click_prev_or_next");
-                  navigateToEntry(nextPageEntry);
+                  navigateToEntry(nextPageEntry, "next", "button");
                 }
               }}
             >

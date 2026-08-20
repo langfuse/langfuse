@@ -1,14 +1,19 @@
 import { beforeEach, vi } from "vitest";
 import type * as SharedEnvModule from "@langfuse/shared/src/env";
 
-const { runCodeEvalTestForJobConfigMock } = vi.hoisted(() => {
-  process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
-  process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+const { runCodeEvalTestForJobConfigMock, forceV3ProjectIds } = vi.hoisted(
+  () => {
+    process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
+    process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
 
-  return {
-    runCodeEvalTestForJobConfigMock: vi.fn(),
-  };
-});
+    return {
+      runCodeEvalTestForJobConfigMock: vi.fn(),
+      // Mutable backing for the mocked LANGFUSE_FORCE_V3_EXPERIENCE list so
+      // individual tests can force a project onto the v3 experience.
+      forceV3ProjectIds: { current: [] as string[] },
+    };
+  },
+);
 
 vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
   const actual = await importOriginal<typeof SharedEnvModule>();
@@ -19,6 +24,9 @@ vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
       ...actual.env,
       LANGFUSE_CODE_EVAL_DISPATCHER: "insecure-local",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      get LANGFUSE_FORCE_V3_EXPERIENCE() {
+        return forceV3ProjectIds.current;
+      },
     },
   };
 });
@@ -35,7 +43,14 @@ import {
   EvalTemplateType,
 } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
+import {
+  createEvent,
+  createEventsCh,
+  createObservation,
+  createObservationsCh,
+  createOrgProjectAndApiKey,
+} from "@langfuse/shared/src/server";
 import {
   createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
@@ -43,10 +58,13 @@ import {
   EvalTargetObject,
   EvaluatorBlockReason,
 } from "@langfuse/shared";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
+import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type { Session } from "next-auth";
+import { env } from "@/src/env.mjs";
 
 beforeEach(() => {
+  forceV3ProjectIds.current = [];
   runCodeEvalTestForJobConfigMock.mockReset();
   runCodeEvalTestForJobConfigMock.mockResolvedValue({
     success: true,
@@ -75,14 +93,18 @@ async function prepare() {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: project.id,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
+              hasTraces: false,
               name: project.name,
               metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -90,6 +112,10 @@ async function prepare() {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
@@ -99,7 +125,7 @@ async function prepare() {
     },
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   __orgIds.push(org.id);
@@ -271,6 +297,113 @@ describe("evals trpc", () => {
         { id: inactiveEvaluator.id, displayStatus: "INACTIVE" },
       ]);
     });
+
+    it("filters evaluator configurations by time scope", async () => {
+      const { project, caller } = await prepare();
+
+      const createEvaluator = (scoreName: string, timeScope: string[]) =>
+        prisma.jobConfiguration.create({
+          data: {
+            projectId: project.id,
+            jobType: "EVAL",
+            scoreName,
+            filter: [],
+            targetObject: EvalTargetObject.TRACE,
+            variableMapping: [],
+            sampling: 1,
+            delay: 0,
+            status: "ACTIVE",
+            timeScope,
+          },
+        });
+
+      const newEvaluator = await createEvaluator("new-score", ["NEW"]);
+      const newAndExistingEvaluator = await createEvaluator(
+        "new-and-existing-score",
+        ["NEW", "EXISTING"],
+      );
+      const existingEvaluator = await createEvaluator("existing-score", [
+        "EXISTING",
+      ]);
+
+      const response = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [
+          {
+            column: "timeScope",
+            type: "arrayOptions",
+            operator: "any of",
+            value: ["NEW"],
+          },
+        ],
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        limit: 10,
+        page: 0,
+      });
+
+      expect(response.configs.map((config) => config.id)).toEqual(
+        expect.arrayContaining([newEvaluator.id, newAndExistingEvaluator.id]),
+      );
+      expect(response.configs.map((config) => config.id)).not.toContain(
+        existingEvaluator.id,
+      );
+      expect(response.totalCount).toBe(2);
+    });
+
+    // A Time Scope filter with no selected values is a reachable UI state
+    // (the facet's operator toggle can be flipped before any checkbox is
+    // checked). It must not crash the query — passing an empty value list
+    // into the Postgres array literal throws (`Prisma.join([])`), so the
+    // router treats an empty-value arrayOptions filter as no filter on that
+    // column. Only "all of"/"none of" can carry an empty value at all — the
+    // arrayOptionsFilter zod schema itself rejects "any of" with an empty
+    // value before this ever runs.
+    it.each(["all of", "none of"] as const)(
+      "does not throw and does not filter on an empty time scope value list ('%s')",
+      async (operator) => {
+        const { project, caller } = await prepare();
+
+        const evaluator = await prisma.jobConfiguration.create({
+          data: {
+            projectId: project.id,
+            jobType: "EVAL",
+            scoreName: "unfiltered-score",
+            filter: [],
+            targetObject: EvalTargetObject.TRACE,
+            variableMapping: [],
+            sampling: 1,
+            delay: 0,
+            status: "ACTIVE",
+            timeScope: ["NEW"],
+          },
+        });
+
+        const response = await caller.evals.allConfigs({
+          projectId: project.id,
+          filter: [
+            {
+              column: "timeScope",
+              type: "arrayOptions",
+              operator,
+              value: [],
+            },
+          ],
+          orderBy: {
+            column: "createdAt",
+            order: "DESC",
+          },
+          limit: 10,
+          page: 0,
+        });
+
+        expect(response.configs.map((config) => config.id)).toEqual([
+          evaluator.id,
+        ]);
+      },
+    );
   });
 
   describe("evals.templateNames", () => {
@@ -446,6 +579,96 @@ describe("evals trpc", () => {
     });
   });
 
+  describe("evals.costByEvaluatorIds", () => {
+    it("returns total evaluator costs from events", async () => {
+      const { project, caller } = await prepare();
+      const evaluatorId = randomUUID();
+      const traceId = randomUUID();
+      const evaluatorSpanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: evaluatorSpanId,
+          span_id: evaluatorSpanId,
+          project_id: project.id,
+          trace_id: traceId,
+          type: "SPAN",
+          metadata_names: ["job_configuration_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 0 },
+        }),
+        createEvent({
+          project_id: project.id,
+          trace_id: traceId,
+          parent_span_id: evaluatorSpanId,
+          cost_details: { total: 0.02 },
+        }),
+        createEvent({
+          project_id: project.id,
+          trace_id: traceId,
+          parent_span_id: evaluatorSpanId,
+          cost_details: { total: 0.5 },
+          is_deleted: 1,
+        }),
+      ]);
+
+      const response = await caller.evals.costByEvaluatorIds({
+        projectId: project.id,
+        evaluatorIds: [evaluatorId],
+      });
+
+      expect(response).toEqual({
+        [evaluatorId]: 0.02,
+      });
+    });
+
+    it("returns evaluator cost metrics from observations in legacy write mode", async () => {
+      const { project, caller } = await prepare();
+      const evaluatorId = randomUUID();
+      const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+      Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "legacy");
+
+      try {
+        await createObservationsCh([
+          createObservation({
+            project_id: project.id,
+            metadata: { job_configuration_id: evaluatorId },
+            total_cost: 0.03,
+          }),
+          createObservation({
+            project_id: project.id,
+            metadata: { job_configuration_id: evaluatorId },
+            total_cost: 0.01,
+          }),
+        ]);
+
+        const [totalCosts, avgCosts] = await Promise.all([
+          caller.evals.costByEvaluatorIds({
+            projectId: project.id,
+            evaluatorIds: [evaluatorId],
+          }),
+          caller.evals.avgCostByEvaluatorIds({
+            projectId: project.id,
+            evaluatorIds: [evaluatorId],
+          }),
+        ]);
+
+        expect(totalCosts).toEqual({
+          [evaluatorId]: 0.04,
+        });
+        expect(avgCosts).toEqual({
+          [evaluatorId]: {
+            avgCost: 0.02,
+            executionCount: 2,
+          },
+        });
+      } finally {
+        Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalWriteMode);
+      }
+    });
+  });
+
   describe("evals.latestTemplates", () => {
     it("should return only the latest template per project/name/type family", async () => {
       const { project, caller } = await prepare();
@@ -558,6 +781,63 @@ describe("evals trpc", () => {
         }),
       ).rejects.toThrow(
         "This code evaluator language is not supported by the configured dispatcher.",
+      );
+    });
+
+    it("adopts the canonical mapping on re-pointed code-eval rules when saving a new version", async () => {
+      const { project, caller } = await prepare();
+      const templateName = `code-template-repoint-${project.id}`;
+
+      const templateV1 = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: templateName,
+          version: 1,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "s", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+
+      // Stored snapshot predating a canonical-variable addition (toolCalls).
+      const staleMapping = getCodeEvalVariableMapping().filter(
+        (mapping) => mapping.templateVariable !== "toolCalls",
+      );
+      const jobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          evalTemplateId: templateV1.id,
+          scoreName: "code-score",
+          filter: [],
+          targetObject: EvalTargetObject.EVENT,
+          variableMapping: staleMapping,
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+        },
+      });
+
+      const newVersion = await caller.evals.createTemplate({
+        projectId: project.id,
+        name: templateName,
+        intent: "new-version",
+        sourceTemplateId: templateV1.id,
+        type: EvalTemplateType.CODE,
+        sourceCode:
+          'function evaluate(ctx) { return { scores: [{ name: "s", value: ctx.observation.toolCalls.length }] }; }',
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      });
+
+      const updatedConfig = await prisma.jobConfiguration.findUniqueOrThrow({
+        where: { id: jobConfig.id },
+      });
+      expect(updatedConfig.evalTemplateId).toBe(newVersion.template.id);
+      expect(updatedConfig.variableMapping).toEqual(
+        getCodeEvalVariableMapping(),
       );
     });
   });
@@ -828,25 +1108,34 @@ describe("evals trpc", () => {
         },
       });
 
-      await expect(
-        caller.evals.createJob({
-          projectId: project.id,
-          evalTemplateId: evalTemplate.id,
-          scoreName: "bad-trace-score",
-          target: EvalTargetObject.TRACE,
-          filter: [],
-          mapping: [
-            {
-              templateVariable: "input",
-              selectedColumnId: "input",
-              jsonSelector: null,
-            },
-          ],
-          sampling: 1,
-          delay: 0,
-          timeScope: ["NEW"],
-        }),
-      ).rejects.toThrow("Variable mapping does not match evaluator target.");
+      // Open the legacy-target gate (the .env test config is Cloud + dual) so
+      // this test reaches the variable-mapping validation behind it.
+      const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "legacy");
+
+      try {
+        await expect(
+          caller.evals.createJob({
+            projectId: project.id,
+            evalTemplateId: evalTemplate.id,
+            scoreName: "bad-trace-score",
+            target: EvalTargetObject.TRACE,
+            filter: [],
+            mapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+                jsonSelector: null,
+              },
+            ],
+            sampling: 1,
+            delay: 0,
+            timeScope: ["NEW"],
+          }),
+        ).rejects.toThrow("Variable mapping does not match evaluator target.");
+      } finally {
+        Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalWriteMode);
+      }
 
       await expect(
         prisma.jobConfiguration.findFirst({
@@ -874,29 +1163,122 @@ describe("evals trpc", () => {
         },
       });
 
-      await expect(
-        caller.evals.createJob({
-          projectId: project.id,
-          evalTemplateId: evalTemplate.id,
-          scoreName: "bad-trace-filter",
-          target: EvalTargetObject.TRACE,
-          filter: [
-            {
-              type: "numberObject",
-              column: "Scores (numeric)",
-              key: "accuracy",
-              operator: ">",
-              value: 0.8,
-            },
-          ],
-          mapping: [],
-          sampling: 1,
-          delay: 0,
-          timeScope: ["NEW"],
-        }),
-      ).rejects.toThrow(
-        'Filter column "Scores (numeric)" is not supported for target "trace".',
-      );
+      // Open the legacy-target gate (the .env test config is Cloud + dual) so
+      // this test reaches the filter validation behind it.
+      const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "legacy");
+
+      try {
+        await expect(
+          caller.evals.createJob({
+            projectId: project.id,
+            evalTemplateId: evalTemplate.id,
+            scoreName: "bad-trace-filter",
+            target: EvalTargetObject.TRACE,
+            filter: [
+              {
+                type: "numberObject",
+                column: "Scores (numeric)",
+                key: "accuracy",
+                operator: ">",
+                value: 0.8,
+              },
+            ],
+            mapping: [],
+            sampling: 1,
+            delay: 0,
+            timeScope: ["NEW"],
+          }),
+        ).rejects.toThrow(
+          'Filter column "Scores (numeric)" is not supported for target "trace".',
+        );
+      } finally {
+        Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalWriteMode);
+      }
+    });
+  });
+
+  describe("evals.createJob legacy target gate", () => {
+    const createTraceTemplate = (projectId: string) =>
+      prisma.evalTemplate.create({
+        data: {
+          projectId,
+          name: `trace-gate-template-${projectId}`,
+          version: 1,
+          prompt: "Score {{input}}",
+          vars: ["input"],
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+    const traceMapping = [
+      {
+        templateVariable: "input",
+        langfuseObject: "trace",
+        objectName: null,
+        selectedColumnId: "input",
+        jsonSelector: null,
+      },
+    ];
+
+    it("rejects new trace-target evaluators when the legacy experience is disabled", async () => {
+      const { project, caller } = await prepare();
+      const originalMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "events_only");
+
+      try {
+        const template = await createTraceTemplate(project.id);
+        await expect(
+          caller.evals.createJob({
+            projectId: project.id,
+            evalTemplateId: template.id,
+            scoreName: "gate-closed-score",
+            target: EvalTargetObject.TRACE,
+            filter: [],
+            mapping: traceMapping,
+            sampling: 1,
+            delay: 0,
+            timeScope: ["NEW"],
+          }),
+        ).rejects.toThrow("Trace- and dataset-level evaluators are no longer");
+
+        await expect(
+          prisma.jobConfiguration.findFirst({
+            where: { projectId: project.id, scoreName: "gate-closed-score" },
+          }),
+        ).resolves.toBeNull();
+      } finally {
+        Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalMode);
+      }
+    });
+
+    it("rejects new trace-target evaluators for force-v3 projects in events_only mode", async () => {
+      const { project, caller } = await prepare();
+      const originalMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "events_only");
+      forceV3ProjectIds.current = [project.id];
+
+      try {
+        const template = await createTraceTemplate(project.id);
+        await expect(
+          caller.evals.createJob({
+            projectId: project.id,
+            evalTemplateId: template.id,
+            scoreName: "gate-forced-score",
+            target: EvalTargetObject.TRACE,
+            filter: [],
+            mapping: traceMapping,
+            sampling: 1,
+            delay: 0,
+            timeScope: ["NEW"],
+          }),
+        ).rejects.toThrow("Trace- and dataset-level evaluators are no longer");
+      } finally {
+        Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalMode);
+      }
     });
   });
 
@@ -1434,7 +1816,10 @@ describe("evals trpc", () => {
         expires: session.expires,
         environment: session.environment,
       };
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCtx = createInnerTRPCContext({
+        session: limitedSession,
+        headers: {},
+      });
       const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
       // Create a job
@@ -1699,7 +2084,10 @@ describe("evals trpc", () => {
         expires: session.expires,
         environment: session.environment,
       };
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCtx = createInnerTRPCContext({
+        session: limitedSession,
+        headers: {},
+      });
       const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
       const evalTemplate = await createTemplateVersion(

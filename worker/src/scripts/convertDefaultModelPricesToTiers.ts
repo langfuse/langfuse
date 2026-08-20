@@ -1,4 +1,4 @@
-#!/usr/bin/env ts-node
+#!/usr/bin/env -S tsx
 /**
  * Utility script to convert old default-model-prices.json format to new tiered pricing format.
  *
@@ -26,7 +26,7 @@
  * }
  *
  * USAGE:
- *   pnpm --filter=worker exec ts-node src/scripts/convertDefaultModelPricesToTiers.ts
+ *   pnpm --filter=worker exec tsx src/scripts/convertDefaultModelPricesToTiers.ts
  */
 
 import * as fs from "fs";
