@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAITraceSinkParams,
   logger,
+  recordIncrement,
   redis,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -467,6 +468,14 @@ export async function executeInAppAgentRun(params: {
         },
         onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
         onComplete: async (outcome) => {
+          // Truncation lands on run.completed via the error code below, but that
+          // only counts turns wrap-up failed to rescue. Counting every turn that
+          // reached the cap is what shows the cap becoming binding before users
+          // see a cut-off answer.
+          if (outcome?.reachedStepLimit) {
+            recordIncrement("langfuse.in_app_agent.step_limit_reached", 1);
+          }
+
           await flushPersistedRunEvents(
             interruptRequest
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }

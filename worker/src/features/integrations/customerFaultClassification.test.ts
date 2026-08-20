@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { OutboundUrlValidationError } from "@langfuse/shared/src/server";
+import {
+  OutboundUrlValidationError,
+  RedirectValidationError,
+} from "@langfuse/shared/src/server";
 import {
   classifyCustomerFault,
   isCustomerFaultError,
@@ -214,6 +217,39 @@ describe("isCustomerFaultError", () => {
       );
       expect(isCustomerFaultError(err)).toBe(false);
       expect(isCustomerFaultError(wrapped(err))).toBe(false);
+    });
+
+    it("classifies an SSRF block raised on a redirect hop as customer_fault", () => {
+      // The production shape: the configured host answers 3xx with a blocked
+      // target. The typed code reaches here only via the redirect `cause`.
+      const redirectBlock = new RedirectValidationError(
+        "Blocked hostname detected",
+        "http://169.254.169.254/latest/meta-data/",
+        0,
+        new OutboundUrlValidationError(
+          "blocked-hostname",
+          "Blocked hostname detected",
+        ),
+      );
+      expect(classifyCustomerFault(wrapped(redirectBlock))).toBe(
+        "ssrf_blocked_endpoint",
+      );
+    });
+
+    it("keeps a dns-lookup-failed on a redirect hop out of customer_fault", () => {
+      // Same wrapper, transient inner code: must not become a permanent disable.
+      const redirectDnsFailure = new RedirectValidationError(
+        "DNS lookup failed for host.example",
+        "https://host.example/batch/",
+        0,
+        new OutboundUrlValidationError(
+          "dns-lookup-failed",
+          "DNS lookup failed for host.example",
+        ),
+      );
+      expect(
+        classifyCustomerFault(wrapped(redirectDnsFailure)),
+      ).toBeUndefined();
     });
 
     it("classifies a validation rejection re-wrapped with guidance (code preserved) as customer_fault", () => {

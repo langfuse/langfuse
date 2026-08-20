@@ -46,7 +46,11 @@ export function useTraceDetailData({
     },
     {
       enabled:
-        enabled && !!traceId && !isTraceSourceLoading && !useEventsTraceSource,
+        enabled &&
+        !!traceId &&
+        !!projectId &&
+        !isTraceSourceLoading &&
+        !useEventsTraceSource,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -65,7 +69,11 @@ export function useTraceDetailData({
     traceId: traceId ?? "",
     timestamp,
     enabled:
-      enabled && !!traceId && !isTraceSourceLoading && useEventsTraceSource,
+      enabled &&
+      !!traceId &&
+      !!projectId &&
+      !isTraceSourceLoading &&
+      useEventsTraceSource,
   });
 
   if (isTraceSourceLoading) {

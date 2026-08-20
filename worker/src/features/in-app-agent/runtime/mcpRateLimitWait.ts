@@ -1,8 +1,10 @@
 import { InAppAgentRateLimitErrorResponseSchema } from "@langfuse/shared/in-app-agent";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 
 /** Total time a single MCP operation may spend waiting out rate limits. */
 export const IN_APP_AGENT_MCP_RATE_LIMIT_WAIT_BUDGET_MS = 60_000;
+
+const MCP_RATE_LIMIT_WAIT_METRIC = "langfuse.in_app_agent.mcp_rate_limit_wait";
 
 type McpRateLimitError = {
   retryAfterSeconds: number;
@@ -70,10 +72,22 @@ export async function withMcpRateLimitWait<T>(params: {
       }
 
       const waitMs = rateLimit.retryAfterSeconds * 1_000;
+      const operation = String(params.logContext.operation ?? "unknown");
 
       if (waitMs > remainingBudgetMs) {
+        // The run fails from here on, so this is the tag that separates "we
+        // absorbed a rate limit" from "a rate limit killed the turn".
+        recordIncrement(MCP_RATE_LIMIT_WAIT_METRIC, 1, {
+          outcome: "budget_exhausted",
+          operation,
+        });
         throw error;
       }
+
+      recordIncrement(MCP_RATE_LIMIT_WAIT_METRIC, 1, {
+        outcome: "waited",
+        operation,
+      });
 
       logger.warn("Waiting out in-app agent MCP rate limit", {
         ...params.logContext,
