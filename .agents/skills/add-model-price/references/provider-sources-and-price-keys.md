@@ -173,8 +173,7 @@ Always fetch pricing from the provider's official docs before editing.
   Pricing: $1.75/MTok input, $0.175/MTok cached input, $14.00/MTok output. Context window:
   400k tokens; max output 128k tokens. No large-context tier. No date-stamped snapshot at
   launch. Standard OpenAI matchPattern: `(?i)^(openai\/)?(gpt-5.3-codex)$`. Added to pricing
-  file and `openAIModels` in July 27 2026 audit. Official sources:
-  `https://developers.openai.com/api/docs/pricing` and
+file and `openAIModels`in July 27 2026 audit. Official sources:`https://developers.openai.com/api/docs/pricing` and
   `https://developers.openai.com/api/docs/models/gpt-5.3-codex`.
 - **GPT-5.6 Terra / Luna price cut (found July 31 2026)** — OpenAI lowered pricing for
   `gpt-5.6-terra` and `gpt-5.6-luna` sometime between the July 27 and July 31 2026 audits;
@@ -237,7 +236,7 @@ Always fetch pricing from the provider's official docs before editing.
   condition can never legitimately fire for this model. The tier was removed; the model now
   has only the Standard tier, matching the precedent set by `claude-haiku-4-5-20251001`
   (also a 200k-context model with no Large Context tier). If a future model is documented
-  with a *soft* extended-context cap that bills at a premium rate past a threshold below its
+  with a _soft_ extended-context cap that bills at a premium rate past a threshold below its
   hard context-window limit, that would justify a real tier — verify the hard context-window
   size first before trusting an existing Large Context tier on a non-1M-context Claude model.
 - **AWS Bedrock "Claude 3.5 Sonnet (Public Extended Access)" pricing confirmed real but not
