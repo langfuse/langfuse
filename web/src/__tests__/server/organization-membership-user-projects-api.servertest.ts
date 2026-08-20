@@ -27,7 +27,7 @@ const UserProjectAccessResponseSchema = z.object({
   ),
 });
 
-describe("GET /api/public/organizations/memberships/user/[email]", () => {
+describe("Public User Project Access API", () => {
   let testOrgId: string;
   let projectAId: string;
   let projectBId: string;
@@ -43,7 +43,7 @@ describe("GET /api/public/organizations/memberships/user/[email]", () => {
   let testApiSecretKey: string;
 
   const userProjectsUrl = (email: string) =>
-    `/api/public/organizations/memberships/user/${encodeURIComponent(email)}`;
+    `/api/public/organizations/memberships/${encodeURIComponent(email)}`;
 
   beforeAll(async () => {
     const org = await prisma.organization.create({
@@ -148,162 +148,170 @@ describe("GET /api/public/organizations/memberships/user/[email]", () => {
     });
   });
 
-  it("should return every project for a user inheriting the org role", async () => {
-    const response = await makeZodVerifiedAPICall(
-      UserProjectAccessResponseSchema,
-      "GET",
-      userProjectsUrl(ownerEmail),
-      undefined,
-      createBasicAuthHeader(testApiKey, testApiSecretKey),
-      200,
-    );
+  describe("GET /api/public/organizations/memberships/[email]", () => {
+    it("should return every project for a user inheriting the org role", async () => {
+      const response = await makeZodVerifiedAPICall(
+        UserProjectAccessResponseSchema,
+        "GET",
+        userProjectsUrl(ownerEmail),
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
 
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({
-      userId: ownerUserId,
-      email: ownerEmail,
-      name: "Owner User",
-      orgRole: Role.OWNER,
-    });
-    expect(response.body.projects).toHaveLength(2);
-    expect(response.body.projects.map((p) => p.projectId)).toEqual([
-      projectAId,
-      projectBId,
-    ]);
-    response.body.projects.forEach((project) => {
-      expect(project.role).toBe(Role.OWNER);
-      expect(project.inheritedFromOrgRole).toBe(true);
-    });
-  });
-
-  it("should not include deleted projects", async () => {
-    const response = await makeZodVerifiedAPICall(
-      UserProjectAccessResponseSchema,
-      "GET",
-      userProjectsUrl(ownerEmail),
-      undefined,
-      createBasicAuthHeader(testApiKey, testApiSecretKey),
-      200,
-    );
-
-    expect(response.body.projects.map((p) => p.projectId)).not.toContain(
-      deletedProjectId,
-    );
-  });
-
-  it("should return only projects with an explicit role for an org role of NONE", async () => {
-    const response = await makeZodVerifiedAPICall(
-      UserProjectAccessResponseSchema,
-      "GET",
-      userProjectsUrl(scopedEmail),
-      undefined,
-      createBasicAuthHeader(testApiKey, testApiSecretKey),
-      200,
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.body.orgRole).toBe(Role.NONE);
-    expect(response.body.projects).toHaveLength(1);
-    expect(response.body.projects[0]).toMatchObject({
-      projectId: projectAId,
-      role: Role.ADMIN,
-      inheritedFromOrgRole: false,
-    });
-  });
-
-  it("should look up the email case-insensitively", async () => {
-    const response = await makeZodVerifiedAPICall(
-      UserProjectAccessResponseSchema,
-      "GET",
-      userProjectsUrl(ownerEmail.toUpperCase()),
-      undefined,
-      createBasicAuthHeader(testApiKey, testApiSecretKey),
-      200,
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.body.userId).toBe(ownerUserId);
-  });
-
-  it("should return 404 for a user that belongs to another organization", async () => {
-    const result = await makeAPICall<{ error: string }>(
-      "GET",
-      userProjectsUrl(outsideEmail),
-      undefined,
-      createBasicAuthHeader(testApiKey, testApiSecretKey),
-    );
-
-    expect(result.status).toBe(404);
-    expect(result.body.error).toContain("User not found in this organization");
-  });
-
-  it("should return 404 for an unknown email", async () => {
-    const result = await makeAPICall<{ error: string }>(
-      "GET",
-      userProjectsUrl(
-        `nonexistent-${randomUUID().substring(0, 8)}@example.com`,
-      ),
-      undefined,
-      createBasicAuthHeader(testApiKey, testApiSecretKey),
-    );
-
-    expect(result.status).toBe(404);
-    expect(result.body.error).toContain("User not found in this organization");
-  });
-
-  it("should return 400 for an invalid email", async () => {
-    const result = await makeAPICall<{ error: string }>(
-      "GET",
-      userProjectsUrl("not-an-email"),
-      undefined,
-      createBasicAuthHeader(testApiKey, testApiSecretKey),
-    );
-
-    expect(result.status).toBe(400);
-    expect(result.body.error).toContain("Invalid email");
-  });
-
-  it("should return 403 when using a project-scoped API key", async () => {
-    const projectApiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectAId,
-      scope: "PROJECT",
-      note: "Test Project API Key",
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        userId: ownerUserId,
+        email: ownerEmail,
+        name: "Owner User",
+        orgRole: Role.OWNER,
+      });
+      expect(response.body.projects).toHaveLength(2);
+      expect(response.body.projects.map((p) => p.projectId)).toEqual([
+        projectAId,
+        projectBId,
+      ]);
+      response.body.projects.forEach((project) => {
+        expect(project.role).toBe(Role.OWNER);
+        expect(project.inheritedFromOrgRole).toBe(true);
+      });
     });
 
-    const result = await makeAPICall<{ error: string }>(
-      "GET",
-      userProjectsUrl(ownerEmail),
-      undefined,
-      createBasicAuthHeader(projectApiKey.publicKey, projectApiKey.secretKey),
-    );
+    it("should not include deleted projects", async () => {
+      const response = await makeZodVerifiedAPICall(
+        UserProjectAccessResponseSchema,
+        "GET",
+        userProjectsUrl(ownerEmail),
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
 
-    expect(result.status).toBe(403);
-    expect(result.body.error).toContain("Organization-scoped API key required");
+      expect(response.body.projects.map((p) => p.projectId)).not.toContain(
+        deletedProjectId,
+      );
+    });
 
-    await prisma.apiKey.delete({ where: { id: projectApiKey.id } });
-  });
+    it("should return only projects with an explicit role for an org role of NONE", async () => {
+      const response = await makeZodVerifiedAPICall(
+        UserProjectAccessResponseSchema,
+        "GET",
+        userProjectsUrl(scopedEmail),
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
 
-  it("should return 401 when using an invalid API key", async () => {
-    const result = await makeAPICall<{ error: string }>(
-      "GET",
-      userProjectsUrl(ownerEmail),
-      undefined,
-      createBasicAuthHeader("invalid-public-key", "invalid-secret-key"),
-    );
+      expect(response.status).toBe(200);
+      expect(response.body.orgRole).toBe(Role.NONE);
+      expect(response.body.projects).toHaveLength(1);
+      expect(response.body.projects[0]).toMatchObject({
+        projectId: projectAId,
+        role: Role.ADMIN,
+        inheritedFromOrgRole: false,
+      });
+    });
 
-    expect(result.status).toBe(401);
-  });
+    it("should look up the email case-insensitively", async () => {
+      const response = await makeZodVerifiedAPICall(
+        UserProjectAccessResponseSchema,
+        "GET",
+        userProjectsUrl(ownerEmail.toUpperCase()),
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
 
-  it("should return 405 for non-GET methods", async () => {
-    const result = await makeAPICall<{ error: string }>(
-      "POST",
-      userProjectsUrl(ownerEmail),
-      {},
-      createBasicAuthHeader(testApiKey, testApiSecretKey),
-    );
+      expect(response.status).toBe(200);
+      expect(response.body.userId).toBe(ownerUserId);
+    });
 
-    expect(result.status).toBe(405);
-    expect(result.body.error).toContain("Method not allowed");
+    it("should return 404 for a user that belongs to another organization", async () => {
+      const result = await makeAPICall<{ error: string }>(
+        "GET",
+        userProjectsUrl(outsideEmail),
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.error).toContain(
+        "User not found in this organization",
+      );
+    });
+
+    it("should return 404 for an unknown email", async () => {
+      const result = await makeAPICall<{ error: string }>(
+        "GET",
+        userProjectsUrl(
+          `nonexistent-${randomUUID().substring(0, 8)}@example.com`,
+        ),
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.error).toContain(
+        "User not found in this organization",
+      );
+    });
+
+    it("should return 400 for an invalid email", async () => {
+      const result = await makeAPICall<{ error: string }>(
+        "GET",
+        userProjectsUrl("not-an-email"),
+        undefined,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      expect(result.status).toBe(400);
+      expect(result.body.error).toContain("Invalid email");
+    });
+
+    it("should return 403 when using a project-scoped API key", async () => {
+      const projectApiKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: projectAId,
+        scope: "PROJECT",
+        note: "Test Project API Key",
+      });
+
+      const result = await makeAPICall<{ error: string }>(
+        "GET",
+        userProjectsUrl(ownerEmail),
+        undefined,
+        createBasicAuthHeader(projectApiKey.publicKey, projectApiKey.secretKey),
+      );
+
+      expect(result.status).toBe(403);
+      expect(result.body.error).toContain(
+        "Organization-scoped API key required",
+      );
+
+      await prisma.apiKey.delete({ where: { id: projectApiKey.id } });
+    });
+
+    it("should return 401 when using an invalid API key", async () => {
+      const result = await makeAPICall<{ error: string }>(
+        "GET",
+        userProjectsUrl(ownerEmail),
+        undefined,
+        createBasicAuthHeader("invalid-public-key", "invalid-secret-key"),
+      );
+
+      expect(result.status).toBe(401);
+    });
+
+    it("should return 405 for non-GET methods", async () => {
+      const result = await makeAPICall<{ error: string }>(
+        "POST",
+        userProjectsUrl(ownerEmail),
+        {},
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      expect(result.status).toBe(405);
+      expect(result.body.error).toContain("Method not allowed");
+    });
   });
 });

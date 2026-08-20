@@ -17,7 +17,7 @@ export default async function handler(
 
   if (req.method !== "GET") {
     logger.error(
-      `Method not allowed for ${req.method} on /api/public/organizations/memberships/user/[email]`,
+      `Method not allowed for ${req.method} on /api/public/organizations/memberships/[email]`,
     );
     return res.status(405).json({
       error: "Method not allowed",

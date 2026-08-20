@@ -7,7 +7,7 @@ import { resolveProjectRole } from "@langfuse/shared/src/server";
  *
  * Both surfaces of the user APIs are built on these functions:
  * - the instance admin API (`/api/admin/users/**`, ADMIN_API_KEY, self-hosted EE)
- * - the organization-scoped public API (`/api/public/organizations/memberships/user/**`)
+ * - the organization-scoped public API (`/api/public/organizations/memberships/{email}`)
  *
  * Keeping the queries here means email normalization, tenant scoping and role
  * resolution are decided once instead of per route. Route handlers only map the

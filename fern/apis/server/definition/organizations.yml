@@ -31,9 +31,11 @@ service:
       docs: |
         Get the projects a user of the organization associated with the API key has access to, including the access level per project (requires organization-scoped API key).
 
+        Tenant-scoped: results cover only the API key's own organization. For a cross-organization view of the organizations a user belongs to, use the admin API `GET /api/admin/users/{email}/organizations`.
+
         The email must be URL-encoded (e.g. `jane%40example.com`) and the lookup is case-insensitive. An explicit project role overrides the organization role; projects the user has no access to are omitted. Returns a 404 if the user is not a member of the organization.
       method: GET
-      path: /organizations/memberships/user/{email}
+      path: /organizations/memberships/{email}
       path-parameters:
         email:
           type: string

@@ -10,6 +10,8 @@ service:
       docs: |
         Get all organizations a user is a member of, looked up by user email.
 
+        Operator-scoped: results cover the whole instance, across all organizations. This is an administration endpoint, not an identity-provider (SCIM) integration; for a single organization's view of a user's project access, use `GET /api/public/organizations/memberships/{email}`.
+
         The email must be URL-encoded (e.g. `jane%40example.com`) and the lookup is
         case-insensitive. Responds with the user's id, email, and name, plus every
         organization the user belongs to including the user's role in each.
