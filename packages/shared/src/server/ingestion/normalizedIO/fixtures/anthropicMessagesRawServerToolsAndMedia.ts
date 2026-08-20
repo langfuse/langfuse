@@ -283,6 +283,7 @@ export const anthropicMessagesRawServerToolsAndMediaFixture = {
             providerMetadata: { server_name: "reports" },
           },
         ],
+        finishReason: { type: "tool-calls", raw: "tool_use" },
         source: "output",
       },
     ],

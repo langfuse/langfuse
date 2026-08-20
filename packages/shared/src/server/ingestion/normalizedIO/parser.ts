@@ -7,6 +7,7 @@ import {
 } from "../../../utils/IORepresentation/chatML/types";
 import type {
   FilePart,
+  FinishReason,
   JsonObject,
   JsonValue,
   NormalizedIO,
@@ -350,6 +351,47 @@ function omitKeys(
   return Object.fromEntries(
     Object.entries(record).filter(([key]) => !keys.includes(key)),
   );
+}
+
+// Provider finish/stop vocabularies -> the canonical FinishReason set.
+// Lookups are lowercased (Gemini reports uppercase values).
+const FINISH_REASON_TYPE_BY_RAW: Record<string, FinishReason["type"]> = {
+  // OpenAI chat completions
+  stop: "stop",
+  length: "length",
+  tool_calls: "tool-calls",
+  function_call: "tool-calls",
+  content_filter: "content-filter",
+  // Anthropic
+  end_turn: "stop",
+  stop_sequence: "stop",
+  max_tokens: "length",
+  tool_use: "tool-calls",
+  refusal: "content-filter",
+  pause_turn: "other",
+  // Gemini
+  safety: "content-filter",
+  recitation: "content-filter",
+  blocklist: "content-filter",
+  prohibited_content: "content-filter",
+  spii: "content-filter",
+  malformed_function_call: "error",
+  // AI SDK / OTel GenAI variants
+  tool_call: "tool-calls",
+  "tool-calls": "tool-calls",
+  "content-filter": "content-filter",
+  error: "error",
+  other: "other",
+  unknown: "unknown",
+};
+
+function normalizeFinishReason(raw: unknown): FinishReason | undefined {
+  const value = optionalString(raw);
+  if (!value) return undefined;
+  return {
+    type: FINISH_REASON_TYPE_BY_RAW[value.toLowerCase()] ?? "unknown",
+    raw: value,
+  };
 }
 
 /** String payloads become visible reasoning text; everything else is data. */
@@ -1004,6 +1046,13 @@ function normalizeMessage(
     }
   }
 
+  // Anthropic carries stop_reason on the response envelope beside `content`;
+  // some instrumentation flattens finish_reason onto the message itself.
+  // Choice/candidate-level values are wired in by collectMessages.
+  const finishReason = normalizeFinishReason(
+    value.stop_reason ?? value.finish_reason ?? value.finishReason,
+  );
+
   return parts.length > 0
     ? {
         ...(optionalString(value.id) ? { id: String(value.id) } : {}),
@@ -1014,6 +1063,7 @@ function normalizeMessage(
           : {}),
         role,
         parts,
+        ...(finishReason ? { finishReason } : {}),
         source,
       }
     : null;
@@ -1234,9 +1284,19 @@ function collectMessages(
   const candidates = parseArray(record.candidates);
   if (kind === "output" && candidates) {
     for (const candidate of candidates) {
-      const content = asRecord(candidate)?.content;
-      const message = normalizeMessage(content, "assistant", kind);
-      if (message) addMessage(accumulator, message);
+      const candidateRecord = asRecord(candidate);
+      const message = normalizeMessage(
+        candidateRecord?.content,
+        "assistant",
+        kind,
+      );
+      if (!message) continue;
+      // Gemini reports the finish reason on the candidate, not the content.
+      const finishReason =
+        normalizeFinishReason(
+          candidateRecord?.finishReason ?? candidateRecord?.finish_reason,
+        ) ?? message.finishReason;
+      addMessage(accumulator, compact({ ...message, finishReason }));
     }
     collectedNestedMessages = true;
   }
@@ -1244,12 +1304,18 @@ function collectMessages(
   const choices = parseArray(record.choices);
   if (kind === "output" && choices) {
     for (const choice of choices) {
+      const choiceRecord = asRecord(choice);
       const message = normalizeMessage(
-        asRecord(choice)?.message,
+        choiceRecord?.message,
         "assistant",
         kind,
       );
-      if (message) addMessage(accumulator, message);
+      if (!message) continue;
+      // OpenAI chat reports the finish reason on the choice, not the message.
+      const finishReason =
+        normalizeFinishReason(choiceRecord?.finish_reason) ??
+        message.finishReason;
+      addMessage(accumulator, compact({ ...message, finishReason }));
     }
     collectedNestedMessages = true;
   }

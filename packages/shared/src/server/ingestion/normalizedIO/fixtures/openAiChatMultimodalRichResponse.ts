@@ -221,6 +221,8 @@ export const openAiChatMultimodalRichResponseFixture = {
             },
           },
         ],
+        // The finish reason lives on the choice, not the message.
+        finishReason: { type: "stop", raw: "stop" },
         source: "output",
       },
     ],

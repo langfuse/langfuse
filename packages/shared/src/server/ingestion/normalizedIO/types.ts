@@ -108,15 +108,37 @@ export type NormalizedMessageRole =
   | "user"
   | "assistant"
   | "tool"
-  | "unknown"; // unknown = declared but unrecognized (eg. role: "agent_7"). Consider if this is the best mapping.
+  // unknown = declared but unrecognized (eg. role: "agent_7"). Consider if
+  // this is the best mapping.
+  | "unknown";
+
+/**
+ * How the model's turn ended, canonicalized across providers so consumers
+ * filter one vocabulary (e.g. "all length-truncated observations"). `raw`
+ * keeps the provider's verbatim value, so canonicalization loses nothing
+ * (e.g. { type: "stop", raw: "stop_sequence" } vs natural completion).
+ */
+export type FinishReason = {
+  type:
+    | "stop"
+    | "length"
+    | "tool-calls"
+    | "content-filter"
+    | "error"
+    | "other"
+    | "unknown";
+  raw: string;
+};
 
 export type NormalizedMessage = {
   id?: string;
   role: NormalizedMessageRole;
   name?: string;
   parts: NormalizedMessagePart[];
+  // Turn metadata, not conversation content — a message field rather than a
+  // part so text extraction, rendering, and tool-column paths stay untouched.
+  finishReason?: FinishReason;
   // Preserves the observation input/output boundary in one ordered stream.
-  // TODO: not yet part of the canonical normalized-IO format; upstream or fold.
   source: "input" | "output";
 };
 

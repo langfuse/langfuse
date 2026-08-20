@@ -1391,6 +1391,7 @@ export const pydanticAiProductionShapeFixture = {
             },
           },
         ],
+        finishReason: { type: "tool-calls", raw: "tool_call" },
         source: "output",
       },
     ],
