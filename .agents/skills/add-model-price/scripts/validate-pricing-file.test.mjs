@@ -4,8 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const validatorPath = new URL("./validate-pricing-file.mjs", import.meta.url);
+const validatorPath = fileURLToPath(
+  new URL("./validate-pricing-file.mjs", import.meta.url),
+);
 
 function model({ id, modelName, matchPattern, tokenizerId = null, prices }) {
   return {
@@ -43,7 +46,7 @@ async function runValidator(currentModels, baseModels) {
     ]);
     return spawnSync(
       process.execPath,
-      [validatorPath.pathname, currentPath, "--base", basePath],
+      [validatorPath, currentPath, "--base", basePath],
       { encoding: "utf8" },
     );
   } finally {
@@ -193,7 +196,7 @@ test("rejects an unknown explicitly selected model", () => {
   const result = spawnSync(
     process.execPath,
     [
-      validatorPath.pathname,
+      validatorPath,
       "worker/src/constants/default-model-prices.json",
       "--usage-key-model",
       "not-a-catalog-model",
