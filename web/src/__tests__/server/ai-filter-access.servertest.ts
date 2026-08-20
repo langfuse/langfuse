@@ -5,15 +5,17 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import type { Session } from "next-auth";
-import type * as SharedServerModule from "@langfuse/shared/src/server";
+import type * as LangfuseAiCompletion from "@langfuse/shared/src/server/llm/langfuseAiCompletion";
 
 const llmMocks = vi.hoisted(() => ({
   generateLangfuseAIText: vi.fn(async () => "[]"),
 }));
 
-vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual<typeof SharedServerModule>(
-    "@langfuse/shared/src/server",
+// Mock the implementation module, not the shared server barrel: the barrel is
+// also imported by `@langfuse/shared/src/db`, and mocking it breaks Prisma setup.
+vi.mock("@langfuse/shared/src/server/llm/langfuseAiCompletion", async () => {
+  const actual = await vi.importActual<typeof LangfuseAiCompletion>(
+    "@langfuse/shared/src/server/llm/langfuseAiCompletion",
   );
   return {
     ...actual,
