@@ -7,7 +7,6 @@ import {
   JobConfigState,
   singleFilter,
   isWebhookActionConfig,
-  isSafeWebhookActionConfig,
   TriggerEventSource,
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
@@ -16,7 +15,6 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { v4 } from "uuid";
 import {
   convertActionToDomain,
-  getActionById,
   getAutomations,
   getAutomationById,
   getConsecutiveAutomationFailures,
