@@ -15,9 +15,11 @@ import {
 } from "@/src/components/ui/table";
 import {
   useCopyMigrationPrompt,
+  useHasV4MigrationDeadline,
   V4MigrationDeadlineNote,
   V4MigrationDocsLink,
   V4_MIGRATION_DEADLINE,
+  V4_MIGRATION_SELF_HOSTED_CUTOFF,
 } from "@/src/features/v4-migration/V4MigrationContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
@@ -474,6 +476,7 @@ export default function V4MigrationStatusPage() {
 function V4MigrationStatusPageContent() {
   const session = useSession();
   const handleCopyPrompt = useCopyMigrationPrompt();
+  const hasDeadline = useHasV4MigrationDeadline();
 
   const orgs: V4MigrationOrganization[] =
     session.data?.user?.organizations?.map((org) => ({
@@ -532,8 +535,13 @@ function V4MigrationStatusPageContent() {
           Yes, eventually. The{" "}
           <FaqLink href={SDK_UPGRADE_URL}>old SDKs</FaqLink>, trace-level evals,
           and APIs are frozen and stop working{" "}
-          <span className="underline">on {V4_MIGRATION_DEADLINE}</span>. They
-          keep running until then, but we&apos;re no longer fixing bugs in them.
+          <span className="underline">
+            {hasDeadline
+              ? `on ${V4_MIGRATION_DEADLINE}`
+              : V4_MIGRATION_SELF_HOSTED_CUTOFF}
+          </span>
+          . They keep running until then, but we&apos;re no longer fixing bugs
+          in them.
         </>
       ),
     },
@@ -558,8 +566,12 @@ function V4MigrationStatusPageContent() {
       q: "What if I do nothing?",
       a: (
         <>
-          <span className="underline">On {V4_MIGRATION_DEADLINE}</span>, old
-          SDKs stop sending data, and the{" "}
+          <span className="underline">
+            {hasDeadline
+              ? `On ${V4_MIGRATION_DEADLINE}`
+              : "Once your administrator disables the legacy mode"}
+          </span>
+          , old SDKs stop sending data, and the{" "}
           <FaqLink href={API_REFERENCE_URL}>
             deprecated evals and endpoints
           </FaqLink>{" "}
@@ -690,6 +702,7 @@ function V4MigrationStatusPageContent() {
 // mode, post-rollout auto-enrollment).
 function SwitchBackSection() {
   const { canToggleV4, isBetaEnabled } = useV4Beta();
+  const hasDeadline = useHasV4MigrationDeadline();
 
   if (!canToggleV4) {
     return null;
@@ -705,9 +718,11 @@ function SwitchBackSection() {
       <div className="flex flex-col gap-4 pt-4">
         {isBetaEnabled && (
           <p className="text-muted-foreground text-sm leading-relaxed">
-            The features powering the legacy v3 UI will be sunset on{" "}
-            {V4_MIGRATION_DEADLINE}. We strongly recommend switching to the
-            latest UI (v4) before then.
+            The features powering the legacy v3 UI will be sunset{" "}
+            {hasDeadline
+              ? `on ${V4_MIGRATION_DEADLINE}`
+              : V4_MIGRATION_SELF_HOSTED_CUTOFF}
+            . We strongly recommend switching to the latest UI (v4) before then.
           </p>
         )}
         <V4PreviewToggleRow />

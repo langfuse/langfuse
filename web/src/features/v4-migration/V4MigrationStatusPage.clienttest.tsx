@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   lastTracePending: false,
   canToggleV4: true,
   isBetaEnabled: false,
+  // Cloud is bound by the dated v3 sunset; self-hosted is not.
+  hasDeadline: true,
 }));
 
 vi.mock("next/router", () => ({
@@ -75,7 +77,10 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   V4_MIGRATION_DEADLINE: "November 16, 2026",
+  V4_MIGRATION_SELF_HOSTED_CUTOFF:
+    "once your administrator disables the legacy mode",
   useCopyMigrationPrompt: () => vi.fn(),
+  useHasV4MigrationDeadline: () => mocks.hasDeadline,
   // Stand-ins for the shared sidebar copy: the real components are covered in
   // V4MigrationContent.clienttest.tsx, here we only assert they are rendered.
   V4MigrationDocsLink: () => (
@@ -161,6 +166,7 @@ describe("V4MigrationStatusPage", () => {
     mocks.evalCount = 1;
     mocks.lastTracePending = false;
     mocks.canToggleV4 = true;
+    mocks.hasDeadline = true;
     mocks.isBetaEnabled = false;
   });
 
@@ -298,6 +304,36 @@ describe("V4MigrationStatusPage", () => {
     expect(screen.getByText("on November 16, 2026")).toBeInTheDocument();
     expect(screen.getByText("On November 16, 2026")).toBeInTheDocument();
     expect(screen.queryByText(/Oct 9/)).not.toBeInTheDocument();
+  });
+
+  it("replaces the FAQ deadline with the operator cutoff when self-hosted", () => {
+    // Nothing happens to a self-hosted deployment on the Cloud sunset date, so
+    // the FAQ has to point at the operator's own write-mode switch instead.
+    mocks.hasDeadline = false;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.getByText("once your administrator disables the legacy mode"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Once your administrator disables the legacy mode"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/on November 16, 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/On November 16, 2026/)).not.toBeInTheDocument();
+  });
+
+  it("drops the dated sunset from the switch-back warning when self-hosted", () => {
+    mocks.isBetaEnabled = true;
+    mocks.hasDeadline = false;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.getByText(
+        /The features powering the legacy v3 UI will be sunset once your administrator disables the legacy mode\./,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("only shows the status pill when action is required", () => {

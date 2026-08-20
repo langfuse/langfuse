@@ -217,6 +217,31 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 
+  it("rejects enabling the V4 migration UI on a self-hosted events_only deployment", async () => {
+    // events_only forces v4BetaEnabled on, which used to satisfy the generic
+    // self-hosted bypass and let an enable write a flag entry that parseFlags
+    // then ignores forever. The migration UI is off here, so reject instead.
+    const { caller, userId } = await createCaller({
+      featureFlags: ["templateFlag"],
+      v4BetaEnabled: true,
+    });
+    selfHostedDualWithPreviewOptIn();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+
+    await expect(
+      caller.userAccount.setFeaturePreviewEnabled({
+        flag: "v4UpgradeUi",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { featureFlags: true },
+    });
+    expect(user.featureFlags).toEqual(["templateFlag"]);
+  });
+
   it("still rejects enabling other previews on a self-hosted dual deployment", async () => {
     // The v4 migration UI carve-out must not widen the precondition for the
     // previews that do depend on the events-backed read path.
@@ -238,11 +263,14 @@ async function createCaller({
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
   emailDomain = "example.com",
+  v4BetaEnabled = false,
 }: {
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
   featureFlags?: string[];
   includeProjectInSession?: boolean;
+  // Mirrors what the auth session callback reports; events_only forces it on.
+  v4BetaEnabled?: boolean;
   // Domain only — the local part is always unique so reruns against the same
   // database do not trip the users.email unique constraint.
   emailDomain?: string;
@@ -319,6 +347,7 @@ async function createCaller({
         experimentsV4Enabled: false,
       },
       admin: false,
+      v4BetaEnabled,
     },
     environment: {
       enableExperimentalFeatures: false,

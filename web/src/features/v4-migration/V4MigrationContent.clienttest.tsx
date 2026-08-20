@@ -1222,6 +1222,22 @@ describe("V4MigrationHeaderContent", () => {
     ).toHaveAttribute("href", "https://langfuse.com/docs/v4#timeline");
   });
 
+  it("drops the dated deadline for self-hosted deployments", () => {
+    // The date is a Cloud commitment: a self-hosted deployment keeps its legacy
+    // surfaces until its own operator moves the write mode off dual.
+    mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    render(<V4MigrationHeaderContent readiness="action-needed" />);
+
+    expect(screen.getByText(/features may stop working/)).toHaveTextContent(
+      "Some features may stop working without an upgrade once your administrator disables the legacy mode.",
+    );
+    expect(screen.queryByText(/November 16, 2026/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "November 16, 2026" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("reserves a close-button gutter on the title row when the host asks", () => {
     // The modal host floats the dialog's fallback close button over the
     // body's top-right corner; without the gutter it overlaps the title.

@@ -128,13 +128,16 @@ export const userAccountRouter = createTRPCRouter({
           env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
       });
 
+      // The v4 migration UI has its own availability rule and must not ride the
+      // generic self-hosted bypass below: on a self-hosted `events_only`
+      // deployment `v4BetaEnabled` is forced on while the migration UI is
+      // deliberately off, and the bypass would let an enable write a raw flag
+      // entry that `parseFlags` then ignores forever. Gate it solely on its own
+      // availability so the write path agrees with the read path.
       const canEnableFeaturePreviews =
-        isLangfuseCloud ||
-        ctx.session.user.v4BetaEnabled === true ||
-        // The v4 migration UI is not part of the events-backed preview: it is on
-        // by default wherever the deployment can act on the migration, so a user
-        // who opted out has to be able to opt back in.
-        (input.flag === "v4UpgradeUi" && v4UpgradeUiAvailable);
+        input.flag === "v4UpgradeUi"
+          ? v4UpgradeUiAvailable
+          : isLangfuseCloud || ctx.session.user.v4BetaEnabled === true;
 
       if (input.enabled && !canEnableFeaturePreviews) {
         throw new TRPCError({

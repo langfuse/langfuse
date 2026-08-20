@@ -32,6 +32,20 @@ export function ControlledFeaturePreviewModal({
   const { isBetaEnabled } = useV4Beta();
   const v4UpgradeUiAvailable =
     authSession.data?.user?.v4UpgradeUiAvailable === true;
+  // Each write mode is unavailable for a different reason, and the advice has to
+  // match: telling an events_only operator to switch to dual would resume the
+  // legacy writes their deployment already finished migrating away from.
+  const v4UpgradeUiWarningReason = (): string | undefined => {
+    if (v4UpgradeUiAvailable) return undefined;
+    switch (authSession.data?.environment.v4WriteMode) {
+      case "events_only":
+        return "This deployment already writes the v4 events tables only, so the migration is complete and there is nothing left to act on.";
+      case "legacy":
+        return "This deployment runs LANGFUSE_MIGRATION_V4_WRITE_MODE=legacy, so it does not write the v4 events tables the migration surfaces read.";
+      default:
+        return "Set LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true so this deployment can opt into the v4 read path.";
+    }
+  };
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
@@ -78,9 +92,7 @@ export function ControlledFeaturePreviewModal({
       // only reason to see it off is an opt-out — or a deployment that cannot
       // act on it at all, which the toggle has to explain rather than reject.
       disabled: !v4UpgradeUiAvailable,
-      warningReason: !v4UpgradeUiAvailable
-        ? "The V4 Migration experience is only available on deployments that write the v4 events tables. Set LANGFUSE_MIGRATION_V4_WRITE_MODE=dual and LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true to enable it."
-        : undefined,
+      warningReason: v4UpgradeUiWarningReason(),
       onToggle: onToggle("v4UpgradeUi"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
