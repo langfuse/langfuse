@@ -726,7 +726,31 @@ describe("in-app agent background runs", () => {
     });
     expect(decisionEvent.event).toMatchObject({
       name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
-      value: { toolCallId: "tool-call-grant" },
+      value: {
+        toolCallId: "tool-call-grant",
+        approved: true,
+        alwaysAllow: true,
+        toolName: "langfuse_createTextPrompt",
+      },
+    });
+
+    const onceDecisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
+      where: {
+        projectId,
+        conversationId: onceConversation.id,
+        runId: onceRunId,
+      },
+      orderBy: { sequenceNumber: "desc" },
+    });
+    expect(onceDecisionEvent.event).toMatchObject({
+      name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+      value: {
+        toolCallId: "tool-call-once",
+        approved: true,
+      },
+    });
+    expect(onceDecisionEvent.event).not.toMatchObject({
+      value: { alwaysAllow: true },
     });
   });
 

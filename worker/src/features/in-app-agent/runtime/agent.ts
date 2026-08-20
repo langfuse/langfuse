@@ -41,6 +41,7 @@ import {
   getInAppAgentRegistryToolName,
   type InAppAgentToolPolicy,
   withInAppAgentToolApproval,
+  withInAppAgentToolApprovalSidecars,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
@@ -685,7 +686,14 @@ export async function createAgUiStream(params: {
               );
 
               recordInstrumentation("recordEvents", (instrumentation) =>
-                instrumentation.recordEvents(agUiEvents),
+                instrumentation.recordEvents(
+                  withInAppAgentToolApprovalSidecars({
+                    events: agUiEvents,
+                    policy: params.options.langfuseMcp.toolPolicy,
+                    humanApprovedToolCallId:
+                      runInput.toolCallApproval?.toolCallId,
+                  }),
+                ),
               );
 
               for (const agUiEvent of agUiEvents) {
@@ -715,7 +723,14 @@ export async function createAgUiStream(params: {
                       ),
                   );
                   recordInstrumentation("recordEvents", (instrumentation) =>
-                    instrumentation.recordEvents(pendingSyntheticEvents),
+                    instrumentation.recordEvents(
+                      withInAppAgentToolApprovalSidecars({
+                        events: pendingSyntheticEvents,
+                        policy: params.options.langfuseMcp.toolPolicy,
+                        humanApprovedToolCallId:
+                          runInput.toolCallApproval?.toolCallId,
+                      }),
+                    ),
                   );
                   for (const syntheticEvent of pendingSyntheticEvents) {
                     enqueueEvent(syntheticEvent);
