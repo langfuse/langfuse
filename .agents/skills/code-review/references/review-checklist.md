@@ -21,6 +21,7 @@ This is the canonical shared review checklist for Langfuse.
 
 - Most `schema.prisma` changes should produce a change in `packages/shared/prisma/migrations`.
 - All Prisma queries on project-scoped tables must include `projectId` in the WHERE clause (e.g., `where: { id: traceId, projectId }`) to ensure proper tenant isolation and that queries only access data from the intended project.
+- Raw SQL that references the `datasets` table, including joins and CTEs, must not use `SELECT *` or `table.*`; use an explicit safe column projection. Aggregate expressions such as `COUNT(*)` are fine. Access secret-bearing dataset fields only through the centralized remote experiment delivery helper.
 
 ### Environment Variables
 
@@ -59,6 +60,12 @@ This is the canonical shared review checklist for Langfuse.
 - For changes that add a new integration, secret-bearing field, redirect
   follower, or RBAC scope, run the rest of the
   [`security-review/references/checklist.md`](../../security-review/references/checklist.md).
+- For changes that shape what a read route returns — a repository or domain
+  converter, a `Safe*` type, a response projection — a catch-all branch that
+  returns the stored value for unhandled types, or an `as Safe*` assertion
+  standing in place of a sanitizer, is a finding: feature read scopes are held
+  by VIEWER. See
+  [`security-review/references/secret-read-paths.md`](../../security-review/references/secret-read-paths.md).
 
 ## JavaScript / TypeScript Style
 

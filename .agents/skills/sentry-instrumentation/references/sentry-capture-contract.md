@@ -7,6 +7,7 @@ the detail behind its rules.
 ## Contents
 
 - [Where Sentry is wired](#where-sentry-is-wired)
+- [PII and the HIPAA compliance boundary](#pii-and-the-hipaa-compliance-boundary)
 - [The shared capture helpers](#the-shared-capture-helpers)
 - [beforeSend / denylist authoring protocol](#beforesend--denylist-authoring-protocol)
 - [Fingerprinting, tagging, messages](#fingerprinting-tagging-messages)
@@ -17,7 +18,7 @@ the detail behind its rules.
 
 - **The only `Sentry.init`** is [`web/instrumentation-client.ts`](../../../../web/instrumentation-client.ts)
   — client-side only. It configures `beforeSend`, `captureConsoleIntegration({ levels: ["error"] })`,
-  `httpClientIntegration()`, `replayIntegration(...)` (masking gated on region/HIPAA),
+  `httpClientIntegration()`, `replayIntegration(...)` (unconditional masking),
   and `denyUrls` (browser-extension origins).
 - **The worker and web server have no Sentry SDK** — backend signal lives in the
   server-side observability/APM stack, not Sentry. Do not assume a backend error
@@ -34,6 +35,43 @@ the detail behind its rules.
   PR #15243 drops expected `data.code`s (`NOT_FOUND` / `FORBIDDEN` /
   `UNAUTHORIZED`) there with a breadcrumb and tags the rest
   (`trpc.code` / `trpc.path`).
+
+## PII and the HIPAA compliance boundary
+
+ALL cloud regions — **including HIPAA** — report to the **same US Sentry org**.
+Two mechanisms keep user content (prompts, traces, PII/PHI) out of it, and they
+cover **different channels**. Do not conflate them.
+
+1. **Session Replay → the unconditional mask.**
+   [`instrumentation-client.ts`](../../../../web/instrumentation-client.ts)
+   configures `replayIntegration({ maskAllText, maskAllInputs, blockAllMedia })`
+   so replays are **fully masked in every deployment**. The mask must never be
+   removed or weakened, and it must be covered by a CI regression test that
+   executes the real module per region and fails on any change to the options
+   (the mask-guard `instrumentation-client-replay-mask.clienttest.ts`; landing
+   with #15802). A diff that trips that guard is a compliance change, not a
+   broken test; a diff that touches Replay masking without the guard passing
+   must be rejected.
+2. **Error events → the capture discipline (SKILL rule 7).** The mask covers
+   Session Replay ONLY. Error-event payloads — message, breadcrumbs, `extra`,
+   tags — are **not masked in any region**. The rule "no user content in
+   messages/extra/tags" IS the compliance boundary for error events; there is
+   no downstream scrub to catch a leak. `sendDefaultPii` stays unset (false),
+   so the SDK attaches no cookies, headers, request/response bodies, or user
+   IP.
+
+**Reviewer checklist — any diff touching `instrumentation-client.ts` or the
+replay integration:**
+
+- `maskAllText`, `maskAllInputs`, and `blockAllMedia` remain `true` in every
+  deployment, and the mask-guard clienttest (landing with #15802) asserts
+  against the real module — not a copy of the config or an uncalled predicate.
+- No new replay option weakens masking (e.g.
+  `maskAllInputs: false`, unmask/unblock selectors).
+- `sendDefaultPii` remains unset/false; no integration starts attaching
+  bodies, headers, or cookies.
+- Changes to the mask-guard test itself (skipped cases, loosened assertions,
+  region list edits) are reviewed as compliance changes.
 
 ## The shared capture helpers
 

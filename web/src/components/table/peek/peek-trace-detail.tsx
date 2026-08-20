@@ -2,15 +2,16 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 import {
+  TraceDetailActions,
   TraceDetailBody,
   traceDetailTitle,
-} from "@/src/components/trace/TraceDetailBody";
+} from "@/src/features/traces";
 import {
   TablePeekView,
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
-import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { buildTracePath } from "@langfuse/shared";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -46,8 +47,12 @@ export const TablePeekViewTraceDetail = (
     ? {
         traceId: trace.data.id,
         projectId: trace.data.projectId,
-        bookmarked: trace.data.bookmarked,
         isPublic: trace.data.public,
+        shareUrl: buildTracePath({
+          projectId: trace.data.projectId,
+          traceId: trace.data.id,
+          timestamp,
+        }),
         name: trace.data.name,
         timestamp,
         onAfterDelete: (deletedTraceId: string) => {
@@ -71,7 +76,11 @@ export const TablePeekViewTraceDetail = (
         ) : undefined
       }
     >
-      <TraceDetailBody trace={trace.data} context="peek" />
+      <TraceDetailBody
+        trace={trace.data}
+        context="peek"
+        truncatedAtObservations={trace.truncatedAtObservations}
+      />
     </TablePeekView>
   );
 };

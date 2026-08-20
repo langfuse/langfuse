@@ -1,6 +1,6 @@
 ---
 name: langfuse-codebase-navigator
-description: Navigate Langfuse repositories, code areas, and agent skills. Use when a user or agent asks where Langfuse code lives, which Langfuse repo to inspect, which Langfuse skill applies, how to search across Langfuse repositories, or how to orient in the Langfuse org before implementing, debugging, documenting, supporting, or operating Langfuse.
+description: Navigate Langfuse repositories, code areas, and agent skills. Use to locate code, choose the right repo or skill, search across the Langfuse organization, or orient before implementation, debugging, documentation, support, or operations.
 ---
 
 # Langfuse Codebase Navigator
@@ -25,6 +25,7 @@ Use this as the first stop for Langfuse org navigation. Your job is to choose th
 ## Quick Skill Routing
 
 - Product implementation in `langfuse/langfuse`: choose the matching repo-local skill under `.agents/skills`, such as `backend-dev-guidelines`, `frontend-browser-review`, `clickhouse-best-practices`, `add-model-price`, `turborepo`, `pnpm-upgrade-package`, `code-review`, or production-debug skills as applicable.
+- Cursor Cloud or Cursor desktop agents implementing a Linear issue, opening a PR, asking a human to test, or handling Claude, Greptile, or Codex review comments: use `cursor-agents-workflow`.
 - Frontend work under `langfuse/langfuse/web`: also check `web/.agents/skills/vercel-react-best-practices` and `web/.agents/skills/vercel-composition-patterns`.
 - Infrastructure autoscaling or cloud capacity: use `infra-scaling`.
 - Public Langfuse usage, docs lookup, API access, instrumentation, prompt migration, SDK upgrade, trace analysis, or CLI work: use the public `langfuse` skill from `langfuse/skills`.

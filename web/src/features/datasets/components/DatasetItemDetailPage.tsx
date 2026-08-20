@@ -21,8 +21,12 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
-import { getDatasetItemTabs } from "@/src/features/navigation/utils/dataset-item-tabs";
+import {
+  getDatasetItemTabs,
+  DATASET_ITEM_TABS,
+} from "@/src/features/navigation/utils/dataset-item-tabs";
 import { type DatasetItemTab } from "@/src/features/navigation/utils/dataset-item-tabs";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { type ReactNode } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
@@ -48,6 +52,13 @@ export const DatasetItemDetailPage = ({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const { selectedVersion } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
+
+  // The per-item "Experiments" (runs) tab reads legacy dataset_run_items and
+  // has no events-backed equivalent, so hide it for fast-preview (v4) users.
+  const { isExperimentsBetaActive } = useExperimentAccess();
+  const tabs = getDatasetItemTabs({ projectId, datasetId, itemId }).filter(
+    (tab) => !isExperimentsBetaActive || tab.value !== DATASET_ITEM_TABS.RUNS,
+  );
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -131,7 +142,7 @@ export const DatasetItemDetailPage = ({
           },
         ],
         tabsProps: {
-          tabs: getDatasetItemTabs({ projectId, datasetId, itemId }),
+          tabs,
           activeTab,
         },
         actionButtonsLeft: (

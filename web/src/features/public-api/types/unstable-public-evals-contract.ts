@@ -12,6 +12,7 @@ import {
   timeFilter,
   experimentEvalFilterColumns,
   booleanFilter,
+  langfuseObjects,
 } from "@langfuse/shared";
 import { CODE_EVAL_SOURCE_MAX_BYTES } from "@langfuse/shared/src/server";
 import { z } from "zod";
@@ -79,6 +80,11 @@ export const PublicEvaluatorOutputDefinition = z.discriminatedUnion(
 );
 
 export const PublicEvaluationRuleTarget = z.enum(["observation", "experiment"]);
+export const PublicEvaluationRuleLegacyTarget = z.enum(["trace", "dataset"]);
+export const PublicEvaluationRuleReadTarget = z.union([
+  PublicEvaluationRuleTarget,
+  PublicEvaluationRuleLegacyTarget,
+]);
 
 export const PublicEvaluationRuleStatus = z.enum([
   "active",
@@ -152,6 +158,14 @@ export const PublicEvaluationRuleMapping = z.union([
   ObservationEvaluationRuleMapping,
   ExperimentEvaluationRuleMapping,
 ]);
+
+export const LegacyEvaluationRuleMapping = z.object({
+  variable: z.string().min(1),
+  langfuseObject: z.enum(langfuseObjects),
+  objectName: z.string().nullable(),
+  source: z.string().min(1),
+  jsonPath: z.string().min(1).optional(),
+});
 
 const filterSchemaFactories = {
   datetime: (columnId: string) =>
@@ -235,6 +249,12 @@ export type PublicEvaluatorScopeType = z.infer<typeof PublicEvaluatorScope>;
 export type PublicEvaluationRuleTargetType = z.infer<
   typeof PublicEvaluationRuleTarget
 >;
+export type PublicEvaluationRuleLegacyTargetType = z.infer<
+  typeof PublicEvaluationRuleLegacyTarget
+>;
+export type PublicEvaluationRuleReadTargetType = z.infer<
+  typeof PublicEvaluationRuleReadTarget
+>;
 export type PublicEvaluationRuleStatusType = z.infer<
   typeof PublicEvaluationRuleStatus
 >;
@@ -246,6 +266,9 @@ export type PublicEvaluationRuleEvaluatorType = z.infer<
 >;
 export type PublicEvaluationRuleMappingType = z.infer<
   typeof PublicEvaluationRuleMapping
+>;
+export type LegacyEvaluationRuleMappingType = z.infer<
+  typeof LegacyEvaluationRuleMapping
 >;
 export type PublicEvaluationRuleFilterType = z.infer<
   typeof PublicEvaluationRuleFilter

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import TagCommandItem from "@/src/features/tag/components/TagCommandItem";
 import TagCreateItem from "@/src/features/tag/components/TagCreateItem";
 import { TagInput } from "@/src/features/tag/components/TagInput";
@@ -15,7 +16,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Label } from "@/src/components/ui/label";
 
 type TagManagerProps = {
-  itemName: "prompt" | "trace" | "monitor";
+  itemName: "prompt" | "trace" | "alert";
   tags: string[];
   allTags: string[];
   hasAccess: boolean;

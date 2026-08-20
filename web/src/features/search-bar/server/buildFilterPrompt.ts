@@ -80,43 +80,63 @@ function fieldCatalogLine(field: FieldDef): string {
 }
 
 /**
- * Build the full system prompt. `currentDatetime` anchors relative time
- * expressions ("today", "last 24h") to the request time. `currentQuery`, when
- * present, is the user's existing filters (in this same syntax) so the model
- * REFINES them and returns the complete updated set.
+ * The column catalog block: one line per registry field with its id,
+ * aliases, unit, description, and the exact type/operators/value shape it
+ * lowers to. Registry-derived so it can never drift from the grammar.
+ *
+ * Shared by the code-built system prompt (`buildFilterSystemPrompt`) AND the
+ * managed-prompt compile path (`{{catalog}}` in the Langfuse-hosted prompt)
+ * — both must see the identical catalog text.
  */
-export function buildFilterSystemPrompt(
-  currentDatetime: string,
-  currentQuery?: string,
-  dataContext?: string,
-): string {
-  const catalog = FIELDS.map(fieldCatalogLine).join("\n");
-  const nullableIds = FIELDS.filter((f) => f.nullable).map((f) => f.id);
-  const refine = (currentQuery ?? "").trim();
-  const data = (dataContext ?? "").trim();
-  const dataSection =
-    data.length > 0
-      ? `\n## Observed project data\n\nMap the request to the columns, values, and metadata keys that ACTUALLY appear below — prefer an observed value/metadata key over guessing a column. If a phrase matches a metadata key, use \`metadata.<key>\`. Do not invent values that aren't here unless the user gave a literal one.\n\n${data}\n`
-      : "";
-  const refineSection =
-    refine.length > 0
-      ? `\n## Current filters — REFINE, do not replace
+export function buildFieldCatalog(): string {
+  return FIELDS.map(fieldCatalogLine).join("\n");
+}
 
-The user ALREADY has these filters applied (same syntax as your output):
-\`${refine}\`
+/**
+ * Comma-joined ids of the fields that support null checks (`is null` /
+ * `is not null`). Registry-derived for the same reason as `buildFieldCatalog`
+ * — shared verbatim by the code-built prompt and the `{{nullable_ids}}`
+ * managed-prompt variable.
+ */
+export function nullableFieldIds(): string {
+  return FIELDS.filter((f) => f.nullable)
+    .map((f) => f.id)
+    .join(", ");
+}
 
-The new request is an EDIT to this set, not a fresh start. Rules:
-- KEEP every existing filter unless the request explicitly removes it or directly contradicts it.
-- ADD a filter for whatever the request narrows down to.
-- Only modify or drop a filter the request actually targets.
-
-A phrase like "only X" / "just X" / "show me X" / "narrow to X" means ADD an X filter ON TOP OF the current ones — it does NOT mean discard the rest. Return the COMPLETE resulting array (existing filters that remain PLUS any new ones), never just the new delta.
-
-Worked example — current filters \`level:ERROR\`, request "only in production":
-you return BOTH filters, not just environment:
-[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]
-`
-      : "";
+/**
+ * Build the STATIC system prompt: role, output format, column catalog, and
+ * all fixed rules/examples, anchored to `currentDatetime` (so relative time
+ * expressions like "today" / "last 24h" resolve against the request time).
+ * This includes the "## Refining existing filters" rules — those are
+ * instructions on HOW to use the current filters, not the filters
+ * themselves, so they belong in the system prompt and stay unconditionally
+ * present. They're harmless when no current filters are sent: the rule text
+ * itself is conditioned on "if there are current filters ... in the
+ * following message".
+ *
+ * Deliberately holds no per-request DATA — the current query being refined
+ * and the observed project data are dynamic values, not instructions, so they
+ * travel in a separate message (`buildFilterContextMessage`). This keeps the
+ * self-traced generation legible (prompt vs. injected data are visibly
+ * different messages), stops a later user turn from being able to outrank
+ * rules that would otherwise ride along in a user message, and sets up the
+ * skeleton to become a managed prompt without dynamic values baked into its
+ * text.
+ *
+ * This is the FALLBACK path — used when the managed `search-bar-filter`
+ * Langfuse prompt can't be used: self-hosted (no AI-features keys), a
+ * fetch/compile failure, or a malformed compiled prompt. It is NOT gated on AI
+ * telemetry — a telemetry-off org still gets the managed prompt (see
+ * `resolveFilterPrompt.ts`). Its instructional prose is intentionally allowed
+ * to drift from the
+ * managed prompt's prose over time (the managed prompt is edited live in
+ * Langfuse); only the registry-derived catalog/nullable-ids stay identical
+ * across both, via `buildFieldCatalog` / `nullableFieldIds`.
+ */
+export function buildFilterSystemPrompt(currentDatetime: string): string {
+  const catalog = buildFieldCatalog();
+  const nullableIds = nullableFieldIds();
 
   return `## Role
 
@@ -134,10 +154,13 @@ column matches. You can filter on:
   **negation / exclusion**.
 
 Prefer values, metadata keys, and score names that appear in the observed
-project data below (when provided) over inventing your own. Use real catalog
-columns for standard fields; for anything custom or domain-specific, use
-\`metadata.<key>\`. Don't fall back to a vague column guess when metadata or
-content search expresses the intent better.
+project data (when provided) over inventing your own — map the request to the
+columns, values, and metadata keys that ACTUALLY appear there rather than
+guessing, and don't invent a value that isn't present unless the user gave
+that literal value themselves. Use real catalog columns for standard fields;
+for anything custom or domain-specific, use \`metadata.<key>\`. Don't fall back
+to a vague column guess when metadata or content search expresses the intent
+better.
 
 If the request is vague or maps to no concrete filter (e.g. "unusual",
 "interesting", "weird", "anything odd"), return [] — do NOT invent columns,
@@ -193,7 +216,7 @@ NEVER use ${SCORE_COLUMNS.observation.numeric} / ${SCORE_COLUMNS.observation.cat
 
 ## Null checks
 
-For nullable columns, "has no X" / "is missing X" → {"type": "null", "column": "<column>", "operator": "is null" | "is not null", "value": ""}. Nullable columns: ${nullableIds.join(", ")}.
+For nullable columns, "has no X" / "is missing X" → {"type": "null", "column": "<column>", "operator": "is null" | "is not null", "value": ""}. Nullable columns: ${nullableIds}.
 
 ## Full-text / content search
 
@@ -226,11 +249,26 @@ traceTags is an array. "tagged a or b" → any of [a, b]; "tagged BOTH a and b" 
 - "root spans" / "top-level" → isRootObservation = true.
 - "named X" / "called X" → the name or traceName column (NOT environment).
 
+## Refining existing filters
+
+If there are current filters provided in the following message, the user
+ALREADY has those filters applied (same syntax as your output). The new
+request is an EDIT to this set, not a fresh start. Rules:
+- KEEP every existing filter unless the request explicitly removes it or directly contradicts it.
+- ADD a filter for whatever the request narrows down to.
+- Only modify or drop a filter the request actually targets.
+
+A phrase like "only X" / "just X" / "show me X" / "narrow to X" means ADD an X filter ON TOP OF the current ones — it does NOT mean discard the rest. Return the COMPLETE resulting array (existing filters that remain PLUS any new ones), never just the new delta.
+
+Worked example — current filters \`level:ERROR\`, request "only in production":
+you return BOTH filters, not just environment:
+[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]
+
 ## Current datetime
 
 The current datetime is: ${currentDatetime}
 Use it to resolve relative time expressions against the startTime column.
-${refineSection}${dataSection}
+
 ## Examples
 
 These span the full surface — comparisons, scores, metadata, content search,
@@ -260,4 +298,51 @@ Output: [{"type":"arrayOptions","column":"traceTags","operator":"all of","value"
 
 Input: "gpt-4 generations costing more than $0.50 that aren't errors"
 Output: [{"type":"stringOptions","column":"providedModelName","operator":"any of","value":["gpt-4"]},{"type":"stringOptions","column":"type","operator":"any of","value":["GENERATION"]},{"type":"number","column":"totalCost","operator":">","value":0.5},{"type":"stringOptions","column":"level","operator":"none of","value":["ERROR"]}]`;
+}
+
+/**
+ * Build the INJECTED-CONTEXT message: the current filters being refined and
+ * the observed project data, as a SEPARATE message from the system skeleton
+ * (`buildFilterSystemPrompt`). Both are dynamic, request-specific VALUES, not
+ * instructions — keeping them out of the system prompt is what lets a trace
+ * show "here is the prompt" and "here is the data we handed it" as distinct
+ * messages instead of one undifferentiated blob.
+ *
+ * This message carries ONLY the values, never the rules for how to use them:
+ * the refine rules ("## Refining existing filters") and the observed-data
+ * usage rules live in `buildFilterSystemPrompt` instead, so a later USER turn
+ * (the actual request) can never outrank them the way it could when the
+ * rules travelled in a user message. Putting untrusted/variable instructions
+ * in a user turn risks the model treating the next user turn as an override.
+ *
+ * Returns `null` when there is neither a current query nor data context, so
+ * the caller can omit the message entirely rather than sending an empty one.
+ */
+export function buildFilterContextMessage(
+  currentQuery?: string,
+  dataContext?: string,
+): string | null {
+  const refine = (currentQuery ?? "").trim();
+  const data = (dataContext ?? "").trim();
+  if (refine.length === 0 && data.length === 0) return null;
+
+  const refineSection =
+    refine.length > 0
+      ? `## Current filters
+
+Refine these (same syntax as your output):
+\`${refine}\`
+`
+      : "";
+  const dataSection =
+    data.length > 0
+      ? `## Observed project data
+
+${data}
+`
+      : "";
+
+  return refineSection.length > 0 && dataSection.length > 0
+    ? `${refineSection}\n${dataSection}`
+    : `${refineSection}${dataSection}`;
 }

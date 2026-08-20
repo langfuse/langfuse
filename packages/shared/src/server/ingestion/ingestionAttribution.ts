@@ -12,6 +12,11 @@ export type IngestionAttribution = {
 
 export const UNKNOWN_INGESTION_SDK_VALUE = "unknown";
 
+export const INTERNAL_INGESTION_SDK_NAMES = [
+  "langfuse-internal-ai-sdk",
+  "langfuse-internal-otel-writer",
+] as const;
+
 export const LANGFUSE_SDK_LATEST_MAJOR = {
   python: 4,
   javascript: 5,
@@ -32,6 +37,12 @@ export type IngestionSdkVersionClassification = {
   major: number | null;
   status: IngestionSdkUpgradeStatus;
 };
+
+export type IngestionSdkAttributionStatus =
+  | "attributed"
+  | "missing_name"
+  | "missing_version"
+  | "missing_name_and_version";
 
 const getHeaderValue = (
   headers: IngestionHeaderMap | undefined,
@@ -156,6 +167,22 @@ export const classifyIngestionSdkVersion = (params: {
     major: parsedVersion.major,
     status: parsedVersion.major >= latestMajor ? "current" : "outdated_major",
   };
+};
+
+export const classifyIngestionSdkAttribution = (params: {
+  sdkName: string | null | undefined;
+  sdkVersion: string | null | undefined;
+}): IngestionSdkAttributionStatus => {
+  const sdkName = params.sdkName?.trim();
+  const sdkVersion = params.sdkVersion?.trim();
+  const missingName = !sdkName || sdkName === UNKNOWN_INGESTION_SDK_VALUE;
+  const missingVersion =
+    !sdkVersion || sdkVersion === UNKNOWN_INGESTION_SDK_VALUE;
+
+  if (missingName && missingVersion) return "missing_name_and_version";
+  if (missingName) return "missing_name";
+  if (missingVersion) return "missing_version";
+  return "attributed";
 };
 
 export const createIngestionAttribution = (params: {

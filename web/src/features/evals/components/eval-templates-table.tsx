@@ -475,8 +475,14 @@ export default function EvalsTemplateTable({
                   : undefined
               }
               hasAccess={hasAccess}
-              limitValue={countsQuery.data?.configActiveCount ?? 0}
-              limit={evaluatorLimit}
+              usageLimit={
+                typeof evaluatorLimit === "number"
+                  ? {
+                      current: countsQuery.data?.configActiveCount ?? 0,
+                      max: evaluatorLimit,
+                    }
+                  : undefined
+              }
               onClick={(e) => {
                 e.stopPropagation();
                 if (id) {

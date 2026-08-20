@@ -17,7 +17,7 @@ import Page from "@/src/components/layouts/page";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Command } from "@/src/components/ui/command";
 import { Badge } from "@/src/components/ui/badge";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import {
   SidePanel,
   SidePanelContent,
@@ -207,11 +207,7 @@ export const EvalTemplateDetail = () => {
                             # {template.version}
                           </Badge>
                           {index === 0 && (
-                            <StatusBadge
-                              type="active"
-                              key="active"
-                              className="break-all sm:break-normal"
-                            />
+                            <StatusBadge type="active" key="active" />
                           )}
                         </div>
                         <span className="text-muted-foreground text-xs">

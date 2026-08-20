@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    submit:
+      docs: Submit explicit user-approved feedback about Langfuse skills, MCP tools, CLI, docs, or public API. Do not include secrets, credentials, customer data, trace payloads, or unrelated use-case details.
+      method: POST
+      path: /feedback
+      request: SubmitFeedbackRequest
+      response:
+        status-code: 201
+        type: SubmitFeedbackResponse
+      errors:
+        - FeedbackNotConfiguredError
+types:
+  FeedbackTargetType:
+    enum:
+      - skill
+      - value: mcp-tool
+        name: McpTool
+      - cli
+      - docs
+      - value: public-api
+        name: PublicApi
+      - other
+  SubmitFeedbackRequest:
+    properties:
+      targetType:
+        type: FeedbackTargetType
+        docs: Category of the thing the feedback is about.
+      target:
+        type: string
+        docs: "The specific instance within targetType: the skill name, MCP tool name, CLI command, API endpoint path, or docs page path (e.g. 'queryMetrics', '/docs/mcp'). An identifier, not a sentence. Must be between 1 and 200 characters."
+      feedback:
+        type: string
+        docs: Concise feedback text approved by the user. Must be between 1 and 3000 characters.
+      goal:
+        type: optional<string>
+        docs: Optional user-approved goal or use case they were trying to achieve. Must be between 1 and 1500 characters when provided. Do not include secrets, customer data, trace payloads, or broad unrelated context.
+      referenceUrl:
+        type: optional<string>
+        docs: Optional HTTP(S) reference URL. Langfuse stores it as text for triage and does not fetch it.
+  SubmitFeedbackResponse:
+    properties:
+      id:
+        type: string
+        docs: Correlation ID for the submitted feedback.
+errors:
+  FeedbackNotConfiguredError:
+    docs: Feedback submission is not configured for this deployment.
+    status-code: 409

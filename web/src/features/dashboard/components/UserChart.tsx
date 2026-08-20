@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";

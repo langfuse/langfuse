@@ -115,7 +115,16 @@ export function WebCalloutButton({
   traceId,
   observationId,
   sessionId,
-}: WebCalloutTarget) {
+  layout = "toolbar",
+}: WebCalloutTarget & {
+  /**
+   * "toolbar" (default) is the inline icon button; "menu" renders the same
+   * action as a full-width labeled row for the mobile header overflow popover.
+   * (WebCalloutMenuItem is a Radix DropdownMenuItem and only works inside a
+   * DropdownMenu, so the plain-popover mobile menu uses this row instead.)
+   */
+  layout?: "toolbar" | "menu";
+}) {
   const action = useWebCalloutAction({
     projectId,
     traceId,
@@ -128,6 +137,26 @@ export function WebCalloutButton({
   }
 
   const label = `Call ${action.endpointName}`;
+
+  if (layout === "menu") {
+    return (
+      <Button
+        aria-label={label}
+        variant="ghost"
+        size="sm"
+        loading={action.isLoading}
+        className="w-full justify-start gap-2 font-normal"
+        onClick={() => {
+          action.invokeCallout().catch(() => undefined);
+        }}
+      >
+        <Webhook className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 truncate text-sm" title={label}>
+          {label}
+        </span>
+      </Button>
+    );
+  }
 
   return (
     <Tooltip>

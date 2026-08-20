@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { type EvalTemplate } from "@langfuse/shared";
 
 import {
@@ -186,10 +187,6 @@ export const TemplateSelector = ({
               tabIndex={0}
               className="overflow-y-auto focus:outline-hidden"
               style={{ maxHeight: "300px" }}
-              onWheel={(e) => {
-                // Prevent the wheel event from being captured by parent elements
-                e.stopPropagation();
-              }}
             >
               <InputCommandList className="max-h-full overflow-visible overflow-x-hidden">
                 {!hasResults && (

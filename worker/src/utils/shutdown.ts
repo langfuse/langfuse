@@ -8,6 +8,7 @@ import { freeAllTokenizers } from "../features/tokenisation/usage";
 import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage";
 import { WorkerManager } from "../queues/workerManager";
 import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
+import { abortActiveInAppAgentRuns } from "../features/in-app-agent/executeInAppAgentRun";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 import {
@@ -18,9 +19,11 @@ import {
   batchProjectBlobCleaner,
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
+  inAppAgentIntegrityRunner,
   deletedMaskCleaner,
   queueMetricsRunner,
   monitorRunners,
+  inAppAgentDlqRetryRunner,
 } from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
@@ -56,6 +59,8 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   // Stop durable trace-delete batch action runner
   traceDeleteBatchActionRunner?.stop();
 
+  inAppAgentIntegrityRunner?.stop();
+
   // Stop deleted-mask cleaner
   deletedMaskCleaner?.stop();
 
@@ -67,8 +72,15 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
     runner.stop();
   }
 
+  inAppAgentDlqRetryRunner?.stop();
+
   // Before closeWorkers(), while the registry is still populated (LFE-10388).
   logInFlightBlobExportsOnShutdown();
+
+  // Abort in-flight agent loops at their next step boundary so closeWorkers()
+  // does not wait out a full agent turn; each run finishes FAILED
+  // (worker_shutdown) with its events flushed.
+  abortActiveInAppAgentRuns();
 
   // Shutdown workers (https://docs.bullmq.io/guide/going-to-production#gracefully-shut-down-workers)
   await WorkerManager.closeWorkers();

@@ -2,6 +2,7 @@ import { APIObservation } from "@/src/features/public-api/types/observations";
 import {
   APIScoreSchemaV1,
   commaSeparatedEnumArray,
+  deprecationResponseZod,
   paginationMetaResponseZod,
   orderBy,
   optionalJsonParam,
@@ -90,6 +91,7 @@ export const GetTracesV1Response = z
   .object({
     data: z.array(APIExtendedTrace),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 
@@ -107,6 +109,7 @@ export const GetTraceV1Query = z.object({
 export const GetTraceV1Response = APIExtendedTrace.extend({
   scores: z.array(APIScoreSchemaV1),
   observations: z.array(APIObservation),
+  _deprecation: deprecationResponseZod.optional(),
 }).strict();
 
 // DELETE /api/public/traces/{traceId}

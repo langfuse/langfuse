@@ -1,4 +1,3 @@
-import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -7,7 +6,6 @@ import {
 } from "@/src/components/table/data-table-controls";
 import {
   TableBadgeLoadingCell,
-  TableIconButtonLoadingCell,
   TableTextLoadingCell,
 } from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
@@ -30,7 +28,7 @@ import {
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
-  LevelColors,
+  getLevelColors,
   LevelSymbols,
 } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
@@ -48,16 +46,19 @@ import {
   ActionId,
   TableViewPresetTableName,
   type TimeFilter,
+  type ScoreAggregate,
+  DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { type ScoreAggregate } from "@langfuse/shared";
+import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
+import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
+import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import React from "react";
@@ -87,7 +88,8 @@ import {
   getTraceFilterConfig,
   type TraceOmittableFilterColumn,
 } from "@/src/features/filters/config/traces-config";
-import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -95,9 +97,9 @@ import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextS
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import {
-  type RefreshInterval,
   REFRESH_INTERVALS,
-} from "@/src/components/table/data-table-refresh-button";
+  type RefreshInterval,
+} from "@/src/components/table/utils/refresh-intervals";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
@@ -106,7 +108,6 @@ import TagList from "@/src/features/tag/components/TagList";
 
 export type TracesTableRow = {
   // Shown by default
-  bookmarked: boolean;
   timestamp: Date;
   name: string;
   // i/o and metadata not set explicitly, but fetched from the server from the cell
@@ -200,22 +201,13 @@ export default function TracesTable({
     [allowedValues, setRawRefreshInterval],
   );
 
-  const [refreshTick, setRefreshTick] = useState(0);
   const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0); // resets the interval when manual refresh is called
   const { setDetailPageList } = useDetailPageLists();
 
-  // Auto-increment refresh tick to force date range recalculation
-  useEffect(() => {
-    if (!refreshInterval) return;
-    const id = setInterval(() => {
-      setRefreshTick((t) => t + 1);
-    }, refreshInterval);
-    return () => clearInterval(id);
-  }, [refreshInterval, manualRefreshTrigger]);
-
-  const handleRefresh = useCallback(() => {
-    setRefreshTick((t) => t + 1);
-    setManualRefreshTrigger((t) => t + 1);
+  // A refresh is invalidation only: the queried window is anchored (see
+  // useLiveTableDateRange), so a refetch reuses the same query keys and updates
+  // the rows on screen in place instead of blanking them.
+  const invalidateTableQueries = useCallback(() => {
     Promise.all([
       utils.traces.all.invalidate(),
       utils.traces.metrics.invalidate(),
@@ -225,14 +217,20 @@ export default function TracesTable({
     ]);
   }, [utils]);
 
+  const handleRefresh = useCallback(() => {
+    setManualRefreshTrigger((t) => t + 1);
+    invalidateTableQueries();
+  }, [invalidateTableQueries]);
+
+  useEffect(() => {
+    if (!refreshInterval) return;
+    const id = setInterval(invalidateTableQueries, refreshInterval);
+    return () => clearInterval(id);
+  }, [refreshInterval, manualRefreshTrigger, invalidateTableQueries]);
+
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
-  // Convert timeRange to absolute date range for compatibility
-  // refreshTick forces recalculation on each refresh cycle
-  const tableDateRange = useMemo(() => {
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange, refreshTick]);
+  const { range: tableDateRange } = useLiveTableDateRange(timeRange);
 
   const dateRange = externalDateRange ?? tableDateRange;
 
@@ -241,26 +239,44 @@ export default function TracesTable({
     order: "DESC",
   });
 
-  const dateRangeFilter: FilterState = dateRange
-    ? [
-        {
-          column: "timestamp",
-          type: "datetime",
-          operator: ">=",
-          value: dateRange.from,
-        },
-        ...(dateRange.to
-          ? [
-              {
-                column: "timestamp",
-                type: "datetime",
-                operator: "<=",
-                value: dateRange.to,
-              } as const,
-            ]
-          : []),
-      ]
-    : [];
+  const toTimestampFilter = (range: TableDateRange | undefined): FilterState =>
+    range
+      ? [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: range.from,
+          },
+          ...(range.to
+            ? [
+                {
+                  column: "timestamp",
+                  type: "datetime",
+                  operator: "<=",
+                  value: range.to,
+                } as const,
+              ]
+            : []),
+        ]
+      : [];
+
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
+  });
+  const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
+
+  // Facets describe the whole window; only the paged row/count queries need the
+  // upper bound pinned, so that offset paging does not repeat or skip rows while
+  // the window keeps taking in newly ingested ones.
+  const dateRangeFilter: FilterState = toTimestampFilter(dateRange);
+  const { range: rowsDateRange, pinOnLeavingFirstPage } =
+    usePaginationWindowPin(
+      dateRange,
+      limitRows ? 0 : paginationState.pageIndex,
+    );
+  const rowsDateRangeFilter: FilterState = toTimestampFilter(rowsDateRange);
   const userIdFilter: FilterState = userId
     ? [
         {
@@ -325,14 +341,14 @@ export default function TracesTable({
           value: n.value,
           count: Number(n.count),
         })) ?? undefined,
-      // tags don't have counts
-      traceTags:
-        traceFilterOptionsResponse.data?.tags?.map((t) => t.value) ?? undefined,
+      // tags don't have counts; they read A→Z
+      traceTags: sortOptionValues(
+        traceFilterOptionsResponse.data?.tags?.map((t) => t.value),
+      ),
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) ??
         undefined,
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
-      bookmarked: ["Bookmarked", "Not bookmarked"],
       userId:
         traceFilterOptionsResponse.data?.users?.map((u) => ({
           value: u.value,
@@ -383,9 +399,12 @@ export default function TracesTable({
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        userId ? "user" : undefined,
+      ),
     };
-  }, [hideControls, isSidebarFilterLoading, peekContext, projectId]);
+  }, [hideControls, isSidebarFilterLoading, peekContext, projectId, userId]);
 
   const queryFilter = useSidebarFilterState(
     tracesFilterConfig,
@@ -395,7 +414,7 @@ export default function TracesTable({
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
-    dateRangeFilter,
+    rowsDateRangeFilter,
   );
 
   // Use external filter state if provided, otherwise use combined filter
@@ -403,14 +422,8 @@ export default function TracesTable({
   // callers that pass an externalDateRange (e.g. the eval preview's "last 24
   // hours" window) have it honored for the row query, not just score columns.
   const filterState = externalFilterState
-    ? externalFilterState.concat(dateRangeFilter)
+    ? externalFilterState.concat(rowsDateRangeFilter)
     : combinedFilterState;
-
-  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
-    page: "pageIndex",
-    limit: "pageSize",
-  });
-  const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
@@ -434,6 +447,10 @@ export default function TracesTable({
     orderBy: null,
   };
 
+  // Deliberately NOT placeholder-backed, unlike the row query: its key only
+  // changes when the filter does, and keeping the previous value would pair rows
+  // for the new filter with a count for the old one. It reports as loading
+  // instead until it catches up.
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
     enabled: environmentFilterOptions.data !== undefined,
   });
@@ -447,10 +464,14 @@ export default function TracesTable({
     orderBy: orderByState,
   };
 
+  // A filter/page/sort change (or a re-anchored window) is a new query key:
+  // keep the rows that are on screen until the new ones land, so only a genuine
+  // cold load renders skeletons.
   const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
     enabled: environmentFilterOptions.data !== undefined,
     refetchOnMount: false,
     refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
   });
   const traceMetrics = api.traces.metrics.useQuery(
     {
@@ -462,8 +483,12 @@ export default function TracesTable({
       enabled: traces.data !== undefined,
       refetchOnMount: false,
       refetchOnWindowFocus: true,
+      placeholderData: (prev) => prev,
     },
   );
+
+  // Metrics arrive per trace id, one query behind the rows.
+  const isMetricPending = usePendingRowIds(traceMetrics);
 
   type TracesCoreOutput = RouterOutput["traces"]["all"]["traces"][number];
   type TraceMetricOutput = RouterOutput["traces"]["metrics"][number];
@@ -643,35 +668,7 @@ export default function TracesTable({
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
-    ...(hideControls
-      ? []
-      : ([
-          selectActionColumn,
-          {
-            accessorKey: "bookmarked",
-            header: undefined,
-            id: "bookmarked",
-            size: 30,
-            isFixedPosition: true,
-            loadingCell: <TableIconButtonLoadingCell />,
-            cell: ({ row }) => {
-              const bookmarked: TracesTableRow["bookmarked"] =
-                row.getValue("bookmarked");
-              const traceId = row.getValue("id");
-              return typeof traceId === "string" &&
-                typeof bookmarked === "boolean" ? (
-                <StarTraceToggle
-                  tracesFilter={tracesAllQueryFilter}
-                  traceId={traceId}
-                  projectId={projectId}
-                  value={bookmarked}
-                  size="icon-xs"
-                />
-              ) : undefined;
-            },
-            enableSorting,
-          },
-        ] satisfies LangfuseColumnDef<TracesTableRow>[])),
+    ...(hideControls ? [] : [selectActionColumn]),
     {
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -763,7 +760,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["levelCounts"] =
           row.getValue("levelCounts");
-        if (!traceMetrics.data) return <TableTextLoadingCell />;
+        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
 
         const counts: LevelCount[] = Object.entries(value).map(
           ([level, count]) => ({
@@ -786,7 +783,7 @@ export default function TracesTable({
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: TracesTableRow["latency"] = row.getValue("latency");
-        if (!traceMetrics.data) return <TableTextLoadingCell />;
+        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
         return value !== undefined ? (
           <span className="text-nowrap">{formatIntervalSeconds(value)}</span>
         ) : undefined;
@@ -803,7 +800,7 @@ export default function TracesTable({
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (!traceMetrics.data) return <TableTextLoadingCell />;
+        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
         if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
           return null;
         }
@@ -833,7 +830,7 @@ export default function TracesTable({
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
-        if (!traceMetrics.data) return <TableTextLoadingCell />;
+        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
         return cost != null ? (
           <BreakdownTooltip details={row.original.costDetails ?? []} isCost>
             <div className="flex items-center gap-1">
@@ -1057,7 +1054,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["observationCount"] =
           row.getValue("observationCount");
-        if (!traceMetrics.data) return <TableTextLoadingCell />;
+        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
         return <span>{numberFormatter(value, 0)}</span>;
       },
     },
@@ -1069,13 +1066,13 @@ export default function TracesTable({
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: TracesTableRow["level"] = row.getValue("level");
-        if (!traceMetrics.data) return <TableTextLoadingCell />;
+        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
         return value ? (
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              LevelColors[value].bg,
-              LevelColors[value].text,
+              getLevelColors(value).bg,
+              getLevelColors(value).text,
             )}
           >
             {value}
@@ -1177,7 +1174,8 @@ export default function TracesTable({
           loadingCell: <TableTextLoadingCell />,
           cell: ({ row }) => {
             const cost: TracesTableRow["cost"] = row.getValue("cost");
-            if (!traceMetrics.data) return <TableTextLoadingCell />;
+            if (isMetricPending(row.original.id))
+              return <TableTextLoadingCell />;
             return (
               <div>
                 {cost?.inputCost ? (
@@ -1200,7 +1198,8 @@ export default function TracesTable({
           loadingCell: <TableTextLoadingCell />,
           cell: ({ row }) => {
             const cost: TracesTableRow["cost"] = row.getValue("cost");
-            if (!traceMetrics.data) return <TableTextLoadingCell />;
+            if (isMetricPending(row.original.id))
+              return <TableTextLoadingCell />;
             return (
               <div>
                 {cost?.outputCost ? (
@@ -1235,7 +1234,8 @@ export default function TracesTable({
           loadingCell: <TableTextLoadingCell />,
           cell: ({ row }) => {
             const value: TracesTableRow["usage"] = row.getValue("usage");
-            if (!traceMetrics.data) return <TableTextLoadingCell />;
+            if (isMetricPending(row.original.id))
+              return <TableTextLoadingCell />;
             return <span>{numberFormatter(value.inputUsage, 0)}</span>;
           },
           enableHiding: true,
@@ -1250,7 +1250,8 @@ export default function TracesTable({
           loadingCell: <TableTextLoadingCell />,
           cell: ({ row }) => {
             const value: TracesTableRow["usage"] = row.getValue("usage");
-            if (!traceMetrics.data) return <TableTextLoadingCell />;
+            if (isMetricPending(row.original.id))
+              return <TableTextLoadingCell />;
             return <span>{numberFormatter(value.outputUsage, 0)}</span>;
           },
           enableHiding: true,
@@ -1265,7 +1266,8 @@ export default function TracesTable({
           loadingCell: <TableTextLoadingCell />,
           cell: ({ row }) => {
             const value: TracesTableRow["usage"] = row.getValue("usage");
-            if (!traceMetrics.data) return <TableTextLoadingCell />;
+            if (isMetricPending(row.original.id))
+              return <TableTextLoadingCell />;
             return <span>{numberFormatter(value.totalUsage, 0)}</span>;
           },
           enableHiding: true,
@@ -1341,11 +1343,6 @@ export default function TracesTable({
     return {
       itemType: "TRACE" as const,
       detailNavigationKey: detailPageListKeys.traces,
-      peekEventOptions: {
-        // Stable hook (decoupled from the star's state-aware aria-label) so
-        // clicking a row's bookmark toggles it without dismissing the peek.
-        ignoredSelectors: ['[role="checkbox"]', "[data-bookmark-toggle]"],
-      },
       ...peekNavigationProps,
     };
   }, [hideControls, peekNavigationProps]);
@@ -1386,7 +1383,6 @@ export default function TracesTable({
     return traces.isSuccess
       ? (traceRowData?.rows?.map((trace) => {
           return {
-            bookmarked: trace.bookmarked,
             id: trace.id,
             timestamp: trace.timestamp,
             name: trace.name ?? "",
@@ -1540,6 +1536,7 @@ export default function TracesTable({
             <DataTable
               columns={columns}
               hidePagination={hideControls}
+              isFetching={refreshConfig.isRefreshing}
               data={
                 traces.isPending || isViewLoading
                   ? { isLoading: true, isError: false }
@@ -1560,7 +1557,21 @@ export default function TracesTable({
                   ? undefined
                   : {
                       totalCount,
-                      onChange: setPaginationState,
+                      isTotalCountLoading: totalCountQuery.isPending,
+                      onChange: (updater) => {
+                        const next =
+                          typeof updater === "function"
+                            ? updater(paginationState)
+                            : updater;
+                        // Leaving page 1 freezes the paged set at the newest row
+                        // still on screen, so page 2 continues where this page
+                        // ends even if rows keep arriving.
+                        pinOnLeavingFirstPage(
+                          next.pageIndex,
+                          rows[0]?.timestamp,
+                        );
+                        setPaginationState(next);
+                      },
                       state: paginationState,
                     }
               }

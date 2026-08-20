@@ -33,9 +33,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import TableIdOrName from "@/src/components/table/table-id";
 
 const QueueItemTableMultiSelectAction = ({
@@ -203,19 +203,21 @@ export function AnnotationQueueItemsTable({
                 }
               }}
               aria-label="Select all"
-              className="opacity-60"
+              variant="muted"
             />
           </div>
         );
       },
       cell: ({ row }) => {
         return (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Select row"
-            className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
-          />
+          <span className="mt-1 inline-block has-data-[state=checked]:mt-[5px]">
+            <Checkbox
+              checked={row.getIsSelected()}
+              onCheckedChange={(value) => row.toggleSelected(!!value)}
+              aria-label="Select row"
+              variant="muted"
+            />
+          </span>
         );
       },
     },
@@ -308,13 +310,7 @@ export function AnnotationQueueItemsTable({
       size: 60,
       cell: ({ row }) => {
         const status: QueueItemRowData["status"] = row.getValue("status");
-        return (
-          <StatusBadge
-            className="capitalize"
-            type={status.toLowerCase()}
-            isLive={false}
-          />
-        );
+        return <StatusBadge type={status.toLowerCase()} isLive={false} />;
       },
     },
     {

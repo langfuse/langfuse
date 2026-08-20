@@ -2,13 +2,11 @@ import * as Sentry from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
   isNoisyHttpClientPollEvent,
+  isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
+  isStaleChunkParseErrorEvent,
+  STALE_CHUNK_PARSE_FINGERPRINT,
 } from "@/src/utils/sentryFilters";
-
-const isEuOrUsRegionNonHipaa =
-  process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
-    ? ["EU", "US"].includes(process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-    : false;
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -45,14 +43,32 @@ Sentry.init({
       return null;
     }
 
+    // Drop errors thrown wholly inside PostHog's session-replay recorder
+    // script (rrweb DOM serialization failing on exotic page content). No app
+    // frame is ever present in these stacks; anything touching our code is
+    // kept. See isPosthogRecorderInternalEvent for the rationale.
+    if (isPosthogRecorderInternalEvent(event)) {
+      return null;
+    }
+
+    // Stale-deploy / truncated chunk parse errors: collapse into ONE issue
+    // instead of one per content-hashed chunk filename. Deliberately grouped,
+    // NOT dropped — a deploy that ships a genuinely unparsable chunk still
+    // surfaces as a spike on the single grouped issue. See
+    // isStaleChunkParseErrorEvent for the rationale.
+    if (isStaleChunkParseErrorEvent(event)) {
+      event.fingerprint = [STALE_CHUNK_PARSE_FINGERPRINT];
+    }
+
     return event;
   },
 
   // Replay may only be enabled for the client-side
   integrations: [
     Sentry.replayIntegration({
-      maskAllText: !isEuOrUsRegionNonHipaa,
-      blockAllMedia: !isEuOrUsRegionNonHipaa,
+      maskAllText: true,
+      maskAllInputs: true,
+      blockAllMedia: true,
     }),
     Sentry.browserTracingIntegration(),
     Sentry.httpClientIntegration(),

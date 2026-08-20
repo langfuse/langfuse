@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -83,6 +84,7 @@ const DialogContent = React.forwardRef<
       closeOnInteractionOutside?: boolean;
       confirmCloseOnEscape?: string;
       overlayMode?: DialogOverlayMode;
+      overlayClassName?: string;
       stopPropagationOnEnterSpace?: boolean;
     } & VariantProps<typeof dialogContentVariants>,
     "onPointerDownOutside" | "onInteractOutside"
@@ -95,6 +97,7 @@ const DialogContent = React.forwardRef<
       closeOnInteractionOutside = false,
       confirmCloseOnEscape,
       overlayMode = "subtle",
+      overlayClassName,
       stopPropagationOnEnterSpace = true,
       onEscapeKeyDown,
       onClick,
@@ -126,7 +129,7 @@ const DialogContent = React.forwardRef<
 
     return (
       <DialogPortal>
-        <DialogOverlay overlayMode={overlayMode} />
+        <DialogOverlay overlayMode={overlayMode} className={overlayClassName} />
         <DialogPrimitive.Content
           ref={ref}
           className={cn(

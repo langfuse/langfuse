@@ -1,6 +1,5 @@
-import { type ReactNode, useMemo, useCallback } from "react";
-import Link from "next/link";
-import { useRouter } from "next/router";
+/* eslint-disable @repo/no-style-props */
+import { useMemo, useCallback, useRef, useState } from "react";
 import {
   Check,
   Github,
@@ -13,12 +12,22 @@ import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { automationCreateHref } from "@/src/features/automations/components/automationForm";
+import { AutomationForm } from "@/src/features/automations/components/automationForm";
+import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { cn } from "@/src/utils/tailwind";
 import {
   ActionTypeSchema,
@@ -46,6 +55,7 @@ export const MonitorAutomationsPanel = ({
   onTriggerIdsChange: (next: string[]) => void;
   hasAccess?: boolean;
 }) => {
+  const utils = api.useUtils();
   const { data, isPending } = api.automations.getAutomations.useQuery(
     {
       projectId,
@@ -57,54 +67,68 @@ export const MonitorAutomationsPanel = ({
     },
   );
 
-  if (isPending || !data || data?.length == 0)
-    return (
-      <SetupMonitorAutomationsCard
-        projectId={projectId}
-        isDisabled={!hasAccess}
-      />
-    );
+  // The user can keep toggling rows while the refetch below is in flight, so the
+  // write must not be based on a render-time snapshot of the selection.
+  const latestTriggerIds = useRef(triggerIds);
+  latestTriggerIds.current = triggerIds;
+
+  /** selectCreatedAutomation ticks a just-created automation, resolving its trigger id (the panel's key) from the refreshed list. */
+  const selectCreatedAutomation = useCallback(
+    async (automationId: string) => {
+      const automations = await utils.automations.getAutomations.fetch({
+        projectId,
+        eventSource: TriggerEventSource.Monitor,
+      });
+      const triggerId = automations?.find((a) => a.id === automationId)?.trigger
+        .id;
+      const selected = latestTriggerIds.current;
+      if (!triggerId || selected.includes(triggerId)) return;
+      onTriggerIdsChange([...selected, triggerId]);
+    },
+    [utils, projectId, onTriggerIdsChange],
+  );
+
+  const automations = data ?? [];
+  const isEmpty = isPending || automations.length === 0;
 
   return (
-    <MonitorAutomationsListCard
-      projectId={projectId}
-      isDisabled={!hasAccess}
-      automations={data}
-      selectedTriggerIds={triggerIds}
-      onSelectedTriggerIdsChange={onTriggerIdsChange}
-    />
+    <div className="space-y-3">
+      <Card>
+        <CardContent className="space-y-3 pt-4">
+          {isEmpty ? (
+            <p className="text-muted-foreground px-4 py-6 text-center text-base">
+              Set up Slack, Webhook, and Github Action Automations to Receive
+              Alerts
+            </p>
+          ) : (
+            <MonitorAutomationsSelectableList
+              isDisabled={!hasAccess}
+              automations={automations}
+              selectedTriggerIds={triggerIds}
+              onSelectedTriggerIdsChange={onTriggerIdsChange}
+            />
+          )}
+          {/* One CTA for both states: it owns the create dialog, so it must stay
+              mounted when the first automation turns the empty state into a list. */}
+          <AddAutomationDropdown
+            projectId={projectId}
+            fullWidth
+            isDisabled={!hasAccess}
+            onAutomationCreated={selectCreatedAutomation}
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
-/** SetupMonitorAutomationsCard is the empty state prompting creation of the first automation. */
-const SetupMonitorAutomationsCard = ({
-  isDisabled,
-  projectId,
-}: {
-  isDisabled: boolean;
-  projectId: string;
-}) => (
-  <MonitorAutomationsCard>
-    <p className="text-muted-foreground px-4 py-6 text-center text-base">
-      Set up Slack, Webhook, and Github Action Automations to Receive Alerts
-    </p>
-    <AddAutomationDropdown
-      projectId={projectId}
-      fullWidth
-      isDisabled={isDisabled}
-    />
-  </MonitorAutomationsCard>
-);
-
-/** MonitorAutomationsListCard renders the selectable automations and reports the selected trigger IDs. */
-const MonitorAutomationsListCard = ({
-  projectId,
+/** MonitorAutomationsSelectableList renders the selectable automations and reports the selected trigger IDs. */
+const MonitorAutomationsSelectableList = ({
   isDisabled,
   automations,
   selectedTriggerIds,
   onSelectedTriggerIdsChange,
 }: {
-  projectId: string;
   isDisabled: boolean;
   automations: AutomationDomain[];
   selectedTriggerIds: string[];
@@ -135,30 +159,14 @@ const MonitorAutomationsListCard = ({
   );
 
   return (
-    <MonitorAutomationsCard>
-      <MonitorAutomationsList
-        automations={automations}
-        isDisabled={isDisabled}
-        selectedTriggerIds={activeSelectedTriggerIds}
-        onClick={toggleSelectedTriggerId}
-      />
-      <AddAutomationDropdown
-        projectId={projectId}
-        fullWidth
-        isDisabled={isDisabled}
-      />
-    </MonitorAutomationsCard>
+    <MonitorAutomationsList
+      automations={automations}
+      isDisabled={isDisabled}
+      selectedTriggerIds={activeSelectedTriggerIds}
+      onClick={toggleSelectedTriggerId}
+    />
   );
 };
-
-/** MonitorAutomationsCard is the shared card shell for the panel's contents. */
-const MonitorAutomationsCard = ({ children }: { children: ReactNode }) => (
-  <div className="space-y-3">
-    <Card>
-      <CardContent className="space-y-3 pt-4">{children}</CardContent>
-    </Card>
-  </div>
-);
 
 /** MonitorAutomationsList renders one selectable row per automation. */
 const MonitorAutomationsList = ({
@@ -238,49 +246,137 @@ const RowCheckbox = ({ checked }: { checked: boolean }) => (
   </span>
 );
 
-/** AddAutomationDropdown renders the "+ Automation" CTA for the empty state and the list footer. */
+/** NewAutomationDraft is the pending create-automation dialog; an absent actionType lets the form pick its own default. */
+type NewAutomationDraft = { actionType?: ActionTypes };
+
+/** CreatedWebhookSecret is the signing secret of a just-created webhook automation, shown once before the dialog closes. */
+type CreatedWebhookSecret = { automationId: string; webhookSecret: string };
+
+/**
+ * AddAutomationDropdown renders the "+ Automation" CTA for the empty state and
+ * the list footer. Creation happens in a dialog on this page: navigating to the
+ * automations page unmounted the monitor form and lost the draft (LFE-10982).
+ */
 const AddAutomationDropdown = ({
   projectId,
   fullWidth,
   isDisabled,
+  onAutomationCreated,
 }: {
   projectId: string;
   fullWidth?: boolean;
   isDisabled?: boolean;
+  onAutomationCreated: (automationId: string) => void;
 }) => {
-  const router = useRouter();
+  const [draft, setDraft] = useState<NewAutomationDraft | null>(null);
+  const [createdSecret, setCreatedSecret] =
+    useState<CreatedWebhookSecret | null>(null);
+
+  /** closeDialog dismisses both dialog phases, selecting the automation when one was created. */
+  const closeDialog = (createdAutomationId?: string) => {
+    setDraft(null);
+    setCreatedSecret(null);
+    if (createdAutomationId) onAutomationCreated(createdAutomationId);
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="lg"
-          disabled={isDisabled}
-          className={fullWidth ? "w-full" : undefined}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Automation
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem asChild>
-          <Link
-            href={automationCreateHref(projectId, undefined, router.asPath)}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="lg"
+            disabled={isDisabled}
+            className={fullWidth ? "w-full" : undefined}
           >
+            <Plus className="mr-2 h-4 w-4" />
+            Automation
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onSelect={() => setDraft({})}>
             <Plus className="mr-2 h-3.5 w-3.5" />
             New automation
-          </Link>
-        </DropdownMenuItem>
-        {ActionTypeSchema.options.map((t) => (
-          <DropdownMenuItem key={t} asChild>
-            <Link href={automationCreateHref(projectId, t, router.asPath)}>
+          </DropdownMenuItem>
+          {ActionTypeSchema.options.map((t) => (
+            <DropdownMenuItem
+              key={t}
+              onSelect={() => setDraft({ actionType: t })}
+            >
               <ActionIcon type={t} className="mr-2 h-3.5 w-3.5" />
               {actionLabel[t]}
-            </Link>
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Dialog
+        open={draft !== null}
+        onOpenChange={(open) => {
+          if (!open) closeDialog(createdSecret?.automationId);
+        }}
+      >
+        <DialogContent
+          size="lg"
+          // The dialog portals out of the monitor <form>, but React events still
+          // bubble through the REACT tree: without this, saving the automation
+          // would submit the monitor too. Mirrors DialogContent's own onClick.
+          onSubmit={(e) => e.stopPropagation()}
+        >
+          {createdSecret ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Webhook secret created</DialogTitle>
+                <DialogDescription>
+                  Copy the webhook secret below — it will only be shown once.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogBody>
+                <WebhookSecretRender
+                  webhookSecret={createdSecret.webhookSecret}
+                />
+              </DialogBody>
+              <DialogFooter>
+                <Button onClick={() => closeDialog(createdSecret.automationId)}>
+                  {"I've saved the secret"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>New automation</DialogTitle>
+                <DialogDescription>
+                  This automation stays available to every alert in the project.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogBody>
+                <AutomationForm
+                  projectId={projectId}
+                  isEditing
+                  lockedEventSource={TriggerEventSource.Monitor}
+                  prefill={{
+                    eventSource: TriggerEventSource.Monitor,
+                    actionType: draft?.actionType,
+                  }}
+                  onSuccess={(automationId, webhookSecret, actionType) => {
+                    if (
+                      automationId &&
+                      webhookSecret &&
+                      actionType === "WEBHOOK"
+                    ) {
+                      setCreatedSecret({ automationId, webhookSecret });
+                      return;
+                    }
+                    closeDialog(automationId);
+                  }}
+                  onCancel={() => closeDialog()}
+                />
+              </DialogBody>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
+import { ThemeProvider } from "../src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
 import { LAYER_ORDER } from "../src/components/ui/layer";
 import "../src/styles/globals.css";
@@ -24,6 +25,7 @@ import "streamdown/styles.css";
 function StorybookThemeProvider({
   children,
   fullHeight,
+  theme,
 }: {
   children?: ReactNode;
   /**
@@ -33,6 +35,7 @@ function StorybookThemeProvider({
    * content. (LFE-10549)
    */
   fullHeight: boolean;
+  theme: "light" | "dark";
 }) {
   // Overlay layer containers, declared exactly like _document.tsx: a
   // <div data-overlay-root> holding one <div data-layer={name}/> per
@@ -66,13 +69,20 @@ function StorybookThemeProvider({
   // _app.tsx). `#__next` is given a real viewport height so the `height: 100%`
   // chain has something to resolve against.
   return (
-    <div
-      id="__next"
-      className="bg-background text-foreground"
-      style={{ height: fullHeight ? "100vh" : "auto" }}
+    <ThemeProvider
+      attribute="class"
+      forcedTheme={theme}
+      enableSystem={false}
+      disableTransitionOnChange
     >
-      <div>{children}</div>
-    </div>
+      <div
+        id="__next"
+        className="bg-background text-foreground"
+        style={{ height: fullHeight ? "100vh" : "auto" }}
+      >
+        <div>{children}</div>
+      </div>
+    </ThemeProvider>
   );
 }
 
@@ -140,7 +150,10 @@ export default definePreview({
   },
   decorators: [
     (Story, context) => (
-      <StorybookThemeProvider fullHeight={context.viewMode !== "docs"}>
+      <StorybookThemeProvider
+        fullHeight={context.viewMode !== "docs"}
+        theme={context.globals.theme === "dark" ? "dark" : "light"}
+      >
         {/* MarkdownContextProvider mirrors the app: pages render inside it so
               the JSON/IO viewers (CodeJsonViewer's JSONView calls
               useMarkdownContext) work identically to production. Without it,
@@ -161,8 +174,24 @@ export default definePreview({
       container: ThemedDocsContainer,
     },
     options: {
-      storySort: {
-        order: ["Design", "Playground"],
+      storySort: (a, b) => {
+        const sectionOrder = ["Design", "Playground"];
+        const aSectionIndex = sectionOrder.indexOf(a.title.split("/")[0] ?? "");
+        const bSectionIndex = sectionOrder.indexOf(b.title.split("/")[0] ?? "");
+        const sectionDifference =
+          (aSectionIndex === -1 ? sectionOrder.length : aSectionIndex) -
+          (bSectionIndex === -1 ? sectionOrder.length : bSectionIndex);
+        if (sectionDifference !== 0) return sectionDifference;
+
+        // Returning 0 preserves Storybook's existing stable order. Only
+        // partition test stories when both entries belong to the same component.
+        if (a.title !== b.title) return 0;
+
+        const aIsTest = a.name.startsWith("(Test)");
+        const bIsTest = b.name.startsWith("(Test)");
+        if (aIsTest !== bIsTest) return aIsTest ? 1 : -1;
+
+        return 0;
       },
     },
   },
