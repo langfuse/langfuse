@@ -147,6 +147,146 @@ root`). First lesson: netem's default 1000-packet queue DROPS under
     (`git log -- poc/otel-ingestion/engine-go` finds it). The lasting result is
     a measured fallback: Go achieved parity and comparable throughput, with
     quantified CPU, memory, dependency, and maintenance costs.
+28. **Cloud rig: staging eu-west-1, 26.2 SharedMergeTree, real S3** — pinned
+    32 GB × 1 bench service over PrivateLink, driver + worker on a
+    c7i.2xlarge SSM bastion, corpus under the events bucket's otel/ prefix.
+    Parity held on the FIRST cloud run: 38/38 columns ch↔rust on 26.2 +
+    real S3, media offsets 25/25. Publish cost is real on SMT: MOVE
+    PARTITION ~150 ms/window of coordination (vs ~5 ms local), yet
+    query-attributed S3CopyObject stays 0 even for MOVEs that carry the
+    log_comment — either the copy lands outside query ProfileEvents or
+    small packed parts dodge it; global system.events deltas are the next
+    diagnostic. → The commit protocol works unchanged on Cloud; publish
+    latency, not request count, is its price.
+29. **Cloud wall ladder** (1.86 GB, 40 windows, one ~50 MB pathological
+    single-span file mixed into each of the first four) — defaults @4:
+    A 9.4 s vs B 8.7 s, indistinguishable, because the wall was pipeline
+    arithmetic (~850 ms/window × 40 / 4 lanes), not engine speed. Levers in
+    isolation: net concurrency 16→64 @4 — no change (downloads never
+    bound); MOVE lock off @4 — no wall change, but ~320 unserialized MOVEs
+    into one target produced ZERO errors on SMT while the same knob
+    reproduces the 25.12 LOGICAL_ERROR locally within seconds → the
+    single-writer commit is a local-MergeTree workaround, unnecessary on
+    Cloud. Slots 4→8→16 was the lever that mattered: A 9.4 → 6.3 → 5.8 s
+    (318 MB/s, CPU-bound: 34.5 CPU-s on 8 vCPU, per-batch insert
+    578 → 1689 ms = queueing) vs B 9.3 → 5.5 → **3.4 s (553 MB/s)**, now
+    floored by the slowest pathological window (~2.4 s). Final @16: B =
+    1.7× wall, 1.8× total CPU (19.0 vs 34.5), 72% of server CPU moved out
+    of the database, worker+receive peak 469 MiB flat vs A's
+    2.53–2.57 GiB — the HOF captured-array amplification reproduced on
+    Cloud to the digit. → A scales with service size or the 26.6 analyzer;
+    B scales with scheduling width, which is free.
+30. **Does the SMT MOVE copy bytes?** — global `system.events` deltas across
+    one full 40-window run: S3CopyObject +5, S3PutObject +361. Forty-plus
+    parts changed tables with essentially zero copies, so at this shape
+    (small packed parts, same service) MOVE PARTITION TO TABLE is a Keeper
+    metadata operation — the ~150 ms/window is coordination, not data
+    movement, and the publish step has no per-byte S3 cost. This contradicts
+    the internal support answer that cross-table moves always copy through
+    S3 (observed there on a 40 GB partition of wide parts, different shape
+    and vintage). → Publish on Cloud: pay latency, not bytes; the earlier
+    "1–2 CopyObject per batch" budget is retired.
+31. **part_log attribution of the S3 write stream** — per run: ~40 staging
+    `NewPart` (exactly one part per window: server-side squashing holds for
+    streamed inserts on Cloud), ~6 target `MergeParts` (~1× deferred rewrite
+    of moved bytes — normal MergeTree amplification), and the MOVE mechanism
+    made visible: `DownloadPart` on the target matches staging NewParts
+    count-and-byte for byte — SMT re-parents the part in Keeper and the
+    target then pulls it into its local disk cache (an S3 read, no copy).
+    The majority of the raw PUT count is the server's own S3-backed log
+    tables (aggregated_zookeeper_log, metric_log, text_log, ...) flushing
+    kilobyte parts continuously. Caveat surfaced by the byte column: the
+    synthetic corpus compresses ~43× (1.86 GB raw → ~43 MiB of parts), far
+    beyond prod ratios — engine comparisons unaffected (identical bytes in),
+    but absolute S3 storage and PUT-size conclusions are unrepresentatively
+    small. → Publish is a metadata flip + cache warm; per-window S3 cost is
+    one packed-part PUT plus its eventual merge rewrite.
+32. **Corpus generator review + rework** — a 10-angle review of
+    gen-fixtures found 15 confirmed defects; the big three: payload text
+    compressed ~43× (bare lorem measures ~286×, and it deflated exactly the
+    cost leg only Path B pays — the compressed insert wire); nothing was
+    seeded, so no documented corpus was reproducible; and the size
+    distribution was bimodal with a hole at production's p90. Reworked:
+    seeded PRNG end to end with a deterministic prefix (same seed + args =
+    byte-identical corpus, idempotent re-upload), sizes log-interpolated
+    through measured production quantiles, lorem+hex content (~8.7× whole
+    table), media inside valid JSON, huge files as true extras in
+    seeded-random windows, validated argv and corpus parent. Local
+    remeasure on 26.2: A 3.16 CPU-s / 2.52 GiB vs B 1.36 / 487 MiB on
+    329 MB; honest content narrowed the total-CPU ratio from 2.9× to
+    2.1-2.3× (B's receive leg grew ~30%/GB, A got cheaper per GB as bigger
+    spans amortize per-row costs). Cross-version parity: the same corpus
+    checksums identically on 25.12 and 26.2, both engines. → The
+    distortions were real but bounded; the verdict survives on defensible
+    numbers.
+33. **Cloud remeasure on the honest corpus** (1.35 GB / 40 windows / four
+    ~60 MB traces in seeded windows; 26.2 SMT + real S3, @16) — defaults:
+    A 8.8 s (153 MB/s, 28.6 CPU-s) vs B 8.3 s (163 MB/s, 17.0); tuned
+    (MOVE lock off + 64 connections): A 6.6 s (205) vs B **3.9 s (344,
+    18.3 CPU-s)**. Attribution the old corpus couldn't give: at 16 lanes
+    the serialized MOVE commit IS the defaults' floor (40 × ~150 ms ≈ 6 s
+    train), so unlocking it — safe on SMT per entry 29 — is worth more
+    than any other knob; connections knee at 64 (128 measures worse);
+    Path A is CPU-bound either way. Worker portability: 5.4 CPU-s/GB on
+    x86/glibc vs 2.0 on M-series — the Linux recheck experiment 20 asked
+    for; RSS stays budget-governed (540 MiB at 16 connections, 868 at
+    64). Also earned the hard way: a real S3 500 killed generation at
+    window 23/40 and the bench measured the fragment — puts now retry
+    5xx/429 with backoff and the harness refuses a manifest marked
+    incomplete. → Final cloud ratios on honest content: B = 1.7× wall,
+    1.6× total CPU, ~5.6× less peak memory, with ~2.7× ClickHouse
+    headroom left.
+34. **x86 codegen flags** — rebuilt the worker on the bench host with
+    `-C target-cpu=native` (AVX-512 on Sapphire Rapids) + fat LTO +
+    codegen-units=1: worker CPU 7.31 → 6.95–7.30 CPU-s across configs,
+    a ≤4% move inside run noise, at 6× the compile time. The hot paths
+    (memchr, regex, LZ4) already runtime-detect SIMD, so static flags buy
+    nothing. The x86-vs-M-series worker gap (~5.4 vs ~2.0 CPU-s/GB) is
+    therefore not codegen: it is mostly SMT accounting (a cloud vCPU is a
+    hyperthread sibling, inflating CPU-seconds ~1.5–2× against full
+    cores) plus possibly the allocator (the mimalloc-on-glibc A/B remains
+    untried). Bonus datum: 32 and 64 worker connections measure identical
+    (~150 MiB less RSS at 32); the connection curve is flat until it
+    degrades at 128. → Default build stays; read absolute worker CPU per
+    deployment target, in physical cores.
+35. **"CPU-bound" made precise** — the Cloud console showed A peaking at
+    only ~4 of 8 cores, contradicting the saturation story. query_log
+    attribution: per-insert thread allocation collapses ~54 → ~15 threads
+    between low concurrency and 16 lanes (concurrency control's
+    server-wide slot limit, 2× cores, thousands of grants delayed), and at
+    @16 OSCPUWait EQUALS OSCPUVirtualTime — half of all thread-time is
+    runnable-but-descheduled, the cgroup CFS quota throttling bursts
+    inside 100 ms periods while the 10 s utilization graph averages the
+    same behavior into apparent headroom. Raising the thread-slot limit
+    (server-level on Cloud) would feed more threads into the same quota.
+    → A is compute-scheduling-bound, not graph-visibly core-bound; its
+    levers stay a bigger service, fewer lanes (its wait ratio at 8 lanes
+    is 27% vs ~100% at 16), or the cheaper 26.6 analyzer. CPU-second
+    totals stay honest: waits are not counted in them.
+36. **Path A's best shot on 26.2** — swept A's own levers with moves
+    unlocked: lanes 4/8/16 → 9.1 / 6.8 / 6.6 s walls (the wait-ratio
+    prediction held: 8 lanes matches 16 at ~2 CPU-s less contention
+    waste; 4 under-parallelizes), and max_download_threads 4→16 measured
+    inside noise. Mega-batches were excluded on principle: coarsening the
+    commit unit measures a different design, and the per-window commit is
+    the requirement. → A's plateau on this service/version is ~6.6 s /
+    ~205 MB/s / ~28 CPU-s vs B's 3.9 s / 344 / 18.3 at its own best —
+    1.7× wall, 1.5× CPU, 5.6× memory. A's remaining lever is the
+    platform, not tuning: the 26.6+ analyzer (release-channel change) or
+    a bigger service.
+37. **The bigger service, measured** — the bench service was doubled to
+    16 vCPU / 64 GB. The resize verifiably landed (CPU-wait fell from
+    ~100% of CPU-used to 1.5%, threads per insert 15 → 34), yet per-insert
+    latency did not move: each insert consumes ~1 core-second per ~0.7 s
+    of wall — the per-window transform is intrinsically near-serial, so
+    the lane count must follow the core count. At 16 lanes on 16 cores:
+    A 4.6 s / 297 MB/s / 26.8 CPU-s vs B (unchanged, it never needed the
+    bigger box) 3.7 s / 367 / 16.9. Per busy core the engines are the
+    same order (~51 vs ~80 MB/s-core); B's remaining 1.6× CPU edge is
+    work it avoids — per-statement analysis, HOF array replication —
+    not faster code. → A buys wall time with hardware: 2× the service
+    for a 1.24× wall gap, while B leaves the smaller service half idle.
+    Placement, not engine speed, is the durable difference.
 
 ## Key findings (measured)
 

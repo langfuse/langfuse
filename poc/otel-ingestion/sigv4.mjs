@@ -16,6 +16,9 @@ export function signedFetch({
   region = process.env.POC_S3_REGION ?? "us-east-1",
   sessionToken = process.env.POC_S3_SESSION_TOKEN,
 }) {
+  // a trailing slash would make the wire path "//bucket/..." while the
+  // signature covers "/bucket/..." — normalize instead of failing signed
+  endpoint = endpoint.replace(/\/+$/, "");
   const url = new URL(endpoint);
   const now = new Date();
   const amzDate = now

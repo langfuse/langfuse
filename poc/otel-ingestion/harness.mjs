@@ -25,8 +25,9 @@ const S3_FROM_CH = {
   secretKey: process.env.POC_MINIO_SECRET_KEY ?? "miniosecret",
 };
 
+// capped by the staging-table pool (events_poc_staging_0..15)
 const CONCURRENCY = Math.min(
-  4,
+  16,
   Number(process.argv[process.argv.indexOf("--concurrency") + 1] || 1) || 1,
 );
 const ENGINE =
@@ -144,6 +145,12 @@ async function main() {
   const manifest = JSON.parse(
     readFileSync(new URL("./out/manifest.json", import.meta.url), "utf8"),
   );
+  if (manifest.complete === false)
+    throw new Error(
+      `manifest is incomplete (${manifest.windows.length} windows uploaded, ` +
+        `prefix ${manifest.prefix}) — the generator died mid-run; rerun it ` +
+        `(same seed overwrites idempotently) before benchmarking`,
+    );
   const byWindow = new Map(manifest.windows.map((w) => [w.windowId, w]));
 
   console.log(
@@ -193,9 +200,9 @@ async function main() {
         formatReadableSize(max(memory_usage)) AS peak_mem_per_query,
         formatReadableSize(sum(read_bytes)) AS read_bytes,
         -- S3 API traffic (zero on local MinIO reads via url()): GETs on the
-        -- transform reads, PUTs on part writes, and CopyObject on MOVE
-        -- PARTITION commits — on SharedMergeTree a MOVE physically copies
-        -- every part blob, so this is the publish-step price tag
+        -- transform reads, PUTs on part writes. CopyObject stays ~0 even
+        -- across MOVE PARTITION commits — measured on SharedMergeTree 26.2,
+        -- small packed parts move between tables as Keeper metadata
         toUInt64(sum(ProfileEvents['S3GetObject'])) AS s3_get,
         toUInt64(sum(ProfileEvents['S3PutObject'])) AS s3_put,
         toUInt64(sum(ProfileEvents['S3CopyObject'])) AS s3_copy

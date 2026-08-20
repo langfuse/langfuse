@@ -199,8 +199,13 @@ async fn commit_window(
     {
         // single-writer commit: concurrent MOVE PARTITION into one target
         // races server-side on 25.12 (LOGICAL_ERROR "Temporary part
-        // tmp_move_from_... already added"); moves are milliseconds
-        let _commit = move_lock.lock().await;
+        // tmp_move_from_... already added"); moves are milliseconds locally.
+        // POC_MOVE_LOCK=0 skips the lock (see Config::move_lock).
+        let _commit = if cfg.move_lock {
+            Some(move_lock.lock().await)
+        } else {
+            None
+        };
         for p in &partitions {
             clickhouse
                 .query(&format!(
@@ -335,6 +340,7 @@ struct Config {
     memory_budget_mb: usize,
     batch_timeout_s: u64,
     slots: usize,
+    move_lock: bool,
 }
 
 impl Config {
@@ -370,6 +376,10 @@ impl Config {
             slots: env_or("POC_RW_SLOTS", "4")
                 .parse()
                 .context("POC_RW_SLOTS")?,
+            // single-writer MOVE commit guards a 25.12 local race; on
+            // SharedMergeTree the ~150ms/window publish coordination can
+            // floor wall time, so POC_MOVE_LOCK=0 lets moves overlap
+            move_lock: env_or("POC_MOVE_LOCK", "1") != "0",
         })
     }
 }

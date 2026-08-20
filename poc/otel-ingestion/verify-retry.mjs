@@ -60,6 +60,13 @@ console.log(
 await chq(`TRUNCATE TABLE poc_chlb.events_poc_staging_0`);
 await chq(insertSql);
 const staged2 = await count("poc_chlb.events_poc_staging_0");
+if (staged2 === 0) {
+  // zero rows would make the PASS condition vacuously true
+  console.error(
+    `FAIL: transform matched no files under ${manifest.prefix} — stale manifest or expired corpus?`,
+  );
+  process.exit(1);
+}
 const parts = await chq(
   `SELECT partition_id FROM system.parts
    WHERE database='poc_chlb' AND table='events_poc_staging_0' AND active GROUP BY partition_id`,

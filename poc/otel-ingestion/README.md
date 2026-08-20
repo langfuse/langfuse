@@ -22,7 +22,7 @@ deduplication tokens or their limited retention window.
 
 ```
 # shared driver + verifiers (engine-agnostic)
-EXPERIMENTS.md        27-entry experiment log, findings, and deep dives
+EXPERIMENTS.md        37-entry experiment log, findings, and deep dives
 harness.mjs           run driver (--engine ch|rust): schedules commit batches, prints summary
 bench.mjs             alternating multi-run comparison -> median [min..max] table
 checksum.mjs          per-column cityHash64 sums: proves Path A output ≡ Path B output
@@ -210,20 +210,26 @@ type-system, and worker details are in [EXPERIMENTS.md](EXPERIMENTS.md).
 
 ### Standard corpus
 
-The standard corpus is ~155 MB across ~5.2k realistic spans and 10 batches.
-These are median [min..max] results from alternating engine runs on laptop
-Docker ClickHouse 25.12 with `bench.mjs`, excluding the warmup pair.
+The seeded 329 MB corpus contains ~5.6k spans in 10 batches. Event sizes follow
+measured production quantiles and payloads compress ~8.7×. Two batches contain
+a ~60 MB single-span trace to test whether one unusually large object causes
+disproportionate memory use. These are median [min..max] results from
+alternating runs on laptop Docker ClickHouse 26.2 (the production version),
+excluding the warmup pair.
 
-|                          | Path A (SQL in ClickHouse)      | Path B (Rust worker)                               |
-| ------------------------ | ------------------------------- | -------------------------------------------------- |
-| wall @ concurrency 4     | 0.60 s [0.60..0.60] → 272 MB/s  | 0.30 s [0.30..0.50] → 557 MB/s                     |
-| total CPU                | 1.97 s [1.95..2.01] (all in CH) | 0.69 s [0.69..0.73] (0.39 worker + 0.30 CH insert) |
-| peak memory              | 288 MiB server [286..403]       | 76 MiB worker + 271 MiB CH insert                  |
-| per-batch insert wall @1 | 133 ms [126..156]               | 21 ms [18..36]                                     |
+|                      | Path A (SQL in ClickHouse)      | Path B (Rust worker)                               |
+| -------------------- | ------------------------------- | -------------------------------------------------- |
+| wall @ concurrency 4 | 0.90 s [0.80..0.90] → 366 MB/s  | 0.50 s [0.50..0.60] → 693 MB/s                     |
+| total CPU            | 3.16 s [3.14..3.24] (all in CH) | 1.36 s [1.30..1.43] (0.63 worker + 0.71 CH insert) |
+| peak memory          | 2.52 GiB server [2519..2529]    | 487 MiB worker + 554 MiB CH insert                 |
+| per-batch insert     | 221 ms [169..521]               | 73 ms [42..323]                                    |
 
-`@1` means one batch at a time; the main wall-time result uses four concurrent
-batches. For Path B, “CH insert” is the ClickHouse CPU and memory used to
-receive and store the worker's streamed output.
+The large traces are what push Path A to 2.52 GiB. Profiles point to
+ClickHouse copying large arrays while evaluating the generated SQL, and the
+settings we tried did not cap those allocations. Path B peaked at 487 MiB in
+the worker, with another 554 MiB used by ClickHouse to store its output. The
+[full size-skew analysis](EXPERIMENTS.md#size-skew-stress-the-full-story) has
+the profiles and mitigations.
 
 The transform work itself is at parity. The CPU difference comes from setup
 performed once per batch. Path B originally started a new process for every
@@ -238,61 +244,35 @@ but also create coarser commits and roughly double peak memory. ClickHouse
 26.6 reduces the planning cost by 4.5×; 26.2 behaves roughly like 25.12.
 
 Both paths exceed the current EU production ingestion rate (~16 MB/s) by more
-than 17× on this local benchmark.
+than 20× on this local benchmark.
 
-### Simulated S3 latency
+### Cloud (staging, real S3, ClickHouse Cloud 26.2)
 
-A `tc netem` rule on the MinIO container adds +20 ms delay and a 2 Gbit
-aggregate cap; the recipe is in [EXPERIMENTS.md](EXPERIMENTS.md).
+The same harness ran against real S3 and a pinned ClickHouse Cloud 26.2
+SharedMergeTree service, first at 8 vCPU / 32 GB and then at 16 vCPU / 64 GB.
+The driver and Rust worker shared an in-region 8 vCPU host. The seeded 1.35 GB
+corpus has 40 windows, four with a ~60 MB single-span file. Checksums and media
+offsets held on the first run.
 
-|                      | Path A           | Path B            |
-| -------------------- | ---------------- | ----------------- |
-| wall @ concurrency 4 | 2.05 s → 87 MB/s | 1.10 s → 156 MB/s |
-| spread across runs   | [61..111] MB/s   | [153..158] MB/s   |
-| total CPU            | 2.08 s           | 0.77 s            |
+|                            | Path A                | Path B                              |
+| -------------------------- | --------------------- | ----------------------------------- |
+| wall @ 16, 8 vCPU service  | 6.6 s → 205 MB/s      | 3.9 s → 344 MB/s                    |
+| wall @ 16, 16 vCPU service | 4.6 s → 297 MB/s      | 3.7 s → 367 MB/s                    |
+| total CPU                  | 26.8 s                | 16.9 s (7.1 worker + 9.8 CH insert) |
+| peak memory                | ~2.6 GiB server/query | 469 MiB CH insert + ~0.8 GiB worker |
 
-Latency costs both engines wall time and neither engine CPU. Path B's
-download pipeline hides it better and much more consistently: its throughput
-stayed within ±2% while Path A's varied by ±30% between runs. Raising
-concurrency (Path B's request cap, Path A's `max_threads`) did not help
-under the shaper, but that is a limit of the simulation — its shared
-bandwidth bucket penalizes extra connections, whereas real S3 scales per
-connection. TLS and S3 throttling are also not simulated, so the cloud run
-remains the authority on connection tuning.
+Both engines are shown with their best settings. On the 8 vCPU service, Path B
+finished in 3.9 s versus Path A's 6.6 s. Across the best runs, Path A used
+roughly 1.6× as much total CPU. Doubling the ClickHouse service narrowed Path
+A's wall-time gap from 69% to 24%, but did not reduce its CPU use. Path A can
+therefore buy back wall time with a larger service; Path B avoids the
+query-analysis and large-array-copy work.
 
-### Large-file stress
-
-The standard corpus spreads its bytes across thousands of spans. This test
-adds four traces that each place ~60 MB in a single span, bringing the corpus
-to 395 MB, and runs one batch at a time. It tests size skew: whether one large
-object or field can cause disproportionate memory use even at low
-concurrency.
-
-|             | Path A                    | Path B                                |
-| ----------- | ------------------------- | ------------------------------------- |
-| peak memory | **2.46 GiB** server/query | 601 MiB worker + ~0.4 GiB CH insert   |
-| total CPU   | 3.30 s (~8.4 CPU-s/GB)    | ~1.1 s (0.62 worker + ~0.5 CH insert) |
-
-Both engines remained correct: checksums matched across all 38 columns, and
-all 258 media-manifest entries verified end to end, including data URIs whose
-offsets start 50 MB into the source value.
-
-Path A's peak comes from ClickHouse copying large arrays while evaluating the
-generated array expressions. Profiling placed the allocations inside those
-expressions, and changing download, parsing, thread, and block-size settings
-did not reduce them. Rewriting the metadata expression to pass the large
-arrays into each lambda instead of capturing and copying them cut the peak to
-1.14 GiB, but the general engine fix is still upstream.
-
-Path B's byte budget limits how much downloaded input can be in flight, but
-the process peak also includes parser working memory and ClickHouse's insert
-side. Follow-up profiling found avoidable buffering of large JSON values and
-replaced it with a streaming parser without changing the output.
-
-The allocation profiles, version comparisons, settings tested, and worker
-parser measurements are in the
-[full size-skew analysis](EXPERIMENTS.md#size-skew-stress-the-full-story).
-The same file also contains the full CPU decomposition and version matrix.
+**S3 economics.** On SharedMergeTree, `MOVE PARTITION` moved metadata rather
+than copying parts: `S3CopyObject` stayed at ~0 across full runs, and concurrent
+moves were error-free across hundreds of commits. Both paths therefore pay one
+GET per raw file, one packed-part PUT per window, and the eventual
+background-merge rewrite; publishing adds no requests.
 
 ## Developer experience
 
@@ -480,11 +460,11 @@ semantics, commit protocol, and harness. It reached checksum parity across all
 
 Median results from five alternating runs on the standard corpus:
 
-|                       | Go       | Rust     |
-| --------------------- | -------- | -------- |
-| throughput            | 652 MB/s | 631 MB/s |
-| total CPU             | 1.38 s   | 0.73 s   |
-| worker RSS            | 300 MiB  | 88 MiB   |
+|            | Go       | Rust     |
+| ---------- | -------- | -------- |
+| throughput | 652 MB/s | 631 MB/s |
+| total CPU  | 1.38 s   | 0.73 s   |
+| worker RSS | 300 MiB  | 88 MiB   |
 
 Go matched Rust's throughput, but used roughly twice the total CPU and more
 worker memory. After replacing `encoding/json` with the experimental json/v2
@@ -507,22 +487,6 @@ did not justify keeping it. The spike was removed from the working tree but
 remains in Git history (`git log -- poc/otel-ingestion/engine-go`). Entries
 25–27 in [EXPERIMENTS.md](EXPERIMENTS.md) contain the implementation and
 profiling details.
-
-## Swapping to Cloud
-
-This should only run against a dev service. Copy the internal-project raw
-files to a scratch prefix and adjust the `_path` project regex to
-`otel/{projectId}/...`. Use either a scoped read-only key or a Cloud S3 role,
-and run the test in-region.
-
-For Path A, monitor `query_log` with
-`log_comment='poc-chlb-transform-v2'` and watch whether the partition moves
-create unexpected ClickHouse Keeper coordination load. The behavior of
-frequent `MOVE PARTITION` commits on Cloud's SharedMergeTree is the main
-unknown. Path B inserts use
-`log_comment='poc-chlb-rust-insert'`; its equivalent test is an in-region
-machine running the binary. The binary is configured through environment
-variables, so no code changes should be needed.
 
 ## Deliberate simplifications
 
