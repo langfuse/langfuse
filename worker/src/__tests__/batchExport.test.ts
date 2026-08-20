@@ -22,6 +22,7 @@ import {
   DatasetStatus,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "../env";
 import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
 import { getTraceStream } from "../features/database-read-stream/trace-stream";
@@ -1700,6 +1701,62 @@ describe("batch export test suite", () => {
       expect(row.projectId).toBe(projectId);
       expect(row.orgId).toBe(orgId);
     });
+  });
+
+  it("should export audit logs without duplicates or omissions when entries share a creation timestamp", async () => {
+    const { projectId, orgId } = await createOrgProjectAndApiKey();
+
+    // Insert more audit logs than a single export page, all sharing the same
+    // creation timestamp, so the paginated read must resolve ordering ties
+    // deterministically instead of duplicating or omitting rows at page
+    // boundaries.
+    const total = env.BATCH_EXPORT_PAGE_SIZE + 50;
+    const sharedTimestamp = new Date("2024-05-01T12:00:00Z");
+    const auditLogEntries = Array.from({ length: total }, () => ({
+      id: randomUUID(),
+      projectId: projectId,
+      orgId: orgId,
+      type: "API_KEY" as const,
+      apiKeyId: randomUUID(),
+      resourceType: "prompt",
+      resourceId: randomUUID(),
+      action: "CREATE",
+      before: null,
+      after: null,
+      createdAt: sharedTimestamp,
+      updatedAt: sharedTimestamp,
+    }));
+
+    await prisma.auditLog.createMany({
+      data: auditLogEntries,
+    });
+
+    const stream = await getDatabaseReadStreamPaginated({
+      projectId: projectId,
+      tableName: BatchExportTableName.AuditLogs,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // No row may be duplicated or omitted at page boundaries
+    expect(rows).toHaveLength(total);
+    const exportedIds = rows.map((row) => row.id);
+    expect(new Set(exportedIds).size).toBe(total);
+
+    // Ordering must match the deterministic createdAt + id ordering
+    const expectedOrder = await prisma.auditLog.findMany({
+      where: { projectId: projectId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { id: true },
+    });
+    expect(exportedIds).toEqual(expectedOrder.map((log) => log.id));
   });
 
   it("should export traces with searchQuery and searchType filters applied correctly", async () => {
