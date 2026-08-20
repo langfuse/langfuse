@@ -23,7 +23,7 @@ import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { AnnotationQueueFormContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormContent";
+import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
 
 export const CreateOrEditAnnotationQueueButton = ({
   projectId,
@@ -252,7 +252,7 @@ export const CreateOrEditAnnotationQueueButton = ({
           rather than briefly showing empty fields while byId loads. */}
       {configsData.data && (!queueId || queueQuery.data) && (
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <AnnotationQueueFormContent
+          <AnnotationQueueFormDialogContent
             mode={queueId ? "edit" : "create"}
             form={form}
             scoreConfigs={configsData.data.configs}
@@ -278,6 +278,7 @@ export const CreateOrEditAnnotationQueueButton = ({
             }
             isSubmitting={isSubmitting}
             onSubmit={onSubmit}
+            submitLabel={queueId ? "Save queue" : "Create queue"}
           />
         </DialogContent>
       )}

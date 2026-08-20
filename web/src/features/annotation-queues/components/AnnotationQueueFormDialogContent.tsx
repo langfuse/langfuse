@@ -33,12 +33,12 @@ import {
 import { type ReactNode } from "react";
 import { type UseFormReturn } from "react-hook-form";
 
-export type AnnotationQueueScoreConfigOption = Pick<
+type AnnotationQueueScoreConfigOption = Pick<
   ScoreConfigDomain,
   "id" | "name" | "dataType" | "isArchived"
 >;
 
-export type AnnotationQueueFormContentProps = {
+type AnnotationQueueFormDialogContentProps = {
   mode: "create" | "edit";
   form: UseFormReturn<CreateQueueWithAssignments>;
   scoreConfigs: AnnotationQueueScoreConfigOption[];
@@ -51,11 +51,10 @@ export type AnnotationQueueFormContentProps = {
   userAssignmentSection: ReactNode;
   isSubmitting: boolean;
   onSubmit: (data: CreateQueueWithAssignments) => void;
-  submitLabel?: string;
-  showHeader?: boolean;
+  submitLabel: string;
 };
 
-export function AnnotationQueueFormContent({
+export function AnnotationQueueFormDialogContent({
   mode,
   form,
   scoreConfigs,
@@ -69,25 +68,22 @@ export function AnnotationQueueFormContent({
   isSubmitting,
   onSubmit,
   submitLabel,
-  showHeader = true,
-}: AnnotationQueueFormContentProps) {
+}: AnnotationQueueFormDialogContentProps) {
   const activeScoreConfigs = scoreConfigs.filter(
     (config) => !config.isArchived,
   );
 
   return (
     <>
-      {showHeader ? (
-        <DialogHeader>
-          <DialogTitle>
-            {mode === "edit" ? "Edit" : "New"} annotation queue
-          </DialogTitle>
-          <DialogDescription>
-            {mode === "edit" ? "Edit" : "Create a new"} queue to manage your
-            annotation workflows.
-          </DialogDescription>
-        </DialogHeader>
-      ) : null}
+      <DialogHeader>
+        <DialogTitle>
+          {mode === "edit" ? "Edit" : "New"} annotation queue
+        </DialogTitle>
+        <DialogDescription>
+          {mode === "edit" ? "Edit" : "Create a new"} queue to manage your
+          annotation workflows.
+        </DialogDescription>
+      </DialogHeader>
       <Form {...form}>
         <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
           <DialogBody>
@@ -228,10 +224,7 @@ export function AnnotationQueueFormContent({
               className="text-xs"
               disabled={!!form.formState.errors.name || isSubmitting}
             >
-              {isSubmitting
-                ? "Processing..."
-                : (submitLabel ??
-                  `${mode === "edit" ? "Save" : "Create"} queue`)}
+              {isSubmitting ? "Processing..." : submitLabel}
             </Button>
           </DialogFooter>
         </form>

@@ -3,10 +3,10 @@ import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { fn } from "storybook/test";
 
-import { AddTracesToAnnotationQueueSelectContent } from "./AddTracesToAnnotationQueueSelectContent";
+import { AddTracesToAnnotationQueueSelectDialogContent } from "./AddTracesToAnnotationQueueSelectDialogContent";
 
 const meta = preview.meta({
-  component: AddTracesToAnnotationQueueSelectContent,
+  component: AddTracesToAnnotationQueueSelectDialogContent,
   parameters: {
     layout: "fullscreen",
   },
@@ -19,21 +19,21 @@ export const Default = meta.story({
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="sm:max-w-md">
-          <AddTracesToAnnotationQueueSelectContent
+          <AddTracesToAnnotationQueueSelectDialogContent
             description="Add 12 selected traces to an annotation queue."
             form={form}
-            queueOptions={[
-              { id: "queue-1", name: "Support review" },
-              { id: "queue-2", name: "Quality audit" },
-            ]}
-            isQueueOptionsLoading={false}
+            queueOptionsState={{
+              status: "ready",
+              options: [
+                { id: "queue-1", name: "Support review" },
+                { id: "queue-2", name: "Quality audit" },
+              ],
+            }}
             onSubmit={fn()}
             onCreateNewQueue={fn()}
-            canCreateQueue={true}
+            createQueueState={{ status: "enabled" }}
             hasAccess={true}
-            isBatchActionInProgress={false}
-            isConfirmLoading={false}
-            isConfirmDisabled={false}
+            batchActionState={{ status: "ready", canConfirm: true }}
           />
         </DialogContent>
       </Dialog>
@@ -48,18 +48,15 @@ export const Empty = meta.story({
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="sm:max-w-md">
-          <AddTracesToAnnotationQueueSelectContent
+          <AddTracesToAnnotationQueueSelectDialogContent
             description="Add 3 selected traces to an annotation queue."
             form={form}
-            queueOptions={[]}
-            isQueueOptionsLoading={false}
+            queueOptionsState={{ status: "ready", options: [] }}
             onSubmit={fn()}
             onCreateNewQueue={fn()}
-            canCreateQueue={true}
+            createQueueState={{ status: "enabled" }}
             hasAccess={true}
-            isBatchActionInProgress={false}
-            isConfirmLoading={false}
-            isConfirmDisabled={true}
+            batchActionState={{ status: "ready", canConfirm: false }}
           />
         </DialogContent>
       </Dialog>
@@ -74,18 +71,15 @@ export const Loading = meta.story({
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="sm:max-w-md">
-          <AddTracesToAnnotationQueueSelectContent
+          <AddTracesToAnnotationQueueSelectDialogContent
             description="Add 3 selected traces to an annotation queue."
             form={form}
-            queueOptions={[]}
-            isQueueOptionsLoading={true}
+            queueOptionsState={{ status: "loading" }}
             onSubmit={fn()}
             onCreateNewQueue={fn()}
-            canCreateQueue={true}
+            createQueueState={{ status: "enabled" }}
             hasAccess={true}
-            isBatchActionInProgress={false}
-            isConfirmLoading={true}
-            isConfirmDisabled={true}
+            batchActionState={{ status: "checking" }}
           />
         </DialogContent>
       </Dialog>
@@ -100,19 +94,22 @@ export const CreateDisabled = meta.story({
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="sm:max-w-md">
-          <AddTracesToAnnotationQueueSelectContent
+          <AddTracesToAnnotationQueueSelectDialogContent
             description="Add 8 selected traces to an annotation queue."
             form={form}
-            queueOptions={[{ id: "queue-1", name: "Only queue" }]}
-            isQueueOptionsLoading={false}
+            queueOptionsState={{
+              status: "ready",
+              options: [{ id: "queue-1", name: "Only queue" }],
+            }}
             onSubmit={fn()}
             onCreateNewQueue={fn()}
-            canCreateQueue={false}
-            createQueueDisabledReason="Maximum number of annotation queues reached for your plan."
+            createQueueState={{
+              status: "disabled",
+              reason:
+                "Maximum number of annotation queues reached for your plan.",
+            }}
             hasAccess={true}
-            isBatchActionInProgress={false}
-            isConfirmLoading={false}
-            isConfirmDisabled={false}
+            batchActionState={{ status: "ready", canConfirm: true }}
           />
         </DialogContent>
       </Dialog>
@@ -127,18 +124,18 @@ export const BatchActionInProgress = meta.story({
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="sm:max-w-md">
-          <AddTracesToAnnotationQueueSelectContent
+          <AddTracesToAnnotationQueueSelectDialogContent
             description="Add 50 selected traces to an annotation queue."
             form={form}
-            queueOptions={[{ id: "queue-1", name: "Support review" }]}
-            isQueueOptionsLoading={false}
+            queueOptionsState={{
+              status: "ready",
+              options: [{ id: "queue-1", name: "Support review" }],
+            }}
             onSubmit={fn()}
             onCreateNewQueue={fn()}
-            canCreateQueue={true}
+            createQueueState={{ status: "enabled" }}
             hasAccess={true}
-            isBatchActionInProgress={true}
-            isConfirmLoading={false}
-            isConfirmDisabled={true}
+            batchActionState={{ status: "inProgress" }}
           />
         </DialogContent>
       </Dialog>

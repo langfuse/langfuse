@@ -25,7 +25,7 @@ import {
 import { Plus } from "lucide-react";
 import { type UseFormReturn } from "react-hook-form";
 
-export type AnnotationQueueSelectOption = {
+type AnnotationQueueSelectOption = {
   id: string;
   name: string;
 };
@@ -34,35 +34,38 @@ type SelectFormValues = {
   targetId: string;
 };
 
-export type AddTracesToAnnotationQueueSelectContentProps = {
+type AddTracesToAnnotationQueueSelectDialogContentProps = {
   description: string;
   form: UseFormReturn<SelectFormValues>;
-  queueOptions: AnnotationQueueSelectOption[];
-  isQueueOptionsLoading: boolean;
+  queueOptionsState:
+    | { status: "loading" }
+    | { status: "ready"; options: AnnotationQueueSelectOption[] };
   onSubmit: () => void;
   onCreateNewQueue: () => void;
-  canCreateQueue: boolean;
-  createQueueDisabledReason?: string;
+  createQueueState:
+    | { status: "enabled" }
+    | { status: "disabled"; reason: string };
   hasAccess: boolean;
-  isBatchActionInProgress: boolean;
-  isConfirmLoading: boolean;
-  isConfirmDisabled: boolean;
+  batchActionState:
+    | { status: "checking" }
+    | { status: "inProgress" }
+    | { status: "ready"; canConfirm: boolean };
 };
 
-export function AddTracesToAnnotationQueueSelectContent({
+export function AddTracesToAnnotationQueueSelectDialogContent({
   description,
   form,
-  queueOptions,
-  isQueueOptionsLoading,
+  queueOptionsState,
   onSubmit,
   onCreateNewQueue,
-  canCreateQueue,
-  createQueueDisabledReason,
+  createQueueState,
   hasAccess,
-  isBatchActionInProgress,
-  isConfirmLoading,
-  isConfirmDisabled,
-}: AddTracesToAnnotationQueueSelectContentProps) {
+  batchActionState,
+}: AddTracesToAnnotationQueueSelectDialogContentProps) {
+  const isQueueOptionsLoading = queueOptionsState.status === "loading";
+  const queueOptions =
+    queueOptionsState.status === "ready" ? queueOptionsState.options : [];
+
   return (
     <>
       <DialogHeader variant="action">
@@ -108,8 +111,12 @@ export function AddTracesToAnnotationQueueSelectContent({
               variant="outline"
               size="sm"
               className="mt-2 w-full"
-              disabled={!canCreateQueue}
-              title={createQueueDisabledReason}
+              disabled={createQueueState.status === "disabled"}
+              title={
+                createQueueState.status === "disabled"
+                  ? createQueueState.reason
+                  : undefined
+              }
               onClick={onCreateNewQueue}
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -117,7 +124,7 @@ export function AddTracesToAnnotationQueueSelectContent({
             </Button>
           </DialogBody>
           <DialogFooter variant="action">
-            {isBatchActionInProgress ? (
+            {batchActionState.status === "inProgress" ? (
               <div className="flex items-center gap-1">
                 <Spinner size="xxs" />
                 <p className="text-muted-foreground text-sm">
@@ -128,8 +135,11 @@ export function AddTracesToAnnotationQueueSelectContent({
             <ActionButton
               type="submit"
               hasAccess={hasAccess}
-              loading={isConfirmLoading}
-              disabled={isConfirmDisabled}
+              loading={batchActionState.status === "checking"}
+              disabled={
+                batchActionState.status !== "ready" ||
+                !batchActionState.canConfirm
+              }
             >
               Confirm
             </ActionButton>

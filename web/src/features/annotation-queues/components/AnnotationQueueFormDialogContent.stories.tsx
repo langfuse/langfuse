@@ -1,16 +1,16 @@
 import preview from "../../../../.storybook/preview";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CreateQueueWithAssignmentsData } from "@langfuse/shared";
+import {
+  CreateQueueWithAssignmentsData,
+  type ScoreConfigDomain,
+} from "@langfuse/shared";
 import { useForm } from "react-hook-form";
 import { fn } from "storybook/test";
 
-import {
-  AnnotationQueueFormContent,
-  type AnnotationQueueScoreConfigOption,
-} from "./AnnotationQueueFormContent";
+import { AnnotationQueueFormDialogContent } from "./AnnotationQueueFormDialogContent";
 
-const scoreConfigs: AnnotationQueueScoreConfigOption[] = [
+const scoreConfigs = [
   {
     id: "config-1",
     name: "Helpfulness",
@@ -29,10 +29,13 @@ const scoreConfigs: AnnotationQueueScoreConfigOption[] = [
     dataType: "CATEGORICAL",
     isArchived: true,
   },
-];
+] satisfies Pick<
+  ScoreConfigDomain,
+  "id" | "name" | "dataType" | "isArchived"
+>[];
 
 const meta = preview.meta({
-  component: AnnotationQueueFormContent,
+  component: AnnotationQueueFormDialogContent,
   parameters: {
     layout: "fullscreen",
   },
@@ -52,7 +55,7 @@ export const Create = meta.story({
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <AnnotationQueueFormContent
+          <AnnotationQueueFormDialogContent
             mode="create"
             form={form}
             scoreConfigs={scoreConfigs}
@@ -65,6 +68,7 @@ export const Create = meta.story({
             userAssignmentSection={null}
             isSubmitting={false}
             onSubmit={fn()}
+            submitLabel="Create queue"
           />
         </DialogContent>
       </Dialog>
@@ -87,7 +91,7 @@ export const Edit = meta.story({
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <AnnotationQueueFormContent
+          <AnnotationQueueFormDialogContent
             mode="edit"
             form={form}
             scoreConfigs={scoreConfigs}
@@ -100,6 +104,7 @@ export const Edit = meta.story({
             userAssignmentSection={null}
             isSubmitting={false}
             onSubmit={fn()}
+            submitLabel="Save queue"
           />
         </DialogContent>
       </Dialog>
@@ -121,7 +126,7 @@ export const Submitting = meta.story({
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <AnnotationQueueFormContent
+          <AnnotationQueueFormDialogContent
             mode="create"
             form={form}
             scoreConfigs={scoreConfigs}
@@ -134,6 +139,7 @@ export const Submitting = meta.story({
             userAssignmentSection={null}
             isSubmitting={true}
             onSubmit={fn()}
+            submitLabel="Create queue"
           />
         </DialogContent>
       </Dialog>
@@ -155,7 +161,7 @@ export const WithAdvancedOpen = meta.story({
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <AnnotationQueueFormContent
+          <AnnotationQueueFormDialogContent
             mode="create"
             form={form}
             scoreConfigs={scoreConfigs}
@@ -172,6 +178,7 @@ export const WithAdvancedOpen = meta.story({
             }
             isSubmitting={false}
             onSubmit={fn()}
+            submitLabel="Create queue"
           />
         </DialogContent>
       </Dialog>

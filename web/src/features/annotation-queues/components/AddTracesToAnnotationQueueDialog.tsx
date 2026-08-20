@@ -15,8 +15,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
-import { AnnotationQueueFormContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormContent";
-import { AddTracesToAnnotationQueueSelectContent } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueSelectContent";
+import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
+import { AddTracesToAnnotationQueueSelectDialogContent } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueSelectDialogContent";
 import { Button } from "@/src/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 
@@ -146,12 +146,17 @@ export function AddTracesToAnnotationQueueDialog({
     typeof queueCountQuery.data === "number" &&
     queueCountQuery.data >= queueLimit;
 
-  const canCreateQueue = hasQueueAccess && !atQueueLimit;
-  const createQueueDisabledReason = !hasQueueAccess
-    ? "You don't have permission to create annotation queues."
+  const createQueueState = !hasQueueAccess
+    ? ({
+        status: "disabled",
+        reason: "You don't have permission to create annotation queues.",
+      } as const)
     : atQueueLimit
-      ? "Maximum number of annotation queues reached for your plan."
-      : undefined;
+      ? ({
+          status: "disabled",
+          reason: "Maximum number of annotation queues reached for your plan.",
+        } as const)
+      : ({ status: "enabled" } as const);
 
   const handleSelectSubmit = async () => {
     const targetId = selectForm.getValues().targetId;
@@ -252,22 +257,30 @@ export function AddTracesToAnnotationQueueDialog({
         }
       >
         {step === "select" ? (
-          <AddTracesToAnnotationQueueSelectContent
+          <AddTracesToAnnotationQueueSelectDialogContent
             description={description}
             form={selectForm}
-            queueOptions={queueOptionsQuery.data ?? []}
-            isQueueOptionsLoading={queueOptionsQuery.isLoading}
+            queueOptionsState={
+              queueOptionsQuery.isLoading
+                ? { status: "loading" }
+                : {
+                    status: "ready",
+                    options: queueOptionsQuery.data ?? [],
+                  }
+            }
             onSubmit={handleSelectSubmit}
             onCreateNewQueue={() => setStep("create")}
-            canCreateQueue={canCreateQueue}
-            createQueueDisabledReason={createQueueDisabledReason}
+            createQueueState={createQueueState}
             hasAccess={hasQueueAccess}
-            isBatchActionInProgress={!!isInProgress.data}
-            isConfirmLoading={isInProgress.isLoading || isCompletingAction}
-            isConfirmDisabled={
-              !!isInProgress.data ||
-              isCompletingAction ||
-              !selectForm.watch("targetId")
+            batchActionState={
+              isInProgress.isLoading || isCompletingAction
+                ? { status: "checking" }
+                : isInProgress.data
+                  ? { status: "inProgress" }
+                  : {
+                      status: "ready",
+                      canConfirm: !!selectForm.watch("targetId"),
+                    }
             }
           />
         ) : (
@@ -285,7 +298,7 @@ export function AddTracesToAnnotationQueueDialog({
               </Button>
             </div>
             {scoreConfigsQuery.data ? (
-              <AnnotationQueueFormContent
+              <AnnotationQueueFormDialogContent
                 mode="create"
                 form={createForm}
                 scoreConfigs={scoreConfigsQuery.data.configs}
