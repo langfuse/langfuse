@@ -42,6 +42,13 @@ export const events = {
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
+    // Trace playhead transport in the navigation header (and the overflow
+    // menu on a narrow panel). Distinguishes play vs pause vs stop; `viewMode`
+    // is tree vs timeline at click time; `observationCount` is the loaded
+    // trace size. Metadata only — never a trace/observation id.
+    "playback_play",
+    "playback_pause",
+    "playback_stop",
     // Download from the large-string IO fallback (LFE-10991): a top-level
     // string over the render limit is shown as a bounded preview + download
     // instead of the full Pretty/JSON viewer. Measures how often users hit it.
