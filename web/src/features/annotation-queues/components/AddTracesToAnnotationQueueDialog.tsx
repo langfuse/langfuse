@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -44,6 +44,11 @@ export function AddTracesToAnnotationQueueDialog({
 }: AddTracesToAnnotationQueueDialogProps) {
   const [step, setStep] = useState<DialogStep>("select");
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [isCompletingAction, setIsCompletingAction] = useState(false);
+  const createProgressRef = useRef<{
+    queueId: string;
+    assignmentsCreated: boolean;
+  } | null>(null);
   const capture = usePostHogClientCapture();
 
   const hasQueueAccess = useHasProjectAccess({
@@ -115,6 +120,8 @@ export function AddTracesToAnnotationQueueDialog({
     if (!isOpen) return;
     setStep("select");
     setIsAdvancedOpen(false);
+    setIsCompletingAction(false);
+    createProgressRef.current = null;
     selectForm.reset({ targetId: "" });
     createForm.reset({
       name: "",
@@ -150,9 +157,14 @@ export function AddTracesToAnnotationQueueDialog({
     const targetId = selectForm.getValues().targetId;
     if (!targetId) return;
 
-    await onAddToQueue({ projectId, targetId });
-    onSuccess();
-    onClose();
+    setIsCompletingAction(true);
+    try {
+      await onAddToQueue({ projectId, targetId });
+      onSuccess();
+      onClose();
+    } finally {
+      setIsCompletingAction(false);
+    }
   };
 
   const handleScoreConfigValueChange = (values: Record<string, string>[]) => {
@@ -172,20 +184,30 @@ export function AddTracesToAnnotationQueueDialog({
   };
 
   const handleCreateSubmit = async (data: CreateQueueWithAssignments) => {
+    setIsCompletingAction(true);
     try {
-      const queueResponse = await createQueueMutation.mutateAsync({
-        name: data.name,
-        description: data.description,
-        scoreConfigIds: data.scoreConfigIds,
-        projectId,
-      });
+      let progress = createProgressRef.current;
+      if (!progress) {
+        const queueResponse = await createQueueMutation.mutateAsync({
+          name: data.name,
+          description: data.description,
+          scoreConfigIds: data.scoreConfigIds,
+          projectId,
+        });
+        progress = {
+          queueId: queueResponse.id,
+          assignmentsCreated: data.newAssignmentUserIds.length === 0,
+        };
+        createProgressRef.current = progress;
+      }
 
-      if (data.newAssignmentUserIds.length > 0) {
+      if (!progress.assignmentsCreated) {
         await createQueueAssignmentsMutation.mutateAsync({
           projectId,
-          queueId: queueResponse.id,
+          queueId: progress.queueId,
           userIds: data.newAssignmentUserIds,
         });
+        progress.assignmentsCreated = true;
       }
 
       await Promise.all([
@@ -193,19 +215,25 @@ export function AddTracesToAnnotationQueueDialog({
         utils.annotationQueueAssignments.invalidate(),
       ]);
 
-      await onAddToQueue({ projectId, targetId: queueResponse.id });
+      await onAddToQueue({ projectId, targetId: progress.queueId });
       onSuccess();
       onClose();
     } catch {
       showErrorToast(
         "Operation failed",
-        "Failed to create queue or add traces. Please try again.",
+        createProgressRef.current
+          ? "The queue was created, but setup or adding traces failed. Please try again."
+          : "Failed to create queue. Please try again.",
       );
+    } finally {
+      setIsCompletingAction(false);
     }
   };
 
   const isCreateSubmitting =
-    createQueueMutation.isPending || createQueueAssignmentsMutation.isPending;
+    isCompletingAction ||
+    createQueueMutation.isPending ||
+    createQueueAssignmentsMutation.isPending;
 
   return (
     <Dialog
@@ -235,9 +263,11 @@ export function AddTracesToAnnotationQueueDialog({
             createQueueDisabledReason={createQueueDisabledReason}
             hasAccess={hasQueueAccess}
             isBatchActionInProgress={!!isInProgress.data}
-            isConfirmLoading={isInProgress.isLoading}
+            isConfirmLoading={isInProgress.isLoading || isCompletingAction}
             isConfirmDisabled={
-              !!isInProgress.data || !selectForm.watch("targetId")
+              !!isInProgress.data ||
+              isCompletingAction ||
+              !selectForm.watch("targetId")
             }
           />
         ) : (
