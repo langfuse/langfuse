@@ -305,7 +305,7 @@ function TextMessageWithActions({
     <>
       <button
         type="button"
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-md p-1 outline-none focus-visible:ring-2"
+        className="text-muted-foreground/50 hover:text-muted-foreground focus-visible:ring-ring rounded-md p-1 outline-none focus-visible:ring-2"
         aria-label={isCopied ? "Message copied" : "Copy message"}
         title={isCopied ? "Copied" : "Copy message"}
         onClick={handleCopy}
@@ -517,26 +517,37 @@ function MessageFeedbackControls({
   };
 
   const handleSelectFeedback = (value: InAppAgentMessageFeedbackValue) => {
+    const previousValue = selectedValue;
+    const previousComment = comment;
+    const previousCommittedComment = committedComment;
+    const previousPopoverOpen = isCommentPopoverOpen;
+
     if (selectedValue === value) {
-      submitFeedback(null, "")
-        .then(() => {
-          setSelectedValue(undefined);
-          setComment("");
-          setCommittedComment("");
-          setIsCommentPopoverOpen(false);
-        })
-        .catch(() => undefined);
+      setSelectedValue(undefined);
+      setComment("");
+      setCommittedComment("");
+      setIsCommentPopoverOpen(false);
+
+      submitFeedback(null, "").catch(() => {
+        setSelectedValue(previousValue);
+        setComment(previousComment);
+        setCommittedComment(previousCommittedComment);
+        setIsCommentPopoverOpen(previousPopoverOpen);
+      });
       return;
     }
 
-    submitFeedback(value, "")
-      .then(() => {
-        setSelectedValue(value);
-        setComment("");
-        setCommittedComment("");
-        setIsCommentPopoverOpen(!isFeedbackDisabledRef.current);
-      })
-      .catch(() => undefined);
+    setSelectedValue(value);
+    setComment("");
+    setCommittedComment("");
+    setIsCommentPopoverOpen(!isFeedbackDisabledRef.current);
+
+    submitFeedback(value, "").catch(() => {
+      setSelectedValue(previousValue);
+      setComment(previousComment);
+      setCommittedComment(previousCommittedComment);
+      setIsCommentPopoverOpen(previousPopoverOpen);
+    });
   };
 
   const commentButtonText = `Comment: ${committedComment}`;

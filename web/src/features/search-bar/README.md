@@ -270,15 +270,16 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
 
 The bar is also the home of AI-assisted filtering on v4 (it replaces the legacy
 sidebar "✨ wand" — `EventsTable` now passes `filterWithAI={!searchBarMode}`, so
-the wand only survives on non-bar/embedded surfaces and the v3 traces table).
+the wand only survives on Cloud, on non-bar/embedded surfaces and the leftover
+traces table). Self-hosted uses Ask AI on this bar only.
 
 - **Entry.** The **"Ask AI"** affordance opens AI mode — a plain button placed
   AFTER the field in DOM order, always available (build from scratch OR refine
   existing filters). Tab is deliberately NOT a shortcut: while typing it belongs
   to autocomplete navigation, so forward-tab just moves focus from the field
   onto the button. `EventsSearchBarRow` owns the `'grammar' | 'ai'` mode and
-  gates availability on `isLangfuseCloud && organization.aiFeaturesEnabled` (the
-  server enforces it too). `SearchComposer` only takes an `onActivateAi` callback
+  gates availability on `organization.aiFeaturesEnabled` (the server enforces it
+  too). `SearchComposer` only takes an `onActivateAi` callback
   - renders the affordance; it stays grammar-only.
 - **The component.** `components/SearchBarAiPrompt.tsx` — a plain NL input (not
   the contenteditable). Enter generates; Esc or the back arrow exits (no

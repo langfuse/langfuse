@@ -95,8 +95,8 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
-import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { type FilterState } from "@langfuse/shared";
 
 interface ControlsContextType {
   open: boolean;
@@ -209,8 +209,8 @@ export function DataTableControls({
   blockedColumnReason,
   layout = "panel",
 }: DataTableControlsProps) {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { setOpen, tableName, isMobile } = useDataTableControls();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
   const activeFilterCount = queryFilter.filters.filter(

@@ -2,7 +2,6 @@ import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
 import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
 import type { Langfuse } from "langfuse";
@@ -12,6 +11,7 @@ import {
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
+import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
 import { createManualToolApprovalRunInput } from "./human-in-the-loop";
 import type {
@@ -45,15 +45,18 @@ import {
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  createDefaultBedrockProviderAuth,
+  logger,
+} from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
+import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
-const MAX_AGENT_STEPS = 20;
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 const IN_APP_AGENT_MCP_USER_AGENT = "langfuse-in-app-agent";
@@ -151,6 +154,27 @@ The sandbox workspace from earlier turns in this conversation expired and has be
 - Do not assume a path exists because you created it earlier in this conversation. Read it first, and recreate what you still need.
 </sandbox_workspace_reset>`;
 
+const STEP_LIMIT_WRAP_UP_INSTRUCTION = `<step_limit_wrap_up>
+This is your final step. Do not call any more tools. Summarize what you have found and give the user a complete final answer now.
+</step_limit_wrap_up>`;
+
+export type InAppAgentCompleteOutcome = {
+  truncatedByStepLimit: boolean;
+};
+
+type StepLimitState = {
+  iteration: number;
+  lastFinishReason: string | undefined;
+  wrapUp: boolean;
+};
+
+function isTruncatedByStepLimit(state: StepLimitState): boolean {
+  return (
+    state.iteration >= IN_APP_AGENT_MAX_STEPS &&
+    state.lastFinishReason !== "stop"
+  );
+}
+
 // Adaptive thinking is the default for every Claude model so new generations
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
@@ -178,15 +202,12 @@ type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
   onMcpToolCallCompleted?: (toolCall: CompletedInAppAgentMcpToolCall) => void;
   onApprovedToolCallExecuted?: () => void | Promise<void>;
-  onComplete?: () => void | Promise<void>;
+  onComplete?: (outcome?: InAppAgentCompleteOutcome) => void | Promise<void>;
   onAbort?: () => void | Promise<void>;
   onError?: (error: unknown) => void | Promise<void>;
   onFinish?: () => void | Promise<void>;
-  awsBedrock: {
-    region?: string;
-    profile?: string;
-    modelId: string;
-  };
+  model: InAppAgentModelConfig;
+  awsProfile?: string;
   langfuseMcp: {
     url: string;
     publicKey: string;
@@ -198,7 +219,7 @@ type CreateAgUiStreamOptions = {
     projectId: string;
     isV4Enabled: boolean;
   };
-  langfuseClient: Langfuse;
+  langfuseClient?: Langfuse;
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
   sandbox?: InAppAgentSandbox;
@@ -212,7 +233,7 @@ export async function createAgUiStream(params: {
   options: CreateAgUiStreamOptions;
 }) {
   const encoder = new TextEncoder();
-  const awsProfile = params.options.awsBedrock.profile;
+  const awsProfile = params.options.awsProfile;
 
   const langfuseMcpAuthHeader = `Basic ${Buffer.from(
     `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
@@ -236,7 +257,7 @@ export async function createAgUiStream(params: {
     tracing: params.options.langfuseTracing
       ? { ...params.options.langfuseTracing, prompt }
       : undefined,
-    model: params.options.awsBedrock.modelId,
+    model: params.options.model.modelId,
   });
   const recordInstrumentation = (
     operation: string,
@@ -262,20 +283,21 @@ export async function createAgUiStream(params: {
   recordInstrumentation("recordAvailableSkills", (instrumentation) =>
     instrumentation.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS),
   );
-  const onModelCallStart = instrumentation
-    ? (options: unknown) => {
-        recordInstrumentation("recordModelCallStart", (instrumentation) =>
-          instrumentation.recordModelCallStart?.(options),
-        );
-      }
-    : undefined;
-  const onModelStreamPart = instrumentation
-    ? (part: unknown) => {
-        recordInstrumentation("recordModelStreamPart", (instrumentation) =>
-          instrumentation.recordModelStreamPart?.(part),
-        );
-      }
-    : undefined;
+  const stepLimitState: StepLimitState = {
+    iteration: 0,
+    lastFinishReason: undefined,
+    wrapUp: false,
+  };
+  const onModelCallStart = (options: unknown) => {
+    recordInstrumentation("recordModelCallStart", (instrumentation) =>
+      instrumentation.recordModelCallStart?.(options),
+    );
+  };
+  const onModelStreamPart = (part: unknown) => {
+    recordInstrumentation("recordModelStreamPart", (instrumentation) =>
+      instrumentation.recordModelStreamPart?.(part),
+    );
+  };
   const onToolExecutionStart = instrumentation
     ? (toolCallId: string) => {
         recordInstrumentation("recordToolExecutionStart", (instrumentation) =>
@@ -551,6 +573,7 @@ export async function createAgUiStream(params: {
         onModelStreamPart,
         onToolExecutionStart,
         onToolExecutionEnd,
+        stepLimitState,
       })
         .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
@@ -622,6 +645,7 @@ export async function createAgUiStream(params: {
               onModelStreamPart,
               onToolExecutionStart,
               onToolExecutionEnd,
+              stepLimitState,
             });
 
             if (ending || closed || params.signal.aborted) {
@@ -750,13 +774,26 @@ export async function createAgUiStream(params: {
               closeController(
                 streamedRunError === null
                   ? () => {
+                      const truncatedByStepLimit =
+                        isTruncatedByStepLimit(stepLimitState);
                       recordInstrumentation("end", (instrumentation) =>
-                        instrumentation.end({}),
+                        instrumentation.end(
+                          truncatedByStepLimit
+                            ? {
+                                result: {
+                                  truncatedByStepLimit: true,
+                                  finishReason: stepLimitState.lastFinishReason,
+                                },
+                              }
+                            : {},
+                        ),
                       );
                       recordInstrumentation("flush", (instrumentation) =>
                         instrumentation.flush(),
                       );
-                      return params.options.onComplete?.();
+                      return params.options.onComplete?.({
+                        truncatedByStepLimit,
+                      });
                     }
                   : () => {
                       recordInstrumentation("flush", (instrumentation) =>
@@ -846,15 +883,17 @@ type ExecutableInAppAgentTool = {
   toModelOutput?: (output: unknown) => unknown | PromiseLike<unknown>;
 };
 
-type BedrockLanguageModel = ReturnType<ReturnType<typeof createAmazonBedrock>>;
+type InAppAgentLanguageModel = ReturnType<
+  ReturnType<typeof createAmazonBedrock>
+>;
 
 function withModelTracing(
-  model: BedrockLanguageModel,
+  model: InAppAgentLanguageModel,
   callbacks: {
     onStart?: (options: unknown) => void;
     onStreamPart?: (part: unknown) => void;
   },
-): BedrockLanguageModel {
+): InAppAgentLanguageModel {
   if (!callbacks.onStart && !callbacks.onStreamPart) {
     return model;
   }
@@ -939,13 +978,14 @@ async function createMastraAdapter(params: {
   onModelStreamPart?: (part: unknown) => void;
   onToolExecutionStart?: (toolCallId: string) => void;
   onToolExecutionEnd?: (toolCallId: string) => void;
+  stepLimitState: StepLimitState;
 }) {
   const bedrock = createAmazonBedrock({
-    ...(params.options.awsBedrock.region
-      ? { region: params.options.awsBedrock.region }
+    ...(params.options.model.region
+      ? { region: params.options.model.region }
       : {}),
-    credentialProvider: fromNodeProviderChain(
-      params.awsProfile ? { profile: params.awsProfile } : {},
+    ...createDefaultBedrockProviderAuth(
+      params.awsProfile ? { profile: params.awsProfile } : undefined,
     ),
   });
 
@@ -1061,7 +1101,7 @@ async function createMastraAdapter(params: {
     params.onToolsAvailable?.(tools);
 
     const reasoningProviderOptions = getBedrockReasoningProviderOptions(
-      params.options.awsBedrock.modelId,
+      params.options.model.modelId,
     );
 
     // @ag-ui/mastra currently forwards only assistant, user, and tool
@@ -1071,9 +1111,7 @@ async function createMastraAdapter(params: {
     // guidance on resumed runs.
     let developerGuidance: string | undefined;
     const model = withModelTracing(
-      bedrock(
-        params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
-      ),
+      bedrock(params.options.model.modelId as Parameters<typeof bedrock>[0]),
       {
         onStart: params.onModelCallStart,
         onStreamPart: params.onModelStreamPart,
@@ -1083,14 +1121,41 @@ async function createMastraAdapter(params: {
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
       instructions: () =>
-        [params.instructions, developerGuidance].filter(Boolean).join("\n\n"),
+        [
+          params.instructions,
+          developerGuidance,
+          params.stepLimitState.wrapUp
+            ? STEP_LIMIT_WRAP_UP_INSTRUCTION
+            : undefined,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       model,
       skills: LANGFUSE_IN_APP_AGENT_SKILLS,
       tools,
       maxRetries: 2,
       defaultOptions: {
         abortSignal: params.signal,
-        maxSteps: MAX_AGENT_STEPS,
+        maxSteps: IN_APP_AGENT_MAX_STEPS,
+        // Mastra's logical step counter — not provider doStream/finish parts,
+        // which retry and inflate independently of maxSteps.
+        onIterationComplete: ({
+          iteration,
+          maxIterations,
+          isFinal,
+          finishReason,
+        }) => {
+          params.stepLimitState.iteration = iteration;
+          params.stepLimitState.lastFinishReason = finishReason;
+          if (
+            iteration === (maxIterations ?? IN_APP_AGENT_MAX_STEPS) - 1 &&
+            !isFinal
+          ) {
+            params.stepLimitState.wrapUp = true;
+            // instructions() is snapshotted at stream start; feedback reaches the next call.
+            return { feedback: STEP_LIMIT_WRAP_UP_INSTRUCTION };
+          }
+        },
         ...(params.options.sandboxWorkspaceWasReset
           ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }
           : {}),
@@ -1373,7 +1438,7 @@ function getToolErrorMessage(chunk: MastraApprovalStreamChunk): string {
 }
 
 async function getSystemPromptInstructions(params: {
-  langfuseClient: Langfuse;
+  langfuseClient?: Langfuse;
   useLocalPrompt: boolean;
   variables: {
     currentDate: string;
@@ -1395,6 +1460,10 @@ async function getSystemPromptInstructions(params: {
         version: 1,
       },
     };
+  }
+
+  if (!params.langfuseClient) {
+    throw new Error("Managed in-app agent prompt client is not configured");
   }
 
   const prompt = await params.langfuseClient.getPrompt(
@@ -1458,7 +1527,7 @@ function createRunErrorEvent(
   error: unknown,
 ): AgUiEvent {
   const message =
-    error instanceof Error ? error.message : "Unknown assistant error";
+    error instanceof Error ? error.message : "Unknown in-app agent error";
 
   return {
     type: EventType.RUN_ERROR,
@@ -1471,5 +1540,5 @@ function createRunErrorEvent(
 function getRunErrorMessage(event: AgUiEvent) {
   return typeof event.message === "string" && event.message.trim()
     ? event.message
-    : "Unknown assistant error";
+    : "Unknown in-app agent error";
 }
