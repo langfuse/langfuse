@@ -239,8 +239,8 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  // Read-only lifecycle reporter. Off by default: it only produces metrics, and
-  // one elected worker per region is enough.
+  // Reconciles stale runs that nobody reopened. Off by default: one elected
+  // worker per region is enough.
   LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -656,13 +656,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
-  // Every deadline this reports against is 5 minutes or longer, so a faster
-  // sample adds nothing. It also keeps the cost down: both scans are currently
-  // unindexed, so they grow with the table.
+  // Floor is the heartbeat-stale window (60s). Faster would race a live worker.
   LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_INTERVAL_MS: z.coerce
     .number()
     .positive()
-    .default(900_000), // 15 minutes between runs
+    .default(60_000),
   LANGFUSE_IN_APP_AGENT_DLQ_RETRY_INTERVAL_MS: z.coerce
     .number()
     .positive()

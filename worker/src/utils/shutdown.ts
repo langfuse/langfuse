@@ -19,7 +19,7 @@ import {
   batchProjectBlobCleaner,
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
-  inAppAgentIntegrityScanner,
+  inAppAgentIntegrityRunner,
   deletedMaskCleaner,
   queueMetricsRunner,
   monitorRunners,
@@ -59,8 +59,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   // Stop durable trace-delete batch action runner
   traceDeleteBatchActionRunner?.stop();
 
-  // Stop in-app agent integrity scanner
-  inAppAgentIntegrityScanner?.stop();
+  inAppAgentIntegrityRunner?.stop();
 
   // Stop deleted-mask cleaner
   deletedMaskCleaner?.stop();

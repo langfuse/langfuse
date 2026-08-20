@@ -101,7 +101,7 @@ import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
-import { InAppAgentIntegrityScanner } from "./features/in-app-agent-integrity-scanner";
+import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 
 const app = express();
@@ -774,12 +774,12 @@ if (env.LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED === "true") {
   traceDeleteBatchActionRunner.start();
 }
 
-// Read-only reporter for in-app agent run lifecycle integrity
-export let inAppAgentIntegrityScanner: InAppAgentIntegrityScanner | null = null;
+// Reconciles stale in-app agent runs that nobody reopened, then reports remainders.
+export let inAppAgentIntegrityRunner: InAppAgentIntegrityRunner | null = null;
 
 if (env.LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_ENABLED === "true") {
-  inAppAgentIntegrityScanner = new InAppAgentIntegrityScanner();
-  inAppAgentIntegrityScanner.start();
+  inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
+  inAppAgentIntegrityRunner.start();
 }
 
 // ClickHouse deleted-mask cleaner for physically applying lightweight delete masks
