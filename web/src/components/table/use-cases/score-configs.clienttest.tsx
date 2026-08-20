@@ -78,12 +78,14 @@ vi.mock(
       children,
     }: {
       children: (control: {
-        disabled: undefined;
+        disabled: { reason: string };
         Trigger: ({ children }: { children: ReactNode }) => ReactNode;
       }) => ReactNode;
     }) =>
       children({
-        disabled: undefined,
+        disabled: {
+          reason: "You don't have permission to archive this score config.",
+        },
         Trigger: ({ children }) => children,
       }),
   }),
@@ -99,8 +101,16 @@ vi.mock("@/src/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: ReactNode }) => children,
   DropdownMenuTrigger: ({ children }: { children: ReactNode }) => children,
   DropdownMenuContent: ({ children }: { children: ReactNode }) => children,
-  DropdownMenuItem: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
+  DropdownMenuItem: ({
+    children,
+    title,
+  }: {
+    children: ReactNode;
+    title?: string;
+  }) => (
+    <div role="menuitem" title={title}>
+      {children}
+    </div>
   ),
 }));
 
@@ -122,6 +132,17 @@ describe("ScoreConfigsTable", () => {
 
     expect(screen.getByTestId("archive-popover-anchor")).toContainElement(
       screen.getByRole("button"),
+    );
+  });
+
+  it("shows why archiving is disabled", () => {
+    render(<ScoreConfigsTable projectId="project-1" />);
+
+    expect(
+      screen.getByText("Archive").closest("[role=menuitem]"),
+    ).toHaveAttribute(
+      "title",
+      "You don't have permission to archive this score config.",
     );
   });
 });

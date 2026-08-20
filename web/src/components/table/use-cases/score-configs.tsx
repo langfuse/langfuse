@@ -210,6 +210,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                     <DropdownMenuItem
                       key="archive"
                       disabled={disabled !== undefined}
+                      title={disabled?.reason}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <Archive className="mr-2 h-4 w-4" />
