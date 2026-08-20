@@ -5,21 +5,22 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import type { Session } from "next-auth";
-import type * as LangfuseAiCompletion from "@langfuse/shared/src/server/llm/langfuseAiCompletion";
 
 const llmMocks = vi.hoisted(() => ({
-  generateLangfuseAIText: vi.fn(async () => "[]"),
+  generateLLMText: vi.fn(async () => ({ text: "[]" })),
 }));
 
-// Mock the implementation module, not the shared server barrel: the barrel is
-// also imported by `@langfuse/shared/src/db`, and mocking it breaks Prisma setup.
-vi.mock("@langfuse/shared/src/server/llm/langfuseAiCompletion", async () => {
-  const actual = await vi.importActual<typeof LangfuseAiCompletion>(
-    "@langfuse/shared/src/server/llm/langfuseAiCompletion",
+// Stub the published LLM helper rather than the shared server barrel: the
+// barrel is also imported by `@langfuse/shared/src/db`, and mocking it breaks
+// Prisma setup. `langfuseAiCompletion` is not a package export, so tsc cannot
+// resolve a mock of that path.
+vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
+  const actual = await vi.importActual(
+    "@langfuse/shared/src/server/llm/llmText",
   );
   return {
     ...actual,
-    generateLangfuseAIText: llmMocks.generateLangfuseAIText,
+    generateLLMText: llmMocks.generateLLMText,
   };
 });
 
@@ -158,7 +159,7 @@ describe("Ask AI filter generation access", () => {
     (
       sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
     ).LANGFUSE_AI_FEATURES_PROJECT_ID = undefined;
-    llmMocks.generateLangfuseAIText.mockClear();
+    llmMocks.generateLLMText.mockClear();
 
     try {
       const { project, org, caller } = await prepare("VIEWER");
@@ -173,7 +174,7 @@ describe("Ask AI filter generation access", () => {
           prompt: "traces from today",
         }),
       ).resolves.toMatchObject({ filters: [] });
-      expect(llmMocks.generateLangfuseAIText).toHaveBeenCalledOnce();
+      expect(llmMocks.generateLLMText).toHaveBeenCalledOnce();
     } finally {
       (
         env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
