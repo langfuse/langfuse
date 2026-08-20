@@ -727,6 +727,7 @@ const meta = preview.meta({
 });
 
 export const ToolApprovalRequired = meta.story({
+  name: "(Test) Tool approval required",
   args: {
     isAssistantTurnInProgress: true,
     isAwaitingApproval: true,
@@ -1133,6 +1134,7 @@ export const ProgressLogWorking = meta.story({
 });
 
 export const ProgressLogOpened = meta.story({
+  name: "(Test) Progress log opened",
   args: {
     isAssistantTurnInProgress: true,
     isExpanded: true,
@@ -1408,6 +1410,7 @@ export const LoadingAfterToolCall = meta.story({
 });
 
 export const Error = meta.story({
+  name: "(Test) Error",
   args: {
     error: {
       type: "generic",
@@ -1447,6 +1450,7 @@ const stepLimitRun = {
 };
 
 export const StepLimit = meta.story({
+  name: "(Test) Step limit",
   args: {
     selectedConversationId: "conversation-1",
     executionUi: {
@@ -1555,6 +1559,7 @@ const failedRun = {
 };
 
 export const Failed = meta.story({
+  name: "(Test) Failed",
   args: {
     selectedConversationId: "conversation-1",
     executionUi: {
@@ -1616,6 +1621,7 @@ const failedBeforeFirstTokenRun = {
 };
 
 export const FailedBeforeFirstToken = meta.story({
+  name: "(Test) Failed before first token",
   args: {
     selectedConversationId: "conversation-1",
     executionUi: {
@@ -1685,6 +1691,7 @@ export const FailedBeforeFirstToken = meta.story({
  * running conversation has nothing for the user to act on yet.
  */
 export const ConversationActivity = meta.story({
+  name: "(Test) Conversation activity",
   args: {
     conversations: activityConversations,
     activityByConversationId,
@@ -1714,6 +1721,7 @@ const STORY_RUN_MS = 3_000;
  * belongs to the first one only, and wait for the run to settle to see it go.
  */
 export const BackgroundHint = meta.story({
+  name: "(Test) Background hint",
   args: {
     messages: [],
   },
@@ -1830,6 +1838,7 @@ const backgroundStopReasoning = {
 };
 
 export const BackgroundRunStops = meta.story({
+  name: "(Test) Background run stops",
   args: {
     isAssistantTurnInProgress: true,
     selectedConversationId: "conversation-1",
