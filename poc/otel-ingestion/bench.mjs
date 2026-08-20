@@ -35,6 +35,20 @@ function num(stdout, re, name) {
   return Number(m[1]);
 }
 
+// formatReadableSize picks the unit: pathological windows push peaks past MiB
+function parsePeakMib(stdout) {
+  const m = stdout.match(/peak_mem_per_query: '([\d.]+) ([KMGT]iB|B)'/);
+  if (!m) throw new Error("could not parse peak from harness output");
+  const toMib = {
+    B: 1 / 1048576,
+    KiB: 1 / 1024,
+    MiB: 1,
+    GiB: 1024,
+    TiB: 1048576,
+  };
+  return Number(m[1]) * toMib[m[2]];
+}
+
 async function runOnce(engine) {
   await chq("TRUNCATE TABLE poc_chlb.events_poc");
   const { stdout } = await execFileP(
@@ -55,7 +69,7 @@ async function runOnce(engine) {
     wall_s: num(stdout, /wall: ([\d.]+)s ->/, "wall"),
     mbps: num(stdout, /-> ([\d.]+) MB\/s/, "MB/s"),
     server_cpu_s: num(stdout, /cpu_s: ([\d.]+)/, "server cpu"),
-    server_peak_mib: num(stdout, /peak_mem_per_query: '([\d.]+) MiB'/, "peak"),
+    server_peak_mib: parsePeakMib(stdout),
     insert_ms: [...stdout.matchAll(/insert=(\d+)ms/g)].map((m) => Number(m[1])),
   };
   if (stdout.includes("worker:")) {
