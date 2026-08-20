@@ -24,7 +24,7 @@ import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 const METRIC_PREFIX = "langfuse.in_app_agent";
 
 export const IN_APP_AGENT_INTEGRITY_RUNNER_LOCK_KEY =
-  "langfuse:in-app-agent-integrity-scanner";
+  "langfuse:in-app-agent-integrity-runner";
 
 const LOCK_TTL_SECONDS = 120;
 const SCAN_LIMIT = 5_000;
@@ -61,8 +61,7 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
     });
 
     this.intervalMs =
-      opts.intervalMs ??
-      env.LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_INTERVAL_MS;
+      opts.intervalMs ?? env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_INTERVAL_MS;
   }
 
   public override start(): void {

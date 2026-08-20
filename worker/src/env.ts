@@ -241,7 +241,7 @@ const EnvSchema = z.object({
     .default("false"),
   // Reconciles stale runs that nobody reopened. Off by default: one elected
   // worker per region is enough.
-  LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_ENABLED: z
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
   // The ambient host profile takes precedence over the agent-specific default
@@ -659,7 +659,7 @@ const EnvSchema = z.object({
   // Default 15 minutes. Do not go below the heartbeat-stale window (60s) or a
   // live worker can lose the race. Faster also adds no resolution: every
   // deadline this runner reports against is 5 minutes or longer.
-  LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_INTERVAL_MS: z.coerce
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_INTERVAL_MS: z.coerce
     .number()
     .positive()
     .default(15 * 60_000),

@@ -777,7 +777,7 @@ if (env.LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED === "true") {
 // Reconciles stale in-app agent runs that nobody reopened, then reports remainders.
 export let inAppAgentIntegrityRunner: InAppAgentIntegrityRunner | null = null;
 
-if (env.LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_ENABLED === "true") {
+if (env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED === "true") {
   inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
   inAppAgentIntegrityRunner.start();
 }

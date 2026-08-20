@@ -48,7 +48,7 @@ vi.mock(
 );
 
 vi.mock("../../env", () => ({
-  env: { LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_INTERVAL_MS: 60_000 },
+  env: { LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_INTERVAL_MS: 60_000 },
 }));
 
 import { InAppAgentIntegrityRunner } from "./index";
