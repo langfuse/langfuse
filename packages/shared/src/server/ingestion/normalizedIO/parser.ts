@@ -16,6 +16,7 @@ import type {
   SpanIO,
   ToolCallPart,
   ToolDefinition,
+  ToolResultPart,
 } from "./types";
 
 type OtelScopeSpan = NonNullable<ResourceSpan["scopeSpans"]>[number];
@@ -123,6 +124,13 @@ function toProviderMetadata(
   return isRecord(value) && Object.keys(value).length > 0 ? value : undefined;
 }
 
+/** Strip undefined-valued keys so optional fields are absent, not undefined. */
+function compact<T extends Record<string, unknown>>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== undefined),
+  ) as T;
+}
+
 type ParsedMediaReference = {
   type: string;
   id: string;
@@ -150,17 +158,15 @@ function filePartFromMediaReference(
   reference: ParsedMediaReference,
   extras?: Record<string, unknown>,
 ): FilePart {
-  const providerMetadata = toProviderMetadata({
-    source: reference.source,
-    ...extras,
-  });
-
-  return {
+  return compact<FilePart>({
     type: "file",
     mediaType: reference.type,
     content: { kind: "reference", id: reference.id },
-    ...(providerMetadata ? { providerMetadata } : {}),
-  };
+    providerMetadata: toProviderMetadata({
+      source: reference.source,
+      ...extras,
+    }),
+  });
 }
 
 /**
@@ -199,40 +205,25 @@ function filePartFromFileFields(
   fields: Record<string, unknown>,
 ): FilePart | null {
   const filename = optionalString(fields.filename);
-  const withName = filename ? { filename } : {};
 
   const fileData = optionalString(fields.file_data);
   const reference = parseMediaReference(fileData);
   if (reference) {
-    return { ...filePartFromMediaReference(reference), ...withName };
-  }
-  if (fileData) {
-    return {
-      type: "file",
-      ...withName,
-      content: { kind: "base64", data: fileData },
-    };
+    return compact({ ...filePartFromMediaReference(reference), filename });
   }
 
   const fileUrl = optionalString(fields.file_url);
-  if (fileUrl) {
-    return {
-      type: "file",
-      ...withName,
-      content: { kind: "url", url: fileUrl },
-    };
-  }
-
   const fileId = optionalString(fields.file_id);
-  if (fileId) {
-    return {
-      type: "file",
-      ...withName,
-      content: { kind: "reference", id: fileId },
-    };
-  }
+  const content: FilePart["content"] | undefined = fileData
+    ? { kind: "base64", data: fileData }
+    : fileUrl
+      ? { kind: "url", url: fileUrl }
+      : fileId
+        ? { kind: "reference", id: fileId }
+        : undefined;
+  if (!content) return null;
 
-  return null;
+  return compact<FilePart>({ type: "file", filename, content });
 }
 
 /**
@@ -247,19 +238,108 @@ function mediaTypeFromDataUri(url: string): string | undefined {
   return end > 0 ? url.slice(5, 5 + end) : undefined;
 }
 
-function imageFilePartFromUrl(
+type UrlFilePartOptions = {
+  /** Explicit media type declared by the source (wins over sniffing). */
+  mediaType?: string;
+  /** Modality wildcard to apply when nothing better is known. */
+  fallbackMediaType?: string;
+  extras?: Record<string, unknown>;
+};
+
+/**
+ * Media-token check → data-URI prefix sniff → plain url. Shared by every
+ * url-bearing media field (chat image_url, Responses input_image, Anthropic
+ * url sources).
+ */
+function filePartFromUrl(
   url: string,
-  providerMetadata?: Record<string, unknown>,
+  options: UrlFilePartOptions = {},
 ): FilePart {
   const reference = parseMediaReference(url);
-  if (reference) return filePartFromMediaReference(reference, providerMetadata);
+  if (reference) return filePartFromMediaReference(reference, options.extras);
 
-  return {
+  return compact<FilePart>({
     type: "file",
-    mediaType: mediaTypeFromDataUri(url) ?? "image/*",
+    mediaType:
+      options.mediaType ??
+      mediaTypeFromDataUri(url) ??
+      options.fallbackMediaType,
     content: { kind: "url", url },
-    ...(providerMetadata ? { providerMetadata } : {}),
-  };
+    providerMetadata: options.extras
+      ? toProviderMetadata(options.extras)
+      : undefined,
+  });
+}
+
+/** Anthropic `source` objects: `{type: "base64" | "url" | "file", ...}`. */
+function filePartFromAnthropicSource(
+  source: Record<string, unknown>,
+  options: Omit<UrlFilePartOptions, "mediaType"> = {},
+): FilePart | null {
+  const mediaType = optionalString(source.media_type);
+
+  const url = optionalString(source.url);
+  if (source.type === "url" && url) {
+    return filePartFromUrl(url, { ...options, mediaType });
+  }
+
+  const data = optionalString(source.data);
+  const fileId = optionalString(source.file_id);
+  const content: FilePart["content"] | undefined =
+    source.type === "base64" && data
+      ? { kind: "base64", data }
+      : source.type === "file" && fileId
+        ? { kind: "reference", id: fileId }
+        : undefined;
+  if (!content) return null;
+
+  return compact<FilePart>({
+    type: "file",
+    mediaType: mediaType ?? options.fallbackMediaType,
+    content,
+    providerMetadata: options.extras
+      ? toProviderMetadata(options.extras)
+      : undefined,
+  });
+}
+
+/**
+ * Provider-executed named calls (OpenAI mcp_call, Anthropic server_tool_use /
+ * mcp_tool_use): a regular call plus providerExecuted, with provider-side
+ * extras (server_label, server_name, output, error) in providerMetadata.
+ */
+function providerExecutedToolCall(
+  value: Record<string, unknown>,
+  toolType: string,
+  extras?: Record<string, unknown>,
+): ToolCallPart | null {
+  const part = normalizeToolCall(value, { toolType });
+  if (!part) return null;
+
+  return compact<ToolCallPart>({
+    ...part,
+    providerExecuted: true,
+    providerMetadata: extras ? toProviderMetadata(extras) : undefined,
+  });
+}
+
+function normalizeToolResult(value: Record<string, unknown>): ToolResultPart {
+  const isError = [value.is_error, value.isError].find(
+    (candidate) => typeof candidate === "boolean",
+  ) as boolean | undefined;
+
+  return compact<ToolResultPart>({
+    type: "tool-result",
+    toolCallId: nullableString(
+      value.toolCallId ?? value.tool_use_id ?? value.call_id ?? value.id,
+    ),
+    output: toJsonValue(
+      parseIfString(
+        value.output ?? value.response ?? value.result ?? value.content ?? null,
+      ),
+    ),
+    isError,
+  });
 }
 
 function omitKeys(
@@ -269,6 +349,20 @@ function omitKeys(
   return Object.fromEntries(
     Object.entries(record).filter(([key]) => !keys.includes(key)),
   );
+}
+
+/**
+ * Citations land under one provider-neutral `citations` key, payloads kept
+ * verbatim. Anthropic and OpenAI Responses put `citations`/`annotations` on
+ * the part; OpenAI Chat Completions puts `annotations` on the message — both
+ * carriers use this.
+ */
+function extractCitations(
+  value: Record<string, unknown>,
+): JsonValue | undefined {
+  const citations =
+    parseArray(value.citations) ?? parseArray(value.annotations);
+  return citations && citations.length > 0 ? toJsonValue(citations) : undefined;
 }
 
 function parseIOValue(value: unknown): ParsedIOValue {
@@ -418,17 +512,18 @@ function normalizeToolCall(
     functionCall?.arguments ??
     {};
 
-  return {
+  return compact<ToolCallPart>({
     type: "tool-call",
     toolCallId: nullableString(value.toolCallId ?? value.call_id ?? value.id),
     toolName,
     input: toJsonValue(parseIfString(rawInput)),
-    ...(options.toolType ? { toolType: options.toolType } : {}),
-    ...(typeof value.index === "number" ? { index: value.index } : {}),
-    ...(typeof value.providerExecuted === "boolean"
-      ? { providerExecuted: value.providerExecuted }
-      : {}),
-  };
+    toolType: options.toolType,
+    index: typeof value.index === "number" ? value.index : undefined,
+    providerExecuted:
+      typeof value.providerExecuted === "boolean"
+        ? value.providerExecuted
+        : undefined,
+  });
 }
 
 /**
@@ -458,30 +553,25 @@ function normalizeBuiltInToolItem(
   if (type === "mcp_call") {
     // MCP calls are real named calls that happen to be provider-executed;
     // server_label/output/error ride in providerMetadata.
-    const part = normalizeToolCall(value, { toolType: type });
-    if (!part) return null;
-    const providerMetadata = toProviderMetadata(
+    return providerExecutedToolCall(
+      value,
+      type,
       omitKeys(value, ["id", "call_id", "type", "name", "arguments", "status"]),
     );
-    return {
-      ...part,
-      providerExecuted: true,
-      ...(providerMetadata ? { providerMetadata } : {}),
-    };
   }
 
   if (!RESPONSES_BUILT_IN_TOOL_ITEM_TYPES.has(type)) return null;
 
   const status = optionalString(value.status);
-  return {
+  return compact<ToolCallPart>({
     type: "tool-call",
     toolCallId: nullableString(value.call_id ?? value.id),
     toolName: type.replace(/_call$/, ""),
     input: toJsonValue(omitKeys(value, ["id", "call_id", "type", "status"])),
     toolType: type,
     providerExecuted: true,
-    ...(status ? { providerMetadata: { status } } : {}),
-  };
+    providerMetadata: status ? { status } : undefined,
+  });
 }
 
 function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
@@ -507,20 +597,11 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
   const functionResponse =
     asRecord(value.function_response) ?? asRecord(value.functionResponse);
   if (functionResponse) {
-    return {
-      type: "tool-result",
-      toolCallId: nullableString(
-        functionResponse.id ?? functionResponse.name ?? value.id,
-      ),
-      output: toJsonValue(
-        parseIfString(
-          functionResponse.response ?? functionResponse.output ?? null,
-        ),
-      ),
-    };
+    return normalizeToolResult({
+      ...functionResponse,
+      id: functionResponse.id ?? functionResponse.name ?? value.id,
+    });
   }
-
-  if (isToolCallLike(value)) return normalizeToolCall(value);
 
   switch (value.type) {
     case "text":
@@ -528,19 +609,84 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     case "output_text": {
       const text = optionalString(value.text ?? value.content) ?? "";
       if (value.thought === true) return { type: "reasoning", text };
-      // Responses API carries citation annotations per text part.
-      const annotations =
-        Array.isArray(value.annotations) && value.annotations.length > 0
-          ? toJsonValue(value.annotations)
-          : undefined;
+      const citations = extractCitations(value);
       return {
         type: "text",
         text,
-        ...(annotations ? { providerMetadata: { annotations } } : {}),
+        ...(citations ? { providerMetadata: { citations } } : {}),
       };
     }
+    case "redacted_thinking":
+      return {
+        type: "reasoning",
+        data: toJsonValue(value.data ?? null),
+      };
+    case "image": {
+      const source = asRecord(value.source);
+      const part = source
+        ? filePartFromAnthropicSource(source, { fallbackMediaType: "image/*" })
+        : null;
+      if (part) return part;
+      break;
+    }
+    case "document": {
+      const source = asRecord(value.source);
+      const part = source
+        ? filePartFromAnthropicSource(source, {
+            extras: compact({
+              title: optionalString(value.title),
+              context: optionalString(value.context),
+              citations: Array.isArray(value.citations)
+                ? value.citations
+                : undefined,
+            }),
+          })
+        : null;
+      if (part) return part;
+
+      // Text and structured-content documents are semantic content, but do not
+      // have a file reference that a renderer can resolve.
+      return {
+        type: "custom",
+        kind: "document",
+        value: toJsonValue(value),
+      };
+    }
+    case "container_upload": {
+      const fileId = optionalString(value.file_id);
+      if (!fileId) break;
+      // Opaque reference: no media-type signal (README assumption 11).
+      return { type: "file", content: { kind: "reference", id: fileId } };
+    }
+    case "server_tool_use":
+      return providerExecutedToolCall(value, "server_tool_use");
+    case "mcp_tool_use":
+      return providerExecutedToolCall(
+        value,
+        "mcp_tool_use",
+        compact({ server_name: optionalString(value.server_name) }),
+      );
+    case "web_search_tool_result":
+    case "code_execution_tool_result":
+    case "bash_code_execution_result":
+    case "text_editor_code_execution_tool_result":
+    case "text_editor_code_execution_view_result":
+    case "mcp_tool_result":
+      return normalizeToolResult(value);
+    case "cache_control":
+      return null;
+    case "thinking": {
+      const reasoning = value.thinking;
+      const signature = optionalString(value.signature);
+      return compact({
+        type: "reasoning" as const,
+        ...(typeof reasoning === "string"
+          ? { text: reasoning }
+          : { data: toJsonValue(reasoning) }),
+        providerMetadata: signature ? { signature } : undefined,
+      });
+    }
     case "reasoning":
-    case "thinking":
     case "reasoning_text":
     case "summary_text": {
       const reasoning =
@@ -564,44 +710,33 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     case "local_shell_call_output":
     case "tool-result":
     case "tool_result":
-      return {
-        type: "tool-result",
-        toolCallId: nullableString(
-          value.toolCallId ?? value.call_id ?? value.id,
-        ),
-        output: toJsonValue(
-          parseIfString(
-            value.output ??
-              value.response ??
-              value.result ??
-              value.content ??
-              null,
-          ),
-        ),
-      };
+      return normalizeToolResult(value);
     case "image_url": {
       const image = asRecord(value.image_url);
       const url = optionalString(image?.url);
       if (!url) break;
       const detail = optionalString(image?.detail);
-      return imageFilePartFromUrl(url, detail ? { detail } : undefined);
+      return filePartFromUrl(url, {
+        fallbackMediaType: "image/*",
+        extras: detail ? { detail } : undefined,
+      });
     }
     case "input_image": {
       // OpenAI Responses image: flat fields instead of the chat wrapper.
       const detail = optionalString(value.detail);
-      const providerMetadata = detail ? { detail } : undefined;
+      const extras = detail ? { detail } : undefined;
       const url = optionalString(value.image_url);
-      if (url) return imageFilePartFromUrl(url, providerMetadata);
-      const fileId = optionalString(value.file_id);
-      if (fileId) {
-        return {
-          type: "file",
-          mediaType: "image/*",
-          content: { kind: "reference", id: fileId },
-          ...(providerMetadata ? { providerMetadata } : {}),
-        };
+      if (url) {
+        return filePartFromUrl(url, { fallbackMediaType: "image/*", extras });
       }
-      break;
+      const fileId = optionalString(value.file_id);
+      if (!fileId) break;
+      return compact<FilePart>({
+        type: "file",
+        mediaType: "image/*",
+        content: { kind: "reference", id: fileId },
+        providerMetadata: extras ? toProviderMetadata(extras) : undefined,
+      });
     }
     case "input_audio": {
       const audio = asRecord(value.input_audio);
@@ -652,13 +787,22 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     }
   }
 
+  // Shape-sniffed tool calls without a recognized `type`: bare {function},
+  // {toolName, input}, and flat {name, arguments, id} shapes. Typed blocks
+  // are handled by the switch above so this cannot strip their semantics
+  // (e.g. providerExecuted on server tools).
+  if (isToolCallLike(value)) return normalizeToolCall(value);
+
   if (typeof value.type !== "string") {
     return { type: "data", value: toJsonValue(value) };
   }
+  // Anthropic cache_control is a request transport hint, not conversation
+  // content. Do not expose it when an otherwise unknown block becomes custom.
+  const customValue = omitKeys(value, ["cache_control"]);
   return {
     type: "custom",
     kind: value.type,
-    value: toJsonValue(value),
+    value: toJsonValue(customValue),
   };
 }
 
@@ -815,15 +959,16 @@ function normalizeMessage(
   const audioPart = normalizeAudioOutput(asRecord(value.audio));
   if (audioPart) parts.push(audioPart);
 
-  const annotations = parseArray(value.annotations);
-  if (annotations && annotations.length > 0) {
-    // OpenAI chat annotations index into the message text, so they belong on
-    // the text part rather than the message.
+  // Chat Completions carries citations at the message level (Anthropic and
+  // Responses carry them per part — handled in normalizeMessagePart). They
+  // index into the message text, so they belong on the text part.
+  const citations = extractCitations(value);
+  if (citations) {
     const textPart = parts.find((part) => part.type === "text");
     if (textPart) {
       textPart.providerMetadata = {
         ...textPart.providerMetadata,
-        annotations: toJsonValue(annotations),
+        citations,
       };
     }
   }
@@ -896,26 +1041,22 @@ function normalizeAudioOutput(
   if (reference) return filePartFromMediaReference(reference, extras);
 
   if (payload) {
-    const providerMetadata = toProviderMetadata(extras);
-    return {
+    return compact<FilePart>({
       type: "file",
       mediaType: "audio/*",
       content: { kind: "base64", data: payload },
-      ...(providerMetadata ? { providerMetadata } : {}),
-    };
+      providerMetadata: toProviderMetadata(extras),
+    });
   }
 
   const id = optionalString(audio.id);
   if (!id) return null;
-  const providerMetadata = toProviderMetadata(
-    Object.fromEntries(Object.entries(extras).filter(([key]) => key !== "id")),
-  );
-  return {
+  return compact<FilePart>({
     type: "file",
     mediaType: "audio/*",
     content: { kind: "reference", id },
-    ...(providerMetadata ? { providerMetadata } : {}),
-  };
+    providerMetadata: toProviderMetadata(omitKeys(extras, ["id"])),
+  });
 }
 
 function isMessageLike(value: Record<string, unknown>): boolean {
@@ -947,7 +1088,11 @@ function isToolCallLike(value: Record<string, unknown>): boolean {
     value.call_id && value.name && "arguments" in value,
   );
   const hasAnthropicShape = Boolean(
-    value.type === "tool_use" && value.name && "input" in value,
+    ["tool_use", "server_tool_use", "mcp_tool_use"].includes(
+      String(value.type),
+    ) &&
+    value.name &&
+    "input" in value,
   );
   const hasToolCallMarker =
     "id" in value ||
@@ -958,6 +1103,8 @@ function isToolCallLike(value: Record<string, unknown>): boolean {
       "tool-call",
       "tool_call",
       "tool_use",
+      "server_tool_use",
+      "mcp_tool_use",
     ].includes(String(value.type));
   const hasFlatShape = Boolean(
     value.name && "arguments" in value && hasToolCallMarker,
@@ -981,6 +1128,12 @@ function isToolResultLike(value: Record<string, unknown>): boolean {
     "tool_call_response",
     "tool-result",
     "tool_result",
+    "web_search_tool_result",
+    "code_execution_tool_result",
+    "bash_code_execution_result",
+    "text_editor_code_execution_tool_result",
+    "text_editor_code_execution_view_result",
+    "mcp_tool_result",
   ].includes(String(value.type));
 }
 
@@ -1047,6 +1200,13 @@ function collectMessages(
 
   let collectedNestedMessages = false;
   const messages = parsedValue.messages;
+  // TODO: verify this against anthropic
+  if (kind === "input" && "system" in record) {
+    const system = record.system;
+    const message = normalizeMessage({ content: system }, "user", kind);
+    if (message) addMessage(accumulator, { ...message, role: "system" });
+  }
+
   if (messages) {
     collectMessageArray(messages, fallbackRole, kind, accumulator);
     collectedNestedMessages = true;
@@ -1123,6 +1283,7 @@ function getProviderMetadata(
     "desc",
     "parameters",
     "parameters_json_schema",
+    "input_schema",
     "inputSchema",
     "format",
     "function",
@@ -1169,6 +1330,7 @@ function normalizeToolDefinition(
     functionDefinition.inputSchema ??
     functionDefinition.parameters ??
     functionDefinition.parameters_json_schema ??
+    functionDefinition.input_schema ??
     functionDefinition.format;
 
   return {

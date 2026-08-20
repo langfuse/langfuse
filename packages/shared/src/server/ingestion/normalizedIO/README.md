@@ -8,11 +8,11 @@ raw formats.
 
 ## Validation status
 
-- Fixture registry (`fixtures/`): 12 fixtures across Vercel AI SDK, OpenAI
-  chat completions + Responses API, LangGraph, Microsoft Agent Framework,
-  Pydantic AI, Semantic Kernel, Gemini, and raw passthrough shapes; parser
-  output locked per fixture, tool-column projection asserted against the
-  same locked output.
+- Fixture registry (`fixtures/`): 17 fixtures across Vercel AI SDK, OpenAI
+  chat completions + Responses API, Anthropic Messages, LangGraph, Microsoft
+  Agent Framework, Pydantic AI, Semantic Kernel, Gemini, and raw passthrough
+  shapes; parser output locked per fixture, tool-column projection asserted
+  against the same locked output.
 - Legacy compatibility: with the (temporary) hookup of
   `toToolColumns(normalizeIO(...))` into `normalizeToolsForObservation`,
   53/54 of the legacy `extractToolsBackend` worker tests pass. The one
@@ -43,7 +43,7 @@ raw formats.
    `mcp_list_tools` (its `tools[]` belong in toolDefinitions but the part
    parser has no accumulator access; currently a `custom` part).
 7. **providerMetadata persistence**: several semantics now ride on part-level
-   `providerMetadata` (refusal flags, audio transcripts, citation annotations,
+   `providerMetadata` (refusal flags, audio transcripts, citations,
    media-token `source`). We need a good story for saving and querying it —
    e.g. eval filters like "all observations that contained a refusal" depend
    on `providerMetadata.refusal` being reachable.
@@ -194,3 +194,13 @@ rather than dedicated fields.
 
 - **Challenge with:** a media shape whose type is derivable but lands as a
   wildcard, or a consumer that needs a sidecar field promoted to the schema.
+
+### Anthropic-specific normalization notes
+
+- Anthropic text-block citations and OpenAI text annotations are exposed as
+  `providerMetadata.citations`.
+- Anthropic text or structured-content documents normalize to
+  `CustomPart { kind: "document" }`; they are semantic content, not resolvable
+  file references.
+- Anthropic `cache_control` is intentionally dropped because it is a request
+  caching hint rather than conversation content.

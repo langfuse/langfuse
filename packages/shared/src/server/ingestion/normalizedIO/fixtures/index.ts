@@ -1,4 +1,5 @@
 import { anthropicMessagesRichContentFixture } from "./anthropicMessagesRichContent";
+import { anthropicMessagesRawServerToolsAndMediaFixture } from "./anthropicMessagesRawServerToolsAndMedia";
 import { geminiEmbeddedToolDefinitionFixture } from "./geminiEmbeddedToolDefinition";
 import { langgraphProductionShapeFixture } from "./langgraphSynthetic";
 import { microsoftAgentProductionShapeFixture } from "./microsoftAgentSynthetic";
@@ -17,6 +18,7 @@ import { vercelAiSdkOutputToolCallFixture } from "./vercelAiSdkOutputToolCall";
 
 export const normalizedIOFixtures = [
   anthropicMessagesRichContentFixture,
+  anthropicMessagesRawServerToolsAndMediaFixture,
   vercelAiSdkOutputToolCallFixture,
   vercelAiSdkMixedToolMessagesFixture,
   outputOnlyStructuredMessageFixture,
@@ -35,6 +37,7 @@ export const normalizedIOFixtures = [
 ];
 
 export * from "./anthropicMessagesRichContent";
+export * from "./anthropicMessagesRawServerToolsAndMedia";
 export * from "./geminiEmbeddedToolDefinition";
 export * from "./langgraphSynthetic";
 export * from "./microsoftAgentSynthetic";
