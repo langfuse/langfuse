@@ -132,13 +132,23 @@ jobs:
         id: filter
         with:
           filters: |
+            # pnpm-lock.yaml is deliberately absent: a lockfile-only change
+            # means a transitive bump, and adding it would run the full matrix
+            # on every dependency PR. Direct bumps of @azure/storage-blob,
+            # ioredis, and bullmq all touch one of the manifests below, and the
+            # merge queue runs all three modes regardless.
             deploy_modes:
               - '.github/workflows/pipeline.yml'
               - '.env.dev*.example'
               - 'docker-compose.dev*.yml'
+              - 'packages/shared/src/env.ts'
               - 'packages/shared/src/server/redis/**'
               - 'packages/shared/src/server/queues.ts'
               - 'packages/shared/src/server/services/StorageService*'
+              - 'packages/shared/package.json'
+              - 'worker/src/env.ts'
+              - 'worker/package.json'
+              - 'web/package.json'
       - id: select
         # Anything that is not a pull request runs the full matrix, including
         # the merge queue that gates main.
