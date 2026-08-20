@@ -1,19 +1,17 @@
-import { useRouter } from "next/router";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import type { LLMAdapter } from "@langfuse/shared";
 
-import { ExpectedOutputUsageHint } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/components/ExpectedOutputUsageHint/ExpectedOutputUsageHint";
 import { DefinitionStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/DefinitionStep";
 import { CodeEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeEditor/CodeEditor";
 import { CodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeLanguageSelector/CodeLanguageSelector";
 import { ModelSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ModelSelector/ModelSelector";
 import { PromptEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/PromptEditor/PromptEditor";
 import { ScoreOutputEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ScoreOutputEditor/ScoreOutputEditor";
-import { managedTemplateExpectedOutputHint } from "@/src/features/evals/v2/fns/templateGallery/managedTemplateExpectedOutputHint";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
+import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
 
 export function DefinitionStepContainer({
   projectId,
@@ -26,6 +24,7 @@ export function DefinitionStepContainer({
   onStepOpenChange,
   onConfigureProviders,
   onSetProjectDefault,
+  codeValidationResult,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
@@ -37,11 +36,8 @@ export function DefinitionStepContainer({
   onStepOpenChange: (step: number, open: boolean) => void;
   onConfigureProviders: () => void;
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
+  codeValidationResult: CodeEvalValidationResult | null;
 }) {
-  const router = useRouter();
-  const templateKey =
-    typeof router.query.template === "string" ? router.query.template : null;
-  const expectedOutputHint = managedTemplateExpectedOutputHint(templateKey);
   const state = useStore(
     store,
     useShallow((state) => ({
@@ -80,15 +76,14 @@ export function DefinitionStepContainer({
       type={state.type}
       onTypeChange={state.actions.setType}
       isEditing={isEditing}
-      typeConfiguration={
-        <>
-          <CodeLanguageSelector store={store} />
-          {expectedOutputHint ? (
-            <ExpectedOutputUsageHint hint={expectedOutputHint} />
-          ) : null}
-        </>
+      typeConfiguration={<CodeLanguageSelector store={store} />}
+      codeEditor={
+        <CodeEditor
+          projectId={projectId}
+          store={store}
+          validationResult={codeValidationResult}
+        />
       }
-      codeEditor={<CodeEditor projectId={projectId} store={store} />}
     />
   );
 }

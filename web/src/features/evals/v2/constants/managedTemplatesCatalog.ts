@@ -356,11 +356,6 @@ Last user message: {{last_user_message}}`,
       description:
         "Checks whether the actual output matches the expected output in material meaning.",
       maintainer: "langfuse",
-      expectedOutputHint: {
-        shape:
-          "Use expected_output as the reference answer. It may be text, an object, or an array; only material semantic meaning is evaluated.",
-        example: '"The capital of France is Paris."',
-      },
       evaluator: {
         type: "LLM_AS_JUDGE",
         prompt: `You are an expert semantic-equivalence evaluator for AI systems.
@@ -425,12 +420,6 @@ Expected output: {{expected_output}}`,
       description:
         "Checks whether the output exactly matches the expected output.",
       maintainer: "langfuse",
-      expectedOutputHint: {
-        shape:
-          "expected_output must have the same value shape as output. Nested objects/arrays are supported.",
-        example:
-          '{ "answer": "Paris", "citations": ["doc-1", "doc-4"], "confidence": 0.92 }',
-      },
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
@@ -482,12 +471,6 @@ Expected output: {{expected_output}}`,
       description:
         "Checks whether required keywords, phrases, or entities appear in the output.",
       maintainer: "langfuse",
-      expectedOutputHint: {
-        shape:
-          "expected_output must be a JSON object with an expected_keywords string array.",
-        example:
-          '{ "expected_keywords": ["refund", "invoice", "tracking number"] }',
-      },
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",

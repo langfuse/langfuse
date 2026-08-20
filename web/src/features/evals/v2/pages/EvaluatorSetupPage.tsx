@@ -10,6 +10,7 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import Page from "@/src/components/layouts/page";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -47,6 +48,7 @@ import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evalu
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
 
 type InitialEvaluator = {
   id: string;
@@ -105,6 +107,19 @@ export function EvaluatorSetupPage(
       mode: props.mode,
     }),
   );
+  const codeDraft = useStore(
+    evaluatorSetupStore,
+    useShallow((state) => ({
+      type: state.type,
+      sourceCode: state.sourceCode,
+      sourceCodeLanguage: state.sourceCodeLanguage,
+    })),
+  );
+  const codeValidation = useCodeEvalSourceValidation({
+    enabled: codeDraft.type === "CODE",
+    sourceCode: codeDraft.sourceCode,
+    sourceCodeLanguage: codeDraft.sourceCodeLanguage,
+  });
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
     JSON.stringify({
       name: state.name.trim(),
@@ -293,6 +308,23 @@ export function EvaluatorSetupPage(
         setName: state.actions.setName,
       });
       state = evaluatorSetupStore.getState();
+      if (state.type === "CODE") {
+        const validatedSourceCode = state.sourceCode;
+        const validatedSourceCodeLanguage = state.sourceCodeLanguage;
+        const isValid = await codeValidation.validate({
+          sourceCode: validatedSourceCode,
+          sourceCodeLanguage: validatedSourceCodeLanguage,
+        });
+        state = evaluatorSetupStore.getState();
+        if (
+          !isValid ||
+          state.type !== "CODE" ||
+          state.sourceCode !== validatedSourceCode ||
+          state.sourceCodeLanguage !== validatedSourceCodeLanguage
+        ) {
+          return;
+        }
+      }
       const { definition } = prepareEvaluatorDraft(state);
       if (!definition || !name) return;
 
@@ -397,6 +429,9 @@ export function EvaluatorSetupPage(
       canSetProjectDefault={projectDefaultModel.canUpdate}
       onConfigureProviders={projectDefaultModel.openProviderSettings}
       onSetProjectDefault={projectDefaultModel.update.requestUpdate}
+      codeValidationResult={
+        codeValidation.isPending ? null : codeValidation.validationResult
+      }
       onStepOpenChange={setStepOpen}
       nameAIAssistance={
         !nameAIAssistanceAvailable
@@ -545,6 +580,14 @@ export function EvaluatorSetupPage(
             create.isPending || update.isPending || suggestName.isPending
           }
           nameAIAssistanceAvailable={nameAIAssistanceAvailable}
+          codeValidation={
+            codeDraft.type === "CODE"
+              ? {
+                  isValid: codeValidation.isValid,
+                  isPending: codeValidation.isPending,
+                }
+              : null
+          }
           onClose={requestClose}
           onSave={save}
         />

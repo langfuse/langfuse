@@ -7,7 +7,6 @@ import {
 
 import preview from "../../../../../../../.storybook/preview";
 import { EvaluatorCodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/Code/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
-import { ExpectedOutputUsageHint } from "./components/ExpectedOutputUsageHint/ExpectedOutputUsageHint";
 import { EvaluationTypeConfiguration } from "./EvaluationTypeConfiguration";
 
 const meta = preview.meta({ component: EvaluationTypeConfiguration });
@@ -27,20 +26,10 @@ export const Code = meta.story({
     onModeChange: fn(),
     disabled: false,
     children: (
-      <>
-        <EvaluatorCodeLanguageSelector
-          value={EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT}
-          onValueChange={fn()}
-        />
-        <ExpectedOutputUsageHint
-          hint={{
-            shape:
-              "expected_output must be a JSON object with an expected_keywords string array.",
-            example:
-              '{ "expected_keywords": ["refund", "invoice", "tracking number"] }',
-          }}
-        />
-      </>
+      <EvaluatorCodeLanguageSelector
+        value={EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT}
+        onValueChange={fn()}
+      />
     ),
   },
 });

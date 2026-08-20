@@ -13,11 +13,6 @@ export type EvaluatorSetupDraft = {
   definition: EvaluatorDefinition;
 };
 
-export type ExpectedOutputHint = {
-  shape: string;
-  example?: string;
-};
-
 export type ManagedTemplate = {
   key: string;
   name: string;
@@ -25,7 +20,6 @@ export type ManagedTemplate = {
   icon: string;
   description: string;
   maintainer: string;
-  expectedOutputHint?: ExpectedOutputHint;
   evaluator:
     | {
         type: Extract<EvalTemplateType, "LLM_AS_JUDGE">;

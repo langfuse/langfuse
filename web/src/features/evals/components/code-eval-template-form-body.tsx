@@ -8,7 +8,7 @@ import CodeMirror, {
 } from "@uiw/react-codemirror";
 import { EditorState, Prec, type Extension } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
-import { linter, type Diagnostic } from "@codemirror/lint";
+import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
 import { EvalTemplateSourceCodeLanguageEnum } from "@langfuse/shared";
@@ -247,9 +247,30 @@ export function CodeEvalTemplateFormBody({
   }, []);
 
   const diagnostics = useMemo(
-    () => validationResult?.diagnostics ?? [],
-    [validationResult?.diagnostics],
+    () =>
+      (validationResult?.diagnostics ?? []).map((diagnostic): Diagnostic => {
+        const from = Math.min(diagnostic.from, sourceCode.length);
+        return {
+          from,
+          to: Math.min(Math.max(from + 1, diagnostic.to), sourceCode.length),
+          severity: diagnostic.severity,
+          message: diagnostic.message,
+        };
+      }),
+    [sourceCode.length, validationResult?.diagnostics],
   );
+  const editorViewRef = useRef<EditorView | null>(null);
+  const handleCreateEditor = useCallback(
+    (view: EditorView) => {
+      editorViewRef.current = view;
+      view.dispatch(setDiagnostics(view.state, diagnostics));
+    },
+    [diagnostics],
+  );
+  useEffect(() => {
+    const view = editorViewRef.current;
+    if (view) view.dispatch(setDiagnostics(view.state, diagnostics));
+  }, [diagnostics]);
 
   // Reentrancy lives in a ref so `formatSource` (and with it the keydown
   // extension and the whole extension array) keeps its identity across the
@@ -276,20 +297,6 @@ export function CodeEvalTemplateFormBody({
     }
   }, [editable, handleSourceCodeChange, sourceCodeLanguage]);
 
-  const linterExtension = useMemo(
-    () =>
-      linter(() =>
-        diagnostics.map(
-          (diagnostic): Diagnostic => ({
-            from: diagnostic.from,
-            to: Math.max(diagnostic.from + 1, diagnostic.to),
-            severity: diagnostic.severity,
-            message: diagnostic.message,
-          }),
-        ),
-      ),
-    [diagnostics],
-  );
   const formatShortcutExtension = useMemo(
     () =>
       Prec.highest(
@@ -345,7 +352,6 @@ export function CodeEvalTemplateFormBody({
       codeEvalCompletionExtension,
       ctxHoverAffordanceExtension,
       codeEvalHoverExtension,
-      linterExtension,
       ...(editable
         ? [formatShortcutExtension, autoScrollOnSelectionDrag()]
         : []),
@@ -358,7 +364,6 @@ export function CodeEvalTemplateFormBody({
       editable,
       formatShortcutExtension,
       languageExtension,
-      linterExtension,
     ],
   );
 
@@ -401,6 +406,7 @@ export function CodeEvalTemplateFormBody({
         extensions={extensions}
         editable={editable}
         onChange={handleSourceCodeChange}
+        onCreateEditor={handleCreateEditor}
         className="overflow-hidden rounded-md border text-xs"
       />
       <p className="text-muted-foreground text-xs">

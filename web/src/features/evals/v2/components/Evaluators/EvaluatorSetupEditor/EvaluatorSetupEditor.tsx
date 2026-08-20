@@ -8,6 +8,7 @@ import { VariableMappingStepContainer } from "@/src/features/evals/v2/components
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
+import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
 
 export function EvaluatorSetupEditor({
   projectId,
@@ -21,6 +22,7 @@ export function EvaluatorSetupEditor({
   onStepOpenChange,
   onConfigureProviders,
   onSetProjectDefault,
+  codeValidationResult,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
@@ -33,6 +35,7 @@ export function EvaluatorSetupEditor({
   onStepOpenChange: (step: number, open: boolean) => void;
   onConfigureProviders: () => void;
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
+  codeValidationResult: CodeEvalValidationResult | null;
 }) {
   const type = useStore(store, (state) => state.type);
 
@@ -49,6 +52,7 @@ export function EvaluatorSetupEditor({
         onStepOpenChange={onStepOpenChange}
         onConfigureProviders={onConfigureProviders}
         onSetProjectDefault={onSetProjectDefault}
+        codeValidationResult={codeValidationResult}
       />
       {type === "LLM_AS_JUDGE" ? (
         <VariableMappingStepContainer

@@ -6,13 +6,16 @@ import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-e
 import { buildCodeEvalContextSnippet } from "@/src/features/evals/v2/fns/evaluatorTesting/buildCodeEvalContextSnippet";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
 
 export function CodeEditor({
   projectId,
   store,
+  validationResult,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
+  validationResult: CodeEvalValidationResult | null;
 }) {
   const sampleObservation = useEvaluatorSetupSample({ projectId, store });
   const state = useStore(
@@ -40,7 +43,7 @@ export function CodeEditor({
       sourceCodeLanguage={state.sourceCodeLanguage}
       onSourceCodeChange={state.setSourceCode}
       editable
-      validationResult={null}
+      validationResult={validationResult}
       ctxSample={ctxSample}
     />
   );

@@ -5,6 +5,7 @@ import {
 
 import { managedTemplateToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/managedTemplateToEvaluatorSetupDraft";
 import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
+import { validateCodeEvalSourceWithLanguage } from "@/src/features/evals/utils/code-eval-template-validation";
 
 describe("managed evaluator templates catalog", () => {
   it("contains valid, uniquely addressable templates", () => {
@@ -81,6 +82,22 @@ describe("managed evaluator templates catalog", () => {
     for (const input of [messages, { messages }]) {
       const result = evaluate({ observation: { input } });
       expect(result.scores[0]?.value).toBe(true);
+    }
+  });
+
+  it("ships code evaluator templates that pass client validation", async () => {
+    for (const template of MANAGED_TEMPLATES_CATALOG.templates) {
+      if (template.evaluator.type !== "CODE") continue;
+
+      const result = await validateCodeEvalSourceWithLanguage({
+        source: template.evaluator.source,
+        sourceCodeLanguage: template.evaluator.language,
+      });
+
+      expect(
+        result.diagnostics.filter(({ severity }) => severity === "error"),
+        template.key,
+      ).toEqual([]);
     }
   });
 });

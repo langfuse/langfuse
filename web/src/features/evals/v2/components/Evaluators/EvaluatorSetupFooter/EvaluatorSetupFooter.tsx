@@ -21,6 +21,7 @@ export function EvaluatorSetupFooter({
   isEditing,
   isSaving,
   nameAIAssistanceAvailable,
+  codeValidation,
   onClose,
   onSave,
 }: {
@@ -29,6 +30,7 @@ export function EvaluatorSetupFooter({
   isEditing: boolean;
   isSaving: boolean;
   nameAIAssistanceAvailable: boolean;
+  codeValidation: { isValid: boolean; isPending: boolean } | null;
   onClose: () => void;
   onSave: () => void;
 }) {
@@ -66,12 +68,18 @@ export function EvaluatorSetupFooter({
       ? "Add an evaluator name before saving."
       : hasDuplicateCategoryNames
         ? DUPLICATE_CATEGORY_NAMES_MESSAGE
-        : null;
+        : codeValidation && !codeValidation.isPending && !codeValidation.isValid
+          ? "Fix the code validation errors before saving."
+          : null;
   const saveButton = (
     <Button
       type="button"
       disabled={
         !canSubmit ||
+        Boolean(
+          codeValidation &&
+          (codeValidation.isPending || !codeValidation.isValid),
+        ) ||
         (nameMissing && !nameAIAssistanceAvailable) ||
         (isEditing && !hasUnsavedChanges) ||
         isSaving

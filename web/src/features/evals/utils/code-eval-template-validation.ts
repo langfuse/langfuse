@@ -70,6 +70,9 @@ interface Array<T> {
   flatMap<U>(
     callbackfn: (value: T, index: number, array: T[]) => U | U[],
   ): U[];
+  filter<S extends T>(
+    predicate: (value: T, index: number, array: T[]) => value is S,
+  ): S[];
   filter(callbackfn: (value: T, index: number, array: T[]) => unknown): T[];
   find(callbackfn: (value: T, index: number, array: T[]) => unknown): T | undefined;
   findIndex(callbackfn: (value: T, index: number, array: T[]) => unknown): number;

@@ -85,6 +85,7 @@ export type EvaluatorSetupStoreState = {
   prompt: string;
   sourceCode: string;
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
+  sourceCodeDrafts: Partial<Record<EvalTemplateSourceCodeLanguage, string>>;
   scoreOutput: ScoreOutputFormState;
   name: string;
   description: string;
@@ -118,6 +119,14 @@ export function createEvaluatorSetupStore({
   mode: "create" | "edit";
 }): EvaluatorSetupStore {
   const initialDefinition = initialEvaluator?.definition;
+  const initialSourceCodeLanguage =
+    initialDefinition?.type === "CODE"
+      ? initialDefinition.sourceCodeLanguage
+      : "TYPESCRIPT";
+  const initialSourceCode =
+    initialDefinition?.type === "CODE"
+      ? initialDefinition.sourceCode
+      : getDefaultCodeEvalSource(initialSourceCodeLanguage);
 
   return createStore<EvaluatorSetupStoreState>((set) => ({
     initialDefinition,
@@ -129,14 +138,11 @@ export function createEvaluatorSetupStore({
       initialDefinition?.type === "LLM_AS_JUDGE"
         ? initialDefinition.prompt
         : DEFAULT_PROMPT,
-    sourceCode:
-      initialDefinition?.type === "CODE"
-        ? initialDefinition.sourceCode
-        : getDefaultCodeEvalSource("TYPESCRIPT"),
-    sourceCodeLanguage:
-      initialDefinition?.type === "CODE"
-        ? initialDefinition.sourceCodeLanguage
-        : "TYPESCRIPT",
+    sourceCode: initialSourceCode,
+    sourceCodeLanguage: initialSourceCodeLanguage,
+    sourceCodeDrafts: {
+      [initialSourceCodeLanguage]: initialSourceCode,
+    },
     scoreOutput: toScoreOutputFormState(
       initialDefinition?.type === "LLM_AS_JUDGE"
         ? initialDefinition.outputDefinition
@@ -178,9 +184,29 @@ export function createEvaluatorSetupStore({
     actions: {
       setType: (type) => set({ type }),
       setPrompt: (prompt) => set({ prompt }),
-      setSourceCode: (sourceCode) => set({ sourceCode }),
+      setSourceCode: (sourceCode) =>
+        set((state) => ({
+          sourceCode,
+          sourceCodeDrafts: {
+            ...state.sourceCodeDrafts,
+            [state.sourceCodeLanguage]: sourceCode,
+          },
+        })),
       setSourceCodeLanguage: (sourceCodeLanguage) =>
-        set({ sourceCodeLanguage }),
+        set((state) => {
+          const sourceCodeDrafts = {
+            ...state.sourceCodeDrafts,
+            [state.sourceCodeLanguage]: state.sourceCode,
+          };
+
+          return {
+            sourceCodeLanguage,
+            sourceCode:
+              sourceCodeDrafts[sourceCodeLanguage] ??
+              getDefaultCodeEvalSource(sourceCodeLanguage),
+            sourceCodeDrafts,
+          };
+        }),
       setScoreOutput: (scoreOutput) => set({ scoreOutput }),
       setName: (name) => set({ name }),
       setDescription: (description) => set({ description }),

@@ -75,6 +75,28 @@ describe("createEvaluatorSetupStore", () => {
     });
   });
 
+  it("keeps separate starter drafts for TypeScript and Python", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "CODE",
+      mode: "create",
+    });
+
+    store.getState().actions.setSourceCodeLanguage("PYTHON");
+    expect(store.getState().sourceCode).toBe(
+      getDefaultCodeEvalSource("PYTHON"),
+    );
+
+    store.getState().actions.setSourceCode("def evaluate(ctx):\n  return []");
+    store.getState().actions.setSourceCodeLanguage("TYPESCRIPT");
+    expect(store.getState().sourceCode).toBe(
+      getDefaultCodeEvalSource("TYPESCRIPT"),
+    );
+
+    store.getState().actions.setSourceCodeLanguage("PYTHON");
+    expect(store.getState().sourceCode).toBe("def evaluate(ctx):\n  return []");
+  });
+
   it("keeps sample filters available for the rule creation handoff", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: null,
