@@ -9,6 +9,9 @@
 import {
   projectScopes,
   projectRoleAccessRights,
+  BaseError,
+  ForbiddenError,
+  InvalidRequestError,
   type ProjectScope,
 } from "@langfuse/shared";
 import {
@@ -79,22 +82,16 @@ export type AuthorizationContext = {
   policies: Policy[];
 };
 
-/** ForbiddenError stands in for the @langfuse/shared 403 BaseError subclass. */
-class ForbiddenError extends Error {}
-
-/** InvalidArgumentError stands in for the @langfuse/shared 400 BaseError subclass. */
-class InvalidArgumentError extends Error {}
-
 /** Success is a successful outcome, disjoint from ErrorResult on `success`. */
 export type Success = { success: true; error?: never };
 
 /** ErrorResult is a failed outcome carrying the typed error. */
-export type ErrorResult<E extends Error> = { success: false; error: E };
+export type ErrorResult<E extends BaseError> = { success: false; error: E };
 
 /** Decision is a PDP outcome: allowed, or a typed 400/403. */
 export type Decision =
   | Success
-  | ErrorResult<InvalidArgumentError | ForbiddenError>;
+  | ErrorResult<InvalidRequestError | ForbiddenError>;
 
 /** Access is what mustAuthorize returns on success. */
 export type Access = Success;
