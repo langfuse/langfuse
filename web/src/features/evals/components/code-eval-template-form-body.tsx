@@ -25,9 +25,15 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   getCodeEvalHoverDocs,
   PROPERTY_ACCESS_ONLY_HOVER_KEYS,
@@ -231,6 +237,14 @@ export function CodeEvalTemplateFormBody({
       ? "Python"
       : "TypeScript";
   const shouldShowFormatButton = editable;
+  const canFormat =
+    editable && validationResult !== null && !validationResult.hasErrors;
+  const formatDisabledReason =
+    validationResult === null
+      ? "Wait for code validation to finish before formatting."
+      : validationResult.hasErrors
+        ? "Fix the code validation errors before formatting."
+        : null;
   // `onSourceCodeChange` comes from a react-hook-form render prop and changes
   // identity as the field updates. Keep CodeMirror's handler stable so it does
   // not reconfigure the editor on every keystroke. The refs are synced in an
@@ -277,7 +291,7 @@ export function CodeEvalTemplateFormBody({
   // spinner state toggles; `isFormatting` state only drives the button UI.
   const isFormattingRef = useRef(false);
   const formatSource = useCallback(async () => {
-    if (!editable || isFormattingRef.current) return;
+    if (!canFormat || isFormattingRef.current) return;
 
     isFormattingRef.current = true;
     setIsFormatting(true);
@@ -290,12 +304,17 @@ export function CodeEvalTemplateFormBody({
       // would render as an empty final line.
       handleSourceCodeChange(formatted.trimEnd());
     } catch (error) {
-      console.error(error);
+      showErrorToast(
+        "Formatting failed",
+        error instanceof Error
+          ? error.message
+          : "The formatter could not process this code.",
+      );
     } finally {
       isFormattingRef.current = false;
       setIsFormatting(false);
     }
-  }, [editable, handleSourceCodeChange, sourceCodeLanguage]);
+  }, [canFormat, handleSourceCodeChange, sourceCodeLanguage]);
 
   const formatShortcutExtension = useMemo(
     () =>
@@ -366,6 +385,29 @@ export function CodeEvalTemplateFormBody({
       languageExtension,
     ],
   );
+  const formatButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={isFormatting || !canFormat}
+      aria-keyshortcuts={FORMAT_SHORTCUT_ARIA}
+      className={formatDisabledReason ? "pointer-events-none" : undefined}
+      onClick={() => formatSource()}
+    >
+      {isFormatting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+      Format
+      <KeyboardShortcut
+        className="ml-2 h-4"
+        keys={
+          typeof navigator !== "undefined" &&
+          navigator.userAgent.includes("Macintosh")
+            ? ["⇧", "⌥", "F"]
+            : ["Shift", "Alt", "F"]
+        }
+      />
+    </Button>
+  );
 
   return (
     <div className="space-y-2">
@@ -375,28 +417,18 @@ export function CodeEvalTemplateFormBody({
           {headerAction}
         </div>
         {shouldShowFormatButton ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isFormatting}
-            aria-keyshortcuts={FORMAT_SHORTCUT_ARIA}
-            onClick={() => formatSource()}
-          >
-            {isFormatting && (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-            )}
-            Format
-            <KeyboardShortcut
-              className="ml-2 h-4"
-              keys={
-                typeof navigator !== "undefined" &&
-                navigator.userAgent.includes("Macintosh")
-                  ? ["⇧", "⌥", "F"]
-                  : ["Shift", "Alt", "F"]
-              }
-            />
-          </Button>
+          formatDisabledReason ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex cursor-not-allowed">
+                  {formatButton}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{formatDisabledReason}</TooltipContent>
+            </Tooltip>
+          ) : (
+            formatButton
+          )
         ) : null}
       </div>
       <CodeMirror

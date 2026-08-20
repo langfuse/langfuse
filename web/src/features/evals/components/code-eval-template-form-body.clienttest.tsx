@@ -1,10 +1,27 @@
-import { render, waitFor } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { PropsWithChildren } from "react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CodeEvalTemplateFormBody } from "./code-eval-template-form-body";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
+
+const mocks = vi.hoisted(() => ({
+  formatPython: vi.fn(),
+  showErrorToast: vi.fn(),
+}));
 
 vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
+}));
+vi.mock(
+  "@/src/features/evals/utils/code-eval-template-validation",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    formatPythonCodeEvalSourceWithRuff: mocks.formatPython,
+  }),
+);
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
+  showErrorToast: mocks.showErrorToast,
 }));
 
 beforeAll(() => {
@@ -14,7 +31,15 @@ beforeAll(() => {
   });
 });
 
+function TestTooltipProvider({ children }: PropsWithChildren) {
+  return <TooltipProvider delayDuration={0}>{children}</TooltipProvider>;
+}
+
 describe("CodeEvalTemplateFormBody", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("shows Python validation errors that arrive after the editor mounts", async () => {
     const sourceCode = "def evaluate(ctx):\n  return missing_name";
     const props = {
@@ -26,6 +51,7 @@ describe("CodeEvalTemplateFormBody", () => {
     };
     const { container, rerender } = render(
       <CodeEvalTemplateFormBody {...props} validationResult={null} />,
+      { wrapper: TestTooltipProvider },
     );
 
     rerender(
@@ -52,5 +78,70 @@ describe("CodeEvalTemplateFormBody", () => {
       },
       { timeout: 200 },
     );
+  });
+
+  it("shows formatter errors in a toast", async () => {
+    mocks.formatPython.mockRejectedValueOnce(new Error("Invalid syntax"));
+
+    render(
+      <CodeEvalTemplateFormBody
+        sourceCode="def evaluate(ctx)"
+        sourceCodeLanguage="PYTHON"
+        onSourceCodeChange={vi.fn()}
+        editable
+        validationResult={{
+          sourceBytes: 17,
+          hasErrors: false,
+          diagnostics: [],
+        }}
+        ctxSample={null}
+      />,
+      { wrapper: TestTooltipProvider },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Format/ }));
+
+    await waitFor(() => {
+      expect(mocks.showErrorToast).toHaveBeenCalledWith(
+        "Formatting failed",
+        "Invalid syntax",
+      );
+    });
+  });
+
+  it("does not format code with validation errors", async () => {
+    render(
+      <CodeEvalTemplateFormBody
+        sourceCode="def evaluate(ctx)"
+        sourceCodeLanguage="PYTHON"
+        onSourceCodeChange={vi.fn()}
+        editable
+        validationResult={{
+          sourceBytes: 17,
+          hasErrors: true,
+          diagnostics: [
+            {
+              from: 0,
+              to: 3,
+              severity: "error",
+              message: "Invalid syntax",
+            },
+          ],
+        }}
+        ctxSample={null}
+      />,
+      { wrapper: TestTooltipProvider },
+    );
+
+    const formatButton = screen.getByRole("button", { name: /Format/ });
+    expect(formatButton).toBeDisabled();
+    expect(mocks.formatPython).not.toHaveBeenCalled();
+
+    fireEvent.focus(formatButton.parentElement!);
+    expect(
+      await screen.findAllByText(
+        "Fix the code validation errors before formatting.",
+      ),
+    ).not.toHaveLength(0);
   });
 });
