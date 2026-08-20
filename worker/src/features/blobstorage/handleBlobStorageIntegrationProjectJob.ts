@@ -52,6 +52,7 @@ import {
   type CustomerFaultReason,
 } from "./isCustomerFaultError";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
+import { isFinalBullmqAttempt } from "../integrations/bullmqAttempts";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
@@ -1521,10 +1522,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     // A deterministic customer-config/credential fault can't succeed until the
     // customer fixes it. Once BullMQ exhausts its retries, disable the
-    // integration so it stops re-scheduling and spamming. attemptsMade is
-    // 0-based, so the final attempt is attempts - 1.
-    const isFinalAttempt =
-      (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
+    // integration so it stops re-scheduling and spamming.
+    const isFinalAttempt = isFinalBullmqAttempt(job, error);
     // Defined => disable; also tags the disable log + metric.
     const customerFaultReason = classifyCustomerFault(error);
 
