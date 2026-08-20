@@ -1,7 +1,7 @@
 import preview from "../../../../.storybook/preview";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { type ScoreConfigDomain } from "@langfuse/shared";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import { AnnotationQueueFormDialogContent } from "./AnnotationQueueFormDialogContent";
 
@@ -69,7 +69,9 @@ export const Create = meta.story({
       await body.findByRole("button", { name: /Select.*Helpfulness/ }),
     );
 
-    await expect(body.getByPlaceholderText("Value")).toBeVisible();
+    await waitFor(() =>
+      expect(body.getByPlaceholderText("Value")).toBeVisible(),
+    );
   },
 });
 
