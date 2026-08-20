@@ -139,10 +139,6 @@ const BAR_COLORS = [
   NEUTRAL_COLOR,
 ];
 
-/** What the gestures are, in the order you are likely to reach for them. */
-const GESTURE_HINT =
-  "drag to zoom · scroll to pan · pinch to zoom · double-click to focus";
-
 /**
  * `GENERATION` → `Generation`. The palette is by observation type, and the type
  * has to be readable wherever its colour is: nothing in the view said what the
@@ -1310,6 +1306,7 @@ export function TimelineDense({
       <div
         className="border-border flex shrink-0 items-center gap-1 border-b px-1"
         style={{ height: `${TOOLBAR_HEIGHT}px` }}
+        data-testid="timeline-dense-toolbar"
       >
         <ToolbarButton
           label="Zoom out"
@@ -1383,12 +1380,17 @@ export function TimelineDense({
             )}
           </ToolbarButton>
         ) : null}
+        {/* Where you are, when you are somewhere — and nothing at all when the
+            whole trace is in view. This carried a list of gestures once. Every
+            way of interacting with this surface is one you would have tried:
+            drag, scroll, pinch, double-click, click. A caption explaining them
+            is a caption nobody reads, taking the room a state readout earns. */}
         <span
           className="text-muted-foreground truncate"
           style={{ fontSize: "10px" }}
-          title={fitted ? GESTURE_HINT : windowHint}
+          title={fitted ? undefined : windowHint}
         >
-          {fitted ? GESTURE_HINT : windowHint}
+          {fitted ? null : windowHint}
         </span>
       </div>
 

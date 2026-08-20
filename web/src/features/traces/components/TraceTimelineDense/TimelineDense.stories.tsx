@@ -2038,3 +2038,37 @@ export const TheCursorMatchesTheGesture = meta.story({
     await expect(getComputedStyle(bar).cursor).toBe("pointer");
   },
 });
+
+/**
+ * The toolbar does not explain the surface. Every gesture it supports is one you
+ * would have tried anyway, and the space is better spent saying where you ARE —
+ * which is worth saying only once you are somewhere other than the whole trace.
+ */
+export const TheToolbarDoesNotExplainItself = meta.story({
+  name: "(Test) The Toolbar Does Not Explain Itself",
+  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const toolbar = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-toolbar"]',
+    );
+    if (!toolbar) throw new Error("no toolbar");
+
+    // At rest: no tutorial, and nothing about where you are — you are nowhere in
+    // particular, you are looking at all of it.
+    for (const word of ["drag", "scroll", "pinch", "double-click", "window"]) {
+      await expect(toolbar.innerText.toLowerCase()).not.toContain(word);
+    }
+
+    const zoomIn = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Zoom in"]',
+    );
+    if (!zoomIn) throw new Error("no zoom button");
+    await userEvent.click(zoomIn);
+
+    // Zoomed: it says where you are, and still explains nothing.
+    await waitFor(() =>
+      expect(toolbar.innerText.toLowerCase()).toContain("window"),
+    );
+    await expect(toolbar.innerText.toLowerCase()).not.toContain("drag");
+  },
+});
