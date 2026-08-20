@@ -25,6 +25,8 @@ import {
   getTracesTableMetrics,
   getTraceIdentifiers,
   getDatasetRunItemsCh,
+  getDatasetRunsTableRowsCh,
+  getDatasetRunsTableMetricsCh,
   getTracesByIds,
   getScoresForTraces,
   getDatasetItems,
@@ -46,6 +48,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   observations: "startTime",
   events: "startTime",
   datasets: "createdAt",
+  dataset_runs: "createdAt",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt", // TODO: flip to validFrom once we write in new format
   audit_logs: "createdAt",
@@ -57,6 +60,7 @@ const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   observations: "startTime",
   events: "startTime",
   datasets: "createdAt",
+  dataset_runs: "createdAt",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt",
   audit_logs: "createdAt",
@@ -545,6 +549,89 @@ export const getDatabaseReadStreamPaginated = async ({
             chunkWithComments,
             emptyScoreColumns,
           );
+        },
+        env.BATCH_EXPORT_PAGE_SIZE,
+        rowLimit,
+      );
+    }
+
+    case "dataset_runs": {
+      // Export dataset runs with their aggregated metrics (latency, cost,
+      // run-item count). The datasetId is passed as a filter condition from the
+      // UI so that only runs belonging to the current dataset are exported.
+      // Extract datasetId from the filter array (injected by the UI).
+      const datasetIdFilter = filter?.find((f) => f.column === "datasetId");
+      const datasetId =
+        datasetIdFilter && "value" in datasetIdFilter
+          ? String(datasetIdFilter.value)
+          : undefined;
+
+      if (!datasetId) {
+        // Throw eagerly (not inside the lazy query delegate) so the job
+        // fails fast with a clear error.
+        throw new Error(
+          "dataset_runs export requires a datasetId filter condition",
+        );
+      }
+
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          // Build the filter list for ClickHouse queries, excluding the
+          // synthetic datasetId filter (it's passed as a dedicated param) and
+          // appending the createdAt cutoff.
+          const chFilter = [
+            ...(filter ?? []).filter((f) => f.column !== "datasetId"),
+            createdAtCutoffFilter,
+          ];
+
+          // Phase 1: fetch the run rows (id, name, description, metadata, etc.)
+          const rows = await getDatasetRunsTableRowsCh({
+            projectId,
+            datasetId,
+            filter: chFilter,
+            orderBy,
+            limit: pageSize,
+            offset,
+          });
+
+          if (rows.length === 0) return [];
+
+          // Phase 2: fetch aggregated metrics for the page's run IDs.
+          const runIds = rows.map((r) => r.id);
+          const metrics = await getDatasetRunsTableMetricsCh({
+            projectId,
+            datasetId,
+            runIds,
+            filter: chFilter,
+          });
+
+          // Phase 3: merge rows + metrics into flat export records.
+          return rows.map((row) => {
+            const metric = metrics.find((m) => m.id === row.id);
+
+            // ClickHouse stores run metadata as a JSON string; parse it so
+            // JSON/JSONL exports contain structured data like other tables.
+            let metadata: unknown = row.metadata;
+            if (typeof row.metadata === "string") {
+              try {
+                metadata = JSON.parse(row.metadata);
+              } catch {
+                // keep the raw string if it is not valid JSON
+              }
+            }
+
+            return {
+              id: row.id,
+              name: row.name,
+              description: row.description,
+              createdAt: row.createdAt,
+              metadata,
+              countRunItems: metric?.countRunItems ?? 0,
+              avgLatency: metric?.avgLatency ?? null,
+              avgTotalCost: metric?.avgTotalCost ?? null,
+              totalCost: metric?.totalCost ?? null,
+            };
+          });
         },
         env.BATCH_EXPORT_PAGE_SIZE,
         rowLimit,
