@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { TRPCClientError } from "@trpc/client";
 import { vi } from "vitest";
 import {

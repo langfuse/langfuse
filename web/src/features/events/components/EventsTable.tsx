@@ -107,7 +107,7 @@ import {
 } from "@/src/features/events/hooks/useAppRootDefault";
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { buildTracePath } from "@langfuse/shared";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 // Disabled for now because perhaps confusing
 // import {
@@ -2368,7 +2368,7 @@ export default function ObservationsEventsTable({
                     const timestamp = row.timestamp;
 
                     if (traceId) {
-                      const observationUrl = buildTraceDetailPath({
+                      const observationUrl = buildTracePath({
                         projectId,
                         traceId,
                         observationId,

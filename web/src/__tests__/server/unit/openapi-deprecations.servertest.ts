@@ -132,6 +132,19 @@ describe("OpenAPI deprecations", () => {
     }
   });
 
+  // The date is a Cloud commitment; self-hosted is not bound by it.
+  it("scopes every sunset message to Langfuse Cloud", () => {
+    for (const { method, endpointPath, message } of getFernDeprecatedOperations(
+      definitionDirectory,
+    )) {
+      const operation = `${method.toUpperCase()} ${endpointPath}`;
+      expect(message, operation).toContain("On Langfuse Cloud,");
+      expect(message, operation).toContain(
+        "Self-hosted deployments are unaffected",
+      );
+    }
+  });
+
   it("keeps the human-readable sunset date in sync with the machine-readable one", () => {
     expect(
       new Date(`${V3_SUNSET_DATE}T00:00:00Z`).toLocaleDateString("en-US", {

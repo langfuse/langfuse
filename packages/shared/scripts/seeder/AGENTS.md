@@ -15,6 +15,9 @@ pnpm run seed -- trace-tree --observations 12000 --stride-ms 10 --v4  # more obs
 pnpm run seed -- deep-chain --v4  # 1401 sequential generations in ONE parent chain (depth = count; LFE-10959 layout stress)
 pnpm run seed -- agent-timeline --turns 6 --v4  # realistic agent flow-with-loop over a timeline (graph view)
 pnpm run seed -- agent-graph --v4  # graph-DENSE trace: ~1,350 distinct node-pair connections from 350 observations (trace-graph layout stress)
+pnpm run seed -- agent-timeline --turns 120 --turn-gap-ms 60000 --v4  # ~2.5h wall clock: idle between turns, so the work is a few percent of the trace
+pnpm run seed -- timeline-shapes --v4  # a dozen SMALL traces, one per timeline morphology (retry backoff, human wait, fan-out, slow tool, in-flight, instants, ...)
+pnpm run seed -- timeline-shapes --shape retry-backoff --v4  # just one of them
 pnpm run seed -- support-agent --v4 --id-prefix <hex>  # demo-grade handcrafted support-copilot run (videos/screenshots)
 pnpm run seed -- long-session --traces 300 --observations-per-trace 8
 pnpm run seed -- session-shapes --shape all        # chat / coding-agent / mixed / media v4 sessions

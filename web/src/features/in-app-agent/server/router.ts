@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   InvalidRequestError,
+  resolveInAppAgentRootRunId,
   ScoreDataTypeEnum,
   ScoreSourceEnum,
   TEXT_SCORE_MAX_LENGTH,
@@ -16,8 +17,11 @@ import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
 } from "@langfuse/shared/in-app-agent";
-import { InAppAgentMessageFeedbackValueSchema } from "@langfuse/shared/in-app-agent";
-import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
+import { InAppAgentMessageFeedbackValueSchema } from "../schema";
+import {
+  assertInAppAgentAvailable,
+  assertInAppAgentModelConfigured,
+} from "@/src/features/in-app-agent/server/availability";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -208,6 +212,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
+      assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -267,6 +272,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
+      assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -400,15 +406,26 @@ export const inAppAgentRouter = createTRPCRouter({
       const scoreProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
       if (projectAvailability.aiTelemetryEnabled && scoreProjectId) {
+        // Approval continuations trace onto the root run, so score the root too.
+        const run = await ctx.prisma.inAppAgentRun.findUnique({
+          where: {
+            id_projectId: { id: input.runId, projectId: input.projectId },
+          },
+          select: { request: true },
+        });
+        const telemetryRunId = resolveInAppAgentRootRunId(
+          run?.request,
+          input.runId,
+        );
+
         await upsertScore({
           id: scoreId,
           timestamp: convertDateToClickhouseDateTime(now),
           project_id: scoreProjectId,
           environment: IN_APP_AGENT_FEEDBACK_ENVIRONMENT,
-          trace_id: getInAppAgentInstrumentationTraceId(input.runId),
-          observation_id: getInAppAgentInstrumentationObservationId(
-            input.runId,
-          ),
+          trace_id: getInAppAgentInstrumentationTraceId(telemetryRunId),
+          observation_id:
+            getInAppAgentInstrumentationObservationId(telemetryRunId),
           session_id: input.conversationId,
           name: IN_APP_AGENT_FEEDBACK_SCORE_NAME,
           value: input.value === "thumbs_up" ? 1 : 0,

@@ -1,4 +1,4 @@
-import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/tools";
+import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { safeJsonParse } from "@langfuse/shared";
 import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
@@ -124,7 +124,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   readonly InAppAgentTrpcInvalidationTarget[]
 >;
 
-export function getInAppAgentTrpcInvalidationTargets(toolName: string) {
+function getInAppAgentTrpcInvalidationTargets(toolName: string) {
   return (
     IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS[
       toolName as keyof typeof IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS

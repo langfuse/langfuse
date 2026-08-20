@@ -1,7 +1,11 @@
 import { v4 } from "uuid";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
+import {
+  ClickHouseResourceError,
+  createOrgProjectAndApiKey,
+  logger,
+} from "@langfuse/shared/src/server";
 import { InvalidRequestError } from "@langfuse/shared";
 import {
   MonitorProcessor,
@@ -96,7 +100,7 @@ type ProcessCase = {
   injectError?: {
     stage: InjectErrorStage;
     message: string;
-    errorClass?: "invalid-request";
+    errorClass?: "invalid-request" | "resource";
   };
   preempt?: { newClaimedAt: Date };
   preemptPause?: { at: Date };
@@ -696,6 +700,37 @@ const cases: ProcessCase[] = [
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
           lastCompletedAt: justAfterRunAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "ClickHouseResourceError on executeQuery: rethrows, stays ACTIVE, not ERROR_BAD_QUERY",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: MonitorSeveritySchema.enum.OK,
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+      },
+    ],
+    injectError: {
+      stage: "executeQuery",
+      errorClass: "resource",
+      message: "Timeout exceeded",
+    },
+    expect: {
+      throws: "Timeout exceeded",
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          status: MonitorStatusSchema.enum.ACTIVE,
+          severity: MonitorSeveritySchema.enum.OK,
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -1310,6 +1345,12 @@ describe("MonitorProcessor.process (integration)", () => {
       if (c.injectError?.stage === "executeQuery") {
         if (c.injectError.errorClass === "invalid-request") {
           throw new InvalidRequestError(c.injectError.message);
+        }
+        if (c.injectError.errorClass === "resource") {
+          throw new ClickHouseResourceError(
+            "TIMEOUT",
+            new Error(c.injectError.message),
+          );
         }
         throw new Error(c.injectError.message);
       }
