@@ -1,14 +1,9 @@
 import preview from "../../../../.storybook/preview";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  CreateQueueWithAssignmentsData,
-  type CreateQueueWithAssignments,
-} from "@langfuse/shared";
+import { type CreateQueueWithAssignments } from "@langfuse/shared";
 import { useState } from "react";
 import { flushSync } from "react-dom";
-import { useForm } from "react-hook-form";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import { AddTracesToAnnotationQueueSelectDialogContent } from "./AddTracesToAnnotationQueueSelectDialogContent";
@@ -24,41 +19,15 @@ export const CreateQueueInStackedDialog = meta.story({
   name: "(Test) Create Queue In Stacked Dialog",
   render: () => {
     const [createOpen, setCreateOpen] = useState(false);
+    const [selectedQueueId, setSelectedQueueId] = useState("queue-1");
     const [queueOptions, setQueueOptions] = useState([
       { id: "queue-1", name: "Support review" },
       { id: "queue-2", name: "Quality audit" },
     ]);
-    const selectForm = useForm({ defaultValues: { targetId: "queue-1" } });
-    const createForm = useForm({
-      resolver: zodResolver(CreateQueueWithAssignmentsData),
-      defaultValues: {
-        name: "",
-        description: "",
-        scoreConfigIds: ["config-1"],
-        newAssignmentUserIds: [],
-      },
-    });
-
-    const handleScoreConfigValueChange = (values: Record<string, string>[]) => {
-      createForm.setValue(
-        "scoreConfigIds",
-        values.map((value) => value.key),
-      );
-      if (values.length === 0) {
-        createForm.setError("scoreConfigIds", {
-          type: "manual",
-          message: "At least 1 score config must be selected",
-        });
-      } else {
-        createForm.clearErrors("scoreConfigIds");
-      }
-    };
-
     const handleCreate = (data: CreateQueueWithAssignments) => {
       const queue = { id: `queue-${queueOptions.length + 1}`, name: data.name };
       flushSync(() => setQueueOptions((current) => current.concat(queue)));
-      selectForm.setValue("targetId", queue.id);
-      createForm.reset();
+      setSelectedQueueId(queue.id);
       setCreateOpen(false);
     };
 
@@ -67,14 +36,15 @@ export const CreateQueueInStackedDialog = meta.story({
         <Dialog open onOpenChange={fn()}>
           <DialogContent className="sm:max-w-md">
             <AddTracesToAnnotationQueueSelectDialogContent
+              key={selectedQueueId}
               description="Add 12 selected traces to an annotation queue."
-              form={selectForm}
+              initialTargetId={selectedQueueId}
               queueOptionsState={{ status: "ready", options: queueOptions }}
               onSubmit={fn()}
               onCreateNewQueue={() => setCreateOpen(true)}
               createQueueState={{ status: "enabled" }}
               hasAccess={true}
-              batchActionState={{ status: "ready", canConfirm: true }}
+              batchActionState={{ status: "ready" }}
             />
           </DialogContent>
         </Dialog>
@@ -83,7 +53,12 @@ export const CreateQueueInStackedDialog = meta.story({
             {createOpen ? (
               <AnnotationQueueFormDialogContent
                 mode="create"
-                form={createForm}
+                initialValues={{
+                  name: "",
+                  description: "",
+                  scoreConfigIds: ["config-1"],
+                  newAssignmentUserIds: [],
+                }}
                 scoreConfigs={[
                   {
                     id: "config-1",
@@ -99,12 +74,9 @@ export const CreateQueueInStackedDialog = meta.story({
                   },
                 ]}
                 projectId="project-1"
-                onScoreConfigValueChange={handleScoreConfigValueChange}
+                queueNames={queueOptions.map((queue) => queue.name)}
                 onManageScoreConfigsClick={fn()}
-                isAdvancedOpen={false}
-                onAdvancedOpenChange={fn()}
                 hasQueueAssignmentsReadAccess={false}
-                userAssignmentSection={null}
                 isSubmitting={false}
                 onSubmit={handleCreate}
                 submitLabel="Create queue"
@@ -142,20 +114,18 @@ export const CreateQueueInStackedDialog = meta.story({
 
 export const Empty = meta.story({
   render: () => {
-    const form = useForm({ defaultValues: { targetId: "" } });
-
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="sm:max-w-md">
           <AddTracesToAnnotationQueueSelectDialogContent
             description="Add 3 selected traces to an annotation queue."
-            form={form}
+            initialTargetId=""
             queueOptionsState={{ status: "ready", options: [] }}
             onSubmit={fn()}
             onCreateNewQueue={fn()}
             createQueueState={{ status: "enabled" }}
             hasAccess={true}
-            batchActionState={{ status: "ready", canConfirm: false }}
+            batchActionState={{ status: "ready" }}
           />
         </DialogContent>
       </Dialog>
@@ -165,14 +135,12 @@ export const Empty = meta.story({
 
 export const Loading = meta.story({
   render: () => {
-    const form = useForm({ defaultValues: { targetId: "" } });
-
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="sm:max-w-md">
           <AddTracesToAnnotationQueueSelectDialogContent
             description="Add 3 selected traces to an annotation queue."
-            form={form}
+            initialTargetId=""
             queueOptionsState={{ status: "loading" }}
             onSubmit={fn()}
             onCreateNewQueue={fn()}
@@ -188,14 +156,12 @@ export const Loading = meta.story({
 
 export const CreateDisabled = meta.story({
   render: () => {
-    const form = useForm({ defaultValues: { targetId: "queue-1" } });
-
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="sm:max-w-md">
           <AddTracesToAnnotationQueueSelectDialogContent
             description="Add 8 selected traces to an annotation queue."
-            form={form}
+            initialTargetId="queue-1"
             queueOptionsState={{
               status: "ready",
               options: [{ id: "queue-1", name: "Only queue" }],
@@ -208,7 +174,7 @@ export const CreateDisabled = meta.story({
                 "Maximum number of annotation queues reached for your plan.",
             }}
             hasAccess={true}
-            batchActionState={{ status: "ready", canConfirm: true }}
+            batchActionState={{ status: "ready" }}
           />
         </DialogContent>
       </Dialog>
@@ -218,14 +184,12 @@ export const CreateDisabled = meta.story({
 
 export const BatchActionInProgress = meta.story({
   render: () => {
-    const form = useForm({ defaultValues: { targetId: "queue-1" } });
-
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="sm:max-w-md">
           <AddTracesToAnnotationQueueSelectDialogContent
             description="Add 50 selected traces to an annotation queue."
-            form={form}
+            initialTargetId="queue-1"
             queueOptionsState={{
               status: "ready",
               options: [{ id: "queue-1", name: "Support review" }],

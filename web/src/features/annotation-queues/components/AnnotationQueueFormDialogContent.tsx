@@ -27,11 +27,15 @@ import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-sel
 import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import {
+  CreateQueueWithAssignmentsData,
   type CreateQueueWithAssignments,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { type ReactNode } from "react";
-import { type UseFormReturn } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
+import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 
 type AnnotationQueueScoreConfigOption = Pick<
   ScoreConfigDomain,
@@ -40,15 +44,13 @@ type AnnotationQueueScoreConfigOption = Pick<
 
 type AnnotationQueueFormDialogContentProps = {
   mode: "create" | "edit";
-  form: UseFormReturn<CreateQueueWithAssignments>;
+  initialValues: CreateQueueWithAssignments;
   scoreConfigs: AnnotationQueueScoreConfigOption[];
   projectId: string;
-  onScoreConfigValueChange: (values: Record<string, string>[]) => void;
+  queueId?: string;
+  queueNames: string[];
   onManageScoreConfigsClick: () => void;
-  isAdvancedOpen: boolean;
-  onAdvancedOpenChange: (open: boolean) => void;
   hasQueueAssignmentsReadAccess: boolean;
-  userAssignmentSection: ReactNode;
   isSubmitting: boolean;
   onSubmit: (data: CreateQueueWithAssignments) => void;
   submitLabel: string;
@@ -56,19 +58,46 @@ type AnnotationQueueFormDialogContentProps = {
 
 export function AnnotationQueueFormDialogContent({
   mode,
-  form,
+  initialValues,
   scoreConfigs,
   projectId,
-  onScoreConfigValueChange,
+  queueId,
+  queueNames,
   onManageScoreConfigsClick,
-  isAdvancedOpen,
-  onAdvancedOpenChange,
   hasQueueAssignmentsReadAccess,
-  userAssignmentSection,
   isSubmitting,
   onSubmit,
   submitLabel,
 }: AnnotationQueueFormDialogContentProps) {
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const form = useForm<CreateQueueWithAssignments>({
+    resolver: zodResolver(CreateQueueWithAssignmentsData),
+    defaultValues: initialValues,
+  });
+
+  useUniqueNameValidation({
+    currentName: form.watch("name"),
+    allNames: queueNames.map((name) => ({ value: name })),
+    form,
+    errorMessage: "Queue name already exists.",
+  });
+
+  const handleScoreConfigValueChange = (values: Record<string, string>[]) => {
+    form.setValue(
+      "scoreConfigIds",
+      values.map((value) => value.key),
+    );
+
+    if (values.length === 0) {
+      form.setError("scoreConfigIds", {
+        type: "manual",
+        message: "At least 1 score config must be selected",
+      });
+    } else {
+      form.clearErrors("scoreConfigIds");
+    }
+  };
+
   const activeScoreConfigs = scoreConfigs.filter(
     (config) => !config.isArchived,
   );
@@ -138,7 +167,7 @@ export function AnnotationQueueFormDialogContent({
                       align="end"
                       variant="outline"
                       className="grid grid-cols-[auto_1fr_auto_auto] gap-2"
-                      onValueChange={onScoreConfigValueChange}
+                      onValueChange={handleScoreConfigValueChange}
                       options={activeScoreConfigs.map((config) => ({
                         key: config.id,
                         value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
@@ -180,9 +209,9 @@ export function AnnotationQueueFormDialogContent({
                       open={isAdvancedOpen && hasQueueAssignmentsReadAccess}
                       onOpenChange={(open) => {
                         if (!hasQueueAssignmentsReadAccess) {
-                          onAdvancedOpenChange(false);
+                          setIsAdvancedOpen(false);
                         } else {
-                          onAdvancedOpenChange(open);
+                          setIsAdvancedOpen(open);
                         }
                       }}
                     >
@@ -207,7 +236,18 @@ export function AnnotationQueueFormDialogContent({
                       <CollapsibleContent className="border-border/20 border-t px-3 pt-1 pb-3">
                         {hasQueueAssignmentsReadAccess ? (
                           <>
-                            <FormControl>{userAssignmentSection}</FormControl>
+                            <FormControl>
+                              <UserAssignmentSection
+                                projectId={projectId}
+                                queueId={queueId}
+                                selectedUserIds={form.watch(
+                                  "newAssignmentUserIds",
+                                )}
+                                onChange={(userIds) =>
+                                  form.setValue("newAssignmentUserIds", userIds)
+                                }
+                              />
+                            </FormControl>
                             <FormMessage />
                           </>
                         ) : null}

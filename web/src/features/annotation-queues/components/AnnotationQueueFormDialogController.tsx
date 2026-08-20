@@ -1,19 +1,14 @@
-import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  CreateQueueWithAssignmentsData,
   type CreateQueueWithAssignments,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { type ReactNode, useState } from "react";
 
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
-import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { api } from "@/src/utils/api";
 
 type AnnotationQueueFormDialogControllerProps = {
@@ -38,7 +33,6 @@ export function AnnotationQueueFormDialogController(
   const queueId = mode === "edit" ? props.queueId : undefined;
 
   const [open, setOpen] = useState(false);
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
   const hasQueueAccess = useHasProjectAccess({
     projectId,
@@ -63,10 +57,6 @@ export function AnnotationQueueFormDialogController(
 
   const capture = usePostHogClientCapture();
 
-  const form = useForm({
-    resolver: zodResolver(CreateQueueWithAssignmentsData),
-  });
-
   const queueQuery = api.annotationQueues.byId.useQuery(
     { projectId, queueId: queueId ?? "" },
     { enabled: mode === "edit" && hasQueueAccess && open },
@@ -79,47 +69,6 @@ export function AnnotationQueueFormDialogController(
     { projectId },
     { enabled: hasQueueAccess && mode === "create" && open },
   );
-
-  useEffect(() => {
-    if (!open) return;
-
-    setIsAdvancedOpen(false);
-    if (mode === "edit" && queueQuery.data) {
-      form.reset({
-        name: queueQuery.data.name,
-        description: queueQuery.data.description || undefined,
-        scoreConfigIds: queueQuery.data.scoreConfigs.map(
-          (config: ScoreConfigDomain) => config.id,
-        ),
-        newAssignmentUserIds: [],
-      });
-      return;
-    }
-
-    if (mode === "create") {
-      form.reset({
-        name: "",
-        scoreConfigIds: [],
-        newAssignmentUserIds: [],
-      });
-    }
-  }, [form, mode, open, queueQuery.data]);
-
-  const allQueueNames = useMemo(
-    () =>
-      mode === "create"
-        ? (allQueueNamesAndIds.data?.map((queue) => ({ value: queue.name })) ??
-          [])
-        : [],
-    [allQueueNamesAndIds.data, mode],
-  );
-
-  useUniqueNameValidation({
-    currentName: form.watch("name"),
-    allNames: allQueueNames,
-    form,
-    errorMessage: "Queue name already exists.",
-  });
 
   const utils = api.useUtils();
   const createQueueMutation = api.annotationQueues.create.useMutation();
@@ -158,7 +107,6 @@ export function AnnotationQueueFormDialogController(
         utils.annotationQueues.invalidate(),
         utils.annotationQueueAssignments.invalidate(),
       ]);
-      form.reset();
       onSuccess(targetQueueId);
       setOpen(false);
     } catch {
@@ -169,56 +117,51 @@ export function AnnotationQueueFormDialogController(
     }
   };
 
-  const handleScoreConfigValueChange = (values: Record<string, string>[]) => {
-    form.setValue(
-      "scoreConfigIds",
-      values.map((value) => value.key),
-    );
-
-    if (values.length === 0) {
-      form.setError("scoreConfigIds", {
-        type: "manual",
-        message: "At least 1 score config must be selected",
-      });
-    } else {
-      form.clearErrors("scoreConfigIds");
-    }
-  };
-
   const isSubmitting =
     createQueueMutation.isPending ||
     editQueueMutation.isPending ||
     createQueueAssignmentsMutation.isPending;
 
+  const initialValues: CreateQueueWithAssignments | undefined =
+    mode === "edit"
+      ? queueQuery.data
+        ? {
+            name: queueQuery.data.name ?? "",
+            description: queueQuery.data.description || undefined,
+            scoreConfigIds: queueQuery.data.scoreConfigs.map(
+              (config: ScoreConfigDomain) => config.id,
+            ),
+            newAssignmentUserIds: [],
+          }
+        : undefined
+      : {
+          name: "",
+          scoreConfigIds: [],
+          newAssignmentUserIds: [],
+        };
+
   return (
     <Dialog open={hasQueueAccess && open} onOpenChange={setOpen}>
       {children({ disabled, openDialog })}
-      {configsQuery.data && (mode === "create" || queueQuery.data) ? (
+      {open && configsQuery.data && initialValues ? (
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <AnnotationQueueFormDialogContent
             mode={mode}
-            form={form}
+            initialValues={initialValues}
             scoreConfigs={configsQuery.data.configs}
             projectId={projectId}
-            onScoreConfigValueChange={handleScoreConfigValueChange}
+            queueId={queueId}
+            queueNames={
+              mode === "create"
+                ? (allQueueNamesAndIds.data?.map((queue) => queue.name) ?? [])
+                : []
+            }
             onManageScoreConfigsClick={() => {
               capture("score_configs:manage_configs_item_click", {
                 source: "AnnotationQueue",
               });
             }}
-            isAdvancedOpen={isAdvancedOpen}
-            onAdvancedOpenChange={setIsAdvancedOpen}
             hasQueueAssignmentsReadAccess={hasQueueAssignmentsReadAccess}
-            userAssignmentSection={
-              <UserAssignmentSection
-                projectId={projectId}
-                queueId={queueId}
-                selectedUserIds={form.watch("newAssignmentUserIds")}
-                onChange={(userIds) =>
-                  form.setValue("newAssignmentUserIds", userIds)
-                }
-              />
-            }
             isSubmitting={isSubmitting}
             onSubmit={handleSubmit}
             submitLabel={mode === "edit" ? "Save queue" : "Create queue"}

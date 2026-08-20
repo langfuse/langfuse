@@ -1,11 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  CreateQueueWithAssignmentsData,
-  type ScoreConfigDomain,
-} from "@langfuse/shared";
-import { useForm } from "react-hook-form";
+import { type ScoreConfigDomain } from "@langfuse/shared";
 import { fn } from "storybook/test";
 
 import { AnnotationQueueFormDialogContent } from "./AnnotationQueueFormDialogContent";
@@ -43,29 +38,21 @@ const meta = preview.meta({
 
 export const Create = meta.story({
   render: () => {
-    const form = useForm({
-      resolver: zodResolver(CreateQueueWithAssignmentsData),
-      defaultValues: {
-        name: "",
-        scoreConfigIds: ["config-1"],
-        newAssignmentUserIds: [],
-      },
-    });
-
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <AnnotationQueueFormDialogContent
             mode="create"
-            form={form}
+            initialValues={{
+              name: "",
+              scoreConfigIds: ["config-1"],
+              newAssignmentUserIds: [],
+            }}
             scoreConfigs={scoreConfigs}
             projectId="project-1"
-            onScoreConfigValueChange={fn()}
+            queueNames={[]}
             onManageScoreConfigsClick={fn()}
-            isAdvancedOpen={false}
-            onAdvancedOpenChange={fn()}
             hasQueueAssignmentsReadAccess={false}
-            userAssignmentSection={null}
             isSubmitting={false}
             onSubmit={fn()}
             submitLabel="Create queue"
@@ -78,30 +65,23 @@ export const Create = meta.story({
 
 export const Edit = meta.story({
   render: () => {
-    const form = useForm({
-      resolver: zodResolver(CreateQueueWithAssignmentsData),
-      defaultValues: {
-        name: "Support review queue",
-        description: "Weekly support trace review",
-        scoreConfigIds: ["config-1", "config-2"],
-        newAssignmentUserIds: [],
-      },
-    });
-
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <AnnotationQueueFormDialogContent
             mode="edit"
-            form={form}
+            initialValues={{
+              name: "Support review queue",
+              description: "Weekly support trace review",
+              scoreConfigIds: ["config-1", "config-2"],
+              newAssignmentUserIds: [],
+            }}
             scoreConfigs={scoreConfigs}
             projectId="project-1"
-            onScoreConfigValueChange={fn()}
+            queueId="queue-1"
+            queueNames={[]}
             onManageScoreConfigsClick={fn()}
-            isAdvancedOpen={false}
-            onAdvancedOpenChange={fn()}
             hasQueueAssignmentsReadAccess={false}
-            userAssignmentSection={null}
             isSubmitting={false}
             onSubmit={fn()}
             submitLabel="Save queue"
@@ -114,29 +94,21 @@ export const Edit = meta.story({
 
 export const Submitting = meta.story({
   render: () => {
-    const form = useForm({
-      resolver: zodResolver(CreateQueueWithAssignmentsData),
-      defaultValues: {
-        name: "New queue",
-        scoreConfigIds: ["config-1"],
-        newAssignmentUserIds: [],
-      },
-    });
-
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <AnnotationQueueFormDialogContent
             mode="create"
-            form={form}
+            initialValues={{
+              name: "New queue",
+              scoreConfigIds: ["config-1"],
+              newAssignmentUserIds: [],
+            }}
             scoreConfigs={scoreConfigs}
             projectId="project-1"
-            onScoreConfigValueChange={fn()}
+            queueNames={[]}
             onManageScoreConfigsClick={fn()}
-            isAdvancedOpen={false}
-            onAdvancedOpenChange={fn()}
             hasQueueAssignmentsReadAccess={false}
-            userAssignmentSection={null}
             isSubmitting={true}
             onSubmit={fn()}
             submitLabel="Create queue"
@@ -149,33 +121,21 @@ export const Submitting = meta.story({
 
 export const WithAdvancedOpen = meta.story({
   render: () => {
-    const form = useForm({
-      resolver: zodResolver(CreateQueueWithAssignmentsData),
-      defaultValues: {
-        name: "Team queue",
-        scoreConfigIds: ["config-1"],
-        newAssignmentUserIds: ["user-1"],
-      },
-    });
-
     return (
       <Dialog open onOpenChange={fn()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <AnnotationQueueFormDialogContent
             mode="create"
-            form={form}
+            initialValues={{
+              name: "Team queue",
+              scoreConfigIds: ["config-1"],
+              newAssignmentUserIds: ["user-1"],
+            }}
             scoreConfigs={scoreConfigs}
             projectId="project-1"
-            onScoreConfigValueChange={fn()}
+            queueNames={[]}
             onManageScoreConfigsClick={fn()}
-            isAdvancedOpen={true}
-            onAdvancedOpenChange={fn()}
             hasQueueAssignmentsReadAccess={true}
-            userAssignmentSection={
-              <p className="text-muted-foreground text-sm">
-                User assignment slot
-              </p>
-            }
             isSubmitting={false}
             onSubmit={fn()}
             submitLabel="Create queue"

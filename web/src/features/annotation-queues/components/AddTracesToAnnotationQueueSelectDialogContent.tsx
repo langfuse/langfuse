@@ -22,7 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { type UseFormReturn } from "react-hook-form";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 
 type AnnotationQueueSelectOption = {
   id: string;
@@ -35,11 +36,11 @@ type SelectFormValues = {
 
 type AddTracesToAnnotationQueueSelectDialogContentProps = {
   description: string;
-  form: UseFormReturn<SelectFormValues>;
+  initialTargetId: string;
   queueOptionsState:
     | { status: "loading" }
     | { status: "ready"; options: AnnotationQueueSelectOption[] };
-  onSubmit: () => void;
+  onSubmit: (targetId: string) => Promise<void>;
   onCreateNewQueue: () => void;
   createQueueState:
     | { status: "enabled" }
@@ -48,12 +49,12 @@ type AddTracesToAnnotationQueueSelectDialogContentProps = {
   batchActionState:
     | { status: "checking" }
     | { status: "inProgress" }
-    | { status: "ready"; canConfirm: boolean };
+    | { status: "ready" };
 };
 
 export function AddTracesToAnnotationQueueSelectDialogContent({
   description,
-  form,
+  initialTargetId,
   queueOptionsState,
   onSubmit,
   onCreateNewQueue,
@@ -61,9 +62,24 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
   hasAccess,
   batchActionState,
 }: AddTracesToAnnotationQueueSelectDialogContentProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const form = useForm<SelectFormValues>({
+    defaultValues: { targetId: initialTargetId },
+  });
   const isQueueOptionsLoading = queueOptionsState.status === "loading";
   const queueOptions =
     queueOptionsState.status === "ready" ? queueOptionsState.options : [];
+
+  const handleSubmit = async ({ targetId }: SelectFormValues) => {
+    if (!targetId) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit(targetId);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <>
@@ -71,7 +87,7 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
         <DialogTitle>Add to Annotation Queue</DialogTitle>
       </DialogHeader>
       <Form {...form}>
-        <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+        <form className="space-y-6" onSubmit={form.handleSubmit(handleSubmit)}>
           <DialogBody>
             <div className="flex items-center justify-between gap-4">
               <DialogDescription>{description}</DialogDescription>
@@ -134,10 +150,11 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
             <ActionButton
               type="submit"
               hasAccess={hasAccess}
-              loading={batchActionState.status === "checking"}
+              loading={batchActionState.status === "checking" || isSubmitting}
               disabled={
+                isSubmitting ||
                 batchActionState.status !== "ready" ||
-                !batchActionState.canConfirm
+                !form.watch("targetId")
               }
             >
               Confirm
