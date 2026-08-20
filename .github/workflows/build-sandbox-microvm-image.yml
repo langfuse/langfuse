@@ -18,6 +18,7 @@ on:
   push:
     branches:
       - main
+      - production
     paths:
       - packages/in-app-agent-sandbox-runtime/**
 
@@ -39,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: ${{ fromJSON(github.event_name == 'push' && '["staging"]' || inputs.environment == 'all-production' && '["prod-eu","prod-us","prod-hipaa","prod-jp"]' || format('["{0}"]', inputs.environment)) }}
+        environment: ${{ fromJSON(github.event_name == 'push' && github.ref == 'refs/heads/main' && '["staging"]' || github.event_name == 'push' && '["prod-eu","prod-us","prod-hipaa","prod-jp"]' || inputs.environment == 'all-production' && '["prod-eu","prod-us","prod-hipaa","prod-jp"]' || format('["{0}"]', inputs.environment)) }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_MICROVM_BUILD_ROLE_ARN: ${{ vars.AWS_MICROVM_BUILD_ROLE_ARN }}

@@ -210,5 +210,11 @@ async function sendEventAdminEmails({
       );
       return;
     }
+    default: {
+      const _exhaustiveCheck: never = event;
+      throw new Error(
+        `sendEventAdminEmails: unhandled event type ${(_exhaustiveCheck as ProjectNotificationEvent).eventType}`,
+      );
+    }
   }
 }

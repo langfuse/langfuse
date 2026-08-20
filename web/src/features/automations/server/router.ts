@@ -6,7 +6,7 @@ import {
   ActionType,
   JobConfigState,
   singleFilter,
-  isSafeWebhookActionConfig,
+  isWebhookActionConfig,
   TriggerEventSource,
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
@@ -15,7 +15,6 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { v4 } from "uuid";
 import {
   convertActionToDomain,
-  getActionById,
   getAutomations,
   getAutomationById,
   getConsecutiveAutomationFailures,
@@ -85,9 +84,11 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      const existingAction = await getActionById({
-        projectId: input.projectId,
-        actionId: input.actionId,
+      // Read the raw row rather than going through getActionById: that returns
+      // the sanitized config (no `headers`/`requestHeaders`), and writing it
+      // back would silently drop the automation's custom request headers.
+      const existingAction = await ctx.prisma.action.findFirst({
+        where: { id: input.actionId, projectId: input.projectId },
       });
 
       if (!existingAction || existingAction.type !== "WEBHOOK") {
@@ -97,12 +98,14 @@ export const automationsRouter = createTRPCRouter({
         });
       }
 
-      if (!isSafeWebhookActionConfig(existingAction.config)) {
+      if (!isWebhookActionConfig(existingAction.config)) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: `Invalid webhook configuration for action ${input.actionId}`,
         });
       }
+
+      const existingConfig = existingAction.config;
 
       // Generate new webhook secret
       const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
@@ -114,16 +117,17 @@ export const automationsRouter = createTRPCRouter({
         resourceId: input.actionId,
         action: "update",
         before: {
-          displaySecretKey: existingAction.config.displaySecretKey,
+          displaySecretKey: existingConfig.displaySecretKey,
         },
         after: {
           displaySecretKey: newDisplaySecretKey,
         },
       });
 
-      // Update action config with new secret
+      // Keep the rest of the stored config (custom headers included) and only
+      // rotate the signing secret. Header values stay encrypted as stored.
       const updatedConfig = {
-        ...existingAction.config,
+        ...existingConfig,
         secretKey: encrypt(newSecretKey),
         displaySecretKey: newDisplaySecretKey,
       };
