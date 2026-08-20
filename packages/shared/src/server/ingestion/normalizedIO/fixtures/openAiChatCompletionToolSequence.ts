@@ -1,6 +1,7 @@
 import type { NormalizedIOFixture } from "./types";
 
 const toolCallId = "call_weather_001";
+const customToolCallId = "call_custom_002";
 
 /** Synthetic OpenAI chat-completion case adapted from the playground suite. */
 export const openAiChatCompletionToolSequenceFixture = {
@@ -20,6 +21,14 @@ export const openAiChatCompletionToolSequenceFixture = {
             },
           },
         },
+        {
+          type: "custom",
+          custom: {
+            name: "run_python",
+            description: "Runs a python snippet",
+            format: { type: "text" },
+          },
+        },
       ],
       messages: [
         { role: "user", content: "What is the weather in Zurich?" },
@@ -35,6 +44,11 @@ export const openAiChatCompletionToolSequenceFixture = {
                 arguments: '{"city":"Zurich"}',
               },
             },
+            {
+              id: customToolCallId,
+              type: "custom",
+              custom: { name: "run_python", input: "print(21 * 2)" },
+            },
           ],
         },
         {
@@ -42,6 +56,9 @@ export const openAiChatCompletionToolSequenceFixture = {
           tool_call_id: toolCallId,
           content: '{"condition":"sunny","temperature":24}',
         },
+        // Deprecated legacy function-calling protocol: the result message
+        // carries the function name instead of a tool_call_id.
+        { role: "function", name: "run_python", content: "42" },
       ],
     },
     output: {
@@ -66,6 +83,13 @@ export const openAiChatCompletionToolSequenceFixture = {
             toolName: "get_weather",
             input: { city: "Zurich" },
           },
+          {
+            type: "tool-call",
+            toolCallId: customToolCallId,
+            toolName: "run_python",
+            input: "print(21 * 2)",
+            toolType: "custom",
+          },
         ],
         source: "input",
       },
@@ -76,6 +100,18 @@ export const openAiChatCompletionToolSequenceFixture = {
             type: "tool-result",
             toolCallId,
             output: { condition: "sunny", temperature: 24 },
+          },
+        ],
+        source: "input",
+      },
+      {
+        role: "tool",
+        parts: [
+          {
+            type: "tool-result",
+            toolCallId: null,
+            toolName: "run_python",
+            output: 42,
           },
         ],
         source: "input",
@@ -98,6 +134,13 @@ export const openAiChatCompletionToolSequenceFixture = {
           required: ["city"],
         },
         type: "function",
+        providerMetadata: undefined,
+      },
+      {
+        name: "run_python",
+        description: "Runs a python snippet",
+        inputSchema: { type: "text" },
+        type: "custom",
         providerMetadata: undefined,
       },
     ],

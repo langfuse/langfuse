@@ -1,7 +1,12 @@
 import type { EventRecordBaseType } from "../../repositories/definitions";
 import { metadataArraysToRecord } from "../../utils/metadata_conversion";
 import type { ResourceSpan } from "../../otel/OtelIngestionProcessor";
+import {
+  MEDIA_REFERENCE_PATTERN,
+  MediaReferenceStringSchema,
+} from "../../../utils/IORepresentation/chatML/types";
 import type {
+  FilePart,
   JsonObject,
   JsonValue,
   NormalizedIO,
@@ -109,6 +114,161 @@ function parseRecord(value: unknown): Record<string, unknown> | undefined {
 function parseArray(value: unknown): unknown[] | undefined {
   const parsed = parseIfString(value);
   return Array.isArray(parsed) ? parsed : undefined;
+}
+
+function toProviderMetadata(
+  entries: Record<string, unknown>,
+): JsonObject | undefined {
+  const value = toJsonValue(entries);
+  return isRecord(value) && Object.keys(value).length > 0 ? value : undefined;
+}
+
+type ParsedMediaReference = {
+  type: string;
+  id: string;
+  source: string;
+  referenceString: string;
+};
+
+/**
+ * Whole-string `@@@langfuseMedia:type=X|id=Y|source=Z@@@` reference tokens —
+ * the shape stored IO carries after ingestion has replaced raw media payloads.
+ * Strings that merely contain a token (or several) stay text; splitting
+ * mid-string remains the renderer's concern.
+ */
+function parseMediaReference(value: unknown): ParsedMediaReference | undefined {
+  if (typeof value !== "string") return undefined;
+
+  const matches = value.match(MEDIA_REFERENCE_PATTERN) ?? [];
+  if (matches.length !== 1 || matches[0] !== value) return undefined;
+
+  const parsed = MediaReferenceStringSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function filePartFromMediaReference(
+  reference: ParsedMediaReference,
+  extras?: Record<string, unknown>,
+): FilePart {
+  const providerMetadata = toProviderMetadata({
+    source: reference.source,
+    ...extras,
+  });
+
+  return {
+    type: "file",
+    mediaType: reference.type,
+    content: { kind: "reference", id: reference.id },
+    ...(providerMetadata ? { providerMetadata } : {}),
+  };
+}
+
+/**
+ * Split a string into interleaved text and file parts, one file part per
+ * embedded media reference token — strings frequently carry several.
+ * Whitespace-only separators between tokens are dropped; kept text segments
+ * preserve their original spacing.
+ */
+function normalizePartsFromString(value: string): NormalizedMessagePart[] {
+  const parts: NormalizedMessagePart[] = [];
+  let lastIndex = 0;
+
+  for (const match of value.matchAll(MEDIA_REFERENCE_PATTERN)) {
+    const parsed = MediaReferenceStringSchema.safeParse(match[0]);
+    if (!parsed.success) continue; // stays part of the surrounding text
+
+    const before = value.slice(lastIndex, match.index);
+    if (before.trim().length > 0) parts.push({ type: "text", text: before });
+    parts.push(filePartFromMediaReference(parsed.data));
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (parts.length === 0) return [{ type: "text", text: value }];
+
+  const rest = value.slice(lastIndex);
+  if (rest.trim().length > 0) parts.push({ type: "text", text: rest });
+  return parts;
+}
+
+/**
+ * OpenAI file fields (`file` content parts and Responses `input_file` items
+ * share them): base64 `file_data` (possibly a media token), a `file_url`, or
+ * an opaque `file_id` reference, plus an optional `filename`.
+ */
+function filePartFromFileFields(
+  fields: Record<string, unknown>,
+): FilePart | null {
+  const filename = optionalString(fields.filename);
+  const withName = filename ? { filename } : {};
+
+  const fileData = optionalString(fields.file_data);
+  const reference = parseMediaReference(fileData);
+  if (reference) {
+    return { ...filePartFromMediaReference(reference), ...withName };
+  }
+  if (fileData) {
+    return {
+      type: "file",
+      ...withName,
+      content: { kind: "base64", data: fileData },
+    };
+  }
+
+  const fileUrl = optionalString(fields.file_url);
+  if (fileUrl) {
+    return {
+      type: "file",
+      ...withName,
+      content: { kind: "url", url: fileUrl },
+    };
+  }
+
+  const fileId = optionalString(fields.file_id);
+  if (fileId) {
+    return {
+      type: "file",
+      ...withName,
+      content: { kind: "reference", id: fileId },
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Read the media type a data-URI declares in its prefix, without touching the
+ * payload. Raw data-URIs only reach stored IO when upstream media processing
+ * (SDK / MediaPayloadProcessor) skipped or failed; decoding them stays the
+ * media pipeline's job.
+ */
+function mediaTypeFromDataUri(url: string): string | undefined {
+  if (!url.startsWith("data:")) return undefined;
+  const end = url.slice(5).search(/[;,]/);
+  return end > 0 ? url.slice(5, 5 + end) : undefined;
+}
+
+function imageFilePartFromUrl(
+  url: string,
+  providerMetadata?: Record<string, unknown>,
+): FilePart {
+  const reference = parseMediaReference(url);
+  if (reference) return filePartFromMediaReference(reference, providerMetadata);
+
+  return {
+    type: "file",
+    mediaType: mediaTypeFromDataUri(url) ?? "image/*",
+    content: { kind: "url", url },
+    ...(providerMetadata ? { providerMetadata } : {}),
+  };
+}
+
+function omitKeys(
+  record: Record<string, unknown>,
+  keys: string[],
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record).filter(([key]) => !keys.includes(key)),
+  );
 }
 
 function parseIOValue(value: unknown): ParsedIOValue {
@@ -241,7 +401,10 @@ function addToolDefinition(
   };
 }
 
-function normalizeToolCall(value: unknown): ToolCallPart | null {
+function normalizeToolCall(
+  value: unknown,
+  options: { toolType?: string } = {},
+): ToolCallPart | null {
   if (!isRecord(value)) return null;
 
   const functionCall = asRecord(value.function);
@@ -260,6 +423,7 @@ function normalizeToolCall(value: unknown): ToolCallPart | null {
     toolCallId: nullableString(value.toolCallId ?? value.call_id ?? value.id),
     toolName,
     input: toJsonValue(parseIfString(rawInput)),
+    ...(options.toolType ? { toolType: options.toolType } : {}),
     ...(typeof value.index === "number" ? { index: value.index } : {}),
     ...(typeof value.providerExecuted === "boolean"
       ? { providerExecuted: value.providerExecuted }
@@ -267,9 +431,69 @@ function normalizeToolCall(value: unknown): ToolCallPart | null {
   };
 }
 
+/**
+ * OpenAI Responses built-in (provider-executed) tool items. They carry no
+ * `name`/`arguments`; the item type is the tool. Kind-specific payloads
+ * (action, queries, code, results, ...) travel in `input` unsplit — the API
+ * reports request and result on the same item.
+ */
+const RESPONSES_BUILT_IN_TOOL_ITEM_TYPES = new Set([
+  "web_search_call",
+  "file_search_call",
+  "code_interpreter_call",
+  "computer_call",
+  "image_generation_call",
+  "local_shell_call",
+  "shell_call",
+  "apply_patch_call",
+  "tool_search_call",
+]);
+
+function normalizeBuiltInToolItem(
+  value: Record<string, unknown>,
+): ToolCallPart | null {
+  const type = typeof value.type === "string" ? value.type : undefined;
+  if (!type) return null;
+
+  if (type === "mcp_call") {
+    // MCP calls are real named calls that happen to be provider-executed;
+    // server_label/output/error ride in providerMetadata.
+    const part = normalizeToolCall(value, { toolType: type });
+    if (!part) return null;
+    const providerMetadata = toProviderMetadata(
+      omitKeys(value, ["id", "call_id", "type", "name", "arguments", "status"]),
+    );
+    return {
+      ...part,
+      providerExecuted: true,
+      ...(providerMetadata ? { providerMetadata } : {}),
+    };
+  }
+
+  if (!RESPONSES_BUILT_IN_TOOL_ITEM_TYPES.has(type)) return null;
+
+  const status = optionalString(value.status);
+  return {
+    type: "tool-call",
+    toolCallId: nullableString(value.call_id ?? value.id),
+    toolName: type.replace(/_call$/, ""),
+    input: toJsonValue(omitKeys(value, ["id", "call_id", "type", "status"])),
+    toolType: type,
+    providerExecuted: true,
+    ...(status ? { providerMetadata: { status } } : {}),
+  };
+}
+
 function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
-  if (typeof value === "string") return { type: "text", text: value };
+  if (typeof value === "string") {
+    const mediaReference = parseMediaReference(value);
+    if (mediaReference) return filePartFromMediaReference(mediaReference);
+    return { type: "text", text: value };
+  }
   if (!isRecord(value)) return null;
+
+  const builtInToolCall = normalizeBuiltInToolItem(value);
+  if (builtInToolCall) return builtInToolCall;
 
   const functionCall =
     asRecord(value.function_call) ?? asRecord(value.functionCall);
@@ -301,19 +525,23 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
   switch (value.type) {
     case "text":
     case "input_text":
-    case "output_text":
-      if (value.thought === true) {
-        return {
-          type: "reasoning",
-          text: optionalString(value.text ?? value.content) ?? "",
-        };
-      }
+    case "output_text": {
+      const text = optionalString(value.text ?? value.content) ?? "";
+      if (value.thought === true) return { type: "reasoning", text };
+      // Responses API carries citation annotations per text part.
+      const annotations =
+        Array.isArray(value.annotations) && value.annotations.length > 0
+          ? toJsonValue(value.annotations)
+          : undefined;
       return {
         type: "text",
-        text: optionalString(value.text ?? value.content) ?? "",
+        text,
+        ...(annotations ? { providerMetadata: { annotations } } : {}),
       };
+    }
     case "reasoning":
     case "thinking":
+    case "reasoning_text":
     case "summary_text": {
       const reasoning =
         value.text ?? value.content ?? value.thinking ?? value.summary;
@@ -326,8 +554,14 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     case "tool_use":
     case "function_call":
       return normalizeToolCall(value);
+    case "custom_tool_call":
+      // OpenAI Responses custom (free-form input) tool call.
+      return normalizeToolCall(value, { toolType: "custom" });
     case "tool_call_response":
     case "function_call_output":
+    case "custom_tool_call_output":
+    case "computer_call_output":
+    case "local_shell_call_output":
     case "tool-result":
     case "tool_result":
       return {
@@ -345,16 +579,87 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
           ),
         ),
       };
-    default:
-      if (typeof value.type !== "string") {
-        return { type: "data", value: toJsonValue(value) };
+    case "image_url": {
+      const image = asRecord(value.image_url);
+      const url = optionalString(image?.url);
+      if (!url) break;
+      const detail = optionalString(image?.detail);
+      return imageFilePartFromUrl(url, detail ? { detail } : undefined);
+    }
+    case "input_image": {
+      // OpenAI Responses image: flat fields instead of the chat wrapper.
+      const detail = optionalString(value.detail);
+      const providerMetadata = detail ? { detail } : undefined;
+      const url = optionalString(value.image_url);
+      if (url) return imageFilePartFromUrl(url, providerMetadata);
+      const fileId = optionalString(value.file_id);
+      if (fileId) {
+        return {
+          type: "file",
+          mediaType: "image/*",
+          content: { kind: "reference", id: fileId },
+          ...(providerMetadata ? { providerMetadata } : {}),
+        };
       }
+      break;
+    }
+    case "input_audio": {
+      const audio = asRecord(value.input_audio);
+      const data = optionalString(audio?.data);
+      if (!data) break;
+      const reference = parseMediaReference(data);
+      if (reference) return filePartFromMediaReference(reference);
+      const format = optionalString(audio?.format);
       return {
-        type: "custom",
-        kind: value.type,
-        value: toJsonValue(value),
+        type: "file",
+        mediaType: format ? `audio/${format}` : "audio/*",
+        content: { kind: "base64", data },
       };
+    }
+    case "file": {
+      const file = asRecord(value.file);
+      const part = file ? filePartFromFileFields(file) : null;
+      if (part) return part;
+      break;
+    }
+    case "input_file": {
+      // OpenAI Responses file: same fields as the chat `file` wrapper, flat.
+      const part = filePartFromFileFields(value);
+      if (part) return part;
+      break;
+    }
+    case "refusal": {
+      // Refusal text stays part of the conversation stream; the flag keeps
+      // refusal observations findable (e.g. eval filters on providerMetadata).
+      const refusal = optionalString(value.refusal);
+      if (!refusal) break;
+      return {
+        type: "text",
+        text: refusal,
+        providerMetadata: { refusal: true },
+      };
+    }
+    case "custom": {
+      // OpenAI custom tool call: { id, type: "custom", custom: { name, input } }.
+      const custom = asRecord(value.custom);
+      if (!custom || !optionalString(custom.name) || !("input" in custom)) {
+        break;
+      }
+      return normalizeToolCall(
+        { id: value.id, name: custom.name, input: custom.input },
+        { toolType: "custom" },
+      );
+    }
   }
+
+  if (typeof value.type !== "string") {
+    return { type: "data", value: toJsonValue(value) };
+  }
+  return {
+    type: "custom",
+    kind: value.type,
+    value: toJsonValue(value),
+  };
 }
 
 function normalizeRole(
@@ -364,6 +669,9 @@ function normalizeRole(
   if (typeof rawRole === "string") {
     const role = rawRole.toLowerCase();
     if (role === "model") return "assistant";
+    // Deprecated OpenAI function-calling protocol: function messages are
+    // tool results.
+    if (role === "function") return "tool";
     if (["system", "developer", "user", "assistant", "tool"].includes(role)) {
       return role as NormalizedMessageRole;
     }
@@ -394,8 +702,19 @@ function isToolDefinitionMessage(message: Record<string, unknown>): boolean {
 
 function appendParts(target: NormalizedMessagePart[], values: unknown[]): void {
   for (const value of values) {
+    if (typeof value === "string") {
+      target.push(...normalizePartsFromString(value));
+      continue;
+    }
     const part = normalizeMessagePart(value);
-    if (part) target.push(part);
+    if (!part) continue;
+    // Text parts frequently embed media reference tokens mid-string; split
+    // them out. Flagged text (refusal, thought) stays intact.
+    if (part.type === "text" && !part.providerMetadata) {
+      target.push(...normalizePartsFromString(part.text));
+      continue;
+    }
+    target.push(part);
   }
 }
 
@@ -406,11 +725,8 @@ function normalizeMessage(
 ): NormalizedMessage | null {
   if (typeof value === "string") {
     if (value.length === 0) return null;
-    return {
-      role: fallbackRole,
-      parts: [{ type: "text", text: value }],
-      source,
-    };
+    const parts = normalizePartsFromString(value);
+    return parts.length > 0 ? { role: fallbackRole, parts, source } : null;
   }
   if (!isRecord(value) || isToolDefinitionMessage(value)) return null;
 
@@ -439,13 +755,23 @@ function normalizeMessage(
   let role =
     normalizeRole(value) ??
     (nestedContent ? normalizeRole(nestedContent) : undefined) ??
-    fallbackRole;
+    // Responses reasoning items carry no role but are model output even when
+    // replayed on the input side.
+    (value.type === "reasoning" ? "assistant" : fallbackRole);
   const parts: NormalizedMessagePart[] = [];
 
-  if (role === "tool" && value.tool_call_id) {
+  // Deprecated OpenAI function-calling protocol: the result message carries
+  // the function name instead of a tool_call_id.
+  const isLegacyFunctionMessage =
+    typeof value.role === "string" && value.role.toLowerCase() === "function";
+
+  if (role === "tool" && (value.tool_call_id || isLegacyFunctionMessage)) {
     parts.push({
       type: "tool-result",
       toolCallId: nullableString(value.tool_call_id),
+      ...(isLegacyFunctionMessage && optionalString(value.name)
+        ? { toolName: String(value.name) }
+        : {}),
       output: toJsonValue(parseIfString(value.content ?? null)),
     });
   } else {
@@ -459,7 +785,7 @@ function normalizeMessage(
     if (rawParts) {
       appendParts(parts, rawParts);
     } else if (typeof value.content === "string" && value.content.length > 0) {
-      parts.push({ type: "text", text: value.content });
+      parts.push(...normalizePartsFromString(value.content));
     } else if (isRecord(value.content)) {
       const part = normalizeMessagePart(value.content);
       if (part) parts.push(part);
@@ -476,6 +802,32 @@ function normalizeMessage(
   const additionalKwargs = asRecord(value.additional_kwargs);
   appendParts(parts, parseArray(additionalKwargs?.tool_calls) ?? []);
 
+  // OpenAI fields that live beside `content` on assistant/response messages.
+  const refusal = optionalString(value.refusal);
+  if (refusal) {
+    parts.push({
+      type: "text",
+      text: refusal,
+      providerMetadata: { refusal: true },
+    });
+  }
+
+  const audioPart = normalizeAudioOutput(asRecord(value.audio));
+  if (audioPart) parts.push(audioPart);
+
+  const annotations = parseArray(value.annotations);
+  if (annotations && annotations.length > 0) {
+    // OpenAI chat annotations index into the message text, so they belong on
+    // the text part rather than the message.
+    const textPart = parts.find((part) => part.type === "text");
+    if (textPart) {
+      textPart.providerMetadata = {
+        ...textPart.providerMetadata,
+        annotations: toJsonValue(annotations),
+      };
+    }
+  }
+
   if (
     role === "user" &&
     parts.length > 0 &&
@@ -484,22 +836,86 @@ function normalizeMessage(
     role = "tool";
   }
 
-  if (value.type === "reasoning" && parts.length === 0) {
-    const reasoningValues = [value.summary, value.content]
+  if (value.type === "reasoning") {
+    // A reasoning item's content[] is collected via the regular parts path;
+    // summary is a sibling stream and must be collected either way.
+    const reasoningValues = (
+      parts.length === 0 ? [value.summary, value.content] : [value.summary]
+    )
       .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
       .filter((entry) => entry !== undefined && entry !== null);
     appendParts(parts, reasoningValues);
+
+    const encryptedContent = optionalString(value.encrypted_content);
+    if (encryptedContent) {
+      const reasoningPart = parts.find((part) => part.type === "reasoning");
+      if (reasoningPart) {
+        reasoningPart.providerMetadata = {
+          ...reasoningPart.providerMetadata,
+          encrypted_content: encryptedContent,
+        };
+      } else {
+        parts.push({
+          type: "reasoning",
+          providerMetadata: { encrypted_content: encryptedContent },
+        });
+      }
+    }
   }
 
   return parts.length > 0
     ? {
         ...(optionalString(value.id) ? { id: String(value.id) } : {}),
-        ...(optionalString(value.name) ? { name: String(value.name) } : {}),
+        // Legacy function messages consume `name` as the tool name; it is not
+        // a participant name there.
+        ...(!isLegacyFunctionMessage && optionalString(value.name)
+          ? { name: String(value.name) }
+          : {}),
         role,
         parts,
         source,
       }
     : null;
+}
+
+/**
+ * OpenAI audio output (`message.audio`): `{ id, data, transcript, expires_at }`
+ * on response messages, `{ id }` as the request-side reference. The playable
+ * payload becomes the file part; transcript and the remaining fields ride
+ * along in providerMetadata so the stream stays renderable media-first.
+ */
+function normalizeAudioOutput(
+  audio: Record<string, unknown> | undefined,
+): FilePart | null {
+  if (!audio) return null;
+
+  const { data, ...extras } = audio;
+  const payload = optionalString(data);
+
+  const reference = parseMediaReference(payload);
+  if (reference) return filePartFromMediaReference(reference, extras);
+
+  if (payload) {
+    const providerMetadata = toProviderMetadata(extras);
+    return {
+      type: "file",
+      mediaType: "audio/*",
+      content: { kind: "base64", data: payload },
+      ...(providerMetadata ? { providerMetadata } : {}),
+    };
+  }
+
+  const id = optionalString(audio.id);
+  if (!id) return null;
+  const providerMetadata = toProviderMetadata(
+    Object.fromEntries(Object.entries(extras).filter(([key]) => key !== "id")),
+  );
+  return {
+    type: "file",
+    mediaType: "audio/*",
+    content: { kind: "reference", id },
+    ...(providerMetadata ? { providerMetadata } : {}),
+  };
 }
 
 function isMessageLike(value: Record<string, unknown>): boolean {
@@ -559,6 +975,9 @@ function isToolCallLike(value: Record<string, unknown>): boolean {
 function isToolResultLike(value: Record<string, unknown>): boolean {
   return [
     "function_call_output",
+    "custom_tool_call_output",
+    "computer_call_output",
+    "local_shell_call_output",
     "tool_call_response",
     "tool-result",
     "tool_result",
@@ -583,10 +1002,15 @@ function collectMessageArray(
   };
 
   for (const value of values) {
-    if (isRecord(value) && isToolCallLike(value) && !isMessageLike(value)) {
-      const part = normalizeToolCall(value);
-      if (part) standaloneToolCalls.push(part);
-      continue;
+    // Standalone tool-call items (Responses function_call, built-in
+    // provider-executed calls, custom_tool_call) batch into one synthetic
+    // assistant message until a non-call item flushes them.
+    if (isRecord(value) && !isMessageLike(value)) {
+      const part = normalizeMessagePart(value);
+      if (part?.type === "tool-call") {
+        standaloneToolCalls.push(part);
+        continue;
+      }
     }
 
     flushStandaloneToolCalls();
@@ -700,7 +1124,9 @@ function getProviderMetadata(
     "parameters",
     "parameters_json_schema",
     "inputSchema",
+    "format",
     "function",
+    "custom",
     "type",
     "providerMetadata",
   ]);
@@ -723,7 +1149,10 @@ function normalizeToolDefinition(
 ): ToolDefinition | null {
   if (!isRecord(value)) return null;
 
-  const functionDefinition = asRecord(value.function) ?? value;
+  // `function` wraps OpenAI function tools, `custom` wraps OpenAI custom
+  // (free-form input) tools; everything else declares fields at the top level.
+  const functionDefinition =
+    asRecord(value.function) ?? asRecord(value.custom) ?? value;
   const rawName =
     functionDefinition.name ??
     value.name ??
@@ -734,10 +1163,13 @@ function normalizeToolDefinition(
 
   const rawDescription =
     functionDefinition.description ?? functionDefinition.desc;
+  // `format` is the input constraint of OpenAI custom tools (text/grammar) —
+  // it is the input schema, not provider trivia.
   const rawInputSchema =
     functionDefinition.inputSchema ??
     functionDefinition.parameters ??
-    functionDefinition.parameters_json_schema;
+    functionDefinition.parameters_json_schema ??
+    functionDefinition.format;
 
   return {
     name: rawName,

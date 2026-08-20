@@ -37,6 +37,16 @@ raw formats.
    ChatML parser tests, same method as the tool-column comparison.
 4. **Projection coverage**: tests for `toEvalRecord`. Other projects have been tested.
 5. **Rollout**: across product surfaces. Start with ingestion, continue with evals.
+6. **AI-SDK file parts**: Vercel AI SDK `{type: "file", data | url, mediaType}`
+   parts still fall through to `custom` — map them to `FilePart` in the
+   AI-SDK pass (after Anthropic). Same pass should also revisit
+   `mcp_list_tools` (its `tools[]` belong in toolDefinitions but the part
+   parser has no accumulator access; currently a `custom` part).
+7. **providerMetadata persistence**: several semantics now ride on part-level
+   `providerMetadata` (refusal flags, audio transcripts, citation annotations,
+   media-token `source`). We need a good story for saving and querying it —
+   e.g. eval filters like "all observations that contained a refusal" depend
+   on `providerMetadata.refusal` being reachable.
 
 ## Questions for review
 
@@ -50,8 +60,7 @@ raw formats.
    `name` (e.g. `web_search_preview`) into `tool_definitions`; the legacy
    extractor excludes them. Keep (available-tool filtering covers provider
    tools too) or match legacy?
-3. **Anything else** missing — consumers, semantics, or rollout concerns not
-   covered here?
+3. **File parts baked in text**: Think about if it should be: "Compare <tok1> with <tok2> please." → [text "Compare ", file, text " with ", file, text " please."]. Each token becomes a FilePart {content: {kind:"reference", id}, mediaType: token.type}. Or if we should have a simpler implementation.
 
 ## Assumptions
 
@@ -152,3 +161,36 @@ Two distinct calls to the same tool with identical arguments and no ids
 dedup to one (key: name + input). The legacy extractor behaves the same
 (`id || name-arguments`), so parity holds — but real parallel duplicate
 calls are undercounted by both.
+
+### 10. Refusals are text parts flagged in providerMetadata
+
+OpenAI refusals (the `{type: "refusal"}` content part and the top-level
+`message.refusal` string) normalize to text parts with
+`providerMetadata: { refusal: true }`.
+
+- **Why:** the refusal text stays in the conversation stream (trace-view
+  parity, eval/search visibility), while the flag keeps refusal observations
+  findable — evals can filter on `providerMetadata.refusal` to collect all
+  observations where the model refused and investigate why.
+- **Challenge with:** a consumer that needs refusals excluded from plain text
+  — it should filter on the flag, not on a separate part type.
+
+### 11. Media normalizes to file parts; mediaType is best-effort
+
+All media (multimodal content parts, audio output, Langfuse
+`@@@langfuseMedia:type=X|id=Y|source=Z@@@` reference tokens) becomes
+`file` parts. Reference tokens — the dominant stored shape after ingestion
+uploads raw payloads — map to `content: { kind: "reference", id }` with
+`mediaType` from the token, which is exactly what `LangfuseMediaView`
+resolves and renders (images inline, audio playable). `mediaType` is
+optional: exact when the source declares it (token `type`,
+`input_audio.format`, a data-URI prefix), a modality wildcard (`image/*`,
+`audio/*`) when only the part kind reveals it, absent for opaque ids. Raw
+base64 data-URIs (rare — only when upstream media processing skipped or
+failed) stay as `url` content; the parser reads the type their prefix
+declares but never decodes payloads — that is `MediaPayloadProcessor`'s job. Sidecar semantics ride in
+`providerMetadata` (e.g. audio `transcript`, token `source`, image `detail`)
+rather than dedicated fields.
+
+- **Challenge with:** a media shape whose type is derivable but lands as a
+  wildcard, or a consumer that needs a sidecar field promoted to the schema.

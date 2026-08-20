@@ -3,6 +3,8 @@ import { geminiEmbeddedToolDefinitionFixture } from "./geminiEmbeddedToolDefinit
 import { langgraphProductionShapeFixture } from "./langgraphSynthetic";
 import { microsoftAgentProductionShapeFixture } from "./microsoftAgentSynthetic";
 import { openAiChatCompletionToolSequenceFixture } from "./openAiChatCompletionToolSequence";
+import { openAiChatMultimodalRichResponseFixture } from "./openAiChatMultimodalRichResponse";
+import { openAiResponsesBuiltInToolsAndMediaFixture } from "./openAiResponsesBuiltInToolsAndMedia";
 import { openAiResponsesFunctionCallFixture } from "./openAiResponsesFunctionCall";
 import { openAiResponsesReasoningWithParallelCallsFixture } from "./openAiResponsesReasoningWithParallelCalls";
 import { outputOnlyPlainTextFixture } from "./outputOnlyPlainText";
@@ -20,7 +22,9 @@ export const normalizedIOFixtures = [
   outputOnlyStructuredMessageFixture,
   outputOnlyPlainTextFixture,
   openAiChatCompletionToolSequenceFixture,
+  openAiChatMultimodalRichResponseFixture,
   openAiResponsesFunctionCallFixture,
+  openAiResponsesBuiltInToolsAndMediaFixture,
   openAiResponsesReasoningWithParallelCallsFixture,
   langgraphProductionShapeFixture,
   microsoftAgentProductionShapeFixture,
@@ -35,6 +39,8 @@ export * from "./geminiEmbeddedToolDefinition";
 export * from "./langgraphSynthetic";
 export * from "./microsoftAgentSynthetic";
 export * from "./openAiChatCompletionToolSequence";
+export * from "./openAiChatMultimodalRichResponse";
+export * from "./openAiResponsesBuiltInToolsAndMedia";
 export * from "./openAiResponsesFunctionCall";
 export * from "./openAiResponsesReasoningWithParallelCalls";
 export * from "./outputOnlyPlainText";

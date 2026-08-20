@@ -9,7 +9,8 @@ const toolInput2 = { query: "annual plan terms 30 day window" };
 // Prior turn, replayed as input history: a reasoning item and two parallel
 // function calls followed by their outputs. Responses API items carry no
 // explicit role — function_call/function_call_output are recognized by
-// shape, standalone reasoning items fall back to the caller's default role.
+// shape, and standalone reasoning items are model output (assistant) even
+// on the input side.
 const inputItems = [
   {
     role: "user",
@@ -109,12 +110,8 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
         source: "input",
       },
       {
-        // Known gap: standalone function_call items get role "assistant"
-        // hardcoded (see below), but standalone reasoning items fall
-        // through to the caller's generic fallback role instead — "user"
-        // for input-side history. See the note below the fixture.
         id: "rs_001",
-        role: "user",
+        role: "assistant",
         parts: [
           {
             type: "reasoning",

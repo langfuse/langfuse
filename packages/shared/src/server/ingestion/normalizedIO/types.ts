@@ -37,7 +37,7 @@ export type ToolCallPart = NormalizedPartBase & {
   toolCallId: string | null;
   toolName: string;
   input: JsonValue;
-  toolType?: string;
+  toolType?: string; // only set if it's not a "function" tool call.
   index?: number;
   providerExecuted?: boolean;
 };
@@ -50,10 +50,15 @@ export type ToolResultPart = NormalizedPartBase & {
   isError?: boolean;
 };
 
-// TODO: parser does not emit file parts yet.
 export type FilePart = NormalizedPartBase & {
   type: "file";
-  mediaType: string;
+  /**
+   * IANA media type when the source declares one (data-URI prefix, Langfuse
+   * media reference token, explicit format field). Modality wildcards like
+   * `image/*` / `audio/*` when only the part kind reveals the modality;
+   * absent when the source gives no signal (e.g. an opaque file id).
+   */
+  mediaType?: string;
   filename?: string;
   content:
     | { kind: "url"; url: string }
@@ -88,7 +93,7 @@ export type NormalizedMessageRole =
   | "user"
   | "assistant"
   | "tool"
-  | "unknown";
+  | "unknown"; // unknown = declared but unrecognized (eg. role: "agent_7"). Consider if this is the best mapping.
 
 export type NormalizedMessage = {
   id?: string;
