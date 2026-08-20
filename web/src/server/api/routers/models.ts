@@ -29,6 +29,30 @@ const ModelAllOptions = z.object({
   ...paginationZod,
 });
 
+const modelNameUniqueConstraintColumns = [
+  "project_id",
+  "model_name",
+  "start_date",
+  "unit",
+] as const;
+
+const isModelNameUniqueConstraintError = (error: unknown): boolean => {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== "P2002"
+  ) {
+    return false;
+  }
+
+  const target = error.meta?.target;
+  if (!Array.isArray(target)) return false;
+
+  return (
+    target.length === modelNameUniqueConstraintColumns.length &&
+    modelNameUniqueConstraintColumns.every((column) => target.includes(column))
+  );
+};
+
 const paginateArray = <T>(params: {
   limit: number;
   page: number;
@@ -284,10 +308,10 @@ export const modelRouter = createTRPCRouter({
           });
         }
 
-        // Check if model name is unique within the project
-        // Note: The database has a uniqueness constraint on (projectId, modelName, startDate, unit),
-        // but this constraint is not enforced when startDate or unit are NULL.
-        // We do an explicit check here to ensure uniqueness on just (projectId, modelName).
+        // Return a friendly error before writing when possible. The database
+        // constraint remains authoritative for concurrent creates.
+        // Note: The constraint covers (projectId, modelName, startDate, unit)
+        // and does not apply when startDate or unit are NULL.
         // TODO(LFE-3229): After models table cleanup, enforce uniqueness constraint directly on (projectId, modelName)
         const existingModelName = await tx.model.findFirst({
           where: {
@@ -303,27 +327,38 @@ export const modelRouter = createTRPCRouter({
           });
         }
 
-        const upsertedModel = await tx.model.upsert({
-          where: {
-            id: modelId,
-            projectId: projectId,
-          },
-          create: {
-            id: modelId,
-            projectId,
-            modelName,
-            matchPattern,
-            tokenizerConfig,
-            tokenizerId,
-            startDate: new Date("2010-01-01"), // Set fix start date for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
-            unit: ModelUsageUnit.Tokens, // Set fix unit for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
-          },
-          update: {
-            matchPattern,
-            tokenizerConfig,
-            tokenizerId,
-          },
-        });
+        const upsertedModel = await tx.model
+          .upsert({
+            where: {
+              id: modelId,
+              projectId: projectId,
+            },
+            create: {
+              id: modelId,
+              projectId,
+              modelName,
+              matchPattern,
+              tokenizerConfig,
+              tokenizerId,
+              startDate: new Date("2010-01-01"), // Set fix start date for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
+              unit: ModelUsageUnit.Tokens, // Set fix unit for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
+            },
+            update: {
+              matchPattern,
+              tokenizerConfig,
+              tokenizerId,
+            },
+          })
+          .catch((error: unknown) => {
+            if (isModelNameUniqueConstraintError(error)) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Model name '${modelName}' already exists in project`,
+              });
+            }
+
+            throw error;
+          });
 
         // Delete all existing pricing tiers
         await tx.pricingTier.deleteMany({
