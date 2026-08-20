@@ -2,7 +2,6 @@ import { api } from "@/src/utils/api";
 import Link from "next/link";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { cn } from "@/src/utils/tailwind";
 
 export function CloudStatusMenu() {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -21,30 +20,26 @@ export function CloudStatusMenu() {
     return null;
   }
 
-  // Don't show anything while loading or if there's no incident
-  if (isLoading || data?.status === null || data?.status === "operational") {
+  // Only show during an actual incident; maintenance (incl. scheduled)
+  // isn't worth a nav item
+  if (
+    isLoading ||
+    (data?.status !== "degraded" && data?.status !== "downtime")
+  ) {
     return null;
   }
 
-  const isMaintenance = data?.status === "maintenance";
-  const label = isMaintenance ? "Maintenance" : "Active incident";
-
   return (
-    <SidebarMenuButton asChild tooltip={label}>
+    <SidebarMenuButton asChild tooltip="Active incident">
       <Link
         href="https://status.langfuse.com"
         target="_blank"
         rel="noopener noreferrer"
       >
         <div className="relative mx-1 flex h-2 w-2 shrink-0 items-center justify-center">
-          <span
-            className={cn(
-              "inline-flex h-2 w-2 rounded-full",
-              isMaintenance ? "bg-muted-foreground" : "bg-destructive",
-            )}
-          />
+          <span className="bg-destructive inline-flex h-2 w-2 rounded-full" />
         </div>
-        {label}
+        Active incident
       </Link>
     </SidebarMenuButton>
   );
