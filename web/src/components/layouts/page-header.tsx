@@ -21,6 +21,10 @@ import {
 } from "@/src/components/layouts/page-tabs";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
+import {
+  APP_SHELL_CHROME_ROW_CLASS,
+  APP_SHELL_CHROME_ROW_TEST_ID,
+} from "@/src/components/layouts/app-shell-chrome";
 
 const containerLayoutClassName =
   "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
@@ -87,22 +91,29 @@ const PageHeader = ({
       id="page-header"
     >
       <div className="flex flex-col justify-center">
-        {/* Top Row */}
-        <div className="border-b">
+        {/* Top Row — same min-h-11 + border-b box as the sidebar logo strip
+            so the sidebar `border-r` T-junction is a single pixel. The
+            divider stays on this full-width box; container max-width only
+            caps the inner content so settings pages don't leave a gap. */}
+        <div
+          data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
+          className={APP_SHELL_CHROME_ROW_CLASS}
+        >
           <div
             className={cn(
-              // py-1.5 (not py-2) so a 32px control in the right-aligned slot
-              // fits inside the 44px (min-h-11) row without growing it; the
-              // min-height keeps rows without controls at the same height.
-              // justify-between (not ml-auto on the slot) so the controls sit
-              // right when the row fits on one line but fall back to the LEFT
-              // edge when they wrap to their own line on narrow viewports (a
-              // line with a single flex item renders as flex-start).
-              "flex min-h-11 flex-wrap items-center justify-between gap-3 px-3 py-1.5",
+              // No extra vertical padding: min-h-11 + border-b already is
+              // the 44px box. Extra py would grow the row past the sidebar
+              // strip (border-box counts padding inside min-height, then
+              // 32px controls no longer fit). justify-between (not ml-auto
+              // on the slot) so the controls sit right when the row fits on
+              // one line but fall back to the LEFT edge when they wrap to
+              // their own line on narrow viewports (a line with a single
+              // flex item renders as flex-start).
+              "flex h-full w-full flex-wrap items-center justify-between gap-3 px-3 leading-none",
               container && containerLayoutClassName,
             )}
           >
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="flex min-h-5 min-w-0 flex-wrap items-center gap-3">
               {showSidebarChrome ? (
                 <>
                   <SidebarTrigger />
@@ -124,7 +135,7 @@ const PageHeader = ({
                   />
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex translate-y-px items-center gap-2">
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>

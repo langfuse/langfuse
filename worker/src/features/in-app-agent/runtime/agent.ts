@@ -159,6 +159,8 @@ This is your final step. Do not call any more tools. Summarize what you have fou
 </step_limit_wrap_up>`;
 
 export type InAppAgentCompleteOutcome = {
+  /** The turn reached the step cap, whether or not wrap-up rescued it. */
+  reachedStepLimit: boolean;
   truncatedByStepLimit: boolean;
 };
 
@@ -792,6 +794,7 @@ export async function createAgUiStream(params: {
                         instrumentation.flush(),
                       );
                       return params.options.onComplete?.({
+                        reachedStepLimit: stepLimitState.wrapUp,
                         truncatedByStepLimit,
                       });
                     }

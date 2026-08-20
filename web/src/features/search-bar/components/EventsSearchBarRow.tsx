@@ -17,7 +17,6 @@
 import * as React from "react";
 
 import { type FilterState } from "@langfuse/shared";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { cn } from "@/src/utils/tailwind";
 import type {
@@ -86,12 +85,10 @@ export function EventsSearchBarRow({
   className?: string;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { organization } = useQueryProject();
-  // Mirror the legacy wand gate: Cloud + org-level AI features. The server
+  // Mirror the legacy wand gate: org-level AI features. The server
   // enforces it too, so this only governs whether the affordance is offered.
-  const aiAvailable =
-    isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
+  const aiAvailable = Boolean(organization?.aiFeaturesEnabled);
 
   const activateAi = React.useCallback(() => {
     // Ground the model on real project values: lazily request the AI columns so

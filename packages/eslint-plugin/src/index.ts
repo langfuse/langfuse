@@ -9,6 +9,7 @@ import { default as requireTitleWithTruncate } from "./rules/require-title-with-
 import { default as noStyleProps } from "./rules/no-style-props.js";
 import { default as noSwitchStatements } from "./rules/no-switch-statements.js";
 import { default as noUnnecessaryCn } from "./rules/no-unnecessary-cn.js";
+import { default as storybookPlayRequiresTestName } from "./rules/storybook-play-requires-test-name.js";
 
 const plugin = {
   rules: {
@@ -23,6 +24,7 @@ const plugin = {
     "no-tailwind-overflow-scroll": noTailwindOverflowScroll,
     "no-unnecessary-cn": noUnnecessaryCn,
     "require-title-with-truncate": requireTitleWithTruncate,
+    "storybook-play-requires-test-name": storybookPlayRequiresTestName,
   },
 };
 

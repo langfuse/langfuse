@@ -50,6 +50,7 @@ export const Error = meta.story({
 });
 
 export const SandboxBash = meta.story({
+  name: "(Test) Sandbox bash",
   args: {
     isCompact: true,
     tool: {
@@ -78,6 +79,7 @@ export const SandboxBash = meta.story({
 });
 
 export const SandboxRead = meta.story({
+  name: "(Test) Sandbox read",
   args: {
     isCompact: true,
     tool: {
@@ -100,6 +102,7 @@ export const SandboxRead = meta.story({
 });
 
 export const SandboxWrite = meta.story({
+  name: "(Test) Sandbox write",
   args: {
     isCompact: true,
     tool: {
@@ -125,6 +128,7 @@ export const SandboxWrite = meta.story({
 });
 
 export const SandboxEdit = meta.story({
+  name: "(Test) Sandbox edit",
   args: {
     isCompact: true,
     tool: {
@@ -203,6 +207,7 @@ export const ApprovalSubmitting = meta.story({
 });
 
 export const ApprovalDisabled = meta.story({
+  name: "(Test) Approval disabled",
   args: {
     isCompact: true,
     isDisabled: true,
