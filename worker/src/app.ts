@@ -101,6 +101,7 @@ import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
+import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 
 const app = express();
 
@@ -425,6 +426,8 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
   });
 }
 
+export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
+
 if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.InAppAgentRunQueue,
@@ -438,6 +441,9 @@ if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
       maxStalledCount: 0,
     },
   );
+
+  inAppAgentDlqRetryRunner = new InAppAgentDlqRetryRunner();
+  inAppAgentDlqRetryRunner.start();
 }
 
 // Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
