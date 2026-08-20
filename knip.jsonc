@@ -12,11 +12,7 @@
   "workspaces": {
     "worker": {
       // Tests intentionally load these from @langfuse/shared's dependency tree.
-      "ignoreDependencies": [
-        "@aws-sdk/client-bedrock-runtime",
-        "@langchain/aws",
-        "@langchain/core",
-      ],
+      "ignoreDependencies": ["@aws-sdk/client-bedrock-runtime"],
     },
     "web": {
       // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
@@ -39,10 +35,15 @@
     },
     "packages/in-app-agent-sandbox-runtime": {
       "entry": ["src/server.ts"],
-      "project": ["src/**/*.ts"],
+      "project": ["src/**/*.ts", "tests/**/*.ts"],
     },
     "packages/config-eslint": {
       "project": ["*.js"],
+      // eslint-plugin-import loads these from the resolver names in next.js settings.
+      "ignoreDependencies": [
+        "eslint-import-resolver-node",
+        "eslint-import-resolver-typescript",
+      ],
     },
     "packages/eslint-plugin": {
       "project": ["src/**/*.ts"],

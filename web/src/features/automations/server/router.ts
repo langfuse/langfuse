@@ -6,11 +6,7 @@ import {
   ActionType,
   JobConfigState,
   singleFilter,
-  isSafeWebhookActionConfig,
-  isWebhookAction,
-  convertToSafeWebhookConfig,
-  isGitHubDispatchAction,
-  convertToSafeGitHubDispatchConfig,
+  isWebhookActionConfig,
   TriggerEventSource,
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
@@ -18,7 +14,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import {
-  getActionById,
+  convertActionToDomain,
   getAutomations,
   getAutomationById,
   getConsecutiveAutomationFailures,
@@ -88,9 +84,11 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      const existingAction = await getActionById({
-        projectId: input.projectId,
-        actionId: input.actionId,
+      // Read the raw row rather than going through getActionById: that returns
+      // the sanitized config (no `headers`/`requestHeaders`), and writing it
+      // back would silently drop the automation's custom request headers.
+      const existingAction = await ctx.prisma.action.findFirst({
+        where: { id: input.actionId, projectId: input.projectId },
       });
 
       if (!existingAction || existingAction.type !== "WEBHOOK") {
@@ -100,12 +98,14 @@ export const automationsRouter = createTRPCRouter({
         });
       }
 
-      if (!isSafeWebhookActionConfig(existingAction.config)) {
+      if (!isWebhookActionConfig(existingAction.config)) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: `Invalid webhook configuration for action ${input.actionId}`,
         });
       }
+
+      const existingConfig = existingAction.config;
 
       // Generate new webhook secret
       const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
@@ -117,16 +117,17 @@ export const automationsRouter = createTRPCRouter({
         resourceId: input.actionId,
         action: "update",
         before: {
-          displaySecretKey: existingAction.config.displaySecretKey,
+          displaySecretKey: existingConfig.displaySecretKey,
         },
         after: {
           displaySecretKey: newDisplaySecretKey,
         },
       });
 
-      // Update action config with new secret
+      // Keep the rest of the stored config (custom headers included) and only
+      // rotate the signing secret. Header values stay encrypted as stored.
       const updatedConfig = {
-        ...existingAction.config,
+        ...existingConfig,
         secretKey: encrypt(newSecretKey),
         displaySecretKey: newDisplaySecretKey,
       };
@@ -364,14 +365,7 @@ export const automationsRouter = createTRPCRouter({
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
-        action: {
-          ...action,
-          config: isWebhookAction(action)
-            ? convertToSafeWebhookConfig(action.config)
-            : isGitHubDispatchAction(action)
-              ? convertToSafeGitHubDispatchConfig(action.config)
-              : action.config,
-        },
+        action: convertActionToDomain(action),
         trigger,
         automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
@@ -499,14 +493,7 @@ export const automationsRouter = createTRPCRouter({
       });
 
       return {
-        action: {
-          ...action,
-          config: isWebhookAction(action)
-            ? convertToSafeWebhookConfig(action.config)
-            : isGitHubDispatchAction(action)
-              ? convertToSafeGitHubDispatchConfig(action.config)
-              : action.config,
-        },
+        action: convertActionToDomain(action),
         trigger,
         automation,
       };

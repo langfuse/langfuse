@@ -334,6 +334,7 @@ export const openAIModels = [
   "gpt-5.4-mini-2026-03-17",
   "gpt-5.4-nano",
   "gpt-5.4-nano-2026-03-17",
+  "gpt-5.3-codex",
   "gpt-5.2-2025-12-11",
   "gpt-5.1",
   "gpt-5.1-2025-11-13",
@@ -383,6 +384,7 @@ export const anthropicModels = [
   "claude-sonnet-5",
   "claude-fable-5",
   "claude-mythos-5",
+  "claude-opus-5",
   "claude-haiku-4-5-20251001",
   "claude-opus-4-8",
   "claude-opus-4-7",
@@ -408,6 +410,7 @@ export const anthropicModels = [
 export const vertexAIModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
@@ -433,6 +436,7 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",

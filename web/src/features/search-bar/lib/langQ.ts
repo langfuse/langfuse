@@ -19,7 +19,7 @@
 
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
 import { canonicalKey, operatorIssue, resolveField } from "./fields";
-import { NEEDS_QUOTES, unquote } from "./quoting";
+import { NEEDS_QUOTES, quote, unquote } from "./quoting";
 
 // Re-exported for back-compat: quoting primitives now live in the shared
 // dependency-free `quoting.ts` (so `fields.ts` can use them too).
@@ -854,8 +854,7 @@ export function serializeValue(value: string): string {
     value.startsWith("!") ||
     RESERVED_BARE_TOKEN.test(value)
   ) {
-    // Escape \ before " — must be the exact inverse of unquote.
-    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    return quote(value);
   }
   return value;
 }
@@ -917,15 +916,31 @@ function serializeSameFieldOr(filters: FilterNode[], negated = false): string {
  * (implicit AND), OR joins with " OR ", OR children inside AND get parens,
  * NOT serializes as "-" before a filter and "NOT (...)" before a group.
  */
+// Serialize a free-text node. A STANDALONE word that resolves to a field name
+// is treated as an incomplete filter by the validator (LFE-11017), so it must
+// serialize QUOTED — otherwise a committed free-text searchQuery like `type`
+// (e.g. a legacy URL/saved view) re-derives as a red chip instead of a valid
+// literal search. `phraseInternal` is true when the word is glued to another
+// free-text word (part of a multi-word phrase like `type error`): those must
+// NOT be quoted per-word, or the phrase corrupts to `"type" error`. Mirror
+// invariant with validate.ts's standalone-field-token check.
+function serializeText(node: TextNode, phraseInternal: boolean): string {
+  if (!phraseInternal && resolveField(node.value) !== null) {
+    return quote(node.value);
+  }
+  // Otherwise route through serializeValue so bare keywords (AND/OR/NOT) and
+  // leading-operator/hyphen free text still get quoted and reparse as text.
+  return serializeValue(node.value);
+}
+
 export function serialize(ast: ASTNode | null): string {
   if (ast === null) return "";
   switch (ast.kind) {
     case "filter":
       return serializeFilter(ast);
     case "text":
-      // Always route through serializeValue so bare keywords (AND/OR/NOT) and
-      // leading-operator/hyphen free text get quoted and reparse as text.
-      return serializeValue(ast.value);
+      // A top-level lone text node is standalone by definition.
+      return serializeText(ast, false);
     case "not": {
       const child = ast.child;
       if (child.kind === "filter") return `-${serializeFilter(child)}`;
@@ -940,13 +955,23 @@ export function serialize(ast: ASTNode | null): string {
       // canonical text reparses to the same structure (a bare "a b AND c"
       // would flatten).
       return ast.children
-        .map((c) => {
+        .map((c, i) => {
           if (c.kind === "or") {
             return sameFieldOrGroup(c) !== null
               ? serialize(c)
               : `(${serialize(c)})`;
           }
-          return c.kind === "and" ? `(${serialize(c)})` : serialize(c);
+          if (c.kind === "and") return `(${serialize(c)})`;
+          // A text child glued to a text sibling is part of a phrase — don't
+          // force-quote a field-name word inside it (see serializeText).
+          if (c.kind === "text") {
+            const children = ast.children;
+            const phraseInternal =
+              children[i - 1]?.kind === "text" ||
+              children[i + 1]?.kind === "text";
+            return serializeText(c, phraseInternal);
+          }
+          return serialize(c);
         })
         .join(" ");
     case "or": {

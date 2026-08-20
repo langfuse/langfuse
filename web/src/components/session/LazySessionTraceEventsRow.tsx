@@ -7,7 +7,7 @@ import {
 import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
-import { type IOPreviewContentMode } from "@/src/components/trace/components/IOPreview/IOPreview";
+import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
 
 type LazySessionTraceEventsRowProps = {
   trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
@@ -22,7 +22,6 @@ type LazySessionTraceEventsRowProps = {
   surface?: TraceEventsSurface;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
-  isActive?: boolean;
 };
 
 const LazySessionTraceEventsRowInner = (

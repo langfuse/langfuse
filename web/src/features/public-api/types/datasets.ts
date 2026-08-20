@@ -1,4 +1,5 @@
 import {
+  deprecationResponseZod,
   jsonSchema,
   publicApiPaginationZod,
   paginationZod,
@@ -132,10 +133,18 @@ export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
 export const transformDbDatasetToAPIDataset = (
   dataset: DbDataset,
 ): z.infer<typeof APIDataset> =>
+  // The secret-bearing columns (secretKey, requestHeaders) are already
+  // excluded from Prisma results by the global omit in db.ts. Stripping them
+  // here again guarantees that even if an upstream read ever opts back into
+  // them via an explicit select, they can never leave through the public API.
   removeObjectKeys(dataset, [
     "remoteExperimentUrl",
     "remoteExperimentPayload",
     "remoteExperimentEnabled",
+    "remoteExperimentSecretKey",
+    "remoteExperimentDisplaySecretKey",
+    "remoteExperimentRequestHeaders",
+    "remoteExperimentDisplayHeaders",
   ]);
 
 /**
@@ -178,6 +187,7 @@ export const GetDatasetRunsV1Response = z
   .object({
     data: z.array(APIDatasetRun),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 
@@ -188,6 +198,7 @@ export const GetDatasetRunV1Query = z.object({
 });
 export const GetDatasetRunV1Response = APIDatasetRun.extend({
   datasetRunItems: z.array(APIDatasetRunItem),
+  _deprecation: deprecationResponseZod.optional(),
 }).strict();
 
 export const publicApiIdSchema = z
@@ -282,6 +293,7 @@ export const GetDatasetRunItemsV1Response = z
   .object({
     data: z.array(APIDatasetRunItem),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 

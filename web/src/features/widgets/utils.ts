@@ -230,7 +230,8 @@ export function buildWidgetDescription({
 /**
  * Returns the default view for the new widget form.
  * When v4 beta is enabled, defaults to "observations" because "traces"
- * is excluded from viewsV2 (no v2-specific API support).
+ * remains excluded from the public `viewsV2` API enum. Existing trace widgets
+ * are still supported by the internal events-backed v2 query declaration.
  */
 export function getDefaultView(
   isBetaEnabled: boolean,

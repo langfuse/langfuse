@@ -7,23 +7,19 @@ evaluating, and debugging AI applications.
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
-- If you are about to write a `useEffect` — or sync fetched data into state, or
-  wire form initial values from loaded data — read
-  `.agents/skills/frontend-large-feature-architecture/SKILL.md` first. Most
-  such effects should not exist.
-- For bug fixes, write the failing test first, confirm it fails, then fix the
-  bug. If the bug depends on a data shape, pause and ask: can
+- For bug fixes, first write the smallest failing test that proves the reported
+  behavior and confirm it fails against the buggy behavior before changing
+  production code. Add another test only when it exercises a distinct adapter,
+  contract, or execution path. Extend the closest existing test suite; do not
+  create a standalone constant test when an existing feature suite owns the
+  behavior. If the bug depends on a data shape, pause and ask: can
   `pnpm run seed` prefill that shape locally? If not, consider extending a
   seeder scenario so the bug stays cheaply reproducible
   (`packages/shared/scripts/seeder/AGENTS.md`), or note why a seed cannot
   express it.
-- For user-visible frontend changes in `web/**`, review the affected flow in a
-  real browser before signoff. Prefill the data the flow needs with the seed
-  CLI (`pnpm run seed -- list` shows scenarios; runs print UI deep links) —
-  never with ad-hoc scripts or raw ClickHouse inserts.
-- When fixing an isolated styling issue in an individual component, read
-  `.agents/skills/storybook/SKILL.md` create or update a component story following its
-  guidance first.
+- Prefill local test data with the seed CLI (`pnpm run seed -- list` shows
+  scenarios; runs print UI deep links) — never with ad-hoc scripts or raw
+  ClickHouse inserts.
 - Every PR auto-builds (via GitHub Actions) a disposable, full-stack preview at
   `pr-<N>.preview.langfuse.com` — nothing to spin up. Use the `langfuse-previews`
   skill to use or debug one, e.g. read a preview's web/worker error logs with
@@ -31,23 +27,36 @@ evaluating, and debugging AI applications.
 - For documentation screenshots in Markdown, avoid fixed `height` on `<img>`
   tags; prefer Markdown images or width-only HTML so previews preserve aspect
   ratio.
-- When working on the search bar or any filtering UI/grammar, read
-  `web/src/features/search-bar/README.md` first. It owns the grammar ↔
-  `FilterState` contract, the validate/lower parity invariants, and the
-  cross-view extension playbook — the bar is intended to become the primary
-  filter interface for every filterable view, so new filtering work extends it
-  through that contract rather than forking it.
-- When adding or modifying any chart, dashboard, or chart formatter, read
-  `web/src/features/widgets/chart-library/ARCHITECTURE.md` first — the charts
-  manifesto. It owns the data → preparer → visualiser contract: presentation
-  decisions live in the preparer, not the chart components.
 - Do not add or widen ESLint disable comments or config overrides
   without explicit user approval for the exact rule and scope.
 - Always quote file paths in shell commands, or use `noglob` for path-heavy
   commands, to avoid zsh glob expansion issues with dynamic Next.js routes.
 - Never invoke Node-installed binaries through `./node_modules/.bin/*`. Always run them through `pnpm`.
+- Never put internal ticket ids (`LFE-1234`, `LFINT-1234`, `CLI-Q226-12`) or
+  Linear URLs into anything this repo publishes: code comments, docs prose,
+  commit messages, PR titles and descriptions, or changelog entries. They mean
+  nothing to OSS readers. Describe the problem on its own terms; a
+  ticket-prefixed branch name is the one place the identifier belongs.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
+- Human handoff: assume the reader does not remember the ticket. Lead with
+  a one-sentence TL;DR. Prefer one or two human actions per message; if
+  you need more, keep every point simple and super readable. Do not dump
+  long agent-only reports by default.
+- For product or UI changes, give a preview URL
+  (`pr-<N>.preview.langfuse.com`) and exact click-path test steps, including
+  the seed command or sandbox URL (`http://localhost:3000`) to reproduce
+  the data. Attach proof of the fix (screenshot, short video, or
+  before/after). Humans can ask for more detail.
+- After opening a PR, leave a short last comment on what a reviewer should
+  doubt — the curious, questionable parts — not a changelog.
+- Open PRs as reviewable, not as drafts, unless a human asks for a draft.
+- When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review
+  comments appear on a PR you own: do not reply. Keep each thread open
+  until you either apply the fix and resolve it, or skip it because you
+  are sure, tell the human in plain language (and invite them to doubt
+  that skip), then resolve it. Do not post `@claude review` again unless
+  a human asks for another pass.
 
 ## Project Structure
 
@@ -91,9 +100,26 @@ langfuse/
   - shared: `pnpm --filter @langfuse/shared run test <file>`
 - Build check: `pnpm run build:check`
 - Full build: `pnpm run build`
-- Worktree bootstrap: `bash scripts/codex/setup.sh`
+- Shared agent/worktree bootstrap: `bash scripts/agents/setup.sh`
 - Worktree maintenance: `bash scripts/codex/maintenance.sh`
 - Install Playwright Chromium: `pnpm run playwright:install`
+
+### Cursor Cloud specific instructions
+
+- Cursor Cloud starts the complete source-built stack through
+  `scripts/agents/start-cursor-cloud.sh`; do not start a second web or worker
+  process on ports 3000 or 3030.
+- Use that script for the Cloud stack rather than invoking Compose directly:
+  the workspace `.env` contains host-facing `localhost` service URLs and must
+  not be used to interpolate container service configuration.
+- After changing web or worker production code, rerun
+  `bash scripts/agents/start-cursor-cloud.sh` before browser signoff.
+- Open a same-repo reviewable PR after local verification (not a draft) and
+  test the resulting `pr-<N>.preview.langfuse.com` deployment with synthetic
+  data. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
+- Use Linear's git branch name (`lfe-XXXX-short-title`). Never create a
+  `cursor/` branch, even if a Cursor Cloud prompt suggests that prefix.
+  Repo guidance wins.
 
 ## Local Data Inspection
 
@@ -152,11 +178,16 @@ regenerated outputs. Never hand-edit `generated/**`.
 - `.agents/AGENTS.md` is the canonical root guide.
 - Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
 - Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
+- After changing skills / AGENTS.md, run `pnpm run agents:sync` and
+  `pnpm run agents:check`.
+- **Write agent guidance only in `AGENTS.md`, never in a `CLAUDE.md`.** Every
+  `AGENTS.md` in the tree gets a generated sibling `CLAUDE.md` symlink when running
+  `pnpm run agents:sync`.
+- Put package-local guidance in the narrowest `AGENTS.md` that owns it so that it's only
+  loaded into context when needed.
 - When creating or editing `.agents/skills/**`, use
   `.agents/skills/skill-creator/SKILL.md`; keep skills concise with
   progressive disclosure.
-- After changing shared agent setup, run `pnpm run agents:sync` and
-  `pnpm run agents:check`.
 - Generated provider config and shim outputs under `.claude/`, `.cursor/`,
   `.codex/`, `.vscode/`, or `.mcp.json` are local artifacts, not source of
   truth files.

@@ -75,6 +75,21 @@ export const getTimezoneDetails = () => {
   return `${location} (UTC${utcDifference >= 0 ? "+" : ""}${utcDifference})`;
 };
 
+// Compact relative time: "just now", "3m ago", "5h ago", "15d ago",
+// "2mo ago", "1y ago" — largest sensible unit, no live refresh implied.
+export const formatCompactRelativeTime = (timestamp: Date): string => {
+  const diffInSeconds = Math.max(0, (Date.now() - timestamp.getTime()) / 1000);
+  if (diffInSeconds < 60) return "just now";
+  const minutes = diffInSeconds / 60;
+  if (minutes < 60) return `${Math.floor(minutes)}m ago`;
+  const hours = minutes / 60;
+  if (hours < 24) return `${Math.floor(hours)}h ago`;
+  const days = hours / 24;
+  if (days < 30) return `${Math.floor(days)}d ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+};
+
 export const getRelativeTimestampFromNow = (timestamp: Date): string => {
   const diffInMs = Math.max(0, new Date().getTime() - timestamp.getTime());
   const diffInMinutes = diffInMs / (1000 * 60);

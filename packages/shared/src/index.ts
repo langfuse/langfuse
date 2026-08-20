@@ -1,9 +1,11 @@
 export * from "./constants";
 export { decodeUnicodeEscapesOnly } from "./utils/unicode";
+export { stringify, stringifyForCsv } from "./utils/stringify";
 export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";
 export * from "./interfaces/parseDbOrg";
+export * from "./interfaces/billingProvider";
 export * from "./interfaces/customLLMProviderConfigSchemas";
 export * from "./tableDefinitions";
 export * from "./types";
@@ -16,6 +18,7 @@ export * from "./utils/stringChecks";
 export * from "./utils/objects";
 export * from "./utils/typeChecks";
 export * from "./utils/prompts";
+export * from "./utils/productUrl";
 export * from "./utils/jsonSchemaValidation";
 export * from "./utils/chatml";
 export * from "./utils/math";
@@ -45,6 +48,20 @@ export * from "./features/batchAction/types";
 export * from "./features/batchAction/addToDatasetTypes";
 export * from "./features/batchAction/applyFieldMapping";
 export { BatchTableNames } from "./interfaces/tableNames";
+
+// in-app agent
+export * from "./features/inAppAgent/types";
+
+// rbac
+export * from "./features/rbac/projectAccessRights";
+
+// filters
+export * from "./features/filters/internalEnvironments";
+export * from "./features/filters/filterQueryEncoding";
+export * from "./features/filters/sessionPositionInTrace";
+
+// date ranges
+export * from "./utils/dateRanges";
 
 // annotation
 export * from "./features/annotation/types";

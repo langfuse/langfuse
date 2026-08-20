@@ -2,6 +2,7 @@ import {
   EvalTargetObject,
   type ColumnDefinition,
   JobConfigState,
+  JobTimeScopeZod,
 } from "@langfuse/shared";
 
 export const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
@@ -13,6 +14,8 @@ export const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
 export const evalConfigTargetValues = evalConfigTargetOptions.map(
   (option) => option.value,
 );
+
+export const evalConfigTimeScopeValues = JobTimeScopeZod.options;
 
 const evaluatorDisplayStatusSql = `CASE
   WHEN jc."status" = 'INACTIVE' THEN 'INACTIVE'
@@ -43,6 +46,13 @@ export const evalConfigFilterColumns: ColumnDefinition[] = [
     internal: 'jc."target_object"',
     options: evalConfigTargetOptions,
   },
+  {
+    name: "Time Scope",
+    id: "timeScope",
+    type: "arrayOptions",
+    internal: 'jc."time_scope"',
+    options: evalConfigTimeScopeValues.map((value) => ({ value })),
+  },
 ];
 
 export const evalConfigsTableCols: ColumnDefinition[] = [
@@ -51,6 +61,13 @@ export const evalConfigsTableCols: ColumnDefinition[] = [
     internal: evaluatorStatusSortRankSql,
   },
   evalConfigFilterColumns[1],
+  evalConfigFilterColumns[2],
+  {
+    name: "Generated Score Name",
+    id: "scoreName",
+    type: "string",
+    internal: 'jc."score_name"',
+  },
   {
     name: "Updated At",
     id: "updatedAt",

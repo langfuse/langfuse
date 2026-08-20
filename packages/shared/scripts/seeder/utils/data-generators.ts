@@ -249,7 +249,7 @@ export class DataGenerator {
       name: `dataset-generation-${input.itemIndex}-run-${input.runNumber}`,
       input: trace.input,
       output: trace.output,
-      provided_model_name: "gpt-3.5-turbo",
+      provided_model_name: "gpt-5.4-mini",
       model_parameters: JSON.stringify({ temperature: 0.7 }),
       usage_details: {
         input: inputTokens,
@@ -773,7 +773,7 @@ export class DataGenerator {
         level: "DEFAULT",
         environment: trace.environment,
         metadata: {
-          embeddingModel: "text-embedding-ada-002",
+          embeddingModel: "text-embedding-3-small",
           dimensions: "1536",
         },
         usage_details: {
@@ -1179,7 +1179,7 @@ export class DataGenerator {
             ].filter(Boolean),
           }),
           output: JSON.stringify({ role: "assistant", content: d.assistant }),
-          provided_model_name: "gpt-4o",
+          provided_model_name: "gpt-5.4-mini",
           internal_model_id: null,
           model_parameters: JSON.stringify({ temperature: 0.2 }),
           provided_usage_details: {

@@ -1,4 +1,5 @@
 import {
+  deprecationResponseZod,
   InvalidRequestError,
   paginationMetaResponseZod,
   publicApiPaginationZod,
@@ -194,5 +195,6 @@ export const GetMetricsDailyV1Response = z
         .strict(),
     ),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();

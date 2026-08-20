@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getPromptVariableDiagnostics } from "@/src/components/editor/CodeMirrorEditor";
 
 describe("getPromptVariableDiagnostics", () => {
@@ -14,5 +16,29 @@ describe("getPromptVariableDiagnostics", () => {
         message: "Unclosed variable brackets",
       }),
     ]);
+  });
+
+  it("reports variables spanning multiple lines", () => {
+    expect(
+      getPromptVariableDiagnostics("Use {{first\nsecond\nthird}} here"),
+    ).toContainEqual(
+      expect.objectContaining({
+        from: 4,
+        message: "Variables cannot span multiple lines",
+      }),
+    );
+  });
+
+  it("handles long unterminated multiline variables without excessive backtracking", () => {
+    const content = `{{${"\n".repeat(20_000)}`;
+    const startedAt = performance.now();
+
+    expect(getPromptVariableDiagnostics(content)).toEqual([
+      expect.objectContaining({
+        from: 0,
+        message: "Unclosed variable brackets",
+      }),
+    ]);
+    expect(performance.now() - startedAt).toBeLessThan(100);
   });
 });

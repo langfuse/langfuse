@@ -277,37 +277,41 @@ describe("SfdcService.upsertUser", () => {
     expect(loggerMock.warn).toHaveBeenCalled();
   });
 
-  it("treats the plain-text 'Success' ack as success — no warn, no persistence", async () => {
+  it("treats the plain-text 'Success' ack as delivered (true) — no warn, no persistence", async () => {
     // /manage-user never returns JSON or an id; CH Cloud discards this
     // response too.
     fetchMock.mockResolvedValueOnce(new Response("Success", { status: 200 }));
-    await SfdcService.tryCreate()!.upsertUser(upsertUserInput());
+    await expect(
+      SfdcService.tryCreate()!.upsertUser(upsertUserInput()),
+    ).resolves.toBe(true);
     expect(loggerMock.warn).not.toHaveBeenCalled();
     expect(loggerMock.error).not.toHaveBeenCalled();
     expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
-  it("does not throw on non-2xx; logs an error instead", async () => {
+  it("does not throw on non-2xx; resolves false and logs an error instead", async () => {
     fetchMock.mockResolvedValueOnce(nonOkResponse(500));
-    await SfdcService.tryCreate()!.upsertUser(upsertUserInput());
+    await expect(
+      SfdcService.tryCreate()!.upsertUser(upsertUserInput()),
+    ).resolves.toBe(false);
     expect(loggerMock.error).toHaveBeenCalled();
     expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
-  it("does not throw on fetch network error; logs an error instead", async () => {
+  it("does not throw on fetch network error; resolves false and logs an error instead", async () => {
     fetchMock.mockRejectedValueOnce(new Error("ECONNRESET"));
     await expect(
       SfdcService.tryCreate()!.upsertUser(upsertUserInput()),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
     expect(loggerMock.error).toHaveBeenCalled();
   });
 
-  it("never rejects on invalid email — logs warn and skips fetch", async () => {
+  it("never rejects on invalid email — resolves false, logs warn, skips fetch", async () => {
     await expect(
       SfdcService.tryCreate()!.upsertUser(
         upsertUserInput({ email: "not-an-email" }),
       ),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(loggerMock.warn).toHaveBeenCalled();
   });
@@ -361,15 +365,23 @@ describe("SfdcService.upsertOrg", () => {
     expect(body.langfuseDataRegion).toBe("EU");
   });
 
-  it("persists sfdcOrgId on 2xx with id in response", async () => {
+  it("persists sfdcOrgId on 2xx with id in response and resolves true", async () => {
     fetchMock.mockResolvedValueOnce(okJsonResponse({ sfdcOrgId: "sfdc-o-9" }));
-    await SfdcService.tryCreate()!.upsertOrg(
-      upsertOrgInput({ orgId: "org-9" }),
-    );
+    await expect(
+      SfdcService.tryCreate()!.upsertOrg(upsertOrgInput({ orgId: "org-9" })),
+    ).resolves.toBe(true);
     expect(prismaMock.organization.update).toHaveBeenCalledWith({
       where: { id: "org-9" },
       data: { sfdcOrgId: "sfdc-o-9" },
     });
+  });
+
+  it("resolves false on non-2xx without persisting", async () => {
+    fetchMock.mockResolvedValueOnce(nonOkResponse(502));
+    await expect(
+      SfdcService.tryCreate()!.upsertOrg(upsertOrgInput({ orgId: "org-9" })),
+    ).resolves.toBe(false);
+    expect(prismaMock.organization.update).not.toHaveBeenCalled();
   });
 
   it("does not persist when the response omits sfdcOrgId", async () => {
@@ -400,14 +412,14 @@ describe("SfdcService.upsertOrg", () => {
     expect(prismaMock.organization.update).not.toHaveBeenCalled();
   });
 
-  it("never rejects even when persistence throws after a 2xx", async () => {
+  it("never rejects even when persistence throws after a 2xx — still resolves true (the POST was delivered)", async () => {
     fetchMock.mockResolvedValueOnce(okJsonResponse({ sfdcOrgId: "sfdc-x" }));
     prismaMock.organization.findUnique.mockRejectedValueOnce(
       new Error("db down"),
     );
     await expect(
       SfdcService.tryCreate()!.upsertOrg(upsertOrgInput({ orgId: "org-9" })),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(true);
     expect(loggerMock.error).toHaveBeenCalled();
   });
 });
@@ -440,12 +452,14 @@ describe("SfdcService.setUserRole — Langfuse roles map onto the SFDC picklist"
     ["VIEWER", "DEVELOPER"],
   ] as const)("maps %s to %s", async (role, sfdcRole) => {
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
-    await SfdcService.tryCreate()!.setUserRole({
-      orgId: "org-1",
-      userId: "user-1",
-      email: "u@example.com",
-      role,
-    });
+    await expect(
+      SfdcService.tryCreate()!.setUserRole({
+        orgId: "org-1",
+        userId: "user-1",
+        email: "u@example.com",
+        role,
+      }),
+    ).resolves.toBe(true);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body).toMatchObject({
       isLangfuse: true,

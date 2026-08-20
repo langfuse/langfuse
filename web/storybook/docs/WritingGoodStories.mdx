@@ -40,6 +40,7 @@ Keep the existing component, but update it to use the newly created component fo
 - Name stories after the state they represent, not the implementation. Also do not include the component name in the story name.
   - Prefer: `Default`, `Empty`, `WithLongName`, `Error`, `Disabled`, `Loading`
   - Avoid: `Test1`, `CustomRenderExample`, `ButtonWithLongNameAndIcon`
+- Do not create separate light-mode or dark-mode stories when the component state is otherwise identical. Use Storybook's global theme toggle to review existing stories in either theme.
 - Set callbacks up as Storybook Actions by default:
 
   ```ts

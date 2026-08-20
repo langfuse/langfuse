@@ -16,11 +16,10 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => useQueryMock(),
       },
     },
+    useUtils: () => ({
+      automations: { getAutomations: { fetch: vi.fn(async () => []) } },
+    }),
   },
-}));
-
-vi.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/", push: vi.fn() }),
 }));
 
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";

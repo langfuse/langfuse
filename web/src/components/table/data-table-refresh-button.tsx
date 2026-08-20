@@ -8,22 +8,24 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
-
-export const REFRESH_INTERVALS = [
-  { label: "Off", value: null },
-  { label: "30s", value: 30_000 },
-  { label: "1m", value: 60_000 },
-  { label: "5m", value: 300_000 },
-  { label: "15m", value: 900_000 },
-] as const;
-
-export type RefreshInterval = (typeof REFRESH_INTERVALS)[number]["value"];
+import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
+import {
+  REFRESH_INTERVALS,
+  type RefreshInterval,
+} from "@/src/components/table/utils/refresh-intervals";
 
 interface DataTableRefreshButtonProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   interval: RefreshInterval;
   setInterval: (interval: RefreshInterval) => void;
+  /**
+   * Space-tight variant (e.g. the mobile Filters sheet header): the split
+   * control drops the "Off" label when auto-refresh is disabled and gains an
+   * accent border (plus the interval label, e.g. "30s") once an interval is
+   * set. Default (non-compact) is unchanged.
+   */
+  compact?: boolean;
 }
 
 export function DataTableRefreshButton({
@@ -31,8 +33,15 @@ export function DataTableRefreshButton({
   isRefreshing,
   interval,
   setInterval,
+  compact = false,
 }: DataTableRefreshButtonProps) {
   const activeInterval = REFRESH_INTERVALS.find((i) => i.value === interval);
+  // Only a real interval counts as active; null ("Off") is the resting state.
+  const isActive = interval != null;
+  // A fast refresh would otherwise show a single frame of spinner. Not disabled
+  // while it spins either: the flash of the disabled state read as a glitch, and
+  // refreshing again mid-flight is harmless.
+  const { active: isSpinning } = useAnimatedBusy(isRefreshing);
 
   return (
     <div className="flex items-center">
@@ -40,23 +49,36 @@ export function DataTableRefreshButton({
         variant="outline"
         size="icon"
         onClick={onRefresh}
-        disabled={isRefreshing}
-        className="rounded-r-none border-r-0"
+        aria-busy={isSpinning}
+        className={cn(
+          "rounded-r-none border-r-0",
+          compact && isActive && "border-primary",
+        )}
         title="Refresh"
       >
-        <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+        <RefreshCw className={cn("h-4 w-4", isSpinning && "animate-spin")} />
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
             size="icon"
-            className="w-auto rounded-l-none border-l-0 px-2"
+            className={cn(
+              "w-auto rounded-l-none border-l-0 px-2",
+              compact && isActive && "border-primary text-primary",
+            )}
           >
             <ChevronDown className="h-4 w-4" />
-            <span className="ml-1 text-sm">
-              {activeInterval?.label ?? "Off"}
-            </span>
+            {compact ? (
+              // Drop the "Off" label; surface the interval only when set.
+              isActive && (
+                <span className="ml-1 text-sm">{activeInterval?.label}</span>
+              )
+            ) : (
+              <span className="ml-1 text-sm">
+                {activeInterval?.label ?? "Off"}
+              </span>
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

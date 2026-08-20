@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { cva, type VariantProps } from "class-variance-authority";
 
 import {

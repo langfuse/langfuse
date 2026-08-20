@@ -1,3 +1,4 @@
+import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -168,8 +169,9 @@ function ExperimentsMultiSelectActionMenu({
 
   if (selectedExperimentIds.length === 0) return null;
 
-  // Build table actions - Compare is disabled (not hidden) when >5 rows selected
-  const tooManySelected = selectedExperimentIds.length > 5;
+  // Build table actions - Compare is disabled (not hidden) when >MAX_SELECTED_EXPERIMENTS rows selected
+  const tooManySelected =
+    selectedExperimentIds.length > MAX_SELECTED_EXPERIMENTS;
   const tableActions: TableAction[] = [
     {
       id: ActionId.ExperimentCompare,
@@ -180,7 +182,7 @@ function ExperimentsMultiSelectActionMenu({
       customDialog: true,
       disabled: tooManySelected,
       disabledReason: tooManySelected
-        ? "Select only up to 5 experiments to compare"
+        ? `Select only up to ${MAX_SELECTED_EXPERIMENTS} experiments to compare`
         : undefined,
       accessCheck: {
         scope: "project:read",
