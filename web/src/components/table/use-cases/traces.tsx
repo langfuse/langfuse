@@ -105,7 +105,7 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
-import { AddTracesToAnnotationQueueDialog } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialog";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
 
 export type TracesTableRow = {
   // Shown by default
@@ -182,8 +182,6 @@ export default function TracesTable({
   );
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const [showAddToAnnotationQueueDialog, setShowAddToAnnotationQueueDialog] =
-    useState(false);
   const [rawRefreshInterval, setRawRefreshInterval] =
     useSessionStorage<RefreshInterval>(
       `tableRefreshInterval-${projectId}`,
@@ -1478,22 +1476,34 @@ export default function TracesTable({
             columnsWithCustomSelect={["traceName", "traceTags"]}
             actionButtons={[
               selectedTraceIds.length > 0 || selectAll ? (
-                <TableActionMenu
+                <AddTracesToAnnotationQueueDialogController
                   key="traces-multi-select-actions"
                   projectId={projectId}
-                  actions={tableActions}
-                  tableName={BatchExportTableName.Traces}
-                  selectedCount={selectedTraceCount}
-                  onClearSelection={() => {
+                  onSuccess={() => {
                     setSelectedRows({});
                     setSelectAll(false);
                   }}
-                  onCustomAction={(actionType) => {
-                    if (actionType === ActionId.TraceAddToAnnotationQueue) {
-                      setShowAddToAnnotationQueueDialog(true);
-                    }
-                  }}
-                />
+                  description={`Add ${displayCount} selected traces to an annotation queue.`}
+                  onAddToQueue={handleAddToAnnotationQueue}
+                >
+                  {({ openDialog }) => (
+                    <TableActionMenu
+                      projectId={projectId}
+                      actions={tableActions}
+                      tableName={BatchExportTableName.Traces}
+                      selectedCount={selectedTraceCount}
+                      onClearSelection={() => {
+                        setSelectedRows({});
+                        setSelectAll(false);
+                      }}
+                      onCustomAction={(actionType) => {
+                        if (actionType === ActionId.TraceAddToAnnotationQueue) {
+                          openDialog();
+                        }
+                      }}
+                    />
+                  )}
+                </AddTracesToAnnotationQueueDialogController>
               ) : null,
               <BatchExportTableButton
                 {...{
@@ -1600,17 +1610,6 @@ export default function TracesTable({
         {peekConfig && (
           <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
         )}
-        <AddTracesToAnnotationQueueDialog
-          projectId={projectId}
-          isOpen={showAddToAnnotationQueueDialog}
-          onClose={() => setShowAddToAnnotationQueueDialog(false)}
-          onSuccess={() => {
-            setSelectedRows({});
-            setSelectAll(false);
-          }}
-          description={`Add ${displayCount} selected traces to an annotation queue.`}
-          onAddToQueue={handleAddToAnnotationQueue}
-        />
       </div>
     </DataTableControlsProvider>
   );

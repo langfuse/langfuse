@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -20,28 +20,30 @@ import { AddTracesToAnnotationQueueSelectDialogContent } from "@/src/features/an
 import { Button } from "@/src/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 
-type AddTracesToAnnotationQueueDialogProps = {
+type AddTracesToAnnotationQueueDialogControllerProps = {
   projectId: string;
-  isOpen: boolean;
-  onClose: () => void;
   onSuccess: () => void;
   description: string;
   onAddToQueue: (params: {
     projectId: string;
     targetId: string;
   }) => Promise<void>;
+  children: (control: {
+    disabled: { reason: string } | undefined;
+    openDialog: () => void;
+  }) => ReactNode;
 };
 
 type DialogStep = "select" | "create";
 
-export function AddTracesToAnnotationQueueDialog({
+export function AddTracesToAnnotationQueueDialogController({
   projectId,
-  isOpen,
-  onClose,
   onSuccess,
   description,
   onAddToQueue,
-}: AddTracesToAnnotationQueueDialogProps) {
+  children,
+}: AddTracesToAnnotationQueueDialogControllerProps) {
+  const [open, setOpen] = useState(false);
   const [step, setStep] = useState<DialogStep>("select");
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isCompletingAction, setIsCompletingAction] = useState(false);
@@ -60,6 +62,15 @@ export function AddTracesToAnnotationQueueDialog({
     scope: "annotationQueueAssignments:read",
   });
   const queueLimit = useEntitlementLimit("annotation-queue-count");
+  const disabled = hasQueueAccess
+    ? undefined
+    : {
+        reason: "You don't have permission to add traces to annotation queues.",
+      };
+  const openDialog = () => {
+    if (!hasQueueAccess) return;
+    setOpen(true);
+  };
 
   const selectForm = useForm({ defaultValues: { targetId: "" } });
   const createForm = useForm({
@@ -75,17 +86,17 @@ export function AddTracesToAnnotationQueueDialog({
 
   const queueOptionsQuery = api.annotationQueues.allNamesAndIds.useQuery(
     { projectId },
-    { enabled: isOpen && hasQueueAccess },
+    { enabled: open && hasQueueAccess },
   );
 
   const queueCountQuery = api.annotationQueues.count.useQuery(
     { projectId },
-    { enabled: isOpen && hasQueueAccess },
+    { enabled: open && hasQueueAccess },
   );
 
   const scoreConfigsQuery = api.scoreConfigs.all.useQuery(
     { projectId },
-    { enabled: isOpen && hasQueueAccess && step === "create" },
+    { enabled: open && hasQueueAccess && step === "create" },
   );
 
   const isInProgress = api.table.getIsBatchActionInProgress.useQuery(
@@ -95,7 +106,7 @@ export function AddTracesToAnnotationQueueDialog({
       actionId: ActionId.TraceAddToAnnotationQueue,
     },
     {
-      enabled: isOpen,
+      enabled: open,
       refetchInterval: 2 * 60 * 1000,
     },
   );
@@ -117,7 +128,7 @@ export function AddTracesToAnnotationQueueDialog({
   });
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!open) return;
     setStep("select");
     setIsAdvancedOpen(false);
     setIsCompletingAction(false);
@@ -128,7 +139,7 @@ export function AddTracesToAnnotationQueueDialog({
       scoreConfigIds: [],
       newAssignmentUserIds: [],
     });
-  }, [isOpen, selectForm, createForm]);
+  }, [open, selectForm, createForm]);
 
   useEffect(() => {
     const options = queueOptionsQuery.data;
@@ -166,7 +177,7 @@ export function AddTracesToAnnotationQueueDialog({
     try {
       await onAddToQueue({ projectId, targetId });
       onSuccess();
-      onClose();
+      setOpen(false);
     } finally {
       setIsCompletingAction(false);
     }
@@ -222,7 +233,7 @@ export function AddTracesToAnnotationQueueDialog({
 
       await onAddToQueue({ projectId, targetId: progress.queueId });
       onSuccess();
-      onClose();
+      setOpen(false);
     } catch {
       showErrorToast(
         "Operation failed",
@@ -241,14 +252,8 @@ export function AddTracesToAnnotationQueueDialog({
     createQueueAssignmentsMutation.isPending;
 
   return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) {
-          onClose();
-        }
-      }}
-    >
+    <Dialog open={hasQueueAccess && open} onOpenChange={setOpen}>
+      {children({ disabled, openDialog })}
       <DialogContent
         className={
           step === "create"
