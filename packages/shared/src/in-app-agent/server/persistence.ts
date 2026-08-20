@@ -12,6 +12,8 @@ import {
   LangfuseInternalTraceEnvironment,
   logger,
 } from "../../server";
+import { isSettledInAppAgentRunStatus } from "../constants";
+import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
 
@@ -169,7 +171,7 @@ export async function appendRunEvents(params: {
     errorMessage?: string;
   };
 }): Promise<boolean> {
-  return params.prisma.$transaction(async (tx) => {
+  const appended = await params.prisma.$transaction(async (tx) => {
     await lockConversationRow(tx, params.projectId, params.conversationId);
 
     if (params.finish) {
@@ -246,6 +248,22 @@ export async function appendRunEvents(params: {
 
     return true;
   });
+
+  // Emitted after the transaction commits so a rolled-back flush cannot inflate
+  // the outcome count. The fenced path returns false and is deliberately silent:
+  // whichever writer won the CAS already recorded that run's outcome.
+  if (
+    appended &&
+    params.finish &&
+    isSettledInAppAgentRunStatus(params.finish.status)
+  ) {
+    recordRunTerminalOutcome({
+      status: params.finish.status,
+      errorCode: params.finish.errorCode ?? null,
+    });
+  }
+
+  return appended;
 }
 
 export async function getConversationEvents(params: {
