@@ -174,8 +174,23 @@ export default definePreview({
       container: ThemedDocsContainer,
     },
     options: {
-      storySort: {
-        order: ["Design", "Playground"],
+      storySort: (a, b) => {
+        const sectionOrder = ["Design", "Playground"];
+        const sectionRank = (title: string) => {
+          const rank = sectionOrder.indexOf(title.split("/")[0] ?? "");
+          return rank === -1 ? sectionOrder.length : rank;
+        };
+        const sectionDifference = sectionRank(a.title) - sectionRank(b.title);
+        if (sectionDifference !== 0) return sectionDifference;
+
+        const titleDifference = a.title.localeCompare(b.title);
+        if (titleDifference !== 0) return titleDifference;
+
+        const aIsTest = a.name.startsWith("(Test)");
+        const bIsTest = b.name.startsWith("(Test)");
+        if (aIsTest !== bIsTest) return aIsTest ? 1 : -1;
+
+        return a.name.localeCompare(b.name);
       },
     },
   },
