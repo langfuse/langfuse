@@ -1,53 +1,29 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { type ButtonProps } from "@/src/components/ui/button";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
-  DialogBody,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Edit, Pen, PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { Form } from "@/src/components/ui/form";
-import { Textarea } from "@/src/components/ui/textarea";
 import {
   type CreateQueueWithAssignments,
   CreateQueueWithAssignmentsData,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
-import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
+import { AnnotationQueueFormContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormContent";
 
 export const CreateOrEditAnnotationQueueButton = ({
   projectId,
@@ -150,8 +126,6 @@ export const CreateOrEditAnnotationQueueButton = ({
     errorMessage: "Queue name already exists.",
   });
 
-  const configs = configsData.data?.configs ?? [];
-
   const onSubmit = async (data: CreateQueueWithAssignments) => {
     try {
       // Step 1: Create or update the queue
@@ -219,6 +193,11 @@ export const CreateOrEditAnnotationQueueButton = ({
     }
   };
 
+  const isSubmitting =
+    createQueueMutation.isPending ||
+    editQueueMutation.isPending ||
+    createQueueAssignmentsMutation.isPending;
+
   // Table rows render a compact icon button and rely on the disabled state plus
   // a tooltip; everywhere else uses the labeled ActionButton with its built-in
   // access/limit messaging.
@@ -273,186 +252,33 @@ export const CreateOrEditAnnotationQueueButton = ({
           rather than briefly showing empty fields while byId loads. */}
       {configsData.data && (!queueId || queueQuery.data) && (
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {queueId ? "Edit" : "New"} annotation queue
-            </DialogTitle>
-            <DialogDescription>
-              {queueId ? "Edit" : "Create a new"} queue to manage your
-              annotation workflows.
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-              <DialogBody>
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="text"
-                          className="text-xs"
-                          onBlur={(e) =>
-                            field.onChange(e.target.value.trimEnd())
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description (optional)</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          placeholder="Add description..."
-                          className="text-xs focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="scoreConfigIds"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Score Configs</FormLabel>
-                      <FormDescription>
-                        Define which dimensions annotators should score for the
-                        given queue.
-                      </FormDescription>
-                      <FormControl>
-                        <MultiSelectKeyValues
-                          placeholder="Value"
-                          align="end"
-                          variant="outline"
-                          className="grid grid-cols-[auto_1fr_auto_auto] gap-2"
-                          onValueChange={handleOnValueChange}
-                          options={configs
-                            .filter((config) => !config.isArchived)
-                            .map((config) => ({
-                              key: config.id,
-                              value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-                              isArchived: config.isArchived,
-                            }))}
-                          values={field.value.map((configId) => {
-                            const config = configs.find(
-                              (config) => config.id === configId,
-                            );
-                            return {
-                              value: config
-                                ? `${getScoreDataTypeIcon(config.dataType)} ${config.name}`
-                                : `${configId}`,
-                              key: configId,
-                            };
-                          })}
-                          controlButtons={
-                            <DropdownMenuItemWithSecondaryAction
-                              onBeforeAction={() => {
-                                capture(
-                                  "score_configs:manage_configs_item_click",
-                                  { source: "AnnotationQueue" },
-                                );
-                              }}
-                              href={`/project/${projectId}/settings/scores`}
-                              title="Manage score configs"
-                            />
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Advanced Section */}
-                <FormField
-                  control={form.control}
-                  name="newAssignmentUserIds"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Advanced Settings</FormLabel>
-                      <div className="mt-1 rounded-md border">
-                        <Collapsible
-                          open={isAdvancedOpen && hasQueueAssignmentsReadAccess}
-                          onOpenChange={(open) => {
-                            if (!hasQueueAssignmentsReadAccess) {
-                              setIsAdvancedOpen(false);
-                            } else {
-                              setIsAdvancedOpen(open);
-                            }
-                          }}
-                        >
-                          <CollapsibleTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              className="group flex w-full items-center justify-between px-3 py-2.5 text-left hover:bg-transparent"
-                            >
-                              <div className="flex items-center gap-2">
-                                {isAdvancedOpen ? (
-                                  <ChevronDown className="text-muted-foreground h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="text-muted-foreground h-4 w-4" />
-                                )}
-                                <span className="text-sm font-bold">
-                                  User Assignment
-                                </span>
-                              </div>
-                            </Button>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="border-border/20 border-t px-3 pt-1 pb-3">
-                            {hasQueueAssignmentsReadAccess && (
-                              <>
-                                <FormControl>
-                                  <UserAssignmentSection
-                                    projectId={projectId}
-                                    queueId={queueId}
-                                    selectedUserIds={field.value}
-                                    onChange={field.onChange}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </>
-                            )}
-                          </CollapsibleContent>
-                        </Collapsible>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-              </DialogBody>
-              <DialogFooter>
-                <Button
-                  type="submit"
-                  className="text-xs"
-                  disabled={
-                    !!form.formState.errors.name ||
-                    createQueueMutation.isPending ||
-                    editQueueMutation.isPending ||
-                    createQueueAssignmentsMutation.isPending
-                  }
-                >
-                  {createQueueMutation.isPending ||
-                  editQueueMutation.isPending ||
-                  createQueueAssignmentsMutation.isPending
-                    ? "Processing..."
-                    : `${queueId ? "Save" : "Create"} queue`}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
+          <AnnotationQueueFormContent
+            mode={queueId ? "edit" : "create"}
+            form={form}
+            scoreConfigs={configsData.data.configs}
+            projectId={projectId}
+            onScoreConfigValueChange={handleOnValueChange}
+            onManageScoreConfigsClick={() => {
+              capture("score_configs:manage_configs_item_click", {
+                source: "AnnotationQueue",
+              });
+            }}
+            isAdvancedOpen={isAdvancedOpen}
+            onAdvancedOpenChange={setIsAdvancedOpen}
+            hasQueueAssignmentsReadAccess={hasQueueAssignmentsReadAccess}
+            userAssignmentSection={
+              <UserAssignmentSection
+                projectId={projectId}
+                queueId={queueId}
+                selectedUserIds={form.watch("newAssignmentUserIds")}
+                onChange={(userIds) =>
+                  form.setValue("newAssignmentUserIds", userIds)
+                }
+              />
+            }
+            isSubmitting={isSubmitting}
+            onSubmit={onSubmit}
+          />
         </DialogContent>
       )}
     </Dialog>

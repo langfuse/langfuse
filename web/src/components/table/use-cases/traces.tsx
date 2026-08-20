@@ -105,6 +105,7 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
+import { AddTracesToAnnotationQueueDialog } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialog";
 
 export type TracesTableRow = {
   // Shown by default
@@ -181,6 +182,8 @@ export default function TracesTable({
   );
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
+  const [showAddToAnnotationQueueDialog, setShowAddToAnnotationQueueDialog] =
+    useState(false);
   const [rawRefreshInterval, setRawRefreshInterval] =
     useSessionStorage<RefreshInterval>(
       `tableRefreshInterval-${projectId}`,
@@ -656,9 +659,8 @@ export default function TracesTable({
       id: ActionId.TraceAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
-      description: "Add selected traces to an annotation queue.",
-      targetLabel: "Annotation Queue",
-      execute: handleAddToAnnotationQueue,
+      description: `Add ${displayCount} selected traces to an annotation queue.`,
+      customDialog: true,
       accessCheck: {
         scope: "annotationQueues:CUD",
       },
@@ -1486,6 +1488,11 @@ export default function TracesTable({
                     setSelectedRows({});
                     setSelectAll(false);
                   }}
+                  onCustomAction={(actionType) => {
+                    if (actionType === ActionId.TraceAddToAnnotationQueue) {
+                      setShowAddToAnnotationQueueDialog(true);
+                    }
+                  }}
                 />
               ) : null,
               <BatchExportTableButton
@@ -1593,6 +1600,17 @@ export default function TracesTable({
         {peekConfig && (
           <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
         )}
+        <AddTracesToAnnotationQueueDialog
+          projectId={projectId}
+          isOpen={showAddToAnnotationQueueDialog}
+          onClose={() => setShowAddToAnnotationQueueDialog(false)}
+          onSuccess={() => {
+            setSelectedRows({});
+            setSelectAll(false);
+          }}
+          description={`Add ${displayCount} selected traces to an annotation queue.`}
+          onAddToQueue={handleAddToAnnotationQueue}
+        />
       </div>
     </DataTableControlsProvider>
   );
