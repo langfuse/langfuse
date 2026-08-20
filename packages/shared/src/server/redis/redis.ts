@@ -249,9 +249,10 @@ export const createNewRedisInstance = (
     return null;
   }
 
-  // Managed credentials are wired only into the single-node path below; warn so
-  // the combination is not silently ignored (which would fail with an opaque
-  // NOAUTH at connect time when no static REDIS_AUTH is set).
+  // Managed credentials are wired only into the single-node path below. Warn so
+  // the combination is not silently ignored: with no static REDIS_AUTH set, the
+  // only other signal is an auth failure at connect time, which says nothing
+  // about the managed-identity configuration having been skipped.
   if (
     env.REDIS_AUTH_METHOD !== "static" &&
     (env.REDIS_CLUSTER_ENABLED === "true" ||
