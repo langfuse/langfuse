@@ -60,6 +60,9 @@ allowBuilds:
   cpu-features: true
   ssh2: true
 overrides:
+  # The root Mastra adapter does not load CopilotKit. Only its unused
+  # `@ag-ui/mastra/copilotkit` subpath requires this peer.
+  "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"
   postcss: 8.5.25
   esbuild: "0.28.1"
   "undici@7": 7.29.0
@@ -87,10 +90,6 @@ overrides:
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
   "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
-  # Keep Anthropic's Vertex client on an SDK version that emits Vertex rawPredict URLs.
-  # Remove once @langchain/anthropic allows the same SDK range.
-  # Check: https://www.npmjs.com/package/@langchain/anthropic?activeTab=dependencies
-  "@anthropic-ai/vertex-sdk>@anthropic-ai/sdk": 0.104.1
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
