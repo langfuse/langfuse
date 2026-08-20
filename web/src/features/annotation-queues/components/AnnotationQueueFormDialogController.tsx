@@ -2,13 +2,14 @@ import {
   type CreateQueueWithAssignments,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api } from "@/src/utils/api";
 
 type AnnotationQueueFormDialogControllerProps = {
@@ -33,6 +34,7 @@ export function AnnotationQueueFormDialogController(
   const queueId = mode === "edit" ? props.queueId : undefined;
 
   const [open, setOpen] = useState(false);
+  const createdQueueIdRef = useRef<string | undefined>(undefined);
 
   const hasQueueAccess = useHasProjectAccess({
     projectId,
@@ -47,6 +49,7 @@ export function AnnotationQueueFormDialogController(
 
   const openDialog = () => {
     if (!hasQueueAccess) return;
+    createdQueueIdRef.current = undefined;
     setOpen(true);
   };
 
@@ -76,51 +79,66 @@ export function AnnotationQueueFormDialogController(
   const createQueueAssignmentsMutation =
     api.annotationQueueAssignments.createMany.useMutation();
 
-  const handleSubmit = async (data: CreateQueueWithAssignments) => {
-    try {
-      const queueResponse =
-        mode === "edit"
-          ? await editQueueMutation.mutateAsync({
-              name: data.name,
-              description: data.description,
-              scoreConfigIds: data.scoreConfigIds,
-              projectId,
-              queueId: props.queueId,
-            })
-          : await createQueueMutation.mutateAsync({
-              name: data.name,
-              description: data.description,
-              scoreConfigIds: data.scoreConfigIds,
-              projectId,
-            });
-      const targetQueueId = mode === "edit" ? props.queueId : queueResponse.id;
+  const [handleSubmit, isSubmitting] = useWatchedPromiseCallback(
+    async (data: CreateQueueWithAssignments) => {
+      try {
+        let targetQueueId: string;
+        if (mode === "edit") {
+          await editQueueMutation.mutateAsync({
+            name: data.name,
+            description: data.description,
+            scoreConfigIds: data.scoreConfigIds,
+            projectId,
+            queueId: props.queueId,
+          });
+          targetQueueId = props.queueId;
+        } else if (createdQueueIdRef.current) {
+          targetQueueId = createdQueueIdRef.current;
+        } else {
+          const queueResponse = await createQueueMutation.mutateAsync({
+            name: data.name,
+            description: data.description,
+            scoreConfigIds: data.scoreConfigIds,
+            projectId,
+          });
+          targetQueueId = queueResponse.id;
+          createdQueueIdRef.current = targetQueueId;
+        }
 
-      if (data.newAssignmentUserIds.length > 0) {
-        await createQueueAssignmentsMutation.mutateAsync({
-          projectId,
-          queueId: targetQueueId,
-          userIds: data.newAssignmentUserIds,
-        });
+        if (data.newAssignmentUserIds.length > 0) {
+          await createQueueAssignmentsMutation.mutateAsync({
+            projectId,
+            queueId: targetQueueId,
+            userIds: data.newAssignmentUserIds,
+          });
+        }
+
+        await Promise.all([
+          utils.annotationQueues.invalidate(),
+          utils.annotationQueueAssignments.invalidate(),
+        ]);
+        createdQueueIdRef.current = undefined;
+        onSuccess(targetQueueId);
+        setOpen(false);
+      } catch {
+        showErrorToast(
+          "Operation failed",
+          "Failed to create or update queue or assign users. Please try again.",
+        );
       }
-
-      await Promise.all([
-        utils.annotationQueues.invalidate(),
-        utils.annotationQueueAssignments.invalidate(),
-      ]);
-      onSuccess(targetQueueId);
-      setOpen(false);
-    } catch {
-      showErrorToast(
-        "Operation failed",
-        "Failed to create or update queue or assign users. Please try again.",
-      );
-    }
-  };
-
-  const isSubmitting =
-    createQueueMutation.isPending ||
-    editQueueMutation.isPending ||
-    createQueueAssignmentsMutation.isPending;
+    },
+    [
+      createQueueAssignmentsMutation,
+      createQueueMutation,
+      editQueueMutation,
+      mode,
+      onSuccess,
+      projectId,
+      props,
+      utils.annotationQueueAssignments,
+      utils.annotationQueues,
+    ],
+  );
 
   const initialValues: CreateQueueWithAssignments | undefined =
     mode === "edit"
