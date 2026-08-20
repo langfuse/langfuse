@@ -1,7 +1,7 @@
 import { EventType } from "@ag-ui/core";
 import { describe, expect, it, vi } from "vitest";
 
-import { InAppAgentRunStatus } from "../../index";
+import { InAppAgentRunStatus } from "../../features/inAppAgent/types";
 import type { PrismaClient } from "../../db";
 import {
   createQueuedRun,

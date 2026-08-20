@@ -2542,13 +2542,19 @@ export class OtelIngestionProcessor {
       }
     }
 
-    const modelParameters = Object.keys(attributes).filter((key) =>
-      key.startsWith("gen_ai.request."),
+    const modelParameterPrefixes = [
+      "gen_ai.request.",
+      "llm.invocation_parameters.",
+    ];
+    const modelParameters = modelParameterPrefixes.flatMap((prefix) =>
+      Object.keys(attributes)
+        .filter((key) => key.startsWith(prefix))
+        .map((key) => ({ key, prefix })),
     );
 
     return this.sanitizeModelParams(
-      modelParameters.reduce((acc: any, key) => {
-        const modelParamKey = key.replace("gen_ai.request.", "");
+      modelParameters.reduce((acc: any, { key, prefix }) => {
+        const modelParamKey = key.replace(prefix, "");
         if (modelParamKey !== "model") {
           acc[modelParamKey] = attributes[key];
         }

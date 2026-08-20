@@ -1,9 +1,11 @@
+// @vitest-environment node
+
 import {
   AnalyticsIntegrationExportSource,
   LEGACY_ANALYTICS_EXPORTER_CUTOFF,
-  LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
-  type BlobExportWriteMode,
+  type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
 
@@ -22,14 +24,18 @@ import {
 // option-list/form-value/alert derivations on representative contexts.
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const PROJECT_PRE = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
-const PROJECT_POST = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const PROJECT_PRE = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() - MS_PER_DAY,
+);
+const PROJECT_POST = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + MS_PER_DAY,
+);
 const ROW_PRE = new Date(LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - MS_PER_DAY);
 
 // Self-hosted unless a case overrides it, so the two capability flags always
 // come from the real builder rather than being hand-set per case.
 const ctxFor = (
-  writeMode: BlobExportWriteMode,
+  writeMode: V4WriteMode,
   over: Partial<
     Omit<ExportSourceContext, "enrichedAvailable" | "legacyWritesActive">
   > = {},
@@ -60,7 +66,7 @@ const selfHostedRolledBack: ExportSourceContext = {
   enrichedAvailable: false,
   legacyWritesActive: true,
 };
-// Self-hosted events_only: v3 tables no longer written (LFE-10148). Enriched
+// Self-hosted events_only: v3 tables no longer written. Enriched
 // stays available (events_only requires the V4 preview opt-in).
 const selfHostedEventsOnly: ExportSourceContext = {
   isCloud: false,
@@ -69,7 +75,7 @@ const selfHostedEventsOnly: ExportSourceContext = {
 };
 
 describe("getExportSourceFormValue", () => {
-  it("keeps any persisted value regardless of deployment state (LFE-10296)", () => {
+  it("keeps any persisted value regardless of deployment state", () => {
     for (const persisted of Object.values(AnalyticsIntegrationExportSource)) {
       for (const ctx of [
         cloudPreCutoff,
@@ -100,7 +106,7 @@ describe("getExportSourceFormValue", () => {
     );
   });
 
-  it("defaults new configurations to EVENTS on events_only, keeps a persisted legacy value (LFE-10148)", () => {
+  it("defaults new configurations to EVENTS on events_only, keeps a persisted legacy value", () => {
     expect(getExportSourceFormValue(undefined, selfHostedEventsOnly)).toBe(
       AnalyticsIntegrationExportSource.EVENTS,
     );
@@ -159,7 +165,7 @@ describe("isExportSourceSelectable", () => {
     }
   });
 
-  it("rejects legacy sources on events_only, EVENTS stays (LFE-10148)", () => {
+  it("rejects legacy sources on events_only, EVENTS stays", () => {
     expect(
       isExportSourceSelectable(
         AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
@@ -193,7 +199,7 @@ describe("getExportSourceOptions", () => {
     ]);
   });
 
-  it("marks a persisted legacy source unavailable on events_only, EVENTS selectable (LFE-10148)", () => {
+  it("marks a persisted legacy source unavailable on events_only, EVENTS selectable", () => {
     const options = getExportSourceOptions(
       AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
       selfHostedEventsOnly,
@@ -210,7 +216,7 @@ describe("getExportSourceOptions", () => {
     expect(shouldHideExportSourceSelector(options)).toBe(false);
   });
 
-  it("includes a stale persisted enriched source, marked unavailable (LFE-10296)", () => {
+  it("includes a stale persisted enriched source, marked unavailable", () => {
     const options = getExportSourceOptions(
       AnalyticsIntegrationExportSource.EVENTS,
       selfHostedRolledBack,
@@ -272,16 +278,14 @@ describe("shouldHideExportSourceSelector", () => {
 // env var. Driving these cases through the real builder is what covers that
 // wiring; the builder takes no session or beta input at all.
 describe("write mode drives the settings-page selector", () => {
-  const WRITE_MODES: BlobExportWriteMode[] = ["legacy", "dual", "events_only"];
+  const WRITE_MODES: V4WriteMode[] = ["legacy", "dual", "events_only"];
 
   const selectableValues = (ctx: ExportSourceContext) =>
     getExportSourceOptions(undefined, ctx)
       .filter((o) => !o.unavailable)
       .map((o) => o.value);
 
-  const offered: Array<
-    [BlobExportWriteMode, AnalyticsIntegrationExportSource[]]
-  > = [
+  const offered: Array<[V4WriteMode, AnalyticsIntegrationExportSource[]]> = [
     ["legacy", [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS]],
     [
       "dual",
@@ -301,18 +305,15 @@ describe("write mode drives the settings-page selector", () => {
     },
   );
 
-  const defaults: Array<
-    [BlobExportWriteMode, AnalyticsIntegrationExportSource]
-  > = [
+  const defaults: Array<[V4WriteMode, AnalyticsIntegrationExportSource]> = [
     ["legacy", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS],
     ["dual", AnalyticsIntegrationExportSource.EVENTS],
     ["events_only", AnalyticsIntegrationExportSource.EVENTS],
   ];
 
-  // The settings-page create default: areEnrichedWritesActive(writeMode)
-  // ? EVENTS : TRACES_OBSERVATIONS. The tRPC/REST routers keep their own,
-  // older default for an omitted exportSource (TRACES_OBSERVATIONS on dual);
-  // that divergence predates this change and is tracked separately.
+  // The create default comes from the shared policy's defaultExportSource, so
+  // the settings page, the tRPC routers and the public REST API all land the
+  // same source. Its own matrix lives in export-source-policy.test.ts.
   it.each(defaults)(
     "write mode %s picks %s as the settings-page create default",
     (mode, expected) => {
@@ -360,7 +361,7 @@ describe("write mode drives the settings-page selector", () => {
   // A source that was legal when it was saved must never silently vanish: the
   // user has to see why their save is blocked and what to switch to.
   const blockedPersisted: Array<
-    [BlobExportWriteMode, AnalyticsIntegrationExportSource]
+    [V4WriteMode, AnalyticsIntegrationExportSource]
   > = [
     ["legacy", AnalyticsIntegrationExportSource.EVENTS],
     ["legacy", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS],
@@ -409,7 +410,7 @@ describe("write mode drives the settings-page selector", () => {
 // The pages consume only this composite, so the pieces being correct
 // individually is not enough — visibility and the default must agree.
 describe("getExportSourceFieldState", () => {
-  it.each<BlobExportWriteMode>(["legacy", "dual", "events_only"])(
+  it.each<V4WriteMode>(["legacy", "dual", "events_only"])(
     "%s: a hidden selector always leaves a selectable default",
     (mode) => {
       const ctx = ctxFor(mode);
@@ -433,7 +434,7 @@ describe("getExportSourceFieldState", () => {
     expect(defaultValue).toBe(AnalyticsIntegrationExportSource.EVENTS);
   });
 
-  it.each<[BlobExportWriteMode, AnalyticsIntegrationExportSource]>([
+  it.each<[V4WriteMode, AnalyticsIntegrationExportSource]>([
     ["legacy", AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS],
     ["events_only", AnalyticsIntegrationExportSource.EVENTS],
   ])("%s hides the selector and defaults to %s", (mode, expected) => {
@@ -498,7 +499,7 @@ describe("getExportSourceFieldState", () => {
 
   // Pre-cutoff projects are exempt from the cutoff, leaving only the write
   // mode.
-  it.each<BlobExportWriteMode>(["legacy", "dual", "events_only"])(
+  it.each<V4WriteMode>(["legacy", "dual", "events_only"])(
     "%s: pre-cutoff Cloud matches self-hosted",
     (mode) => {
       expect(

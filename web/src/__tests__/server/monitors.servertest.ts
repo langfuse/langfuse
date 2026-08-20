@@ -457,6 +457,38 @@ describe("monitors trpc", () => {
       ).rejects.toThrow(/monitor-count/i);
     });
 
+    it("does not admit more monitors than the limit under concurrent requests", async () => {
+      // Counting outside a transaction lets concurrent requests all observe
+      // the same pre-insert count and all pass the check, so the limit only
+      // holds if the count-check-create sequence is serialized.
+      const { project, caller } = await prepare();
+      // Seed up to one seat below the limit, so exactly one of the concurrent
+      // requests may succeed — otherwise a race that admits `monitorLimit`
+      // rows would satisfy the limit by coincidence.
+      await seedMonitors(caller, project.id, monitorLimit - 1);
+
+      const results = await Promise.allSettled(
+        Array.from({ length: 5 }, (_, i) =>
+          caller.monitors.create({
+            ...validMonitorInput(project.id),
+            name: `Concurrent monitor ${i + 1}`,
+          }),
+        ),
+      );
+
+      const created = await prisma.monitor.count({
+        where: { projectId: project.id },
+      });
+      expect(created).toBe(monitorLimit);
+
+      const rejected = results.filter((r) => r.status === "rejected");
+      expect(results.length - rejected.length).toBe(1);
+      // every loser lost to the limit check, not to an incidental error
+      for (const result of rejected) {
+        expect(String(result.reason)).toMatch(/monitor-count/i);
+      }
+    }, 25_000);
+
     it("counts monitors with non-ACTIVE status toward the limit", async () => {
       const { project, caller } = await prepare();
       await seedMonitors(caller, project.id, monitorLimit);

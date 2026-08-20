@@ -44,7 +44,9 @@ export default function Generations() {
         title: "Tracing",
         // Match traces/index.tsx: no delay badge while onboarding tells the
         // user to set up tracing for the first time.
-        titleBadges: showOnboarding ? undefined : <V4MigrationDelayBadge />,
+        titleBadges: showOnboarding ? undefined : (
+          <V4MigrationDelayBadge page="observations" />
+        ),
         help: {
           description:
             "An observation captures a single function call in an application. See docs to learn more.",

@@ -8,6 +8,10 @@ import Head from "next/head";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
+import {
+  clearV4BetaEnabledSentryTag,
+  setV4BetaEnabledSentryTag,
+} from "@/src/utils/sentryV4BetaTag";
 import { useSession } from "next-auth/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -103,6 +107,8 @@ if (
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
     session_recording: {
+      maskAllInputs: true,
+      maskTextSelector: "*",
       maskCapturedNetworkRequestFn(request) {
         request.requestBody = request.requestBody ? "REDACTED" : undefined;
         request.responseBody = request.responseBody ? "REDACTED" : undefined;
@@ -250,16 +256,18 @@ function UserTracking() {
         });
       }
 
-      // Sentry
+      // Sentry — user identity stays on setUser; v4 is a boolean tag only
       setUser({
         email: sessionUser.email ?? undefined,
         id: sessionUser.id ?? undefined,
       });
+      setV4BetaEnabledSentryTag(sessionUser.v4BetaEnabled);
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
       posthog.unregister(V4_BETA_ENABLED_POSTHOG_PROPERTY);
       // Sentry
       setUser(null);
+      clearV4BetaEnabledSentryTag();
     }
   }, [sessionUser, session.status, region]);
 
