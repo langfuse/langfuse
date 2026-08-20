@@ -97,9 +97,9 @@ describe("Ask AI filter generation access", () => {
     await prisma.organization.deleteMany({ where: { id: { in: __orgIds } } });
   });
 
-  // The org's `aiFeaturesEnabled` is off, so both calls still fail on the
-  // org-level AI gate right after the RBAC check — no LLM is reached. Only
-  // the RBAC verdict is asserted here.
+  // The org's `aiFeaturesEnabled` is off, so the v4 call still fails on the
+  // org-level AI gate right after RBAC. The leftover wand is Cloud-only and
+  // may fail that gate first. Only the RBAC verdict is asserted here.
   it("lets a VIEWER through the RBAC gate on both endpoints", async () => {
     const { project, caller } = await prepare("VIEWER");
 
@@ -140,7 +140,7 @@ describe("Ask AI filter generation access", () => {
     ).rejects.toThrow(NO_ACCESS);
   });
 
-  it("generates Ask AI filters on self-hosted without a tracing project", async () => {
+  it("generates Ask AI on self-hosted and keeps Filter with AI Cloud-only", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
@@ -167,6 +167,16 @@ describe("Ask AI filter generation access", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
       });
+
+      await expect(
+        caller.naturalLanguageFilters.createCompletion({
+          projectId: project.id,
+          prompt: "traces from today",
+        }),
+      ).rejects.toThrow(
+        "Natural language filtering is not available in self-hosted deployments.",
+      );
+      expect(llmMocks.generateLLMText).not.toHaveBeenCalled();
 
       await expect(
         caller.searchBar.generateFilter({

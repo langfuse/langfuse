@@ -270,7 +270,8 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
 
 The bar is also the home of AI-assisted filtering on v4 (it replaces the legacy
 sidebar "✨ wand" — `EventsTable` now passes `filterWithAI={!searchBarMode}`, so
-the wand only survives on non-bar/embedded surfaces and the v3 traces table).
+the wand only survives on Cloud, on non-bar/embedded surfaces and the leftover
+traces table). Self-hosted uses Ask AI on this bar only.
 
 - **Entry.** The **"Ask AI"** affordance opens AI mode — a plain button placed
   AFTER the field in DOM order, always available (build from scratch OR refine

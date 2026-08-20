@@ -67,6 +67,7 @@ import {
   InputCommandList,
 } from "@/src/components/ui/input-command";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { openAIFeaturesSettings } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 
 /**
@@ -120,6 +121,7 @@ export function PopoverFilterBuilder({
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { organization } = useQueryProject();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const createFilterMutation =
     api.naturalLanguageFilters.createCompletion.useMutation();
   const [wipFilterState, _setWipFilterState] =
@@ -229,23 +231,24 @@ export function PopoverFilterBuilder({
       return newState;
     });
   };
-  const aiFilter = filterWithAI
-    ? {
-        organizationId: organization?.id,
-        aiFeaturesEnabled: organization?.aiFeaturesEnabled === true,
-        isPending: createFilterMutation.isPending,
-        generateFilters: async (prompt: string) => {
-          if (!projectId) return null;
-          const result = await createFilterMutation.mutateAsync({
-            projectId,
-            prompt,
-          });
-          return result && Array.isArray(result.filters)
-            ? (result.filters as WipFilterState)
-            : null;
-        },
-      }
-    : undefined;
+  const aiFilter =
+    filterWithAI && isLangfuseCloud
+      ? {
+          organizationId: organization?.id,
+          aiFeaturesEnabled: organization?.aiFeaturesEnabled === true,
+          isPending: createFilterMutation.isPending,
+          generateFilters: async (prompt: string) => {
+            if (!projectId) return null;
+            const result = await createFilterMutation.mutateAsync({
+              projectId,
+              prompt,
+            });
+            return result && Array.isArray(result.filters)
+              ? (result.filters as WipFilterState)
+              : null;
+          },
+        }
+      : undefined;
 
   return (
     <div className="flex items-center">

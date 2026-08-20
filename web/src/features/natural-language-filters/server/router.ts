@@ -32,6 +32,17 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           scope: "project:read",
         });
 
+        // Leftover table-wand path: still Cloud-only. It needs the managed
+        // `get-filter-conditions-from-query` prompt and has no bundled fallback.
+        // v4 Ask AI (`searchBar.generateFilter`) is the self-hosted path.
+        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Natural language filtering is not available in self-hosted deployments.",
+          });
+        }
+
         const project = await ctx.prisma.project.findUnique({
           where: { id: input.projectId },
           select: {
