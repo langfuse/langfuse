@@ -281,10 +281,17 @@ export async function createProjectMembershipsOnSignup(
     }
 
     // for conversion metric tracking in posthog: did a new user sign up?
+    // Fires on all production cloud regions, including ones added in the
+    // future. STAGING/DEV are excluded to keep test signups out of
+    // conversion metrics, HIPAA is excluded deliberately to keep product
+    // analytics off that deployment, and self-hosted deployments never emit
+    // this event as the region env is unset.
     if (
       isNewUser &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      ["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+      !["STAGING", "DEV", "HIPAA"].includes(
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      )
     ) {
       try {
         const posthog = new ServerPosthog();
