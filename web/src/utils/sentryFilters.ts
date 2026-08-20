@@ -26,6 +26,14 @@ export const HTTP_CLIENT_NOISE_PATHS = [
   "/api/public/ready", // readiness probe (infra-only)
 ] as const;
 
+function isHttpClientIntegrationEvent(event: ErrorEvent): boolean {
+  const mechanismType = event.exception?.values?.[0]?.mechanism?.type;
+  return (
+    typeof mechanismType === "string" &&
+    mechanismType.startsWith("auto.http.client")
+  );
+}
+
 /**
  * True only for events created by `httpClientIntegration` (exception mechanism
  * `auto.http.client.fetch` / `auto.http.client.xhr`) whose request URL targets
@@ -35,9 +43,10 @@ export const HTTP_CLIENT_NOISE_PATHS = [
  * never drop:
  *  - a genuine thrown exception or a captured console error (different / no
  *    mechanism), or
- *  - a 5xx on any real API/tRPC endpoint — e.g. `/api/trpc/...`,
- *    `/api/public/traces`, `/api/public/ingestion` — those are not in the noise
- *    list and keep flowing to Sentry.
+ *  - an application 5xx (HTTP 500, etc.) on a real API/tRPC endpoint —
+ *    `/api/trpc/...`, `/api/public/traces`, `/api/public/ingestion`. Gateway
+ *    statuses 502/503/504 on those same URLs are dropped by
+ *    {@link isNoisyHttpClientGatewayEvent}, not this poll-path filter.
  *
  * This does not hide real outages: a genuine `/api/auth/session` 5xx is still
  * observable server-side via request tracing/APM spans and application logs, and
@@ -46,11 +55,7 @@ export const HTTP_CLIENT_NOISE_PATHS = [
  * of that same failure across thousands of browsers.
  */
 export function isNoisyHttpClientPollEvent(event: ErrorEvent): boolean {
-  const mechanismType = event.exception?.values?.[0]?.mechanism?.type;
-  const isHttpClientEvent =
-    typeof mechanismType === "string" &&
-    mechanismType.startsWith("auto.http.client");
-  if (!isHttpClientEvent) return false;
+  if (!isHttpClientIntegrationEvent(event)) return false;
 
   const requestUrl = event.request?.url;
   if (typeof requestUrl !== "string") return false;
@@ -66,6 +71,61 @@ export function isNoisyHttpClientPollEvent(event: ErrorEvent): boolean {
   }
 
   return HTTP_CLIENT_NOISE_PATHS.some((noisePath) => path.endsWith(noisePath));
+}
+
+/**
+ * Proxy / load-balancer statuses that mean the browser reached an edge (ALB,
+ * nginx, Cloudflare) which could not get a response from our app: Bad Gateway,
+ * Service Unavailable, Gateway Timeout. Our tRPC handlers do not produce these
+ * — application failures serialize as JSON with HTTP 500 (`INTERNAL_SERVER_ERROR`).
+ *
+ * `httpClientIntegration` still reports them as unhandled
+ * `HTTP Client Error with status code: N`. The tRPC seam already treats the
+ * matching HTML-body parse failure as transport noise
+ * (`isTrpcResponseParseError` in `api.ts`); this predicate drops the duplicate
+ * httpClient copy so one LB blip does not mint a Sentry issue (LANGFUSE-5ZR).
+ *
+ * True only for `auto.http.client.*` events whose status is 502, 503, or 504.
+ * Never drops:
+ *  - a genuine thrown exception or console error (different / no mechanism);
+ *  - an application HTTP 500 (or any non-gateway 5xx) on tRPC or the public API
+ *    — those still flow, and JSON 5xx are also captured at `handleTrpcError`.
+ *
+ * Real outages remain observable server-side via request tracing/APM spans and
+ * logs. This only removes the client-side amplification.
+ */
+const HTTP_CLIENT_GATEWAY_STATUSES: ReadonlySet<number> = new Set([
+  502, 503, 504,
+]);
+
+const HTTP_CLIENT_STATUS_MESSAGE =
+  /^HTTP Client Error with status code: (\d+)$/;
+
+function readHttpClientStatus(event: ErrorEvent): number | undefined {
+  const responseContext = event.contexts?.response;
+  if (
+    responseContext &&
+    typeof responseContext === "object" &&
+    "status_code" in responseContext &&
+    typeof responseContext.status_code === "number"
+  ) {
+    return responseContext.status_code;
+  }
+
+  const text =
+    event.exception?.values?.[0]?.value ??
+    event.message ??
+    event.logentry?.message;
+  if (typeof text !== "string") return undefined;
+  const match = HTTP_CLIENT_STATUS_MESSAGE.exec(text.trim());
+  if (!match) return undefined;
+  return Number(match[1]);
+}
+
+export function isNoisyHttpClientGatewayEvent(event: ErrorEvent): boolean {
+  if (!isHttpClientIntegrationEvent(event)) return false;
+  const status = readHttpClientStatus(event);
+  return status !== undefined && HTTP_CLIENT_GATEWAY_STATUSES.has(status);
 }
 
 /**

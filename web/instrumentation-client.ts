@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
+  isNoisyHttpClientGatewayEvent,
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
@@ -30,10 +31,16 @@ Sentry.init({
     // 5xx fetch/XHR as an unhandled "HTTP Client Error"; the NextAuth session
     // poll (/api/auth/session, every 5 min + on window focus) dominates this and
     // creates huge false-positive issues. Only the known poll/health endpoints
-    // are dropped — genuine 5xx on real API/tRPC endpoints are kept, and a real
-    // session outage is still observable server-side via request tracing/APM
-    // spans and application logs.
+    // are dropped here — application 5xx on real API/tRPC endpoints are kept.
     if (isNoisyHttpClientPollEvent(event)) {
+      return null;
+    }
+
+    // Drop httpClient 502/503/504 (ALB/nginx/Cloudflare could not reach the
+    // app). The tRPC seam already breadcrumbs the matching HTML-body parse
+    // failure; this removes the duplicate unhandled HTTP Client Error. HTTP 500
+    // on tRPC/public API is kept. See isNoisyHttpClientGatewayEvent.
+    if (isNoisyHttpClientGatewayEvent(event)) {
       return null;
     }
 
