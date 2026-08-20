@@ -32,7 +32,7 @@ import {
   type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
@@ -74,10 +74,14 @@ export function AnnotationQueueFormDialogContent({
     resolver: zodResolver(CreateQueueWithAssignmentsData),
     defaultValues: initialValues,
   });
+  const queueNameOptions = useMemo(
+    () => queueNames.map((name) => ({ value: name })),
+    [queueNames],
+  );
 
   useUniqueNameValidation({
     currentName: form.watch("name"),
-    allNames: queueNames.map((name) => ({ value: name })),
+    allNames: queueNameOptions,
     form,
     errorMessage: "Queue name already exists.",
   });

@@ -1,7 +1,7 @@
 import preview from "../../../../.storybook/preview";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { type ScoreConfigDomain } from "@langfuse/shared";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { AnnotationQueueFormDialogContent } from "./AnnotationQueueFormDialogContent";
 
@@ -37,6 +37,7 @@ const meta = preview.meta({
 });
 
 export const Create = meta.story({
+  name: "(Test) Create",
   render: () => {
     return (
       <Dialog open onOpenChange={fn()}>
@@ -60,6 +61,15 @@ export const Create = meta.story({
         </DialogContent>
       </Dialog>
     );
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      await body.findByRole("button", { name: /Select.*Helpfulness/ }),
+    );
+
+    await expect(body.getByPlaceholderText("Value")).toBeVisible();
   },
 });
 
