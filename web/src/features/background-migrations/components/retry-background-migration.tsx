@@ -59,6 +59,7 @@ export function RetryBackgroundMigrationPopoverController({
       align="center"
       contentClassName="w-96"
       disabled={!isRetryable}
+      modal={false}
       renderContent={({ closePopover }) => (
         <>
           <h2 className="mb-3 font-bold">Retry Background Migration</h2>

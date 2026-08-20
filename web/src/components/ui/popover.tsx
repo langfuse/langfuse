@@ -14,6 +14,8 @@ const Popover = PopoverPrimitive.Root;
 
 const PopoverTrigger = PopoverPrimitive.Trigger;
 
+const PopoverAnchor = PopoverPrimitive.Anchor;
+
 const PopoverContent = React.forwardRef<
   React.ComponentRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
@@ -71,10 +73,13 @@ type PopoverControllerProps = {
   children: (control: {
     disabled: boolean;
     isOpen: boolean;
+    openPopover: () => void;
+    Anchor: typeof PopoverAnchor;
     Trigger: typeof PopoverTrigger;
   }) => React.ReactNode;
   contentClassName: string;
   disabled: boolean;
+  modal: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   renderContent: (control: { closePopover: () => void }) => React.ReactNode;
 };
@@ -84,6 +89,7 @@ const PopoverController = ({
   children,
   contentClassName,
   disabled,
+  modal,
   onOpenChange,
   renderContent,
 }: PopoverControllerProps) => {
@@ -96,8 +102,14 @@ const PopoverController = ({
   };
 
   return (
-    <Popover open={isOpen} onOpenChange={handleOpenChange}>
-      {children({ disabled, isOpen, Trigger: PopoverTrigger })}
+    <Popover modal={modal} open={isOpen} onOpenChange={handleOpenChange}>
+      {children({
+        disabled,
+        isOpen,
+        openPopover: () => handleOpenChange(true),
+        Anchor: PopoverAnchor,
+        Trigger: PopoverTrigger,
+      })}
       <PopoverContent
         align={align}
         className={contentClassName}
@@ -110,8 +122,6 @@ const PopoverController = ({
 };
 
 const PopoverClose = PopoverPrimitive.Close;
-
-const PopoverAnchor = PopoverPrimitive.Anchor;
 
 export {
   Popover,

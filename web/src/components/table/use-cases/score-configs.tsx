@@ -30,7 +30,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { ArchiveScoreConfigPopoverController } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
 import { UpsertScoreConfigDialog } from "@/src/features/score-configs/components/UpsertScoreConfigDialog";
-import { PopoverAnchor } from "@/src/components/ui/popover";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -188,15 +187,15 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
             isArchived={isArchived}
             name={name}
           >
-            {({ disabled, Trigger }) => (
+            {({ Anchor, disabled, openPopover }) => (
               <DropdownMenu>
-                <PopoverAnchor asChild>
+                <Anchor asChild>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost">
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                </PopoverAnchor>
+                </Anchor>
                 <DropdownMenuContent>
                   <DropdownMenuItem
                     key={configId}
@@ -206,17 +205,16 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                     <Edit className="mr-2 h-4 w-4" />
                     Edit
                   </DropdownMenuItem>
-                  <Trigger asChild>
-                    <DropdownMenuItem
-                      key="archive"
-                      disabled={disabled !== undefined}
-                      title={disabled?.reason}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <Archive className="mr-2 h-4 w-4" />
-                      Archive
-                    </DropdownMenuItem>
-                  </Trigger>
+                  <DropdownMenuItem
+                    key="archive"
+                    disabled={disabled !== undefined}
+                    title={disabled?.reason}
+                    onClick={(event) => event.stopPropagation()}
+                    onSelect={openPopover}
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    Archive
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

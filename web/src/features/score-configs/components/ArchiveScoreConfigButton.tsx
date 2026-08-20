@@ -49,6 +49,7 @@ export const ArchiveScoreConfigPopoverController = ({
       align="center"
       contentClassName="max-w-[500px]"
       disabled={disabled !== undefined}
+      modal
       onOpenChange={(isOpen) => {
         if (isOpen && hasAccess) {
           capture("score_configs:archive_form_open");
@@ -88,7 +89,9 @@ export const ArchiveScoreConfigPopoverController = ({
         </>
       )}
     >
-      {({ isOpen, Trigger }) => children({ disabled, isOpen, Trigger })}
+      {({ Anchor, isOpen, openPopover, Trigger }) =>
+        children({ disabled, isOpen, openPopover, Anchor, Trigger })
+      }
     </PopoverController>
   );
 };
