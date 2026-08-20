@@ -79,6 +79,12 @@ const outputMessages = [
         type: "reasoning",
         content: "Looking into the RAG integration documentation.",
       },
+      // Reasoning-generated file (AI SDK reasoning-file part).
+      {
+        type: "reasoning-file",
+        data: { type: "url", url: "https://example.com/scratchpad.png" },
+        mediaType: "image/png",
+      },
       {
         type: "tool_call",
         id: outputToolCallId,
@@ -215,6 +221,13 @@ export const vercelAiSdkOutputToolCallFixture = {
               kind: "text",
               text: "Looking into the RAG integration documentation.",
             },
+          },
+          {
+            type: "file",
+            mediaType: "image/png",
+            content: { kind: "url", url: "https://example.com/scratchpad.png" },
+            // Reasoning provenance rides as a known flag, not a part type.
+            providerMetadata: { reasoning: true },
           },
           {
             type: "tool-call",

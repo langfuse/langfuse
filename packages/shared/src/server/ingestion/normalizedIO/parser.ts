@@ -14,6 +14,7 @@ import type {
   NormalizedMessage,
   NormalizedMessagePart,
   NormalizedMessageRole,
+  PartProviderMetadata,
   ReasoningPart,
   SpanIO,
   ToolCallPart,
@@ -121,9 +122,11 @@ function parseArray(value: unknown): unknown[] | undefined {
 
 function toProviderMetadata(
   entries: Record<string, unknown>,
-): JsonObject | undefined {
+): PartProviderMetadata | undefined {
   const value = toJsonValue(entries);
-  return isRecord(value) && Object.keys(value).length > 0 ? value : undefined;
+  return isRecord(value) && Object.keys(value).length > 0
+    ? (value as PartProviderMetadata)
+    : undefined;
 }
 
 /** Strip undefined-valued keys so optional fields are absent, not undefined. */
@@ -738,6 +741,29 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
       const reasoning =
         value.text ?? value.content ?? value.thinking ?? value.summary;
       return reasoningPart(reasoning);
+    }
+    case "reasoning-file": {
+      // AI SDK reasoning-generated file: a regular file part flagged as
+      // reasoning output (KnownPartFlags), not a separate part type — it is
+      // still a file to every consumer; its origin is provenance.
+      const data = asRecord(value.data);
+      const payload = optionalString(data?.data ?? data?.url ?? value.data);
+      if (!payload) break;
+      const reference = parseMediaReference(payload);
+      if (reference) {
+        return filePartFromMediaReference(reference, { reasoning: true });
+      }
+      // Tagged {type: "url"|"data"} shapes; bare strings are raw bytes unless
+      // they read as a fetchable URL.
+      const isUrl = data ? data.type === "url" : /^https?:/.test(payload);
+      return compact<FilePart>({
+        type: "file",
+        mediaType: optionalString(value.mediaType),
+        content: isUrl
+          ? { kind: "url", url: payload }
+          : { kind: "base64", data: payload },
+        providerMetadata: { reasoning: true },
+      });
     }
     case "tool_call":
     case "tool-call":

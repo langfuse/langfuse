@@ -17,8 +17,30 @@ export type JsonObject = { [key: string]: JsonValue };
 
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 
+/**
+ * Well-known semantic flags carried in part providerMetadata, typed for
+ * discoverability and drift protection. Flags live here instead of dedicated
+ * part types: the part type encodes what a consumer can do with a part
+ * (render text, resolve media, count tool calls); these flags carry
+ * provenance to render as metadata, without every consumer growing new
+ * switch arms. Promote a flag to a real part type only when a product
+ * surface treats it fundamentally differently — promotion is cheap,
+ * demotion breaks consumers.
+ */
+export type KnownPartFlags = {
+  /** Text is a model refusal. */
+  refusal?: true;
+  /** Part was produced as reasoning output (e.g. AI SDK reasoning-file). */
+  reasoning?: true;
+};
+
+/** Known flags plus free-form provider values. */
+export type PartProviderMetadata = KnownPartFlags & {
+  [key: string]: JsonValue | undefined;
+};
+
 export type NormalizedPartBase = {
-  providerMetadata?: JsonObject;
+  providerMetadata?: PartProviderMetadata;
 };
 
 export type TextPart = NormalizedPartBase & {
