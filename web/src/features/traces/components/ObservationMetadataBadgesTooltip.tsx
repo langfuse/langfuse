@@ -5,22 +5,31 @@
 
 import { type ObservationType, isGenerationLike } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
-import { BreakdownTooltip } from "@/src/features/traces/components/_shared/BreakdownToolTip";
+import {
+  BreakdownTooltip,
+  type PriceSource,
+} from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
 import { InfoIcon } from "lucide-react";
 
 export function CostBadge({
   totalCost,
   costDetails,
+  priceSource,
 }: {
   totalCost: number | null;
   costDetails: Record<string, number> | undefined;
+  priceSource?: PriceSource;
 }) {
   // Don't show if no cost data or cost is 0
   if (totalCost == null || totalCost === 0 || !costDetails) return null;
 
   return (
-    <BreakdownTooltip details={costDetails} isCost={true}>
+    <BreakdownTooltip
+      details={costDetails}
+      isCost={true}
+      priceSource={priceSource}
+    >
       <Badge variant="tertiary" className="flex items-center gap-1">
         <span>{usdFormatter(totalCost)}</span>
         <InfoIcon className="h-3 w-3" />

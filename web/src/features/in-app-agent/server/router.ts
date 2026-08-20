@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   InvalidRequestError,
+  resolveInAppAgentRootRunId,
   ScoreDataTypeEnum,
   ScoreSourceEnum,
   TEXT_SCORE_MAX_LENGTH,
@@ -11,14 +12,16 @@ import {
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
 } from "@langfuse/shared/in-app-agent";
-import { InAppAgentMessageFeedbackValueSchema } from "@langfuse/shared/in-app-agent";
-import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
+import { InAppAgentMessageFeedbackValueSchema } from "../schema";
+import {
+  assertInAppAgentAvailable,
+  assertInAppAgentModelConfigured,
+} from "@/src/features/in-app-agent/server/availability";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -37,7 +40,9 @@ import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
+  deleteBackgroundConversation,
   getBackgroundConversationSnapshot,
+  serializeConversationLatestRun,
   startBackgroundRun,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
 
@@ -61,9 +66,8 @@ const RenameConversationInput = ConversationIdInput.extend({
 const StartRunInput = ConversationIdInput.extend({
   message: z.string().trim().min(1).max(MAX_IN_APP_AGENT_MESSAGE_LENGTH),
   /**
-   * The same AG-UI context array the foreground path sends (current page, the
-   * quick action and entry point that triggered the turn); resolved and
-   * sanitized server-side, then stored on the run for the worker to replay.
+   * The AG-UI context for the current page, quick action, and entry point;
+   * resolved and sanitized server-side, then stored for the worker to replay.
    */
   context: z.array(AgUiContextSchema).default([]),
 });
@@ -76,6 +80,11 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
   runId: z.string(),
   toolCallId: z.string(),
   approved: z.boolean(),
+  // "conversation" also approves this call; it never means approve-without-run.
+  approvalScope: z.enum(["once", "conversation"]).default("once"),
+}).refine((input) => input.approved || input.approvalScope === "once", {
+  message: "A rejection cannot grant a tool",
+  path: ["approvalScope"],
 });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
@@ -89,14 +98,10 @@ const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
 const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
-  // Deployment config, not agent access, so no availability assert: an org
-  // without the entitlement should get an answer rather than an error.
-  getExecutionMode: protectedProjectProcedureWithoutTracing
-    .input(z.object({ projectId: z.string() }))
-    .query(() => ({
-      mode: sharedEnv.LANGFUSE_IN_APP_AGENT_EXECUTION_MODE,
-    })),
-
+  // Each row carries its newest run summary for the activity poll and badges.
+  // Activity clients request the newest page only (see
+  // IN_APP_AGENT_ACTIVITY_LIST_LIMIT); quieter conversations outside that
+  // window are an accepted attention gap for now.
   listConversations: protectedProjectProcedure
     .input(
       z.object({
@@ -131,15 +136,37 @@ export const inAppAgentRouter = createTRPCRouter({
         },
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take: input.limit + 1,
+        relationLoadStrategy: "join",
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          updatedAt: true,
+          runs: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              errorCode: true,
+              cancelRequestedAt: true,
+              createdAt: true,
+              claimedAt: true,
+              heartbeatAt: true,
+              finishedAt: true,
+            },
+          },
+        },
       });
 
       const page = conversations.slice(0, input.limit);
       const lastConversation = page.at(-1);
 
       return {
-        conversations: page.map((conversation) =>
-          serializeConversation(conversation),
-        ),
+        conversations: page.map((conversation) => ({
+          ...serializeConversation(conversation),
+          latestRun: serializeConversationLatestRun(conversation.runs[0]),
+        })),
         nextCursor:
           conversations.length > input.limit && lastConversation
             ? {
@@ -170,8 +197,8 @@ export const inAppAgentRouter = createTRPCRouter({
   /**
    * Submit a turn for background execution.
    *
-   * Runs the same validation chain as the foreground route, then commits the
-   * run as QUEUED with its user message already appended — the events table is
+   * Validates the request, then commits the run as QUEUED with its user message
+   * already appended — the events table is
    * the render source from the instant of submit, so there is no optimistic UI
    * state to survive a refresh. The BullMQ enqueue happens after commit; a
    * failure there marks the run FAILED immediately rather than leaving a
@@ -185,6 +212,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
+      assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -244,6 +272,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
+      assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -269,6 +298,7 @@ export const inAppAgentRouter = createTRPCRouter({
         runId: input.runId,
         toolCallId: input.toolCallId,
         approved: input.approved,
+        approvalScope: input.approvalScope,
         userId: ctx.session.user.id,
         model: env.LANGFUSE_AWS_BEDROCK_MODEL,
       });
@@ -283,27 +313,12 @@ export const inAppAgentRouter = createTRPCRouter({
         user: ctx.session.user,
       });
 
-      await getOwnedConversationOrThrow({
+      return deleteBackgroundConversation({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
       });
-
-      await ctx.prisma.inAppAgentConversation.update({
-        where: {
-          id_projectId: {
-            id: input.conversationId,
-            projectId: input.projectId,
-          },
-        },
-        data: {
-          providerSessionId: null,
-          deletedAt: new Date(),
-        },
-      });
-
-      return { success: true };
     }),
 
   renameConversation: protectedProjectProcedureWithoutTracing
@@ -391,15 +406,26 @@ export const inAppAgentRouter = createTRPCRouter({
       const scoreProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
       if (projectAvailability.aiTelemetryEnabled && scoreProjectId) {
+        // Approval continuations trace onto the root run, so score the root too.
+        const run = await ctx.prisma.inAppAgentRun.findUnique({
+          where: {
+            id_projectId: { id: input.runId, projectId: input.projectId },
+          },
+          select: { request: true },
+        });
+        const telemetryRunId = resolveInAppAgentRootRunId(
+          run?.request,
+          input.runId,
+        );
+
         await upsertScore({
           id: scoreId,
           timestamp: convertDateToClickhouseDateTime(now),
           project_id: scoreProjectId,
           environment: IN_APP_AGENT_FEEDBACK_ENVIRONMENT,
-          trace_id: getInAppAgentInstrumentationTraceId(input.runId),
-          observation_id: getInAppAgentInstrumentationObservationId(
-            input.runId,
-          ),
+          trace_id: getInAppAgentInstrumentationTraceId(telemetryRunId),
+          observation_id:
+            getInAppAgentInstrumentationObservationId(telemetryRunId),
           session_id: input.conversationId,
           name: IN_APP_AGENT_FEEDBACK_SCORE_NAME,
           value: input.value === "thumbs_up" ? 1 : 0,

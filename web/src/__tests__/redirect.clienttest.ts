@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import { env } from "@/src/env.mjs";
 

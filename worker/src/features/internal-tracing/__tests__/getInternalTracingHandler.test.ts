@@ -8,14 +8,10 @@ const { mockExportLocalEvents, mockProcessEventBatch, mockWrite } = vi.hoisted(
   }),
 );
 
-vi.mock("langfuse-langchain", () => {
+vi.mock("langfuse", () => {
   return {
-    default: class MockCallbackHandler {
-      public langfuse = {
-        _exportLocalEvents: mockExportLocalEvents,
-      };
-
-      constructor(_params: Record<string, unknown>) {}
+    Langfuse: class MockLangfuse {
+      public _exportLocalEvents = mockExportLocalEvents;
     },
   };
 });

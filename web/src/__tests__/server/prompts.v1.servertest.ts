@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
 import { type Prompt, PromptType } from "@langfuse/shared";
@@ -10,6 +10,7 @@ import {
   createOrgProjectAndApiKey,
   getObservationById,
 } from "@langfuse/shared/src/server";
+import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 
 describe("/api/public/prompts API Endpoint", () => {
   let auth: string;
@@ -24,6 +25,42 @@ describe("/api/public/prompts API Endpoint", () => {
     const setup = await createOrgProjectAndApiKey();
     auth = setup.auth;
     projectId = setup.projectId;
+  });
+
+  it("keeps prompt version conflicts as invalid public API requests", async () => {
+    const transactionSpy = vi
+      .spyOn(prisma, "$transaction")
+      .mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError(
+          "Unique constraint failed on the fields: (`project_id`,`name`,`version`)",
+          {
+            code: "P2002",
+            clientVersion: "test",
+            meta: { target: ["project_id", "name", "version"] },
+          },
+        ),
+      );
+
+    try {
+      await expect(
+        createPromptForApi({
+          context: {
+            projectId,
+            orgId: "test-org",
+            apiKeyId: "test-api-key",
+          },
+          input: {
+            name: "concurrent-prompt",
+            prompt: "test",
+            type: PromptType.Text,
+            labels: [],
+            config: {},
+          },
+        }),
+      ).rejects.toMatchObject({ httpCode: 400 });
+    } finally {
+      transactionSpy.mockRestore();
+    }
   });
 
   it("should fetch a prompt", async () => {

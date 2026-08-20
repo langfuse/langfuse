@@ -129,6 +129,28 @@ export const viewsV2 = z.enum([
   "scores-boolean",
 ]);
 
+/**
+ * Internal-only view name (see `dataModel.ts`), deliberately NOT a member of
+ * `views`/`viewsV2` — those are iterated by the public metrics API and the
+ * widget-builder view picker, and this powers only one internal call site.
+ * Unioned onto the internal `query` schema below instead.
+ */
+export const SCORES_LISTABLE_COUNT_VIEW = "scores-listable-count" as const;
+
+/**
+ * Persisted dashboard-widget view ids → query view ids. Lives here (not with
+ * the server-only DashboardService types) so client code can classify a stored
+ * widget; DashboardService's Prisma-keyed map is this constant, so the two
+ * cannot drift.
+ */
+export const persistedWidgetViewToQueryView = {
+  TRACES: "traces",
+  OBSERVATIONS: "observations",
+  SCORES_NUMERIC: "scores-numeric",
+  SCORES_BOOLEAN: "scores-boolean",
+  SCORES_CATEGORICAL: "scores-categorical",
+} as const satisfies Record<string, z.infer<typeof views>>;
+
 export const viewVersions = z.enum(["v1", "v2"]);
 export type ViewVersion = z.infer<typeof viewVersions>;
 
@@ -182,7 +204,11 @@ export type QueryType = z.infer<typeof query>;
 
 export const query = z
   .object({
-    view: views,
+    // See `SCORES_LISTABLE_COUNT_VIEW`'s doc comment: unioned on here (the
+    // internal query schema) rather than added to `views` itself, so it
+    // stays out of the public metrics API and the widget-builder view
+    // picker, both of which read `views`/`viewsV2` directly.
+    view: z.union([views, z.literal(SCORES_LISTABLE_COUNT_VIEW)]),
     dimensions: z.array(dimension),
     metrics: z.array(metric),
     filters: z.array(singleFilter),

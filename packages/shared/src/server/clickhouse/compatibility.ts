@@ -4,21 +4,28 @@ import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/
 import { VERSION } from "../../constants/VERSION";
 import { env } from "../../env";
 import { logger } from "../logger";
-import {
-  compareParsedVersions,
-  parseVersionString,
-  type ParsedVersion,
-} from "../utils/compareVersions";
+import { compareParsedVersions } from "../utils/compareVersions";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 
-export type ClickHouseVersion = ParsedVersion;
+type ClickHouseVersionTuple = readonly [number, number, number, number];
+
+export type ClickHouseVersion = {
+  raw: string;
+  major: number;
+  minor: number;
+  patch: number;
+  build: number;
+  tuple: ClickHouseVersionTuple;
+};
 
 export type ClickHouseVersionBand = {
   minInclusive: string;
   maxExclusive?: string;
 };
 
-type ClickHouseCompatibilityEnvKey = "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION";
+type ClickHouseCompatibilityEnvKey =
+  | "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION"
+  | "CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN";
 
 type ClickHouseCompatibilityEnvValue = "auto" | "true" | "false";
 
@@ -58,13 +65,27 @@ type ResolvedClickHouseCompatibility = {
 
 const CLICKHOUSE_COMPATIBILITY_RULES: ClickHouseCompatibilityRule[] = [
   {
-    id: "disable-lazy-materialization",
+    id: "disable-lazy-materialization-for-patch-parts",
     setting: "query_plan_optimize_lazy_materialization",
     value: 0,
     reason:
-      "Work around ClickHouse analyzer failures that can surface as `Not found column and(...)` on compound predicates.",
-    versionBands: [{ minInclusive: "25.4.0" }],
+      "Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts.",
+    versionBands: [{ minInclusive: "25.4.0.0", maxExclusive: "26.4.1.1005" }],
     overrideEnvKey: "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION",
+  },
+  {
+    id: "disable-top-k-through-join",
+    setting: "query_plan_top_k_through_join",
+    value: 0,
+    reason:
+      "Work around ClickHouse #109210, where top-K-through-join can leave lazy materialization with a dangling filter input.",
+    versionBands: [
+      { minInclusive: "26.5.1.651", maxExclusive: "26.5.6.70" },
+      { minInclusive: "26.6.0.0", maxExclusive: "26.6.2.108" },
+      { minInclusive: "26.7.0.0", maxExclusive: "26.7.1.1334" },
+      { minInclusive: "26.7.2.0", maxExclusive: "26.7.2.11" },
+    ],
+    overrideEnvKey: "CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN",
   },
 ];
 
@@ -73,15 +94,42 @@ let initializationPromise: Promise<void> | null = null;
 
 export const parseClickHouseVersion = (
   rawVersion: string,
-): ClickHouseVersion | null => parseVersionString(rawVersion);
+): ClickHouseVersion | null => {
+  const match = rawVersion
+    .trim()
+    .match(/^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:[.+-].+)?$/);
+  if (!match) return null;
 
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  const build = Number(match[4] ?? 0);
+
+  if (![major, minor, patch, build].every(Number.isSafeInteger)) return null;
+
+  return {
+    raw: rawVersion,
+    major,
+    minor,
+    patch,
+    build,
+    tuple: [major, minor, patch, build],
+  };
+};
+
+const parsedVersionBoundCache = new Map<string, ClickHouseVersion>();
 const parseVersionBound = (version: string): ClickHouseVersion => {
+  const cached = parsedVersionBoundCache.get(version);
+  if (cached) return cached;
+
   const parsed = parseClickHouseVersion(version);
   if (!parsed) {
     throw new Error(
       `Invalid ClickHouse compatibility version bound: ${version}`,
     );
   }
+
+  parsedVersionBoundCache.set(version, parsed);
   return parsed;
 };
 

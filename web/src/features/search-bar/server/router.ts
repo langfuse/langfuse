@@ -80,19 +80,14 @@ export const searchBarRouter = createTRPCRouter({
     .input(GenerateFilterInput)
     .mutation(async ({ input, ctx }) => {
       try {
+        // Generating a filter reads nothing a project member cannot already
+        // read by hand, so membership is the right bar; whether the org uses
+        // AI at all is governed by `aiFeaturesEnabled` below.
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "prompts:CUD",
+          scope: "project:read",
         });
-
-        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message:
-              "AI filter generation is not available in self-hosted deployments.",
-          });
-        }
 
         const project = await ctx.prisma.project.findUnique({
           where: { id: input.projectId },
@@ -134,14 +129,12 @@ export const searchBarRouter = createTRPCRouter({
         const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
         const currentDatetime = `${dayOfWeek}, ${now.toISOString()}`;
 
-        const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
-
-        if (aiTelemetryEnabled && !isLangfuseAITracingConfigured()) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Langfuse AI Features not configured.",
-          });
-        }
+        // Tracing is optional: skip it when the AI-features project is not
+        // configured (the default self-hosted case) rather than failing the
+        // generation. Self-hosted cannot toggle `aiTelemetryEnabled` off.
+        const aiTelemetryEnabled =
+          project.organization.aiTelemetryEnabled &&
+          isLangfuseAITracingConfigured();
 
         // Pre-generated (rather than left to `getLangfuseAITraceSinkParams`'s
         // own default) so this handler OWNS the id: the parse-outcome scores

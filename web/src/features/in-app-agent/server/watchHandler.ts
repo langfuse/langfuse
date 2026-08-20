@@ -1,9 +1,9 @@
 import { BaseError, ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
-import type { InAppAgentWatchFrame } from "@langfuse/shared/in-app-agent";
-import { assertConversationAccess } from "@langfuse/shared/in-app-agent/server/access";
-import { watchConversationFrames } from "@langfuse/shared/in-app-agent/server/watch";
+import { assertOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
+import type { InAppAgentWatchFrame } from "../watchFrames";
+import { watchConversationFrames } from "./watch";
 import { z } from "zod";
 
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
@@ -14,6 +14,7 @@ const WatchQuerySchema = z.object({
   projectId: z.string().min(1),
   conversationId: z.string().min(1),
   cursor: z.coerce.number().int().min(-1).default(-1),
+  openRunId: z.string().min(1).optional(),
 });
 
 export default async function watchHandler(request: Request) {
@@ -26,7 +27,7 @@ export default async function watchHandler(request: Request) {
 
     const user = session.user;
 
-    addUserToSpan({ userId: user.id, email: user.email ?? undefined });
+    addUserToSpan({ userId: user.id });
 
     const url = new URL(request.url);
     const query = WatchQuerySchema.safeParse({
@@ -36,13 +37,14 @@ export default async function watchHandler(request: Request) {
         url.searchParams.get("cursor") ??
         request.headers.get("last-event-id") ??
         -1,
+      openRunId: url.searchParams.get("openRunId") ?? undefined,
     });
 
     if (!query.success) {
       return Response.json({ error: "Invalid watch query" }, { status: 400 });
     }
 
-    const { projectId, conversationId, cursor } = query.data;
+    const { projectId, conversationId, cursor, openRunId } = query.data;
 
     if (!isProjectMemberOrAdmin(user, projectId)) {
       throw new ForbiddenError("User is not a member of this project");
@@ -59,7 +61,7 @@ export default async function watchHandler(request: Request) {
       throw new BaseError("NotFoundError", 404, "Conversation not found", true);
     }
 
-    assertConversationAccess({
+    assertOwnedConversation({
       conversation,
       userId: user.id,
     });
@@ -70,6 +72,7 @@ export default async function watchHandler(request: Request) {
       projectId,
       conversationId,
       cursor,
+      openRunId,
       signal: request.signal,
     });
 
@@ -98,6 +101,7 @@ function createWatchStream(params: {
   projectId: string;
   conversationId: string;
   cursor: number;
+  openRunId?: string;
   signal: AbortSignal;
 }): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -109,6 +113,7 @@ function createWatchStream(params: {
         projectId: params.projectId,
         conversationId: params.conversationId,
         cursor: params.cursor,
+        openRunId: params.openRunId,
         signal: params.signal,
       });
 

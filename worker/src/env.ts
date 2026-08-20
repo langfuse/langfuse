@@ -148,6 +148,9 @@ const EnvSchema = z.object({
   // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports
   // and avoid overwhelming the target instance (see issue #12786).
   LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
+  // Timeout (ms) for each Mixpanel import request, so an unresponsive endpoint
+  // cannot hold the integration job indefinitely (see issue #15958).
+  LANGFUSE_MIXPANEL_TIMEOUT_MS: z.coerce.number().positive().default(30000),
   // Delay (ms) after each PostHog flush. Together with 1,000-event flushes,
   // this bounds the export rate for fast-acknowledging target instances.
   LANGFUSE_POSTHOG_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
@@ -231,11 +234,34 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  // Off by default until the background-execution rollout: the consumer needs
-  // Bedrock/MCP/sandbox config the worker deployment may not carry yet.
+  // Opt-in because only workers provisioned for agent execution should consume
+  // durable runs; ingestion-only workers must leave this disabled.
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  // Reconciles stale runs that nobody reopened. Off by default: one elected
+  // worker per region is enough.
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  // The ambient host profile takes precedence over the agent-specific default
+  // so local developer credentials win when both are configured.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
+    .enum(["dangerous-docker", "lambda-microvm"])
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
+    z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
+    .string()
+    .optional(),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -290,6 +316,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_V4_LEGACY_API_USAGE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -324,10 +353,6 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
 
-  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(10),
   LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE: z.coerce
     .number()
     .positive()
@@ -348,6 +373,12 @@ const EnvSchema = z.object({
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+
+  LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(8),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -534,6 +565,21 @@ const EnvSchema = z.object({
   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
     .enum(["dual_write", "direct"])
     .default("direct"),
+  // Cloud-only rollout boundary for automatic direct OTel event writes.
+  // Organizations created on or after this date are past the point where the v4
+  // preview is force-enabled and cannot be switched off, so the events table is
+  // the only surface they read; their OTLP traffic therefore takes the direct
+  // write even without an `x-langfuse-ingestion-version: 4` header. Applies to
+  // non-Langfuse-SDK exports only — an older SDK keeps its established
+  // dual-write shape. An ISO date (YYYY-MM-DD) read as midnight UTC; a plain
+  // date is enough precision and easier to reason about than a timestamp.
+  // Unset disables the rule, which is the right default when self-hosting:
+  // those deployments move the whole deployment at once via
+  // LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct instead of rolling a
+  // tenant cohort forward.
+  LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CREATED_CUTOFF: z.iso
+    .date()
+    .optional(),
   LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
     .enum(["true", "false"])
     .default("true"),
@@ -610,6 +656,17 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  // Default 15 minutes. Do not go below the heartbeat-stale window (60s) or a
+  // live worker can lose the race. Faster also adds no resolution: every
+  // deadline this runner reports against is 5 minutes or longer.
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(15 * 60_000),
+  LANGFUSE_IN_APP_AGENT_DLQ_RETRY_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(600_000),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()
@@ -663,9 +720,26 @@ const validateV4Flags = (parsed: ParsedEnv): void => {
   }
 };
 
+const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
+  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
+    return;
+  }
+
+  if (
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION
+  ) {
+    throw new Error(
+      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, and region are required.",
+    );
+  }
+};
+
 const parseEnv = (): ParsedEnv => {
   const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
   validateV4Flags(parsed);
+  validateInAppAgentSandboxConfig(parsed);
   return parsed;
 };
 

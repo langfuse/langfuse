@@ -1,3 +1,5 @@
+import { env } from "@/src/env.mjs";
+
 // Safety limits for rendering user/model content as GFM markdown.
 //
 // react-markdown parses content to an mdast tree and then walks it recursively
@@ -16,10 +18,17 @@
 // pass, non-recursive scan that can never itself overflow.
 
 // Cheap preempt: individual strings larger than this are rendered as plain text
-// instead of markdown. Mirrors MARKDOWN_RENDER_CHARACTER_LIMIT (the caller-side
-// input+output+messages gate) as a per-string backstop for surfaces that do not
-// apply that gate (e.g. comments), and avoids scanning/rendering huge blobs.
-export const MARKDOWN_MAX_RENDER_BYTES = 150_000;
+// instead of markdown. Follows the configurable
+// NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT (the caller-side
+// input+output+messages gate), floored at its 150_000 default, so raising the
+// limit also raises this per-string backstop for surfaces that do not apply
+// that gate (e.g. comments). Raising it is safe: flat byte size never
+// overflows the stack (see above); the fixed depth check below is the
+// overflow guard.
+export const MARKDOWN_MAX_RENDER_BYTES = Math.max(
+  150_000,
+  env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
+);
 
 // Content whose estimated markdown nesting depth exceeds this is rendered as
 // plain text. Legitimate markdown nests <20-30 levels deep; a stack-overflowing

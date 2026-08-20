@@ -7,6 +7,7 @@ import {
   useDefaultLayout,
   usePanelRef,
 } from "@/src/components/ui/resizable";
+import { cn } from "@/src/utils/tailwind";
 
 interface ResizableSplitLayoutProps {
   primaryContent: ReactNode;
@@ -130,13 +131,16 @@ export function ResizableSplitLayout({
       ? handleSecondaryResizeCallback
       : undefined;
 
+  // `relative` mirrors the primary panel's wrapper below: without a containing
+  // block here, absolutely-positioned secondary content (Tailwind's `sr-only`
+  // among it) resolves against the app shell, escapes this panel's scroll clip
+  // and grows the document instead.
   // In rail mode the collapsed panel stays visible (the caller renders a rail
   // in it) and keeps its handle so it can be dragged back open.
-  const secondaryPanelClassName = hasCollapsedRail
-    ? undefined
-    : open
-      ? "visible"
-      : "invisible";
+  const secondaryPanelClassName = cn(
+    "relative",
+    !hasCollapsedRail && (open ? "visible" : "invisible"),
+  );
   const showSecondaryHandle = showHandle && (open || hasCollapsedRail);
 
   return (

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import startCase from "lodash/startCase";
 import { type z } from "zod";
 

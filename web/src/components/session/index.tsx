@@ -2,7 +2,6 @@ import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
-import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
@@ -506,13 +505,6 @@ export const SessionPage: React.FC<{
           ],
           actionButtonsLeft: (
             <div className="flex items-center gap-0">
-              <StarSessionToggle
-                key="star"
-                projectId={projectId}
-                sessionId={sessionId}
-                value={session.data?.bookmarked ?? false}
-                size="icon-xs"
-              />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
@@ -597,12 +589,6 @@ export const SessionPage: React.FC<{
           // inline icon toolbar. Session-to-session nav stays desktop-only.
           actionButtonsMenu: (
             <>
-              <StarSessionToggle
-                projectId={projectId}
-                sessionId={sessionId}
-                value={session.data?.bookmarked ?? false}
-                showLabel
-              />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
@@ -1252,8 +1238,33 @@ const LoadedSessionEventsPage: React.FC<{
   const hasSessionControls =
     !isModernSessionEnabled ||
     Boolean(session.users?.length || session.scores.length);
-  const excludeObservationsByName = useCallback(
-    (name: string) => {
+  const filterObservationsByName = useCallback(
+    (name: string, operator: "any of" | "none of") => {
+      if (operator === "any of") {
+        const nextFilters = queryFilter.filterState
+          .filter((filter) => filter.column !== "name")
+          .concat({
+            column: "name",
+            type: "stringOptions",
+            operator,
+            value: [name],
+          });
+
+        queryFilter.setFilterState(nextFilters);
+        capture("filters:applied", {
+          surface: "filter_builder",
+          tableName: "session-detail",
+          column: "name",
+          filterType: "stringOptions",
+          operator,
+          valueCount: 1,
+          conditionCount: nextFilters.length,
+          columnConditionCount: 1,
+          isV4: true,
+        });
+        return;
+      }
+
       const existingFilter = queryFilter.filterState.find(
         (
           filter,
@@ -1273,7 +1284,7 @@ const LoadedSessionEventsPage: React.FC<{
         : queryFilter.filterState.concat({
             column: "name",
             type: "stringOptions",
-            operator: "none of",
+            operator,
             value: [name],
           });
 
@@ -1283,7 +1294,7 @@ const LoadedSessionEventsPage: React.FC<{
         tableName: "session-detail",
         column: "name",
         filterType: "stringOptions",
-        operator: "none of",
+        operator,
         valueCount: 1,
         conditionCount: nextFilters.length,
         columnConditionCount: 1,
@@ -1381,13 +1392,6 @@ const LoadedSessionEventsPage: React.FC<{
           ],
           actionButtonsLeft: !isModernSessionEnabled ? (
             <div className="flex items-center gap-0">
-              <StarSessionToggle
-                key="star"
-                projectId={projectId}
-                sessionId={sessionId}
-                value={session.bookmarked}
-                size="icon-xs"
-              />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
@@ -1437,6 +1441,7 @@ const LoadedSessionEventsPage: React.FC<{
                     environment: session.environment,
                   }}
                   buttonVariant="outline"
+                  showAnnotationCount={isModernSessionEnabled}
                 />
                 <CreateNewAnnotationQueueItem
                   projectId={projectId}
@@ -1460,7 +1465,6 @@ const LoadedSessionEventsPage: React.FC<{
                 <ModernSessionHeaderActionsController
                   projectId={projectId}
                   sessionId={sessionId}
-                  bookmarked={session.bookmarked}
                   isPublic={session.public}
                   showCorrections={showCorrections}
                   showInlineToolCalls={showInlineToolCalls}
@@ -1487,12 +1491,6 @@ const LoadedSessionEventsPage: React.FC<{
           // inline icon toolbar. Session-to-session nav stays desktop-only.
           actionButtonsMenu: (
             <>
-              <StarSessionToggle
-                projectId={projectId}
-                sessionId={sessionId}
-                value={session.bookmarked}
-                showLabel
-              />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
@@ -1521,6 +1519,7 @@ const LoadedSessionEventsPage: React.FC<{
                 }}
                 buttonVariant="outline"
                 layout="menu"
+                showAnnotationCount={isModernSessionEnabled}
               />
               <CreateNewAnnotationQueueItem
                 projectId={projectId}
@@ -1733,7 +1732,7 @@ const LoadedSessionEventsPage: React.FC<{
                   showInlineToolCalls={showInlineToolCalls}
                   showSystemPrompt={showSystemPrompt}
                   sidebarFilterControls={sidebarFilterControls}
-                  onExcludeObservation={excludeObservationsByName}
+                  onFilterObservationByName={filterObservationsByName}
                 />
               )}
             </ModernSessionFilterControls>

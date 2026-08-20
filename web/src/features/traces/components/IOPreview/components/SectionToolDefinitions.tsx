@@ -2,7 +2,7 @@ import {
   ToolCallDefinitionCard,
   type ToolDefinition,
 } from "./ToolCallDefinitionCard";
-import type { ToolCallInvocation } from "../hooks/useChatMLParser";
+import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
 
 // SectionToolDefinitions props
 export interface SectionToolDefinitionsProps {

@@ -11,11 +11,14 @@ import {
 import {
   AgUiMessageSchema,
   type AgUiMessage,
-  InAppAgentRateLimitErrorResponseSchema,
-  type InAppAgentMessageSource,
   InAppAgentRedirectActionToolResultSchema,
-  InAppAgentMessageSourceSchema,
+  InAppAgentRateLimitErrorResponseSchema,
 } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentMessageFeedbackSchema,
+  type InAppAgentMessageSource,
+  InAppAgentMessageSourceSchema,
+} from "../../schema";
 
 export type InAppAgentError =
   | { type: "generic"; message: string }
@@ -25,6 +28,8 @@ const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
   z.object({
     isLoading: z.boolean().optional(),
     feedbackMessageId: z.string().optional(),
+    timestamp: z.number().optional(),
+    feedback: InAppAgentMessageFeedbackSchema.optional(),
   }),
 );
 
@@ -45,6 +50,210 @@ export type InAppAgentToolCallContent = {
 
 export function getInAppAgentToolDisplayName(toolName: string): string {
   return toolName.replace(/^(?:docs_|langfuseDocs_|langfuse_)/, "");
+}
+
+const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
+  addDashboardPlacement: "Adding widget to dashboard",
+  bash: "Running command",
+  createAnnotationQueueAssignment: "Assigning annotation queue",
+  createAnnotationQueueItem: "Adding to annotation queue",
+  createChatPrompt: "Creating chat prompt",
+  createDashboardWidget: "Creating widget",
+  createTextPrompt: "Creating text prompt",
+  deleteAnnotationQueueAssignment: "Unassigning annotation queue",
+  deleteDashboardPlacement: "Removing widget from dashboard",
+  deleteDashboardWidget: "Deleting widget",
+  edit: "Editing file",
+  getDashboardWidget: "Inspecting widget",
+  getHealth: "Checking health",
+  getMetricsSchema: "Checking metrics",
+  getObservationFieldSchema: "Checking observation fields",
+  getObservationFilterSchema: "Checking observation filters",
+  getObservationFilterValues: "Looking up observation filters",
+  getPromptUnresolved: "Inspecting prompt",
+  listDashboardWidgets: "Browsing widgets",
+  proposeRedirect: "Opening page",
+  queryMetrics: "Checking metrics",
+  read: "Reading file",
+  submitFeedback: "Submitting user feedback",
+  updateDashboardPlacement: "Moving widget",
+  updateDashboardWidget: "Updating widget",
+  updatePromptLabels: "Updating prompt labels",
+  write: "Writing file",
+};
+
+const IN_APP_AGENT_TOOL_PROGRESS_VERBS: Record<string, string> = {
+  add: "Adding",
+  create: "Creating",
+  delete: "Deleting",
+  get: "Inspecting",
+  list: "Browsing",
+  query: "Checking",
+  submit: "Submitting",
+  update: "Updating",
+  upsert: "Saving",
+};
+
+const IN_APP_AGENT_TOOL_PROGRESS_NOUNS: Array<[string, string]> = [
+  ["dashboard widgets", "widgets"],
+  ["dashboard widget", "widget"],
+  ["dashboard placement", "widget on dashboard"],
+  ["prompt unresolved", "prompt"],
+];
+
+// Verbs that read rather than change something: a run of them is one act of
+// looking, so a streak collapses to "Looking at <noun>".
+const IN_APP_AGENT_TOOL_PROGRESS_LOOKING_VERBS = new Set([
+  "Inspecting",
+  "Browsing",
+  "Checking",
+]);
+
+function splitInAppAgentToolNameWords(toolName: string): string[] {
+  return toolName
+    .replaceAll("_", " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function isInAppAgentDocsToolName(toolName: string) {
+  return /^(?:docs_|langfuseDocs_)/.test(toolName);
+}
+
+function isInAppAgentSkillToolName(toolName: string) {
+  const strippedName = getInAppAgentToolDisplayName(toolName);
+  return /(?:^|[-_])skill(?:$|[-_A-Z])/i.test(strippedName);
+}
+
+/**
+ * Read a camelCase tool name as an English verb and the thing it acts on, e.g.
+ * `listDashboardWidgets` → `{ verb: "Browsing", noun: "widgets" }`. The single
+ * source for both the auto headline and the streak-collapsing noun, so the two
+ * cannot drift apart. Null when the leading word is not a verb we translate;
+ * `noun` is empty for a bare verb such as `getHealth`'s sibling `bash`.
+ */
+function deriveInAppAgentToolVerbAndNoun(
+  strippedName: string,
+): { verb: string; noun: string } | null {
+  const [firstWord, ...rest] = splitInAppAgentToolNameWords(strippedName);
+  const verb = firstWord
+    ? IN_APP_AGENT_TOOL_PROGRESS_VERBS[firstWord.toLowerCase()]
+    : undefined;
+
+  if (!verb) {
+    return null;
+  }
+
+  const noun = rest.map((word) => word.toLowerCase()).join(" ");
+  const substitution = IN_APP_AGENT_TOOL_PROGRESS_NOUNS.find(
+    ([from]) => noun === from,
+  );
+
+  return { verb, noun: substitution?.[1] ?? noun };
+}
+
+function getAutoInAppAgentToolProgressLabel(strippedName: string): string {
+  const derived = deriveInAppAgentToolVerbAndNoun(strippedName);
+  if (derived) {
+    return derived.noun ? `${derived.verb} ${derived.noun}` : derived.verb;
+  }
+
+  const words = splitInAppAgentToolNameWords(strippedName);
+  if (words.length === 0) {
+    return strippedName;
+  }
+
+  return words
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+export function getInAppAgentToolProgressLabelResolution(toolName: string): {
+  source: "docs" | "skill" | "override" | "auto";
+  label: string;
+} {
+  if (isInAppAgentDocsToolName(toolName)) {
+    return { source: "docs", label: "Reading Langfuse docs" };
+  }
+
+  if (isInAppAgentSkillToolName(toolName)) {
+    return { source: "skill", label: "Learning skill" };
+  }
+
+  const strippedName = getInAppAgentToolDisplayName(toolName);
+  const override = IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES[strippedName];
+  if (override) {
+    return { source: "override", label: override };
+  }
+
+  return {
+    source: "auto",
+    label: getAutoInAppAgentToolProgressLabel(strippedName),
+  };
+}
+
+export function getInAppAgentToolProgressLabel(toolName: string): string {
+  return getInAppAgentToolProgressLabelResolution(toolName).label;
+}
+
+/** Singularised noun two tools must share to count as one act of looking. */
+function getInAppAgentToolProgressNounKey(toolName: string): string | null {
+  if (
+    isInAppAgentDocsToolName(toolName) ||
+    isInAppAgentSkillToolName(toolName)
+  ) {
+    return null;
+  }
+
+  const noun = deriveInAppAgentToolVerbAndNoun(
+    getInAppAgentToolDisplayName(toolName),
+  )?.noun;
+
+  return noun ? noun.replace(/s\b/g, "") : null;
+}
+
+export function getInAppAgentActivityProgressLabel(
+  toolNames: string[],
+): string {
+  const latestToolName = toolNames.at(-1);
+  if (!latestToolName) {
+    return "Working…";
+  }
+
+  const resolution = getInAppAgentToolProgressLabelResolution(latestToolName);
+  const latestNounKey = getInAppAgentToolProgressNounKey(latestToolName);
+  if (!latestNounKey) {
+    return resolution.label;
+  }
+
+  let streak = 1;
+  for (let index = toolNames.length - 2; index >= 0; index--) {
+    const toolName = toolNames[index];
+    if (
+      !toolName ||
+      getInAppAgentToolProgressNounKey(toolName) !== latestNounKey
+    ) {
+      break;
+    }
+    streak++;
+  }
+
+  // A hand-written override already reads as a sentence, so only the derived
+  // verb-and-noun form collapses.
+  const derived =
+    streak >= 2 && resolution.source === "auto"
+      ? deriveInAppAgentToolVerbAndNoun(
+          getInAppAgentToolDisplayName(latestToolName),
+        )
+      : null;
+
+  return derived &&
+    IN_APP_AGENT_TOOL_PROGRESS_LOOKING_VERBS.has(derived.verb) &&
+    derived.noun
+    ? `Looking at ${derived.noun}`
+    : resolution.label;
 }
 
 const InAppAgentToolRejectionErrorSchema = z.object({
@@ -227,7 +436,6 @@ export function getDrawerMessages({
   const mappedMessages: InAppAgentWindowMessage[] = [];
   let pendingTools: InAppAgentToolCallContent[] = [];
   let pendingToolGroupId: string | null = null;
-  let pendingToolGroupIsLoading = false;
   let pendingSources: InAppAgentMessageSource[] = [];
   const flushPendingTools = () => {
     if (pendingTools.length === 0) {
@@ -240,12 +448,10 @@ export function getDrawerMessages({
       content: {
         type: "toolGroup",
         tools: pendingTools,
-        isLoading: pendingToolGroupIsLoading,
       },
     });
     pendingTools = [];
     pendingToolGroupId = null;
-    pendingToolGroupIsLoading = false;
   };
 
   parsedMessages.forEach((message, index) => {
@@ -306,30 +512,9 @@ export function getDrawerMessages({
         return;
       }
 
-      const previousMessage = mappedMessages[mappedMessages.length - 1];
-
-      // Hydrated history flattens the text and tool content that separated
-      // thinking phases live, leaving them adjacent; collapse them into one
-      // block, mirroring how consecutive tool calls collapse into one group.
-      if (
-        previousMessage?.role === "assistant" &&
-        previousMessage.content.type === "reasoning"
-      ) {
-        mappedMessages[mappedMessages.length - 1] = {
-          ...previousMessage,
-          content: {
-            ...previousMessage.content,
-            text: [previousMessage.content.text, message.content]
-              .filter((text) => text.trim())
-              .join("\n\n"),
-            isStreaming,
-          },
-        };
-        return;
-      }
-
       mappedMessages.push({
         id: message.id,
+        timestamp: message.timestamp,
         role,
         content: {
           type: "reasoning",
@@ -399,6 +584,11 @@ export function getDrawerMessages({
               } else {
                 resultState = "incomplete";
               }
+
+              if (resultState === "incomplete" && !pendingApproval) {
+                return [];
+              }
+
               const status = TOOL_CALL_STATUS_BY_RESULT_STATE[resultState];
 
               return [
@@ -425,11 +615,6 @@ export function getDrawerMessages({
           ) ?? [])
         : [];
     const docsSources = extractLangfuseDocsSources(toolContent);
-    const isToolGroupLoading =
-      isRunning &&
-      !error &&
-      message.role === "assistant" &&
-      message.isLoading === true;
 
     if (role === "assistant" && toolContent.length > 0 && !text.trim()) {
       if (docsSources.length > 0) {
@@ -438,7 +623,6 @@ export function getDrawerMessages({
 
       pendingToolGroupId ??= `tools-${message.id}`;
       pendingTools.push(...toolContent);
-      pendingToolGroupIsLoading ||= isToolGroupLoading;
       return;
     }
 
@@ -457,6 +641,7 @@ export function getDrawerMessages({
 
       mappedMessages.push({
         id: message.id,
+        timestamp: message.timestamp,
         ...(message.role === "assistant" && message.runId
           ? { runId: message.runId }
           : {}),
@@ -467,6 +652,9 @@ export function getDrawerMessages({
         content: {
           type: "text",
           text,
+          ...(message.role === "assistant" && message.isLoading
+            ? { isStreaming: true }
+            : {}),
           ...(sources.length > 0 ? { sources } : {}),
           ...(message.role === "assistant" && message.feedback
             ? { feedback: message.feedback }
@@ -490,7 +678,6 @@ export function getDrawerMessages({
         content: {
           type: "toolGroup",
           tools: toolContent,
-          isLoading: isToolGroupLoading,
         },
       });
     }
@@ -526,46 +713,6 @@ export function getDrawerMessages({
         ],
       },
     });
-  }
-
-  const latestUserMessageIndex = mappedMessages.findLastIndex(
-    (message) => message.role === "user",
-  );
-  const latestAssistantMessageIndex = mappedMessages.findLastIndex(
-    (message, index) =>
-      index > latestUserMessageIndex && message.role === "assistant",
-  );
-  const latestAssistantMessage = mappedMessages[latestAssistantMessageIndex];
-
-  // Insert an optimistic loading message.
-  if (
-    isRunning &&
-    !error &&
-    latestUserMessageIndex >= 0 &&
-    latestAssistantMessage?.content.type !== "text" &&
-    latestAssistantMessage?.content.type !== "loading" &&
-    latestAssistantMessage?.content.type !== "reasoning" &&
-    latestAssistantMessage?.content.type !== "redirectAction"
-  ) {
-    if (latestAssistantMessage?.content.type === "toolGroup") {
-      return mappedMessages;
-    }
-
-    const hasAssistantAnswer = mappedMessages.some(
-      (message) =>
-        message.role === "assistant" && message.content.type === "text",
-    );
-
-    return [
-      ...mappedMessages,
-      {
-        id: hasAssistantAnswer ? "loading" : "connecting",
-        role: "assistant",
-        content: hasAssistantAnswer
-          ? { type: "loading" }
-          : { type: "loading", label: "Connecting..." },
-      } satisfies InAppAgentWindowMessage,
-    ];
   }
 
   return mappedMessages;
@@ -645,7 +792,7 @@ function getRedirectActionFromToolResult(
   }
 }
 
-export function extractLangfuseDocsSources(
+function extractLangfuseDocsSources(
   tools: readonly InAppAgentToolCallContent[],
 ): InAppAgentMessageSource[] {
   return mergeSources(

@@ -1,5 +1,7 @@
-vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
+  const actual = await vi.importActual(
+    "@langfuse/shared/src/server/llm/llmText",
+  );
   return {
     ...actual,
     generateLLMText: vi.fn(),
@@ -11,39 +13,41 @@ import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
+import waitForExpect from "wait-for-expect";
 
+import { type Plan } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  createOrgProjectAndApiKey,
+  getScoreById,
+} from "@langfuse/shared/src/server";
+import { generateLLMText } from "@langfuse/shared/src/server/llm/llmText";
+import { env } from "@/src/env.mjs";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
-  type Plan,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import type { Prisma } from "@langfuse/shared/src/db";
-import {
-  createOrgProjectAndApiKey,
-  generateLLMText,
-} from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
+  getInAppAgentInstrumentationObservationId,
+  getInAppAgentInstrumentationTraceId,
+} from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-} from "@langfuse/shared/in-app-agent";
+} from "@/src/features/in-app-agent/ids";
 import {
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
   type AgUiEvent,
-  type InAppAgentWatchFrame,
 } from "@langfuse/shared/in-app-agent";
+import type { InAppAgentRunRequest } from "@langfuse/shared/in-app-agent";
+import type { InAppAgentWatchFrame } from "@/src/features/in-app-agent/watchFrames";
 import {
   deserializeInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
 } from "@/src/features/in-app-agent/lib/display";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
-  createRun,
   ensureOwnedConversation,
   getConversationEvents,
-  finishRun,
   getConversationMessagesForReplay,
   maybeInferAndPersistConversationTitle,
   appendRunEvents,
@@ -51,7 +55,8 @@ import {
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
-import { watchConversationFrames } from "@langfuse/shared/in-app-agent/server/watch";
+import { finishClaimedRun } from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import { watchConversationFrames } from "@/src/features/in-app-agent/server/watch";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 
@@ -149,34 +154,108 @@ describe("in-app agent persistence", () => {
       userId: params.userId,
     });
 
-  const createConversationRun = async (params: {
+  // Create only the claimed run record so persistence tests can control their
+  // exact event rows while exercising transitions through lifecycle APIs.
+  const createClaimedRunFixture = async (params: {
     projectId: string;
     conversationId: string;
     userId: string;
     runId?: string;
+    request?: InAppAgentRunRequest;
+  }) => {
+    const now = new Date();
+
+    return prisma.inAppAgentRun.create({
+      data: {
+        id: params.runId ?? createInAppAgentRunId(),
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        triggeredByUserId: params.userId,
+        model: "haiku",
+        mcpApiKeyId: "api-key-id-1",
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: now,
+        heartbeatAt: now,
+        ...(params.request ? { request: params.request } : {}),
+      },
+    });
+  };
+
+  const finishConversationRun = (params: {
+    projectId: string;
+    runId: string;
+    errorCode?: InAppAgentRunErrorCode;
+    errorMessage?: string;
   }) =>
-    createRun({
+    finishClaimedRun({
       prisma,
-      runId: params.runId ?? createInAppAgentRunId(),
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      triggeredByUserId: params.userId,
-      model: "haiku",
-      mcpApiKeyId: "api-key-id-1",
+      ...params,
+      status:
+        params.errorCode == null
+          ? InAppAgentRunStatus.SUCCEEDED
+          : params.errorCode === InAppAgentRunErrorCode.CANCELLED
+            ? InAppAgentRunStatus.CANCELLED
+            : InAppAgentRunStatus.FAILED,
     });
 
-  it("rejects users without the in-app agent entitlement", async () => {
+  it("finishes claimed runs once and preserves the first terminal error", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createClaimedRunFixture({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await expect(
+      finishClaimedRun({
+        prisma,
+        projectId,
+        runId: run.id,
+        status: InAppAgentRunStatus.FAILED,
+        errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
+        errorMessage: "Original agent error",
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      finishClaimedRun({
+        prisma,
+        projectId,
+        runId: run.id,
+        status: InAppAgentRunStatus.CANCELLED,
+        errorCode: InAppAgentRunErrorCode.CANCELLED,
+        errorMessage: "Client aborted request",
+      }),
+    ).resolves.toBe(false);
+
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: run.id, projectId } },
+        select: {
+          status: true,
+          finishedAt: true,
+          errorCode: true,
+          errorMessage: true,
+        },
+      }),
+    ).resolves.toEqual({
+      status: InAppAgentRunStatus.FAILED,
+      finishedAt: expect.any(Date),
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
+      errorMessage: "Original agent error",
+    });
+  });
+
+  it("allows oss-plan users to list conversations", async () => {
     const { caller, projectId } = await createCaller(
       `user-${randomUUID()}`,
       "oss",
     );
 
-    await expect(caller.listConversations({ projectId })).rejects.toMatchObject(
-      {
-        code: "FORBIDDEN",
-        message: expect.stringContaining("in-app-agent"),
-      },
-    );
+    await expect(caller.listConversations({ projectId })).resolves.toEqual({
+      conversations: [],
+      nextCursor: undefined,
+    });
   });
 
   const startCompactRun = async (params: {
@@ -287,7 +366,7 @@ describe("in-app agent persistence", () => {
   it("stores compacted events and restores multi-turn messages", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run1 = await createConversationRun({
+    const run1 = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -322,13 +401,12 @@ describe("in-app agent persistence", () => {
       messageId: "assistant-message-1",
       chunks: ["I will inspect recent traces", " and look for outliers."],
     });
-    await finishRun({
-      prisma,
+    await finishConversationRun({
       runId: run1.id,
       projectId,
     });
 
-    const run2 = await createConversationRun({
+    const run2 = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -479,113 +557,6 @@ describe("in-app agent persistence", () => {
     );
   });
 
-  // Behavior: append-written multi-run history remains replayable after the latest run is rewritten by the legacy writer.
-  // Crucial: the unflagged rollout must be safely reversible without corrupting event order or changing model context.
-  // Necessary: existing append and fencing tests do not exercise the mixed-version writer transition created by a rollback.
-  it("preserves replay when the latest append-written run is rewritten by the legacy writer", async () => {
-    const { projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
-    const run1 = await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-    const events1 = await startCompactRun({
-      projectId,
-      conversationId: conversation.id,
-      runId: run1.id,
-      messageId: "rollback-user-1",
-      content: "Inspect the first trace",
-    });
-    await appendAssistantText({
-      projectId,
-      conversationId: conversation.id,
-      runId: run1.id,
-      events: events1,
-      messageId: "rollback-assistant-1",
-      chunks: ["First trace inspected."],
-    });
-    await finishRun({ prisma, runId: run1.id, projectId });
-
-    const run2 = await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-    const events2 = await startCompactRun({
-      projectId,
-      conversationId: conversation.id,
-      runId: run2.id,
-      messageId: "rollback-user-2",
-      content: "Inspect the second trace",
-    });
-    await appendAssistantText({
-      projectId,
-      conversationId: conversation.id,
-      runId: run2.id,
-      events: events2,
-      messageId: "rollback-assistant-2",
-      chunks: ["Second trace inspected."],
-    });
-
-    const replayBeforeRollback = await getConversationMessagesForReplay({
-      prisma,
-      projectId,
-      conversationId: conversation.id,
-    });
-    const latestRunEvents = await prisma.inAppAgentEvent.findMany({
-      where: {
-        projectId,
-        conversationId: conversation.id,
-        runId: run2.id,
-      },
-      orderBy: { sequenceNumber: "asc" },
-      select: { type: true, event: true },
-    });
-
-    await prisma.$transaction(async (tx) => {
-      await tx.inAppAgentEvent.deleteMany({
-        where: {
-          projectId,
-          conversationId: conversation.id,
-          runId: run2.id,
-        },
-      });
-      const latestRemainingEvent = await tx.inAppAgentEvent.findFirst({
-        where: { projectId, conversationId: conversation.id },
-        orderBy: { sequenceNumber: "desc" },
-        select: { sequenceNumber: true },
-      });
-      await tx.inAppAgentEvent.createMany({
-        data: latestRunEvents.map((event, index) => ({
-          projectId,
-          conversationId: conversation.id,
-          runId: run2.id,
-          sequenceNumber:
-            (latestRemainingEvent?.sequenceNumber ?? -1) + index + 1,
-          type: event.type,
-          event: event.event as Prisma.InputJsonValue,
-        })),
-      });
-    });
-
-    const rewrittenEvents = await prisma.inAppAgentEvent.findMany({
-      where: { projectId, conversationId: conversation.id },
-      orderBy: { sequenceNumber: "asc" },
-      select: { sequenceNumber: true },
-    });
-    expect(rewrittenEvents.map((event) => event.sequenceNumber)).toEqual(
-      rewrittenEvents.map((_, index) => index),
-    );
-    await expect(
-      getConversationMessagesForReplay({
-        prisma,
-        projectId,
-        conversationId: conversation.id,
-      }),
-    ).resolves.toEqual(replayBeforeRollback);
-  });
-
   it("does not overwrite user-renamed conversation titles", async () => {
     const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
     const { caller, projectId, userId } = await createCaller();
@@ -628,7 +599,7 @@ describe("in-app agent persistence", () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const originalTitle = conversation.title;
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -666,10 +637,10 @@ describe("in-app agent persistence", () => {
     }
   });
 
-  it("requires feedback run ids to match persisted assistant messages", async () => {
+  it("scores feedback on the approval-chain root run and rejects run id mismatches", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const rootRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -677,14 +648,39 @@ describe("in-app agent persistence", () => {
     const events = await startCompactRun({
       projectId,
       conversationId: conversation.id,
-      runId: run.id,
+      runId: rootRun.id,
       messageId: "feedback-user",
       content: "Answer me",
     });
     await appendAssistantText({
       projectId,
       conversationId: conversation.id,
-      runId: run.id,
+      runId: rootRun.id,
+      events,
+      messageId: "plain-assistant",
+      chunks: ["Answering directly"],
+    });
+    // The final answer comes from an approval continuation, but the trace it is
+    // recorded on belongs to the root run. The parent settles when it parks for
+    // approval, so only the continuation is active.
+    await finishConversationRun({ projectId, runId: rootRun.id });
+    const continuationRun = await createClaimedRunFixture({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      request: {
+        kind: "approvalDecision",
+        parentRunId: rootRun.id,
+        rootRunId: rootRun.id,
+        toolCallId: "tool-call-1",
+        approved: true,
+        context: [],
+      },
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: continuationRun.id,
       events,
       messageId: "feedback-assistant",
       chunks: ["Here is an answer"],
@@ -703,22 +699,65 @@ describe("in-app agent persistence", () => {
       "Feedback can only be submitted for persisted assistant messages",
     );
 
-    await expect(
-      caller.submitFeedback({
-        projectId,
-        conversationId: conversation.id,
-        messageId: "feedback-assistant",
-        runId: run.id,
-        value: null,
-        comment: null,
-      }),
-    ).resolves.toEqual({ feedback: null });
+    const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+    try {
+      (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID = projectId;
+
+      await expect(
+        caller.submitFeedback({
+          projectId,
+          conversationId: conversation.id,
+          messageId: "feedback-assistant",
+          runId: continuationRun.id,
+          value: "thumbs_up",
+          comment: null,
+        }),
+      ).resolves.toEqual({ feedback: { value: "thumbs_up", comment: null } });
+
+      await expect(
+        caller.submitFeedback({
+          projectId,
+          conversationId: conversation.id,
+          messageId: "plain-assistant",
+          runId: rootRun.id,
+          value: "thumbs_down",
+          comment: null,
+        }),
+      ).resolves.toEqual({ feedback: { value: "thumbs_down", comment: null } });
+
+      // Both the continuation's answer and the root run's own answer score onto
+      // the single trace the agent turn was recorded on.
+      await waitForExpect(async () => {
+        const [continuationScore, plainScore] = await Promise.all([
+          getScoreById({
+            projectId,
+            scoreId: `afbs_feedback-assistant_${userId}`,
+          }),
+          getScoreById({
+            projectId,
+            scoreId: `afbs_plain-assistant_${userId}`,
+          }),
+        ]);
+
+        for (const score of [continuationScore, plainScore]) {
+          expect(score?.traceId).toBe(
+            getInAppAgentInstrumentationTraceId(rootRun.id),
+          );
+          expect(score?.observationId).toBe(
+            getInAppAgentInstrumentationObservationId(rootRun.id),
+          );
+        }
+      });
+    } finally {
+      (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID =
+        originalAiFeaturesProjectId;
+    }
   });
 
   it("does not reduce partial assistant content before the end event", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -775,7 +814,7 @@ describe("in-app agent persistence", () => {
   it("hydrates visible reasoning without including it in model replay", async () => {
     const { projectId, userId, caller } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1014,7 +1053,7 @@ describe("in-app agent persistence", () => {
   it("preserves reasoning order when hydrating an assistant message that continues afterward", async () => {
     const { projectId, userId, caller } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1150,7 +1189,7 @@ describe("in-app agent persistence", () => {
   it("stores only compact events and skips raw adapter payloads", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1240,7 +1279,7 @@ describe("in-app agent persistence", () => {
   it("does not persist adapter message snapshots", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1292,7 +1331,7 @@ describe("in-app agent persistence", () => {
   it("drops trailing user-only turns before replay", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const completedRun = await createConversationRun({
+    const completedRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1327,13 +1366,12 @@ describe("in-app agent persistence", () => {
         runId: completedRun.id,
       },
     });
-    await finishRun({
-      prisma,
+    await finishConversationRun({
       runId: completedRun.id,
       projectId,
     });
 
-    const abandonedRun = await createConversationRun({
+    const abandonedRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1362,7 +1400,7 @@ describe("in-app agent persistence", () => {
   it("drops assistant tool calls that have no matching tool result", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1467,7 +1505,7 @@ describe("in-app agent persistence", () => {
   it("redacts silent MCP output from replayed conversation history", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1545,7 +1583,7 @@ describe("in-app agent persistence", () => {
   it("drops assistant tool calls without results from loaded conversation history", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1667,7 +1705,7 @@ describe("in-app agent persistence", () => {
   it("flushes sibling tools while retaining only successful redirect actions for display", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1848,7 +1886,7 @@ describe("in-app agent persistence", () => {
   it("drops empty assistant messages after removing orphan tool calls before replay", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
+    const run = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1903,7 +1941,7 @@ describe("in-app agent persistence", () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
-    const orphanToolRun = await createConversationRun({
+    const orphanToolRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1939,15 +1977,14 @@ describe("in-app agent persistence", () => {
       type: EventType.TOOL_CALL_END,
       toolCallId: "orphan-tool-call",
     });
-    await finishRun({
-      prisma,
+    await finishConversationRun({
       runId: orphanToolRun.id,
       projectId,
       errorCode: InAppAgentRunErrorCode.CANCELLED,
       errorMessage: "Aborted before tool result",
     });
 
-    const completedRun = await createConversationRun({
+    const completedRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1985,7 +2022,7 @@ describe("in-app agent persistence", () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
-    const failedRun = await createConversationRun({
+    const failedRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -1997,15 +2034,14 @@ describe("in-app agent persistence", () => {
       messageId: "user-1",
       content: "failed before output",
     });
-    await finishRun({
-      prisma,
+    await finishConversationRun({
       runId: failedRun.id,
       projectId,
       errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
       errorMessage: "Failed before output",
     });
 
-    const completedRun = await createConversationRun({
+    const completedRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -2106,14 +2142,14 @@ describe("in-app agent persistence", () => {
     });
 
     const runId = createInAppAgentRunId();
-    await createConversationRun({
+    await createClaimedRunFixture({
       projectId: owner.projectId,
       conversationId: conversation.id,
       userId: owner.userId,
       runId,
     });
     await expect(
-      createConversationRun({
+      createClaimedRunFixture({
         projectId: other.projectId,
         conversationId: otherConversation.id,
         userId: other.userId,
@@ -2125,47 +2161,10 @@ describe("in-app agent persistence", () => {
     });
   });
 
-  it("finishes runs once and preserves the first terminal error", async () => {
-    const { projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
-    const run = await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-
-    expect(run.mcpApiKeyId).toBe("api-key-id-1");
-    expect(run.finishedAt).toBeNull();
-
-    await finishRun({
-      prisma,
-      runId: run.id,
-      projectId,
-      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
-      errorMessage: "Original agent error",
-    });
-    await finishRun({
-      prisma,
-      runId: run.id,
-      projectId,
-      errorCode: InAppAgentRunErrorCode.CANCELLED,
-      errorMessage: "Client aborted request",
-    });
-
-    await expect(
-      prisma.inAppAgentRun.findUniqueOrThrow({
-        where: { id_projectId: { id: run.id, projectId } },
-      }),
-    ).resolves.toMatchObject({
-      errorCode: "agent_error",
-      errorMessage: "Original agent error",
-    });
-  });
-
   it("ignores event flushes from already-finished runs", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run1 = await createConversationRun({
+    const run1 = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -2178,9 +2177,9 @@ describe("in-app agent persistence", () => {
       content: "First",
     });
 
-    await finishRun({ prisma, runId: run1.id, projectId });
+    await finishConversationRun({ runId: run1.id, projectId });
 
-    const run2 = await createConversationRun({
+    const run2 = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -2222,7 +2221,7 @@ describe("in-app agent persistence", () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
-    const firstRun = await createConversationRun({
+    const firstRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -2263,7 +2262,7 @@ describe("in-app agent persistence", () => {
       finish: { status: InAppAgentRunStatus.SUCCEEDED },
     });
 
-    const secondRun = await createConversationRun({
+    const secondRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -2347,195 +2346,19 @@ describe("in-app agent persistence", () => {
     expect(frames.at(-1)).toEqual({ type: "done" });
   });
 
-  it("blocks a second active run in the same conversation", async () => {
-    const { projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
-
-    await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-
-    await expect(
-      createConversationRun({
-        projectId,
-        conversationId: conversation.id,
-        userId,
-      }),
-    ).rejects.toThrow("Assistant is already responding in this conversation");
-  });
-
-  it("rethrows a replayed run id instead of reporting an active-run conflict", async () => {
-    const { projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
-
-    const finished = await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-    await finishRun({ prisma, runId: finished.id, projectId });
-
-    // Replaying the id of a finished run violates the (id, project_id) primary
-    // key, not the active-run backstop index — the caller must not be told the
-    // assistant is still responding. Asserting on meta.target pins the shape
-    // the createRun catch discriminates on.
-    await expect(
-      createConversationRun({
-        projectId,
-        conversationId: conversation.id,
-        userId,
-        runId: finished.id,
-      }),
-    ).rejects.toMatchObject({
-      code: "P2002",
-      meta: { target: ["id", "project_id"] },
-    });
-  });
-
-  it("marks old unfinished runs stale before starting a new run", async () => {
-    const { projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
-    const staleRun = await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-
-    await prisma.inAppAgentRun.update({
-      where: { id_projectId: { id: staleRun.id, projectId } },
-      data: { createdAt: new Date("2026-05-20T10:00:00.000Z") },
-    });
-
-    const newRun = await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-
-    await expect(
-      prisma.inAppAgentRun.findUniqueOrThrow({
-        where: { id_projectId: { id: staleRun.id, projectId } },
-      }),
-    ).resolves.toMatchObject({
-      status: "FAILED",
-      errorCode: "stale",
-      errorMessage: "Run was marked stale before starting a new run",
-    });
-    expect(newRun.finishedAt).toBeNull();
-  });
-
-  it("leaves a claimed background run alone when a foreground run starts", async () => {
-    const { projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
-    const backgroundRun = await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-
-    // A background run legitimately runs for up to RUN_MAX_DURATION, far past
-    // the 150s foreground staleness window. Execution mode is not sticky per
-    // conversation, so a foreground submit landing here is a normal state — and
-    // it must not fence a healthy worker, which stale-closing would (both
-    // finishRun and the event append guard on the run still being open).
-    await prisma.inAppAgentRun.update({
-      where: { id_projectId: { id: backgroundRun.id, projectId } },
-      data: {
-        createdAt: new Date("2026-05-20T10:00:00.000Z"),
-        claimedAt: new Date("2026-05-20T10:00:01.000Z"),
-        heartbeatAt: new Date(),
-      },
-    });
-
-    await expect(
-      createConversationRun({
-        projectId,
-        conversationId: conversation.id,
-        userId,
-      }),
-    ).rejects.toMatchObject({
-      message: "Assistant is already responding in this conversation",
-    });
-
-    await expect(
-      prisma.inAppAgentRun.findUniqueOrThrow({
-        where: { id_projectId: { id: backgroundRun.id, projectId } },
-      }),
-    ).resolves.toMatchObject({
-      status: "RUNNING",
-      finishedAt: null,
-      errorCode: null,
-    });
-  });
-
-  it("writes run lifecycle status on the foreground path", async () => {
-    const { projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
-
-    const succeeded = await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-    expect(succeeded.status).toBe("RUNNING");
-    await finishRun({ prisma, runId: succeeded.id, projectId });
-
-    const failed = await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-    await finishRun({
-      prisma,
-      runId: failed.id,
-      projectId,
-      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
-      errorMessage: "boom",
-    });
-
-    const cancelled = await createConversationRun({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-    });
-    await finishRun({
-      prisma,
-      runId: cancelled.id,
-      projectId,
-      errorCode: InAppAgentRunErrorCode.CANCELLED,
-      errorMessage: "Client aborted request",
-    });
-
-    const runs = await prisma.inAppAgentRun.findMany({
-      where: { projectId, conversationId: conversation.id },
-      select: { id: true, status: true },
-    });
-    expect(new Map(runs.map((run) => [run.id, run.status]))).toEqual(
-      new Map([
-        [succeeded.id, "SUCCEEDED"],
-        [failed.id, "FAILED"],
-        [cancelled.id, "CANCELLED"],
-      ]),
-    );
-  });
-
   it("enforces the single-active-run backstop index at the database level", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
-    await createConversationRun({
+    await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
     });
 
-    // Bypass createRun's conversation lock and conflict check: the partial
-    // unique index is the DB-level invariant against two unfinished runs in
-    // one conversation. Asserting on meta.target pins the shape the createRun
-    // catch discriminates on (Prisma resolves the raw-SQL index to its
-    // column names).
+    // The partial unique index is the database-level invariant against two
+    // unfinished runs in one conversation. Prisma resolves the raw-SQL index
+    // to its column names in the conflict metadata.
     await expect(
       prisma.inAppAgentRun.create({
         data: {

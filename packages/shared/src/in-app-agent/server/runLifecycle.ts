@@ -1,22 +1,27 @@
+import { LangfuseConflictError } from "../../index";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   InAppAgentRunStatusSchema,
-  LangfuseConflictError,
-} from "../../index";
+} from "../../features/inAppAgent/types";
 import { Prisma } from "../../db";
 import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
-import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
+import { recordRunTerminalOutcome } from "./runMetrics";
+import { buildInAppAgentApprovalDecisionEvent } from "../approvalEvents";
 import type { AgUiEvent } from "../schema";
+import type { InAppAgentPrefixedLangfuseMcpToolName } from "./mcpPolicy";
 import {
   InAppAgentRunRequestSchema,
+  resolveInAppAgentRootRunId,
   type InAppAgentRunRequest,
 } from "../../features/inAppAgent/types";
 import {
+  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
+  isSettledInAppAgentRunStatus,
+} from "../constants";
+import {
   ACTIVE_RUN_CONFLICT_MESSAGE,
-  FOREGROUND_RUN_STALE_AFTER_MS,
-  FOREGROUND_RUN_STALE_ERROR_MESSAGE,
   lockConversation,
   type InAppAgentTx,
 } from "./persistence";
@@ -108,6 +113,13 @@ export async function finishClaimedRun(params: {
     },
   });
 
+  if (count > 0 && isSettledInAppAgentRunStatus(params.status)) {
+    recordRunTerminalOutcome({
+      status: params.status,
+      errorCode: params.errorCode ?? null,
+    });
+  }
+
   return count > 0;
 }
 
@@ -137,61 +149,73 @@ export async function createQueuedRun(params: {
   request: InAppAgentRunRequest;
   runStartedEvent: AgUiEvent;
 }): Promise<InAppAgentRun> {
-  return params.prisma.$transaction(async (tx) => {
-    await lockConversation(tx, params.projectId, params.conversationId);
+  const { run, reconciled, supersededCount } = await params.prisma.$transaction(
+    async (tx) => {
+      await lockConversation(tx, params.projectId, params.conversationId);
 
-    await reconcileConversationRunsInTransaction({
-      tx,
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-    });
-
-    // New input supersedes a parked approval.
-    await tx.inAppAgentRun.updateMany({
-      where: {
+      const reconciled = await reconcileConversationRunsInTransaction({
+        tx,
         projectId: params.projectId,
         conversationId: params.conversationId,
-        status: InAppAgentRunStatus.AWAITING_APPROVAL,
-      },
-      data: {
-        status: InAppAgentRunStatus.CANCELLED,
-        errorCode: InAppAgentRunErrorCode.APPROVAL_SUPERSEDED,
-        errorMessage: "Replaced by a newer message",
-      },
-    });
+      });
 
-    const activeRun = await tx.inAppAgentRun.findFirst({
-      where: {
+      // New input supersedes a parked approval.
+      const superseded = await tx.inAppAgentRun.updateMany({
+        where: {
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        },
+        data: {
+          status: InAppAgentRunStatus.CANCELLED,
+          errorCode: InAppAgentRunErrorCode.APPROVAL_SUPERSEDED,
+          errorMessage: "Replaced by a newer message",
+        },
+      });
+
+      const activeRun = await tx.inAppAgentRun.findFirst({
+        where: {
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          finishedAt: null,
+        },
+        select: { id: true },
+      });
+
+      if (activeRun) {
+        throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
+      }
+
+      const run = await createRunRow(tx, {
+        runId: params.runId,
         projectId: params.projectId,
         conversationId: params.conversationId,
-        finishedAt: null,
-      },
-      select: { id: true },
+        triggeredByUserId: params.triggeredByUserId,
+        model: params.model,
+        request: params.request,
+      });
+
+      await appendConversationEventInTransaction({
+        tx,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        runId: params.runId,
+        event: params.runStartedEvent,
+      });
+
+      return { run, reconciled, supersededCount: superseded.count };
+    },
+  );
+
+  recordReconciledOutcomes(reconciled);
+  for (let i = 0; i < supersededCount; i++) {
+    recordRunTerminalOutcome({
+      status: InAppAgentRunStatus.CANCELLED,
+      errorCode: InAppAgentRunErrorCode.APPROVAL_SUPERSEDED,
     });
+  }
 
-    if (activeRun) {
-      throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
-    }
-
-    const run = await createRunRow(tx, {
-      runId: params.runId,
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      triggeredByUserId: params.triggeredByUserId,
-      model: params.model,
-      request: params.request,
-    });
-
-    await appendConversationEventInTransaction({
-      tx,
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      runId: params.runId,
-      event: params.runStartedEvent,
-    });
-
-    return run;
-  });
+  return run;
 }
 
 /** Record one approval decision and create its continuation under the lock. */
@@ -204,6 +228,8 @@ export async function decideToolApproval(params: {
   toolCallId: string;
   approved: boolean;
   decidedByUserId: string;
+  /** Prefixed tool resolved from the persisted interrupt, never client input. */
+  alwaysAllowToolName?: InAppAgentPrefixedLangfuseMcpToolName;
   model?: string;
 }): Promise<InAppAgentRun> {
   const outcome = await params.prisma.$transaction(async (tx) => {
@@ -215,7 +241,13 @@ export async function decideToolApproval(params: {
         projectId: params.projectId,
         conversationId: params.conversationId,
       },
-      select: { status: true, finishedAt: true, request: true },
+      select: {
+        status: true,
+        finishedAt: true,
+        claimedAt: true,
+        createdAt: true,
+        request: true,
+      },
     });
 
     if (
@@ -232,7 +264,7 @@ export async function decideToolApproval(params: {
       parkedAt &&
       Date.now() - parkedAt.getTime() > IN_APP_AGENT_APPROVAL_TTL_MS
     ) {
-      await tx.inAppAgentRun.updateMany({
+      const { count } = await tx.inAppAgentRun.updateMany({
         where: {
           id: params.parentRunId,
           projectId: params.projectId,
@@ -245,7 +277,7 @@ export async function decideToolApproval(params: {
         },
       });
 
-      return { type: "expired" as const };
+      return { type: "expired" as const, expired: count > 0 };
     }
 
     // The parent CAS is the exactly-once decision guarantee.
@@ -267,6 +299,48 @@ export async function decideToolApproval(params: {
     const parentRequest = InAppAgentRunRequestSchema.safeParse(
       parentRun.request,
     );
+    // Preserve tracing lineage across durable approval continuation runs.
+    const continuationNumber =
+      parentRequest.success && parentRequest.data.kind === "approvalDecision"
+        ? (parentRequest.data.continuationNumber ?? 1) + 1
+        : 1;
+    const rootRunId = resolveInAppAgentRootRunId(
+      parentRun.request,
+      params.parentRunId,
+    );
+    const traceStartedAt =
+      parentRequest.success &&
+      parentRequest.data.kind === "approvalDecision" &&
+      parentRequest.data.traceStartedAt
+        ? parentRequest.data.traceStartedAt
+        : (parentRun.claimedAt ?? parentRun.createdAt).toISOString();
+
+    // Persist the grant in the same transaction as the exactly-once decision CAS.
+    if (params.alwaysAllowToolName) {
+      const conversation = await tx.inAppAgentConversation.findUnique({
+        where: {
+          id_projectId: {
+            id: params.conversationId,
+            projectId: params.projectId,
+          },
+        },
+        select: { alwaysAllowedTools: true },
+      });
+
+      if (
+        !conversation?.alwaysAllowedTools.includes(params.alwaysAllowToolName)
+      ) {
+        await tx.inAppAgentConversation.update({
+          where: {
+            id_projectId: {
+              id: params.conversationId,
+              projectId: params.projectId,
+            },
+          },
+          data: { alwaysAllowedTools: { push: params.alwaysAllowToolName } },
+        });
+      }
+    }
 
     await appendConversationEventInTransaction({
       tx,
@@ -291,6 +365,12 @@ export async function decideToolApproval(params: {
         request: {
           kind: "approvalDecision",
           parentRunId: params.parentRunId,
+          rootRunId,
+          traceStartedAt,
+          ...(parentRun.finishedAt
+            ? { approvalRequestedAt: parentRun.finishedAt.toISOString() }
+            : {}),
+          continuationNumber,
           toolCallId: params.toolCallId,
           approved: params.approved,
           context: parentRequest.success ? parentRequest.data.context : [],
@@ -300,8 +380,18 @@ export async function decideToolApproval(params: {
   });
 
   if (outcome.type === "expired") {
+    if (outcome.expired) {
+      recordRunTerminalOutcome({
+        status: InAppAgentRunStatus.FAILED,
+        errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+      });
+    }
     throw new LangfuseConflictError("The approval request expired.");
   }
+
+  recordRunTerminalOutcome({
+    status: InAppAgentRunStatus.SUCCEEDED,
+  });
 
   return outcome.run;
 }
@@ -309,7 +399,67 @@ export async function decideToolApproval(params: {
 export type CancelRunResult = {
   cancelledImmediately: boolean;
   status: InAppAgentRunStatus | null;
+  errorCode?: InAppAgentRunErrorCode;
 };
+
+export type ImmediateCancel = {
+  runId: string;
+  errorCode: InAppAgentRunErrorCode;
+};
+
+/** Cancel every run that is executing or waiting on user approval. */
+export async function cancelConversationRunsInTransaction(params: {
+  tx: InAppAgentTx;
+  projectId: string;
+  conversationId: string;
+}): Promise<ImmediateCancel[]> {
+  await lockConversation(params.tx, params.projectId, params.conversationId);
+
+  const runs = await params.tx.inAppAgentRun.findMany({
+    where: {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      // Parked approvals have finishedAt set but remain unsettled.
+      status: { in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES] },
+    },
+    select: { id: true, status: true },
+  });
+
+  const cancelledImmediately: ImmediateCancel[] = [];
+
+  for (const run of runs) {
+    const parsedStatus = InAppAgentRunStatusSchema.safeParse(run.status);
+    if (!parsedStatus.success) {
+      continue;
+    }
+
+    const result = await cancelRunInTransaction({
+      ...params,
+      runId: run.id,
+      runStatus: parsedStatus.data,
+    });
+
+    if (result.cancelledImmediately && result.errorCode) {
+      cancelledImmediately.push({
+        runId: run.id,
+        errorCode: result.errorCode,
+      });
+    }
+  }
+
+  return cancelledImmediately;
+}
+
+export function recordImmediateCancelOutcomes(
+  cancellations: ReadonlyArray<ImmediateCancel>,
+): void {
+  for (const cancellation of cancellations) {
+    recordRunTerminalOutcome({
+      status: InAppAgentRunStatus.CANCELLED,
+      errorCode: cancellation.errorCode,
+    });
+  }
+}
 
 /** Cancel idle states immediately; signal RUNNING workers cooperatively. */
 export async function requestRunCancellation(params: {
@@ -318,7 +468,7 @@ export async function requestRunCancellation(params: {
   conversationId: string;
   runId: string;
 }): Promise<CancelRunResult> {
-  return params.prisma.$transaction(async (tx) => {
+  const result = await params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
     const run = await tx.inAppAgentRun.findFirst({
@@ -334,85 +484,111 @@ export async function requestRunCancellation(params: {
     if (!parsedStatus.success) {
       return { cancelledImmediately: false, status: null };
     }
-    const runStatus = parsedStatus.data;
 
-    const immediateCancel =
-      runStatus === InAppAgentRunStatus.QUEUED
+    return cancelRunInTransaction({
+      tx,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.runId,
+      runStatus: parsedStatus.data,
+    });
+  });
+
+  // A RUNNING run is only signalled here; the worker writes its own terminal
+  // state, so only an immediate cancel settles the run in this call.
+  if (result.cancelledImmediately) {
+    recordRunTerminalOutcome({
+      status: InAppAgentRunStatus.CANCELLED,
+      errorCode: result.errorCode ?? null,
+    });
+  }
+
+  return result;
+}
+
+async function cancelRunInTransaction(params: {
+  tx: InAppAgentTx;
+  projectId: string;
+  conversationId: string;
+  runId: string;
+  runStatus: InAppAgentRunStatus;
+}): Promise<CancelRunResult> {
+  const immediateCancel =
+    params.runStatus === InAppAgentRunStatus.QUEUED
+      ? {
+          errorCode: InAppAgentRunErrorCode.CANCELLED,
+          errorMessage: "Cancelled before a worker picked the run up",
+        }
+      : params.runStatus === InAppAgentRunStatus.AWAITING_APPROVAL
         ? {
-            errorCode: InAppAgentRunErrorCode.CANCELLED,
-            errorMessage: "Cancelled before a worker picked the run up",
+            errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
+            errorMessage: "Approval cancelled",
           }
-        : runStatus === InAppAgentRunStatus.AWAITING_APPROVAL
-          ? {
-              errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
-              errorMessage: "Approval cancelled",
-            }
-          : null;
+        : null;
 
-    if (immediateCancel) {
-      const { count } = await tx.inAppAgentRun.updateMany({
-        where: {
-          id: params.runId,
-          projectId: params.projectId,
-          status: runStatus,
-        },
-        data: {
-          status: InAppAgentRunStatus.CANCELLED,
-          finishedAt: new Date(),
-          cancelRequestedAt: new Date(),
-          ...immediateCancel,
-        },
-      });
-
-      if (count > 0) {
-        return {
-          cancelledImmediately: true,
-          status: InAppAgentRunStatus.CANCELLED,
-        };
-      }
-    } else if (runStatus !== InAppAgentRunStatus.RUNNING) {
-      return {
-        cancelledImmediately: false,
-        status: runStatus,
-      };
-    }
-
-    // A worker can claim QUEUED between the read and immediate-cancel CAS.
-    // Signal the newly RUNNING worker instead of losing that cancel request.
-    const signalled = await tx.inAppAgentRun.updateMany({
+  if (immediateCancel) {
+    const { count } = await params.tx.inAppAgentRun.updateMany({
       where: {
         id: params.runId,
         projectId: params.projectId,
-        status: InAppAgentRunStatus.RUNNING,
+        status: params.runStatus,
       },
-      data: { cancelRequestedAt: new Date() },
+      data: {
+        status: InAppAgentRunStatus.CANCELLED,
+        finishedAt: new Date(),
+        cancelRequestedAt: new Date(),
+        ...immediateCancel,
+      },
     });
 
-    if (signalled.count > 0) {
+    if (count > 0) {
       return {
-        cancelledImmediately: false,
-        status: InAppAgentRunStatus.RUNNING,
+        cancelledImmediately: true,
+        status: InAppAgentRunStatus.CANCELLED,
+        errorCode: immediateCancel.errorCode,
       };
     }
-
-    const current = await tx.inAppAgentRun.findFirst({
-      where: {
-        id: params.runId,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-      },
-      select: { status: true },
-    });
-
-    const parsedCurrentStatus = InAppAgentRunStatusSchema.safeParse(
-      current?.status,
-    );
-
+  } else if (params.runStatus !== InAppAgentRunStatus.RUNNING) {
     return {
       cancelledImmediately: false,
-      status: parsedCurrentStatus.success ? parsedCurrentStatus.data : null,
+      status: params.runStatus,
     };
+  }
+
+  // Preserve cancellation when a worker claims QUEUED between the read and CAS.
+  const signalled = await params.tx.inAppAgentRun.updateMany({
+    where: {
+      id: params.runId,
+      projectId: params.projectId,
+      status: InAppAgentRunStatus.RUNNING,
+    },
+    data: { cancelRequestedAt: new Date() },
   });
+
+  if (signalled.count > 0) {
+    return {
+      cancelledImmediately: false,
+      status: InAppAgentRunStatus.RUNNING,
+    };
+  }
+
+  const current = await params.tx.inAppAgentRun.findFirst({
+    where: {
+      id: params.runId,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+    },
+    select: { status: true },
+  });
+
+  const parsedCurrentStatus = InAppAgentRunStatusSchema.safeParse(
+    current?.status,
+  );
+
+  return {
+    cancelledImmediately: false,
+    status: parsedCurrentStatus.success ? parsedCurrentStatus.data : null,
+  };
 }
 
 export type ReconciledRun = {
@@ -434,7 +610,18 @@ export async function reconcileConversationRuns(params: {
     }),
   );
 
+  recordReconciledOutcomes(reconciled);
+
   return reconciled;
+}
+
+function recordReconciledOutcomes(reconciled: ReconciledRun[]): void {
+  for (const run of reconciled) {
+    recordRunTerminalOutcome({
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: run.errorCode,
+    });
+  }
 }
 
 async function reconcileConversationRunsInTransaction(params: {
@@ -450,11 +637,7 @@ async function reconcileConversationRunsInTransaction(params: {
       projectId,
       conversationId,
       status: {
-        in: [
-          InAppAgentRunStatus.QUEUED,
-          InAppAgentRunStatus.RUNNING,
-          InAppAgentRunStatus.AWAITING_APPROVAL,
-        ],
+        in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES],
       },
     },
     select: {
@@ -501,7 +684,16 @@ async function reconcileConversationRunsInTransaction(params: {
   return reconciled;
 }
 
-function classifyStaleRun(
+/**
+ * Decide whether a non-terminal run has already missed every deadline that
+ * should have failed it. Pure: callers choose whether to act on the verdict.
+ *
+ * Reconciliation writes the verdict; read paths that only need to render a run
+ * may apply it without writing, so a dead worker does not leave a conversation
+ * spinning until someone opens it (`reconcileConversationRuns` is the only
+ * authority that persists the transition).
+ */
+export function classifyStaleRun(
   run: {
     status: string | null;
     createdAt: Date;
@@ -521,22 +713,10 @@ function classifyStaleRun(
   }
 
   if (run.status === InAppAgentRunStatus.RUNNING) {
-    if (
-      !run.claimedAt &&
-      !run.heartbeatAt &&
-      now - run.createdAt.getTime() > FOREGROUND_RUN_STALE_AFTER_MS
-    ) {
-      return {
-        errorCode: InAppAgentRunErrorCode.STALE,
-        errorMessage: FOREGROUND_RUN_STALE_ERROR_MESSAGE,
-      };
-    }
-
-    // Duration wins because a hung tool may keep renewing its heartbeat.
-    if (
-      run.claimedAt &&
-      now - run.claimedAt.getTime() > IN_APP_AGENT_RUN_MAX_DURATION_MS
-    ) {
+    // Duration wins because a hung tool may keep renewing its heartbeat. Use
+    // creation time as the defensive lower bound when claim metadata is absent.
+    const startedAt = run.claimedAt ?? run.createdAt;
+    if (now - startedAt.getTime() > IN_APP_AGENT_RUN_MAX_DURATION_MS) {
       return {
         errorCode: InAppAgentRunErrorCode.RUN_TIMEOUT,
         errorMessage: "The run exceeded the maximum duration",

@@ -24,7 +24,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
-import { PromptBadge } from "@/src/features/traces/components/_shared/PromptBadge";
+import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
   TimeToFirstTokenBadge,
@@ -36,16 +36,16 @@ import {
 } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
 import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
-import { ModelBadge } from "./ObservationMetadataBadgeModel";
-import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
+import { ModelBadge } from "./ModelBadge";
+import { ModelParametersBadges } from "./ModelParametersBadges";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
 import { type ScoreDomain } from "@langfuse/shared";
-import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/trace-aggregation";
+import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
-import { DetailHeaderActionsMenu } from "@/src/features/traces/components/_shared/DetailHeaderActionsMenu";
+import { DetailHeaderActionsMenu } from "@/src/features/traces/components/DetailHeaderActionsMenu";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
@@ -63,7 +63,7 @@ import {
 } from "@/src/components/ui/popover";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
-import { CollapsibleBadgeRow } from "@/src/features/traces/components/_shared/CollapsibleBadgeRow";
+import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 
@@ -409,6 +409,24 @@ export const ObservationDetailViewHeader = memo(
                 }
                 costDetails={
                   subtreeMetrics?.costDetails ?? observation.costDetails
+                }
+                priceSource={
+                  isGenerationLike(observation.type) &&
+                  observation.internalModelId &&
+                  observation.model &&
+                  observation.usagePricingTierId &&
+                  observation.usagePricingTierName &&
+                  Object.keys(observation.providedCostDetails).length === 0 &&
+                  (!subtreeMetrics ||
+                    treeNodeTotalCost?.eq(totalCost ?? 0) === true)
+                    ? {
+                        projectId,
+                        modelId: observation.internalModelId,
+                        modelName: observation.model,
+                        pricingTierId: observation.usagePricingTierId,
+                        pricingTierName: observation.usagePricingTierName,
+                      }
+                    : undefined
                 }
               />
               {subtreeMetrics ? (

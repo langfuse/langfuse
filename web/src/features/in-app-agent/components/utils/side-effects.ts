@@ -1,4 +1,4 @@
-import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/tools";
+import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { safeJsonParse } from "@langfuse/shared";
 import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
@@ -92,8 +92,8 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getObservationFilterValues: [],
   langfuse_getPrompt: [],
   langfuse_getPromptUnresolved: [],
-  langfuse_listMonitors: [],
-  langfuse_getMonitor: [],
+  langfuse_listAlerts: [],
+  langfuse_getAlert: [],
   langfuse_listPrompts: [],
   langfuse_createTextPrompt: ["prompts"],
   langfuse_createChatPrompt: ["prompts"],
@@ -124,7 +124,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   readonly InAppAgentTrpcInvalidationTarget[]
 >;
 
-export function getInAppAgentTrpcInvalidationTargets(toolName: string) {
+function getInAppAgentTrpcInvalidationTargets(toolName: string) {
   return (
     IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS[
       toolName as keyof typeof IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS
@@ -238,10 +238,10 @@ export function getCompletedToolCalls(
 }
 
 /**
- * Single entrypoint for both execution paths: live TOOL_CALL_RESULT events pass
- * one call, snapshot replay passes every completed call in the transcript.
- * `handledToolCallIds` makes the two idempotent against each other, and the
- * targets are unioned so a long transcript still invalidates each route once.
+ * Live TOOL_CALL_RESULT events pass one call while snapshot replay passes every
+ * completed call in the transcript. `handledToolCallIds` makes the two
+ * idempotent against each other, and the targets are unioned so a long
+ * transcript still invalidates each route once.
  */
 export function performToolSideEffectsForCompletedToolCalls({
   toolCalls,

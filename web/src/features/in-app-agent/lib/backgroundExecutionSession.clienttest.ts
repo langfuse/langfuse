@@ -2,8 +2,11 @@ import { EventType } from "@ag-ui/core";
 import type { AgentSubscriber } from "@ag-ui/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import { InAppAgentBackgroundClient } from "./backgroundAgentClient";
 import {
@@ -105,7 +108,9 @@ const finalMessage = {
 
 function createAgent() {
   return {
+    threadId: "conversation-1",
     messages: [],
+    addMessage: vi.fn(),
     setMessages: vi.fn(),
     setCursor: vi.fn(),
     runAgent: vi.fn().mockResolvedValue(undefined),
@@ -152,6 +157,8 @@ describe("BackgroundExecutionSessionController", () => {
     expect(agent.setCursor).toHaveBeenCalledWith(7);
     expect(agent.connectAgent).toHaveBeenCalledOnce();
     expect(hydrate).toHaveBeenCalledOnce();
+    expect(session.run({ message: "ignored", context: [] })).toBeNull();
+    expect(agent.addMessage).not.toHaveBeenCalled();
     expect(session.getSnapshot()).toMatchObject({
       messages: [message],
       eventCursor: 7,
@@ -516,19 +523,24 @@ describe("BackgroundExecutionSessionController", () => {
 
   it("keeps run-start failures outside attachment state", async () => {
     const startError = new Error("start failed");
+    const agent = {
+      ...createAgent(),
+      runAgent: vi.fn().mockRejectedValue(startError),
+    };
     const session = new BackgroundExecutionSessionController({
-      agent: {
-        ...createAgent(),
-        runAgent: vi.fn().mockRejectedValue(startError),
-      },
+      agent,
       hydrate: vi.fn().mockResolvedValue(runningView),
       cancelRun: vi.fn(),
       decideApproval: vi.fn(),
     });
 
-    await expect(session.run({ context: [] } as never)).rejects.toBe(
+    await expect(session.run({ message: "hello", context: [] })).rejects.toBe(
       startError,
     );
+    expect(agent.addMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "user", content: "hello" }),
+    );
+    expect(agent.runAgent).toHaveBeenCalledWith({ context: [] });
     expect(session.getSnapshot().attachment).toEqual({
       status: "detached",
     });
@@ -548,7 +560,7 @@ describe("BackgroundExecutionSessionController", () => {
       decideApproval: vi.fn(),
     });
 
-    await expect(session.run({ context: [] } as never)).rejects.toBe(
+    await expect(session.run({ message: "hello", context: [] })).rejects.toBe(
       watchError,
     );
     expect(session.getSnapshot().attachment).toMatchObject({
@@ -1181,6 +1193,96 @@ describe("InAppAgentBackgroundClient reconnect", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("cursor=-1");
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("cursor=0");
+  });
+
+  it("preserves an open run across watch reconnects", async () => {
+    const requestUrls: URL[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      requestUrls.push(url);
+
+      if (requestUrls.length === 1) {
+        return new Response(
+          [
+            sseFrame({
+              type: "event",
+              sequenceNumber: 0,
+              event: {
+                type: EventType.RUN_STARTED,
+                runId: "run-1",
+                threadId: "conversation-1",
+              },
+            }),
+            sseFrame({
+              type: "event",
+              sequenceNumber: 1,
+              event: {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: "message-1",
+                role: "assistant",
+              },
+            }),
+            sseFrame({
+              type: "event",
+              sequenceNumber: 2,
+              event: {
+                type: EventType.TEXT_MESSAGE_CONTENT,
+                messageId: "message-1",
+                delta: "Still working",
+              },
+            }),
+            sseFrame({
+              type: "event",
+              sequenceNumber: 3,
+              event: {
+                type: EventType.TEXT_MESSAGE_END,
+                messageId: "message-1",
+              },
+            }),
+          ].join(""),
+        );
+      }
+
+      return new Response(
+        [
+          ...(url.searchParams.get("openRunId")
+            ? []
+            : [
+                sseFrame({
+                  type: "event",
+                  sequenceNumber: 3,
+                  event: {
+                    type: EventType.RUN_STARTED,
+                    runId: "run-1",
+                    threadId: "conversation-1",
+                  },
+                }),
+              ]),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 4,
+            event: {
+              type: EventType.RUN_FINISHED,
+              runId: "run-1",
+              threadId: "conversation-1",
+            },
+          }),
+          sseFrame({ type: "done" }),
+        ].join(""),
+      );
+    });
+    const client = new InAppAgentBackgroundClient({
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      cursor: -1,
+      startRun: vi.fn(),
+    });
+
+    await client.connectAgent();
+
+    expect(requestUrls).toHaveLength(2);
+    expect(requestUrls[0]?.searchParams.has("openRunId")).toBe(false);
+    expect(requestUrls[1]?.searchParams.get("openRunId")).toBe("run-1");
   });
 
   it("keeps watching across repeated quiet connection rotations", async () => {

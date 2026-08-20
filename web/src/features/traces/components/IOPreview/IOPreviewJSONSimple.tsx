@@ -7,7 +7,7 @@ import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
-} from "./lib/jsonViewSizeGate";
+} from "./fns/jsonViewSizeGate";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;

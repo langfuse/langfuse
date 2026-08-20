@@ -46,7 +46,7 @@ import {
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
-import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -210,8 +210,8 @@ export function getInAppAgentContext(
 
   return parsedOverride.success
     ? {
-        permissions: "single-tool-override",
-        allowedToolName: parsedOverride.data.toolName,
+        permissions: "tool-allowlist",
+        allowedToolNames: parsedOverride.data.toolNames,
       }
     : { permissions: "read" };
 }
