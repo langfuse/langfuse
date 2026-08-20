@@ -87,6 +87,7 @@ describe("blockEvaluator", () => {
           resourceId: "evaluator-1",
           resourceName: "Quality",
           blockReason: params.blockReason,
+          evaluatorId: "evaluator-1",
         }),
       }),
     );

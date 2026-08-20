@@ -371,6 +371,7 @@ export async function notifyBlockedEvaluators({
             : undefined,
           projectName: project.name,
           blockReason,
+          evaluatorId: evaluator.id,
         },
       });
     }),
