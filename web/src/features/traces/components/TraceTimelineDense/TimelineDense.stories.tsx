@@ -1854,9 +1854,14 @@ export const CollapsedRowsAreNotDrawn = meta.story({
   },
 });
 
-/** `@0ms` was correct and meaningless. Say it in words, and only when it says something. */
-export const TheStartOffsetIsSaidInWords = meta.story({
-  name: "(Test) The Start Offset Is Said In Words",
+/**
+ * The tooltip does not say when a span started. The bar's position on the axis
+ * already says it, and in words it was one more number to read past: `@0ms` on a
+ * root means nothing, and a row that starts 11m 52s in and runs 11m 52s put two
+ * identical unlabelled durations side by side.
+ */
+export const TheTooltipDoesNotRepeatTheAxis = meta.story({
+  name: "(Test) The Tooltip Does Not Repeat The Axis",
   args: { ...READABLE, onSelect: fn(), onHover: fn() },
   play: async ({ canvasElement }) => {
     const surface = canvasElement.querySelector<HTMLElement>(
@@ -1878,16 +1883,20 @@ export const TheStartOffsetIsSaidInWords = meta.story({
         '[data-testid="timeline-dense-tooltip"]',
       );
 
-    // The root starts the trace, so there is nothing to say about when.
+    // The root, which starts the trace...
     hover(6);
     await waitFor(() => expect(tooltip()).not.toBeNull());
+    const rootText = tooltip()!.innerText;
+    await expect(rootText).not.toContain("@");
+    await expect(rootText).not.toContain("starts at");
+
+    // ...and a row that starts well into it. Neither mentions when.
+    hover(6 + 26 * 3);
+    await waitFor(() => expect(tooltip()!.innerText).not.toBe(rootText));
     await expect(tooltip()!.innerText).not.toContain("@");
     await expect(tooltip()!.innerText).not.toContain("starts at");
-
-    // A row that starts later says so, in words.
-    hover(6 + 26 * 3);
-    await waitFor(() => expect(tooltip()!.innerText).toContain("starts at"));
-    await expect(tooltip()!.innerText).not.toContain("@");
+    // What it DOES say: the name, and how long it took.
+    await expect(tooltip()!.innerText).toMatch(/\d/);
   },
 });
 

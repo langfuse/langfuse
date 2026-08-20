@@ -1761,18 +1761,17 @@ export function TimelineDense({
                   </span>
                 ) : null}
               </span>
+              {/* Duration and cost. NOT the start offset: the bar's own position
+                  on the axis is what says when a span began, and saying it again
+                  in words was one more number to read past — `@0ms` on a root
+                  meaning nothing, and two unlabelled durations side by side
+                  reading as one number repeated. */}
               <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                 <span>
                   {focused.durationMs == null
                     ? "—"
                     : formatDurationMs(focused.durationMs)}
                 </span>
-                {/* Said in words, and only when it says something: `@0ms` on a
-                    root is both correct and meaningless, and two unlabelled
-                    durations side by side read as one number repeated. */}
-                {focused.startMs > 0 ? (
-                  <span>starts at {formatDurationMs(focused.startMs)}</span>
-                ) : null}
                 {factsOf?.(focused.id).map((fact) => (
                   <span key={fact}>{fact}</span>
                 ))}
