@@ -3,9 +3,9 @@ import {
   LangfuseNotFoundError,
   TableViewPresetTableName,
 } from "@langfuse/shared";
-import type { AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
+import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 
-type InAppAgentContext = AgUiRunAgentInput["context"];
+type InAppAgentContext = AgUiContext;
 import {
   logger,
   parseSavedViewFromURL,
@@ -17,11 +17,10 @@ import { sanitizeInAppAgentContext } from "@/src/features/in-app-agent/context";
 /**
  * Resolve and sanitize the AG-UI context items for a turn.
  *
- * Shared by the two submit paths: the foreground handler resolves at request
- * time, and `startRun` resolves at submit time and stores the result in the
- * run's request payload — so the worker replays a context that was resolved
- * against the state the user actually saw, and never has to reach for a saved
- * view that may since have been deleted.
+ * `startRun` resolves context at submit time and stores the result in the run's
+ * request payload, so the worker replays a context that was resolved against
+ * the state the user actually saw and never has to reach for a saved view that
+ * may since have been deleted.
  */
 export async function resolveInAppAgentRunContext(params: {
   context: InAppAgentContext;

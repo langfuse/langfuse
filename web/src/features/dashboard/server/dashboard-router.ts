@@ -129,9 +129,8 @@ const LEGACY_CAMEL_CASE_MAP: Record<string, string> = {
  */
 function prepareScoresNumericV2Params(filter: FilterState) {
   const [from, to] = extractFromAndToTimestampsFromFilter(filter);
-  // Fallback to 2000-01-01 instead of epoch 0 — ClickHouse DateTimeFilter
-  // passes new Date(value).getTime() as the parameter, and the value 0
-  // (epoch) is rejected by ClickHouse's DateTime64(3) parameter parser.
+  // Preserve the existing default range. DateTimeFilter now accepts epoch as a
+  // lower bound, but widening dashboard queries is a separate behavior change.
   const fromIso = from?.value
     ? new Date(from.value as Date).toISOString()
     : new Date("2000-01-01T00:00:00.000Z").toISOString();

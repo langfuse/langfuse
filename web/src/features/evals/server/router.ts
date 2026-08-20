@@ -96,6 +96,8 @@ import {
   prepareConfigsForTemplateUpgrade,
   prepareVariableMappingForEvaluatorUpgrade,
 } from "@/src/features/evals/server/evaluatorUpgrade";
+import { deleteJobConfigurationWithExecutions } from "@/src/features/evals/server/evaluatorRepository";
+import { assertCanCreateLegacyEvalJob } from "@/src/features/evals/server/legacyEvalGate";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
@@ -518,9 +520,18 @@ export const evalRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "evalJob:read",
       });
+      // Passing in empty arrayOptions is a no-op, so we exclude it
+      const sanitizedFilter = input.filter.filter(
+        (f) =>
+          !(
+            f.type === "arrayOptions" &&
+            f.value.length === 0 &&
+            f.operator !== "any of"
+          ),
+      );
 
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
+        sanitizedFilter,
         evalConfigFilterColumns,
         "job_configurations",
       );
@@ -1001,6 +1012,11 @@ export const evalRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalJob:CUD",
+      });
+
+      assertCanCreateLegacyEvalJob({
+        projectId: input.projectId,
+        target: input.target,
       });
 
       const evalTemplate = await ctx.prisma.evalTemplate.findFirst({
@@ -1751,11 +1767,10 @@ export const evalRouter = createTRPCRouter({
         action: "delete",
       });
 
-      await ctx.prisma.jobConfiguration.delete({
-        where: {
-          id: evalConfigId,
-          projectId: projectId,
-        },
+      await deleteJobConfigurationWithExecutions({
+        prisma: ctx.prisma,
+        projectId,
+        jobConfigurationId: evalConfigId,
       });
 
       // Clear the "no job configs" caches to ensure they are re-evaluated

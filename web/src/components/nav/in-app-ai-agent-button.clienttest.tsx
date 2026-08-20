@@ -4,14 +4,16 @@ import { InAppAiAgentButton } from "./in-app-ai-agent-button";
 
 const mocks = vi.hoisted(() => ({
   open: false,
+  attentionCount: 0,
   setOpen: vi.fn(),
   openAssistant: vi.fn().mockReturnValue(true),
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useCanUseInAppAgent: () => true,
+  useIsInAppAgentLauncherVisible: () => true,
   useInAppAiAgent: () => ({
     open: mocks.open,
+    attentionCount: mocks.attentionCount,
     setOpen: mocks.setOpen,
     openAssistant: mocks.openAssistant,
   }),
@@ -20,6 +22,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 describe("InAppAiAgentButton", () => {
   beforeEach(() => {
     mocks.open = false;
+    mocks.attentionCount = 0;
     mocks.setOpen.mockReset();
     mocks.openAssistant.mockReset().mockReturnValue(true);
   });

@@ -3,42 +3,21 @@ import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
-import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
+import { useProjectV4MigrationActions } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 
 export function V4MigrationNavItem() {
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const { project } = useQueryProject();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
-  const { project, organization } = useQueryProject();
   const capture = usePostHogClientCapture();
-  const migrationData = useProjectV4MigrationData({
-    projectId: project?.id,
-    orgId: organization?.id,
-    enabled: v4UpgradeUiEnabled && Boolean(project),
-  });
+  const { actionNeeded } = useProjectV4MigrationActions(project?.id);
 
-  if (!v4UpgradeUiEnabled || !project) {
+  if (!v4UpgradeUiEnabled || !project || !actionNeeded) {
     return null;
   }
-  const readiness = getProjectMigrationReadiness({
-    sdk: migrationData.sdk,
-    evals: migrationData.evals,
-    experiments: migrationData.experiments,
-    apis: migrationData.apis,
-    exports: migrationData.exports,
-  });
-  if (readiness === "ready") {
-    return null;
-  }
-
-  const label =
-    readiness === "checking"
-      ? "Checking"
-      : readiness === "unavailable"
-        ? "Check status"
-        : "Action required";
+  const label = "Action required";
 
   const handleClick = () => {
     capture("sidebar:v4_migration_card_clicked");
@@ -47,7 +26,10 @@ export function V4MigrationNavItem() {
     }
     setTimeout(() => {
       // push to next tick to avoid flickering when hiding sidebar on mobile
-      openMigrationPanel({ id: project.id, name: project.name });
+      openMigrationPanel(
+        { id: project.id, name: project.name },
+        "sidebar_card",
+      );
     }, 1);
   };
 

@@ -334,10 +334,45 @@ describe("traces.deleteMany batch action", () => {
     ).resolves.toBeNull();
   });
 
-  it("rejects deletes with an empty traceIds array even for batch actions", async () => {
-    // An empty selection while select-all is armed signals a client-side
-    // consistency issue; the server contract requires at least one traceId
-    // for every delete and must fail loudly rather than absorb it.
+  it("dispatches a batch action even when traceIds drained to empty", async () => {
+    // Paging or a background refetch can drain the visible-page selection
+    // while select-all is armed; the batch path deletes by query and ignores
+    // traceIds, so the dispatch must proceed instead of failing on a phantom
+    // id precondition.
+    const { projectId, caller } = await createCaller();
+    const batchActionId = `${projectId}-traces-trace-delete`;
+    const query = traceDeleteQuery(`delete-user-${randomUUID()}`);
+
+    await caller.traces.deleteMany({
+      projectId,
+      traceIds: [],
+      isBatchAction: true,
+      query,
+    });
+
+    const batchAction = await prisma.batchAction.findUniqueOrThrow({
+      where: { id: batchActionId },
+    });
+    expect(batchAction.status).toBe(BatchActionStatus.Queued);
+    expect(batchAction.query).toMatchObject(query);
+  });
+
+  it("still rejects id-based deletes with an empty traceIds array", async () => {
+    const { projectId, caller } = await createCaller();
+
+    await expect(
+      caller.traces.deleteMany({
+        projectId,
+        traceIds: [],
+        isBatchAction: false,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("Minimum 1 traceId is required."),
+    });
+  });
+
+  it("rejects batch actions without a query", async () => {
     const { projectId, caller } = await createCaller();
     const batchActionId = `${projectId}-traces-trace-delete`;
 
@@ -346,11 +381,10 @@ describe("traces.deleteMany batch action", () => {
         projectId,
         traceIds: [],
         isBatchAction: true,
-        query: traceDeleteQuery(`delete-user-${randomUUID()}`),
       }),
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
-      message: expect.stringContaining("Minimum 1 traceId is required."),
+      message: expect.stringContaining("Batch actions require a query."),
     });
 
     await expect(

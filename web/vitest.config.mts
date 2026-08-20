@@ -32,14 +32,29 @@ const sharedExclude = [
 const GLOBAL_STATE_PATTERN =
   /vi\.(mock|doMock|unmock|spyOn|useFakeTimers|setSystemTime|resetModules|stubEnv|stubGlobal|unstubAllEnvs|unstubAllGlobals)|process\.env\.[A-Z0-9_]+\s*=[^=]|process\.env\[[^\]]+\]\s*=[^=]|delete\s+process\.env|\(env as any\)\.\w+\s*=[^=]|\.(disconnect|quit|shutdown)\(|disconnectQueues/;
 
-const serverTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
+const allServerTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
   cwd: import.meta.dirname,
-  exclude: [
-    "**/node_modules/**",
-    "src/__e2e__/**",
-    "src/__tests__/server/unit/**",
-  ],
+  exclude: ["**/node_modules/**", "src/__e2e__/**"],
 });
+const SHARED_SOURCE_IDENTITY_PATTERN =
+  /@langfuse\/shared\/(?:in-app-agent|src\/env)/;
+// Derive membership from imports so new tests cannot silently miss aliases.
+const sharedSourceTestFiles = allServerTestFiles.filter((file) =>
+  SHARED_SOURCE_IDENTITY_PATTERN.test(
+    readFileSync(join(import.meta.dirname, file), "utf8"),
+  ),
+);
+const sharedSourceUnitTestFiles = sharedSourceTestFiles.filter((file) =>
+  file.startsWith("src/__tests__/server/unit/"),
+);
+const sharedSourceIntegrationTestFiles = sharedSourceTestFiles.filter(
+  (file) => !sharedSourceUnitTestFiles.includes(file),
+);
+const serverTestFiles = allServerTestFiles.filter(
+  (file) =>
+    !file.startsWith("src/__tests__/server/unit/") &&
+    !sharedSourceIntegrationTestFiles.includes(file),
+);
 const isolatedServerTestFiles = serverTestFiles.filter((file) =>
   GLOBAL_STATE_PATTERN.test(
     readFileSync(join(import.meta.dirname, file), "utf8"),
@@ -62,100 +77,110 @@ function markdownRawPlugin() {
   };
 }
 
+const sharedSourcePath = (path: string) =>
+  join(import.meta.dirname, "../packages/shared/src", path);
+
+// Shared's built dist is CJS, whose require() calls bypass Vitest's module
+// graph. Tests that mock in-app-agent storage/lifecycle or mutate shared's env need
+// one source module identity; applying these aliases globally makes every
+// server test transform shared.
+const sharedSourceResolve = {
+  alias: [
+    {
+      find: /^@langfuse\/shared\/in-app-agent\/server\/(.+)$/,
+      replacement: sharedSourcePath("in-app-agent/server/$1"),
+    },
+    {
+      find: /^@langfuse\/shared\/in-app-agent$/,
+      replacement: sharedSourcePath("in-app-agent/index.ts"),
+    },
+    // The runtime source reaches the rest of shared via relative imports
+    // (../../../server etc.), so shared's other entry points must resolve
+    // to the same source files — otherwise tests would load a second dist
+    // copy of shared (split singletons, vi.mock("@langfuse/shared/src/
+    // server") missing the runtime's imports).
+    {
+      find: /^@langfuse\/shared\/src\/(.+)$/,
+      replacement: sharedSourcePath("$1"),
+    },
+    {
+      find: /^@langfuse\/shared\/encryption$/,
+      replacement: sharedSourcePath("encryption/index.ts"),
+    },
+    {
+      find: /^@langfuse\/shared\/query$/,
+      replacement: sharedSourcePath("features/query/index.ts"),
+    },
+    {
+      find: /^@langfuse\/shared\/query\/server$/,
+      replacement: sharedSourcePath("features/query/server/index.ts"),
+    },
+    {
+      find: /^@langfuse\/shared\/monitors$/,
+      replacement: sharedSourcePath("features/monitors/index.ts"),
+    },
+    {
+      find: /^@langfuse\/shared\/monitors\/server$/,
+      replacement: sharedSourcePath("features/monitors/server.ts"),
+    },
+    {
+      find: /^@langfuse\/shared$/,
+      replacement: sharedSourcePath("index.ts"),
+    },
+  ],
+  // Runtime source resolves these through shared's node_modules symlinks.
+  // Dedupe keeps one module identity so mocks registered from web intercept.
+  dedupe: [
+    "@ag-ui/core",
+    "@ag-ui/client",
+    "langfuse",
+  ],
+};
+
+function serverProject(
+  name: string,
+  include: string[],
+  options: {
+    database?: boolean;
+    env?: Record<string, string>;
+    exclude?: string[];
+    isolate?: boolean;
+    resolve?: typeof sharedSourceResolve;
+  } = {},
+) {
+  return {
+    extends: true as const,
+    ...(options.resolve ? { resolve: options.resolve } : {}),
+    test: {
+      name,
+      include,
+      exclude: [...sharedExclude, ...(options.exclude ?? [])],
+      ...(options.isolate === undefined ? {} : { isolate: options.isolate }),
+      ...(options.env ? { env: options.env } : {}),
+      environment: "node" as const,
+      setupFiles: ["./src/__tests__/after-teardown.ts"],
+      ...(options.database
+        ? { globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"] }
+        : {}),
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [markdownRawPlugin(), tsconfigPaths(), react()],
   resolve: {
-    // The in-app-agent runtime lives in @langfuse/shared. Its built dist is
-    // CJS, whose require() calls bypass vitest's mocker — so tests that mock
-    // the runtime's dependencies (@mastra/*, instrumentation, …) would hit
-    // the real modules. Alias the runtime subpaths to shared *source* so
-    // vite processes it as ESM and mocks intercept.
     alias: [
+      // next-query-params ships a CJS `pages` entry whose default-export
+      // interop breaks when the package is inlined (server.deps.inline
+      // below, needed so vi.mock("next/router") intercepts the adapter's
+      // own router import). Point at the ESM bundle instead.
       {
-        find: /^@langfuse\/shared\/in-app-agent\/server\/(.+)$/,
+        find: /^next-query-params\/pages$/,
         replacement: join(
           import.meta.dirname,
-          "../packages/shared/src/in-app-agent/server/$1",
+          "node_modules/next-query-params/dist/pages.esm.js",
         ),
       },
-      {
-        find: /^@langfuse\/shared\/in-app-agent\/server$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/in-app-agent/server/index.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/in-app-agent$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/in-app-agent/index.ts",
-        ),
-      },
-      // The runtime source reaches the rest of shared via relative imports
-      // (../../../server etc.), so shared's other entry points must resolve
-      // to the same source files — otherwise tests would load a second dist
-      // copy of shared (split singletons, vi.mock("@langfuse/shared/src/
-      // server") missing the runtime's imports).
-      {
-        find: /^@langfuse\/shared\/src\/(.+)$/,
-        replacement: join(import.meta.dirname, "../packages/shared/src/$1"),
-      },
-      {
-        find: /^@langfuse\/shared\/encryption$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/encryption/index.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/query$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/features/query/index.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/query\/server$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/features/query/server/index.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/monitors$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/features/monitors/index.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/monitors\/server$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/features/monitors/server.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/index.ts",
-        ),
-      },
-    ],
-    // The runtime source resolves Mastra/AG-UI/Bedrock through shared's
-    // node_modules symlinks — a different module id than the test files'
-    // vi.mock registrations, which resolve through web's. Dedupe forces a
-    // single resolution so the mocks intercept the runtime's imports.
-    dedupe: [
-      "@mastra/core",
-      "@mastra/mcp",
-      "@ag-ui/core",
-      "@ag-ui/client",
-      "@ag-ui/mastra",
-      "ai-sdk-amazon-bedrock-v4",
-      "langfuse",
     ],
   },
   test: {
@@ -172,7 +197,9 @@ export default defineConfig({
     testTimeout: 30_000,
     server: {
       deps: {
-        inline: [/@langfuse\//],
+        // next-query-params is inlined so vi.mock("next/router") also
+        // intercepts the adapter's own router import in clienttests.
+        inline: [/@langfuse\//, "next-query-params"],
       },
     },
     projects: [
@@ -201,43 +228,29 @@ export default defineConfig({
           setupFiles: ["@testing-library/jest-dom/vitest"],
         },
       },
-      {
-        extends: true,
-        test: {
-          name: "server",
-          include: sharedContextServerTestFiles,
-          exclude: sharedExclude,
-          isolate: false,
-          // Workers are reused across files, so the per-file teardown must
-          // not disconnect shared singletons (redis, ClickHouse) that later
-          // files in the same worker still use. See after-teardown.ts.
-          env: { VITEST_SHARED_CONTEXT: "1" },
-          environment: "node",
-          setupFiles: ["./src/__tests__/after-teardown.ts"],
-          globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: "server-isolated",
-          include: isolatedServerTestFiles,
-          exclude: sharedExclude,
-          environment: "node",
-          setupFiles: ["./src/__tests__/after-teardown.ts"],
-          globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: "server-unit",
-          include: ["src/__tests__/server/unit/**/*.servertest.{ts,tsx}"],
-          exclude: sharedExclude,
-          environment: "node",
-          setupFiles: ["./src/__tests__/after-teardown.ts"],
-        },
-      },
+      serverProject("server", sharedContextServerTestFiles, {
+        database: true,
+        isolate: false,
+        // Workers are reused across files, so the per-file teardown must not
+        // disconnect shared singletons (redis, ClickHouse) that later files
+        // in the same worker still use. See after-teardown.ts.
+        env: { VITEST_SHARED_CONTEXT: "1" },
+      }),
+      serverProject("server-isolated", isolatedServerTestFiles, {
+        database: true,
+      }),
+      serverProject("server-shared-source", sharedSourceIntegrationTestFiles, {
+        database: true,
+        resolve: sharedSourceResolve,
+      }),
+      serverProject(
+        "server-unit",
+        ["src/__tests__/server/unit/**/*.servertest.{ts,tsx}"],
+        { exclude: sharedSourceUnitTestFiles },
+      ),
+      serverProject("server-shared-source-unit", sharedSourceUnitTestFiles, {
+        resolve: sharedSourceResolve,
+      }),
       {
         extends: true,
         plugins: [

@@ -1,19 +1,62 @@
+import { EventType } from "@ag-ui/core";
 import { describe, expect, it, vi } from "vitest";
 
-import { InAppAgentRunStatus } from "../../index";
+import { InAppAgentRunStatus } from "../../features/inAppAgent/types";
 import type { PrismaClient } from "../../db";
 import {
+  createQueuedRun,
   reconcileConversationRuns,
   requestRunCancellation,
 } from "./runLifecycle";
 
 describe("in-app agent run lifecycle races", () => {
+  it("does not admit a run after the conversation is deleted", async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ deletedAt: new Date() }]),
+      inAppAgentRun: {
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: "run-1" }),
+      },
+      inAppAgentEvent: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      inAppAgentConversation: {
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+    const prisma = {
+      $transaction: async (callback: (transaction: typeof tx) => unknown) =>
+        callback(tx),
+    } as unknown as PrismaClient;
+
+    await expect(
+      createQueuedRun({
+        prisma,
+        runId: "run-1",
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        triggeredByUserId: "user-1",
+        model: "test-model",
+        request: { kind: "userMessage", context: [] },
+        runStartedEvent: {
+          type: EventType.RUN_STARTED,
+          threadId: "conversation-1",
+          runId: "run-1",
+        },
+      }),
+    ).rejects.toThrow("Agent conversation not found");
+    expect(tx.inAppAgentRun.create).not.toHaveBeenCalled();
+  });
+
   it("preserves cancellation when a worker claims the queued run concurrently", async () => {
     let status: InAppAgentRunStatus = InAppAgentRunStatus.QUEUED;
     let cancelRequestedAt: Date | null = null;
 
     const tx = {
-      $queryRaw: vi.fn().mockResolvedValue([]),
+      $queryRaw: vi.fn().mockResolvedValue([{ deletedAt: null }]),
       inAppAgentRun: {
         findFirst: vi.fn(async () => ({ status })),
         updateMany: vi.fn(

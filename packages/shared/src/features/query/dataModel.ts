@@ -4,6 +4,7 @@ import {
   type ViewDeclarationType,
   type DimensionsDeclarationType,
   type views,
+  SCORES_LISTABLE_COUNT_VIEW,
 } from "./types";
 import { InvalidRequestError } from "../../errors";
 import {
@@ -11,6 +12,7 @@ import {
   eventsTableTraceNameAggregationSqlForAlias,
   eventsTableTraceNameSqlForAlias,
 } from "../../eventsTable";
+import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -1101,6 +1103,58 @@ export const scoresBooleanViewV2: ViewDeclarationType =
 export const scoresCategoricalViewV2: ViewDeclarationType =
   scoresCategoricalViewBase("v2");
 
+/**
+ * Count-only view scoped to every listable score type (see
+ * `LISTABLE_SCORE_TYPES`), unlike `scores-numeric`/`scores-categorical`
+ * which each cover only a subset. Powers `ScoresOutlierStrip`'s "Count"
+ * mode; deliberately has no `value` measure, since categorical/text rows
+ * carry no real numeric value — "Value" mode stays a separate query against
+ * the unchanged `scores-numeric` view instead.
+ */
+function scoresListableCountViewBase(
+  version: "v1" | "v2",
+): ViewDeclarationType {
+  const baseDimensions =
+    version === "v1" ? scoreBaseDimensions : scoresV2BaseDimensions;
+  return {
+    name: "scores_listable_count",
+    description:
+      "Internal-only, count-only view scoping to every listable score type. Powers the scores overview strip's Count mode; not part of the public views enum.",
+    dimensions: {
+      ...baseDimensions,
+      ...createScoreSpecificDimensions(
+        "scores_listable_count",
+        version === "v2",
+      ),
+    },
+    measures: {
+      count: {
+        sql: "count(*)",
+        alias: "count",
+        type: "integer",
+        description: "Total number of scores across every listable score type.",
+        unit: "scores",
+      },
+    },
+    tableRelations: createScoreTableRelations(version),
+    segments: [
+      {
+        column: "data_type",
+        operator: "any of" as const,
+        value: [...LISTABLE_SCORE_TYPES],
+        type: "stringOptions" as const,
+      },
+    ],
+    timeDimension: "timestamp",
+    baseCte: `scores scores_listable_count FINAL`,
+  };
+}
+
+export const scoresListableCountView: ViewDeclarationType =
+  scoresListableCountViewBase("v1");
+export const scoresListableCountViewV2: ViewDeclarationType =
+  scoresListableCountViewBase("v2");
+
 // Events-Observations View - queries from events table instead of observations table
 export const eventsObservationsView: ViewDeclarationType = {
   name: "events_observations",
@@ -1515,10 +1569,22 @@ export const viewDeclarations: VersionedViewDeclarations = {
 } as const;
 
 // Helper function for view resolution
+const internalViewDeclarations: Record<ViewVersion, ViewDeclarationType> = {
+  v1: scoresListableCountView,
+  v2: scoresListableCountViewV2,
+};
+
 export function getViewDeclaration(
-  viewName: z.infer<typeof views>,
+  // Widened (not just `z.infer<typeof views>`) so the handful of
+  // server-only callers that know about `SCORES_LISTABLE_COUNT_VIEW` can
+  // resolve it too, without adding it to the public `views` enum.
+  viewName: z.infer<typeof views> | typeof SCORES_LISTABLE_COUNT_VIEW,
   version: ViewVersion = "v1",
 ): ViewDeclarationType {
+  if (viewName === SCORES_LISTABLE_COUNT_VIEW) {
+    return internalViewDeclarations[version];
+  }
+
   const versionViews = viewDeclarations[version];
 
   // TypeScript knows the exact shape of each version now

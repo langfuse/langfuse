@@ -61,6 +61,14 @@ describe("MarkdownView link rendering", () => {
   });
 });
 
+describe("MarkdownView ordered lists", () => {
+  it("preserves an explicit ordered-list start number", () => {
+    const { container } = renderMarkdown("2.");
+
+    expect(container.querySelector("ol")?.getAttribute("start")).toBe("2");
+  });
+});
+
 describe("prependBasePathToInternalHref", () => {
   // A native <a> loses the NEXT_PUBLIC_BASE_PATH that <Link> used to prepend to
   // root-relative internal hrefs; this helper restores it for subpath deploys.

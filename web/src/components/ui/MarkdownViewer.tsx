@@ -28,6 +28,7 @@ import {
   type OpenAIOutputAudioType,
   isOpenAITextContentPart,
   isOpenAIImageContentPart,
+  isMediaReferencePart,
 } from "@langfuse/shared";
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
@@ -338,8 +339,12 @@ function MarkdownRenderer({
 
               return <ul className="list-inside list-disc">{children}</ul>;
             },
-            ol({ children }) {
-              return <ol className="list-inside list-decimal">{children}</ol>;
+            ol({ children, start }) {
+              return (
+                <ol start={start} className="list-inside list-decimal">
+                  {children}
+                </ol>
+              );
             },
             li({ children }) {
               return (
@@ -458,11 +463,13 @@ function MarkdownRenderer({
   }
 }
 const parseOpenAIContentParts = (
-  content: z.infer<typeof OpenAIContentParts> | null,
+  content: z.input<typeof OpenAIContentParts> | null,
 ): string => {
   return (content ?? [])
     .map((item) => {
-      if (item.type === "text") {
+      if (typeof item === "string") {
+        return item;
+      } else if (item.type === "text") {
         return item.text;
       } else if (item.type === "image_url") {
         return `![image](${item.image_url.url})`;
@@ -484,7 +491,9 @@ export function MarkdownView({
   afterHeader,
   isSystemPrompt,
 }: {
-  markdown: string | z.infer<typeof OpenAIContentSchema>;
+  /** The UNPARSED content shape — see `canRenderContentAsMarkdown`. Media
+      reference strings must still be strings when they reach the part guards. */
+  markdown: string | z.input<typeof OpenAIContentSchema>;
   title?: string;
   titleIcon?: React.ReactNode;
   audio?: OpenAIOutputAudioType;
@@ -576,7 +585,7 @@ export function MarkdownView({
       {afterHeader}
       <div
         className={cn(
-          "io-message-content grid grid-flow-row gap-2 px-1 py-2",
+          "io-message-content ph-no-capture grid grid-flow-row gap-2 px-1 py-2",
           title === "assistant" || title === "Output" || title === "Model"
             ? "bg-accent-light-green"
             : "",
@@ -603,57 +612,22 @@ export function MarkdownView({
             </>
           )
         ) : (
-          // content parts (multi-modal); collapsed = preview of the joined text
+          // content parts (multi-modal); collapsing hides long TEXT only —
+          // attachments are not text, so media parts render either way. That
+          // also keeps the shared media strip's dedup honest: it assumes any
+          // inline-renderable media did render (LFE-14815).
           <>
             {isCollapsed ? (
-              <MarkdownRenderer markdown={truncatedContent} theme={theme} />
+              <>
+                <MarkdownRenderer markdown={truncatedContent} theme={theme} />
+                {(markdown ?? []).map((content, index) =>
+                  isOpenAITextContentPart(content)
+                    ? null
+                    : renderContentPart(content, index),
+                )}
+              </>
             ) : (
-              (markdown ?? []).map((content, index) => {
-                if (isOpenAITextContentPart(content)) {
-                  return (
-                    <MarkdownRenderer
-                      key={index}
-                      markdown={content.text}
-                      theme={theme}
-                    />
-                  );
-                }
-
-                if (isOpenAIImageContentPart(content)) {
-                  const imageUrl = content.image_url.url;
-                  const safeImageUrl =
-                    typeof imageUrl === "string" &&
-                    OpenAIUrlImageUrl.safeParse(imageUrl).success
-                      ? getSafeImageUrl(imageUrl)
-                      : null;
-
-                  return safeImageUrl ? (
-                    <div key={index}>
-                      <ResizableImage src={safeImageUrl} />
-                    </div>
-                  ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
-                    <LangfuseMediaView mediaReferenceString={imageUrl} />
-                  ) : (
-                    <div className="grid grid-cols-[auto_1fr] items-center gap-2">
-                      <span title="<Base64 data URI>" className="h-4 w-4">
-                        <ImageOff className="h-4 w-4" />
-                      </span>
-                      <span
-                        className="truncate text-sm"
-                        title={imageUrl.toString()}
-                      >
-                        {imageUrl.toString()}
-                      </span>
-                    </div>
-                  );
-                }
-
-                return content.type === "input_audio" ? (
-                  <LangfuseMediaView
-                    mediaReferenceString={content.input_audio.data}
-                  />
-                ) : null;
-              })
+              (markdown ?? []).map(renderContentPart)
             )}
             {collapseToggle}
           </>
@@ -675,7 +649,7 @@ export function MarkdownView({
           <div className="text-muted-foreground mx-3 border-t px-2 py-1 text-xs">
             Media
           </div>
-          <div className="mx-3 flex flex-wrap gap-2 px-2 pt-1 pb-4">
+          <div className="ph-no-capture mx-3 flex flex-wrap gap-2 px-2 pt-1 pb-4">
             {remainingMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
@@ -688,4 +662,56 @@ export function MarkdownView({
       )}
     </div>
   );
+
+  function renderContentPart(
+    content: NonNullable<z.input<typeof OpenAIContentParts>>[number],
+    index: number,
+  ) {
+    // A bare reference string is a whole part (LFE-9577).
+    if (isMediaReferencePart(content)) {
+      return <LangfuseMediaView key={index} mediaReferenceString={content} />;
+    }
+
+    if (isOpenAITextContentPart(content)) {
+      return (
+        <MarkdownRenderer key={index} markdown={content.text} theme={theme} />
+      );
+    }
+
+    if (isOpenAIImageContentPart(content)) {
+      const imageUrl = content.image_url.url;
+      const safeImageUrl =
+        typeof imageUrl === "string" &&
+        OpenAIUrlImageUrl.safeParse(imageUrl).success
+          ? getSafeImageUrl(imageUrl)
+          : null;
+
+      return safeImageUrl ? (
+        <div key={index}>
+          <ResizableImage src={safeImageUrl} />
+        </div>
+      ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
+        <LangfuseMediaView key={index} mediaReferenceString={imageUrl} />
+      ) : (
+        <div
+          key={index}
+          className="grid grid-cols-[auto_1fr] items-center gap-2"
+        >
+          <span title="<Base64 data URI>" className="h-4 w-4">
+            <ImageOff className="h-4 w-4" />
+          </span>
+          <span className="truncate text-sm" title={imageUrl.toString()}>
+            {imageUrl.toString()}
+          </span>
+        </div>
+      );
+    }
+
+    return content.type === "input_audio" ? (
+      <LangfuseMediaView
+        key={index}
+        mediaReferenceString={content.input_audio.data}
+      />
+    ) : null;
+  }
 }

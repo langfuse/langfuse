@@ -37,7 +37,8 @@ import {
   observationVariableMapping,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { TRPCClientError } from "@trpc/client";
+import { reportError } from "@/src/utils/reportError";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -47,6 +48,7 @@ import {
   evalConfigFormSchema,
   getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
+  RETIRED_TRACE_FILTER_COLUMNS,
   getTargetDisplayName,
   inferDefaultMapping,
   type LangfuseObject,
@@ -93,6 +95,7 @@ import {
   isExperimentTarget,
   isLegacyEvalTarget,
   isTraceTarget,
+  shouldShowLegacyTracePreview,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   useUserFacingTarget,
@@ -335,6 +338,8 @@ export const InnerEvaluatorForm = (props: {
   hideAdvancedSettings?: boolean;
   hideTargetSelection?: boolean;
   hidePreviewTable?: boolean;
+  hideRootObservationFilter?: boolean;
+  showPreviewTargetBadge?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
@@ -375,7 +380,11 @@ export const InnerEvaluatorForm = (props: {
     observationEvalFilterOptions,
     experimentEvalFilterOptions,
     datasetFilterOptions,
-  } = useEvalConfigFilterOptions({ projectId: props.projectId });
+  } = useEvalConfigFilterOptions({
+    projectId: props.projectId,
+    useEventsTable: isBetaEnabled,
+    includeLegacyTraceOptions: showLegacyTargetOptions,
+  });
 
   const targetState = useEvaluatorTargetState();
 
@@ -532,15 +541,13 @@ export const InnerEvaluatorForm = (props: {
   ]);
 
   const utils = api.useUtils();
+  // No onError override: the react-query default (handleTrpcError) owns
+  // classification, Sentry capture, and the standard error toast.
   const createJobMutation = api.evals.createJob.useMutation({
     onSuccess: () => utils.models.invalidate(),
-    // Defining onError replaces the react-query default that shows the
-    // standard error toast, so trigger it explicitly.
-    onError: trpcErrorToast,
   });
   const updateJobMutation = api.evals.updateEvalJob.useMutation({
     onSuccess: () => utils.evals.invalidate(),
-    onError: trpcErrorToast,
   });
   const [availableVariables, setAvailableVariables] = useState<
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
@@ -720,10 +727,17 @@ export const InnerEvaluatorForm = (props: {
         }
       })
       .catch((error) => {
-        // Mutation failures are surfaced via the onError toast; this catch
-        // also swallows post-success errors (onFormSuccess, router.push),
-        // so keep a console trace for those.
-        console.error("Evaluator form submission failed", error);
+        // Mutation failures were already classified + toasted by the
+        // react-query default onError; only post-success errors
+        // (onFormSuccess, router.push) need reporting here. reportError
+        // captures with an area tag and warns — console.error would mint a
+        // second, unclassified Sentry event via captureConsoleIntegration.
+        if (!(error instanceof TRPCClientError)) {
+          reportError(error, {
+            area: "evals",
+            extra: { context: "evaluator-form-post-submit" },
+          });
+        }
       });
   }
 
@@ -1146,6 +1160,12 @@ export const InnerEvaluatorForm = (props: {
                         // Event evaluators - use observation columns
                         return observationEvalFilterColsWithOptions(
                           observationEvalFilterOptions,
+                        ).filter(
+                          (column) =>
+                            !(
+                              props.hideRootObservationFilter &&
+                              column.id === "isRootObservation"
+                            ),
                         );
                       } else if (isTraceTarget(target)) {
                         return tracesTableColsWithOptions(
@@ -1212,6 +1232,11 @@ export const InnerEvaluatorForm = (props: {
                                       ? ["tags", "name", "calledToolNames"]
                                       : undefined
                                 }
+                                columnsHiddenUnlessSelected={
+                                  isTraceTarget(target)
+                                    ? RETIRED_TRACE_FILTER_COLUMNS
+                                    : undefined
+                                }
                               />
                             )}
                           </div>
@@ -1234,7 +1259,12 @@ export const InnerEvaluatorForm = (props: {
                 {/* Preview based on target type */}
                 {previewTableVisible && (
                   <>
-                    {isTraceTarget(form.watch("target")) && (
+                    {/* The traces preview reads the legacy traces table, which
+                        is not the v4 user's experience — never show it there. */}
+                    {shouldShowLegacyTracePreview(
+                      form.watch("target"),
+                      isBetaEnabled,
+                    ) && (
                       <TracesPreview
                         projectId={props.projectId}
                         filterState={watchedFilter}
@@ -1338,6 +1368,7 @@ export const InnerEvaluatorForm = (props: {
           compatibilityCheckWasPerformed={
             props.evalCapabilities.compatibilityCheckWasPerformed
           }
+          showPreviewTargetBadge={props.showPreviewTargetBadge}
         />
       )}
     </div>

@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -60,9 +60,7 @@ export default function RenameOrganization() {
       .then(() => {
         form.reset();
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportTrpcErrorWithoutToast(error, "organizations"));
   }
 
   return (

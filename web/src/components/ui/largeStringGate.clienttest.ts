@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   LARGE_STRING_RENDER_CHAR_LIMIT,
   isLargeRenderString,

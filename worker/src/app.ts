@@ -40,6 +40,7 @@ import {
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
   CloudUsageMeteringQueue,
+  V4LegacyApiUsageQueue,
   EventPropagationQueue,
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
@@ -47,7 +48,7 @@ import {
   CodeEvalExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
-import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server";
+import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { env, v4WritesToEventsTable } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
@@ -60,6 +61,7 @@ import {
   postHogIntegrationProcessingProcessor,
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
+import { v4LegacyApiUsageProcessor } from "./queues/v4LegacyApiUsageQueue";
 import {
   mixpanelIntegrationProcessingProcessor,
   mixpanelIntegrationProcessor,
@@ -99,6 +101,7 @@ import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
+import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 
 const app = express();
 
@@ -423,6 +426,8 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
   });
 }
 
+export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
+
 if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.InAppAgentRunQueue,
@@ -436,6 +441,9 @@ if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
       maxStalledCount: 0,
     },
   );
+
+  inAppAgentDlqRetryRunner = new InAppAgentDlqRetryRunner();
+  inAppAgentDlqRetryRunner.start();
 }
 
 // Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
@@ -519,6 +527,25 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
         // Process at most one PostHog job globally per 10s.
         max: 1,
         duration: 10_000,
+      },
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_V4_LEGACY_API_USAGE_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  V4LegacyApiUsageQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.V4LegacyApiUsageQueue,
+    v4LegacyApiUsageProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // The job scans system.query_log across all ClickHouse services;
+        // never run it more than once per minute even if jobs pile up.
+        max: 1,
+        duration: 60_000,
       },
     },
   );

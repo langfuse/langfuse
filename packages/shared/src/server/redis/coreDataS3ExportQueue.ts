@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 import { env } from "../../env";
 
@@ -40,17 +41,10 @@ export class CoreDataS3ExportQueue {
 
     if (CoreDataS3ExportQueue.instance) {
       logger.debug("Scheduling jobs for CoreDataS3ExportQueue");
-      CoreDataS3ExportQueue.instance
-        .add(
-          QueueJobs.CoreDataS3ExportJob,
-          {},
-          {
-            repeat: { pattern: "15 3 * * *" }, // every day at 3:15am
-          },
-        )
-        .catch((err) => {
-          logger.error("Error adding CoreDataS3ExportJob schedule", err);
-        });
+      scheduleRecurringJob(CoreDataS3ExportQueue.instance, {
+        jobName: QueueJobs.CoreDataS3ExportJob,
+        pattern: "15 3 * * *", // every day at 3:15am
+      });
     }
 
     return CoreDataS3ExportQueue.instance;

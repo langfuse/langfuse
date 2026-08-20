@@ -1,4 +1,5 @@
 import React from "react";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
 import { LockIcon, SquarePen } from "lucide-react";
 import {
@@ -24,6 +25,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
   buttonVariant = "secondary",
   size = "default",
   layout = "toolbar",
+  showAnnotationCount = false,
 }: AnnotateDrawerProps<Target> & {
   size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
   /**
@@ -31,6 +33,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
    * trigger as a full-width labeled row for the mobile header overflow popover.
    */
   layout?: "toolbar" | "menu";
+  showAnnotationCount?: boolean;
 }) {
   const isMenu = layout === "menu";
   const capture = usePostHogClientCapture();
@@ -42,6 +45,9 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
   const hasNonAnnotationScores = scores.some(
     (score) => score.source !== "ANNOTATION",
   );
+  const annotationCount = scores.filter(
+    (score) => score.source === "ANNOTATION",
+  ).length;
 
   return (
     <Drawer>
@@ -76,6 +82,11 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
             />
           )}
           <span className={isMenu ? "text-sm" : undefined}>Annotate</span>
+          {showAnnotationCount && annotationCount > 0 ? (
+            <span className="ml-1">
+              <ActionButtonCountBadge count={annotationCount} />
+            </span>
+          ) : null}
         </Button>
       </DrawerTrigger>
       <DrawerContent className="p-3">

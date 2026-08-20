@@ -1,6 +1,6 @@
 import { PlusCircle } from "lucide-react";
 import TableIdOrName from "@/src/components/table/table-id";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
 
 /**
  * Renders the "Provided Model Name" cell shared by the generations and events

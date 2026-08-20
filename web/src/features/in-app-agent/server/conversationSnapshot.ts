@@ -1,6 +1,9 @@
 import { EventType } from "@ag-ui/core";
 
-import { createConversationMessageAccumulator } from "@langfuse/shared/in-app-agent/server/persistence";
+import {
+  createConversationMessageAccumulator,
+  redactSilentToolMessages,
+} from "@langfuse/shared/in-app-agent/server/persistence";
 import type { PersistedConversationEvent } from "@langfuse/shared/in-app-agent/server/persistence";
 
 import {
@@ -26,7 +29,7 @@ export function getConversationSnapshotFromEvents(
   let displayState = createInAppAgentDisplayState();
   const deferredToolCallParents = new Map<string, string | undefined>();
 
-  for (const { event, runId } of events) {
+  for (const { event, runId, createdAt } of events) {
     if (event.type === EventType.TOOL_CALL_START) {
       const toolCallId = getEventString(event, "toolCallId");
       if (toolCallId) {
@@ -52,6 +55,7 @@ export function getConversationSnapshotFromEvents(
       displayState = recordInAppAgentMessagesForDisplay(
         displayState,
         accumulator.getMessages(),
+        createdAt.getTime(),
       );
     }
 
@@ -68,7 +72,10 @@ export function getConversationSnapshotFromEvents(
     }
   }
 
-  return { messages: accumulator.getMessages(), displayState };
+  return {
+    messages: redactSilentToolMessages(accumulator.getMessages()),
+    displayState,
+  };
 }
 
 function getEventString(event: unknown, key: string): string | undefined {

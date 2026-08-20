@@ -6,6 +6,7 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
+import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
   verifyPassword,
@@ -13,6 +14,7 @@ import {
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   type AdapterUser,
   type Adapter,
@@ -47,7 +49,10 @@ import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
-import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
+import {
+  ENTERPRISE_SSO_REQUIRED_MESSAGE,
+  MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
+} from "@/src/features/auth/constants";
 import { z } from "zod";
 import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
 import {
@@ -132,7 +137,12 @@ const staticProviders: Provider[] = [
         email: dbUser.email,
         image: dbUser.image,
         emailVerified: dbUser.emailVerified?.toISOString(),
-        featureFlags: parseFlags(dbUser.featureFlags),
+        featureFlags: parseFlags(dbUser.featureFlags, {
+          email: dbUser.email,
+          // The full session callback resolves deployment and rollout
+          // availability before applying employee defaults.
+          v4BetaEnabled: false,
+        }),
         canCreateOrganizations: canCreateOrganizations(dbUser.email),
         organizations: [],
       };
@@ -595,10 +605,10 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
 const prismaAdapter = PrismaAdapter(prisma);
 const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
 // Factory instead of a static adapter so that per-request signup attribution
-// (Google Ads click id from first-party cookies) can reach the signup event
+// (ad-platform click ids from first-party cookies) can reach the signup event
 // captured for new SSO users.
 const createExtendedPrismaAdapter = (signupAttribution?: {
-  gclid?: string;
+  adClickIds?: AdClickIds;
 }): Adapter => ({
   ...prismaAdapter,
   async createUser(profile: Omit<AdapterUser, "id">) {
@@ -621,7 +631,7 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
 
     await createProjectMembershipsOnSignup(user, {
       userWasJustCreated: true,
-      gclid: signupAttribution?.gclid,
+      adClickIds: signupAttribution?.adClickIds,
     });
 
     return user;
@@ -665,7 +675,7 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
     });
     if (user) {
       await createProjectMembershipsOnSignup(user, {
-        gclid: signupAttribution?.gclid,
+        adClickIds: signupAttribution?.adClickIds,
       });
     }
   },
@@ -742,14 +752,14 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
- * @param signupAttribution - per-request marketing attribution (e.g. Google
- * Ads click id) attached to the signup analytics event if the request results
+ * @param signupAttribution - per-request marketing attribution (ad-platform
+ * click ids) attached to the signup analytics event if the request results
  * in a new user. Only passed by the NextAuth API route.
  *
  * @see https://next-auth.js.org/configuration/options
  */
 export async function getAuthOptions(signupAttribution?: {
-  gclid?: string;
+  adClickIds?: AdClickIds;
 }): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
   try {
@@ -836,7 +846,6 @@ export async function getAuthOptions(signupAttribution?: {
             },
           });
 
-          span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
           // V4 preview availability is governed by the write mode:
           // - events_only: the legacy traces/observations tables are no longer
@@ -861,12 +870,18 @@ export async function getAuthOptions(signupAttribution?: {
           const dualPreviewAvailable =
             isLangfuseCloud ||
             env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+          const v4BetaEnabled =
+            v4WriteMode === "events_only" ||
+            (v4WriteMode === "dual" &&
+              dualPreviewAvailable &&
+              dbUser?.v4BetaEnabled === true);
 
           return {
             ...session,
             environment: {
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+              inAppAgentEnabled: isInAppAgentInstanceEnabled(),
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
@@ -884,12 +899,7 @@ export async function getAuthOptions(signupAttribution?: {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled:
-                      v4WriteMode === "events_only"
-                        ? true
-                        : v4WriteMode === "dual" && dualPreviewAvailable
-                          ? dbUser.v4BetaEnabled
-                          : false,
+                    v4BetaEnabled,
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud
@@ -974,7 +984,10 @@ export async function getAuthOptions(signupAttribution?: {
                       },
                     ),
                     emailVerified: dbUser.emailVerified?.toISOString(),
-                    featureFlags: parseFlags(dbUser.featureFlags),
+                    featureFlags: parseFlags(dbUser.featureFlags, {
+                      email: dbUser.email,
+                      v4BetaEnabled,
+                    }),
                     hasPassword: Boolean(dbUser.password),
                   }
                 : null,
@@ -982,7 +995,7 @@ export async function getAuthOptions(signupAttribution?: {
         });
       },
       async signIn({ user, account, profile }) {
-        return instrumentAsync({ name: "next-auth-sign-in" }, async (span) => {
+        return instrumentAsync({ name: "next-auth-sign-in" }, async () => {
           // Block sign in without valid user.email
           const email = user.email?.toLowerCase();
           if (!email) {
@@ -994,9 +1007,6 @@ export async function getAuthOptions(signupAttribution?: {
             throw new Error("Invalid email found in user object");
           }
 
-          span.setAttributes({
-            "auth.email": email,
-          });
           // EE: Check custom SSO enforcement, enforce the specific SSO provider on email domain
           // This also blocks setting a password for an email that is enforced to use SSO via password reset flow
           const userDomain = email.split("@")[1].toLowerCase();
@@ -1029,9 +1039,15 @@ export async function getAuthOptions(signupAttribution?: {
               isMultiTenantSsoProvider &&
               ssoDomain.toLowerCase() !== userDomain.toLowerCase()
             ) {
-              throw new Error(
-                `This domain is not associated with this SSO provider.`,
+              // warn: the ONLY server-side signal for this rejection — the
+              // client render of the resulting /auth/error page is classified
+              // as expected and not captured (expectedAuthErrors.ts), and
+              // next-auth does not log signIn-callback throws itself.
+              logger.warn(
+                "Multi-tenant SSO provider used with a non-matching email domain",
+                { email, attemptedProvider: account.provider },
               );
+              throw new Error(MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE);
             }
           }
 

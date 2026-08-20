@@ -122,12 +122,12 @@ steps:
   - name: Setup pnpm (mirrors pipeline.yml)
     uses: pnpm/action-setup@v6.0.9
     with:
-      version: 11.10.0
+      version: 11.22.0
   - name: Login to Docker Hub (avoids anonymous pull rate limits; mirrors pipeline.yml)
     # continue-on-error: if the secrets are unavailable in this environment,
     # degrade to anonymous pulls instead of failing the run.
     continue-on-error: true
-    uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+    uses: docker/login-action@v4.6.0
     with:
       username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
       password: ${{ secrets.DOCKERHUB_TOKEN_READ }}

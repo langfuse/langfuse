@@ -14,7 +14,7 @@ export function TableActionTargetOptions({
   const session = useSession();
   const hasEntitlement = useOptionalEntitlement(action.accessCheck.entitlement);
   const useTargetOptionsQuery =
-    targetOptionsQueryMap[action.id as keyof typeof targetOptionsQueryMap];
+    targetOptionsQueryMap[action.id as keyof typeof targetOptionsQueryMap]();
 
   const targetOptions = useTargetOptionsQuery(
     { projectId },

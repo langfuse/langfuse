@@ -15,7 +15,7 @@ import {
   isSeverityAllowedForPlan,
 } from "./formConstants";
 
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -198,7 +198,7 @@ export function SupportFormSection({
   const [sev1ConfirmOpen, setSev1ConfirmOpen] = useState(false);
 
   const { initialTopic } = useSupportDrawer();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
   const productFeatureTopics = TopicGroups["Product Features"].filter(
     (topic) => topic !== "V4 Migration" || v4UpgradeUiEnabled,
   );
@@ -360,7 +360,7 @@ export function SupportFormSection({
         pylonAttachmentUrls,
       });
     } catch (err: any) {
-      console.error(err);
+      reportNonTrpcError(err, "support");
       setIsSubmittingLocal(false);
       form.setError("message", {
         type: "manual",

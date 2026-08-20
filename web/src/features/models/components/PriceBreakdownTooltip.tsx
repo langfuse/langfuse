@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import { getMaxDecimals } from "@/src/features/models/utils";
+import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import { type PriceUnit } from "@/src/features/models/validation";
 
 export const PriceBreakdownTooltip = ({

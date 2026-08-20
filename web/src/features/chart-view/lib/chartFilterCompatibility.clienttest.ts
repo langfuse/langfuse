@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   chartFilterExclusionReason,
   chartSearchFieldReason,
@@ -17,6 +19,8 @@ describe("chartFilterExclusionReason", () => {
       "userId",
       "sessionId",
       "traceName",
+      "version",
+      "release",
       "traceTags",
       "toolNames",
       "experimentId",

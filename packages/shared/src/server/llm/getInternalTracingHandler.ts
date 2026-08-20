@@ -1,4 +1,4 @@
-import CallbackHandler from "langfuse-langchain";
+import { Langfuse } from "langfuse";
 import { ProcessedTraceEvent, TraceSinkParams } from "./types";
 import { buildInternalTraceEventInputs } from "./internalTraceEvents";
 import { processEventBatch } from "../ingestion/processEventBatch";
@@ -73,17 +73,20 @@ export function prepareInternalTraceEvents(params: {
 }
 
 export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
-  handler: CallbackHandler;
+  handler: { langfuse: Langfuse };
   processTracedEvents: () => Promise<void>;
 } {
-  const { prompt, targetProjectId, environment, userId, eventsWriter } =
+  const { prompt, targetProjectId, environment, eventsWriter } =
     traceSinkParams;
-  const handler = new CallbackHandler({
-    _projectId: targetProjectId,
-    _isLocalEventExportEnabled: true,
-    environment: environment,
-    userId: userId,
-  });
+  const handler = {
+    langfuse: new Langfuse({
+      _projectId: targetProjectId,
+      _isLocalEventExportEnabled: true,
+      environment,
+      persistence: "memory",
+      sdkIntegration: "LANGCHAIN",
+    }),
+  };
 
   const processTracedEvents = async () => {
     try {
