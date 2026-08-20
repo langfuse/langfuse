@@ -1238,8 +1238,33 @@ const LoadedSessionEventsPage: React.FC<{
   const hasSessionControls =
     !isModernSessionEnabled ||
     Boolean(session.users?.length || session.scores.length);
-  const excludeObservationsByName = useCallback(
-    (name: string) => {
+  const filterObservationsByName = useCallback(
+    (name: string, operator: "any of" | "none of") => {
+      if (operator === "any of") {
+        const nextFilters = queryFilter.filterState
+          .filter((filter) => filter.column !== "name")
+          .concat({
+            column: "name",
+            type: "stringOptions",
+            operator,
+            value: [name],
+          });
+
+        queryFilter.setFilterState(nextFilters);
+        capture("filters:applied", {
+          surface: "filter_builder",
+          tableName: "session-detail",
+          column: "name",
+          filterType: "stringOptions",
+          operator,
+          valueCount: 1,
+          conditionCount: nextFilters.length,
+          columnConditionCount: 1,
+          isV4: true,
+        });
+        return;
+      }
+
       const existingFilter = queryFilter.filterState.find(
         (
           filter,
@@ -1259,7 +1284,7 @@ const LoadedSessionEventsPage: React.FC<{
         : queryFilter.filterState.concat({
             column: "name",
             type: "stringOptions",
-            operator: "none of",
+            operator,
             value: [name],
           });
 
@@ -1269,7 +1294,7 @@ const LoadedSessionEventsPage: React.FC<{
         tableName: "session-detail",
         column: "name",
         filterType: "stringOptions",
-        operator: "none of",
+        operator,
         valueCount: 1,
         conditionCount: nextFilters.length,
         columnConditionCount: 1,
@@ -1707,7 +1732,7 @@ const LoadedSessionEventsPage: React.FC<{
                   showInlineToolCalls={showInlineToolCalls}
                   showSystemPrompt={showSystemPrompt}
                   sidebarFilterControls={sidebarFilterControls}
-                  onExcludeObservation={excludeObservationsByName}
+                  onFilterObservationByName={filterObservationsByName}
                 />
               )}
             </ModernSessionFilterControls>
