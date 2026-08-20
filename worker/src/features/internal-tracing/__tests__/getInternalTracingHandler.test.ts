@@ -1,21 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExportLocalEvents, mockProcessEventBatch, mockWrite } = vi.hoisted(
-  () => ({
-    mockExportLocalEvents: vi.fn(),
-    mockProcessEventBatch: vi.fn(),
-    mockWrite: vi.fn(),
-  }),
-);
+const {
+  mockExportLocalEvents,
+  mockLangfuseConstructor,
+  mockProcessEventBatch,
+  mockWrite,
+} = vi.hoisted(() => ({
+  mockExportLocalEvents: vi.fn(),
+  mockLangfuseConstructor: vi.fn(),
+  mockProcessEventBatch: vi.fn(),
+  mockWrite: vi.fn(),
+}));
 
-vi.mock("langfuse-langchain", () => {
+vi.mock("langfuse", () => {
   return {
-    default: class MockCallbackHandler {
-      public langfuse = {
-        _exportLocalEvents: mockExportLocalEvents,
-      };
+    Langfuse: class MockLangfuse {
+      public _exportLocalEvents = mockExportLocalEvents;
 
-      constructor(_params: Record<string, unknown>) {}
+      constructor(params: Record<string, unknown>) {
+        mockLangfuseConstructor(params);
+      }
     },
   };
 });
@@ -84,6 +88,24 @@ describe("getInternalTracingHandler", () => {
       errors: [],
     });
     mockWrite.mockResolvedValue(undefined);
+  });
+
+  it("creates an in-memory Langfuse client for local event export", () => {
+    getInternalTracingHandler({
+      targetProjectId: "project-123",
+      traceId,
+      traceName: "internal-trace",
+      environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+      userId: "user-123",
+    });
+
+    expect(mockLangfuseConstructor).toHaveBeenCalledWith({
+      _projectId: "project-123",
+      _isLocalEventExportEnabled: true,
+      environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+      persistence: "memory",
+      sdkIntegration: "LANGCHAIN",
+    });
   });
 
   it("disables staging propagation when direct event write is enabled", async () => {
