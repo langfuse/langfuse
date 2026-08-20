@@ -1,5 +1,6 @@
 import {
   logger,
+  redactUrlCredentials,
   validateWebhookURL,
   whitelistFromEnv,
   type RedirectOptions,
@@ -33,13 +34,6 @@ export const buildAnalyticsRedirectOptions = (
     logContext,
   },
 });
-
-// A rejected redirect target is reported with its URL embedded verbatim, and a
-// Location header may carry userinfo, so the message can hold a password.
-const URL_CREDENTIALS = /([a-z][a-z0-9+.-]*:\/\/)[^/?#\s@]*@/gi;
-
-const redactUrlCredentials = (text: string): string =>
-  text.replace(URL_CREDENTIALS, "$1***@");
 
 /**
  * A serialization-safe stand-in for the validation error. The original holds the

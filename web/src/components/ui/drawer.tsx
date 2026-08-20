@@ -40,7 +40,8 @@ const TAILWIND_MD_MEDIA_QUERY = 768;
 const drawerVariants = cva("fixed flex flex-col border bg-modal", {
   variants: {
     direction: {
-      bottom: "inset-x-0 bottom-0 rounded-t-lg",
+      bottom:
+        "inset-x-0 bottom-0 h-auto max-h-screen-with-banner min-h-0 rounded-t-lg",
       left: "bottom-0 left-0 top-banner-offset h-screen-with-banner rounded-r-lg",
       right:
         "bottom-0 right-0 top-banner-offset h-screen-with-banner rounded-l-lg",
@@ -55,7 +56,7 @@ const drawerVariants = cva("fixed flex flex-col border bg-modal", {
       top: "",
     },
     height: {
-      default: "h-1/3 md:h-full",
+      default: "",
       md: "md:h-1/2",
     },
   },
@@ -151,7 +152,8 @@ const DrawerContent = React.forwardRef<
         <DrawerPrimitive.Content
           ref={ref}
           className={cn(
-            drawerVariants({ direction, size, className, height, position }),
+            drawerVariants({ direction, size, height, position }),
+            className,
           )}
           data-allow-text-selection={!blockTextSelection}
           data-direction={direction}
