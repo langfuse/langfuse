@@ -83,13 +83,32 @@ describe("setV4BetaEnabledSentryTag", () => {
 describe("clearV4BetaEnabledSentryTag", () => {
   beforeEach(() => {
     setTagMock.mockClear();
+    getActiveSpanMock.mockClear();
+    getRootSpanMock.mockClear();
+    setAttributeMock.mockClear();
+    getRootSpanMock.mockReturnValue({ setAttribute: setAttributeMock });
   });
 
   it("unsets the tag instead of labeling anonymous events as v3", () => {
+    getActiveSpanMock.mockReturnValue(undefined);
+
     clearV4BetaEnabledSentryTag();
 
     expect(setTagMock).toHaveBeenCalledTimes(1);
     expect(setTagMock).toHaveBeenCalledWith(
+      V4_BETA_ENABLED_SENTRY_TAG,
+      undefined,
+    );
+  });
+
+  it("removes the attribute from an in-flight root span on logout", () => {
+    const childSpan = { name: "child" };
+    getActiveSpanMock.mockReturnValue(childSpan);
+
+    clearV4BetaEnabledSentryTag();
+
+    expect(getRootSpanMock).toHaveBeenCalledWith(childSpan);
+    expect(setAttributeMock).toHaveBeenCalledWith(
       V4_BETA_ENABLED_SENTRY_TAG,
       undefined,
     );

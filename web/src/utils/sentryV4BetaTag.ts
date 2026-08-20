@@ -6,11 +6,13 @@ import { getActiveSpan, getRootSpan, setTag } from "@sentry/nextjs";
  */
 export const V4_BETA_ENABLED_SENTRY_TAG = "v4BetaEnabled";
 
-function stampActiveRootSpan(value: boolean): void {
+function stampActiveRootSpan(value: boolean | undefined): void {
   const activeSpan = getActiveSpan();
   if (!activeSpan) {
     return;
   }
+  // `undefined` removes the attribute so logout does not leave a stale v3/v4
+  // label on an in-flight pageload/navigation span.
   getRootSpan(activeSpan).setAttribute(V4_BETA_ENABLED_SENTRY_TAG, value);
 }
 
@@ -29,4 +31,5 @@ export function setV4BetaEnabledSentryTag(enabled: boolean | undefined): void {
 /** Drop the tag on logout so anonymous events are not labeled as v3. */
 export function clearV4BetaEnabledSentryTag(): void {
   setTag(V4_BETA_ENABLED_SENTRY_TAG, undefined);
+  stampActiveRootSpan(undefined);
 }
