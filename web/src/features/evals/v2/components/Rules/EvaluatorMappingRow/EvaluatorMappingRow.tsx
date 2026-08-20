@@ -3,7 +3,7 @@ import type {
   EvalTemplateType,
   ObservationVariableMapping,
 } from "@langfuse/shared";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useStore } from "zustand";
 
 import { Button } from "@/src/components/ui/button";
@@ -27,6 +27,7 @@ export function EvaluatorMappingRow({
   sampleObject,
   sourceUnavailableMessage = "No matching observation is available to validate JSON paths.",
   disabled = false,
+  costEstimate,
 }: {
   evaluatorId: string;
   evaluatorName: string;
@@ -36,6 +37,7 @@ export function EvaluatorMappingRow({
   sampleObject: Record<string, unknown> | null;
   sourceUnavailableMessage?: string;
   disabled?: boolean;
+  costEstimate: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const variableMappingOverride = useStore(
@@ -98,47 +100,50 @@ export function EvaluatorMappingRow({
   return (
     <li className="border-b last:border-b-0" {...variableMapping.boundaryProps}>
       <Collapsible open={open} onOpenChange={setOpen}>
-        <div className="flex min-h-11 items-center justify-between gap-3 px-3">
-          <CollapsibleTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              className="min-w-0 flex-1 justify-start gap-2 px-0 hover:bg-transparent"
-            >
-              <ChevronDown
-                className={`text-muted-foreground h-4 w-4 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`}
-              />
-              <span className="flex min-w-0 items-baseline gap-2">
-                <span className="truncate" title={evaluatorName}>
-                  {evaluatorName}
-                </span>
-                {!isCodeEvaluator ? (
-                  <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs">
-                    {mappedVariableCount}/{mapping.length} variables mapped
-                    {allVariablesMapped ? (
-                      <Check
-                        aria-label="All variables mapped"
-                        className="text-dark-green h-3.5 w-3.5"
-                      />
-                    ) : hasInvalidMappings ? (
-                      <span
-                        aria-label="Some variables are not mapped correctly"
-                        title="Some variables are not mapped correctly"
-                        className="text-dark-yellow h-3.5 w-3.5"
-                      >
-                        <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
-                      </span>
-                    ) : null}
+        <div className="flex h-8 items-stretch">
+          <div className="hover:bg-muted/50 flex min-w-0 flex-1 items-center gap-3 px-3 transition-colors">
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="min-w-0 flex-1 justify-start gap-2 px-0 hover:bg-transparent"
+              >
+                <ChevronDown
+                  className={`text-muted-foreground h-4 w-4 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`}
+                />
+                <span className="flex min-w-0 items-baseline gap-2">
+                  <span className="truncate" title={evaluatorName}>
+                    {evaluatorName}
                   </span>
-                ) : null}
-              </span>
-            </Button>
-          </CollapsibleTrigger>
+                  {!isCodeEvaluator ? (
+                    <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs">
+                      {mappedVariableCount}/{mapping.length} variables mapped
+                      {allVariablesMapped ? (
+                        <Check
+                          aria-label="All variables mapped"
+                          className="text-dark-green h-3.5 w-3.5"
+                        />
+                      ) : hasInvalidMappings ? (
+                        <span
+                          aria-label="Some variables are not mapped correctly"
+                          title="Some variables are not mapped correctly"
+                          className="text-dark-yellow h-3.5 w-3.5"
+                        >
+                          <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : null}
+                </span>
+              </Button>
+            </CollapsibleTrigger>
+            {costEstimate}
+          </div>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="gap-2"
+            className="hover:bg-muted/50 h-8 gap-2 rounded-none border-l px-3"
             disabled={disabled}
             onClick={() => detachEvaluator(evaluatorId)}
           >

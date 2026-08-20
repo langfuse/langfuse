@@ -2,6 +2,10 @@ import { useStore } from "zustand";
 
 import { Slider } from "@/src/components/ui/slider";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import {
+  SAMPLING_SLIDER_MIN,
+  SAMPLING_SLIDER_STEP,
+} from "@/src/features/evals/v2/constants/ruleSampling";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 
 export function RuleSamplingSection({ store }: { store: RuleSetupStore }) {
@@ -23,9 +27,9 @@ export function RuleSamplingSection({ store }: { store: RuleSetupStore }) {
         </p>
       </div>
       <Slider
-        min={0.0001}
+        min={SAMPLING_SLIDER_MIN}
         max={1}
-        step={0.0001}
+        step={SAMPLING_SLIDER_STEP}
         value={[sampling]}
         showInput
         displayAsPercentage

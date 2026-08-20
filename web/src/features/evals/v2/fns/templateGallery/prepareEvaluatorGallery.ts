@@ -35,7 +35,7 @@ export function prepareEvaluatorGallery({
     name.toLowerCase().includes(query) ||
     description?.toLowerCase().includes(query);
   const filteredCustom = customTemplates.filter((template) =>
-    matches(template.name, template.prompt),
+    matches(template.name, template.description),
   );
   const managedCatalog = managedEvaluatorTemplateService.list({ search });
   const managedByCategory = new Map(

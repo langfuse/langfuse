@@ -1,5 +1,5 @@
 import { Check, Link2, Plus } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
@@ -24,6 +24,9 @@ import type {
 } from "@/src/features/evals/v2/types/rules";
 
 import { EvaluatorPickerOption } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/components/EvaluatorPickerOption/EvaluatorPickerOption";
+import type { RuleCostEstimate } from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
+import { RuleEvaluatorCostEstimate } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorCostEstimate";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 export function EvaluatorAssignmentsEditor({
   evaluatorOptions,
@@ -34,6 +37,9 @@ export function EvaluatorAssignmentsEditor({
   emptyDescription = "Attach an evaluator to run on matching observations.",
   sourceUnavailableMessage,
   disabled = false,
+  costEstimates,
+  estimatingEvaluatorIds,
+  footerTrailing,
 }: {
   evaluatorOptions: RuleEvaluatorOption[];
   store: RuleSetupStore;
@@ -43,6 +49,9 @@ export function EvaluatorAssignmentsEditor({
   emptyDescription?: string;
   sourceUnavailableMessage?: string;
   disabled?: boolean;
+  costEstimates: RuleCostEstimate[];
+  estimatingEvaluatorIds: string[];
+  footerTrailing: ReactNode;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const assignments = useStore(store, (state) => state.assignments);
@@ -165,6 +174,9 @@ export function EvaluatorAssignmentsEditor({
               const assignment = assignments.find(
                 (candidate) => candidate.evaluatorId === evaluatorId,
               );
+              const costEstimate = costEstimates.find(
+                (estimate) => estimate.evaluatorId === evaluatorId,
+              );
 
               return (
                 <EvaluatorMappingRow
@@ -187,11 +199,21 @@ export function EvaluatorAssignmentsEditor({
                   sampleObject={sampleObject}
                   sourceUnavailableMessage={sourceUnavailableMessage}
                   disabled={disabled}
+                  costEstimate={
+                    estimatingEvaluatorIds.includes(evaluatorId) ? (
+                      <Skeleton className="h-4 w-28" />
+                    ) : costEstimate ? (
+                      <RuleEvaluatorCostEstimate estimate={costEstimate} />
+                    ) : null
+                  }
                 />
               );
             })}
           </ul>
-          {evaluatorPicker}
+          <div className="flex items-start justify-between gap-3">
+            {evaluatorPicker}
+            {footerTrailing}
+          </div>
         </>
       )}
     </div>

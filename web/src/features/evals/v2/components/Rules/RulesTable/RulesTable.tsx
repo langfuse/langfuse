@@ -29,7 +29,7 @@ import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
@@ -67,42 +67,6 @@ function RelativeDate({ date }: { date: Date }) {
     <span className="text-muted-foreground" title={date.toLocaleString()}>
       {formatDistanceToNowStrict(date, { addSuffix: true })}
     </span>
-  );
-}
-
-function RuleFiltersCell({ filter }: Pick<RuleTableRow, "filter">) {
-  if (filter.length === 0) {
-    return <span className="text-muted-foreground">No filters</span>;
-  }
-
-  const items = filter.map((condition, index) => ({
-    condition,
-    key: `${index}-${JSON.stringify(condition)}`,
-  }));
-
-  return (
-    <SingleLineOverflowList
-      items={items}
-      additionalOverflowCount={0}
-      getKey={(item) => item.key}
-      renderItem={(item) => (
-        <InlineFilterState filterState={[item.condition]} className="m-0" />
-      )}
-      renderOverflow={({ overflowItemCount }) => (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="secondary" size="sm" className="font-normal">
-              +{overflowItemCount}
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-96">
-            <div className="flex flex-wrap gap-1">
-              <InlineFilterState filterState={filter} className="m-0" />
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      )}
-    />
   );
 }
 
@@ -366,7 +330,7 @@ export function RulesTable({
           isLegacyEvalTarget(row.original.targetObject) ? (
             <span className="text-muted-foreground">Not available</span>
           ) : (
-            <RuleFiltersCell filter={row.original.filter} />
+            <RuleFilterPills filter={row.original.filter} />
           ),
       },
       {

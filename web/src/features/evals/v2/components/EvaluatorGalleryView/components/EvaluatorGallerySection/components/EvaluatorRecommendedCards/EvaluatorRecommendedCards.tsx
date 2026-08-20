@@ -18,7 +18,7 @@ export function EvaluatorRecommendedCards({
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="@container flex flex-col gap-3">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />
@@ -33,7 +33,7 @@ export function EvaluatorRecommendedCards({
         </div>
         <div className="border-t" />
       </div>
-      <div className="grid grid-cols-3 gap-3">{children}</div>
+      <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-3">{children}</div>
     </div>
   );
 }

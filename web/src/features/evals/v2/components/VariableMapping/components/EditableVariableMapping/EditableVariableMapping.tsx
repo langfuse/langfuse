@@ -22,6 +22,7 @@ import {
   deepParseJsonIterative,
   experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
 
@@ -235,6 +236,7 @@ function VariableMappingRow({
   onChange: (next: VariableFieldState) => void;
   onDelete?: () => void;
 }) {
+  const capture = usePostHogClientCapture();
   const segments = useMemo(
     () =>
       fieldState.jsonSelector
@@ -272,15 +274,29 @@ function VariableMappingRow({
       hasMatchingObservations={hasMatchingObservations}
       sourceUnavailableMessage={sourceUnavailableMessage}
       onSelect={(columnId, treeSegments) => {
+        const jsonSelector = segmentsToJsonPath(treeSegments);
+        if (
+          columnId !== fieldState.selectedColumnId ||
+          jsonSelector !== fieldState.jsonSelector
+        ) {
+          capture("evaluators:variable_mapping_configured", {
+            method: "tree",
+          });
+        }
         onChange({
           selectedColumnId: columnId,
-          jsonSelector: segmentsToJsonPath(treeSegments),
+          jsonSelector,
         });
         // Select semantics: one click binds and the card flips back;
         // the updated preview is the confirmation.
         onEditingChange(false);
       }}
       onApplyJsonPath={(jsonSelector) => {
+        if (jsonSelector !== fieldState.jsonSelector) {
+          capture("evaluators:variable_mapping_configured", {
+            method: "json_path",
+          });
+        }
         onChange({
           selectedColumnId: fieldState.selectedColumnId,
           jsonSelector,

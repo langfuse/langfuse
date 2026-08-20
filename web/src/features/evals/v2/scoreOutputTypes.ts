@@ -5,8 +5,7 @@ export type ScoreOutputDataType =
   | typeof ScoreDataTypeEnum.CATEGORICAL
   | typeof ScoreDataTypeEnum.BOOLEAN;
 
-/** One categorical choice row. Values remain strings while edited. */
-export type ScoreOutputChoice = { label: string; value: string };
+export type ScoreOutputChoice = { label: string };
 
 export type ScoreOutputFormState = {
   dataType: ScoreOutputDataType;

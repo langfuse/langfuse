@@ -5,17 +5,24 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { ChevronDown } from "lucide-react";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import { EvaluatorSavedDialog } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedDialog";
-import { ActivationCostEstimateDetails } from "@/src/features/evals/v2/components/Rules/ActivationConfirmationDialog/components/ActivationCostEstimateDetails/ActivationCostEstimateDetails";
+import { selectTriggerClassName } from "@/src/components/ui/select";
+import {
+  EvaluatorSavedDialog,
+  type EvaluatorSavedMode,
+} from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedDialog";
+import { EvaluatorSavedCostSummary } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedCostSummary";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
+import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { cn } from "@/src/utils/tailwind";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
 type DialogPhase = "saved" | "closing-saved" | "create-rule" | "closed";
@@ -40,21 +47,26 @@ export function EvaluatorSavedDialogContainer({
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const activation = useActivationConfirmation({ projectId });
+  const requestActivation = activation.requestActivation;
+  const setActivationOpen = activation.setOpen;
+  const setActivationSampling = activation.setSampling;
   const [dialogPhase, setDialogPhase] = useState<DialogPhase>("saved");
+  const [mode, setMode] = useState<EvaluatorSavedMode>("test-filters");
   const [rulePickerOpen, setRulePickerOpen] = useState(false);
-  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
+  const [selectedRuleId, setSelectedRuleId] = useState<
+    string | null | undefined
+  >(undefined);
   const [isEstimating, setIsEstimating] = useState(false);
-  const [showCostEstimate, setShowCostEstimate] = useState(false);
+  const [testFilterSampling, setTestFilterSampling] = useState(1);
   const estimateRequestId = useRef(0);
+  // Strict Mode replays mount effects; this mutation must run once per dialog.
+  const initialEstimateRequested = useRef(false);
   const createRuleHandoffPending = useRef(false);
   const hasRequestedMissingCostTest = useRef(
     evaluator.hasCompletedTestCall ?? false,
   );
   const missingCostTestRequest = useRef<Promise<void> | null>(null);
   const rules = api.evalsV2.rules.list.useQuery(
-    // `enabled` in the input filters to active rules — this dialog attaches and
-    // runs immediately, so an inactive rule would not evaluate anything. The
-    // second `enabled` is react-query's own gate on the request.
     {
       projectId,
       page: 1,
@@ -64,16 +76,38 @@ export function EvaluatorSavedDialogContainer({
     },
     { enabled: dialogPhase === "saved" },
   );
-  const availableRules = rules.data?.rules ?? [];
+  const availableRules = useMemo(
+    () =>
+      [...(rules.data?.rules ?? [])].sort(
+        (left, right) => right.assignments.length - left.assignments.length,
+      ),
+    [rules.data?.rules],
+  );
   const selectedRule = availableRules.find(
     (rule) => rule.id === selectedRuleId,
   );
   const attach = api.evalsV2.rules.attach.useMutation({
     onError: trpcErrorToast,
   });
+  const createOrAttachFromEvaluatorFilters =
+    api.evalsV2.rules.createOrAttachFromEvaluatorFilters.useMutation({
+      onError: trpcErrorToast,
+    });
 
   const finish = async () => {
     await onFinish();
+  };
+
+  const invalidateRuleQueries = async () => {
+    await Promise.all([
+      utils.evalsV2.rules.list.invalidate({ projectId }),
+      utils.evalsV2.rules.filterOptions.invalidate({ projectId }),
+      utils.evalsV2.rules.listRulesForEvaluator.invalidate({
+        projectId,
+        evaluatorId: evaluator.id,
+      }),
+      utils.evalsV2.list.invalidate({ projectId }),
+    ]);
   };
 
   const attachToRule = async (rule: Rule) => {
@@ -87,80 +121,129 @@ export function EvaluatorSavedDialogContainer({
       evaluatorCount: 1,
       source: "evaluator_create",
     });
-    await Promise.all([
-      utils.evalsV2.rules.list.invalidate({ projectId }),
-      utils.evalsV2.rules.listRulesForEvaluator.invalidate({
-        projectId,
-        evaluatorId: evaluator.id,
-      }),
-      utils.evalsV2.list.invalidate({ projectId }),
-    ]);
+    await invalidateRuleQueries();
     await finish();
   };
 
-  const requestAttach = async (rule = selectedRule) => {
-    if (!rule) return;
-    const requestId = ++estimateRequestId.current;
-    activation.setOpen(false);
-    setShowCostEstimate(false);
-    setIsEstimating(true);
-    try {
-      if (missingCostTestRequest.current) {
-        await missingCostTestRequest.current;
-      }
-      if (estimateRequestId.current !== requestId) return;
-
-      const shouldRunMissingTest = !hasRequestedMissingCostTest.current;
-      let finishMissingCostTestRequest: (() => void) | undefined;
-      if (shouldRunMissingTest) {
-        hasRequestedMissingCostTest.current = true;
-        missingCostTestRequest.current = new Promise<void>((resolve) => {
-          finishMissingCostTestRequest = resolve;
-        });
-      }
-
-      let result: Awaited<ReturnType<typeof activation.requestActivation>>;
-      try {
-        result = await activation.requestActivation(
-          {
-            targets:
-              evaluator.type === EvalTemplateType.LLM_AS_JUDGE
-                ? [
-                    {
-                      evaluatorId: evaluator.id,
-                      evaluatorName: evaluator.name,
-                      filter: rule.filter,
-                      sampling: rule.sampling,
-                    },
-                  ]
-                : [],
-            title: "Attach evaluator to rule?",
-            description:
-              "Based on matching observations from the last seven days and the latest evaluator test call:",
-            confirmLabel: "Attach and run",
-            onConfirm: () => attachToRule(rule),
-          },
-          {
-            shouldRunMissingTest,
-            ...(evaluator.testRunCostUsd !== null &&
-            evaluator.testRunCostUsd !== undefined
-              ? { knownTestRunCostUsd: evaluator.testRunCostUsd }
-              : {}),
-          },
-        );
-      } finally {
-        finishMissingCostTestRequest?.();
-        if (shouldRunMissingTest) missingCostTestRequest.current = null;
-      }
-      if (result?.matchingObservations === 0) {
-        hasRequestedMissingCostTest.current = false;
-      }
-      if (estimateRequestId.current !== requestId) return;
-      setShowCostEstimate(Boolean(result));
-    } finally {
-      if (estimateRequestId.current === requestId) setIsEstimating(false);
+  const resolveFromTestFilters = async () => {
+    const sampling = testFilterSampling;
+    const result = await createOrAttachFromEvaluatorFilters.mutateAsync({
+      projectId,
+      evaluatorId: evaluator.id,
+      filter: evaluator.sampleFilter,
+      sampling,
+    });
+    if (result.action === "created") {
+      capture("evaluation_rules:create", {
+        assignmentCount: 1,
+        filterCount: evaluator.sampleFilter.length,
+        samplingPercent: Math.round(sampling * 100),
+        isEnabled: true,
+        source: "evaluator_create_test_filters",
+      });
+    } else {
+      capture("evaluation_rules:attach_evaluator", {
+        evaluatorCount: 1,
+        source: "evaluator_create_test_filters",
+      });
     }
+    showSuccessToast({
+      title: result.action === "created" ? "Rule created" : "Rule reused",
+      description: `${result.rule.name} is active.`,
+    });
+    await invalidateRuleQueries();
+    await finish();
   };
+
+  const requestEstimate = useCallback(
+    async ({ filter, sampling }: { filter: FilterState; sampling: number }) => {
+      const requestId = ++estimateRequestId.current;
+      setActivationOpen(false);
+      // Stay in the loading state for the whole request: the numbers on screen
+      // belong to the previous scope, so a rule switch must not show the old
+      // match count and cost under the newly selected rule.
+      setIsEstimating(true);
+      try {
+        if (missingCostTestRequest.current) {
+          await missingCostTestRequest.current;
+        }
+        if (estimateRequestId.current !== requestId) return;
+
+        const shouldRunMissingTest = !hasRequestedMissingCostTest.current;
+        let finishMissingCostTestRequest: (() => void) | undefined;
+        if (shouldRunMissingTest) {
+          hasRequestedMissingCostTest.current = true;
+          missingCostTestRequest.current = new Promise<void>((resolve) => {
+            finishMissingCostTestRequest = resolve;
+          });
+        }
+
+        let result: Awaited<ReturnType<typeof requestActivation>>;
+        try {
+          result = await requestActivation(
+            {
+              targets: [
+                {
+                  evaluatorId: evaluator.id,
+                  evaluatorName: evaluator.name,
+                  filter,
+                  sampling,
+                },
+              ],
+              title: "Review evaluator cost",
+              description: "",
+              confirmLabel: "Continue",
+              onConfirm: async () => undefined,
+            },
+            {
+              shouldRunMissingTest,
+              ...(evaluator.testRunCostUsd !== null &&
+              evaluator.testRunCostUsd !== undefined
+                ? { knownTestRunCostUsd: evaluator.testRunCostUsd }
+                : {}),
+            },
+          );
+        } finally {
+          finishMissingCostTestRequest?.();
+          if (shouldRunMissingTest) missingCostTestRequest.current = null;
+        }
+        if (estimateRequestId.current !== requestId) return;
+        if (result?.matchingObservations === 0) {
+          hasRequestedMissingCostTest.current = false;
+        }
+      } finally {
+        if (estimateRequestId.current === requestId) setIsEstimating(false);
+      }
+    },
+    [
+      evaluator.id,
+      evaluator.name,
+      evaluator.testRunCostUsd,
+      requestActivation,
+      setActivationOpen,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      dialogPhase !== "saved" ||
+      mode !== "test-filters" ||
+      initialEstimateRequested.current
+    ) {
+      return;
+    }
+    initialEstimateRequested.current = true;
+    requestEstimate({
+      filter: evaluator.sampleFilter,
+      sampling: testFilterSampling,
+    }).catch(() => undefined);
+  }, [
+    dialogPhase,
+    evaluator.sampleFilter,
+    mode,
+    requestEstimate,
+    testFilterSampling,
+  ]);
 
   const openCreateRule = () => {
     createRuleHandoffPending.current = true;
@@ -174,24 +257,203 @@ export function EvaluatorSavedDialogContainer({
     window.requestAnimationFrame(() => setDialogPhase("create-rule"));
   };
 
-  const handlePrimaryAction = () => {
-    if (selectedRuleId === null) {
-      openCreateRule();
-      return;
-    }
-    if (!selectedRule) return;
-    if (evaluator.type === EvalTemplateType.LLM_AS_JUDGE && showCostEstimate) {
-      attachToRule(selectedRule).catch(() => undefined);
-      return;
-    }
+  const selectExistingRule = useCallback(
+    (rule: Rule) => {
+      setSelectedRuleId(rule.id);
+      setActivationSampling(rule.sampling);
+      requestEstimate({ filter: rule.filter, sampling: rule.sampling }).catch(
+        () => undefined,
+      );
+    },
+    [requestEstimate, setActivationSampling],
+  );
+
+  const selectNewRule = () => {
     estimateRequestId.current += 1;
+    setActivationOpen(false);
+    setSelectedRuleId(null);
     setIsEstimating(false);
-    attachToRule(selectedRule).catch(() => undefined);
   };
+
+  useEffect(() => {
+    if (
+      mode !== "different-scope" ||
+      selectedRuleId !== undefined ||
+      rules.isPending
+    ) {
+      return;
+    }
+
+    const mostUsedRule = availableRules[0];
+    if (mostUsedRule) {
+      selectExistingRule(mostUsedRule);
+    } else {
+      setSelectedRuleId(null);
+    }
+  }, [
+    availableRules,
+    mode,
+    rules.isPending,
+    selectExistingRule,
+    selectedRuleId,
+  ]);
+
+  const handleModeChange = (nextMode: EvaluatorSavedMode) => {
+    estimateRequestId.current += 1;
+    if (nextMode !== "test-filters") initialEstimateRequested.current = false;
+    setMode(nextMode);
+    const mostUsedRule = availableRules[0];
+    if (nextMode === "different-scope" && mostUsedRule) {
+      selectExistingRule(mostUsedRule);
+      return;
+    }
+    setSelectedRuleId(
+      nextMode === "different-scope" && !rules.isPending ? null : undefined,
+    );
+    setIsEstimating(false);
+    if (nextMode === "test-filters") {
+      setActivationSampling(testFilterSampling);
+    }
+  };
+
+  const handlePrimaryAction = () => {
+    if (mode === "test-filters") {
+      capture("evaluators:saved_dialog_submit", {
+        action: "test_filters",
+      });
+      resolveFromTestFilters().catch(() => undefined);
+      return;
+    }
+    if (selectedRule) {
+      capture("evaluators:saved_dialog_submit", {
+        action: "existing_rule",
+      });
+      attachToRule(selectedRule).catch(() => undefined);
+    } else {
+      capture("evaluators:saved_dialog_submit", {
+        action: "new_rule",
+      });
+      openCreateRule();
+    }
+  };
+
+  const rulePicker = (
+    <EvaluationRulePicker
+      open={rulePickerOpen}
+      onOpenChange={setRulePickerOpen}
+      disabledRules={[]}
+      availableRules={availableRules}
+      loading={rules.isPending}
+      onSelectAvailableRule={selectExistingRule}
+      onCreateRule={selectNewRule}
+    >
+      {() => (
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(selectTriggerClassName, "w-full min-w-0")}
+          >
+            <span
+              className="truncate"
+              title={
+                selectedRule?.name ??
+                (selectedRuleId === null ? "New rule" : "Select a rule")
+              }
+            >
+              {selectedRule?.name ??
+                (selectedRuleId === null ? "New rule" : "Select a rule")}
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+      )}
+    </EvaluationRulePicker>
+  );
+
+  const modeContentByMode = {
+    "test-filters": (
+      <RuleFilterPills filter={evaluator.sampleFilter} display="search-bar" />
+    ),
+    "different-scope": (
+      <div className="min-w-0 space-y-3">
+        {rulePicker}
+        {selectedRule ? (
+          <>
+            <RuleFilterPills
+              filter={selectedRule.filter}
+              display="search-bar"
+            />
+            {selectedRule.assignments.length > 0 ? (
+              <p className="text-muted-foreground text-sm">
+                Already running on this rule:{" "}
+                {selectedRule.assignments
+                  .map(({ evaluator }) => evaluator.name)
+                  .join(", ")}
+              </p>
+            ) : null}
+          </>
+        ) : selectedRuleId === null ? (
+          <p className="text-muted-foreground text-sm">
+            Continue to the rule editor to create a rule for this evaluator.
+          </p>
+        ) : null}
+      </div>
+    ),
+  };
+
+  const hasConfiguredScope = mode === "test-filters" || Boolean(selectedRule);
+  const costSummary = hasConfiguredScope ? (
+    <EvaluatorSavedCostSummary
+      estimates={activation.estimate.estimates}
+      unavailableEstimateCount={activation.estimate.unavailableEstimateCount}
+      matchingObservations={activation.estimate.matchingObservations}
+      sampling={
+        activation.estimate.sampling ??
+        selectedRule?.sampling ??
+        testFilterSampling
+      }
+      isEstimating={isEstimating}
+      evaluatorType={evaluator.type}
+      onSamplingChange={
+        mode === "test-filters"
+          ? (sampling) => {
+              setTestFilterSampling(sampling);
+              setActivationSampling(sampling);
+            }
+          : null
+      }
+    />
+  ) : evaluator.type !== EvalTemplateType.CODE ? (
+    <div className="space-y-2">
+      <h3 className="text-sm font-bold">Cost estimate</h3>
+      <p className="text-muted-foreground text-sm">
+        Costs will be estimated in the rule editor.
+      </p>
+    </div>
+  ) : null;
 
   return dialogPhase === "saved" || dialogPhase === "closing-saved" ? (
     <EvaluatorSavedDialog
       open={dialogPhase === "saved"}
+      mode={mode}
+      modeContentByMode={modeContentByMode}
+      costSummary={costSummary}
+      canSubmit={
+        !isEstimating &&
+        (mode === "test-filters" || selectedRuleId !== undefined)
+      }
+      isSubmitting={
+        attach.isPending || createOrAttachFromEvaluatorFilters.isPending
+      }
+      primaryActionLabel={
+        mode === "test-filters"
+          ? "Execute"
+          : selectedRule
+            ? "Execute"
+            : "Open rule editor"
+      }
+      onModeChange={handleModeChange}
       onOpenChange={(open) => {
         if (!open) {
           createRuleHandoffPending.current = false;
@@ -199,66 +461,8 @@ export function EvaluatorSavedDialogContainer({
           finish().catch(() => undefined);
         }
       }}
-      canSubmit={selectedRuleId === null || Boolean(selectedRule)}
-      costEstimate={
-        showCostEstimate && selectedRule ? (
-          <ActivationCostEstimateDetails
-            estimates={activation.estimate.estimates}
-            unavailableEstimateCount={
-              activation.estimate.unavailableEstimateCount
-            }
-            matchingObservations={activation.estimate.matchingObservations}
-            sampling={activation.estimate.sampling ?? selectedRule.sampling}
-            descriptionAsTooltip
-          />
-        ) : null
-      }
-      isAttaching={attach.isPending}
-      isEstimating={isEstimating}
-      primaryActionLabel={
-        selectedRuleId === null ? "Create rule" : "Attach and run"
-      }
       onPrimaryAction={handlePrimaryAction}
       onCloseAnimationEnd={completeCreateRuleHandoff}
-      rulePicker={
-        <EvaluationRulePicker
-          open={rulePickerOpen}
-          onOpenChange={setRulePickerOpen}
-          disabledRules={[]}
-          availableRules={availableRules}
-          loading={rules.isPending}
-          onSelectAvailableRule={(rule) => {
-            setSelectedRuleId(rule.id);
-            if (evaluator.type === EvalTemplateType.LLM_AS_JUDGE) {
-              requestAttach(rule).catch(() => undefined);
-            }
-          }}
-          onCreateRule={() => {
-            estimateRequestId.current += 1;
-            activation.setOpen(false);
-            setSelectedRuleId(null);
-            setShowCostEstimate(false);
-            setIsEstimating(false);
-          }}
-        >
-          {() => (
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-between font-normal"
-              >
-                <span
-                  className="truncate"
-                  title={selectedRule?.name ?? "Create new rule"}
-                >
-                  {selectedRule?.name ?? "Create new rule"}
-                </span>
-                <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
-              </Button>
-            </PopoverTrigger>
-          )}
-        </EvaluationRulePicker>
-      }
     />
   ) : dialogPhase === "create-rule" ? (
     <CreateRuleDialog
@@ -271,9 +475,6 @@ export function EvaluatorSavedDialogContainer({
         }
       }}
       initialEvaluator={{ ...evaluator, initialVariableMapping: null }}
-      initialFilter={
-        evaluator.sampleFilter.length ? evaluator.sampleFilter : undefined
-      }
     />
   ) : null;
 }

@@ -7,6 +7,7 @@ import type {
   ManagedTemplate,
 } from "@/src/features/evals/v2/types/templateGallery";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
+import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
 
 export type GalleryTemplatePresentation = {
   description: string | undefined;
@@ -40,9 +41,11 @@ function customPresentation(
   });
 
   return {
-    description: template.prompt?.trim() ? template.prompt : codeFallback,
+    description: template.description?.trim()
+      ? template.description
+      : codeFallback,
     type: template.type,
-    attribution: author ? `by ${author} · ${updated}` : `Updated ${updated}`,
+    attribution: author ? `${author} · ${updated}` : `Updated ${updated}`,
   };
 }
 
@@ -56,4 +59,12 @@ export function getGalleryTemplatePresentation(
 
 export function getGalleryTemplateId(template: GalleryTemplate) {
   return template.source === "managed" ? template.key : template.id;
+}
+
+export function getGalleryTemplateCategoryKey(template: GalleryTemplate) {
+  return template.source === "managed"
+    ? template.categories.find(
+        (category) => category !== EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
+      )
+    : undefined;
 }

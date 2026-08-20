@@ -1,5 +1,6 @@
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
+import { ScoreDataTypeEnum } from "@langfuse/shared";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -8,6 +9,10 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import {
+  DUPLICATE_CATEGORY_NAMES_MESSAGE,
+  getDuplicateScoreOutputCategoryIndexes,
+} from "@/src/features/evals/v2/fns/scoreOutput/getDuplicateScoreOutputCategoryIndexes";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function EvaluatorSetupFooter({
@@ -27,28 +32,41 @@ export function EvaluatorSetupFooter({
   onClose: () => void;
   onSave: () => void;
 }) {
-  const { currentSnapshot, canSubmit, nameMissing } = useStore(
-    store,
-    useShallow((state) => {
-      const { definition, mappings } = prepareEvaluatorDraft(state);
-      const hasCompleteMappings =
-        state.type !== "LLM_AS_JUDGE" ||
-        mappings.every(({ fieldState }) =>
-          Boolean(fieldState.selectedColumnId),
-        );
+  const { currentSnapshot, canSubmit, hasDuplicateCategoryNames, nameMissing } =
+    useStore(
+      store,
+      useShallow((state) => {
+        const { definition, mappings } = prepareEvaluatorDraft(state);
+        const hasCompleteMappings =
+          state.type !== "LLM_AS_JUDGE" ||
+          mappings.every(({ fieldState }) =>
+            Boolean(fieldState.selectedColumnId),
+          );
 
-      return {
-        currentSnapshot: JSON.stringify({
-          name: state.name.trim(),
-          description: state.description.trim() || null,
-          definition,
-        }),
-        canSubmit: Boolean(definition) && hasCompleteMappings,
-        nameMissing: !state.name.trim(),
-      };
-    }),
-  );
+        return {
+          currentSnapshot: JSON.stringify({
+            name: state.name.trim(),
+            description: state.description.trim() || null,
+            definition,
+          }),
+          canSubmit: Boolean(definition) && hasCompleteMappings,
+          hasDuplicateCategoryNames:
+            state.type === "LLM_AS_JUDGE" &&
+            state.scoreOutput.dataType === ScoreDataTypeEnum.CATEGORICAL &&
+            getDuplicateScoreOutputCategoryIndexes(
+              state.scoreOutput.choices.map(({ label }) => label),
+            ).length > 0,
+          nameMissing: !state.name.trim(),
+        };
+      }),
+    );
   const hasUnsavedChanges = currentSnapshot !== initialSnapshot;
+  const disabledReason =
+    nameMissing && !nameAIAssistanceAvailable
+      ? "Add an evaluator name before saving."
+      : hasDuplicateCategoryNames
+        ? DUPLICATE_CATEGORY_NAMES_MESSAGE
+        : null;
   const saveButton = (
     <Button
       type="button"
@@ -59,11 +77,7 @@ export function EvaluatorSetupFooter({
         isSaving
       }
       loading={isSaving}
-      className={
-        nameMissing && !nameAIAssistanceAvailable
-          ? "pointer-events-none"
-          : undefined
-      }
+      className={disabledReason ? "pointer-events-none" : undefined}
       onClick={onSave}
     >
       {isEditing ? "Save changes" : "Create evaluator"}
@@ -75,12 +89,12 @@ export function EvaluatorSetupFooter({
       <Button type="button" variant="outline" onClick={onClose}>
         {hasUnsavedChanges ? "Cancel" : "Close"}
       </Button>
-      {nameMissing && !nameAIAssistanceAvailable ? (
+      {disabledReason ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex cursor-not-allowed">{saveButton}</span>
           </TooltipTrigger>
-          <TooltipContent>Add an evaluator name before saving.</TooltipContent>
+          <TooltipContent>{disabledReason}</TooltipContent>
         </Tooltip>
       ) : (
         saveButton

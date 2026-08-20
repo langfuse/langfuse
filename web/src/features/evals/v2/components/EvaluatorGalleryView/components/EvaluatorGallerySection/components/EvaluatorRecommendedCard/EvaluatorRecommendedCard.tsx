@@ -4,7 +4,10 @@ import type { EvalTemplateType } from "@langfuse/shared";
 import { EvaluatorGalleryMethodBadge } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
 import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
 import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
-import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
+import {
+  getGalleryTemplateCategoryKey,
+  getGalleryTemplatePresentation,
+} from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { cn } from "@/src/utils/tailwind";
 
@@ -54,13 +57,15 @@ export function EvaluatorRecommendedTemplateCardContent({
   title,
   description,
   type,
+  categoryKey,
 }: {
   title: string;
   description: string | undefined;
   type: EvalTemplateType;
+  categoryKey?: string;
 }) {
   const { icon: Icon, iconClassName } = getGalleryCategoryPresentation(
-    EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
+    categoryKey ?? EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
   );
 
   return (
@@ -81,6 +86,7 @@ export function EvaluatorRecommendedCard({
   onSelect: (template: GalleryTemplate) => void;
 }) {
   const { description, type } = getGalleryTemplatePresentation(template);
+  const categoryKey = getGalleryTemplateCategoryKey(template);
 
   return (
     <button
@@ -93,6 +99,7 @@ export function EvaluatorRecommendedCard({
           title={template.name}
           description={description}
           type={type}
+          categoryKey={categoryKey}
         />
       </EvaluatorRecommendedCardSurface>
     </button>

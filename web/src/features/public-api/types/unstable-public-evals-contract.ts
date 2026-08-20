@@ -45,10 +45,22 @@ export const PublicEvaluatorOutputFieldDefinition = z.object({
   description: z.string().trim().min(1),
 });
 
+export const PublicNumericEvaluatorOutputScoreDefinition =
+  PublicEvaluatorOutputFieldDefinition.extend({
+    minValue: z.number().optional(),
+    maxValue: z.number().optional(),
+  }).refine(
+    ({ minValue, maxValue }) =>
+      minValue === undefined || maxValue === undefined || minValue <= maxValue,
+    {
+      message: "Minimum value must be less than or equal to maximum value",
+    },
+  );
+
 export const PublicNumericEvaluatorOutputDefinition = z.object({
   dataType: z.literal("NUMERIC"),
   reasoning: PublicEvaluatorOutputFieldDefinition,
-  score: PublicEvaluatorOutputFieldDefinition,
+  score: PublicNumericEvaluatorOutputScoreDefinition,
 });
 
 export const PublicBooleanEvaluatorOutputDefinition = z.object({

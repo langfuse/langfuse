@@ -198,6 +198,21 @@ function parseStoredOutputDefinition(
     };
   }
 
+  if (resolvedOutputDefinition.dataType === "NUMERIC") {
+    const { minValue, maxValue } = resolvedOutputDefinition;
+    return {
+      dataType: "NUMERIC",
+      reasoning: {
+        description: resolvedOutputDefinition.reasoningDescription,
+      },
+      score: {
+        description: resolvedOutputDefinition.scoreDescription,
+        ...(minValue !== undefined ? { minValue } : {}),
+        ...(maxValue !== undefined ? { maxValue } : {}),
+      },
+    };
+  }
+
   return {
     dataType: resolvedOutputDefinition.dataType,
     reasoning: {
@@ -217,6 +232,8 @@ export function toStoredOutputDefinition(
       return createNumericEvalOutputDefinition({
         reasoningDescription: outputDefinition.reasoning.description,
         scoreDescription: outputDefinition.score.description,
+        minValue: outputDefinition.score.minValue,
+        maxValue: outputDefinition.score.maxValue,
       });
     case "BOOLEAN":
       return createBooleanEvalOutputDefinition({

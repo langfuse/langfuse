@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function EvaluatorActionsCell({
   hasActiveRules,
@@ -32,6 +33,18 @@ export function EvaluatorActionsCell({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const capture = usePostHogClientCapture();
+
+  const handlePrimaryAction = () => {
+    const action = hasActiveRules ? "view_scores" : "attach_rule";
+    capture("evaluators:overview_action_click", { action });
+    if (hasActiveRules) {
+      onViewScores();
+    } else {
+      onManageRules();
+    }
+  };
+
   return (
     <div className="flex w-full min-w-0 items-center justify-start gap-1">
       <Button
@@ -39,7 +52,7 @@ export function EvaluatorActionsCell({
         variant="outline"
         size="sm"
         className="w-32 shrink-0"
-        onClick={hasActiveRules ? onViewScores : onManageRules}
+        onClick={handlePrimaryAction}
       >
         {hasActiveRules ? (
           <>

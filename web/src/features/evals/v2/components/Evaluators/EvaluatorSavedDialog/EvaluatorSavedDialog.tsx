@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
-import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import {
+  Collapsible,
+  CollapsibleContent,
+} from "@/src/components/ui/collapsible";
 import {
   Dialog,
   DialogBody,
@@ -11,26 +13,51 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { cn } from "@/src/utils/tailwind";
+import styles from "./EvaluatorSavedDialog.module.css";
+
+export type EvaluatorSavedMode = "test-filters" | "different-scope";
+
+const modeOptions = [
+  {
+    value: "test-filters",
+    title: "Reuse the configured filters",
+    description: "Creates a rule from the sample observation filters.",
+  },
+  {
+    value: "different-scope",
+    title: "Run on a different scope",
+    description: "Attach to a rule you already have, or create a new one.",
+  },
+] as const;
 
 export function EvaluatorSavedDialog({
   open,
-  rulePicker,
-  costEstimate,
+  mode,
+  modeContentByMode,
+  costSummary,
   canSubmit,
-  isAttaching,
-  isEstimating,
+  isSubmitting,
   primaryActionLabel,
+  onModeChange,
   onOpenChange,
   onPrimaryAction,
   onCloseAnimationEnd,
 }: {
   open: boolean;
-  rulePicker: ReactNode;
-  costEstimate: ReactNode;
+  mode: EvaluatorSavedMode;
+  modeContentByMode: Record<EvaluatorSavedMode, ReactNode>;
+  costSummary: ReactNode;
   canSubmit: boolean;
-  isAttaching: boolean;
-  isEstimating: boolean;
+  isSubmitting: boolean;
   primaryActionLabel: string;
+  onModeChange: (mode: EvaluatorSavedMode) => void;
   onOpenChange: (open: boolean) => void;
   onPrimaryAction: () => void;
   onCloseAnimationEnd?: () => void;
@@ -38,70 +65,105 @@ export function EvaluatorSavedDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-2xl"
+        className="sm:max-w-4xl"
         closeOnInteractionOutside
         onCloseAutoFocus={onCloseAnimationEnd}
       >
         <DialogHeader>
-          <DialogTitle>Evaluator saved successfully</DialogTitle>
+          <DialogTitle>Evaluator saved</DialogTitle>
           <DialogDescription>
-            Your evaluator is ready. Set up a rule to run it automatically on
-            incoming observations.
+            Would you like to run this evaluator on incoming observations?
           </DialogDescription>
         </DialogHeader>
-        <DialogBody>
-          <div className="space-y-2">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <p className="text-sm font-bold">Choose a rule</p>
-                <InfoTooltip label="About evaluation rules">
-                  Saved evaluators are available for experiments and batch
-                  evaluations on historical data. Connect this evaluator to a
-                  rule to run it automatically on new incoming observations.
-                </InfoTooltip>
-              </div>
-              <p className="text-muted-foreground text-sm">
-                The evaluator will run on incoming observations matched by this
-                rule.
-              </p>
-            </div>
-            {rulePicker}
-          </div>
-          {isEstimating ? (
-            <div className="space-y-2">
-              <div>
-                <p className="text-sm font-bold">Cost estimation</p>
-                <p className="text-muted-foreground text-sm">
-                  Review the expected cost before running this evaluator
-                  automatically.
-                </p>
-              </div>
-              <div
-                className="flex items-center gap-2 rounded-md border p-3"
-                aria-label="Calculating evaluator costs"
+        <DialogBody className="gap-0 p-0">
+          <div className="grid h-[22rem] grid-cols-[minmax(0,1fr)_15rem] overflow-hidden">
+            <div className="min-w-0 overflow-y-auto px-6 py-5 [scrollbar-gutter:stable]">
+              <h3 className="mb-2 text-sm font-bold">How should it run</h3>
+              <RadioGroup
+                value={mode}
+                onValueChange={(value) =>
+                  onModeChange(value as EvaluatorSavedMode)
+                }
               >
-                <Spinner size="sm" variant="muted" />
-                <span className="text-muted-foreground text-sm">
-                  Calculating costs
-                </span>
-              </div>
+                {modeOptions.map((option) => {
+                  const selected = option.value === mode;
+                  const id = `evaluator-saved-mode-${option.value}`;
+                  const contentId = `${id}-content`;
+
+                  return (
+                    <Collapsible key={option.value} open={selected} asChild>
+                      <div
+                        className={cn(
+                          "rounded-md border p-3 transition-colors duration-200",
+                          selected
+                            ? "border-foreground bg-background"
+                            : "bg-muted/30 hover:bg-muted/50",
+                        )}
+                      >
+                        <div className="flex items-start gap-2">
+                          <RadioGroupItem
+                            id={id}
+                            value={option.value}
+                            aria-controls={contentId}
+                            className="mt-0.5"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <label
+                              htmlFor={id}
+                              className="block cursor-pointer text-sm leading-none font-bold"
+                            >
+                              {option.title}
+                            </label>
+                            <p className="text-muted-foreground mt-1.5 text-xs">
+                              {option.description}
+                            </p>
+                          </div>
+                        </div>
+                        <CollapsibleContent
+                          id={contentId}
+                          aria-labelledby={id}
+                          className={styles.collapsibleContent}
+                        >
+                          <div className="mt-3 ml-6 min-w-0 pr-1">
+                            {modeContentByMode[option.value]}
+                          </div>
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  );
+                })}
+              </RadioGroup>
             </div>
-          ) : (
-            costEstimate
-          )}
+            <aside
+              className={cn(
+                "overflow-y-auto px-5 py-5 [scrollbar-gutter:stable]",
+                costSummary && "border-l",
+              )}
+            >
+              {costSummary}
+            </aside>
+          </div>
         </DialogBody>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={isAttaching}
-            onClick={() => onOpenChange(false)}
-          >
-            Not now
-          </Button>
+        <DialogFooter className="px-6 py-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={isSubmitting}
+                onClick={() => onOpenChange(false)}
+              >
+                Skip execution
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-72">
+              It remains available for batch evaluations and prompt experiments.
+              Set up incoming observations later.
+            </TooltipContent>
+          </Tooltip>
           <Button
             disabled={!canSubmit}
-            loading={isAttaching}
-            loadingText="Attaching evaluator..."
+            loading={isSubmitting}
+            loadingText="Starting evaluator..."
             onClick={onPrimaryAction}
           >
             {primaryActionLabel}

@@ -41,5 +41,6 @@ export const FullyMapped = meta.story({
     defaultVariableMapping,
     store,
     sampleObject: null,
+    costEstimate: null,
   },
 });

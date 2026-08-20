@@ -15,7 +15,7 @@ export function ActivationConfirmationDialog({
   confirmation: ActivationConfirmationState;
   estimate: ActivationEstimateState;
   onOpenChange: (open: boolean) => void;
-  onSamplingChange: (sampling: number) => void;
+  onSamplingChange?: (sampling: number) => void;
   onConfirm: () => void;
 }) {
   const hasOnlyUnavailableEstimates =

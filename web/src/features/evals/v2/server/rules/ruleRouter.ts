@@ -8,6 +8,7 @@ import {
 } from "@/src/server/api/trpc";
 import { RuleService } from "./ruleService";
 import {
+  CreateOrAttachFromEvaluatorFiltersSchema,
   CreateRuleSchema,
   EvaluatorRulesSchema,
   ListRulesSchema,
@@ -133,6 +134,20 @@ export const ruleRouter = createTRPCRouter({
         scope: "evalJob:CUD",
       });
       return serviceForContext(ctx).create(
+        { ...input, projectId: ctx.session.projectId },
+        ctx.session.user.id,
+      );
+    }),
+
+  createOrAttachFromEvaluatorFilters: protectedProjectProcedure
+    .input(CreateOrAttachFromEvaluatorFiltersSchema)
+    .mutation(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evalJob:CUD",
+      });
+      return serviceForContext(ctx).createOrAttachFromEvaluatorFilters(
         { ...input, projectId: ctx.session.projectId },
         ctx.session.user.id,
       );

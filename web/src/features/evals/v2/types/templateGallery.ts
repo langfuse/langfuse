@@ -47,6 +47,7 @@ export type ManagedTemplate = {
 export type CustomEvaluatorTemplate = {
   id: string;
   name: string;
+  description?: string | null;
   type: EvalTemplateType;
   prompt: string | null;
   sourceCodeLanguage?: EvalTemplateSourceCodeLanguage | null;

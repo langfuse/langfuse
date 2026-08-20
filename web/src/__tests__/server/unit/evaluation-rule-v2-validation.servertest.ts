@@ -6,6 +6,19 @@ import {
 } from "@/src/features/evals/v2/server/rules/ruleTypes";
 
 describe("evaluation rule v2 input validation", () => {
+  it("accepts rule names longer than 200 characters", () => {
+    expect(
+      CreateRuleSchema.safeParse({
+        projectId: "project-id",
+        name: "r".repeat(201),
+        filter: [],
+        sampling: 1,
+        enabled: true,
+        evaluatorAssignments: [],
+      }).success,
+    ).toBe(true);
+  });
+
   it("rejects duplicate rule IDs in explicit bulk selections", () => {
     expect(
       RuleSelectionSchema.safeParse({

@@ -32,7 +32,6 @@ export function toScoreOutputFormState(
       "categories" in resolved
         ? resolved.categories.map((label) => ({
             label,
-            value: "",
           }))
         : [],
     shouldAllowMultipleMatches:

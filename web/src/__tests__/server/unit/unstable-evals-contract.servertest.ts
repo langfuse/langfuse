@@ -34,6 +34,8 @@ import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval
 const numericOutputDefinition = createNumericEvalOutputDefinition({
   reasoningDescription: "Why the score was assigned",
   scoreDescription: "A score between 0 and 1",
+  minValue: 0,
+  maxValue: 1,
 });
 
 const expectUnstablePublicApiError = (
@@ -88,6 +90,8 @@ describe("unstable public eval contracts", () => {
         },
         score: {
           description: "A score between 0 and 1",
+          minValue: 0,
+          maxValue: 1,
         },
       },
       modelConfig: {
@@ -853,6 +857,8 @@ describe("unstable public eval adapters", () => {
         },
         score: {
           description: "A score between 0 and 1",
+          minValue: 0,
+          maxValue: 1,
         },
       },
       modelConfig: {

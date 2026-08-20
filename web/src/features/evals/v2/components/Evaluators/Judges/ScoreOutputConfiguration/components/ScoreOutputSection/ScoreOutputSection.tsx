@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -21,6 +21,10 @@ import {
 } from "@/src/components/ui/popover";
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { CategoryEditorPopover } from "./components/CategoryEditorPopover/CategoryEditorPopover";
+import {
+  DUPLICATE_CATEGORY_NAMES_MESSAGE,
+  getDuplicateScoreOutputCategoryIndexes,
+} from "@/src/features/evals/v2/fns/scoreOutput/getDuplicateScoreOutputCategoryIndexes";
 
 import {
   type ScoreOutputChoice,
@@ -34,12 +38,8 @@ const DATA_TYPE_OPTIONS: { value: ScoreOutputDataType; label: string }[] = [
   { value: ScoreDataTypeEnum.BOOLEAN, label: "boolean" },
 ];
 
-// Two empty rows with autofilled values — the minimum a categorical score
-// needs, ready for labels.
-const DEFAULT_CHOICES: ScoreOutputChoice[] = [
-  { label: "", value: "0" },
-  { label: "", value: "1" },
-];
+// Two empty rows — the minimum a categorical score needs, ready for labels.
+const DEFAULT_CHOICES: ScoreOutputChoice[] = [{ label: "" }, { label: "" }];
 const DEFAULT_MIN_VALUE = "0";
 const DEFAULT_MAX_VALUE = "1";
 
@@ -80,10 +80,12 @@ export function ScoreOutputSection({
   const [editingChoiceIndex, setEditingChoiceIndex] = useState<number | null>(
     null,
   );
-  const [newChoice, setNewChoice] = useState<ScoreOutputChoice>({
-    label: "",
-    value: "0",
-  });
+  const [newChoice, setNewChoice] = useState<ScoreOutputChoice>({ label: "" });
+  const duplicateCategoryIndexes = new Set(
+    getDuplicateScoreOutputCategoryIndexes(
+      state.choices.map(({ label }) => label),
+    ),
+  );
 
   const handleDataTypeChange = (dataType: ScoreOutputDataType) => {
     onChange({
@@ -114,15 +116,8 @@ export function ScoreOutputSection({
     onChange({ ...state, choices });
   };
 
-  const nextChoiceValue = () => {
-    const used = state.choices
-      .map((choice) => Number(choice.value))
-      .filter((value) => Number.isFinite(value));
-    return String(used.length > 0 ? Math.max(...used) + 1 : 0);
-  };
-
   const handleAddCategoryOpenChange = (open: boolean) => {
-    if (open) setNewChoice({ label: "", value: nextChoiceValue() });
+    if (open) setNewChoice({ label: "" });
     setAddCategoryOpen(open);
   };
 
@@ -297,13 +292,18 @@ export function ScoreOutputSection({
                     <span>
                       {choice.label.trim() || `Category ${index + 1}`}
                     </span>
-                    {readOnly && choice.value.trim() ? (
-                      <span className="text-muted-foreground">
-                        · {choice.value}
+                    {duplicateCategoryIndexes.has(index) ? (
+                      <span
+                        className="text-dark-yellow h-4 w-4 shrink-0"
+                        aria-label={`Warning: ${DUPLICATE_CATEGORY_NAMES_MESSAGE}`}
+                        title={DUPLICATE_CATEGORY_NAMES_MESSAGE}
+                      >
+                        <TriangleAlert className="h-4 w-4" aria-hidden="true" />
                       </span>
-                    ) : (
+                    ) : null}
+                    {!readOnly ? (
                       <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                    )}
+                    ) : null}
                   </Button>
                 </PopoverTrigger>
               </CategoryEditorPopover>

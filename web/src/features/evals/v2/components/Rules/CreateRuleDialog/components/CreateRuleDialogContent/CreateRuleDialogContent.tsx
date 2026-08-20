@@ -137,6 +137,10 @@ export function CreateRuleDialogContent({
     onOpenChange(false);
   };
 
+  // A new rule is created enabled, so the confirmation is the last gate before
+  // it starts spending on every matching observation. The inline per-evaluator
+  // estimates in the setup steps inform the draft; this reviews the committed
+  // total, matching what editing an active rule already does.
   const requestActivation = async () => {
     let draft = ruleSetupStore.getState();
     const name = await prepareNameForSave({
@@ -146,20 +150,15 @@ export function CreateRuleDialogContent({
     });
     if (!name) return;
     draft = ruleSetupStore.getState();
-    const llmEvaluatorIds = draft.assignments
-      .map(({ evaluatorId }) => evaluatorId)
-      .filter(
-        (evaluatorId) =>
-          evaluatorOptions.find(({ id }) => id === evaluatorId)?.type ===
-          EvalTemplateType.LLM_AS_JUDGE,
-      );
+    const llmAssignments = draft.assignments.filter(
+      (assignment) =>
+        (evaluatorOptions.find(({ id }) => id === assignment.evaluatorId)
+          ?.type ?? assignment.evaluatorType) === EvalTemplateType.LLM_AS_JUDGE,
+    );
     await activation.requestActivation({
-      targets: llmEvaluatorIds.map((evaluatorId) => ({
-        evaluatorId,
-        evaluatorName:
-          draft.assignments.find(
-            (assignment) => assignment.evaluatorId === evaluatorId,
-          )?.evaluatorName ?? "LLM evaluator",
+      targets: llmAssignments.map((assignment) => ({
+        evaluatorId: assignment.evaluatorId,
+        evaluatorName: assignment.evaluatorName,
         filter: draft.filter,
         sampling: draft.sampling,
       })),

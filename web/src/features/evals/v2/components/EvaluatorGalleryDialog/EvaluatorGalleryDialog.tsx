@@ -50,7 +50,10 @@ export function EvaluatorGalleryDialog({
         : EVALUATOR_GALLERY_PREVIEW_SIZE,
       search: search.trim() || undefined,
     },
-    { enabled: open && Boolean(projectId) },
+    {
+      enabled: open && Boolean(projectId),
+      placeholderData: (previous) => previous,
+    },
   );
   const customTemplates = (projectEvaluators.data?.evaluators ?? []).flatMap(
     (evaluator) => {
@@ -60,6 +63,7 @@ export function EvaluatorGalleryDialog({
             {
               id: evaluator.id,
               name: evaluator.name,
+              description: evaluator.description,
               type: evaluator.type,
               prompt: latest.prompt,
               sourceCodeLanguage: latest.sourceCodeLanguage,

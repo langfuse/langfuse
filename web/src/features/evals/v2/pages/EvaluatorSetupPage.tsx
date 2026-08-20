@@ -464,7 +464,12 @@ export function EvaluatorSetupPage(
             <Button
               type="button"
               variant="outline"
-              onClick={() => setHistoryOpen(true)}
+              onClick={() => {
+                capture("evaluators:version_history_interaction", {
+                  action: "open",
+                });
+                setHistoryOpen(true);
+              }}
             >
               <History className="mr-2 h-4 w-4" />
               Version history
@@ -553,7 +558,13 @@ export function EvaluatorSetupPage(
           currentVersionId={versions[0]?.id ?? ""}
           defaultModel={projectDefaultModel.defaultModel}
           expandedVersionId={expandedVersionId}
-          onExpandedVersionChange={setExpandedVersionId}
+          onExpandedVersionChange={(versionId) => {
+            capture("evaluators:version_history_interaction", {
+              action:
+                versionId === null ? "collapse_version" : "expand_version",
+            });
+            setExpandedVersionId(versionId);
+          }}
           isLoading={versionHistory.isPending}
           hasMore={versionHistory.hasNextPage}
           isLoadingMore={versionHistory.isFetchingNextPage}

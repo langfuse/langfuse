@@ -19,6 +19,7 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
 }));
 
 import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+import { CreateEvaluatorSchema } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 describe("evaluator configuration validation", () => {
   beforeEach(() => {
@@ -26,6 +27,31 @@ describe("evaluator configuration validation", () => {
     mocks.isCodeEvalEnabled.mockReturnValue(true);
     mocks.isCodeEvalSourceCodeLanguageSupported.mockReturnValue(true);
     mocks.getEvaluatorDefinitionConfigurationError.mockResolvedValue(null);
+  });
+
+  it("accepts evaluator names longer than 200 characters", () => {
+    expect(
+      CreateEvaluatorSchema.safeParse({
+        projectId: "project-id",
+        name: "e".repeat(201),
+        description: null,
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          prompt: "Judge {{output}}",
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output"],
+          variableMapping: null,
+          outputDefinition: {
+            version: 2,
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }).success,
+    ).toBe(true);
   });
 
   it("validates deployment capabilities without executing the evaluator", async () => {

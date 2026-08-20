@@ -55,6 +55,34 @@ describe("evaluation helpers", () => {
       }
     });
 
+    it("should reject numeric responses outside the configured range", () => {
+      const schema = buildEvalOutputResultSchema({
+        version: 2,
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        score: {
+          description: "Score between -1 and 1",
+          minValue: -1,
+          maxValue: 1,
+        },
+        reasoning: { description: "The reasoning" },
+      });
+
+      expect(
+        schema.safeParse({ score: -1, reasoning: "At the minimum" }).success,
+      ).toBe(true);
+      expect(
+        schema.safeParse({ score: 1, reasoning: "At the maximum" }).success,
+      ).toBe(true);
+      expect(
+        schema.safeParse({ score: 1.1, reasoning: "Above the maximum" })
+          .success,
+      ).toBe(false);
+      expect(
+        schema.safeParse({ score: -1.1, reasoning: "Below the minimum" })
+          .success,
+      ).toBe(false);
+    });
+
     it("should reject invalid response - missing score", () => {
       const schema = buildEvalOutputResultSchema(
         createNumericEvalOutputDefinition({
@@ -1047,6 +1075,21 @@ describe("evaluation helpers", () => {
       );
 
       expect(result.success).toBe(true);
+    });
+
+    it("should reject numeric schemas with an inverted range", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
+        version: 2,
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        reasoning: { description: "Explain the score" },
+        score: {
+          description: "Score within the configured range",
+          minValue: 1,
+          maxValue: 0,
+        },
+      });
+
+      expect(result.success).toBe(false);
     });
 
     it("should accept versioned categorical multi-match schemas", () => {

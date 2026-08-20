@@ -29,6 +29,7 @@ import {
   getTotalCostByRule,
 } from "@langfuse/shared/src/server";
 import type {
+  CreateOrAttachFromEvaluatorFiltersInput,
   CreateRuleInput,
   ListRulesInput,
   RuleAssignmentInput,
@@ -41,6 +42,7 @@ import * as repository from "./ruleRepository";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { assertCompleteEvaluatorVariableMapping } from "../evaluators/evaluatorValidation";
+import { fallbackRuleName } from "./ruleFilterMatching";
 
 export type RuleAuditEvent = {
   action: "create" | "update" | "delete";
@@ -222,6 +224,71 @@ export class RuleService {
       ruleId: response.id,
     });
     return response;
+  }
+
+  async createOrAttachFromEvaluatorFilters(
+    input: CreateOrAttachFromEvaluatorFiltersInput,
+    createdByUserId: string | null,
+  ) {
+    const filter = this.validateRuleFilters(
+      EvalTargetObject.EVENT,
+      input.filter,
+    );
+    const attachToMatch = async () => {
+      const matchingRule = await repository.findActiveRuleWithMatchingFilter({
+        prisma: this.prisma,
+        projectId: input.projectId,
+        filter,
+      });
+      if (!matchingRule) return null;
+
+      if (
+        matchingRule.assignments.some(
+          (assignment) => assignment.evaluatorId === input.evaluatorId,
+        )
+      ) {
+        return this.get(input.projectId, matchingRule.id);
+      }
+
+      return this.attach({
+        projectId: input.projectId,
+        ruleId: matchingRule.id,
+        assignment: { evaluatorId: input.evaluatorId, variableMapping: null },
+      });
+    };
+
+    const existingRule = await attachToMatch();
+    if (existingRule)
+      return { action: "attached" as const, rule: existingRule };
+
+    const suggestedName = await this.suggestName({
+      projectId: input.projectId,
+      filter,
+      sampling: input.sampling,
+    });
+
+    // Check again after name generation because another request may have
+    // created a matching rule while the AI suggestion was in flight.
+    const concurrentlyCreatedRule = await attachToMatch();
+    if (concurrentlyCreatedRule) {
+      return { action: "attached" as const, rule: concurrentlyCreatedRule };
+    }
+
+    const rule = await this.create(
+      {
+        projectId: input.projectId,
+        name: suggestedName ?? fallbackRuleName(filter),
+        targetObject: EvalTargetObject.EVENT,
+        filter,
+        sampling: input.sampling,
+        enabled: true,
+        evaluatorAssignments: [
+          { evaluatorId: input.evaluatorId, variableMapping: null },
+        ],
+      },
+      createdByUserId,
+    );
+    return { action: "created" as const, rule };
   }
 
   async update(input: RuleServiceUpdateInput) {

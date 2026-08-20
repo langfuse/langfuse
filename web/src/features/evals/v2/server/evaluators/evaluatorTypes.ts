@@ -11,7 +11,7 @@ import {
 import { z } from "zod";
 
 const EvaluatorMetadataSchema = z.object({
-  name: z.string().trim().min(1).max(200),
+  name: z.string().trim().min(1),
   description: z.string().trim().max(2_000).nullable(),
 });
 

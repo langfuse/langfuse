@@ -22,6 +22,7 @@ import type {
   UpdateRuleInput,
 } from "./ruleTypes";
 import { creatorOptionsWhere, creatorWhere } from "../creatorFilterPrisma";
+import { filtersMatch } from "./ruleFilterMatching";
 
 export type RulePrisma = PrismaClient | Prisma.TransactionClient;
 
@@ -187,6 +188,32 @@ export function findRule(params: {
     where: { id: params.ruleId, projectId: params.projectId },
     include: ruleInclude,
   });
+}
+
+export async function findActiveRuleWithMatchingFilter(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  filter: FilterState;
+}) {
+  const rules = await params.prisma.evaluationRule.findMany({
+    where: {
+      projectId: params.projectId,
+      status: JobConfigState.ACTIVE,
+      targetObject: EvalTargetObject.EVENT,
+    },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    select: {
+      id: true,
+      filter: true,
+      assignments: { select: { evaluatorId: true } },
+    },
+  });
+
+  return (
+    rules.find((rule) =>
+      filtersMatch(rule.filter as FilterState, params.filter),
+    ) ?? null
+  );
 }
 
 export function createRule(params: {

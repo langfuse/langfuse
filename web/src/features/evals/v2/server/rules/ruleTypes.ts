@@ -7,7 +7,7 @@ import {
 import { z } from "zod";
 
 export const RuleMetadataSchema = z.object({
-  name: z.string().trim().min(1).max(200),
+  name: z.string().trim().min(1),
   filter: z.array(singleFilter),
   sampling: z.number().min(0).max(1),
 });
@@ -133,8 +133,18 @@ export const SuggestRuleNameSchema = z.object({
   sampling: RuleMetadataSchema.shape.sampling,
 });
 
+export const CreateOrAttachFromEvaluatorFiltersSchema = z.object({
+  projectId: z.string(),
+  evaluatorId: z.string().min(1),
+  filter: RuleMetadataSchema.shape.filter,
+  sampling: RuleMetadataSchema.shape.sampling,
+});
+
 export type RuleAssignmentInput = z.infer<typeof RuleAssignmentInputSchema>;
 export type CreateRuleInput = z.infer<typeof CreateRuleSchema>;
+export type CreateOrAttachFromEvaluatorFiltersInput = z.infer<
+  typeof CreateOrAttachFromEvaluatorFiltersSchema
+>;
 export type UpdateRuleInput = z.infer<typeof UpdateRuleSchema>;
 export type ListRulesInput = z.infer<typeof ListRulesSchema>;
 export type RuleSelectionInput = z.infer<typeof RuleSelectionSchema>;

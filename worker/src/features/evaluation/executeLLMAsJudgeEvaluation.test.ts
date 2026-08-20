@@ -539,7 +539,24 @@ describe("executeLLMAsJudgeEvaluation", () => {
       const callLLM = mockSuccessfulLLMCall(0.8, "Good response");
       const deps = createSuccessfulDeps({ callLLM });
 
-      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.NUMERIC,
+              reasoning: { description: "Explain the score" },
+              score: {
+                description: "Return a score between 0 and 1",
+                minValue: 0,
+                maxValue: 1,
+              },
+            },
+          },
+        }),
+      );
 
       const structuredOutputSchema = callLLM.mock.calls[0][0]
         .structuredOutputSchema as z.ZodTypeAny;
@@ -550,6 +567,20 @@ describe("executeLLMAsJudgeEvaluation", () => {
           reasoning: "Good response",
         }).success,
       ).toBe(true);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: 1.1,
+          reasoning: "Outside the configured range",
+        }).success,
+      ).toBe(false);
+      expect(z.toJSONSchema(structuredOutputSchema)).toMatchObject({
+        properties: {
+          score: {
+            minimum: 0,
+            maximum: 1,
+          },
+        },
+      });
     });
 
     it("should pass categorical structured output schema to LLM", async () => {

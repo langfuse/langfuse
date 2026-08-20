@@ -14610,8 +14610,30 @@ components:
         - For `NUMERIC` and `BOOLEAN`, provide `reasoning.description` and
         `score.description`.
 
+        - For `NUMERIC`, `score.minValue` and `score.maxValue` optionally define
+        inclusive bounds. If both are set, `minValue` must not exceed
+        `maxValue`.
+
         - For `CATEGORICAL`, also provide `score.categories` and
         `score.shouldAllowMultipleMatches`.
+    unstablePublicNumericEvaluatorOutputScoreDefinition:
+      title: unstablePublicNumericEvaluatorOutputScoreDefinition
+      type: object
+      properties:
+        description:
+          type: string
+        minValue:
+          type: number
+          format: double
+          nullable: true
+          description: Inclusive minimum value for numeric evaluator scores.
+        maxValue:
+          type: number
+          format: double
+          nullable: true
+          description: Inclusive maximum value for numeric evaluator scores.
+      required:
+        - description
     unstablePublicNumericEvaluatorOutputDefinition:
       title: unstablePublicNumericEvaluatorOutputDefinition
       type: object
@@ -14622,7 +14644,8 @@ components:
         reasoning:
           $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
         score:
-          $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
+          $ref: >-
+            #/components/schemas/unstablePublicNumericEvaluatorOutputScoreDefinition
       required:
         - dataType
         - reasoning

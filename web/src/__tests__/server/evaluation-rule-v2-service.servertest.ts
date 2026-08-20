@@ -141,6 +141,136 @@ const createService = (
 ) => new RuleService(prisma, audit);
 
 describe("RuleService", () => {
+  describe("createOrAttachFromEvaluatorFilters", () => {
+    it("attaches to an active rule with the same filters regardless of filter and option order", async () => {
+      const [existingEvaluator, newEvaluator] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+      ]);
+      const service = createService();
+      const existing = await service.create(
+        {
+          ...createInput(existingEvaluator.id),
+          filter: [
+            {
+              type: "stringOptions",
+              column: "environment",
+              operator: "any of",
+              value: ["staging", "production"],
+            },
+            {
+              type: "string",
+              column: "name",
+              operator: "contains",
+              value: "checkout",
+            },
+          ],
+        },
+        null,
+      );
+
+      const result = await service.createOrAttachFromEvaluatorFilters(
+        {
+          projectId,
+          evaluatorId: newEvaluator.id,
+          filter: [
+            {
+              type: "string",
+              column: "name",
+              operator: "contains",
+              value: "checkout",
+            },
+            {
+              type: "stringOptions",
+              column: "environment",
+              operator: "any of",
+              value: ["production", "staging"],
+            },
+          ],
+          sampling: 1,
+        },
+        null,
+      );
+
+      expect(result).toMatchObject({
+        action: "attached",
+        rule: { id: existing.id },
+      });
+      await expect(
+        prisma.evaluationRule.count({ where: { projectId } }),
+      ).resolves.toBe(1);
+      await expect(
+        prisma.evaluationRuleEvaluatorAssignment.findUnique({
+          where: {
+            evaluationRuleId_evaluatorId: {
+              evaluationRuleId: existing.id,
+              evaluatorId: newEvaluator.id,
+            },
+          },
+        }),
+      ).resolves.not.toBeNull();
+    });
+
+    it("creates a rule with a filter-based fallback name when no rule matches", async () => {
+      const evaluator = await createEvaluator();
+      const foreignEvaluator = await createEvaluator(otherProjectId);
+      const service = createService();
+      await service.create(
+        { ...createInput(foreignEvaluator.id), projectId: otherProjectId },
+        null,
+      );
+
+      const result = await service.createOrAttachFromEvaluatorFilters(
+        {
+          projectId,
+          evaluatorId: evaluator.id,
+          filter: [
+            {
+              type: "stringOptions",
+              column: "environment",
+              operator: "any of",
+              value: ["production"],
+            },
+          ],
+          sampling: 0.5,
+        },
+        null,
+      );
+
+      expect(result).toMatchObject({
+        action: "created",
+        rule: {
+          name: "environment any of production",
+          sampling: 0.5,
+          assignments: [expect.objectContaining({ evaluatorId: evaluator.id })],
+        },
+      });
+    });
+
+    it("uses the suggested name when creating a new rule", async () => {
+      const evaluator = await createEvaluator();
+      const service = createService();
+      vi.spyOn(service, "suggestName").mockResolvedValue(
+        "Production checkout observations",
+      );
+
+      const result = await service.createOrAttachFromEvaluatorFilters(
+        {
+          projectId,
+          evaluatorId: evaluator.id,
+          filter: [],
+          sampling: 1,
+        },
+        null,
+      );
+
+      expect(result).toMatchObject({
+        action: "created",
+        rule: { name: "Production checkout observations" },
+      });
+    });
+  });
+
   describe("list", () => {
     it("returns project rules converted to the service response", async () => {
       const evaluator = await createEvaluator();

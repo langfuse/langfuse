@@ -27,6 +27,26 @@ describe("toScoreOutputFormState", () => {
     });
   });
 
+  it("preserves numeric score bounds across serialization", () => {
+    const formState = toScoreOutputFormState(null);
+    const outputDefinition = buildScoreOutputDefinition({
+      ...formState,
+      minValue: "-1.5",
+      maxValue: "2.5",
+    });
+
+    expect(outputDefinition).toMatchObject({
+      score: {
+        minValue: -1.5,
+        maxValue: 2.5,
+      },
+    });
+    expect(toScoreOutputFormState(outputDefinition)).toMatchObject({
+      minValue: "-1.5",
+      maxValue: "2.5",
+    });
+  });
+
   it("preserves whether a categorical score allows multiple matches", () => {
     const formState = toScoreOutputFormState({
       version: 2,

@@ -23,10 +23,7 @@ export const Categorical = meta.story({
   args: {
     state: {
       dataType: ScoreDataTypeEnum.CATEGORICAL,
-      choices: [
-        { label: "Positive", value: "1" },
-        { label: "Negative", value: "0" },
-      ],
+      choices: [{ label: "Positive" }, { label: "Negative" }],
       shouldAllowMultipleMatches: false,
       minValue: "",
       maxValue: "",
