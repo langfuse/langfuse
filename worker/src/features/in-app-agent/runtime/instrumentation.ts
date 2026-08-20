@@ -6,6 +6,8 @@ import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   getInAppAgentLlmCallObservationId,
+  parseInAppAgentToolApprovalEvent,
+  type InAppAgentToolApprovalSource,
 } from "@langfuse/shared/in-app-agent";
 import type { AgUiEvent, AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
@@ -189,6 +191,10 @@ export class InAppAgentInstrumentation {
   private readonly toolCallApprovals = new Map<
     string,
     ToolCallApprovalStatus
+  >();
+  private readonly toolCallApprovalSources = new Map<
+    string,
+    InAppAgentToolApprovalSource
   >();
   private readonly toolExecutionTimes = new Map<string, ToolExecutionTimes>();
   private readonly metadata: Record<string, unknown>;
@@ -517,6 +523,15 @@ export class InAppAgentInstrumentation {
       return;
     }
 
+    const toolApproval = parseInAppAgentToolApprovalEvent(event);
+    if (toolApproval) {
+      this.toolCallApprovalSources.set(
+        toolApproval.toolCallId,
+        toolApproval.source,
+      );
+      return;
+    }
+
     if (event.type === EventType.TOOL_CALL_ARGS) {
       this.appendToolArgs(event);
       return;
@@ -666,6 +681,7 @@ export class InAppAgentInstrumentation {
       tool.failureMessage ??
       getToolFailureMessage(undefined, output);
     const toolCallApproval = this.toolCallApprovals.get(toolCallId);
+    const toolCallApprovalSource = this.toolCallApprovalSources.get(toolCallId);
     const executionTimes = this.toolExecutionTimes.get(toolCallId);
     const rawStartTime = executionTimes?.startTime ?? tool.startTime;
     const endTime =
@@ -691,6 +707,7 @@ export class InAppAgentInstrumentation {
         ...(options?.metadata ?? {}),
         toolCallId,
         ...(toolCallApproval ? { toolCallApproval } : {}),
+        ...(toolCallApprovalSource ? { toolCallApprovalSource } : {}),
         ...(tool.argsComplete ? {} : { argsComplete: false }),
         ...(tool.parentMessageId
           ? { parentMessageId: tool.parentMessageId }
@@ -700,6 +717,7 @@ export class InAppAgentInstrumentation {
 
     this.recordToolCall(toolCallId, tool, output);
     this.toolCallApprovals.delete(toolCallId);
+    this.toolCallApprovalSources.delete(toolCallId);
     this.toolExecutionTimes.delete(toolCallId);
 
     this.enqueueObservation("tool-create", body);

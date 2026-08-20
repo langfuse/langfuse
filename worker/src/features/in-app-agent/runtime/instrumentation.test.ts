@@ -5,6 +5,7 @@ import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   getInAppAgentLlmCallObservationId,
+  IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
 } from "@langfuse/shared/in-app-agent";
 import type { AgUiRunAgentInput } from "./types";
 import { InAppAgentInstrumentation } from "./instrumentation";
@@ -268,6 +269,52 @@ describe("InAppAgentInstrumentation", () => {
           toolCallId: "tool-1",
           parentMessageId: "tool-1-approval-tool-call",
           toolCallApproval: "approved",
+        }),
+      }),
+    );
+  });
+
+  it("copies langfuse_tool_approval source onto the TOOL observation", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-1",
+        toolCallName: "read",
+        parentMessageId: "assistant-message-1",
+      },
+      {
+        type: EventType.CUSTOM,
+        name: IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
+        value: {
+          toolCallId: "tool-1",
+          toolName: "read",
+          source: "builtin",
+        },
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-1",
+        delta: '{"path":"README.md"}',
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-1",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-1",
+        content: "ok",
+      },
+    ]);
+
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "tool-create",
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          toolCallId: "tool-1",
+          toolCallApprovalSource: "builtin",
         }),
       }),
     );
