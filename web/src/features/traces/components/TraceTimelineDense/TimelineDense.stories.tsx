@@ -2053,3 +2053,78 @@ export const TheToolbarDoesNotExplainItself = meta.story({
     await expect(toolbar.innerText.toLowerCase()).not.toContain("drag");
   },
 });
+
+/**
+ * A second finger abandons a box the first one had started. Every release commits
+ * whatever box it finds, so a rectangle left behind by an interrupted drag flies
+ * the viewport somewhere nobody asked to go — one pinch later, on a release that
+ * had nothing to do with it.
+ */
+export const APinchAbandonsAnUnfinishedBox = meta.story({
+  name: "(Test) A Pinch Abandons An Unfinished Box",
+  args: {
+    ...READABLE,
+    roots: manySpans(150),
+    pointer: "coarse" as const,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+    const marquee = () =>
+      canvasElement.querySelector('[data-testid="timeline-dense-marquee"]');
+    const rect = surface.getBoundingClientRect();
+    await expect(readout()).toContain("fitted");
+
+    // A finger WITH shift draws a box — the one way touch asks for one.
+    const shifted = (type: string, x: number, y: number) =>
+      surface.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: "touch",
+          isPrimary: true,
+          shiftKey: true,
+          buttons: type === "pointerup" ? 0 : 1,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    shifted("pointerdown", rect.left + rect.width * 0.3, rect.top + 100);
+    shifted("pointermove", rect.left + rect.width * 0.6, rect.top + 260);
+    await waitFor(() => expect(marquee()).not.toBeNull());
+
+    // A second finger arrives: that is a pinch now, and the box is abandoned.
+    touch(
+      surface,
+      "pointerdown",
+      2,
+      rect.left + rect.width * 0.5,
+      rect.top + 300,
+    );
+    await waitFor(() => expect(marquee()).toBeNull());
+
+    // Releasing must not fly anywhere: there is no box left to fly to.
+    shifted("pointerup", rect.left + rect.width * 0.6, rect.top + 260);
+    let flew = false;
+    try {
+      await waitFor(() => expect(readout()).toContain("zoomed"), {
+        timeout: 600,
+      });
+      flew = true;
+    } catch {
+      // Still fitted, which is the point.
+    }
+    await expect(flew).toBe(false);
+  },
+});

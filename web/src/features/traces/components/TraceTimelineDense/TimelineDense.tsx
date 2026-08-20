@@ -924,9 +924,10 @@ export function TimelineDense({
       lastTap.current = { at: 0, x: 0, y: 0 };
       return;
     }
-    // Only touch reaches here — everything else drew a box above and returned.
+    // Every pointer type reaches here now: the box is decided below and drawn on
+    // the first real move, so nothing returns early any more.
     //
-    // A PRIMARY touch is the first contact of a new gesture, so anything left in
+    // A PRIMARY contact is the first of a new gesture, so anything left in
     // the map is stale by definition. Not every release arrives — lift two
     // fingers at once and a `pointerup` can go missing, or land outside the
     // element — and one phantom finger turns the next one-finger drag into a
@@ -941,9 +942,13 @@ export function TimelineDense({
     });
     if (touches.current.points.size === 2) {
       // A second finger ends whatever the first one was doing and starts a
-      // pinch from where the two currently are.
+      // pinch from where the two currently are — INCLUDING a box it had begun
+      // to draw. Left behind, that rectangle outlives the pinch and the next
+      // release flies to it, since every release commits whatever box it finds.
       gesture.current.down = false;
       gesture.current.dragging = false;
+      gesture.current.intent = "pan";
+      setMarqueeBox(null);
       setDragging(false);
       const [a, b] = [...touches.current.points.values()];
       if (a && b) {
