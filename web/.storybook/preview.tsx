@@ -176,11 +176,11 @@ export default definePreview({
     options: {
       storySort: (a, b) => {
         const sectionOrder = ["Design", "Playground"];
-        const sectionRank = (title: string) => {
-          const rank = sectionOrder.indexOf(title.split("/")[0] ?? "");
-          return rank === -1 ? sectionOrder.length : rank;
-        };
-        const sectionDifference = sectionRank(a.title) - sectionRank(b.title);
+        const aSectionIndex = sectionOrder.indexOf(a.title.split("/")[0] ?? "");
+        const bSectionIndex = sectionOrder.indexOf(b.title.split("/")[0] ?? "");
+        const sectionDifference =
+          (aSectionIndex === -1 ? sectionOrder.length : aSectionIndex) -
+          (bSectionIndex === -1 ? sectionOrder.length : bSectionIndex);
         if (sectionDifference !== 0) return sectionDifference;
 
         const titleDifference = a.title.localeCompare(b.title);
