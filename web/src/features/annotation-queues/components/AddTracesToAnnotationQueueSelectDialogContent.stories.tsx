@@ -1,5 +1,4 @@
 import preview from "../../../../.storybook/preview";
-import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,10 +6,10 @@ import {
   CreateQueueWithAssignmentsData,
   type CreateQueueWithAssignments,
 } from "@langfuse/shared";
-import { ChevronLeft } from "lucide-react";
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { useForm } from "react-hook-form";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import { AddTracesToAnnotationQueueSelectDialogContent } from "./AddTracesToAnnotationQueueSelectDialogContent";
 
@@ -21,9 +20,10 @@ const meta = preview.meta({
   },
 });
 
-export const Default = meta.story({
+export const CreateQueueInStackedDialog = meta.story({
+  name: "(Test) Create Queue In Stacked Dialog",
   render: () => {
-    const [step, setStep] = useState<"select" | "create">("select");
+    const [createOpen, setCreateOpen] = useState(false);
     const [queueOptions, setQueueOptions] = useState([
       { id: "queue-1", name: "Support review" },
       { id: "queue-2", name: "Quality audit" },
@@ -34,7 +34,7 @@ export const Default = meta.story({
       defaultValues: {
         name: "",
         description: "",
-        scoreConfigIds: [],
+        scoreConfigIds: ["config-1"],
         newAssignmentUserIds: [],
       },
     });
@@ -56,46 +56,31 @@ export const Default = meta.story({
 
     const handleCreate = (data: CreateQueueWithAssignments) => {
       const queue = { id: `queue-${queueOptions.length + 1}`, name: data.name };
-      setQueueOptions((current) => current.concat(queue));
+      flushSync(() => setQueueOptions((current) => current.concat(queue)));
       selectForm.setValue("targetId", queue.id);
       createForm.reset();
-      setStep("select");
+      setCreateOpen(false);
     };
 
     return (
-      <Dialog open onOpenChange={fn()}>
-        <DialogContent
-          className={
-            step === "create"
-              ? "max-h-[90vh] overflow-y-auto sm:max-w-lg"
-              : "sm:max-w-md"
-          }
-        >
-          {step === "select" ? (
+      <>
+        <Dialog open onOpenChange={fn()}>
+          <DialogContent className="sm:max-w-md">
             <AddTracesToAnnotationQueueSelectDialogContent
               description="Add 12 selected traces to an annotation queue."
               form={selectForm}
               queueOptionsState={{ status: "ready", options: queueOptions }}
               onSubmit={fn()}
-              onCreateNewQueue={() => setStep("create")}
+              onCreateNewQueue={() => setCreateOpen(true)}
               createQueueState={{ status: "enabled" }}
               hasAccess={true}
               batchActionState={{ status: "ready", canConfirm: true }}
             />
-          ) : (
-            <>
-              <div className="mb-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2"
-                  onClick={() => setStep("select")}
-                >
-                  <ChevronLeft className="mr-1 h-4 w-4" />
-                  Back
-                </Button>
-              </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            {createOpen ? (
               <AnnotationQueueFormDialogContent
                 mode="create"
                 form={createForm}
@@ -122,12 +107,35 @@ export const Default = meta.story({
                 userAssignmentSection={null}
                 isSubmitting={false}
                 onSubmit={handleCreate}
-                submitLabel="Create queue and add traces"
+                submitLabel="Create queue"
               />
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      await body.findByRole("button", { name: "Create new queue" }),
+    );
+    await waitFor(() =>
+      expect(body.getAllByRole("dialog", { hidden: true })).toHaveLength(2),
+    );
+
+    await userEvent.type(
+      body.getByRole("textbox", { name: "Name" }),
+      "Escalation review",
+    );
+    await userEvent.click(body.getByRole("button", { name: "Create queue" }));
+
+    await waitFor(() =>
+      expect(body.getAllByRole("dialog", { hidden: true })).toHaveLength(1),
+    );
+    await expect(body.getByRole("combobox")).toHaveTextContent(
+      "Escalation review",
     );
   },
 });
