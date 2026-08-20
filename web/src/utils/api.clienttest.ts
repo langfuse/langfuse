@@ -5,14 +5,17 @@ import { vi } from "vitest";
 import {
   EXPECTED_TRPC_ERROR_CODES,
   fetchWithParseErrorStatus,
+  getApproxTrpcGetUrlBytes,
   getTrpcErrorCode,
   getTrpcErrorFingerprint,
   getTrpcErrorPath,
   isExpectedTrpcClientError,
   isNetworkConnectivityError,
   isTrpcResponseParseError,
+  MAX_TRPC_GET_URL_BYTES,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
+  shouldSendQueryAsPost,
 } from "@/src/utils/api";
 
 const { captureExceptionMock, addBreadcrumbMock, trpcErrorToastMock } =
@@ -203,6 +206,98 @@ describe("isTrpcResponseParseError", () => {
     );
 
     expect(isTrpcResponseParseError(error)).toBe(true);
+  });
+});
+
+describe("shouldSendQueryAsPost", () => {
+  const queryOp = (
+    input: unknown,
+    context: Record<string, unknown> = {},
+    path = "traces.all",
+  ) => ({
+    type: "query" as const,
+    path,
+    input,
+    context,
+  });
+
+  it("keeps small queries on GET", () => {
+    expect(
+      shouldSendQueryAsPost(
+        queryOp({ projectId: "proj_1", filter: [], page: 0, limit: 50 }),
+      ),
+    ).toBe(false);
+  });
+
+  it("honors the explicit sendAsPost context flag", () => {
+    expect(
+      shouldSendQueryAsPost(
+        queryOp({ projectId: "proj_1" }, { sendAsPost: true }),
+      ),
+    ).toBe(true);
+  });
+
+  it("routes a traces.all query whose filter would blow the GET URL as POST", () => {
+    // Session-storage-only filter states can exceed the page-URL budget
+    // (MAX_URL_FILTER_QUERY_LENGTH) and still be sent as tRPC input. ~200
+    // user IDs is the shape that 431s the GET request line.
+    const input = {
+      projectId: "proj_1",
+      filter: [
+        {
+          column: "userId",
+          type: "stringOptions",
+          operator: "none of",
+          value: Array.from(
+            { length: 200 },
+            (_, i) => `user-${i}-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`,
+          ),
+        },
+      ],
+      page: 0,
+      limit: 50,
+    };
+
+    expect(getApproxTrpcGetUrlBytes("traces.all", input)).toBeGreaterThan(
+      MAX_TRPC_GET_URL_BYTES,
+    );
+    // Auto-routing does not set `sendAsPost` on the op; the 414/431 diagnostic
+    // must use `shouldSendQueryAsPost`, not the explicit flag alone.
+    const op = queryOp(input);
+    expect(op.context.sendAsPost).not.toBe(true);
+    expect(shouldSendQueryAsPost(op)).toBe(true);
+  });
+
+  it("routes a traces.metrics query whose id list would blow the GET URL as POST", () => {
+    const input = {
+      projectId: "proj_1",
+      filter: [],
+      traceIds: Array.from(
+        { length: 100 },
+        (_, i) => `trace-${i.toString().padStart(3, "0")}-${"x".repeat(36)}`,
+      ),
+    };
+
+    expect(getApproxTrpcGetUrlBytes("traces.metrics", input)).toBeGreaterThan(
+      MAX_TRPC_GET_URL_BYTES,
+    );
+    expect(shouldSendQueryAsPost(queryOp(input, {}, "traces.metrics"))).toBe(
+      true,
+    );
+  });
+
+  it("does not force mutations onto the methodOverride POST link", () => {
+    expect(
+      shouldSendQueryAsPost({
+        type: "mutation",
+        path: "traces.deleteMany",
+        input: {
+          projectId: "proj_1",
+          traceIds: Array.from({ length: 200 }, (_, i) => `t-${i}`),
+        },
+        context: {},
+      }),
+    ).toBe(false);
   });
 });
 
