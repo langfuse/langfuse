@@ -607,7 +607,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         <Button
           variant="ghost"
           size="xs"
-          className="h-5 max-w-full min-w-0 py-0 text-[0.625rem] leading-none"
+          className="h-5 max-w-full min-w-0 translate-y-0.5 py-0 text-[0.625rem] leading-none"
         >
           <span className="truncate" title={versionText}>
             {versionText}

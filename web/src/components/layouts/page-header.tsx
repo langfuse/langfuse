@@ -135,7 +135,7 @@ const PageHeader = ({
                   />
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex translate-y-px items-center gap-2">
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>
