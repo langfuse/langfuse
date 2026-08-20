@@ -51,9 +51,9 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
       REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-false}
-      REDIS_TLS_CA: ${REDIS_TLS_CA:-/certs/ca.crt}
-      REDIS_TLS_CERT: ${REDIS_TLS_CERT:-/certs/redis.crt}
-      REDIS_TLS_KEY: ${REDIS_TLS_KEY:-/certs/redis.key}
+      REDIS_TLS_CA_PATH: ${REDIS_TLS_CA_PATH:-}
+      REDIS_TLS_CERT_PATH: ${REDIS_TLS_CERT_PATH:-}
+      REDIS_TLS_KEY_PATH: ${REDIS_TLS_KEY_PATH:-}
       # Shared AI features configuration. These apply to AI features that run
       # in both web and worker.
       LANGFUSE_AWS_BEDROCK_MODEL: ${LANGFUSE_AWS_BEDROCK_MODEL:-}
