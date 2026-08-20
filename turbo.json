@@ -4,7 +4,8 @@
   "globalDependencies": [".env"],
   "globalEnv": [
     "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
-    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF"
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF",
+    "NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF"
   ],
   "envMode": "loose",
   "tasks": {
@@ -117,6 +118,14 @@
       "outputs": [".local-image-built"],
       "cache": true,
       "outputLogs": "errors-only"
+    },
+    "@repo/in-app-agent-sandbox-runtime#test": {
+      "dependsOn": [],
+      "cache": true
+    },
+    "@repo/in-app-agent-sandbox-runtime#test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false
     },
     "worker#dev": {
       "cache": false,

@@ -111,6 +111,24 @@ describe("isCustomerFaultError", () => {
       Object.assign(err, { $metadata: { httpStatusCode: 401 } });
       expect(isCustomerFaultError(wrapped(err))).toBe(true);
     });
+
+    it("classifies a bare Error with no statusCode as other (control)", () => {
+      const err = new Error("Unauthorized");
+      expect(isCustomerFaultError(err)).toBe(false);
+      expect(isCustomerFaultError(wrapped(err))).toBe(false);
+    });
+
+    it("classifies a raw .statusCode of 401 as customer_fault (unwrapped)", () => {
+      const err = new Error("Unauthorized");
+      Object.assign(err, { statusCode: 401 });
+      expect(isCustomerFaultError(err)).toBe(true);
+    });
+
+    it("classifies a .statusCode of 401 wrapped in { cause } as customer_fault", () => {
+      const err = new Error("Unauthorized");
+      Object.assign(err, { statusCode: 401 });
+      expect(isCustomerFaultError(wrapped(err))).toBe(true);
+    });
   });
 
   describe("other — transient / infra / unknown (bias toward investigation)", () => {
@@ -265,6 +283,13 @@ describe("classifyCustomerFault — disable reason buckets", () => {
     expect(classifyCustomerFault(wrapped(gcsError(403, "forbidden")))).toBe(
       "credentials",
     );
+  });
+
+  it("maps a bare .statusCode of 401 to credentials, bare and cause-wrapped", () => {
+    const unauthorized = new Error("Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    expect(classifyCustomerFault(unauthorized)).toBe("credentials");
+    expect(classifyCustomerFault(wrapped(unauthorized))).toBe("credentials");
   });
 
   it.each([

@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useCanUseInAppAgent: () => true,
+  useIsInAppAgentLauncherVisible: () => true,
   useInAppAiAgent: () => ({
     deleteConversation: vi.fn(),
     isExpanded: false,
