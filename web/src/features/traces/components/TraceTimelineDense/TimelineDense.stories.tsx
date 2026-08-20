@@ -2014,3 +2014,27 @@ export const AFingerDragStillPans = meta.story({
     ).toBe(heightBefore);
   },
 });
+
+/**
+ * The cursor should not promise a gesture the surface does not perform. It was a
+ * grab hand, from when drag meant pan; drag draws a zoom box now, so the surface
+ * says nothing at rest and the bars carry the only real affordance — a click
+ * that selects.
+ */
+export const TheCursorMatchesTheGesture = meta.story({
+  name: "(Test) The Cursor Matches The Gesture",
+  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    await expect(getComputedStyle(surface).cursor).toBe("default");
+
+    const bar = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-bar"]',
+    );
+    if (!bar) throw new Error("no bar");
+    await expect(getComputedStyle(bar).cursor).toBe("pointer");
+  },
+});

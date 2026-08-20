@@ -1441,7 +1441,10 @@ export function TimelineDense({
         ref={attachSurface}
         className={cn(
           "relative min-h-0 flex-1 overflow-hidden",
-          dragging ? "cursor-grabbing" : "cursor-grab",
+          // A grab hand promised panning, which drag no longer does — it draws a
+          // zoom box, so the cursor says nothing until you start one and then
+          // says exactly that. The rows carry the clickable cue themselves.
+          dragging ? "cursor-crosshair" : "cursor-default",
         )}
         style={{ touchAction: "none" }}
         onPointerDown={onPointerDown}
@@ -1576,7 +1579,10 @@ export function TimelineDense({
                   ) : (
                     <div
                       className={cn(
-                        "absolute rounded-[1px]",
+                        // Clicking selects, and the bar is the part that looks
+                        // like it would: the row is clickable across its full
+                        // width, but only the bar reads as a thing.
+                        "absolute cursor-pointer rounded-[1px]",
                         barClass,
                         isSelected && "ring-foreground/80 ring-1",
                       )}
