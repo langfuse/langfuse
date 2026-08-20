@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { Plus } from "lucide-react";
 import { type UseFormReturn } from "react-hook-form";
 
 type AnnotationQueueSelectOption = {
@@ -74,7 +73,23 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
       <Form {...form}>
         <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
           <DialogBody>
-            <DialogDescription>{description}</DialogDescription>
+            <div className="flex items-center justify-between gap-4">
+              <DialogDescription>{description}</DialogDescription>
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto shrink-0 p-0 text-sm"
+                disabled={createQueueState.status === "disabled"}
+                title={
+                  createQueueState.status === "disabled"
+                    ? createQueueState.reason
+                    : undefined
+                }
+                onClick={onCreateNewQueue}
+              >
+                Create new queue
+              </Button>
+            </div>
             <FormField
               control={form.control}
               name="targetId"
@@ -106,22 +121,6 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
                 </FormItem>
               )}
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-2 w-full"
-              disabled={createQueueState.status === "disabled"}
-              title={
-                createQueueState.status === "disabled"
-                  ? createQueueState.reason
-                  : undefined
-              }
-              onClick={onCreateNewQueue}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create new queue
-            </Button>
           </DialogBody>
           <DialogFooter variant="action">
             {batchActionState.status === "inProgress" ? (

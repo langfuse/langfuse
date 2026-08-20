@@ -1,5 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { fn } from "storybook/test";
 
@@ -15,6 +16,8 @@ const meta = preview.meta({
 export const Default = meta.story({
   render: () => {
     const form = useForm({ defaultValues: { targetId: "queue-1" } });
+    const [createRequested, setCreateRequested] = useState(false);
+    const onCreateNewQueue = fn();
 
     return (
       <Dialog open onOpenChange={fn()}>
@@ -30,11 +33,19 @@ export const Default = meta.story({
               ],
             }}
             onSubmit={fn()}
-            onCreateNewQueue={fn()}
+            onCreateNewQueue={() => {
+              onCreateNewQueue();
+              setCreateRequested(true);
+            }}
             createQueueState={{ status: "enabled" }}
             hasAccess={true}
             batchActionState={{ status: "ready", canConfirm: true }}
           />
+          {createRequested ? (
+            <p className="text-muted-foreground text-center text-sm">
+              Create new queue requested
+            </p>
+          ) : null}
         </DialogContent>
       </Dialog>
     );
