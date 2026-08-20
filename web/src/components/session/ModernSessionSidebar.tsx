@@ -82,6 +82,7 @@ function ObservationListRows({
   state,
   onSelectObservation,
   onExcludeObservation,
+  onIncludeObservation,
 }:
   | {
       state: Extract<
@@ -90,11 +91,13 @@ function ObservationListRows({
       >;
       onSelectObservation?: never;
       onExcludeObservation?: never;
+      onIncludeObservation?: never;
     }
   | {
       state: Extract<ObservationListRowsState, { type: "loaded" }>;
       onSelectObservation: (observationId: string) => void;
       onExcludeObservation?: (name: string) => void;
+      onIncludeObservation?: (name: string) => void;
     }) {
   if (state.type === "loading") {
     return (
@@ -160,7 +163,8 @@ function ObservationListRows({
               </span>
             ) : null}
           </button>
-          {observation.name && onExcludeObservation ? (
+          {observation.name &&
+          (onExcludeObservation || onIncludeObservation) ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -174,13 +178,24 @@ function ObservationListRows({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={0}>
-                <DropdownMenuItem
-                  onSelect={() =>
-                    onExcludeObservation(observation.name as string)
-                  }
-                >
-                  Exclude similar observations
-                </DropdownMenuItem>
+                {onIncludeObservation ? (
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      onIncludeObservation(observation.name as string)
+                    }
+                  >
+                    Only show observations with the same name
+                  </DropdownMenuItem>
+                ) : null}
+                {onExcludeObservation ? (
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      onExcludeObservation(observation.name as string)
+                    }
+                  >
+                    Exclude observations with the same name
+                  </DropdownMenuItem>
+                ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
@@ -200,6 +215,7 @@ const TurnCard = React.memo(
     onSelect,
     hasFilters,
     onExcludeObservation,
+    onIncludeObservation,
   }: {
     sidebarTrace: ModernSessionSidebarTrace;
     selectIndex: number;
@@ -209,6 +225,7 @@ const TurnCard = React.memo(
     onSelect: (index: number, observationId?: string) => void;
     hasFilters: boolean;
     onExcludeObservation: (name: string) => void;
+    onIncludeObservation: (name: string) => void;
   }) => {
     const { trace, turnNumber, observations, hasMatchingTraceLevelIO } =
       sidebarTrace;
@@ -283,6 +300,7 @@ const TurnCard = React.memo(
                 onSelect(selectIndex, observationId)
               }
               onExcludeObservation={onExcludeObservation}
+              onIncludeObservation={onIncludeObservation}
             />
           )
         ) : null}
@@ -305,6 +323,7 @@ export function ModernSessionSidebar(
         expandedTraceIds: ReadonlySet<string>;
         onToggleTraceExpanded: (traceId: string) => void;
         onExcludeObservation: (name: string) => void;
+        onIncludeObservation: (name: string) => void;
         onSelect: (index: number, observationId?: string) => void;
         onVisibleTraceIdsChange: (traceIds: string[]) => void;
         hasMoreObservations: boolean;
@@ -442,6 +461,7 @@ export function ModernSessionSidebar(
     expandedTraceIds,
     onToggleTraceExpanded,
     onExcludeObservation,
+    onIncludeObservation,
     onSelect,
   } = props;
   const handleSearchChange = (nextSearch: string) => {
@@ -656,6 +676,7 @@ export function ModernSessionSidebar(
                         filterControls.activeFilterCount > 0
                       }
                       onExcludeObservation={onExcludeObservation}
+                      onIncludeObservation={onIncludeObservation}
                     />
                   </div>
                 </SessionVirtualizedRow>

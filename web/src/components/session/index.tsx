@@ -1278,6 +1278,32 @@ const LoadedSessionEventsPage: React.FC<{
     },
     [capture, queryFilter],
   );
+  const includeObservationsByName = useCallback(
+    (name: string) => {
+      const nextFilters = queryFilter.filterState
+        .filter((filter) => filter.column !== "name")
+        .concat({
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: [name],
+        });
+
+      queryFilter.setFilterState(nextFilters);
+      capture("filters:applied", {
+        surface: "filter_builder",
+        tableName: "session-detail",
+        column: "name",
+        filterType: "stringOptions",
+        operator: "any of",
+        valueCount: 1,
+        conditionCount: nextFilters.length,
+        columnConditionCount: 1,
+        isV4: true,
+      });
+    },
+    [capture, queryFilter],
+  );
 
   // Recover the system-preset viewId the view manager strips from the URL on
   // reload/shared-link (frontend presets aren't backend-fetchable). Idempotent
@@ -1708,6 +1734,7 @@ const LoadedSessionEventsPage: React.FC<{
                   showSystemPrompt={showSystemPrompt}
                   sidebarFilterControls={sidebarFilterControls}
                   onExcludeObservation={excludeObservationsByName}
+                  onIncludeObservation={includeObservationsByName}
                 />
               )}
             </ModernSessionFilterControls>

@@ -40,6 +40,7 @@ type ModernSessionProps = {
   showSystemPrompt: boolean;
   sidebarFilterControls: ModernSessionSidebarFilterControls;
   onExcludeObservation: (name: string) => void;
+  onIncludeObservation: (name: string) => void;
 };
 
 export function ModernSession({
@@ -57,6 +58,7 @@ export function ModernSession({
   showSystemPrompt,
   sidebarFilterControls,
   onExcludeObservation,
+  onIncludeObservation,
 }: ModernSessionProps) {
   const traces =
     tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
@@ -406,6 +408,7 @@ export function ModernSession({
           expandedTraceIds={expandedTraceIds}
           onToggleTraceExpanded={toggleTraceExpanded}
           onExcludeObservation={onExcludeObservation}
+          onIncludeObservation={onIncludeObservation}
           onSelect={handleSelect}
           onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
           hasMoreObservations={hasMoreObservations}

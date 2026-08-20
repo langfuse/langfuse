@@ -178,6 +178,7 @@ const largeSessionObservationsByTraceId = Object.fromEntries(
   largeSessionData.map(({ trace, observations }) => [trace.id, observations]),
 );
 const onExcludeObservation = fn();
+const onIncludeObservation = fn();
 
 const toSidebarTraces = (
   sourceTraces: EventSessionTrace[],
@@ -241,6 +242,7 @@ const loadedArgs = {
   expandedTraceIds: new Set(traces.map((trace) => trace.id)),
   onToggleTraceExpanded: fn(),
   onExcludeObservation,
+  onIncludeObservation,
   onSelect: fn(),
   onVisibleTraceIdsChange: fn(),
   hasMoreObservations: false,
@@ -516,6 +518,72 @@ export const TestSelectsObservation = meta.story({
       canvas.getByRole("button", { name: /^Search knowledge base 0.70s$/i }),
     );
     await expect(args.onSelect).toHaveBeenCalledWith(1, "tool-1");
+  },
+});
+
+export const TestOnlyShowsObservationsByName = meta.story({
+  name: "(Test) Only shows observations by name",
+  args: {
+    ...loadedArgs,
+    onExcludeObservation: fn(),
+    onIncludeObservation: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    assertLoadedArgs(args);
+    const canvas = within(canvasElement);
+    const page = within(document.body);
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Actions for Search knowledge base" }),
+    );
+    await userEvent.click(
+      page.getByRole("menuitem", {
+        name: "Only show observations with the same name",
+      }),
+    );
+    await expect(args.onIncludeObservation).toHaveBeenCalledWith(
+      "Search knowledge base",
+    );
+    await waitFor(() =>
+      expect(
+        page.queryByRole("menuitem", {
+          name: "Only show observations with the same name",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+  },
+});
+
+export const TestExcludesObservationsByName = meta.story({
+  name: "(Test) Excludes observations by name",
+  args: {
+    ...loadedArgs,
+    onExcludeObservation: fn(),
+    onIncludeObservation: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    assertLoadedArgs(args);
+    const canvas = within(canvasElement);
+    const page = within(document.body);
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Actions for Search knowledge base" }),
+    );
+    await userEvent.click(
+      page.getByRole("menuitem", {
+        name: "Exclude observations with the same name",
+      }),
+    );
+    await expect(args.onExcludeObservation).toHaveBeenCalledWith(
+      "Search knowledge base",
+    );
+    await waitFor(() =>
+      expect(
+        page.queryByRole("menuitem", {
+          name: "Exclude observations with the same name",
+        }),
+      ).not.toBeInTheDocument(),
+    );
   },
 });
 
