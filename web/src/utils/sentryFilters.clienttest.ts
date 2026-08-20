@@ -655,6 +655,26 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(false);
     });
 
+    it("keeps a first-party chunk failure even if an extension URL appears later in the text", () => {
+      // The protocol must be on the FAILED module URL, not anywhere in the
+      // event text (query/fragment/trailing console noise).
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Failed to fetch dynamically imported module: https://us.cloud.langfuse.com/_next/static/chunks/app.js?ref=chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x.js",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Failed to fetch dynamically imported module: https://us.cloud.langfuse.com/_next/static/chunks/app.js chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x.js",
+          ),
+        ),
+      ).toBe(false);
+    });
+
     it("keeps a non-clipboard NotAllowedError (autoplay/fullscreen)", () => {
       expect(
         isDenylistedNoiseEvent(

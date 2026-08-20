@@ -96,7 +96,7 @@ const TRANSPORT_FAILURE_MESSAGES: readonly string[] = [
  * keep this list in sync so the message-level fallback covers the same origins.
  */
 const BROWSER_EXTENSION_MODULE_URL_RE =
-  /(?:chrome-extension|moz-extension|safari-extension|safari-web-extension|ms-browser-extension):\/\//i;
+  /^(?:chrome-extension|moz-extension|safari-extension|safari-web-extension|ms-browser-extension):\/\//i;
 
 /**
  * Chrome's exact wording when a dynamic `import()` fails to load. Combined
@@ -105,6 +105,22 @@ const BROWSER_EXTENSION_MODULE_URL_RE =
  */
 const DYNAMIC_IMPORT_FAILURE_MARKER =
   "Failed to fetch dynamically imported module:";
+
+/**
+ * True when Chrome reported a failed dynamic `import()` whose MODULE URL
+ * (the text immediately after {@link DYNAMIC_IMPORT_FAILURE_MARKER}) uses a
+ * browser-extension protocol. Anchored to that URL so a first-party chunk
+ * failure that merely mentions `chrome-extension://` in a query, fragment, or
+ * trailing console text is KEPT.
+ */
+function isBrowserExtensionDynamicImportFailure(text: string): boolean {
+  const markerIndex = text.indexOf(DYNAMIC_IMPORT_FAILURE_MARKER);
+  if (markerIndex === -1) return false;
+  const failedModule = text
+    .slice(markerIndex + DYNAMIC_IMPORT_FAILURE_MARKER.length)
+    .trimStart();
+  return BROWSER_EXTENSION_MODULE_URL_RE.test(failedModule);
+}
 
 /**
  * Message prefixes emitted by non-Langfuse code (framework / vendor). These are
@@ -296,13 +312,11 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // an extension's own `import()` fails. `denyUrls` already lists these
     // protocols, but this family has no stack frames, so denyUrls never
     // matches and captureConsoleIntegration mints a new issue per
-    // extension-id + hashed asset. Only extension-protocol URLs are dropped;
-    // the same message pointing at a first-party `/_next/static/chunks/` URL
-    // is a real stale-chunk / CDN failure and is KEPT.
-    if (
-      messageText.includes(DYNAMIC_IMPORT_FAILURE_MARKER) &&
-      BROWSER_EXTENSION_MODULE_URL_RE.test(messageText)
-    ) {
+    // extension-id + hashed asset. The protocol is required on the FAILED
+    // module URL (not anywhere in the event text); a first-party
+    // `/_next/static/chunks/` URL is a real stale-chunk / CDN failure and
+    // is KEPT.
+    if (isBrowserExtensionDynamicImportFailure(messageText)) {
       return true;
     }
 
