@@ -9,6 +9,7 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -18,8 +19,8 @@ export async function createProjectMembershipsOnSignup(
   },
   options?: {
     userWasJustCreated?: boolean;
-    /** Google Ads click id, see getGclidFromRequest */
-    gclid?: string;
+    /** Ad-platform click ids, see getAdClickIdsFromRequest */
+    adClickIds?: AdClickIds;
   },
 ) {
   try {
@@ -278,8 +279,9 @@ export async function createProjectMembershipsOnSignup(
             hasDemoAccess: demoProject !== undefined,
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
-            // Google Ads click id for ad conversion attribution
-            ...(options?.gclid ? { gclid: options.gclid } : {}),
+            // ad-platform click ids (gclid, li_fat_id, rdt_cid, twclid) for
+            // ad conversion attribution; only defined ids are included
+            ...(options?.adClickIds ?? {}),
           },
         });
         await posthog.shutdown();

@@ -13,6 +13,7 @@ import {
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   type AdapterUser,
   type Adapter,
@@ -594,7 +595,7 @@ const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
 // (Google Ads click id from first-party cookies) can reach the signup event
 // captured for new SSO users.
 const createExtendedPrismaAdapter = (signupAttribution?: {
-  gclid?: string;
+  adClickIds?: AdClickIds;
 }): Adapter => ({
   ...prismaAdapter,
   async createUser(profile: Omit<AdapterUser, "id">) {
@@ -617,7 +618,7 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
 
     await createProjectMembershipsOnSignup(user, {
       userWasJustCreated: true,
-      gclid: signupAttribution?.gclid,
+      adClickIds: signupAttribution?.adClickIds,
     });
 
     return user;
@@ -661,7 +662,7 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
     });
     if (user) {
       await createProjectMembershipsOnSignup(user, {
-        gclid: signupAttribution?.gclid,
+        adClickIds: signupAttribution?.adClickIds,
       });
     }
   },
@@ -735,14 +736,14 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
- * @param signupAttribution - per-request marketing attribution (e.g. Google
- * Ads click id) attached to the signup analytics event if the request results
+ * @param signupAttribution - per-request marketing attribution (ad-platform
+ * click ids) attached to the signup analytics event if the request results
  * in a new user. Only passed by the NextAuth API route.
  *
  * @see https://next-auth.js.org/configuration/options
  */
 export async function getAuthOptions(signupAttribution?: {
-  gclid?: string;
+  adClickIds?: AdClickIds;
 }): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
   try {

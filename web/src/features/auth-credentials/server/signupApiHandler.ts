@@ -1,6 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
-import { getGclidFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
@@ -96,7 +96,7 @@ export async function signupApiHandler(
       body.email,
       body.password,
       body.name,
-      { gclid: getGclidFromRequest(req) },
+      { adClickIds: getAdClickIdsFromRequest(req) },
     );
   } catch (error) {
     const message =
