@@ -509,8 +509,10 @@ export const TooltipShowsCostAndTokens = meta.story({
       }),
     );
 
+    // `document`, not `canvasElement`: the tooltip renders in the tooltip layer,
+    // which is a body-level sibling of the app root.
     const tooltip = () =>
-      canvasElement.querySelector<HTMLElement>(
+      document.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-tooltip"]',
       );
     await waitFor(() => expect(tooltip()).not.toBeNull());
@@ -1102,7 +1104,7 @@ export const TooltipFollowsTheContent = meta.story({
     );
     if (!surface) throw new Error("dense surface not found");
     const tooltip = () =>
-      canvasElement.querySelector<HTMLElement>(
+      document.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-tooltip"]',
       )?.textContent ?? "";
 
@@ -1428,9 +1430,10 @@ export const HoverOpensATooltip = meta.story({
     );
 
     // Hover names what you are on — this layout spends no row pixels on text.
+    // In the tooltip layer, so `document` rather than the story canvas.
     await waitFor(() =>
       expect(
-        canvasElement.querySelector('[data-testid="timeline-dense-tooltip"]'),
+        document.querySelector('[data-testid="timeline-dense-tooltip"]'),
       ).not.toBeNull(),
     );
     // And hovering must not move anything: no reflow, no new scroll.
@@ -1602,5 +1605,75 @@ export const ADoubleTapSelectsOnce = meta.story({
     }
     const onSelect = args.onSelect as ReturnType<typeof fn>;
     await expect(onSelect.mock.calls.length).toBe(1);
+  },
+});
+
+/**
+ * The tooltip is the one thing in this renderer that belongs OUTSIDE the box.
+ * Kept inside, it had to be clamped to the room left — and the clamp measured its
+ * height with a guess (one row, when it grew to two), so hovering a row near the
+ * bottom of a short panel cut the metrics line clean off.
+ */
+export const TheTooltipEscapesTheSurface = meta.story({
+  name: "(Test) The Tooltip Escapes The Surface",
+  args: {
+    roots: manySpans(40),
+    box: PEEK,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+    factsOf: () => ["$0.006425", "2,100 → 380 (∑ 2,480)"],
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    // The LAST row, hard against the bottom edge — the case in the report.
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + rect.width * 0.7,
+        clientY: rect.bottom - 3,
+      }),
+    );
+
+    const tooltip = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-tooltip"]',
+      );
+      if (!el) throw new Error("no tooltip");
+      return el;
+    });
+
+    // Not inside the box that clips it. Everything else here follows from that.
+    await expect(surface.contains(tooltip)).toBe(false);
+
+    // Both rows drawn, and nothing of it cut: an element clipped by an ancestor
+    // still reports its full box, so the thing to check is that its own content
+    // fits and that the box is on screen.
+    await expect(tooltip.scrollHeight).toBeLessThanOrEqual(
+      tooltip.clientHeight,
+    );
+    await expect(tooltip.innerText).toContain("$0.006425");
+    const box = tooltip.getBoundingClientRect();
+    await expect(box.height).toBeGreaterThan(20);
+    await expect(box.bottom).toBeLessThanOrEqual(window.innerHeight + 0.5);
+    await expect(box.right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+    await expect(box.top).toBeGreaterThanOrEqual(-0.5);
+    await expect(box.left).toBeGreaterThanOrEqual(-0.5);
+
+    // And the surface still has nothing to scroll — it never held the tooltip.
+    await expect(surface.scrollWidth).toBeLessThanOrEqual(surface.clientWidth);
+    await expect(surface.scrollHeight).toBeLessThanOrEqual(
+      surface.clientHeight,
+    );
   },
 });

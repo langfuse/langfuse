@@ -6,6 +6,7 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
+import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
   verifyPassword,
@@ -13,6 +14,7 @@ import {
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   type AdapterUser,
   type Adapter,
@@ -603,10 +605,10 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
 const prismaAdapter = PrismaAdapter(prisma);
 const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
 // Factory instead of a static adapter so that per-request signup attribution
-// (Google Ads click id from first-party cookies) can reach the signup event
+// (ad-platform click ids from first-party cookies) can reach the signup event
 // captured for new SSO users.
 const createExtendedPrismaAdapter = (signupAttribution?: {
-  gclid?: string;
+  adClickIds?: AdClickIds;
 }): Adapter => ({
   ...prismaAdapter,
   async createUser(profile: Omit<AdapterUser, "id">) {
@@ -629,7 +631,7 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
 
     await createProjectMembershipsOnSignup(user, {
       userWasJustCreated: true,
-      gclid: signupAttribution?.gclid,
+      adClickIds: signupAttribution?.adClickIds,
     });
 
     return user;
@@ -673,7 +675,7 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
     });
     if (user) {
       await createProjectMembershipsOnSignup(user, {
-        gclid: signupAttribution?.gclid,
+        adClickIds: signupAttribution?.adClickIds,
       });
     }
   },
@@ -750,14 +752,14 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
- * @param signupAttribution - per-request marketing attribution (e.g. Google
- * Ads click id) attached to the signup analytics event if the request results
+ * @param signupAttribution - per-request marketing attribution (ad-platform
+ * click ids) attached to the signup analytics event if the request results
  * in a new user. Only passed by the NextAuth API route.
  *
  * @see https://next-auth.js.org/configuration/options
  */
 export async function getAuthOptions(signupAttribution?: {
-  gclid?: string;
+  adClickIds?: AdClickIds;
 }): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
   try {
@@ -879,6 +881,7 @@ export async function getAuthOptions(signupAttribution?: {
             environment: {
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+              inAppAgentEnabled: isInAppAgentInstanceEnabled(),
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),

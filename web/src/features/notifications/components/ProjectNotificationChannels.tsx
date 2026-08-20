@@ -16,6 +16,7 @@ import { ProjectNotificationChannelsList } from "@/src/features/notifications/co
 import { useProjectNotificationChannels } from "@/src/features/notifications/hooks/useProjectNotificationChannels";
 import { cn } from "@/src/utils/tailwind";
 import {
+  ProjectNotificationEventTypeSchema,
   TriggerEventSource,
   type ActionTypes,
   type ProjectNotificationEventType,
@@ -24,30 +25,30 @@ import {
 /** Project notifications route to webhooks or Slack; GitHub dispatch is not wired for this event source. */
 const PROJECT_NOTIFICATION_ACTION_TYPES: ActionTypes[] = ["WEBHOOK", "SLACK"];
 
-/** NOTIFIED_EVENTS lists the toggleable project-notification events, keyed by their eventType. */
-const NOTIFIED_EVENTS: {
-  value: ProjectNotificationEventType;
-  title: string;
-  description: string;
-}[] = [
-  {
-    value: "blob-export-failed",
+const NOTIFIED_EVENT_COPY: Record<
+  ProjectNotificationEventType,
+  { title: string; description: string }
+> = {
+  "blob-export-failed": {
     title: "Blob storage export failed",
     description: "Sent when a scheduled blob storage export fails.",
   },
-  {
-    value: "posthog-export-failed",
+  "posthog-export-failed": {
     title: "PostHog export failed",
     description:
       "Sent when a PostHog export is disabled after a configuration error, such as an unreachable host.",
   },
-  {
-    value: "evaluator-blocked",
+  "evaluator-blocked": {
     title: "Evaluator deactivated",
     description:
       "Sent when an evaluator is deactivated due to an unrecoverable error, such as a deleted model or LLM connection.",
   },
-];
+};
+
+/** NOTIFIED_EVENTS lists the toggleable project-notification events, in schema order. */
+export const NOTIFIED_EVENTS = ProjectNotificationEventTypeSchema.options.map(
+  (value) => ({ value, ...NOTIFIED_EVENT_COPY[value] }),
+);
 
 /**
  * ProjectNotificationChannels is the admin-only "Project Notifications"

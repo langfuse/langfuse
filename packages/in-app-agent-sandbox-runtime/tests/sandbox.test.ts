@@ -1,3 +1,5 @@
+// Never use fixed delays to establish operation ordering in these tests.
+// Synchronize through observable state; timeouts are failure bounds only.
 import { readdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
@@ -317,54 +319,73 @@ describe("sandbox runtime docker container", () => {
           ].join("; "),
         }),
       });
+      void first.catch(() => undefined);
+      let second: Promise<JsonResponse> | undefined;
 
-      await waitForContainerFile(container, "/workspace/queue-active");
+      try {
+        await waitForContainerFile(container, "/workspace/queue-active");
 
-      const second = requestJson(baseUrl, "/sandbox", {
-        method: "POST",
-        body: JSON.stringify({
-          operation: "bash",
-          command: [
-            "test ! -e queue-active",
-            "printf 'second\\n' >> queue-order.txt",
-          ].join("; "),
-        }),
-      });
+        second = requestJson(baseUrl, "/sandbox", {
+          method: "POST",
+          body: JSON.stringify({
+            operation: "bash",
+            command: [
+              "test ! -e queue-active",
+              "printf 'second\\n' >> queue-order.txt",
+            ].join("; "),
+          }),
+        });
+        void second.catch(() => undefined);
 
-      const releaseExec = await container.exec({
-        Cmd: ["touch", "/workspace/queue-release"],
-      });
-      await releaseExec.start({});
+        const releaseExec = await container.exec({
+          Cmd: ["touch", "/workspace/queue-release"],
+        });
+        await readStreamToString(await releaseExec.start({}));
 
-      const [firstResponse, secondResponse] = await Promise.all([
-        first,
-        second,
-      ]);
-      expect(firstResponse).toEqual({
-        status: 200,
-        body: { result: expect.objectContaining({ exitCode: 0 }) },
-      });
-      expect(secondResponse).toEqual({
-        status: 200,
-        body: { result: expect.objectContaining({ exitCode: 0 }) },
-      });
+        const [firstResponse, secondResponse] = await Promise.all([
+          first,
+          second,
+        ]);
+        expect(firstResponse).toEqual({
+          status: 200,
+          body: { result: expect.objectContaining({ exitCode: 0 }) },
+        });
+        expect(secondResponse).toEqual({
+          status: 200,
+          body: { result: expect.objectContaining({ exitCode: 0 }) },
+        });
 
-      const order = await requestJson(baseUrl, "/sandbox", {
-        method: "POST",
-        body: JSON.stringify({
-          operation: "read",
-          path: "queue-order.txt",
-        }),
-      });
-      expect(order).toEqual({
-        status: 200,
-        body: {
-          result: {
-            path: "/workspace/queue-order.txt",
-            content: "first\nsecond\n",
+        const order = await requestJson(baseUrl, "/sandbox", {
+          method: "POST",
+          body: JSON.stringify({
+            operation: "read",
+            path: "queue-order.txt",
+          }),
+        });
+        expect(order).toEqual({
+          status: 200,
+          body: {
+            result: {
+              path: "/workspace/queue-order.txt",
+              content: "first\nsecond\n",
+            },
           },
-        },
-      });
+        });
+      } finally {
+        let released = false;
+        try {
+          const releaseExec = await container.exec({
+            Cmd: ["touch", "/workspace/queue-release"],
+          });
+          await readStreamToString(await releaseExec.start({}));
+          released = true;
+        } catch {
+          // Teardown will reject the already-observed requests if release failed.
+        }
+        if (released) {
+          await Promise.allSettled(second ? [first, second] : [first]);
+        }
+      }
 
       const timedOut = requestJson(baseUrl, "/sandbox", {
         method: "POST",
@@ -375,32 +396,41 @@ describe("sandbox runtime docker container", () => {
           timeoutMs: 200,
         }),
       });
+      void timedOut.catch(() => undefined);
+      let afterTimeout: Promise<JsonResponse> | undefined;
 
-      await waitForContainerFile(container, "/workspace/timeout-process.pid");
+      try {
+        await waitForContainerFile(container, "/workspace/timeout-process.pid");
 
-      const afterTimeout = requestJson(baseUrl, "/sandbox", {
-        method: "POST",
-        body: JSON.stringify({
-          operation: "bash",
-          command: [
-            "test -d /proc/$(cat timeout-process.pid)",
-            "printf 'continued\\n' > after-timeout.txt",
-          ].join(" && "),
-        }),
-      });
+        afterTimeout = requestJson(baseUrl, "/sandbox", {
+          method: "POST",
+          body: JSON.stringify({
+            operation: "bash",
+            command: [
+              "test -d /proc/$(cat timeout-process.pid)",
+              "printf 'continued\\n' > after-timeout.txt",
+            ].join(" && "),
+          }),
+        });
+        void afterTimeout.catch(() => undefined);
 
-      const [timedOutResponse, afterTimeoutResponse] = await Promise.all([
-        timedOut,
-        afterTimeout,
-      ]);
-      expect(timedOutResponse).toEqual({
-        status: 200,
-        body: { result: expect.objectContaining({ exitCode: 124 }) },
-      });
-      expect(afterTimeoutResponse).toEqual({
-        status: 200,
-        body: { result: expect.objectContaining({ exitCode: 0 }) },
-      });
+        const [timedOutResponse, afterTimeoutResponse] = await Promise.all([
+          timedOut,
+          afterTimeout,
+        ]);
+        expect(timedOutResponse).toEqual({
+          status: 200,
+          body: { result: expect.objectContaining({ exitCode: 124 }) },
+        });
+        expect(afterTimeoutResponse).toEqual({
+          status: 200,
+          body: { result: expect.objectContaining({ exitCode: 0 }) },
+        });
+      } finally {
+        await Promise.allSettled(
+          afterTimeout ? [timedOut, afterTimeout] : [timedOut],
+        );
+      }
     },
   );
 });
@@ -492,7 +522,7 @@ async function waitForContainerFile(
 
   while (Date.now() - startedAt < HEALTH_TIMEOUT_MS) {
     const exec = await container.exec({ Cmd: ["test", "-e", filePath] });
-    await exec.start({});
+    await readStreamToString(await exec.start({}));
     if ((await exec.inspect()).ExitCode === 0) {
       return;
     }
