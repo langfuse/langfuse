@@ -54,12 +54,15 @@ async function main() {
   const seedUserId1 = "user-1"; // Owner of org
   const seedUserId2 = "user-2"; // Member of org, admin of project
 
+  // Seeded identities skip Cloud signup auto-enable; pin v4 on so local dx
+  // and PR previews land on the events traces view.
   const user = await prisma.user.upsert({
     where: { id: seedUserId1 },
     update: {
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
+      v4BetaEnabled: true,
     },
     create: {
       id: seedUserId1,
@@ -67,6 +70,7 @@ async function main() {
       email: "demo@langfuse.com",
       password: await hash("password", 12),
       image: "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png",
+      v4BetaEnabled: true,
     },
   });
   const user2 = await prisma.user.upsert({
@@ -75,12 +79,14 @@ async function main() {
       name: "Demo User 2",
       email: "member@langfuse.com",
       password: await hash("password", 12),
+      v4BetaEnabled: true,
     },
     create: {
       id: seedUserId2,
       name: "Demo User 2",
       email: "member@langfuse.com",
       password: await hash("password", 12),
+      v4BetaEnabled: true,
     },
   });
 
