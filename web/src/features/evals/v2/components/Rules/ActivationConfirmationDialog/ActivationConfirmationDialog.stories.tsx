@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import preview from "../../../../../../../.storybook/preview";
 import { ActivationConfirmationDialog } from "./ActivationConfirmationDialog";
 
@@ -69,9 +69,41 @@ export const CostWarning = meta.story({
 });
 
 export const EstimatedCost = meta.story({
+  name: "(Test) Estimated Cost",
   args: {
     ...sharedArgs,
     confirmation,
     estimate: estimatedCost,
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(
+      body.getByLabelText("About total estimated LLM costs"),
+    ).toBeInTheDocument();
+  },
+});
+
+export const SingleEvaluator = meta.story({
+  name: "(Test) Single Evaluator",
+  args: {
+    ...sharedArgs,
+    onSamplingChange: undefined,
+    confirmation: {
+      ...confirmation,
+      title: "Attach evaluator to rule",
+      confirmLabel: "Attach evaluator to rule",
+    },
+    estimate: {
+      ...estimatedCost,
+      sampling: 1,
+      matchingObservations: 6,
+      estimates: [estimatedCost.estimates[0]],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(
+      body.getByText("This evaluator would run on", { exact: false }),
+    ).toBeInTheDocument();
   },
 });

@@ -1,14 +1,8 @@
-import {
-  EvalTemplateType,
-  observationVariableMappingList,
-  singleFilter,
-} from "@langfuse/shared";
+import { observationVariableMappingList, singleFilter } from "@langfuse/shared";
 import { useState } from "react";
 import { DialogBody } from "@/src/components/ui/dialog";
-import { ActivationConfirmationDialog } from "@/src/features/evals/v2/components/Rules/ActivationConfirmationDialog/ActivationConfirmationDialog";
 import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
-import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
@@ -62,7 +56,6 @@ export function EditRuleDialogContent({
       }),
     }),
   );
-  const activation = useActivationConfirmation({ projectId });
   const update = api.evalsV2.rules.update.useMutation({
     onError: trpcErrorToast,
   });
@@ -123,58 +116,6 @@ export function EditRuleDialogContent({
     onClose();
   };
 
-  const requestSave = async () => {
-    const draft = ruleSetupStore.getState();
-    const initialIds = new Set(
-      rule.assignments.map((assignment) => assignment.evaluator.id),
-    );
-    const initialFilter = singleFilter.array().catch([]).parse(rule.filter);
-    const matchScopeChanged =
-      rule.sampling !== draft.sampling ||
-      JSON.stringify(initialFilter) !== JSON.stringify(draft.filter);
-    const affectedLlmEvaluatorIds = draft.assignments
-      .filter(
-        (assignment) =>
-          matchScopeChanged || !initialIds.has(assignment.evaluatorId),
-      )
-      .filter(
-        (assignment) =>
-          (evaluatorOptions.find(
-            (evaluator) => evaluator.id === assignment.evaluatorId,
-          )?.type ??
-            rule.assignments.find(
-              ({ evaluator }) => evaluator.id === assignment.evaluatorId,
-            )?.evaluator.type) === EvalTemplateType.LLM_AS_JUDGE,
-      )
-      .map((assignment) => assignment.evaluatorId);
-
-    await activation.requestActivation({
-      targets: rule.enabled
-        ? affectedLlmEvaluatorIds.map((evaluatorId) => ({
-            evaluatorId,
-            evaluatorName:
-              draft.assignments.find(
-                (assignment) => assignment.evaluatorId === evaluatorId,
-              )?.evaluatorName ?? "LLM evaluator",
-            filter: draft.filter,
-            sampling: draft.sampling,
-          }))
-        : [],
-      title: matchScopeChanged
-        ? "Update active evaluation rule?"
-        : "Attach evaluator?",
-      description:
-        "This rule is active. Based on matching observations from the last seven days and the latest evaluator test calls:",
-      confirmLabel: matchScopeChanged ? "Save changes" : "Save and attach",
-      onConfirm: async (sampling) => {
-        if (sampling !== undefined) {
-          ruleSetupStore.getState().actions.setSampling(sampling);
-        }
-        await save();
-      },
-    });
-  };
-
   return (
     <>
       <DialogBody>
@@ -192,21 +133,13 @@ export function EditRuleDialogContent({
       </DialogBody>
       <RuleDialogFooter
         ruleSetupStore={ruleSetupStore}
-        activationPending={activation.estimate.status === "estimating"}
         mutationPending={update.isPending}
         nameGenerationPending={false}
         isEditing
         canEdit={hasWriteAccess}
         nameAIAssistanceAvailable={false}
         onCancel={onClose}
-        onSave={() => requestSave().catch(() => undefined)}
-      />
-      <ActivationConfirmationDialog
-        confirmation={activation.confirmation}
-        estimate={activation.estimate}
-        onOpenChange={activation.setOpen}
-        onSamplingChange={activation.setSampling}
-        onConfirm={() => activation.confirmActivation().catch(() => undefined)}
+        onSave={() => save().catch(() => undefined)}
       />
     </>
   );

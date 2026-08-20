@@ -109,7 +109,8 @@ export function EvaluatorSavedCostSummary({
               </p>
               {unavailableEstimateCount > 0 ? (
                 <p className="text-muted-foreground mt-2 text-xs">
-                  A successful evaluator test is required to estimate costs.
+                  No recent cost-bearing evaluator trace or successful fallback
+                  test was available.
                 </p>
               ) : null}
             </>

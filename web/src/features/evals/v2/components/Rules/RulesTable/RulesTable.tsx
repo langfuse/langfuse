@@ -19,14 +19,12 @@ import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList"
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { ActivationConfirmationDialog } from "@/src/features/evals/v2/components/Rules/ActivationConfirmationDialog/ActivationConfirmationDialog";
 import { EditRuleDialog } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/EditRuleDialog";
 import { RulesOverviewSelectionBar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesOverviewSelectionBar/RulesOverviewSelectionBar";
 import { RuleActiveSwitchCell } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RuleActiveSwitchCell/RuleActiveSwitchCell";
 import { RuleNameCell } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RuleNameCell/RuleNameCell";
 import { RulesTableToolbar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesTableToolbar/RulesTableToolbar";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
@@ -113,7 +111,6 @@ export function RulesTable({
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
-  const activationConfirmation = useActivationConfirmation({ projectId });
   const [selectionStore] = useState(createTableSelectionStore);
   const [pagination, setPagination] = usePaginationState(1, 50);
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
@@ -267,7 +264,6 @@ export function RulesTable({
             rule={row.original}
             projectId={projectId}
             hasWriteAccess={hasWriteAccess}
-            requestActivation={activationConfirmation.requestActivation}
           />
         ),
       },
@@ -423,7 +419,6 @@ export function RulesTable({
       recentExecutions.data,
       recentExecutions.isPending,
       router,
-      activationConfirmation.requestActivation,
       capture,
       selectActionColumn,
     ],
@@ -593,15 +588,6 @@ export function RulesTable({
           confirmLabel="Delete"
           loading={deleteMany.isPending}
           onConfirm={() => deleteMany.mutate({ projectId, ruleIds: deleteIds })}
-        />
-        <ActivationConfirmationDialog
-          confirmation={activationConfirmation.confirmation}
-          estimate={activationConfirmation.estimate}
-          onOpenChange={activationConfirmation.setOpen}
-          onSamplingChange={activationConfirmation.setSampling}
-          onConfirm={() =>
-            activationConfirmation.confirmActivation().catch(() => undefined)
-          }
         />
         {editRuleId ? (
           <EditRuleDialog

@@ -46,7 +46,7 @@ export async function requestRuleActivation({
     }>
   >;
 }) {
-  if (request.targets.length === 0 && !request.forceConfirmation) {
+  if (request.targets.length === 0) {
     await request.onConfirm();
     return null;
   }

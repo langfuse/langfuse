@@ -152,9 +152,6 @@ export function EvaluatorRuleRelationshipsSheet({
       await invalidate();
     },
   });
-  const updateRule = api.evalsV2.rules.update.useMutation({
-    onError: trpcErrorToast,
-  });
   const detach = api.evalsV2.rules.detach.useMutation({
     onError: trpcErrorToast,
     onSuccess: async () => {
@@ -174,7 +171,7 @@ export function EvaluatorRuleRelationshipsSheet({
     <>
       <Sheet open={open} modal={false} onOpenChange={onOpenChange}>
         <SheetContent
-          className="flex flex-col gap-5 overflow-y-auto sm:max-w-lg"
+          className="flex flex-col gap-5 overflow-y-auto sm:max-w-2xl"
           onPointerDownOutside={keepSheetOpenForRelationshipOverlay}
           onInteractOutside={keepSheetOpenForRelationshipOverlay}
           onFocusOutside={keepSheetOpenForRelationshipOverlay}
@@ -313,19 +310,9 @@ export function EvaluatorRuleRelationshipsSheet({
                           : [],
                       title: "Attach evaluator to rule",
                       description:
-                        "This rule is active. Based on matching observations from the last seven days and the latest evaluator test call:",
+                        "This rule is active. Based on matching observations and the latest evaluator trace from the last seven days:",
                       confirmLabel: "Attach evaluator to rule",
-                      onConfirm: async (sampling) => {
-                        if (
-                          sampling !== undefined &&
-                          sampling !== rule.sampling
-                        ) {
-                          await updateRule.mutateAsync({
-                            projectId,
-                            ruleId: rule.id,
-                            sampling,
-                          });
-                        }
+                      onConfirm: async () => {
                         await attach.mutateAsync({
                           projectId,
                           ruleId: rule.id,
@@ -364,7 +351,7 @@ export function EvaluatorRuleRelationshipsSheet({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="text-foreground hover:text-foreground h-auto px-0 py-0 text-xs underline-offset-4 hover:bg-transparent hover:underline"
+                        className="text-foreground hover:text-foreground h-auto w-full justify-start px-0 py-0 text-xs underline-offset-4 hover:bg-transparent hover:underline"
                         disabled={!hasWriteAccess}
                       >
                         <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -395,7 +382,6 @@ export function EvaluatorRuleRelationshipsSheet({
         confirmation={activationConfirmation.confirmation}
         estimate={activationConfirmation.estimate}
         onOpenChange={activationConfirmation.setOpen}
-        onSamplingChange={activationConfirmation.setSampling}
         onConfirm={() =>
           activationConfirmation.confirmActivation().catch(() => undefined)
         }

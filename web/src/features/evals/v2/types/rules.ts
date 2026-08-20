@@ -41,7 +41,6 @@ export type ActivationConfirmationRequest = {
     sampling: number;
   }>;
   onConfirm: (sampling?: number) => Promise<void>;
-  forceConfirmation?: boolean;
   title: string;
   description: string;
   confirmLabel: string;

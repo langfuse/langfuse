@@ -26,7 +26,7 @@ export function formatEvaluatorCostCalculation({
     return `${observations} × ${samplingRate} = ≈ ${usdFormatter(0, 2, 2)} / week. ${scope}`;
   }
   if (testRunCostUsd === null || estimatedCostUsd === null) {
-    return `The evaluator test call did not return a usable model cost, so the weekly estimate is unavailable. ${scope}`;
+    return `No cost-bearing evaluator trace was available from the last 7 days, and the fallback test call did not return a usable model cost. ${scope}`;
   }
 
   return `${observations} × ${samplingRate} × ${usdFormatter(testRunCostUsd, 2, 6)} per evaluation = ≈ ${usdFormatter(estimatedCostUsd, 2, 2)} / week. ${scope}`;

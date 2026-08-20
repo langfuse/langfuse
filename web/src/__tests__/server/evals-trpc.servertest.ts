@@ -114,6 +114,35 @@ describe("legacy evaluator compatibility service", () => {
     expect(config?.evalTemplate?.name).toBe("Legacy score");
   });
 
+  it("projects an unassigned legacy-target rule for its read-only view", async () => {
+    const { project, service } = await prepare();
+    const rule = await createLegacyRule(project.id);
+    await prisma.evaluationRuleEvaluatorAssignment.deleteMany({
+      where: { evaluationRuleId: rule.id },
+    });
+
+    const config = await service.getConfig(project.id, rule.id);
+
+    expect(config).toMatchObject({
+      id: rule.id,
+      scoreName: "Legacy score",
+      targetObject: EvalTargetObject.TRACE,
+      evalTemplate: null,
+    });
+  });
+
+  it("does not project an unassigned modern rule as a legacy config", async () => {
+    const { project, service } = await prepare();
+    const rule = await createLegacyRule(project.id, {
+      targetObject: EvalTargetObject.EVENT,
+    });
+    await prisma.evaluationRuleEvaluatorAssignment.deleteMany({
+      where: { evaluationRuleId: rule.id },
+    });
+
+    await expect(service.getConfig(project.id, rule.id)).resolves.toBeNull();
+  });
+
   it("projects the assignment mapping instead of the evaluator version mapping", async () => {
     const { project, service } = await prepare();
     const rule = await createLegacyRule(project.id);
@@ -493,7 +522,7 @@ describe("legacy evaluator compatibility service", () => {
     ).resolves.toEqual({ name: "Legacy score" });
   });
 
-  it("reuses the legacy rule evaluator when creating a remapped rule", async () => {
+  it("shares the evaluator while retaining the inactive legacy assignment", async () => {
     const { project, service } = await prepare();
     const legacyRule = await createLegacyRule(project.id);
     const legacyConfig = await service.getConfig(project.id, legacyRule.id);
@@ -533,9 +562,15 @@ describe("legacy evaluator compatibility service", () => {
     await expect(
       prisma.evaluationRule.findUnique({
         where: { id: legacyRule.id },
-        select: { status: true, assignments: true },
+        select: {
+          status: true,
+          assignments: { select: { evaluatorId: true } },
+        },
       }),
-    ).resolves.toEqual({ status: "INACTIVE", assignments: [] });
+    ).resolves.toEqual({
+      status: "INACTIVE",
+      assignments: [{ evaluatorId: legacyAssignment.evaluatorId }],
+    });
 
     await service.deleteConfig(project.id, legacyRule.id);
 
@@ -546,7 +581,7 @@ describe("legacy evaluator compatibility service", () => {
     ).resolves.not.toBeNull();
   });
 
-  it("deletes the source rule when moving its evaluator assignment", async () => {
+  it("deletes the source rule when sharing its evaluator", async () => {
     const { project, service } = await prepare();
     const legacyRule = await createLegacyRule(project.id);
     const legacyConfig = await service.getConfig(project.id, legacyRule.id);

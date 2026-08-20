@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   findEvaluatorsByIds: vi.fn(),
   getObservationsCountFromEventsTable: vi.fn(),
   getObservationsWithModelDataFromEventsTable: vi.fn(),
-  getLatestEvaluatorTestRunCost: vi.fn(),
+  getLatestEvaluatorRunCost: vi.fn(),
   testEvaluator: vi.fn(),
 }));
 
@@ -21,7 +21,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
     mocks.getObservationsCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable:
     mocks.getObservationsWithModelDataFromEventsTable,
-  getLatestEvaluatorTestRunCost: mocks.getLatestEvaluatorTestRunCost,
+  getLatestEvaluatorRunCost: mocks.getLatestEvaluatorRunCost,
 }));
 
 vi.mock("./testEvaluator", () => ({
@@ -67,7 +67,7 @@ describe("getActivationCostEstimates", () => {
         startTime: new Date("2026-08-11T12:00:00.000Z"),
       },
     ]);
-    mocks.getLatestEvaluatorTestRunCost.mockResolvedValue(0.02);
+    mocks.getLatestEvaluatorRunCost.mockResolvedValue(0.02);
     mocks.testEvaluator.mockResolvedValue({
       success: true,
       executionTraceId: "execution-trace-id",
@@ -120,7 +120,7 @@ describe("getActivationCostEstimates", () => {
       limit: 1,
       offset: 0,
     });
-    expect(mocks.getLatestEvaluatorTestRunCost).toHaveBeenCalledOnce();
+    expect(mocks.getLatestEvaluatorRunCost).toHaveBeenCalledOnce();
     expect(result).toEqual([
       {
         evaluatorId: "evaluator-id",
@@ -137,7 +137,7 @@ describe("getActivationCostEstimates", () => {
       evaluator,
       { ...evaluator, id: "second-evaluator-id" },
     ]);
-    mocks.getLatestEvaluatorTestRunCost.mockImplementation(
+    mocks.getLatestEvaluatorRunCost.mockImplementation(
       async (_projectId, evaluatorId) =>
         evaluatorId === "evaluator-id" ? 0.02 : 0.04,
     );
@@ -153,7 +153,7 @@ describe("getActivationCostEstimates", () => {
 
     expect(mocks.findEvaluatorsByIds).toHaveBeenCalledOnce();
     expect(mocks.getObservationsCountFromEventsTable).toHaveBeenCalledOnce();
-    expect(mocks.getLatestEvaluatorTestRunCost).toHaveBeenCalledTimes(2);
+    expect(mocks.getLatestEvaluatorRunCost).toHaveBeenCalledTimes(2);
     expect(result).toEqual([
       expect.objectContaining({
         evaluatorId: "evaluator-id",
@@ -164,6 +164,30 @@ describe("getActivationCostEstimates", () => {
         estimatedCostUsd: 14,
       }),
     ]);
+  });
+
+  it("uses the latest recent evaluator trace cost without doing a test run", async () => {
+    mocks.getLatestEvaluatorRunCost.mockResolvedValue(0.015);
+
+    const result = await getActivationCostEstimates({
+      orgId: "org-id",
+      projectId: "project-id",
+      evaluatorIds: ["evaluator-id"],
+      filter: [],
+      sampling: 0.5,
+      knownTestRunCostUsd: 0.03,
+      shouldReadFromObservationsTable: false,
+    });
+
+    expect(mocks.getLatestEvaluatorRunCost).toHaveBeenCalledWith(
+      "project-id",
+      "evaluator-id",
+    );
+    expect(mocks.testEvaluator).not.toHaveBeenCalled();
+    expect(result[0]).toMatchObject({
+      testRunCostUsd: 0.015,
+      estimatedCostUsd: 5.25,
+    });
   });
 
   it("returns zero cost for code evaluators in a mixed batch", async () => {
@@ -183,8 +207,8 @@ describe("getActivationCostEstimates", () => {
       shouldReadFromObservationsTable: false,
     });
 
-    expect(mocks.getLatestEvaluatorTestRunCost).toHaveBeenCalledOnce();
-    expect(mocks.getLatestEvaluatorTestRunCost).toHaveBeenCalledWith(
+    expect(mocks.getLatestEvaluatorRunCost).toHaveBeenCalledOnce();
+    expect(mocks.getLatestEvaluatorRunCost).toHaveBeenCalledWith(
       "project-id",
       "evaluator-id",
     );
@@ -202,8 +226,8 @@ describe("getActivationCostEstimates", () => {
     ]);
   });
 
-  it("runs the evaluator on the newest match when no recent test cost exists", async () => {
-    mocks.getLatestEvaluatorTestRunCost
+  it("runs the evaluator on the newest match when no recent trace cost exists", async () => {
+    mocks.getLatestEvaluatorRunCost
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(0.03);
 
@@ -232,7 +256,7 @@ describe("getActivationCostEstimates", () => {
   });
 
   it("does not repeat a missing-cost test when the caller already requested one", async () => {
-    mocks.getLatestEvaluatorTestRunCost
+    mocks.getLatestEvaluatorRunCost
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(0.02);
 
@@ -250,7 +274,9 @@ describe("getActivationCostEstimates", () => {
     expect(result[0]?.testRunCostUsd).toBe(0.02);
   });
 
-  it("uses the cost returned by a prior test call without querying or rerunning it", async () => {
+  it("uses a known test cost when no recent trace is indexed yet", async () => {
+    mocks.getLatestEvaluatorRunCost.mockResolvedValue(null);
+
     const result = await getActivationCostEstimates({
       orgId: "org-id",
       projectId: "project-id",
@@ -262,7 +288,7 @@ describe("getActivationCostEstimates", () => {
       shouldReadFromObservationsTable: false,
     });
 
-    expect(mocks.getLatestEvaluatorTestRunCost).not.toHaveBeenCalled();
+    expect(mocks.getLatestEvaluatorRunCost).toHaveBeenCalledOnce();
     expect(mocks.testEvaluator).not.toHaveBeenCalled();
     expect(result[0]?.estimatedCostUsd).toBe(10.5);
   });
@@ -273,7 +299,7 @@ describe("getActivationCostEstimates", () => {
       { ...evaluator, id: "second-evaluator-id" },
     ]);
     const costReads = new Map<string, number>();
-    mocks.getLatestEvaluatorTestRunCost.mockImplementation(
+    mocks.getLatestEvaluatorRunCost.mockImplementation(
       async (_projectId, evaluatorId) => {
         const readCount = (costReads.get(evaluatorId) ?? 0) + 1;
         costReads.set(evaluatorId, readCount);
@@ -311,7 +337,7 @@ describe("getActivationCostEstimates", () => {
 
   it("does not run a test when the rule has no matching observation", async () => {
     mocks.getObservationsCountFromEventsTable.mockResolvedValue(0);
-    mocks.getLatestEvaluatorTestRunCost.mockResolvedValue(null);
+    mocks.getLatestEvaluatorRunCost.mockResolvedValue(null);
 
     const result = await getActivationCostEstimates({
       orgId: "org-id",

@@ -56,9 +56,7 @@ export function useActivationConfirmation({
         knownTestRunCostUsd?: number;
       },
     ) => {
-      const needsConfirmation =
-        request.targets.length > 0 || request.forceConfirmation;
-      if (needsConfirmation) {
+      if (request.targets.length > 0) {
         setEstimate((current) => ({ ...current, status: "estimating" }));
       }
       try {

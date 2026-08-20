@@ -1,8 +1,4 @@
-import {
-  EvalTemplateType,
-  type EvalTargetObject,
-  type FilterState,
-} from "@langfuse/shared";
+import type { EvalTargetObject, FilterState } from "@langfuse/shared";
 import { useRef, useState } from "react";
 import {
   Dialog,
@@ -13,9 +9,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
-import { ActivationConfirmationDialog } from "@/src/features/evals/v2/components/Rules/ActivationConfirmationDialog/ActivationConfirmationDialog";
 import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
-import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -76,7 +70,6 @@ export function CreateRuleDialogContent({
         : [],
     }),
   );
-  const activation = useActivationConfirmation({ projectId });
   const hasRequestedName = useRef(false);
   const suggestName = api.evalsV2.rules.suggestName.useMutation({
     onError: trpcErrorToast,
@@ -137,109 +130,68 @@ export function CreateRuleDialogContent({
     onOpenChange(false);
   };
 
-  // A new rule is created enabled, so the confirmation is the last gate before
-  // it starts spending on every matching observation. The inline per-evaluator
-  // estimates in the setup steps inform the draft; this reviews the committed
-  // total, matching what editing an active rule already does.
-  const requestActivation = async () => {
-    let draft = ruleSetupStore.getState();
+  const requestCreate = async () => {
+    const draft = ruleSetupStore.getState();
     const name = await prepareNameForSave({
       currentName: draft.name,
       generateName: nameAIAssistanceAvailable ? requestNameSuggestion : null,
       setName: draft.actions.setName,
     });
     if (!name) return;
-    draft = ruleSetupStore.getState();
-    const llmAssignments = draft.assignments.filter(
-      (assignment) =>
-        (evaluatorOptions.find(({ id }) => id === assignment.evaluatorId)
-          ?.type ?? assignment.evaluatorType) === EvalTemplateType.LLM_AS_JUDGE,
-    );
-    await activation.requestActivation({
-      targets: llmAssignments.map((assignment) => ({
-        evaluatorId: assignment.evaluatorId,
-        evaluatorName: assignment.evaluatorName,
-        filter: draft.filter,
-        sampling: draft.sampling,
-      })),
-      title: "Activate evaluation rule?",
-      description:
-        "Based on matching observations from the last seven days and the latest evaluator test calls:",
-      confirmLabel: "Activate rule",
-      onConfirm: async (sampling) => {
-        if (sampling !== undefined) {
-          ruleSetupStore.getState().actions.setSampling(sampling);
-        }
-        await create();
-      },
-    });
+    await create();
   };
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent
-          size="xl"
-          className="max-w-6xl"
-          closeOnInteractionOutside
-        >
-          <DialogHeader>
-            <DialogTitle>New rule</DialogTitle>
-            <DialogDescription>
-              Select which incoming observations should trigger evaluators.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <RuleSetup
-              projectId={projectId}
-              evaluatorOptions={evaluatorOptions}
-              evaluatorSearch={evaluatorSearch}
-              onEvaluatorSearchChange={onEvaluatorSearchChange}
-              store={ruleSetupStore}
-              nameAIAssistance={
-                !nameAIAssistanceAvailable
-                  ? { state: "unavailable" }
-                  : suggestName.isPending
-                    ? { state: "generating" }
-                    : {
-                        state: "idle",
-                        onGenerate: () =>
-                          requestNameSuggestion().catch(() => undefined),
-                      }
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="xl" className="max-w-6xl" closeOnInteractionOutside>
+        <DialogHeader>
+          <DialogTitle>New rule</DialogTitle>
+          <DialogDescription>
+            Select which incoming observations should trigger evaluators.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <RuleSetup
+            projectId={projectId}
+            evaluatorOptions={evaluatorOptions}
+            evaluatorSearch={evaluatorSearch}
+            onEvaluatorSearchChange={onEvaluatorSearchChange}
+            store={ruleSetupStore}
+            nameAIAssistance={
+              !nameAIAssistanceAvailable
+                ? { state: "unavailable" }
+                : suggestName.isPending
+                  ? { state: "generating" }
+                  : {
+                      state: "idle",
+                      onGenerate: () =>
+                        requestNameSuggestion().catch(() => undefined),
+                    }
+            }
+            onNameStepOpenChange={(stepOpen) => {
+              const state = ruleSetupStore.getState();
+              if (
+                nameAIAssistanceAvailable &&
+                stepOpen &&
+                !state.name &&
+                !hasRequestedName.current
+              ) {
+                requestNameSuggestion().catch(() => undefined);
               }
-              onNameStepOpenChange={(stepOpen) => {
-                const state = ruleSetupStore.getState();
-                if (
-                  nameAIAssistanceAvailable &&
-                  stepOpen &&
-                  !state.name &&
-                  !hasRequestedName.current
-                ) {
-                  requestNameSuggestion().catch(() => undefined);
-                }
-              }}
-            />
-          </DialogBody>
-          <RuleDialogFooter
-            ruleSetupStore={ruleSetupStore}
-            activationPending={activation.estimate.status === "estimating"}
-            mutationPending={createRule.isPending}
-            nameGenerationPending={suggestName.isPending}
-            isEditing={false}
-            canEdit
-            nameAIAssistanceAvailable={nameAIAssistanceAvailable}
-            onCancel={() => onOpenChange(false)}
-            onSave={() => requestActivation().catch(() => undefined)}
+            }}
           />
-        </DialogContent>
-      </Dialog>
-      <ActivationConfirmationDialog
-        confirmation={activation.confirmation}
-        estimate={activation.estimate}
-        onOpenChange={activation.setOpen}
-        onSamplingChange={activation.setSampling}
-        onConfirm={() => activation.confirmActivation().catch(() => undefined)}
-      />
-    </>
+        </DialogBody>
+        <RuleDialogFooter
+          ruleSetupStore={ruleSetupStore}
+          mutationPending={createRule.isPending}
+          nameGenerationPending={suggestName.isPending}
+          isEditing={false}
+          canEdit
+          nameAIAssistanceAvailable={nameAIAssistanceAvailable}
+          onCancel={() => onOpenChange(false)}
+          onSave={() => requestCreate().catch(() => undefined)}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }

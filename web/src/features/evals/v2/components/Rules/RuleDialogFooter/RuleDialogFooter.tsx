@@ -11,7 +11,6 @@ import { isRuleDraftDirty } from "@/src/features/evals/v2/stores/createRuleSetup
 
 export function RuleDialogFooter({
   ruleSetupStore,
-  activationPending,
   mutationPending,
   nameGenerationPending,
   isEditing,
@@ -21,7 +20,6 @@ export function RuleDialogFooter({
   onSave,
 }: {
   ruleSetupStore: ReturnType<typeof createRuleSetupStore>;
-  activationPending: boolean;
   mutationPending: boolean;
   nameGenerationPending: boolean;
   isEditing: boolean;
@@ -36,20 +34,15 @@ export function RuleDialogFooter({
   const saveButton = (
     <Button
       type="button"
-      loading={mutationPending || activationPending || nameGenerationPending}
+      loading={mutationPending || nameGenerationPending}
       loadingText={
-        nameGenerationPending
-          ? "Generating name..."
-          : mutationPending
-            ? "Validating rule..."
-            : "Estimating cost..."
+        nameGenerationPending ? "Generating name..." : "Validating rule..."
       }
       disabled={
         !canEdit ||
         (isEditing && !dirty) ||
         (nameMissing && !nameAIAssistanceAvailable) ||
         mutationPending ||
-        activationPending ||
         nameGenerationPending
       }
       className={

@@ -174,33 +174,38 @@ const PeekViewEvaluatorConfigDetail = ({
         )}
       </CardDescription>
       <div className="flex max-h-full w-full flex-col items-start justify-between space-y-2 overflow-y-auto pb-4">
-        <EvaluatorForm
-          key={`${evalConfig?.id}-${evalConfig?.updatedAt}-${isEditMode}`}
-          projectId={projectId}
-          evalTemplates={
-            evalConfig?.evalTemplate ? [evalConfig.evalTemplate] : []
-          }
-          existingEvaluator={
-            evalConfig.evalTemplate
-              ? {
-                  ...evalConfig,
-                  evalTemplate: evalConfig.evalTemplate,
-                }
-              : undefined
-          }
-          mode="edit"
-          disabled={!isEditMode}
-          shouldWrapVariables={true}
-          useDialog={false}
-          onFormSuccess={() => {
-            setIsEditMode(false);
-            utils.evals.invalidate();
-            showSuccessToast({
-              title: "Running Evaluator updated",
-              description: "The evaluator configuration has been updated.",
-            });
-          }}
-        />
+        {evalConfig.evalTemplate ? (
+          <EvaluatorForm
+            key={`${evalConfig.id}-${evalConfig.updatedAt}-${isEditMode}`}
+            projectId={projectId}
+            evalTemplates={[evalConfig.evalTemplate]}
+            existingEvaluator={{
+              ...evalConfig,
+              evalTemplate: evalConfig.evalTemplate,
+            }}
+            mode="edit"
+            disabled={!isEditMode}
+            shouldWrapVariables={true}
+            useDialog={false}
+            onFormSuccess={() => {
+              setIsEditMode(false);
+              utils.evals.invalidate();
+              showSuccessToast({
+                title: "Running Evaluator updated",
+                description: "The evaluator configuration has been updated.",
+              });
+            }}
+          />
+        ) : (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Referenced evaluator unavailable</AlertTitle>
+            <AlertDescription>
+              This legacy rule no longer has an evaluator attached, so its
+              evaluator configuration cannot be displayed.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
     </div>
   );

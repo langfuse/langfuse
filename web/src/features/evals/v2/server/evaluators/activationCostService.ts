@@ -8,7 +8,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getLatestEvaluatorTestRunCost,
+  getLatestEvaluatorRunCost,
   getObservationsCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   logger,
@@ -64,7 +64,7 @@ export async function getActivationCostEstimates(params: {
       value: since,
     },
   ];
-  const [matchingObservations, recentTestRunCosts] = await Promise.all([
+  const [matchingObservations, recentRunCosts] = await Promise.all([
     getObservationsCountFromEventsTable({
       projectId: params.projectId,
       filter,
@@ -74,28 +74,30 @@ export async function getActivationCostEstimates(params: {
     }),
     Promise.all(
       llmEvaluators.map(async (evaluator) =>
-        evaluator.id === params.evaluatorIds[0] &&
-        params.knownTestRunCostUsd !== undefined
-          ? params.knownTestRunCostUsd
-          : getLatestEvaluatorTestRunCost(params.projectId, evaluator.id),
+        getLatestEvaluatorRunCost(params.projectId, evaluator.id),
       ),
     ),
   ]);
-  const testRunCostsByEvaluatorId = new Map<string, number | null>(
+  const costsByEvaluatorId = new Map<string, number | null>(
     evaluators.map((evaluator) => [
       evaluator.id,
       evaluator.type === EvalTemplateType.LLM_AS_JUDGE ? null : 0,
     ]),
   );
   llmEvaluators.forEach((evaluator, index) =>
-    testRunCostsByEvaluatorId.set(
-      evaluator.id,
-      recentTestRunCosts[index] ?? null,
-    ),
+    costsByEvaluatorId.set(evaluator.id, recentRunCosts[index] ?? null),
   );
+  const knownCostEvaluatorId = params.evaluatorIds[0];
+  if (
+    knownCostEvaluatorId &&
+    costsByEvaluatorId.get(knownCostEvaluatorId) === null &&
+    params.knownTestRunCostUsd !== undefined
+  ) {
+    costsByEvaluatorId.set(knownCostEvaluatorId, params.knownTestRunCostUsd);
+  }
 
   const evaluatorsWithoutCost = llmEvaluators.filter(
-    (evaluator) => testRunCostsByEvaluatorId.get(evaluator.id) === null,
+    (evaluator) => costsByEvaluatorId.get(evaluator.id) === null,
   );
   if (
     params.shouldRunMissingTest === false &&
@@ -105,11 +107,11 @@ export async function getActivationCostEstimates(params: {
     const availableCosts = await Promise.all(
       evaluatorsWithoutCost.map(async (evaluator) => ({
         evaluatorId: evaluator.id,
-        cost: await waitForTestRunCost(params.projectId, evaluator.id),
+        cost: await waitForEvaluatorRunCost(params.projectId, evaluator.id),
       })),
     );
     availableCosts.forEach(({ evaluatorId, cost }) =>
-      testRunCostsByEvaluatorId.set(evaluatorId, cost),
+      costsByEvaluatorId.set(evaluatorId, cost),
     );
   } else if (matchingObservations > 0 && evaluatorsWithoutCost.length > 0) {
     const sample = (
@@ -131,13 +133,13 @@ export async function getActivationCostEstimates(params: {
         })),
       );
       generatedCosts.forEach(({ evaluatorId, cost }) =>
-        testRunCostsByEvaluatorId.set(evaluatorId, cost),
+        costsByEvaluatorId.set(evaluatorId, cost),
       );
     }
   }
 
   return params.evaluatorIds.map((evaluatorId) => {
-    const testRunCostUsd = testRunCostsByEvaluatorId.get(evaluatorId) ?? null;
+    const testRunCostUsd = costsByEvaluatorId.get(evaluatorId) ?? null;
     return {
       evaluatorId,
       matchingObservations,
@@ -184,7 +186,7 @@ async function runTestAndWaitForCost({
       return result.estimatedCostUsd;
     }
 
-    return waitForTestRunCost(params.projectId, evaluator.id);
+    return waitForEvaluatorRunCost(params.projectId, evaluator.id);
   } catch (error) {
     logger.warn("Automatic evaluator test for cost estimation failed", {
       projectId: params.projectId,
@@ -196,12 +198,12 @@ async function runTestAndWaitForCost({
   return null;
 }
 
-async function waitForTestRunCost(projectId: string, evaluatorId: string) {
+async function waitForEvaluatorRunCost(projectId: string, evaluatorId: string) {
   for (const delayMs of TEST_COST_RETRY_DELAYS_MS) {
     if (delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-    const cost = await getLatestEvaluatorTestRunCost(projectId, evaluatorId);
+    const cost = await getLatestEvaluatorRunCost(projectId, evaluatorId);
     if (cost !== null) return cost;
   }
   return null;

@@ -7,7 +7,6 @@ export function RulesOverviewSelectionBarView({
   selectedCount,
   hasWriteAccess,
   statusChangePending,
-  activationEstimatePending,
   deletePending,
   deleteDialogOpen,
   onClear,
@@ -20,7 +19,6 @@ export function RulesOverviewSelectionBarView({
   selectedCount: number;
   hasWriteAccess: boolean;
   statusChangePending: boolean;
-  activationEstimatePending: boolean;
   deletePending: boolean;
   deleteDialogOpen: boolean;
   onClear: () => void;
@@ -37,9 +35,7 @@ export function RulesOverviewSelectionBarView({
           type="button"
           variant="outline"
           size="sm"
-          disabled={
-            !hasWriteAccess || statusChangePending || activationEstimatePending
-          }
+          disabled={!hasWriteAccess || statusChangePending}
           onClick={onEnable}
         >
           <Play className="mr-2 h-4 w-4" /> Enable

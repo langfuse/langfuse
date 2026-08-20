@@ -3565,7 +3565,8 @@ export const getTotalCostByEvaluatorIds = async (
   }));
 };
 
-export const getLatestEvaluatorTestRunCost = async (
+/** Returns the latest cost-bearing evaluator trace from the last seven days. */
+export const getLatestEvaluatorRunCost = async (
   projectId: string,
   evaluatorId: string,
 ) => {
@@ -3575,10 +3576,6 @@ export const getLatestEvaluatorTestRunCost = async (
       {
         keys: [EvalExecutionMetadataKey.EVALUATOR_ID],
         alias: EvalExecutionMetadataKey.EVALUATOR_ID,
-      },
-      {
-        keys: [EvalExecutionMetadataKey.EVALUATOR_TEST],
-        alias: EvalExecutionMetadataKey.EVALUATOR_TEST,
       },
     ],
     additionalSelect: [
@@ -3590,7 +3587,6 @@ export const getLatestEvaluatorTestRunCost = async (
       `${EvalExecutionMetadataKey.EVALUATOR_ID} = {evaluatorId: String}`,
       { evaluatorId },
     )
-    .havingRaw(`${EvalExecutionMetadataKey.EVALUATOR_TEST} = 'true'`)
     .havingRaw("generation_count > 0")
     .orderBy("ORDER BY timestamp DESC, trace_id DESC")
     .limit(1);

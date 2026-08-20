@@ -30,6 +30,7 @@ import {
   evalConfigsTableCols,
 } from "@/src/server/api/definitions/evalConfigsTable";
 import { resetEvalConfigBlockFields } from "@/src/features/evals/server/evalConfigState";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import {
   getEvalTemplateVariables,
   prepareConfigsForTemplateUpgrade,
@@ -692,7 +693,14 @@ export class LegacyEvalCompatibilityService {
       where: { id: ruleId, projectId },
       include: ruleInclude,
     });
-    return rule?.assignments.length === 1 ? toLegacyConfig(rule) : null;
+    if (!rule || rule.assignments.length > 1) return null;
+    if (
+      rule.assignments.length === 0 &&
+      !isLegacyEvalTarget(rule.targetObject)
+    ) {
+      return null;
+    }
+    return toLegacyConfig(rule);
   }
 
   /**
@@ -951,7 +959,7 @@ export class LegacyEvalCompatibilityService {
     status: JobConfigState;
     timeScope: JobTimeScope[];
     createdByUserId: string | null;
-    // Remapping moves the evaluator assignment so the legacy rule cannot keep executing it in parallel.
+    // Remapping shares the evaluator definition; the source rule is disabled or deleted so it cannot execute in parallel.
     reuseEvaluatorFromRuleId?: string;
     sourceRuleAction?: "mark-inactive" | "delete";
   }) {
@@ -1057,9 +1065,6 @@ export class LegacyEvalCompatibilityService {
               projectId: params.projectId,
             },
             data: { status: JobConfigState.INACTIVE },
-          });
-          await tx.evaluationRuleEvaluatorAssignment.delete({
-            where: { id: sourceAssignmentId, projectId: params.projectId },
           });
         }
       }

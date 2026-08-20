@@ -9,7 +9,6 @@ const defaultArgs = {
   selectedCount: 3,
   hasWriteAccess: true,
   statusChangePending: false,
-  activationEstimatePending: false,
   deletePending: false,
   deleteDialogOpen: false,
   onClear: fn(),

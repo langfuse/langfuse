@@ -18,7 +18,7 @@ describe("formatEvaluatorCostCalculation", () => {
     );
   });
 
-  it("shows the known inputs when the test-run cost is unavailable", () => {
+  it("explains when neither a recent trace nor fallback test provides a cost", () => {
     expect(
       formatEvaluatorCostCalculation({
         matchingObservations: 318,
@@ -28,7 +28,7 @@ describe("formatEvaluatorCostCalculation", () => {
         evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
       }),
     ).toBe(
-      "The evaluator test call did not return a usable model cost, so the weekly estimate is unavailable. Estimated model-provider / LLM cost only.",
+      "No cost-bearing evaluator trace was available from the last 7 days, and the fallback test call did not return a usable model cost. Estimated model-provider / LLM cost only.",
     );
   });
 

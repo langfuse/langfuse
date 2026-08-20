@@ -81,7 +81,8 @@ export function ActivationCostEstimateDetails({
               }
             />
             <p className="text-muted-foreground text-xs">
-              Each evaluator would run on{" "}
+              {estimates.length === 1 ? "This evaluator" : "Each evaluator"}{" "}
+              would run on{" "}
               <span className="text-foreground font-bold tabular-nums">
                 {compactNumberFormatter(sampledObservations, 1)}
               </span>{" "}

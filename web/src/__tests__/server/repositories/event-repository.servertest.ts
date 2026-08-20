@@ -15,7 +15,7 @@ import {
   getTracesIdentifierForSessionFromEvents,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
-  getLatestEvaluatorTestRunCost,
+  getLatestEvaluatorRunCost,
   getRecentEvaluatorExecutionTraces,
   getRecentRuleExecutionTraces,
   getTotalCostByEvaluatorIds,
@@ -108,29 +108,72 @@ describe("Clickhouse Events Repository Test", () => {
       ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
     });
 
-    it("returns the latest evaluator test trace cost", async () => {
+    it("returns the latest evaluator trace cost", async () => {
       const evaluatorId = randomUUID();
+      const staleEvaluatorId = randomUUID();
       const traceId = randomUUID();
+      const earlierTestTraceId = randomUUID();
+      const staleTraceId = randomUUID();
+      const now = Date.now() * 1000;
+      const oneHourAgo = now - 60 * 60 * 1_000 * 1_000;
+      const eightDaysAgo = now - 8 * 24 * 60 * 60 * 1_000 * 1_000;
       await createEventsCh([
         createEvent({
           project_id: projectId,
           trace_id: traceId,
+          start_time: now,
           type: "SPAN",
-          metadata_names: ["evaluator_id", "evaluator_test"],
-          metadata_values: [evaluatorId, "true"],
+          metadata_names: ["evaluator_id"],
+          metadata_values: [evaluatorId],
           cost_details: { total: 0.1 },
         }),
         createEvent({
           project_id: projectId,
           trace_id: traceId,
+          start_time: now,
           type: "GENERATION",
           cost_details: { total: 0.9 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: earlierTestTraceId,
+          start_time: oneHourAgo,
+          type: "SPAN",
+          metadata_names: ["evaluator_id", "evaluator_test"],
+          metadata_values: [evaluatorId, "true"],
+          cost_details: { total: 1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: earlierTestTraceId,
+          start_time: oneHourAgo,
+          type: "GENERATION",
+          cost_details: { total: 1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: staleTraceId,
+          start_time: eightDaysAgo,
+          type: "SPAN",
+          metadata_names: ["evaluator_id"],
+          metadata_values: [staleEvaluatorId],
+          cost_details: { total: 2 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: staleTraceId,
+          start_time: eightDaysAgo,
+          type: "GENERATION",
+          cost_details: { total: 3 },
         }),
       ]);
 
       await expect(
-        getLatestEvaluatorTestRunCost(projectId, evaluatorId),
+        getLatestEvaluatorRunCost(projectId, evaluatorId),
       ).resolves.toBe(1);
+      await expect(
+        getLatestEvaluatorRunCost(projectId, staleEvaluatorId),
+      ).resolves.toBeNull();
     });
 
     it("returns recent evaluator traces without test runs", async () => {
