@@ -22,14 +22,11 @@ import {
 
 // projectScopes has no data-plane read/write tokens (only traces:delete); the
 // public-API vocabulary (traces:read, observations:read, …) is net-new and
-// unratified. Ingestion is resource-oriented here (traces/observations/scores
-// :create), not an endpoint-oriented ingestion:write — reconcile with LFE-15042.
+// unratified. Ingestion is resource-oriented: observations are children of a
+// trace, so trace+observation events gate on traces:create (matches the OTel
+// path in LFE-15053), scores on scores:create — reconcile with LFE-15042.
 /** PendingApiAction holds the net-new create/media tokens the LFE-15042 suspension deny needs; not in projectScopes. */
-export type PendingApiAction =
-  | "traces:create"
-  | "observations:create"
-  | "scores:create"
-  | "media:CUD";
+export type PendingApiAction = "traces:create" | "scores:create" | "media:CUD";
 
 /** Action a principal takes on a resource, e.g. "prompts:read". */
 export type Action = ProjectScope | OrganizationScope | PendingApiAction | "*";
