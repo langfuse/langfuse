@@ -765,4 +765,46 @@ describe("AI SDK request shapes", () => {
     // No merged server session token (would surface as this SigV4 header).
     expect(request.headers.get("x-amz-security-token")).toBeNull();
   });
+
+  it("OrcaRouter: default base URL, bearer auth, chat-completions wire shape", async () => {
+    const { result, request } = await runCompletion({
+      modelParams: {
+        provider: "orcarouter",
+        adapter: LLMAdapter.OrcaRouter,
+        model: "orcarouter/auto",
+        max_tokens: 128,
+        temperature: 0.2,
+        providerOptions: { reasoning_effort: "high" },
+      },
+      apiKey: "sk-orca-test",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(result.text).toBe("ok");
+    expect(request.url).toBe("https://api.orcarouter.ai/v1/chat/completions");
+    expect(request.headers.get("authorization")).toBe("Bearer sk-orca-test");
+    expect(request.body.model).toBe("orcarouter/auto");
+    expect(request.body.reasoning_effort).toBe("high");
+    expect(request.body.temperature).toBe(0.2);
+    expect(request.body.max_tokens).toBe(128);
+    expect(request.body.messages).toEqual([
+      { role: "system", content: "You are terse." },
+      { role: "user", content: "Hi" },
+    ]);
+  });
+
+  it("OrcaRouter: custom base URL is honored when set", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "orcarouter",
+        adapter: LLMAdapter.OrcaRouter,
+        model: "orcarouter/auto",
+      },
+      apiKey: "sk-orca-test",
+      baseURL: "https://gateway.example.com/v1",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.url).toBe("https://gateway.example.com/v1/chat/completions");
+  });
 });

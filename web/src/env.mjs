@@ -330,7 +330,7 @@ export const env = createEnv({
     LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: z.url().optional(),
     LANGFUSE_UI_LOGO_DARK_MODE_HREF: z.url().optional(),
     LANGFUSE_UI_DEFAULT_MODEL_ADAPTER: z
-      .enum(["OpenAI", "Anthropic", "Azure"])
+      .enum(["OpenAI", "Anthropic", "Azure", "OrcaRouter"])
       .optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.url().optional(),

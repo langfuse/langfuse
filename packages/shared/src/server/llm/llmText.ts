@@ -34,6 +34,7 @@ import {
   isOpenRouterEndpoint,
   translateOpenAIProviderOptions,
 } from "./ai-sdk/providers/openai";
+import { translateOrcaRouterProviderOptions } from "./ai-sdk/providers/orcarouter";
 import type {
   LLMCredentialSource,
   TranslatedProviderOptions,
@@ -567,6 +568,14 @@ function translateLegacyProviderOptions(params: {
     case LLMAdapter.Anthropic:
       namespace = "anthropic";
       translated = translateAnthropicProviderOptions(
+        modelParams.providerOptions,
+      );
+      break;
+    case LLMAdapter.OrcaRouter:
+      // OrcaRouter is built on @ai-sdk/openai-compatible, which reads
+      // provider options from the `openaiCompatible` namespace.
+      namespace = "openaiCompatible";
+      translated = translateOrcaRouterProviderOptions(
         modelParams.providerOptions,
       );
       break;
