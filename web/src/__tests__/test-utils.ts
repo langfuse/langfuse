@@ -128,6 +128,19 @@ export type ErrorIngestion = {
   error: string;
 };
 
+export const normalizeTestBaseUrl = (baseUrl?: string) => {
+  if (!baseUrl) {
+    return "http://localhost:3000";
+  }
+
+  const normalizedUrl = new URL(baseUrl);
+  return normalizedUrl.origin;
+};
+
+const testBaseUrl = normalizeTestBaseUrl(
+  process.env.LANGFUSE_TEST_BASE_URL ?? process.env.NEXTAUTH_URL,
+);
+
 export async function makeAPICall<T = IngestionAPIResponse>(
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,
@@ -135,7 +148,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   auth?: string,
   customHeaders?: Record<string, string>,
 ): Promise<{ body: T; status: number }> {
-  const finalUrl = `http://localhost:3000${url.startsWith("/") ? url : `/${url}`}`;
+  const finalUrl = `${testBaseUrl}${url.startsWith("/") ? url : `/${url}`}`;
   const authorization =
     auth || createBasicAuthHeader("pk-lf-1234567890", "sk-lf-1234567890");
   const options = {
