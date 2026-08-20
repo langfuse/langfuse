@@ -183,14 +183,15 @@ export default definePreview({
           (bSectionIndex === -1 ? sectionOrder.length : bSectionIndex);
         if (sectionDifference !== 0) return sectionDifference;
 
-        const titleDifference = a.title.localeCompare(b.title);
-        if (titleDifference !== 0) return titleDifference;
+        // Returning 0 preserves Storybook's existing stable order. Only
+        // partition test stories when both entries belong to the same component.
+        if (a.title !== b.title) return 0;
 
         const aIsTest = a.name.startsWith("(Test)");
         const bIsTest = b.name.startsWith("(Test)");
         if (aIsTest !== bIsTest) return aIsTest ? 1 : -1;
 
-        return a.name.localeCompare(b.name);
+        return 0;
       },
     },
   },
