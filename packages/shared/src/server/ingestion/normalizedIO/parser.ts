@@ -232,6 +232,47 @@ function filePartFromFileFields(
 }
 
 /**
+ * AI SDK file payloads (`data`, legacy `image`, nested reasoning `file`):
+ * raw base64 bytes, a URL string, or tagged {type: "data" | "url"} shapes.
+ */
+function aiSdkFilePart(
+  payload: unknown,
+  options: {
+    mediaType?: string;
+    filename?: string;
+    fallbackMediaType?: string;
+  } = {},
+): FilePart | null {
+  const tagged = asRecord(payload);
+  const candidate = optionalString(tagged?.data ?? tagged?.url ?? payload);
+  if (!candidate) return null;
+
+  const reference = parseMediaReference(candidate);
+  if (reference) {
+    return compact({
+      ...filePartFromMediaReference(reference),
+      filename: options.filename,
+    });
+  }
+
+  const isUrl =
+    tagged?.type === "url" ||
+    (tagged !== undefined && tagged.url !== undefined && !tagged.data) ||
+    (!tagged && /^(https?:|data:)/.test(candidate));
+  return compact<FilePart>({
+    type: "file",
+    mediaType:
+      options.mediaType ??
+      mediaTypeFromDataUri(candidate) ??
+      options.fallbackMediaType,
+    filename: options.filename,
+    content: isUrl
+      ? { kind: "url", url: candidate }
+      : { kind: "base64", data: candidate },
+  });
+}
+
+/**
  * Read the media type a data-URI declares in its prefix, without touching the
  * payload. Raw data-URIs only reach stored IO when upstream media processing
  * (SDK / MediaPayloadProcessor) skipped or failed; decoding them stays the
@@ -328,22 +369,42 @@ function providerExecutedToolCall(
   });
 }
 
+// AI SDK tool-result output wrapper types ({type, value}); error-* marks a
+// failed execution.
+const AI_SDK_OUTPUT_WRAPPER_TYPES = new Set([
+  "text",
+  "json",
+  "content",
+  "error-text",
+  "error-json",
+  "execution-denied",
+]);
+
 function normalizeToolResult(value: Record<string, unknown>): ToolResultPart {
-  const isError = [value.is_error, value.isError].find(
+  const rawOutput =
+    value.output ?? value.response ?? value.result ?? value.content ?? null;
+  const wrapper = asRecord(rawOutput);
+  const wrapperType = optionalString(wrapper?.type);
+  const isWrapped =
+    wrapper !== undefined &&
+    wrapperType !== undefined &&
+    "value" in wrapper &&
+    AI_SDK_OUTPUT_WRAPPER_TYPES.has(wrapperType);
+
+  const explicitError = [value.is_error, value.isError].find(
     (candidate) => typeof candidate === "boolean",
   ) as boolean | undefined;
+  const wrapperError =
+    isWrapped && wrapperType.startsWith("error") ? true : undefined;
 
   return compact<ToolResultPart>({
     type: "tool-result",
     toolCallId: nullableString(
       value.toolCallId ?? value.tool_use_id ?? value.call_id ?? value.id,
     ),
-    output: toJsonValue(
-      parseIfString(
-        value.output ?? value.response ?? value.result ?? value.content ?? null,
-      ),
-    ),
-    isError,
+    toolName: optionalString(value.toolName ?? value.tool_name),
+    output: toJsonValue(parseIfString(isWrapped ? wrapper.value : rawOutput)),
+    isError: explicitError ?? wrapperError,
   });
 }
 
@@ -660,12 +721,88 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     });
   }
 
+  // Gemini parts carry no `type` discriminator — they are keyed unions like
+  // functionCall/functionResponse above.
+  const inlineData = asRecord(value.inline_data) ?? asRecord(value.inlineData);
+  if (inlineData) {
+    const data = optionalString(inlineData.data);
+    if (data) {
+      const reference = parseMediaReference(data);
+      if (reference) return filePartFromMediaReference(reference);
+      return compact<FilePart>({
+        type: "file",
+        mediaType: optionalString(inlineData.mime_type ?? inlineData.mimeType),
+        content: { kind: "base64", data },
+      });
+    }
+  }
+
+  // Record shape only: OpenAI's `file_data` is a base64 string and belongs
+  // to the file/input_file cases below.
+  const geminiFileData = asRecord(value.file_data) ?? asRecord(value.fileData);
+  if (geminiFileData) {
+    const fileUri = optionalString(
+      geminiFileData.file_uri ?? geminiFileData.fileUri,
+    );
+    if (fileUri) {
+      return filePartFromUrl(fileUri, {
+        mediaType: optionalString(
+          geminiFileData.mime_type ?? geminiFileData.mimeType,
+        ),
+      });
+    }
+  }
+
+  const executableCode =
+    asRecord(value.executable_code) ?? asRecord(value.executableCode);
+  if (executableCode) {
+    return {
+      type: "tool-call",
+      toolCallId: null,
+      toolName: "code_execution",
+      input: toJsonValue(executableCode),
+      toolType: "executable_code",
+      providerExecuted: true,
+    };
+  }
+
+  const codeExecutionResult =
+    asRecord(value.code_execution_result) ??
+    asRecord(value.codeExecutionResult);
+  if (codeExecutionResult) {
+    const outcome = optionalString(codeExecutionResult.outcome);
+    return compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: null,
+      toolName: "code_execution",
+      output: toJsonValue(codeExecutionResult),
+      isError: outcome && outcome !== "OUTCOME_OK" ? true : undefined,
+    });
+  }
+
+  // Gemini text/thought parts: a bare `text` field, optionally flagged as
+  // thought with a signature sibling.
+  if (typeof value.type !== "string" && typeof value.text === "string") {
+    const signature = optionalString(
+      value.thoughtSignature ?? value.thought_signature,
+    );
+    if (value.thought === true || signature) {
+      return reasoningPart(value.text, signature);
+    }
+    return { type: "text", text: value.text };
+  }
+
   switch (value.type) {
     case "text":
     case "input_text":
     case "output_text": {
       const text = optionalString(value.text ?? value.content) ?? "";
-      if (value.thought === true) return reasoningPart(text);
+      if (value.thought === true) {
+        return reasoningPart(
+          text,
+          optionalString(value.thoughtSignature ?? value.thought_signature),
+        );
+      }
       const citations = extractCitations(value);
       return {
         type: "text",
@@ -680,10 +817,15 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
         : reasoningPart(value.data ?? null);
     }
     case "image": {
+      // Anthropic image blocks carry a `source`; legacy AI SDK image parts
+      // carry the payload directly under `image`.
       const source = asRecord(value.source);
       const part = source
         ? filePartFromAnthropicSource(source, { fallbackMediaType: "image/*" })
-        : null;
+        : aiSdkFilePart(value.image ?? value.data, {
+            mediaType: optionalString(value.mediaType),
+            fallbackMediaType: "image/*",
+          });
       if (part) return part;
       break;
     }
@@ -743,27 +885,20 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
       return reasoningPart(reasoning);
     }
     case "reasoning-file": {
-      // AI SDK reasoning-generated file: a regular file part flagged as
+      // AI SDK reasoning-generated file (a FilePart nested under `file`;
+      // older emissions used a flat `data`): a regular file part flagged as
       // reasoning output (KnownPartFlags), not a separate part type — it is
       // still a file to every consumer; its origin is provenance.
-      const data = asRecord(value.data);
-      const payload = optionalString(data?.data ?? data?.url ?? value.data);
-      if (!payload) break;
-      const reference = parseMediaReference(payload);
-      if (reference) {
-        return filePartFromMediaReference(reference, { reasoning: true });
-      }
-      // Tagged {type: "url"|"data"} shapes; bare strings are raw bytes unless
-      // they read as a fetchable URL.
-      const isUrl = data ? data.type === "url" : /^https?:/.test(payload);
-      return compact<FilePart>({
-        type: "file",
-        mediaType: optionalString(value.mediaType),
-        content: isUrl
-          ? { kind: "url", url: payload }
-          : { kind: "base64", data: payload },
-        providerMetadata: { reasoning: true },
+      const nested = asRecord(value.file);
+      const part = aiSdkFilePart(nested?.data ?? nested?.url ?? value.data, {
+        mediaType: optionalString(nested?.mediaType ?? value.mediaType),
+        filename: optionalString(nested?.filename ?? value.filename),
       });
+      if (!part) break;
+      return {
+        ...part,
+        providerMetadata: { ...part.providerMetadata, reasoning: true },
+      };
     }
     case "tool_call":
     case "tool-call":
@@ -773,6 +908,12 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     case "custom_tool_call":
       // OpenAI Responses custom (free-form input) tool call.
       return normalizeToolCall(value, { toolType: "custom" });
+    case "tool-error":
+      // AI SDK tool execution error: the error is the result.
+      return {
+        ...normalizeToolResult({ ...value, output: value.error ?? null }),
+        isError: true,
+      };
     case "tool_call_response":
     case "function_call_output":
     case "custom_tool_call_output":
@@ -822,8 +963,14 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
       };
     }
     case "file": {
+      // OpenAI wrapper shape first, then AI SDK's flat data | url shape.
       const file = asRecord(value.file);
-      const part = file ? filePartFromFileFields(file) : null;
+      const wrapped = file ? filePartFromFileFields(file) : null;
+      if (wrapped) return wrapped;
+      const part = aiSdkFilePart(value.data ?? value.url, {
+        mediaType: optionalString(value.mediaType),
+        filename: optionalString(value.filename),
+      });
       if (part) return part;
       break;
     }
@@ -925,14 +1072,34 @@ function isToolDefinitionMessage(message: Record<string, unknown>): boolean {
   );
 }
 
+/**
+ * AI SDK carries provider extras as `providerOptions` on every part —
+ * promote them into providerMetadata (canonical naming). Part-derived
+ * metadata (flags, citations) wins on key collisions.
+ */
+function withProviderOptions<T extends NormalizedMessagePart>(
+  part: T,
+  value: Record<string, unknown>,
+): T {
+  const providerOptions = asRecord(value.providerOptions);
+  if (!providerOptions) return part;
+
+  const providerMetadata = toProviderMetadata({
+    ...providerOptions,
+    ...part.providerMetadata,
+  });
+  return compact({ ...part, providerMetadata });
+}
+
 function appendParts(target: NormalizedMessagePart[], values: unknown[]): void {
   for (const value of values) {
     if (typeof value === "string") {
       target.push(...normalizePartsFromString(value));
       continue;
     }
-    const part = normalizeMessagePart(value);
+    let part = normalizeMessagePart(value);
     if (!part) continue;
+    if (isRecord(value)) part = withProviderOptions(part, value);
     // Text parts frequently embed media reference tokens mid-string; split
     // them out. Flagged text (refusal, thought) stays intact.
     if (part.type === "text" && !part.providerMetadata) {
@@ -1019,14 +1186,24 @@ function normalizeMessage(
     typeof value.role === "string" && value.role.toLowerCase() === "function";
 
   if (role === "tool" && (value.tool_call_id || isLegacyFunctionMessage)) {
-    parts.push({
-      type: "tool-result",
-      toolCallId: nullableString(value.tool_call_id),
-      ...(isLegacyFunctionMessage && optionalString(value.name)
-        ? { toolName: String(value.name) }
-        : {}),
-      output: toJsonValue(parseIfString(value.content ?? null)),
-    });
+    // LangChain ToolMessage extras: status marks failed executions; artifact
+    // is side-band data, preserved without treating it as output content.
+    parts.push(
+      compact<ToolResultPart>({
+        type: "tool-result",
+        toolCallId: nullableString(value.tool_call_id),
+        toolName:
+          isLegacyFunctionMessage && optionalString(value.name)
+            ? String(value.name)
+            : undefined,
+        output: toJsonValue(parseIfString(value.content ?? null)),
+        isError: value.status === "error" ? true : undefined,
+        providerMetadata:
+          value.artifact !== undefined && value.artifact !== null
+            ? toProviderMetadata({ artifact: value.artifact })
+            : undefined,
+      }),
+    );
   } else {
     const rawParts = Array.isArray(value.parts)
       ? value.parts
@@ -1255,6 +1432,7 @@ function isToolCallLike(value: Record<string, unknown>): boolean {
 
 function isToolResultLike(value: Record<string, unknown>): boolean {
   return [
+    "tool-error",
     "function_call_output",
     "custom_tool_call_output",
     "computer_call_output",
@@ -1289,6 +1467,13 @@ function collectMessageArray(
   };
 
   for (const value of values) {
+    // MCP tool listings are definitions, not conversation content — collect
+    // them side-band without emitting a message or flushing the call batch.
+    if (isRecord(value) && value.type === "mcp_list_tools") {
+      collectToolDefinitionValue(value.tools, accumulator);
+      continue;
+    }
+
     // Standalone tool-call items (Responses function_call, built-in
     // provider-executed calls, custom_tool_call) batch into one synthetic
     // assistant message until a non-call item flushes them.

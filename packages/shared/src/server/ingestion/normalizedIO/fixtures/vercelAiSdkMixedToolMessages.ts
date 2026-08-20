@@ -231,15 +231,15 @@ export const vercelAiSdkMixedToolMessagesFixture = {
           {
             type: "tool-result",
             toolCallId: inputToolCallId,
-            output: {
-              type: "content",
-              value: [
-                {
-                  type: "text",
-                  text: "[Langfuse documentation overview response]",
-                },
-              ],
-            },
+            toolName: "getLangfuseOverview",
+            // AI SDK {type, value} output wrappers are unwrapped; the
+            // structured value is the result.
+            output: [
+              {
+                type: "text",
+                text: "[Langfuse documentation overview response]",
+              },
+            ],
           },
         ],
         source: "input",

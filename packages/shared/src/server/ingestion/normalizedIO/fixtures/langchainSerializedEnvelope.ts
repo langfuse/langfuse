@@ -53,6 +53,17 @@ export const langchainSerializedEnvelopeFixture = {
           response_metadata: { finish_reason: "tool_calls" },
         },
       },
+      {
+        lc: 1,
+        type: "constructor",
+        id: ["langchain_core", "messages", "ToolMessage"],
+        kwargs: {
+          content: "Weather service unavailable.",
+          tool_call_id: "call_lc_1",
+          status: "error",
+          artifact: { attempts: 2 },
+        },
+      },
     ]),
     metadata: undefined,
   },
@@ -87,6 +98,20 @@ export const langchainSerializedEnvelopeFixture = {
           },
         ],
         finishReason: { type: "tool-calls", raw: "tool_calls" },
+        source: "output",
+      },
+      {
+        role: "tool",
+        parts: [
+          {
+            type: "tool-result",
+            toolCallId: "call_lc_1",
+            output: "Weather service unavailable.",
+            isError: true,
+            // Side-band artifact data, preserved without becoming output.
+            providerMetadata: { artifact: { attempts: 2 } },
+          },
+        ],
         source: "output",
       },
     ],

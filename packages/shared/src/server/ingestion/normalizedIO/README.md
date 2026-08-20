@@ -37,16 +37,11 @@ raw formats.
    ChatML parser tests, same method as the tool-column comparison.
 4. **Projection coverage**: tests for `toEvalRecord`. Other projects have been tested.
 5. **Rollout**: across product surfaces. Start with ingestion, continue with evals.
-6. **AI-SDK file parts**: Vercel AI SDK `{type: "file", data | url, mediaType}`
-   parts still fall through to `custom` — map them to `FilePart` in the
-   AI-SDK pass (after Anthropic). Same pass should also revisit
-   `mcp_list_tools` (its `tools[]` belong in toolDefinitions but the part
-   parser has no accumulator access; currently a `custom` part).
-7. **LangChain tool_call_chunks**: deliberately ignored — they are streaming
+6. **LangChain tool_call_chunks**: deliberately ignored — they are streaming
    deltas (partial JSON fragments per index) and redundant with the parsed
    `tool_calls` on final messages. Later: merge and parse them only when
    `tool_calls` is absent (mid-stream captures).
-8. **providerMetadata persistence**: several semantics now ride on part-level
+7. **providerMetadata persistence**: several semantics now ride on part-level
    `providerMetadata` (refusal flags, audio transcripts, citations,
    media-token `source`). We need a good story for saving and querying it —
    e.g. eval filters like "all observations that contained a refusal" depend

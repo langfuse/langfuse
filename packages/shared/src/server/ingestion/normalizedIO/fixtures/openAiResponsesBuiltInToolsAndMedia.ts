@@ -74,6 +74,18 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
         output: '[{"one":1}]',
       },
       {
+        type: "mcp_list_tools",
+        id: "mcpl_100",
+        server_label: "analytics",
+        tools: [
+          {
+            name: "query_db",
+            description: "Run a SQL query",
+            input_schema: { type: "object" },
+          },
+        ],
+      },
+      {
         type: "message",
         id: "msg_100",
         role: "assistant",
@@ -221,6 +233,16 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
         source: "output",
       },
     ],
-    toolDefinitions: [],
+    toolDefinitions: [
+      {
+        // From the mcp_list_tools item — definitions, not conversation
+        // content; no message is emitted for the listing itself.
+        name: "query_db",
+        description: "Run a SQL query",
+        inputSchema: { type: "object" },
+        type: undefined,
+        providerMetadata: undefined,
+      },
+    ],
   },
 } satisfies NormalizedIOFixture;

@@ -1,6 +1,7 @@
 import { anthropicMessagesRichContentFixture } from "./anthropicMessagesRichContent";
 import { anthropicMessagesRawServerToolsAndMediaFixture } from "./anthropicMessagesRawServerToolsAndMedia";
 import { geminiEmbeddedToolDefinitionFixture } from "./geminiEmbeddedToolDefinition";
+import { geminiMediaAndCodeExecutionFixture } from "./geminiMediaAndCodeExecution";
 import { langchainSerializedEnvelopeFixture } from "./langchainSerializedEnvelope";
 import { langgraphProductionShapeFixture } from "./langgraphSynthetic";
 import { microsoftAgentProductionShapeFixture } from "./microsoftAgentSynthetic";
@@ -36,11 +37,13 @@ export const normalizedIOFixtures = [
   rawPassthroughToolCallsFixture,
   semanticKernelEventContentFixture,
   geminiEmbeddedToolDefinitionFixture,
+  geminiMediaAndCodeExecutionFixture,
 ];
 
 export * from "./anthropicMessagesRichContent";
 export * from "./anthropicMessagesRawServerToolsAndMedia";
 export * from "./geminiEmbeddedToolDefinition";
+export * from "./geminiMediaAndCodeExecution";
 export * from "./langchainSerializedEnvelope";
 export * from "./langgraphSynthetic";
 export * from "./microsoftAgentSynthetic";

@@ -79,11 +79,22 @@ const outputMessages = [
         type: "reasoning",
         content: "Looking into the RAG integration documentation.",
       },
-      // Reasoning-generated file (AI SDK reasoning-file part).
+      // Reasoning-generated file (AI SDK reasoning-file part, FilePart
+      // nested under `file`).
       {
         type: "reasoning-file",
-        data: { type: "url", url: "https://example.com/scratchpad.png" },
-        mediaType: "image/png",
+        file: {
+          type: "file",
+          data: "https://example.com/scratchpad.png",
+          mediaType: "image/png",
+        },
+      },
+      // Plain AI SDK file part (flat data | url shape).
+      {
+        type: "file",
+        data: "UEsDBA==",
+        mediaType: "application/zip",
+        filename: "bundle.zip",
       },
       // Anchor-less document reference (AI SDK source part).
       {
@@ -236,6 +247,12 @@ export const vercelAiSdkOutputToolCallFixture = {
             content: { kind: "url", url: "https://example.com/scratchpad.png" },
             // Reasoning provenance rides as a known flag, not a part type.
             providerMetadata: { reasoning: true },
+          },
+          {
+            type: "file",
+            mediaType: "application/zip",
+            filename: "bundle.zip",
+            content: { kind: "base64", data: "UEsDBA==" },
           },
           {
             // Anchor-less citations stay stream-positioned parts; anchored
