@@ -20,13 +20,17 @@ import {
   type OrganizationScope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
 
-// projectScopes has no data-plane read/write tokens (only traces:delete); the
-// public-API vocabulary (traces:read, observations:read, …) is net-new and
-// unratified. Ingestion is resource-oriented: observations are children of a
-// trace, so trace+observation events gate on traces:create (matches the OTel
-// path in LFE-15053), scores on scores:create — reconcile with LFE-15042.
-/** PendingApiAction holds the net-new create/media tokens the LFE-15042 suspension deny needs; not in projectScopes. */
-export type PendingApiAction = "traces:create" | "scores:create" | "media:CUD";
+// projectScopes has no data-plane read/write tokens (only traces:delete); this
+// vocabulary is net-new and unratified. Ingestion is resource-oriented:
+// observations are trace children, so trace+observation events gate on
+// traces:create (LFE-15053). The LFE-15042 suspension deny is the write subset
+// {traces:create, scores:create, media:CUD}; media reads still need a read token.
+/** PendingApiAction holds net-new public-API tokens absent from projectScopes. */
+export type PendingApiAction =
+  | "traces:read"
+  | "traces:create"
+  | "scores:create"
+  | "media:CUD";
 
 /** Action a principal takes on a resource, e.g. "prompts:read". */
 export type Action = ProjectScope | OrganizationScope | PendingApiAction | "*";
