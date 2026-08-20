@@ -1806,6 +1806,10 @@ export const TheLegendListsTheTypesPresent = meta.story({
     await expect(
       legend.querySelectorAll('[class*="bg-muted-magenta"]').length,
     ).toBe(1);
+    // Sized to a short list of one-word labels. The popover primitive floors at
+    // `min-w-72`, and a `w-auto` cannot override a MIN width — so without an
+    // explicit floor this renders as a 288px box that is mostly empty.
+    await expect(legend.getBoundingClientRect().width).toBeLessThan(160);
   },
 });
 
@@ -1896,7 +1900,15 @@ export const DragZoomsWithoutAModifier = meta.story({
       '[data-testid="timeline-dense-surface"]',
     );
     if (!surface) throw new Error("dense surface not found");
-    surface.setPointerCapture = () => undefined;
+    // Spy rather than stub: WHEN the pointer is captured is the contract here.
+    // Capture retargets the click that follows to the capturing element, so
+    // taking it on pointerdown kills click-to-select on every row — and no
+    // synthetic event in a test can observe the retargeting itself, which is
+    // exactly how that shipped once already.
+    const captures: number[] = [];
+    surface.setPointerCapture = (pointerId: number) => {
+      captures.push(pointerId);
+    };
     surface.releasePointerCapture = () => undefined;
     const readout = () =>
       canvasElement.querySelector<HTMLElement>(
@@ -1918,7 +1930,16 @@ export const DragZoomsWithoutAModifier = meta.story({
         }),
       );
     drag("pointerdown", rect.left + rect.width * 0.3, rect.top + 100);
+    // A press is not a drag yet, so nothing is captured and no box exists.
+    await expect(captures).toEqual([]);
+    await expect(
+      canvasElement.querySelector('[data-testid="timeline-dense-marquee"]'),
+    ).toBeNull();
+
     drag("pointermove", rect.left + rect.width * 0.6, rect.top + 240);
+    // Past the threshold it is a drag, and only now does it take the pointer.
+    await expect(captures).toEqual([1]);
+
     drag("pointerup", rect.left + rect.width * 0.6, rect.top + 240);
     await waitFor(() => expect(readout()).toContain("zoomed"));
   },

@@ -25,7 +25,7 @@
  *    BOTH axes about the cursor, so the time window narrows and the rows grow
  *    together. Zoom is exponential in a zoom level and deltas accumulate per
  *    frame, as in mapping libraries — see the rate constants below.
- *  - Drag pans both axes too, and SHIFT-drag draws a box to zoom into — the one
+ *  - Drag pans both axes too, and drag draws a box to zoom into — the one
  *    gesture where the user has stated the window on both axes, so it goes
  *    straight there. There are no scrollbars by design: a map has none, and the
  *    viewport clamps to the content so there is nowhere to get lost.
@@ -225,7 +225,7 @@ const FOCUS_ANIMATION_MS = 320;
 const PEEK_MARGIN_PX = 6;
 /** A collapsed-gap band narrower than this has no room to name itself. */
 const GAP_LABEL_MIN_WIDTH = 14;
-/** Below this in both axes a shift-drag was a stray click, not a box. */
+/** Below this in both axes a drag was a stray click, not a box. */
 const MARQUEE_MIN_PX = 6;
 /** Two taps within this long, and this close, are one double-tap. */
 const DOUBLE_TAP_MS = 320;
@@ -353,7 +353,7 @@ export function TimelineDense({
   } | null>(null);
   const [dragging, setDragging] = useState(false);
   /**
-   * Shift-drag box, in surface coordinates, while it is being drawn. The REF is
+   * Zoom box, in surface coordinates, while it is being drawn. The REF is
    * the authority and the state is only for drawing it: a gesture that read the
    * box back out of render scope would depend on React having re-rendered
    * between pointerdown and pointerup, which nothing guarantees.
@@ -597,7 +597,17 @@ export function TimelineDense({
   );
 
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const gesture = useRef({ down: false, dragging: false, x: 0, y: 0 });
+  const gesture = useRef({
+    down: false,
+    dragging: false,
+    x: 0,
+    y: 0,
+    /** What this press becomes once it moves: a zoom box, or a pan. */
+    intent: "pan" as "pan" | "zoom",
+    /** Where it began, in surface coordinates, for the box's own corner. */
+    originX: 0,
+    originY: 0,
+  });
   /**
    * Every pointer currently down, and the pinch they describe.
    *
@@ -930,24 +940,6 @@ export function TimelineDense({
       lastTap.current = { at: 0, x: 0, y: 0 };
       return;
     }
-    // Drag draws a box to zoom into: the one gesture where the user states the
-    // window on BOTH axes, so it goes straight there rather than picking a level
-    // for them. It needs no modifier — scroll already pans both axes, so drag is
-    // free, and a modifier nobody guesses is not a gesture, it is a footnote.
-    //
-    // Touch is the exception: one finger keeps panning, because a finger has no
-    // scroll wheel to pan with and drawing a box with one is nobody's instinct.
-    if (event.pointerType !== "touch" || event.shiftKey) {
-      const rect = event.currentTarget.getBoundingClientRect();
-      const point = {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      };
-      event.currentTarget.setPointerCapture(event.pointerId);
-      setMarqueeBox({ from: point, to: point });
-      return;
-    }
-
     // Only touch reaches here — everything else drew a box above and returned.
     //
     // A PRIMARY touch is the first contact of a new gesture, so anything left in
@@ -980,11 +972,26 @@ export function TimelineDense({
       return;
     }
 
+    // Drag draws a box to zoom into: the one gesture where the user states the
+    // window on BOTH axes, so it goes straight there rather than picking a level
+    // for them. It needs no modifier — scroll already pans both axes, so drag is
+    // free, and a modifier nobody guesses is not a gesture, it is a footnote.
+    // Touch is the exception: one finger keeps panning, because a finger has no
+    // scroll wheel to pan with and drawing a box with one is nobody's instinct.
+    //
+    // Decided here and ACTED ON in pointermove. A press is not yet a drag, and
+    // capturing the pointer before it is one retargets the click that follows
+    // away from the row — which silently kills click-to-select, and no synthetic
+    // event in a test can see it happen. Both gestures wait for the threshold.
+    const rect = event.currentTarget.getBoundingClientRect();
     gesture.current = {
       down: true,
       dragging: false,
       x: event.clientX,
       y: event.clientY,
+      intent: event.pointerType !== "touch" || event.shiftKey ? "zoom" : "pan",
+      originX: event.clientX - rect.left,
+      originY: event.clientY - rect.top,
     };
   };
 
@@ -1063,6 +1070,17 @@ export function TimelineDense({
         // Capture only once it really is a drag, so a click still reaches a row.
         event.currentTarget.setPointerCapture(event.pointerId);
       }
+      if (state.dragging && state.intent === "zoom") {
+        const surface = event.currentTarget.getBoundingClientRect();
+        setMarqueeBox({
+          from: { x: state.originX, y: state.originY },
+          to: {
+            x: event.clientX - surface.left,
+            y: event.clientY - surface.top,
+          },
+        });
+        return;
+      }
       if (state.dragging) {
         releaseOverride();
         panBy(dx, dy);
@@ -1091,7 +1109,7 @@ export function TimelineDense({
     });
   };
 
-  /** Release of a shift-drag: fly to the box, if it is big enough to mean one. */
+  /** Release of a zoom drag: fly to the box, if it is big enough to mean one. */
   const commitMarquee = () => {
     const box = marqueeRef.current;
     if (!box) return;
@@ -1129,6 +1147,9 @@ export function TimelineDense({
           dragging: false,
           x: survivor.x,
           y: survivor.y,
+          intent: "pan",
+          originX: 0,
+          originY: 0,
         };
         setDragging(false);
         return;
@@ -1329,7 +1350,7 @@ export function TimelineDense({
             </PopoverTrigger>
             <PopoverContent
               align="start"
-              className="w-auto p-1.5"
+              className="w-auto min-w-24 p-1.5"
               data-testid="timeline-dense-legend"
             >
               <div className="flex flex-col gap-1" style={{ fontSize: "10px" }}>
