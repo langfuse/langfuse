@@ -20,15 +20,19 @@ import {
   type OrganizationScope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
 
-/** ApiAction holds net-new public-API tokens Appendix A adds that projectScopes lacks today. */
-export type ApiAction =
-  | "traces:read"
-  | "ingestion:write"
+// projectScopes has no data-plane read/write tokens (only traces:delete); the
+// public-API vocabulary (traces:read, observations:read, …) is net-new and
+// unratified. Ingestion is resource-oriented here (traces/observations/scores
+// :create), not an endpoint-oriented ingestion:write — reconcile with LFE-15042.
+/** PendingApiAction holds the net-new create/media tokens the LFE-15042 suspension deny needs; not in projectScopes. */
+export type PendingApiAction =
+  | "traces:create"
+  | "observations:create"
   | "scores:create"
   | "media:CUD";
 
-/** Action a principal takes on a resource, e.g. "traces:read". */
-export type Action = ProjectScope | OrganizationScope | ApiAction | "*";
+/** Action a principal takes on a resource, e.g. "prompts:read". */
+export type Action = ProjectScope | OrganizationScope | PendingApiAction | "*";
 
 /** Actions aliases Action for the PEP wrapper signatures. */
 export type Actions = Action;
@@ -215,10 +219,10 @@ if (import.meta.vitest) {
 
   describe("authorize — hierarchical coverage", () => {
     const projectSubtree = ctx([
-      allow(["traces:read"], [{ orgId: ORG, projectId: "*" }]),
+      allow(["prompts:read"], [{ orgId: ORG, projectId: "*" }]),
     ]);
     const singleProject = ctx([
-      allow(["traces:read"], [{ orgId: ORG, projectId: PRJ }]),
+      allow(["prompts:read"], [{ orgId: ORG, projectId: PRJ }]),
     ]);
 
     it.each([
@@ -228,7 +232,7 @@ if (import.meta.vitest) {
       ["project ref does not cover the org node", singleProject, { orgId: ORG }, false],
       ["wrong org denies", singleProject, { orgId: "org_x", projectId: PRJ }, false],
     ] as const)("%s", (_name, c, resource, expected) => {
-      expect(authorize(c, "traces:read", resource as Resource).success).toBe(
+      expect(authorize(c, "prompts:read", resource as Resource).success).toBe(
         expected,
       );
     });
@@ -252,7 +256,7 @@ if (import.meta.vitest) {
       userId: null,
     });
     it.each([
-      ["project action", "traces:read" as Action, { orgId: "x", projectId: "y" }],
+      ["project action", "prompts:read" as Action, { orgId: "x", projectId: "y" }],
       ["org action", "projects:create" as Action, { orgId: "x" }],
     ] as const)("admin allows any %s", (_n, action, resource) => {
       expect(authorize(admin, action, resource as Resource).success).toBe(true);
@@ -262,25 +266,25 @@ if (import.meta.vitest) {
   describe("authorize — deny-overrides and deny-by-default", () => {
     it("denies by default when nothing matches", () => {
       expect(
-        authorize(ctx([]), "traces:read", { orgId: ORG, projectId: PRJ }).success,
+        authorize(ctx([]), "prompts:read", { orgId: ORG, projectId: PRJ }).success,
       ).toBe(false);
     });
     it("a matching deny beats a matching allow", () => {
       const suspended = ctx([
-        allow(["ingestion:write"], [{ orgId: ORG, projectId: "*" }]),
-        deny(["ingestion:write"], [{ orgId: ORG, projectId: "*" }]),
+        allow(["traces:create"], [{ orgId: ORG, projectId: "*" }]),
+        deny(["traces:create"], [{ orgId: ORG, projectId: "*" }]),
       ]);
       expect(
-        authorize(suspended, "ingestion:write", {
+        authorize(suspended, "traces:create", {
           orgId: ORG,
           projectId: PRJ,
         }).success,
       ).toBe(false);
     });
     it("mustAuthorize throws on denial, returns on success", () => {
-      const c = ctx([allow(["traces:read"], [{ orgId: ORG, projectId: PRJ }])]);
+      const c = ctx([allow(["prompts:read"], [{ orgId: ORG, projectId: PRJ }])]);
       expect(() =>
-        mustAuthorize(c, "traces:read", { orgId: ORG, projectId: PRJ }),
+        mustAuthorize(c, "prompts:read", { orgId: ORG, projectId: PRJ }),
       ).not.toThrow();
       expect(() =>
         mustAuthorize(c, "traces:delete", { orgId: ORG, projectId: PRJ }),
@@ -313,14 +317,14 @@ if (import.meta.vitest) {
     it("projects a resolve body from the policy types", () => {
       const grants = resolveGrants(
         ctx([
-          allow(["traces:read", "scores:CUD"], [{ orgId: ORG, projectId: PRJ }]),
+          allow(["prompts:read", "scores:CUD"], [{ orgId: ORG, projectId: PRJ }]),
           allow(["projects:create"], [{ orgId: ORG, projectId: "*" }]),
         ]),
       );
       expect(grants).toHaveLength(1);
       expect(grants[0].organizationId).toBe(ORG);
       expect(grants[0].projectIds).toBe("*");
-      expect(grants[0].actions).toContain("traces:read");
+      expect(grants[0].actions).toContain("prompts:read");
     });
   });
 
