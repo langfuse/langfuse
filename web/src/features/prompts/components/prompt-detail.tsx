@@ -61,12 +61,10 @@ import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPrompt
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
-import {
-  PromptReferenceProvider,
-  renderRichPromptContent,
-} from "@/src/components/ui/PromptReferences";
+import { PromptReferenceProvider } from "@/src/components/ui/PromptReferences";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { PromptTextView } from "@/src/features/prompts/components/PromptTextView";
 
 const getPythonCode = (
   name: string,
@@ -555,14 +553,14 @@ export const PromptDetail = ({
                   ) : typeof prompt.prompt === "string" ? (
                     resolutionMode === "resolved" &&
                     promptGraph.data?.resolvedPrompt ? (
-                      <CodeView
+                      <PromptTextView
                         content={String(promptGraph.data.resolvedPrompt)}
                         title="Text Prompt (resolved)"
+                        renderRichContent={false}
                       />
                     ) : (
-                      <CodeView
-                        content={renderRichPromptContent(prompt.prompt)}
-                        originalContent={prompt.prompt}
+                      <PromptTextView
+                        content={prompt.prompt}
                         title="Text Prompt"
                       />
                     )
