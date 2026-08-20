@@ -1,5 +1,5 @@
 import { Role } from "@langfuse/shared";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAITraceSinkParams,
   logger,
@@ -40,6 +40,7 @@ import {
   clearRunMcpApiKeyPointer,
   finishClaimedRun,
   heartbeatClaimedRun,
+  isMissingInAppAgentMcpApiKeyError,
   reconcileConversationRuns,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import {
@@ -93,10 +94,7 @@ async function deleteInAppAgentMcpApiKey(params: {
   } catch (error) {
     // Concurrent cleanup or a prior delete already removed the row. Treat
     // that as success so the mcpApiKeyId pointer can still be cleared.
-    if (
-      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-      error.code !== "P2025"
-    ) {
+    if (!isMissingInAppAgentMcpApiKeyError(error)) {
       throw error;
     }
   }
