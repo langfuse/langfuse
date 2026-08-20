@@ -7,6 +7,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 
@@ -48,6 +51,29 @@ export default meta;
 
 export const Default = meta.story({});
 
+const renderDisabledSubTrigger = () => (
+  <DropdownMenu defaultOpen>
+    <DropdownMenuTrigger asChild>
+      <Button aria-label="Search type" size="sm" variant="outline">
+        Search type
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="start">
+      <DropdownMenuItem onSelect={fn()}>IDs / Names</DropdownMenuItem>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger disabled>Full Text</DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          <DropdownMenuItem onSelect={fn()}>All fields</DropdownMenuItem>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    </DropdownMenuContent>
+  </DropdownMenu>
+);
+
+export const DisabledSubTrigger = meta.story({
+  render: renderDisabledSubTrigger,
+});
+
 export const TestMenuItemsUsePointerCursor = meta.story({
   name: "(Test) Menu items use pointer cursor",
   play: async ({ canvasElement }) => {
@@ -59,5 +85,17 @@ export const TestMenuItemsUsePointerCursor = meta.story({
     for (const item of items) {
       await expect(getComputedStyle(item).cursor).toBe("pointer");
     }
+  },
+});
+
+export const TestDisabledSubTriggerUsesNotAllowedCursor = meta.story({
+  name: "(Test) Disabled subtrigger uses not-allowed cursor",
+  render: renderDisabledSubTrigger,
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const item = await body.findByRole("menuitem", { name: "Full Text" });
+
+    await expect(item).toHaveAttribute("data-disabled");
+    await expect(getComputedStyle(item).cursor).toBe("not-allowed");
   },
 });
