@@ -29,6 +29,8 @@ import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagin
 import { buildFullPath } from "@/src/features/folders/utils";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { BatchExportTableName } from "@langfuse/shared";
 
 type PromptTableRow = {
   id: string;
@@ -419,6 +421,15 @@ export function PromptTable() {
           columns={promptColumns}
           filterState={queryFilter.filterState}
           columnsWithCustomSelect={["labels", "tags"]}
+          actionButtons={
+            <BatchExportTableButton
+              key="batchExport"
+              projectId={projectId}
+              tableName={BatchExportTableName.Prompts}
+              orderByState={orderByState}
+              filterState={queryFilter.filterState}
+            />
+          }
           searchConfig={{
             metadataSearchFields: ["Name", "Tags", "Content"],
             updateQuery: useDebounce(setSearchQuery, 300),

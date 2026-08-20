@@ -13,4 +13,5 @@ export enum BatchTableNames {
   DatasetRunItems = "dataset_run_items",
   DatasetItems = "dataset_items",
   AuditLogs = "audit_logs",
+  Prompts = "prompts",
 }
