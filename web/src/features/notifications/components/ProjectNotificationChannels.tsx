@@ -25,11 +25,6 @@ import {
 /** Project notifications route to webhooks or Slack; GitHub dispatch is not wired for this event source. */
 const PROJECT_NOTIFICATION_ACTION_TYPES: ActionTypes[] = ["WEBHOOK", "SLACK"];
 
-/**
- * NOTIFIED_EVENT_COPY is a Record keyed by every ProjectNotificationEventType
- * member, so TypeScript rejects the file if a new event type is added here
- * without display copy.
- */
 const NOTIFIED_EVENT_COPY: Record<
   ProjectNotificationEventType,
   { title: string; description: string }
