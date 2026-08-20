@@ -5,11 +5,6 @@ import {
   isReactDevtoolsInternalEvent,
 } from "@/src/utils/sentryFilters";
 
-const isEuOrUsRegionNonHipaa =
-  process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
-    ? ["EU", "US"].includes(process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-    : false;
-
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
@@ -51,8 +46,9 @@ Sentry.init({
   // Replay may only be enabled for the client-side
   integrations: [
     Sentry.replayIntegration({
-      maskAllText: !isEuOrUsRegionNonHipaa,
-      blockAllMedia: !isEuOrUsRegionNonHipaa,
+      maskAllText: true,
+      maskAllInputs: true,
+      blockAllMedia: true,
     }),
     Sentry.browserTracingIntegration(),
     Sentry.httpClientIntegration(),

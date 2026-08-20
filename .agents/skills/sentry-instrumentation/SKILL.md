@@ -122,11 +122,24 @@ properly (below).
    that only reads the exception value silently never fires on them (the reason
    the original invalid-href filter never worked).
 
-7. **PII — never put user content in a message, `extra`, or tag.** No prompt
-   text, trace content, tokens, share-link secrets, user/session ids. Respect
-   the replay masking already configured for HIPAA/regions in
-   `instrumentation-client.ts`. A message that interpolates user data both leaks
-   and shatters grouping (Rule 5).
+7. **PII / HIPAA — never put user content in a message, `extra`, breadcrumb,
+   or tag.** No prompt text, trace content, tokens, share-link secrets,
+   user/session ids. This is not hygiene — it is the compliance boundary: ALL
+   cloud regions, **including HIPAA**, report to the **same US Sentry org**,
+   and error events are **never masked**, so this discipline is the only thing
+   keeping user content out of them. Session Replay is the masked channel:
+   [`instrumentation-client.ts`](../../../web/instrumentation-client.ts) sets
+   `maskAllText`, `maskAllInputs`, and `blockAllMedia` so every replay is fully
+   masked in every deployment. **Never remove or weaken that mask** — the
+   `replayIntegration` options must be covered by a CI regression test
+   asserting every region against the real module (the mask-guard
+   `instrumentation-client-replay-mask.clienttest.ts`; landing with #15802).
+   Reject any diff that touches Replay masking without that guard passing, and run
+   every diff touching `instrumentation-client.ts` or replay config through
+   the reviewer checklist in the
+   [reference](references/sentry-capture-contract.md#pii-and-the-hipaa-compliance-boundary).
+   A message that interpolates user data both leaks and shatters grouping
+   (Rule 5).
 
 8. **VERIFY in the environment that actually fires the error.** Router/console
    validations run only in the **real client runtime, not jsdom** — a green unit
@@ -162,6 +175,8 @@ properly (below).
   that reads the wrong event field (Rule 6).
 - Interpolating ids/user data into the message → PII + grouping explosion
   (Rules 5, 7).
+- Removing/weakening the unconditional replay mask, or "fixing" the mask-guard
+  test instead of the diff that tripped it (Rule 7).
 - Trusting a green jsdom test as proof the noise is gone (Rule 8).
 - An ad-hoc inline `beforeSend` check instead of a named, tested predicate in
   `sentryFilters.ts`.
