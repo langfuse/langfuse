@@ -24,6 +24,11 @@
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
+- Query-builder AST (server half, WIP): `src/server/query-ast/*` — golden-SQL
+  recording/diff harness that captures the current SQL at the
+  `src/server/repositories/clickhouse.ts` exec seam and normalizes it via
+  `clickhouse format` for snapshot comparison. Every migrated call site is
+  proven against its baseline here.
 - Postgres schema: `prisma/schema.prisma`
 - For unstable public eval APIs, the public `evaluatorId` is currently the
   exact `EvalTemplate.id`. Latest-version family grouping is derived from
@@ -36,7 +41,8 @@
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
-  helpers, eval/model-pricing helpers, and other frontend-safe utilities.
+  helpers, eval/model-pricing helpers, product path builders, and other
+  frontend-safe utilities.
   Includes the unicode-decoding JSON serialization helpers (`stringify`,
   `stringifyForCsv` in `src/utils/stringify.ts`) used by both the server
   trace-download route and client-side download/copy paths; the server barrel

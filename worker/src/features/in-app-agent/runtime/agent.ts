@@ -11,6 +11,7 @@ import {
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
+import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
 import { createManualToolApprovalRunInput } from "./human-in-the-loop";
 import type {
@@ -56,7 +57,6 @@ import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
-const MAX_AGENT_STEPS = 20;
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 const IN_APP_AGENT_MCP_USER_AGENT = "langfuse-in-app-agent";
@@ -154,6 +154,29 @@ The sandbox workspace from earlier turns in this conversation expired and has be
 - Do not assume a path exists because you created it earlier in this conversation. Read it first, and recreate what you still need.
 </sandbox_workspace_reset>`;
 
+const STEP_LIMIT_WRAP_UP_INSTRUCTION = `<step_limit_wrap_up>
+This is your final step. Do not call any more tools. Summarize what you have found and give the user a complete final answer now.
+</step_limit_wrap_up>`;
+
+export type InAppAgentCompleteOutcome = {
+  /** The turn reached the step cap, whether or not wrap-up rescued it. */
+  reachedStepLimit: boolean;
+  truncatedByStepLimit: boolean;
+};
+
+type StepLimitState = {
+  iteration: number;
+  lastFinishReason: string | undefined;
+  wrapUp: boolean;
+};
+
+function isTruncatedByStepLimit(state: StepLimitState): boolean {
+  return (
+    state.iteration >= IN_APP_AGENT_MAX_STEPS &&
+    state.lastFinishReason !== "stop"
+  );
+}
+
 // Adaptive thinking is the default for every Claude model so new generations
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
@@ -181,7 +204,7 @@ type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
   onMcpToolCallCompleted?: (toolCall: CompletedInAppAgentMcpToolCall) => void;
   onApprovedToolCallExecuted?: () => void | Promise<void>;
-  onComplete?: () => void | Promise<void>;
+  onComplete?: (outcome?: InAppAgentCompleteOutcome) => void | Promise<void>;
   onAbort?: () => void | Promise<void>;
   onError?: (error: unknown) => void | Promise<void>;
   onFinish?: () => void | Promise<void>;
@@ -262,20 +285,21 @@ export async function createAgUiStream(params: {
   recordInstrumentation("recordAvailableSkills", (instrumentation) =>
     instrumentation.recordAvailableSkills?.(LANGFUSE_IN_APP_AGENT_SKILLS),
   );
-  const onModelCallStart = instrumentation
-    ? (options: unknown) => {
-        recordInstrumentation("recordModelCallStart", (instrumentation) =>
-          instrumentation.recordModelCallStart?.(options),
-        );
-      }
-    : undefined;
-  const onModelStreamPart = instrumentation
-    ? (part: unknown) => {
-        recordInstrumentation("recordModelStreamPart", (instrumentation) =>
-          instrumentation.recordModelStreamPart?.(part),
-        );
-      }
-    : undefined;
+  const stepLimitState: StepLimitState = {
+    iteration: 0,
+    lastFinishReason: undefined,
+    wrapUp: false,
+  };
+  const onModelCallStart = (options: unknown) => {
+    recordInstrumentation("recordModelCallStart", (instrumentation) =>
+      instrumentation.recordModelCallStart?.(options),
+    );
+  };
+  const onModelStreamPart = (part: unknown) => {
+    recordInstrumentation("recordModelStreamPart", (instrumentation) =>
+      instrumentation.recordModelStreamPart?.(part),
+    );
+  };
   const onToolExecutionStart = instrumentation
     ? (toolCallId: string) => {
         recordInstrumentation("recordToolExecutionStart", (instrumentation) =>
@@ -551,6 +575,7 @@ export async function createAgUiStream(params: {
         onModelStreamPart,
         onToolExecutionStart,
         onToolExecutionEnd,
+        stepLimitState,
       })
         .then(async (initialAdapter) => {
           if (ending || closed || params.signal.aborted) {
@@ -622,6 +647,7 @@ export async function createAgUiStream(params: {
               onModelStreamPart,
               onToolExecutionStart,
               onToolExecutionEnd,
+              stepLimitState,
             });
 
             if (ending || closed || params.signal.aborted) {
@@ -750,13 +776,27 @@ export async function createAgUiStream(params: {
               closeController(
                 streamedRunError === null
                   ? () => {
+                      const truncatedByStepLimit =
+                        isTruncatedByStepLimit(stepLimitState);
                       recordInstrumentation("end", (instrumentation) =>
-                        instrumentation.end({}),
+                        instrumentation.end(
+                          truncatedByStepLimit
+                            ? {
+                                result: {
+                                  truncatedByStepLimit: true,
+                                  finishReason: stepLimitState.lastFinishReason,
+                                },
+                              }
+                            : {},
+                        ),
                       );
                       recordInstrumentation("flush", (instrumentation) =>
                         instrumentation.flush(),
                       );
-                      return params.options.onComplete?.();
+                      return params.options.onComplete?.({
+                        reachedStepLimit: stepLimitState.wrapUp,
+                        truncatedByStepLimit,
+                      });
                     }
                   : () => {
                       recordInstrumentation("flush", (instrumentation) =>
@@ -941,9 +981,12 @@ async function createMastraAdapter(params: {
   onModelStreamPart?: (part: unknown) => void;
   onToolExecutionStart?: (toolCallId: string) => void;
   onToolExecutionEnd?: (toolCallId: string) => void;
+  stepLimitState: StepLimitState;
 }) {
   const bedrock = createAmazonBedrock({
-    region: params.options.model.region,
+    ...(params.options.model.region
+      ? { region: params.options.model.region }
+      : {}),
     ...createDefaultBedrockProviderAuth(
       params.awsProfile ? { profile: params.awsProfile } : undefined,
     ),
@@ -1081,14 +1124,41 @@ async function createMastraAdapter(params: {
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
       instructions: () =>
-        [params.instructions, developerGuidance].filter(Boolean).join("\n\n"),
+        [
+          params.instructions,
+          developerGuidance,
+          params.stepLimitState.wrapUp
+            ? STEP_LIMIT_WRAP_UP_INSTRUCTION
+            : undefined,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       model,
       skills: LANGFUSE_IN_APP_AGENT_SKILLS,
       tools,
       maxRetries: 2,
       defaultOptions: {
         abortSignal: params.signal,
-        maxSteps: MAX_AGENT_STEPS,
+        maxSteps: IN_APP_AGENT_MAX_STEPS,
+        // Mastra's logical step counter — not provider doStream/finish parts,
+        // which retry and inflate independently of maxSteps.
+        onIterationComplete: ({
+          iteration,
+          maxIterations,
+          isFinal,
+          finishReason,
+        }) => {
+          params.stepLimitState.iteration = iteration;
+          params.stepLimitState.lastFinishReason = finishReason;
+          if (
+            iteration === (maxIterations ?? IN_APP_AGENT_MAX_STEPS) - 1 &&
+            !isFinal
+          ) {
+            params.stepLimitState.wrapUp = true;
+            // instructions() is snapshotted at stream start; feedback reaches the next call.
+            return { feedback: STEP_LIMIT_WRAP_UP_INSTRUCTION };
+          }
+        },
         ...(params.options.sandboxWorkspaceWasReset
           ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }
           : {}),

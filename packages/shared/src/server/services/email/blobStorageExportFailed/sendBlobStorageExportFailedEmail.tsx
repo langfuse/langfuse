@@ -16,9 +16,9 @@ export const blobStorageExportFailedEmailCopy: IntegrationExportFailedEmailCopy 
     disabledBody: (projectName) => (
       <>
         The blob storage export for project &quot;{projectName}
-        &quot; has been disabled after repeated failures. This usually means the
-        destination configuration or credentials are no longer valid. Once you
-        have updated them, simply re-enable the export in the integration
+        &quot; has been disabled after a configuration fault. This usually means
+        the destination configuration or credentials are no longer valid. Once
+        you have updated them, simply re-enable the export in the integration
         settings and it will pick up right where it left off.
       </>
     ),

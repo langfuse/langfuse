@@ -47,8 +47,7 @@ import {
   projectMarkdownToRenderedText,
 } from "./utils/markdown";
 import styles from "./InAppAgentMessage.module.css";
-import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
-import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
+import { InAppAgentToolCallDetails } from "./InAppAgentToolCallDetails";
 import {
   getInAppAgentToolDisplayName,
   type InAppAgentToolCallContent,
@@ -305,7 +304,7 @@ function TextMessageWithActions({
     <>
       <button
         type="button"
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-md p-1 outline-none focus-visible:ring-2"
+        className="text-muted-foreground/50 hover:text-muted-foreground focus-visible:ring-ring rounded-md p-1 outline-none focus-visible:ring-2"
         aria-label={isCopied ? "Message copied" : "Copy message"}
         title={isCopied ? "Copied" : "Copy message"}
         onClick={handleCopy}
@@ -517,26 +516,37 @@ function MessageFeedbackControls({
   };
 
   const handleSelectFeedback = (value: InAppAgentMessageFeedbackValue) => {
+    const previousValue = selectedValue;
+    const previousComment = comment;
+    const previousCommittedComment = committedComment;
+    const previousPopoverOpen = isCommentPopoverOpen;
+
     if (selectedValue === value) {
-      submitFeedback(null, "")
-        .then(() => {
-          setSelectedValue(undefined);
-          setComment("");
-          setCommittedComment("");
-          setIsCommentPopoverOpen(false);
-        })
-        .catch(() => undefined);
+      setSelectedValue(undefined);
+      setComment("");
+      setCommittedComment("");
+      setIsCommentPopoverOpen(false);
+
+      submitFeedback(null, "").catch(() => {
+        setSelectedValue(previousValue);
+        setComment(previousComment);
+        setCommittedComment(previousCommittedComment);
+        setIsCommentPopoverOpen(previousPopoverOpen);
+      });
       return;
     }
 
-    submitFeedback(value, "")
-      .then(() => {
-        setSelectedValue(value);
-        setComment("");
-        setCommittedComment("");
-        setIsCommentPopoverOpen(!isFeedbackDisabledRef.current);
-      })
-      .catch(() => undefined);
+    setSelectedValue(value);
+    setComment("");
+    setCommittedComment("");
+    setIsCommentPopoverOpen(!isFeedbackDisabledRef.current);
+
+    submitFeedback(value, "").catch(() => {
+      setSelectedValue(previousValue);
+      setComment(previousComment);
+      setCommittedComment(previousCommittedComment);
+      setIsCommentPopoverOpen(previousPopoverOpen);
+    });
   };
 
   const commentButtonText = `Comment: ${committedComment}`;
@@ -810,14 +820,7 @@ function ToolCallDisclosure({
         </span>
       </summary>
       <div className={cn("mt-1.5 mb-1 ml-3 px-3", isCompact && "px-2.5")}>
-        <div className="flex flex-col gap-2">
-          <InAppAgentToolPayload
-            label="Arguments"
-            value={tool.args}
-            variant="default"
-          />
-          <InAppAgentToolResultPayload tool={tool} />
-        </div>
+        <InAppAgentToolCallDetails tool={tool} />
       </div>
     </details>
   );

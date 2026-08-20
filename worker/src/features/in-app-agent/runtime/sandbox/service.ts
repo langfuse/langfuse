@@ -4,6 +4,12 @@ import type {
   SandboxFile,
   SandboxProvider,
 } from "./types";
+import {
+  InAppAgentSandboxBashResultSchema,
+  InAppAgentSandboxEditResultSchema,
+  InAppAgentSandboxReadResultSchema,
+  InAppAgentSandboxWriteResultSchema,
+} from "@langfuse/shared/in-app-agent";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 
 export async function createInAppAgentSandbox(params: {
@@ -84,23 +90,38 @@ export async function createInAppAgentSandbox(params: {
   };
 
   const createExecutionSandbox = (): InAppAgentSandbox => ({
-    read: async ({ path }) => (await ensureSession()).read({ path }),
+    read: async ({ path }) =>
+      InAppAgentSandboxReadResultSchema.parse(
+        await (await ensureSession()).read({ path }),
+      ),
     write: async ({ path, content }) =>
-      (await ensureSession()).write({
-        path,
-        content,
-      }),
+      InAppAgentSandboxWriteResultSchema.parse(
+        await (
+          await ensureSession()
+        ).write({
+          path,
+          content,
+        }),
+      ),
     edit: async ({ path, oldText, newText }) =>
-      (await ensureSession()).edit({
-        path,
-        oldText,
-        newText,
-      }),
+      InAppAgentSandboxEditResultSchema.parse(
+        await (
+          await ensureSession()
+        ).edit({
+          path,
+          oldText,
+          newText,
+        }),
+      ),
     bash: async ({ command, timeoutMs }) =>
-      (await ensureSession()).bash({
-        command,
-        timeoutMs,
-      }),
+      InAppAgentSandboxBashResultSchema.parse(
+        await (
+          await ensureSession()
+        ).bash({
+          command,
+          timeoutMs,
+        }),
+      ),
   });
 
   return {

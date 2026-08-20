@@ -68,7 +68,7 @@ export function assertInAppAgentModelConfigured() {
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL and LANGFUSE_AWS_BEDROCK_REGION.",
+      "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL.",
       true,
     );
   }

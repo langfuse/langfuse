@@ -31,12 +31,8 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
         }}
         forceDirection="bottom"
       >
-        <DrawerContent
-          id="support-drawer"
-          className="min-h-screen-with-banner inset-x-0 top-[calc(var(--banner-offset)+10px)] bottom-0"
-          size="full"
-        >
-          <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">
+        <DrawerContent id="support-drawer" size="full">
+          <DrawerHeader className="p-0 text-left">
             <div className="flex w-full items-center justify-center pt-3">
               <div className="bg-muted h-2 w-20 rounded-full" />
             </div>
@@ -46,9 +42,10 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
               A list of resources and options to help you with your questions.
             </DrawerDescription>
           </DrawerHeader>
-          <div className="mt-4 max-h-full">
-            <SupportDrawer showCloseButton={false} className="h-full pb-20" />
-          </div>
+          <SupportDrawer
+            showCloseButton={false}
+            className="min-h-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          />
         </DrawerContent>
       </Drawer>
 
@@ -61,12 +58,8 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
         }}
         forceDirection="bottom"
       >
-        <DrawerContent
-          id="v4-migration-drawer"
-          className="min-h-screen-with-banner inset-x-0 top-[calc(var(--banner-offset)+10px)] bottom-0"
-          size="full"
-        >
-          <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">
+        <DrawerContent id="v4-migration-drawer" size="full">
+          <DrawerHeader className="p-0 text-left">
             <div className="flex w-full items-center justify-center pt-3">
               <div className="bg-muted h-2 w-20 rounded-full" />
             </div>
@@ -77,12 +70,10 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
               deprecations.
             </DrawerDescription>
           </DrawerHeader>
-          <div className="mt-4 max-h-full">
-            <V4MigrationPanel
-              showCloseButton={false}
-              className="h-full pb-20"
-            />
-          </div>
+          <V4MigrationPanel
+            showCloseButton={false}
+            className="min-h-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          />
         </DrawerContent>
       </Drawer>
     </>

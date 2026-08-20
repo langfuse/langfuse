@@ -2077,16 +2077,32 @@ const generateConfigsQuery = (
 };
 
 const getEvaluatorConfigsOrderByCondition = (orderByState: OrderByState) => {
+  // Clearing a column sort sets orderBy to null. The shared helper's
+  // fallback (`t.timestamp`) is traces-specific and invalid here.
+  const resolvedOrderBy = orderByState ?? {
+    column: "createdAt",
+    order: "DESC" as const,
+  };
+
   const orderByCondition = orderByToPrismaSql(
-    orderByState,
+    resolvedOrderBy,
     evalConfigsTableCols,
   );
+  // Duplicate score names / targets are common; OFFSET pagination needs a
+  // unique last key or rows can repeat or vanish across pages.
+  const idTieBreak =
+    resolvedOrderBy.order === "DESC"
+      ? Prisma.sql`jc.id DESC`
+      : Prisma.sql`jc.id ASC`;
 
-  if (orderByState?.column !== "status" && orderByState?.column !== "Status") {
-    return orderByCondition;
+  if (
+    resolvedOrderBy.column !== "status" &&
+    resolvedOrderBy.column !== "Status"
+  ) {
+    return Prisma.sql`${orderByCondition}, ${idTieBreak}`;
   }
 
-  return Prisma.sql`${orderByCondition}, jc.created_at DESC`;
+  return Prisma.sql`${orderByCondition}, jc.created_at DESC, ${idTieBreak}`;
 };
 
 const generateExecutionsQuery = (

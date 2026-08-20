@@ -288,6 +288,23 @@ describe("in-app agent background runs", () => {
     ]);
   });
 
+  it("starts a Cloud run when LANGFUSE_AWS_BEDROCK_REGION is unset", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "Inspect a trace",
+      }),
+    ).resolves.toMatchObject({
+      conversationId: conversation.id,
+    });
+    expect(enqueuedJobs).toHaveLength(1);
+  });
+
   it("rejects requests before queueing when the in-app agent model is not configured", async () => {
     const { caller, projectId } = await createCaller();
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
@@ -302,7 +319,7 @@ describe("in-app agent background runs", () => {
     ).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
       message:
-        "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL and LANGFUSE_AWS_BEDROCK_REGION.",
+        "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL.",
     });
 
     expect(enqueuedJobs).toHaveLength(0);
