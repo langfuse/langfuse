@@ -11,8 +11,6 @@ export type SpanIO = {
   metadata: unknown;
 };
 
-export type ObservationIOParser<NormalizedIO> = (span: SpanIO) => NormalizedIO;
-
 export type JsonPrimitive = string | number | boolean | null;
 
 export type JsonObject = { [key: string]: JsonValue };
@@ -114,6 +112,8 @@ export type NormalizedIO = {
   // Input messages followed by output messages. Message and part order is preserved.
   messages: NormalizedMessage[];
   toolDefinitions: ToolDefinition[];
+  /** Raw pre-normalization values compiled from the source; always returned for now. */
+  span: SpanIO;
 };
 
 /** Decoded value stored as one JSON string in tool_definitions. */

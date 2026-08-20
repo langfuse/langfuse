@@ -1,3 +1,6 @@
+import type { EventRecordBaseType } from "../../repositories/definitions";
+import { metadataArraysToRecord } from "../../utils/metadata_conversion";
+import type { ResourceSpan } from "../../otel/OtelIngestionProcessor";
 import type {
   JsonObject,
   JsonValue,
@@ -5,11 +8,31 @@ import type {
   NormalizedMessage,
   NormalizedMessagePart,
   NormalizedMessageRole,
-  ObservationIOParser,
   SpanIO,
   ToolCallPart,
   ToolDefinition,
 } from "./types";
+
+type OtelScopeSpan = NonNullable<ResourceSpan["scopeSpans"]>[number];
+export type OtelSpan = NonNullable<OtelScopeSpan["spans"]>[number];
+export type OtelScope = OtelScopeSpan["scope"];
+
+export type OtelSpanContext = {
+  // The full instrumentation scope: name drives format detection, and
+  // name/version/attributes all flow into SpanIO metadata.
+  scope: OtelScope;
+  resourceAttributes: Record<string, unknown>;
+};
+
+type EventRecordIOColumns = Pick<
+  EventRecordBaseType,
+  "input" | "output" | "metadata_names" | "metadata_values"
+>;
+
+export type NormalizeIOSource =
+  | { kind: "event-record"; record: EventRecordIOColumns }
+  | { kind: "io"; io: SpanIO }
+  | { kind: "otel"; span: OtelSpan; context: OtelSpanContext };
 
 type ParsedIOValue = {
   value: unknown;
@@ -109,6 +132,36 @@ function parseSpanIO(span: SpanIO): ParsedSpanIO {
     output: parseIOValue(span.output),
     metadata: parseIfString(span.metadata),
   };
+}
+
+/**
+ * OTel span -> SpanIO, one span (= one observation) at a time.
+ *
+ * Framework-specific extraction is intentionally still a follow-up. The
+ * ingestion processor remains the source of truth until that logic is moved
+ * behind this private helper.
+ */
+function spanIOFromOtelSpan(_span: OtelSpan, _ctx: OtelSpanContext): SpanIO {
+  throw new Error("spanIOFromOtelSpan is not implemented yet");
+}
+
+function toSpanIO(source: NormalizeIOSource): SpanIO {
+  switch (source.kind) {
+    case "event-record":
+      return {
+        input: source.record.input ?? null,
+        output: source.record.output ?? null,
+        metadata:
+          metadataArraysToRecord(
+            source.record.metadata_names,
+            source.record.metadata_values,
+          ) ?? null,
+      };
+    case "io":
+      return source.io;
+    case "otel":
+      return spanIOFromOtelSpan(source.span, source.context);
+  }
 }
 
 function createAccumulator(): NormalizedIOAccumulator {
@@ -841,9 +894,8 @@ function collectMetadataToolDefinitions(
   }
 }
 
-export const normalizeIO: ObservationIOParser<NormalizedIO> = (
-  span: SpanIO,
-) => {
+export function normalizeIO(source: NormalizeIOSource): NormalizedIO {
+  const span = toSpanIO(source);
   const { input, output, metadata } = parseSpanIO(span);
   const accumulator = createAccumulator();
 
@@ -857,5 +909,6 @@ export const normalizeIO: ObservationIOParser<NormalizedIO> = (
   return {
     messages: accumulator.messages,
     toolDefinitions: accumulator.toolDefinitions,
+    span,
   };
-};
+}

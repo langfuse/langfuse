@@ -13,11 +13,7 @@ import { semanticKernelEventContentFixture } from "./semanticKernelEventContent"
 import { vercelAiSdkMixedToolMessagesFixture } from "./vercelAiSdkMixedToolMessages";
 import { vercelAiSdkOutputToolCallFixture } from "./vercelAiSdkOutputToolCall";
 
-import type { NormalizedIOFixture } from "./types";
-
-// Widened to the canonical fixture type so consumers work with NormalizedIO
-// rather than the union of each fixture's narrow literal type.
-export const normalizedIOFixtures: NormalizedIOFixture[] = [
+export const normalizedIOFixtures = [
   anthropicMessagesRichContentFixture,
   vercelAiSdkOutputToolCallFixture,
   vercelAiSdkMixedToolMessagesFixture,

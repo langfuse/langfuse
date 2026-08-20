@@ -10,5 +10,5 @@ export type NormalizedIOFixture = {
     resourceAttributes: Record<string, unknown>;
   };
   spanIO: SpanIO;
-  expected: NormalizedIO;
+  expected: Omit<NormalizedIO, "span">;
 };
