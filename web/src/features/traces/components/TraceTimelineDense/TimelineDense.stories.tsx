@@ -1677,3 +1677,310 @@ export const TheTooltipEscapesTheSurface = meta.story({
     );
   },
 });
+
+/** The shared args for the feedback-round stories: names visible, one trace. */
+const READABLE = {
+  roots: deepNesting(6),
+  box: DESKTOP,
+  gutter: "expanded" as const,
+  pointer: "fine" as const,
+  barColor: "type" as const,
+  compress: false,
+  showReadout: true,
+  selectedId: null,
+};
+
+/**
+ * A row is one thing. The tooltip used to be gated on the pointer being past the
+ * gutter — so hovering a span's NAME, the most obvious way to ask what it is,
+ * told you nothing, while the row highlighted across its full width anyway.
+ */
+export const TheTooltipCoversTheWholeRow = meta.story({
+  name: "(Test) The Tooltip Covers The Whole Row",
+  args: { ...READABLE, onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    // Over the NAME, well inside the gutter.
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + 30,
+        clientY: rect.top + 40,
+      }),
+    );
+    const tooltip = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-tooltip"]',
+      );
+      if (!el) throw new Error("hovering a name said nothing");
+      return el;
+    });
+    await expect(tooltip.innerText).toContain("level-");
+  },
+});
+
+/**
+ * Hue means observation type and nothing else. Focus used to repaint the bar in
+ * the accent — which is the same blue that means SPAN — so a hovered generation
+ * changed species under the cursor.
+ */
+export const HoverDoesNotRecolourTheBar = meta.story({
+  name: "(Test) Hover Does Not Recolour The Bar",
+  args: {
+    ...READABLE,
+    roots: manySpans(40),
+    selectedId: "n0",
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const bars = () => [
+      ...canvasElement.querySelectorAll<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      ),
+    ];
+    const hueOf = (bar: HTMLElement) =>
+      [...bar.classList].find((name) => name.startsWith("bg-")) ?? "";
+
+    const before = bars().map(hueOf);
+    await expect(before.length).toBeGreaterThan(3);
+
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + rect.width * 0.7,
+        clientY: rect.top + 60,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-testid="timeline-dense-tooltip"]'),
+      ).not.toBeNull(),
+    );
+
+    // Same hues, hovered or not — and the accent never paints a bar at all.
+    await expect(bars().map(hueOf)).toEqual(before);
+    await expect(before.some((hue) => hue.includes("primary-accent"))).toBe(
+      false,
+    );
+    // Selection still reads, as a ring rather than a repaint.
+    const ringed = bars().filter((bar) =>
+      [...bar.classList].some((name) => name.startsWith("ring-")),
+    );
+    await expect(ringed.length).toBe(1);
+  },
+});
+
+/** What the colours mean, for the types this trace actually has. */
+export const TheLegendListsTheTypesPresent = meta.story({
+  name: "(Test) The Legend Lists The Types Present",
+  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const trigger = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-legend-trigger"]',
+    );
+    if (!trigger) throw new Error("no legend");
+    await userEvent.click(trigger);
+    const legend = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-legend"]',
+      );
+      if (!el) throw new Error("legend did not open");
+      return el;
+    });
+    // Types the fixture contains...
+    await expect(legend.innerText).toContain("Generation");
+    await expect(legend.innerText).toContain("Retriever");
+    // ...and each entry brings its own swatch, or it explains nothing.
+    await expect(
+      legend.querySelectorAll('[class*="bg-muted-magenta"]').length,
+    ).toBe(1);
+  },
+});
+
+/** A control that can do nothing should say so rather than look broken. */
+export const FitIsDisabledWhenItWouldDoNothing = meta.story({
+  name: "(Test) Fit Is Disabled When It Would Do Nothing",
+  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const fit = () =>
+      canvasElement.querySelector<HTMLButtonElement>(
+        'button[aria-label*="fits"], button[aria-label="Fit whole trace"]',
+      );
+    const button = fit();
+    if (!button) throw new Error("no fit button");
+    // At rest the whole trace already fits.
+    await expect(button.disabled).toBe(true);
+
+    const zoomIn = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Zoom in"]',
+    );
+    if (!zoomIn) throw new Error("no zoom button");
+    await userEvent.click(zoomIn);
+    await waitFor(() => expect(fit()?.disabled).toBe(false));
+  },
+});
+
+/** Collapse in the tree means collapse here: the same set, honoured. */
+export const CollapsedRowsAreNotDrawn = meta.story({
+  name: "(Test) Collapsed Rows Are Not Drawn",
+  args: {
+    ...READABLE,
+    collapsed: new Set(["n0"]),
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    // A six-deep chain with its root collapsed is one row.
+    await expect(
+      canvasElement.querySelectorAll('[data-testid="timeline-dense-row"]')
+        .length,
+    ).toBe(1);
+  },
+});
+
+/** `@0ms` was correct and meaningless. Say it in words, and only when it says something. */
+export const TheStartOffsetIsSaidInWords = meta.story({
+  name: "(Test) The Start Offset Is Said In Words",
+  args: { ...READABLE, onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    const hover = (offsetY: number) =>
+      surface.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          pointerType: "mouse",
+          clientX: rect.left + rect.width * 0.7,
+          clientY: rect.top + offsetY,
+        }),
+      );
+    const tooltip = () =>
+      document.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-tooltip"]',
+      );
+
+    // The root starts the trace, so there is nothing to say about when.
+    hover(6);
+    await waitFor(() => expect(tooltip()).not.toBeNull());
+    await expect(tooltip()!.innerText).not.toContain("@");
+    await expect(tooltip()!.innerText).not.toContain("starts at");
+
+    // A row that starts later says so, in words.
+    hover(6 + 26 * 3);
+    await waitFor(() => expect(tooltip()!.innerText).toContain("starts at"));
+    await expect(tooltip()!.innerText).not.toContain("@");
+  },
+});
+
+/** Drag draws the zoom box — no modifier, because scroll already pans. */
+export const DragZoomsWithoutAModifier = meta.story({
+  name: "(Test) Drag Zooms Without A Modifier",
+  args: { ...READABLE, roots: manySpans(150), onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+    await expect(readout()).toContain("fitted");
+
+    const rect = surface.getBoundingClientRect();
+    const drag = (type: string, x: number, y: number) =>
+      surface.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          buttons: type === "pointerup" ? 0 : 1,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    drag("pointerdown", rect.left + rect.width * 0.3, rect.top + 100);
+    drag("pointermove", rect.left + rect.width * 0.6, rect.top + 240);
+    drag("pointerup", rect.left + rect.width * 0.6, rect.top + 240);
+    await waitFor(() => expect(readout()).toContain("zoomed"));
+  },
+});
+
+/** ...but a finger still pans, because a finger has no scroll wheel. */
+export const AFingerDragStillPans = meta.story({
+  name: "(Test) A Finger Drag Still Pans",
+  args: {
+    ...READABLE,
+    // More rows than the box holds, or there is no window left to pan.
+    roots: manySpans(3000),
+    pointer: "coarse" as const,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const rowsLabel = () =>
+      canvasElement.querySelector<HTMLElement>('[data-testid="dense-rows"]')
+        ?.textContent ?? "";
+
+    const rect = surface.getBoundingClientRect();
+    const before = rowsLabel();
+    const heightBefore =
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="dense-rowheight"]',
+      )?.textContent ?? "";
+    touch(
+      surface,
+      "pointerdown",
+      1,
+      rect.left + rect.width * 0.5,
+      rect.top + 400,
+    );
+    touch(
+      surface,
+      "pointermove",
+      1,
+      rect.left + rect.width * 0.5,
+      rect.top + 120,
+    );
+    touch(
+      surface,
+      "pointerup",
+      1,
+      rect.left + rect.width * 0.5,
+      rect.top + 120,
+    );
+
+    // The window MOVED...
+    await waitFor(() => expect(rowsLabel()).not.toBe(before));
+    // ...and did not resize: a box zoom would have changed the row height.
+    await expect(
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="dense-rowheight"]',
+      )?.textContent,
+    ).toBe(heightBefore);
+  },
+});

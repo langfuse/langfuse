@@ -58,7 +58,8 @@ import {
   type ReactNode,
 } from "react";
 import {
-  Maximize2,
+  Palette,
+  Scan,
   Minus,
   PanelLeftClose,
   PanelLeftOpen,
@@ -70,6 +71,11 @@ import {
   type TooltipPlacement,
 } from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/ui/layer";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
 import {
@@ -120,16 +126,34 @@ const TYPE_COLOR: Record<string, string> = {
   GUARDRAIL: "bg-red-600",
 };
 const FALLBACK_COLOR = "bg-muted-gray";
-/** Neutral mode's bar, and the accent a selected or hovered bar takes. */
+/** Neutral mode's bar, when colour is not carrying type. */
 const NEUTRAL_COLOR = "bg-muted-foreground/60";
-const ACCENT_COLOR = "bg-primary-accent";
-/** Every colour a bar can be — the set whose contrast has to be resolved. */
+/**
+ * Every colour a bar can be — the set whose contrast has to be resolved. The
+ * accent used to be in here, and it was the one tone the picker read as dark
+ * enough for a black label while looking mid-violet to a person.
+ */
 const BAR_COLORS = [
   ...Object.values(TYPE_COLOR),
   FALLBACK_COLOR,
   NEUTRAL_COLOR,
-  ACCENT_COLOR,
 ];
+
+/** What the gestures are, in the order you are likely to reach for them. */
+const GESTURE_HINT =
+  "drag to zoom · scroll to pan · pinch to zoom · double-click to focus";
+
+/**
+ * `GENERATION` → `Generation`. The palette is by observation type, and the type
+ * has to be readable wherever its colour is: nothing in the view said what the
+ * colours meant, so the only way to learn was to ask someone.
+ */
+function typeLabel(type: string): string {
+  return (type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()).replace(
+    /_/g,
+    " ",
+  );
+}
 
 const RAIL_INDENT = 2;
 const RAIL_MAX_DEPTH = 4;
@@ -227,6 +251,13 @@ export type TimelineDenseProps = {
    */
   gutter: GutterMode;
   /**
+   * Ids whose descendants are hidden — the SAME set the tree view collapses
+   * with, so "collapse all" in the header means the same thing in both. The pure
+   * core has always taken it; this view simply never passed it on, so the button
+   * moved the store and nothing here moved.
+   */
+  collapsed?: ReadonlySet<string>;
+  /**
    * Input modality. `fine` peeks the gutter on hover; `coarse` has no hover, so
    * it toggles on a tap of the rail.
    */
@@ -300,6 +331,7 @@ export function TimelineDense({
   roots,
   box,
   gutter,
+  collapsed,
   pointer,
   barColor,
   compress,
@@ -333,7 +365,10 @@ export function TimelineDense({
     setMarquee(next);
   };
 
-  const prepared = useMemo(() => prepareTimeline(roots), [roots]);
+  const prepared = useMemo(
+    () => prepareTimeline(roots, collapsed),
+    [roots, collapsed],
+  );
   // Measured in the font the labels ACTUALLY render in, read off a probe span
   // that carries their own size — `10px ui-sans-serif` is a guess, and the
   // canvas resolves it to a different face than the app's system stack, ~6px
@@ -462,7 +497,6 @@ export function TimelineDense({
     canShowNames && !committedOpen && (peeking || override === "expanded")
       ? wantedGutter
       : 0;
-  const gutterWidth = Math.max(railWidth, peekWidth);
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
@@ -896,11 +930,14 @@ export function TimelineDense({
       lastTap.current = { at: 0, x: 0, y: 0 };
       return;
     }
-    // Shift+drag draws a box to zoom into, which is the one gesture where the
-    // user states the window on BOTH axes — so it goes straight there rather
-    // than picking a level for them. Plain drag keeps panning; a map's primary
-    // gesture should not need a modifier.
-    if (event.shiftKey) {
+    // Drag draws a box to zoom into: the one gesture where the user states the
+    // window on BOTH axes, so it goes straight there rather than picking a level
+    // for them. It needs no modifier — scroll already pans both axes, so drag is
+    // free, and a modifier nobody guesses is not a gesture, it is a footnote.
+    //
+    // Touch is the exception: one finger keeps panning, because a finger has no
+    // scroll wheel to pan with and drawing a box with one is nobody's instinct.
+    if (event.pointerType !== "touch" || event.shiftKey) {
       const rect = event.currentTarget.getBoundingClientRect();
       const point = {
         x: event.clientX - rect.left,
@@ -911,12 +948,14 @@ export function TimelineDense({
       return;
     }
 
+    // Only touch reaches here — everything else drew a box above and returned.
+    //
     // A PRIMARY touch is the first contact of a new gesture, so anything left in
     // the map is stale by definition. Not every release arrives — lift two
     // fingers at once and a `pointerup` can go missing, or land outside the
     // element — and one phantom finger turns the next one-finger drag into a
     // pinch, which showed up as a pan that also zoomed a little.
-    if (event.isPrimary && event.pointerType !== "mouse") {
+    if (event.isPrimary) {
       touches.current.points.clear();
       touches.current.distance = 0;
     }
@@ -1230,6 +1269,17 @@ export function TimelineDense({
     compression.toRealMs(current.time.start + current.time.duration) -
       compression.toRealMs(current.time.start),
   );
+  const windowHint = `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`;
+  // Palette order, not first-seen order: a legend that reshuffles as you scroll
+  // is a legend you have to re-read.
+  const typesPresent = useMemo(() => {
+    const present = new Set(
+      prepared.rows.map((row) => row.node.type).filter(Boolean),
+    );
+    const known = Object.keys(TYPE_COLOR).filter((type) => present.has(type));
+    const unknown = [...present].filter((type) => !(type! in TYPE_COLOR));
+    return [...known, ...unknown] as string[];
+  }, [prepared.rows]);
 
   return (
     <div
@@ -1253,11 +1303,51 @@ export function TimelineDense({
           <Plus className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
-          label="Fit whole trace"
+          label={fitted ? "Whole trace already fits" : "Fit whole trace"}
           onClick={() => flyTo(fitViewport(limits))}
+          disabled={fitted}
         >
-          <Maximize2 className="h-3 w-3" />
+          {/* A viewfinder, not the diagonal arrows this used to wear: those read
+              as "fullscreen", so a control that was merely spent looked broken. */}
+          <Scan className="h-3 w-3" />
         </ToolbarButton>
+        {/* What the colours mean. Only the types this trace actually contains —
+            the full ten-colour palette is a reference card, and the question
+            being answered is "why is THIS one pink". */}
+        {barColor === "type" && typesPresent.length > 0 ? (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label="Colour legend"
+                title="Colour legend"
+                className="hover:bg-muted flex h-4 w-4 shrink-0 items-center justify-center rounded"
+                data-testid="timeline-dense-legend-trigger"
+              >
+                <Palette className="h-3 w-3" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              className="w-auto p-1.5"
+              data-testid="timeline-dense-legend"
+            >
+              <div className="flex flex-col gap-1" style={{ fontSize: "10px" }}>
+                {typesPresent.map((type) => (
+                  <span key={type} className="flex items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-[1px]",
+                        TYPE_COLOR[type] ?? FALLBACK_COLOR,
+                      )}
+                    />
+                    {typeLabel(type)}
+                  </span>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        ) : null}
         {/* Hidden when there is nothing to expand: a control that cannot do
             anything is worse than no control. */}
         {canShowNames ? (
@@ -1275,15 +1365,9 @@ export function TimelineDense({
         <span
           className="text-muted-foreground truncate"
           style={{ fontSize: "10px" }}
-          title={
-            fitted
-              ? "scroll to pan · pinch to zoom · shift-drag a box · double-click to focus"
-              : `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`
-          }
+          title={fitted ? GESTURE_HINT : windowHint}
         >
-          {fitted
-            ? "scroll to pan · pinch to zoom · shift-drag a box · double-click to focus"
-            : `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`}
+          {fitted ? GESTURE_HINT : windowHint}
         </span>
       </div>
 
@@ -1406,12 +1490,13 @@ export function TimelineDense({
             const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
             // One place decides the bar's colour, so the label can ask about the
             // exact class the bar got rather than guessing at it.
-            const barClass =
-              isFocused || isSelected
-                ? ACCENT_COLOR
-                : barColor === "type"
-                  ? typeColor
-                  : NEUTRAL_COLOR;
+            //
+            // Hue carries TYPE and nothing else. Recolouring a focused bar to the
+            // accent meant a hovered generation turned the exact blue that means
+            // SPAN, so the palette contradicted itself precisely when someone was
+            // inspecting a row. Focus is the row's wash (full width, so it reads
+            // at any density) and selection adds a ring — neither touches hue.
+            const barClass = barColor === "type" ? typeColor : NEUTRAL_COLOR;
 
             return (
               <div
@@ -1425,6 +1510,7 @@ export function TimelineDense({
                   }),
                 )}
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
+                data-testid="timeline-dense-row"
                 // A double-click delivers TWO clicks, and selecting is not free:
                 // it captures an analytics event and reopens the detail panel.
                 // The first click of the pair already selected the row, so the
@@ -1468,7 +1554,11 @@ export function TimelineDense({
                     />
                   ) : (
                     <div
-                      className={cn("absolute rounded-[1px]", barClass)}
+                      className={cn(
+                        "absolute rounded-[1px]",
+                        barClass,
+                        isSelected && "ring-foreground/80 ring-1",
+                      )}
                       style={{
                         left: `${node.x}px`,
                         width: `${node.width}px`,
@@ -1616,7 +1706,7 @@ export function TimelineDense({
             measuring itself: the side with room is known from the pointer alone,
             a size is not, and a tooltip that has to be measured before it can be
             placed is a tooltip that renders once in the wrong place. */}
-        {focused && pointerPos && !dragging && pointerPos.x > gutterWidth ? (
+        {focused && pointerPos && !dragging ? (
           <Layer name="tooltip">
             <div
               className="border-border bg-background text-foreground pointer-events-none fixed flex flex-col gap-0.5 rounded border px-1.5 py-1 shadow-md"
@@ -1643,6 +1733,12 @@ export function TimelineDense({
                 <span className="truncate" title={focused.name}>
                   {focused.name}
                 </span>
+                {/* What the colour means, next to the colour. */}
+                {focused.type ? (
+                  <span className="text-muted-foreground shrink-0">
+                    {typeLabel(focused.type)}
+                  </span>
+                ) : null}
               </span>
               <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                 <span>
@@ -1650,7 +1746,12 @@ export function TimelineDense({
                     ? "—"
                     : formatDurationMs(focused.durationMs)}
                 </span>
-                <span>@{formatDurationMs(focused.startMs)}</span>
+                {/* Said in words, and only when it says something: `@0ms` on a
+                    root is both correct and meaningless, and two unlabelled
+                    durations side by side read as one number repeated. */}
+                {focused.startMs > 0 ? (
+                  <span>starts at {formatDurationMs(focused.startMs)}</span>
+                ) : null}
                 {factsOf?.(focused.id).map((fact) => (
                   <span key={fact}>{fact}</span>
                 ))}
@@ -1834,10 +1935,17 @@ function GutterContent({
 function ToolbarButton({
   label,
   onClick,
+  disabled,
   children,
 }: {
   label: string;
   onClick: () => void;
+  /**
+   * A control with nothing to do reads as broken rather than inert — the more so
+   * when its icon suggests something dramatic. Say it instead of hiding it: the
+   * button is a landmark even when it is spent.
+   */
+  disabled?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -1846,7 +1954,8 @@ function ToolbarButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="hover:bg-muted flex h-4 w-4 shrink-0 items-center justify-center rounded"
+      disabled={disabled}
+      className="hover:bg-muted flex h-4 w-4 shrink-0 items-center justify-center rounded disabled:pointer-events-none disabled:opacity-40"
     >
       {children}
     </button>
