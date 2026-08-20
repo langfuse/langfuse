@@ -112,12 +112,6 @@ describe("isCustomerFaultError", () => {
       expect(isCustomerFaultError(wrapped(err))).toBe(true);
     });
 
-    // Mixpanel (and any future integration whose SDK/fetch error surfaces the
-    // status on a plain `.statusCode`, not `$metadata.httpStatusCode`) must
-    // classify through this same generic extractHttpStatus path — no
-    // Mixpanel-specific branch. Red-first control: a bare Error with no status
-    // field at all must NOT classify, so the statusCode-attached case below is
-    // proven to be doing the work rather than passing on message content.
     it("classifies a bare Error with no statusCode as other (control)", () => {
       const err = new Error("Unauthorized");
       expect(isCustomerFaultError(err)).toBe(false);
@@ -291,9 +285,6 @@ describe("classifyCustomerFault — disable reason buckets", () => {
     );
   });
 
-  // Mixpanel's fetch-based client (and any provider reporting status on a
-  // plain `.statusCode`) must classify to "credentials" via this same generic
-  // path, bare and cause-wrapped, with no per-integration branch.
   it("maps a bare .statusCode of 401 to credentials, bare and cause-wrapped", () => {
     const unauthorized = new Error("Unauthorized");
     Object.assign(unauthorized, { statusCode: 401 });

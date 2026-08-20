@@ -1,12 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Unit tests for MixpanelClient's HTTP error handling — the layer where the
-// customer-fault classifier's "no Mixpanel-specific branch" promise actually
-// gets exercised: sendBatch's thrown Error must carry a plain, classifiable
-// shape (a status the shared classifier's extractHttpStatus reads), and must
-// never leak the request's Basic-Auth project token or the raw response body
-// into anything the job's catch block subsequently logs/persists/rethrows.
-
 const { fetchWithSecureRedirects } = vi.hoisted(() => ({
   fetchWithSecureRedirects: vi.fn(),
 }));
@@ -16,10 +9,8 @@ vi.mock("@langfuse/shared/src/server", () => ({
   fetchWithSecureRedirects,
 }));
 
-// Real analyticsIntegrationEgress pulls in validateWebhookURL/whitelistFromEnv
-// from the (mocked-above) server barrel; stub it directly instead so this
-// file only has to model the one seam it exercises (a non-SSRF error is a
-// no-op here, so the original error keeps propagating).
+// Stubbed directly rather than through the real module, which pulls in
+// validateWebhookURL/whitelistFromEnv from the mocked server barrel above.
 vi.mock("../analyticsIntegrationEgress", () => ({
   buildAnalyticsRedirectOptions: () => ({
     maxRedirects: 10,

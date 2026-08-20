@@ -24,9 +24,6 @@ import { env, v4WritesToLegacyTables } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
 
-// Counter for classified customer-config faults on the Mixpanel export job,
-// tagged by `reason`. This PR only observes the fault (metric + log fields);
-// nothing is disabled and the job still throws/retries unconditionally.
 export const MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC =
   "langfuse.mixpanel.integration_customer_fault.count";
 
