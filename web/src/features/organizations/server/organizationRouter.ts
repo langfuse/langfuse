@@ -12,8 +12,11 @@ import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { redis } from "@langfuse/shared/src/server";
-import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
+import {
+  getLastTraceTimestampsByProjects,
+  redis,
+} from "@langfuse/shared/src/server";
+import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripe/stripeBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
@@ -36,6 +39,20 @@ export const organizationsRouter = createTRPCRouter({
         });
       }
       return organization;
+    }),
+  lastTraceByProject: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(async ({ ctx }) => {
+      const organization =
+        ctx.session.user.admin === true
+          ? await buildAdminOrgContext(ctx)
+          : ctx.session.user.organizations.find(
+              (org) => org.id === ctx.session.orgId,
+            );
+
+      return getLastTraceTimestampsByProjects({
+        projectIds: organization?.projects.map((project) => project.id) ?? [],
+      });
     }),
   create: authenticatedProcedure
     .input(organizationNameSchema)
@@ -177,13 +194,13 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       if (
-        (input.aiFeaturesEnabled !== undefined ||
-          input.aiTelemetryEnabled !== undefined) &&
+        input.aiTelemetryEnabled !== undefined &&
         !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       ) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "AI features are not available in self-hosted deployments.",
+          message:
+            "AI telemetry controls are only available on Langfuse Cloud.",
         });
       }
 

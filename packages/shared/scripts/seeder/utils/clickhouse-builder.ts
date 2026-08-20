@@ -245,7 +245,7 @@ export class ClickHouseQueryBuilder {
         -- Spread generations across a realistic model pool (keyed on the stable
         -- per-row hash h4) so model-usage / cost / latency-by-model dashboards
         -- show multiple series instead of a single hardcoded model.
-        if(type = 'GENERATION', arrayElement(['gpt-4o-mini','gpt-3.5-turbo','claude-3-haiku-20240307','gpt-4o','claude-3-5-sonnet-20241022'], 1 + (h4 % 5)), NULL) AS provided_model_name,
+        if(type = 'GENERATION', arrayElement(['gpt-5.4-mini','gpt-5.4-nano','claude-haiku-4-5','gpt-5.4','claude-sonnet-4-5'], 1 + (h4 % 5)), NULL) AS provided_model_name,
         NULL AS internal_model_id,
         if(type = 'GENERATION', '{"temperature": 0.7}', '{}') AS model_parameters,
         if(type = 'GENERATION', map('input', toUInt64(20 + h1 % 181), 'output', toUInt64(10 + h2 % 91), 'total', toUInt64(30 + h1 % 181 + h2 % 91)), map()) AS provided_usage_details,

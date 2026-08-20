@@ -45,14 +45,20 @@ export const useOrganization = (organizationId: string | null) => {
   return null;
 };
 
-export const useLangfuseCloudRegion = (): {
-  isLangfuseCloud: boolean;
-  region: string | undefined;
-} => {
+export const useLangfuseCloudRegion = () => {
+  const region = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? undefined;
+
+  if (!region) {
+    return {
+      isLangfuseCloud: false,
+      region: undefined,
+    } as const;
+  }
+
   return {
-    isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-    region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  };
+    isLangfuseCloud: true,
+    region,
+  } as const;
 };
 
 export const useLangfuseV4WriteMode = () => {

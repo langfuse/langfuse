@@ -13,6 +13,7 @@ CLICKHOUSE_HTTP_PORT="${CLICKHOUSE_HTTP_PORT:-8123}"
 CLICKHOUSE_NATIVE_PORT="${CLICKHOUSE_NATIVE_PORT:-9000}"
 MINIO_API_PORT="${MINIO_API_PORT:-9090}"
 MINIO_CONSOLE_PORT="${MINIO_CONSOLE_PORT:-9091}"
+CLICKHOUSE_VERSION="${CLICKHOUSE_VERSION:-26.4.5.143}"
 
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
@@ -35,6 +36,14 @@ MIGRATE_SHA256_ARM64="${MIGRATE_SHA256_ARM64:-2fea2455c0f3f07cc3f4b98471c951ad1a
 
 export DEBIAN_FRONTEND=noninteractive
 
+run_privileged() {
+  if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+    "$@"
+  else
+    sudo env DEBIAN_FRONTEND="$DEBIAN_FRONTEND" "$@"
+  fi
+}
+
 ensure_apt_package() {
   local package="$1"
 
@@ -43,22 +52,22 @@ ensure_apt_package() {
   fi
 
   if [ -z "${CODEX_APT_UPDATED:-}" ]; then
-    apt-get update
+    run_privileged apt-get update
     CODEX_APT_UPDATED=1
   fi
 
-  apt-get install -y "$package"
+  run_privileged apt-get install -y "$package"
 }
 
 stop_service_if_running() {
   local service_name="$1"
 
   if command -v systemctl >/dev/null 2>&1; then
-    systemctl stop "$service_name" >/dev/null 2>&1 || true
+    run_privileged systemctl stop "$service_name" >/dev/null 2>&1 || true
   fi
 
   if command -v service >/dev/null 2>&1; then
-    service "$service_name" stop >/dev/null 2>&1 || true
+    run_privileged service "$service_name" stop >/dev/null 2>&1 || true
   fi
 }
 
@@ -82,20 +91,30 @@ ensure_clickhouse_repo() {
   local keyring="/etc/apt/keyrings/clickhouse.gpg"
   local source_file="/etc/apt/sources.list.d/clickhouse.list"
 
-  mkdir -p /etc/apt/keyrings
+  run_privileged mkdir -p /etc/apt/keyrings
 
   if [ ! -f "$keyring" ]; then
     curl -fsSL https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
-      | gpg --dearmor -o "$keyring"
+      | gpg --dearmor \
+      | run_privileged tee "$keyring" >/dev/null
   fi
 
   if [ ! -f "$source_file" ]; then
-    echo "deb [signed-by=$keyring] https://packages.clickhouse.com/deb stable main" > "$source_file"
-    apt-get update
+    echo "deb [signed-by=$keyring] https://packages.clickhouse.com/deb stable main" \
+      | run_privileged tee "$source_file" >/dev/null
+    run_privileged apt-get update
   fi
 }
 
 ensure_postgres_binaries() {
+  if [ -n "$(find_postgres_bin initdb)" ] \
+    && [ -n "$(find_postgres_bin pg_ctl)" ] \
+    && [ -n "$(find_postgres_bin psql)" ] \
+    && [ -n "$(find_postgres_bin pg_isready)" ]; then
+    stop_system_postgres_clusters
+    return 0
+  fi
+
   ensure_apt_package postgresql
   ensure_apt_package postgresql-client
   stop_system_postgres_clusters
@@ -107,13 +126,21 @@ ensure_redis_binary() {
 }
 
 ensure_clickhouse_binaries() {
-  if command -v clickhouse-server >/dev/null 2>&1 && command -v clickhouse-client >/dev/null 2>&1; then
+  local installed_version
+  installed_version="$(dpkg-query -W -f='${Version}' clickhouse-server 2>/dev/null || true)"
+
+  if [ "$installed_version" = "$CLICKHOUSE_VERSION" ] \
+    && command -v clickhouse-server >/dev/null 2>&1 \
+    && command -v clickhouse-client >/dev/null 2>&1; then
     stop_service_if_running clickhouse-server
     return 0
   fi
 
   ensure_clickhouse_repo
-  apt-get install -y clickhouse-server clickhouse-client
+  run_privileged apt-get install --allow-downgrades -y \
+    "clickhouse-common-static=$CLICKHOUSE_VERSION" \
+    "clickhouse-client=$CLICKHOUSE_VERSION" \
+    "clickhouse-server=$CLICKHOUSE_VERSION"
   stop_service_if_running clickhouse-server
 }
 
@@ -163,7 +190,7 @@ ensure_migrate_binary() {
     "$tmp_dir/migrate.tar.gz" \
     "$migrate_sha256"
   tar -xzf "$tmp_dir/migrate.tar.gz" -C "$tmp_dir" migrate
-  install -m 0755 "$tmp_dir/migrate" /usr/local/bin/migrate
+  run_privileged install -m 0755 "$tmp_dir/migrate" /usr/local/bin/migrate
 }
 
 detect_minio_arch() {
@@ -307,7 +334,9 @@ escape_redis_config_string() {
 }
 
 ensure_postgres_running() {
-  ensure_postgres_binaries
+  if [ "${CODEX_SKIP_CLOUD_INSTALL:-}" != "1" ]; then
+    ensure_postgres_binaries
+  fi
 
   local initdb
   local pg_ctl
@@ -367,7 +396,9 @@ SQL
 }
 
 ensure_redis_running() {
-  ensure_redis_binary
+  if [ "${CODEX_SKIP_CLOUD_INSTALL:-}" != "1" ]; then
+    ensure_redis_binary
+  fi
 
   local redis_root="$CODEX_SERVICES_ROOT/redis"
   local redis_conf="$redis_root/redis.conf"
@@ -404,7 +435,9 @@ CONF
 }
 
 ensure_clickhouse_running() {
-  ensure_clickhouse_binaries
+  if [ "${CODEX_SKIP_CLOUD_INSTALL:-}" != "1" ]; then
+    ensure_clickhouse_binaries
+  fi
 
   local clickhouse_root="$CODEX_SERVICES_ROOT/clickhouse"
   local clickhouse_data="$clickhouse_root/data"
@@ -414,9 +447,15 @@ ensure_clickhouse_running() {
   local -a clickhouse_runner
 
   mkdir -p "$clickhouse_data"
-  if [ "${EUID:-$(id -u)}" -eq 0 ] && id -u clickhouse >/dev/null 2>&1; then
-    chown -R clickhouse:clickhouse "$clickhouse_root"
-    clickhouse_runner=(runuser -u clickhouse --)
+  if id -u clickhouse >/dev/null 2>&1; then
+    if [ "${CODEX_SKIP_CLOUD_INSTALL:-}" != "1" ]; then
+      run_privileged chown -R clickhouse:clickhouse "$clickhouse_root"
+    fi
+    if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+      clickhouse_runner=(runuser -u clickhouse --)
+    else
+      clickhouse_runner=(sudo -u clickhouse --)
+    fi
   else
     clickhouse_runner=()
   fi
@@ -430,6 +469,7 @@ ensure_clickhouse_running() {
       --errorlog-file="$clickhouse_err" \
       -- \
       --path="$clickhouse_data" \
+      --access_control_path="$clickhouse_data/access" \
       --http_port="$CLICKHOUSE_HTTP_PORT" \
       --tcp_port="$CLICKHOUSE_NATIVE_PORT"
   fi
@@ -451,7 +491,11 @@ ensure_clickhouse_running() {
 }
 
 ensure_minio_running() {
-  ensure_minio_binaries
+  if [ "${CODEX_SKIP_CLOUD_INSTALL:-}" != "1" ]; then
+    ensure_minio_binaries
+  else
+    export PATH="$CODEX_SERVICES_ROOT/bin:$PATH"
+  fi
 
   local minio_root="$CODEX_SERVICES_ROOT/minio"
   local minio_data="$minio_root/data"
@@ -517,4 +561,35 @@ ensure_cloud_dependencies() {
   echo "- Redis on 127.0.0.1:$REDIS_PORT"
   echo "- ClickHouse HTTP on 127.0.0.1:$CLICKHOUSE_HTTP_PORT, native on 127.0.0.1:$CLICKHOUSE_NATIVE_PORT"
   echo "- MinIO API on 127.0.0.1:$MINIO_API_PORT, console on 127.0.0.1:$MINIO_CONSOLE_PORT"
+}
+
+resume_cloud_dependencies() {
+  local required_command
+  local missing_command="false"
+
+  export PATH="$CODEX_SERVICES_ROOT/bin:$PATH"
+
+  for required_command in initdb pg_ctl psql pg_isready redis-server clickhouse-server clickhouse-client minio mc migrate; do
+    if [ "$required_command" = "initdb" ] || [ "$required_command" = "pg_ctl" ] || [ "$required_command" = "psql" ] || [ "$required_command" = "pg_isready" ]; then
+      if [ -z "$(find_postgres_bin "$required_command")" ]; then
+        echo "Missing required command: $required_command" >&2
+        missing_command="true"
+      fi
+    elif ! command -v "$required_command" >/dev/null 2>&1; then
+      echo "Missing required command: $required_command" >&2
+      missing_command="true"
+    fi
+  done
+
+  if [ "$missing_command" = "true" ]; then
+    echo "Run .agents/setup to install missing cloud dependencies." >&2
+    return 1
+  fi
+
+  CODEX_SKIP_CLOUD_INSTALL=1 ensure_postgres_running
+  CODEX_SKIP_CLOUD_INSTALL=1 ensure_redis_running
+  CODEX_SKIP_CLOUD_INSTALL=1 ensure_clickhouse_running
+  CODEX_SKIP_CLOUD_INSTALL=1 ensure_minio_running
+
+  echo "Cloud dependencies are running."
 }

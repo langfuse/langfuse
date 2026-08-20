@@ -40,6 +40,91 @@ const OpenAIInputMessagesSchema = z
     { message: "Messages with top-level parts are not OpenAI format" },
   );
 
+// Role-less Responses input item types. normalizeMessage converts the common
+// conversation items and preserves built-in tool items as JSON passthrough.
+// Reference: https://platform.openai.com/docs/api-reference/responses/create
+const RESPONSES_ITEM_TYPES = new Set([
+  "reasoning",
+  "function_call",
+  "tool_call",
+  "function_call_output",
+  "file_search_call",
+  "computer_call",
+  "computer_call_output",
+  "web_search_call",
+  "code_interpreter_call",
+  "image_generation_call",
+  "local_shell_call",
+  "local_shell_call_output",
+  "shell_call",
+  "shell_call_output",
+  "apply_patch_call",
+  "apply_patch_call_output",
+  "mcp_list_tools",
+  "mcp_approval_request",
+  "mcp_approval_response",
+  "mcp_call",
+  "custom_tool_call",
+  "custom_tool_call_output",
+  "tool_search_call",
+  "tool_search_output",
+  "compaction",
+  "item_reference",
+]);
+
+/**
+ * Check that a Responses API request `input` array holds role-based messages
+ * or typed Responses items normalizeMessage converts or preserves. Rejects string items
+ * (embeddings-style input) and messages with top-level parts (Microsoft
+ * Agent/Gemini format).
+ */
+function isResponsesApiInputArray(value: unknown): value is unknown[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => {
+      if (!item || typeof item !== "object") return false;
+      const msg = item as Record<string, unknown>;
+      if (Array.isArray(msg.parts)) return false;
+      if (typeof msg.role === "string") return true;
+      return typeof msg.type === "string" && RESPONSES_ITEM_TYPES.has(msg.type);
+    })
+  );
+}
+
+// Bare {input: "..."} is too generic to claim; a string input needs a
+// distinctive Responses API request sibling.
+const RESPONSES_REQUEST_SIBLINGS = [
+  "tools",
+  "tool_choice",
+  "parallel_tool_calls",
+  "instructions",
+];
+
+/**
+ * Responses API request: {input: [...] | "...", tools?, instructions?, ...}
+ * Shared by detect() and preprocessData so detection cannot drift from what
+ * preprocessing consumes. Also used by extractAdditionalInput to hide `input`
+ * from additional input only when it holds the conversation.
+ */
+export function isOpenAIResponsesRequest(
+  data: unknown,
+): data is Record<string, unknown> {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  if ("messages" in data || "output" in data) return false;
+  const obj = data as Record<string, unknown>;
+  if (isResponsesApiInputArray(obj.input)) return true;
+  return (
+    typeof obj.input === "string" &&
+    obj.input.length > 0 &&
+    RESPONSES_REQUEST_SIBLINGS.some((key) => key in obj)
+  );
+}
+
+const OpenAIInputResponsesSchema = z.custom<Record<string, unknown>>(
+  isOpenAIResponsesRequest,
+);
+
 // OUTPUT SCHEMAS (responses)
 const OpenAIOutputResponsesSchema = z.looseObject({
   output: z.array(z.any()),
@@ -68,7 +153,8 @@ const OpenAIOutputSingleMessageSchema = z.looseObject({
  * Format: { type: "reasoning", content: [...], summary: [...] }
  */
 function extractReasoningContent(item: Record<string, unknown>): {
-  thinking: Array<{ type: "thinking"; content: string; summary?: string }>;
+  thinking?: Array<{ type: "thinking"; content: string; summary?: string }>;
+  redacted_thinking?: Array<{ type: "redacted_thinking"; data: string }>;
 } | null {
   if (item.type !== "reasoning") return null;
 
@@ -99,7 +185,19 @@ function extractReasoningContent(item: Record<string, unknown>): {
     .filter(Boolean)
     .join("\n");
 
-  if (!contentText && !summaryText) return null;
+  if (!contentText && !summaryText) {
+    return typeof item.encrypted_content === "string" &&
+      item.encrypted_content !== ""
+      ? {
+          redacted_thinking: [
+            {
+              type: "redacted_thinking",
+              data: item.encrypted_content,
+            },
+          ],
+        }
+      : null;
+  }
 
   return {
     thinking: [
@@ -286,6 +384,17 @@ function flattenToolDefinition(tool: unknown): Record<string, unknown> {
   return toolDef;
 }
 
+function normalizeMessagesWithTools(
+  messages: unknown[],
+  tools: unknown[],
+): Array<Record<string, unknown>> {
+  const normalizedTools = tools.map(flattenToolDefinition);
+  return messages.map((message) => ({
+    ...normalizeMessage(message),
+    tools: normalizedTools,
+  }));
+}
+
 function preprocessData(data: unknown): unknown {
   if (!data) return data;
 
@@ -304,10 +413,7 @@ function preprocessData(data: unknown): unknown {
 
     if (Array.isArray(messagesArray) && Array.isArray(obj.tools)) {
       // Attach tools to all messages
-      return messagesArray.map((msg) => ({
-        ...normalizeMessage(msg),
-        tools: (obj.tools as unknown[]).map(flattenToolDefinition),
-      }));
+      return normalizeMessagesWithTools(messagesArray, obj.tools);
     }
   }
 
@@ -323,6 +429,26 @@ function preprocessData(data: unknown): unknown {
     if (Array.isArray(obj.output)) {
       return (obj.output as unknown[]).map(normalizeMessage);
     }
+  }
+
+  // Responses API request: {input: [...] | "...", tools?, instructions?, ...}
+  // Reference: https://platform.openai.com/docs/api-reference/responses/create
+  if (isOpenAIResponsesRequest(data)) {
+    const items =
+      typeof data.input === "string"
+        ? [{ role: "user", content: data.input }]
+        : (data.input as unknown[]);
+    const messages =
+      typeof data.instructions === "string" && data.instructions !== ""
+        ? (
+            [{ role: "system", content: data.instructions }] as unknown[]
+          ).concat(items)
+        : items;
+    if (Array.isArray(data.tools)) {
+      // Attach tools to all messages
+      return normalizeMessagesWithTools(messages, data.tools);
+    }
+    return messages.map(normalizeMessage);
   }
 
   // Chat Completions response: {choices: [{message: {...}}]}
@@ -482,6 +608,7 @@ export const openAIAdapter: ProviderAdapter = {
     if (OpenAIInputChatCompletionsSchema.safeParse(ctx.metadata).success)
       return true;
     if (OpenAIInputMessagesSchema.safeParse(ctx.metadata).success) return true;
+    if (OpenAIInputResponsesSchema.safeParse(ctx.metadata).success) return true;
     if (OpenAIOutputResponsesSchema.safeParse(ctx.metadata).success)
       return true;
     if (OpenAIOutputChoicesSchema.safeParse(ctx.metadata).success) return true;
@@ -493,6 +620,7 @@ export const openAIAdapter: ProviderAdapter = {
     if (OpenAIInputChatCompletionsSchema.safeParse(ctx.data).success)
       return true;
     if (OpenAIInputMessagesSchema.safeParse(ctx.data).success) return true;
+    if (OpenAIInputResponsesSchema.safeParse(ctx.data).success) return true;
     if (OpenAIOutputResponsesSchema.safeParse(ctx.data).success) return true;
     if (OpenAIOutputChoicesSchema.safeParse(ctx.data).success) return true;
     if (OpenAIOutputSingleMessageSchema.safeParse(ctx.data).success)
@@ -507,5 +635,13 @@ export const openAIAdapter: ProviderAdapter = {
     _ctx: NormalizerContext,
   ): unknown {
     return preprocessData(data);
+  },
+
+  getConsumedInputKeys(data: unknown): string[] {
+    if (!isOpenAIResponsesRequest(data)) return [];
+
+    return typeof data.instructions === "string" && data.instructions !== ""
+      ? ["input", "instructions"]
+      : ["input"];
   },
 };

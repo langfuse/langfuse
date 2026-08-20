@@ -4,11 +4,10 @@ import {
   buildWidgetOrderBy,
   getResultUnit,
   isV2BreakdownChart,
-  requiresV2,
+  resolveWidgetRenderVersion,
   toQueryChartConfig,
   validateQuery,
   type QueryType,
-  type ViewVersion,
   type metricAggregations,
   type views,
 } from "@langfuse/shared/query";
@@ -43,6 +42,7 @@ import {
 } from "@/src/features/widgets/utils/import-export-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
 import { isPasteablePlacementPayload } from "@/src/features/dashboard/utils/dashboard-import-export";
 import {
   DropdownMenu,
@@ -137,21 +137,18 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
-  const widgetRequiresV2 = requiresV2({
-    view: widget.data?.view ?? "traces",
-    dimensions: widget.data?.dimensions ?? [],
-    measures:
-      widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
-    filters: widget.data?.filters ?? [],
+  const metricsVersion = resolveWidgetRenderVersion({
+    shape: {
+      view: widget.data?.view ?? "traces",
+      dimensions: widget.data?.dimensions ?? [],
+      measures:
+        widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ??
+        [],
+      filters: widget.data?.filters ?? [],
+    },
+    persistedMinVersion: widget.data?.minVersion,
+    newestReadableVersion: isBetaEnabled ? "v2" : "v1",
   });
-  // If widget requires v2 features (minVersion >= 2), must use v2.
-  // Otherwise follow the beta toggle.
-  const metricsVersion: ViewVersion =
-    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
-      ? "v2"
-      : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
-        ? "v2"
-        : "v1";
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",
@@ -273,6 +270,12 @@ export function DashboardWidget({
         : ({ valid: true } as const),
     [widgetQuery, metricsVersion, widget.data],
   );
+  useCaptureWidgetHighCardinalityError({
+    validation: queryValidation,
+    surface: "dashboard_tile",
+    chartType: widget.data?.chartType,
+    isV4: metricsVersion === "v2",
+  });
   const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
@@ -492,8 +495,9 @@ export function DashboardWidget({
       view as z.infer<typeof views>,
       mergedFilters,
       dateRange,
+      isBetaEnabled ? "v4" : "v3",
     );
-  }, [projectId, widget.data, filterState, dateRange]);
+  }, [projectId, widget.data, filterState, dateRange, isBetaEnabled]);
 
   const handleViewAsTable = () => {
     if (!tableView) return;

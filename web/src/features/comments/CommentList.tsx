@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import {
   Avatar,
   AvatarFallback,
@@ -538,7 +539,7 @@ export function CommentList({
                 )}
                 {!searchQuery && (
                   <KeyboardShortcut
-                    className="absolute top-1/2 right-1 hidden -translate-y-1/2 opacity-50 sm:inline-flex"
+                    className="absolute top-1/2 right-1 -translate-y-1/2 opacity-50"
                     keys={
                       typeof navigator !== "undefined" &&
                       navigator.userAgent.includes("Macintosh")

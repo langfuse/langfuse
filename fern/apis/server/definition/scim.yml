@@ -63,8 +63,17 @@ service:
               docs: Whether the user is active
               type: optional<boolean>
             password:
-              docs: Initial password for the user
+              docs: >-
+                Ignored. Accepted only for compatibility with identity
+                providers that always send a password on user creation (Okta
+                sends a placeholder value even when password sync is disabled).
+                No credential is created for the user; provisioned users
+                authenticate via SSO or set a password themselves through the
+                password reset flow.
               type: optional<string>
+              availability:
+                status: deprecated
+                message: "This attribute is ignored. SCIM provisioning never sets a password; provisioned users authenticate via SSO or the password reset flow."
       response: ScimUser
 
     getUser:

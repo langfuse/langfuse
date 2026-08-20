@@ -20,6 +20,7 @@ import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCl
 import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -41,6 +42,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
+  const showV4Migration = useV4UpgradeUiFlag();
 
   if (!organization) return [];
 
@@ -50,6 +52,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showOrgApiKeySettings,
     showAuditLogs,
     isLangfuseCloud,
+    showV4Migration,
   });
 }
 
@@ -59,12 +62,14 @@ export const getOrganizationSettingsPages = ({
   showOrgApiKeySettings,
   showAuditLogs,
   isLangfuseCloud,
+  showV4Migration,
 }: {
   organization: { id: string; name: string; metadata: Record<string, unknown> };
   showBillingSettings: boolean;
   showOrgApiKeySettings: boolean;
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
+  showV4Migration: boolean;
 }): OrganizationSettingsPage[] => [
   {
     title: "General",
@@ -163,6 +168,12 @@ export const getOrganizationSettingsPages = ({
     title: "Projects",
     slug: "projects",
     href: `/organization/${organization.id}`,
+  },
+  {
+    title: "v4 Migration",
+    slug: "v4-migration",
+    href: "/v4-migration",
+    show: showV4Migration,
   },
 ];
 

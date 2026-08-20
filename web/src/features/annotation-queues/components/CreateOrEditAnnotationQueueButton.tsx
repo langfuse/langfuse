@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -240,7 +241,6 @@ export const CreateOrEditAnnotationQueueButton = ({
     <ActionButton
       variant={variant}
       onClick={() => setIsOpen(true)}
-      className="justify-start"
       icon={
         queueId ? (
           <Edit className="h-4 w-4" aria-hidden="true" />
@@ -249,8 +249,11 @@ export const CreateOrEditAnnotationQueueButton = ({
         )
       }
       hasAccess={hasQueueAccess}
-      limitValue={queueCountData.data}
-      limit={queueLimit}
+      usageLimit={
+        typeof queueLimit === "number"
+          ? { current: queueCountData.data, max: queueLimit }
+          : undefined
+      }
       size={size}
     >
       <span className="ml-1 text-sm font-normal">

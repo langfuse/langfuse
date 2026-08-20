@@ -13,6 +13,15 @@ function escapeQuoted(value: string): string {
 }
 
 /**
+ * Always wrap `value` in double quotes (escaping inner quotes/backslashes) —
+ * the force-quote used when a bare token would re-lex as something other than
+ * literal text (a reserved keyword, a leading operator, or a field name).
+ */
+export function quote(value: string): string {
+  return `"${escapeQuoted(value)}"`;
+}
+
+/**
  * Quote `value` iff it contains grammar chars, so it re-lexes as a single
  * token. Used for dot-path key segments (`scores."Rouge Score"`) and is the
  * same quoting `serializeValue` applies to values.

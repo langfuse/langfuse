@@ -92,7 +92,6 @@ web/test-results/*
 .claude/skills/
 .claude/launch.json
 .cursor/mcp.json
-.cursor/environment.json
 .vscode/mcp.json
 .codex/config.toml
 .codex/environments/environment.toml

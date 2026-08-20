@@ -1,5 +1,6 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
 import * as z from "zod";
@@ -129,9 +130,7 @@ export function CreateProjectMemberButton(props: {
         form.reset();
         setOpen(false);
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportTrpcErrorWithoutToast(error, "members"));
   }
 
   return (
@@ -142,8 +141,14 @@ export function CreateProjectMemberButton(props: {
             variant="secondary"
             loading={mutCreateProjectMember.isPending}
             hasAccess={hasOrgAccess || hasOnlySingleProjectAccess}
-            limit={orgMemberLimit}
-            limitValue={(orgMemberCount ?? 0) + (inviteCount ?? 0)}
+            usageLimit={
+              typeof orgMemberLimit === "number"
+                ? {
+                    current: (orgMemberCount ?? 0) + (inviteCount ?? 0),
+                    max: orgMemberLimit,
+                  }
+                : undefined
+            }
             icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
           >
             {hasOnlySingleProjectAccess

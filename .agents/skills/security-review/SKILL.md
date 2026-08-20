@@ -1,6 +1,6 @@
 ---
 name: security-review
-description: Security review patterns for Langfuse. Use during code review, design, or planning whenever a change accepts user-supplied URLs, host/endpoint/baseURL fields, secrets, cross-tenant data, new outbound HTTP requests, new integrations (webhooks, blob storage, LLM connections, image proxies), redirect-following behavior, or new auth/permission scopes. Covers SSRF/outbound URL validation today and is intentionally extensible to other recurring security findings (tenant isolation, secret handling, redirect mishandling, file upload, RBAC scope drift).
+description: Review Langfuse changes for SSRF, tenant isolation, secret handling, unsafe redirects or uploads, and RBAC drift. Use when a design or change accepts URLs or host fields, handles secrets or cross-tenant data, makes outbound requests, adds an integration, follows redirects, or widens permissions.
 ---
 
 # Security Review
@@ -38,6 +38,7 @@ correct validation surfaces land in the plan, not in a follow-up CVE.
 | Topic | Open when | File |
 | --- | --- | --- |
 | SSRF and outbound URL validation | The change accepts or fetches a user-supplied URL, host, or endpoint | [references/outbound-url-validation.md](references/outbound-url-validation.md) |
+| Secret read paths | The change shapes what a read route returns for an entity or config blob that also stores a credential | [references/secret-read-paths.md](references/secret-read-paths.md) |
 
 The catalog is intentionally short today. New topic files are added as new
 finding classes recur (see "Extending This Skill").
@@ -83,7 +84,6 @@ pointing at the new topic file, and add a row to the table above.
 Candidates for future references (do not add until a real finding recurs):
 
 - Tenant isolation (`projectId` filters across Prisma and ClickHouse)
-- Secret handling and encryption-at-rest read paths
 - Redirect mishandling and sensitive-header propagation
 - File upload validation and content-type sniffing
 - RBAC scope drift on new tRPC/public API endpoints

@@ -1,11 +1,6 @@
 ---
 name: code-review
-description: |
-  Shared code review workflow for Langfuse. Use when reviewing a PR, branch, diff,
-  or local changes for correctness, regressions, risk, and missing tests.
-  Start with references/review-checklist.md for repo-specific review rules and
-  use package AGENTS.md files plus any matching shared skills when the change
-  touches those areas.
+description: Review Langfuse code changes for correctness, regressions, and best practices.
 ---
 
 # Code Review
@@ -38,6 +33,10 @@ Focus on:
 - security and tenant-isolation risks
 - performance issues with real impact
 - missing or weak tests for risky changes
+- Before calling coverage missing, identify the unique regression each proposed
+  test catches. Prefer merging into the closest existing suite. Flag repeated
+  tests of the same predicate across layers unless each proves a distinct
+  transport, projection, or execution boundary.
 
 ## Output Expectations
 

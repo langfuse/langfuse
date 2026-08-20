@@ -100,6 +100,7 @@ describe("chatCompletionHandler", () => {
       model: { adapter: "openai", id: "gpt-4.1" },
       connection: { secretKey: "encrypted-key" },
       messages: [{ role: "user", content: "Hello" }],
+      timeout: 95_000,
     });
   });
 
@@ -213,6 +214,11 @@ describe("chatCompletionHandler", () => {
       "text/plain; charset=utf-8",
     );
     expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.stream).toHaveBeenCalledWith({
+      model: { adapter: "openai", id: "gpt-4.1" },
+      connection: { secretKey: "encrypted-key" },
+      messages: [{ role: "user", content: "Hello" }],
+    });
   });
 
   it("preserves terminal LLM configuration status codes", async () => {

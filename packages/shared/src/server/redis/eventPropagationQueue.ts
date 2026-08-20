@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 
 export class EventPropagationQueue {
@@ -43,17 +44,11 @@ export class EventPropagationQueue {
       });
 
       logger.debug("Scheduling jobs for EventPropagationQueue");
-      EventPropagationQueue.instance
-        .add(
-          QueueJobs.EventPropagationJob,
-          { timestamp: new Date() },
-          {
-            repeat: { pattern: "* * * * *" }, // every minute
-          },
-        )
-        .catch((err) => {
-          logger.error("Error adding EventPropagationQueue schedule", err);
-        });
+      scheduleRecurringJob(EventPropagationQueue.instance, {
+        jobName: QueueJobs.EventPropagationJob,
+        pattern: "* * * * *", // every minute
+        data: { timestamp: new Date() },
+      });
     }
 
     return EventPropagationQueue.instance;

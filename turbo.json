@@ -4,7 +4,8 @@
   "globalDependencies": [".env"],
   "globalEnv": [
     "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
-    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF"
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF",
+    "NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF"
   ],
   "envMode": "loose",
   "tasks": {
@@ -13,6 +14,13 @@
       // NEXT_IGNORE_BUILD_ERRORS toggles the Next.js type check, so builds
       // with and without it must not share a cache entry — a cached
       // unchecked build would otherwise replay as a "type-checked" one.
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "cache": true,
+      "outputLogs": "errors-only"
+    },
+    "build:test": {
+      "dependsOn": ["db:generate", "^build"],
       "env": ["NEXT_IGNORE_BUILD_ERRORS"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "cache": true,
@@ -110,6 +118,14 @@
       "outputs": [".local-image-built"],
       "cache": true,
       "outputLogs": "errors-only"
+    },
+    "@repo/in-app-agent-sandbox-runtime#test": {
+      "dependsOn": [],
+      "cache": true
+    },
+    "@repo/in-app-agent-sandbox-runtime#test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false
     },
     "worker#dev": {
       "cache": false,

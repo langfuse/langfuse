@@ -11,6 +11,7 @@ export default withMiddlewares({
     name: "Get annotation queue by ID",
     querySchema: GetAnnotationQueueByIdQuery,
     responseSchema: GetAnnotationQueueByIdResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, auth }) =>
       await getAnnotationQueueForApi({
         projectId: auth.scope.projectId,

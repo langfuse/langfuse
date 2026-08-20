@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo } from "react";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";

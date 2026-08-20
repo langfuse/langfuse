@@ -1,16 +1,14 @@
 import { ActionButton } from "@/src/components/ActionButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Zap } from "lucide-react";
-import { type ButtonProps } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
-export const AutomationButton = ({
-  projectId,
-  ...buttonProps
-}: {
+type AutomationButtonProps = {
   projectId: string;
-} & ButtonProps) => {
+};
+
+export const AutomationButton = ({ projectId }: AutomationButtonProps) => {
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "automations:read",
@@ -37,7 +35,6 @@ export const AutomationButton = ({
       hasAccess={hasAccess}
       title="Automations"
       variant="outline"
-      {...buttonProps}
     >
       <span className="hidden md:ml-1 md:inline">
         Automations

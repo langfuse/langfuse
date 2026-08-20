@@ -4,6 +4,7 @@ import { env } from "../../env";
 const CUSTOM_EMAIL_CLAIM = env.LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM;
 const CUSTOM_NAME_CLAIM = env.LANGFUSE_CUSTOM_SSO_NAME_CLAIM;
 const CUSTOM_SUB_CLAIM = env.LANGFUSE_CUSTOM_SSO_SUB_CLAIM;
+const CUSTOM_IMAGE_CLAIM = env.LANGFUSE_CUSTOM_SSO_IMAGE_CLAIM;
 
 interface CustomSSOUser extends Record<string, any> {
   email: string;
@@ -23,11 +24,12 @@ export function CustomSSOProvider<P extends CustomSSOUser>(
     authorization: { params: { scope: "openid email profile" } }, // overridden by options.authorization to be able to set custom scopes, deep merged with this default
     checks: ["pkce", "state"],
     profile(profile) {
+      const image = profile[CUSTOM_IMAGE_CLAIM];
       return {
         id: profile[CUSTOM_SUB_CLAIM],
         name: profile[CUSTOM_NAME_CLAIM],
         email: profile[CUSTOM_EMAIL_CLAIM],
-        image: null,
+        image: typeof image === "string" && image.length > 0 ? image : null,
       };
     },
     options,

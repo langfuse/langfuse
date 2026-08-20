@@ -18,13 +18,28 @@ vi.mock("../queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: mockShouldSkipObservationsFinal,
 }));
 
-import { getTracesCountForPublicApi } from "./traces";
+import {
+  generateTracesForPublicApi,
+  getTracesCountForPublicApi,
+} from "./traces";
 import {
   FilterList,
+  NumberObjectFilter,
   StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 
-describe("getTracesCountForPublicApi — FINAL modifier", () => {
+const makeScoreFilter = () =>
+  new FilterList([
+    new NumberObjectFilter({
+      clickhouseTable: "scores",
+      field: "s.scores_avg",
+      key: "quality",
+      operator: ">",
+      value: 0.5,
+    }),
+  ]);
+
+describe("public trace query construction", () => {
   beforeEach(() => {
     charCounter = 0;
     vi.clearAllMocks();
@@ -81,5 +96,28 @@ describe("getTracesCountForPublicApi — FINAL modifier", () => {
     expect(mockQueryClickhouse).toHaveBeenCalledOnce();
     const { query } = mockQueryClickhouse.mock.calls[0][0];
     expect(query).toMatch(/FROM\s+traces\s+t\s+FINAL/);
+  });
+
+  it("pushes score names down for filter-only count queries", async () => {
+    await getTracesCountForPublicApi({
+      projectId: "proj-1",
+      filter: makeScoreFilter(),
+    });
+
+    const { query, params } = mockQueryClickhouse.mock.calls[0][0];
+    expect(query).toContain("name IN ({");
+    expect(Object.values(params)).toContainEqual(["quality"]);
+  });
+
+  it("keeps all score ids when scores are selected", async () => {
+    await generateTracesForPublicApi({
+      projectId: "proj-1",
+      filter: makeScoreFilter(),
+      orderBy: null,
+      fields: ["core", "scores"],
+    });
+
+    const { query } = mockQueryClickhouse.mock.calls[0][0];
+    expect(query).not.toContain("name IN ({");
   });
 });

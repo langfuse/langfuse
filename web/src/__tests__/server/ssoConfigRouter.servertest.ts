@@ -2,6 +2,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { Role } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
@@ -12,7 +13,7 @@ const fetchMock = vi.fn<typeof fetch>();
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
-  mockDiscoveryOk("https://example.okta.com");
+  mockDiscoveryOk("https://example.com");
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -133,7 +134,7 @@ const samplePayload = (domain: string) => ({
   authConfig: {
     clientId: "client-123",
     clientSecret: "super-secret-value",
-    issuer: "https://example.okta.com",
+    issuer: "https://example.com",
     allowDangerousEmailAccountLinking: false,
   },
 });
@@ -145,7 +146,7 @@ const sampleCustomPayload = (domain: string, idToken: boolean) => ({
     name: "Custom OIDC",
     clientId: "client-123",
     clientSecret: "super-secret-value",
-    issuer: "https://example.okta.com",
+    issuer: "https://example.com",
     idToken,
     allowDangerousEmailAccountLinking: false,
   },
@@ -206,7 +207,7 @@ describe("ssoConfigRouter.save", () => {
             name: "",
             clientId: "client-123",
             clientSecret: "super-secret",
-            issuer: "https://example.okta.com",
+            issuer: "https://example.com",
             allowDangerousEmailAccountLinking: false,
           },
         },
@@ -377,7 +378,7 @@ describe("ssoConfigRouter.save", () => {
         authConfig: {
           clientId: "old-client",
           clientSecret: encrypt("old-secret"),
-          issuer: "https://example.okta.com",
+          issuer: "https://example.com",
           tokenEndpointAuthMethod: "private_key_jwt",
           idTokenSignedResponseAlg: "RS256",
         },
@@ -507,7 +508,7 @@ describe("ssoConfigRouter.get", () => {
     const cfg = row.authConfig as Record<string, unknown>;
     expect(cfg.clientId).toBe("client-123");
     expect(cfg.clientSecret).toBe(undefined);
-    expect(cfg.issuer).toBe("https://example.okta.com");
+    expect(cfg.issuer).toBe("https://example.com");
   });
 
   it("does not return rows for unverified domains", async () => {
@@ -531,7 +532,7 @@ describe("ssoConfigRouter.get", () => {
         authConfig: {
           clientId: "x",
           clientSecret: "y",
-          issuer: "https://x.okta.com",
+          issuer: "https://x.example.com",
         },
       },
     });
@@ -627,7 +628,7 @@ describe("ssoConfigRouter.delete", () => {
         authConfig: {
           clientId: "x",
           clientSecret: "y",
-          issuer: "https://x.okta.com",
+          issuer: "https://x.example.com",
         },
       },
     });
@@ -694,15 +695,41 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     const domain = `discovery-redirect-${uuidv4().slice(0, 8)}.com`;
     await addVerifiedDomain(org.id, domain);
 
-    // `redirect: "error"` means a 3xx surfaces as a fetch rejection. Real
-    // IdPs serve `.well-known/openid-configuration` with a 200 directly per
-    // OIDC Discovery §4; a redirect is a sign that the configured issuer is
-    // either misconfigured or trying to bounce us at an internal endpoint.
-    fetchMock.mockRejectedValueOnce(new TypeError("redirect not allowed"));
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: "https://169.254.169.254/" },
+      }),
+    );
 
     await expect(
       caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it.each([
+    ["loopback literal", "https://127.0.0.1"],
+    ["IPv6 loopback literal", "https://[::1]"],
+    ["cloud metadata literal", "https://169.254.169.254"],
+    ["RFC1918 literal", "https://10.0.0.1"],
+    ["localhost", "https://localhost"],
+    ["embedded URL credentials", "https://user:pass@example.com"],
+  ])("rejects an internal discovery target: %s", async (_label, issuer) => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-ssrf-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+
+    const payload = samplePayload(domain);
+    await expect(
+      caller.ssoConfig.save({
+        orgId: org.id,
+        payload: { ...payload, authConfig: { ...payload.authConfig, issuer } },
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+    expect(row).toBeNull();
   });
 
   it("rejects when the discovery body is not valid JSON", async () => {
@@ -721,12 +748,56 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     const domain = `discovery-missing-${uuidv4().slice(0, 8)}.com`;
     await addVerifiedDomain(org.id, domain);
     fetchMock.mockResolvedValueOnce(
-      discoveryResponse({ issuer: "https://example.okta.com" }),
+      discoveryResponse({ issuer: "https://example.com" }),
     );
 
     await expect(
       caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("rejects when the discovery doc points a server-fetched endpoint at an internal address", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-internal-endpoint-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    fetchMock.mockResolvedValueOnce(
+      discoveryResponse({
+        issuer: "https://example.com",
+        authorization_endpoint: "https://example.com/authorize",
+        token_endpoint: "https://169.254.169.254/oauth/token",
+        jwks_uri: "https://example.com/.well-known/jwks.json",
+      }),
+    );
+
+    await expect(
+      caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+    expect(row).toBeNull();
+  });
+
+  it("rejects when the discovery doc points userinfo_endpoint at an internal address", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-userinfo-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    fetchMock.mockResolvedValueOnce(
+      discoveryResponse({
+        issuer: "https://example.com",
+        authorization_endpoint: "https://example.com/authorize",
+        token_endpoint: "https://example.com/oauth/token",
+        jwks_uri: "https://example.com/.well-known/jwks.json",
+        userinfo_endpoint:
+          "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+      }),
+    );
+
+    await expect(
+      caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+    expect(row).toBeNull();
   });
 
   it("rejects when the returned issuer does not match the configured one", async () => {
@@ -735,10 +806,10 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     await addVerifiedDomain(org.id, domain);
     fetchMock.mockResolvedValueOnce(
       discoveryResponse({
-        issuer: "https://different.okta.com",
-        authorization_endpoint: "https://different.okta.com/authorize",
-        token_endpoint: "https://different.okta.com/oauth/token",
-        jwks_uri: "https://different.okta.com/.well-known/jwks.json",
+        issuer: "https://different.example.com",
+        authorization_endpoint: "https://different.example.com/authorize",
+        token_endpoint: "https://different.example.com/oauth/token",
+        jwks_uri: "https://different.example.com/.well-known/jwks.json",
       }),
     );
 
@@ -755,10 +826,10 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     // though we configured it without one.
     fetchMock.mockResolvedValueOnce(
       discoveryResponse({
-        issuer: "https://example.okta.com/",
-        authorization_endpoint: "https://example.okta.com/authorize",
-        token_endpoint: "https://example.okta.com/oauth/token",
-        jwks_uri: "https://example.okta.com/.well-known/jwks.json",
+        issuer: "https://example.com/",
+        authorization_endpoint: "https://example.com/authorize",
+        token_endpoint: "https://example.com/oauth/token",
+        jwks_uri: "https://example.com/.well-known/jwks.json",
       }),
     );
 
@@ -773,7 +844,7 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     const { org, caller } = await prepare();
     const domain = `discovery-url-${uuidv4().slice(0, 8)}.com`;
     await addVerifiedDomain(org.id, domain);
-    mockDiscoveryOk("https://example.okta.com");
+    mockDiscoveryOk("https://example.com");
 
     await caller.ssoConfig.save({
       orgId: org.id,
@@ -781,7 +852,7 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://example.okta.com/.well-known/openid-configuration",
+      "https://example.com/.well-known/openid-configuration",
       expect.any(Object),
     );
   });
@@ -859,6 +930,52 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
         },
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("saves an issuer on a non-standard port", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-port-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    mockDiscoveryOk("https://example.com:8443");
+
+    const payload = samplePayload(domain);
+    const result = await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: {
+        ...payload,
+        authConfig: {
+          ...payload.authConfig,
+          issuer: "https://example.com:8443",
+        },
+      },
+    });
+    expect(result.domain).toBe(domain);
+  });
+
+  it("saves an internal issuer host when LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST allows it", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-whitelist-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    mockDiscoveryOk("https://idp.internal");
+
+    const original = sharedEnv.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST;
+    try {
+      sharedEnv.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST = ["idp.internal"];
+      const payload = samplePayload(domain);
+      const result = await caller.ssoConfig.save({
+        orgId: org.id,
+        payload: {
+          ...payload,
+          authConfig: {
+            ...payload.authConfig,
+            issuer: "https://idp.internal",
+          },
+        },
+      });
+      expect(result.domain).toBe(domain);
+    } finally {
+      sharedEnv.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST = original;
+    }
   });
 
   it("skips discovery for OAuth-only providers (github)", async () => {

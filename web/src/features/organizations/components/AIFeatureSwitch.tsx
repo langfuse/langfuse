@@ -114,8 +114,6 @@ export default function AIFeatureSwitch() {
     });
   }
 
-  if (!isLangfuseCloud) return null;
-
   return (
     <div>
       <Header title="AI Features" />
@@ -125,22 +123,30 @@ export default function AIFeatureSwitch() {
             <h4 className="font-bold">
               Enable AI powered features for your organization
             </h4>
-            <p className="text-sm">
-              This setting applies to all users and projects. Any data{" "}
-              <i>can</i> be sent to AWS Bedrock within the Langfuse data region.
-              Traces are sent to Langfuse Cloud in your data region. Your data
-              will not be used for training models. Applicable HIPAA, SOC2,
-              GDPR, and ISO 27001 compliance remains intact.{" "}
-              <a
-                href="https://langfuse.com/security/ai-features"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex items-center gap-1 hover:underline"
-              >
-                More details in the docs here.
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </p>
+            {isLangfuseCloud ? (
+              <p className="text-sm">
+                This setting applies to all users and projects. Any data{" "}
+                <i>can</i> be sent to AWS Bedrock within the Langfuse data
+                region. Traces are sent to Langfuse Cloud in your data region.
+                Your data will not be used for training models. Applicable
+                HIPAA, SOC2, GDPR, and ISO 27001 compliance remains intact.{" "}
+                <a
+                  href="https://langfuse.com/security/ai-features"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary inline-flex items-center gap-1 hover:underline"
+                >
+                  More details in the docs here.
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </p>
+            ) : (
+              <p className="text-sm">
+                This setting applies to all users and projects. When enabled,
+                the assistant can send relevant project data to the model
+                provider configured by your instance administrator.
+              </p>
+            )}
           </div>
           <div className="relative">
             <Switch
@@ -155,7 +161,7 @@ export default function AIFeatureSwitch() {
             )}
           </div>
         </div>
-        {isAIFeatureSwitchEnabled && (
+        {isLangfuseCloud && isAIFeatureSwitchEnabled && (
           <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
             <div className="flex flex-col gap-1">
               <h4 className="font-bold">
@@ -200,20 +206,27 @@ export default function AIFeatureSwitch() {
               <strong>
                 {isAIFeatureSwitchEnabled ? "enable " : "disable"}
               </strong>{" "}
-              AI features for your organization. When enabled, any data{"  "}
-              <i>can</i> be sent to AWS Bedrock in your data region for
-              processing.
-              <br />
-              <br />{" "}
-              <a
-                href="https://langfuse.com/security/ai-features"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex items-center gap-1 hover:underline"
-              >
-                Learn more in the docs.
-                <ExternalLink className="h-3 w-3" />
-              </a>
+              AI features for your organization. When enabled, relevant data can
+              be sent{" "}
+              {isLangfuseCloud
+                ? "to AWS Bedrock in your data region"
+                : "to the model provider configured by your instance administrator"}{" "}
+              for processing.
+              {isLangfuseCloud && (
+                <>
+                  <br />
+                  <br />{" "}
+                  <a
+                    href="https://langfuse.com/security/ai-features"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary inline-flex items-center gap-1 hover:underline"
+                  >
+                    Learn more in the docs.
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </>
+              )}
             </span>
             <p className="text-muted-foreground mt-3 text-sm">
               Are you sure you want to proceed?

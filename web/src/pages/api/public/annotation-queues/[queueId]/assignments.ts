@@ -18,6 +18,7 @@ export default withMiddlewares({
     bodySchema: CreateAnnotationQueueAssignmentBody,
     querySchema: AnnotationQueueAssignmentQuery,
     responseSchema: CreateAnnotationQueueAssignmentResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, body, auth }) => {
       const { assignment } = await createAnnotationQueueAssignmentForApi({
         projectId: auth.scope.projectId,
@@ -36,6 +37,7 @@ export default withMiddlewares({
     querySchema: AnnotationQueueAssignmentQuery,
     bodySchema: DeleteAnnotationQueueAssignmentBody,
     responseSchema: DeleteAnnotationQueueAssignmentResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, body, auth }) => {
       const result = await deleteAnnotationQueueAssignmentForApi({
         projectId: auth.scope.projectId,

@@ -12,10 +12,10 @@
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.3.0",
-    "@typescript-eslint/parser": "^8.59.0",
-    "@typescript-eslint/rule-tester": "^8.59.0",
-    "@typescript-eslint/utils": "^8.59.0",
+    "@typescript-eslint/parser": "^8.65.0",
+    "@typescript-eslint/rule-tester": "^8.65.0",
+    "@typescript-eslint/utils": "^8.65.0",
     "typescript": "catalog:",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   }
 }

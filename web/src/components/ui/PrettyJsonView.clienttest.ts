@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   decodeUnicodeInJson,
   DECODE_UNICODE_MAX_DEPTH,

@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { useRouter } from "next/router";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -35,7 +35,7 @@ export const TracingSetup = ({
     try {
       await mutCreateApiKey.mutateAsync({ projectId });
     } catch (error) {
-      console.error("Error creating API key:", error);
+      reportNonTrpcError(error, "setup");
     }
   };
 

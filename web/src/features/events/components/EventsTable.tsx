@@ -6,26 +6,21 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { startOfMinute } from "date-fns";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
   type UseSidebarFilterStateOptions,
-  useSidebarFilterState,
+  useSidebarFilterPresentation,
+  useSidebarFilterStateCore,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
   getEventsColumnName,
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
-import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
-import { formatIntervalSeconds } from "@/src/utils/dates";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
-  TableBadgeLoadingCell,
-  TableIconBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
+  DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
   type FilterState,
   BatchExportTableName,
@@ -35,30 +30,47 @@ import {
   BatchActionType,
   ActionId,
   RESOURCE_LIMIT_ERROR_MESSAGE,
+  type TimeFilter,
   type TracingSearchType,
+  type ScoreAggregate,
 } from "@langfuse/shared";
+import { formatIntervalSeconds } from "@/src/utils/dates";
+import {
+  TableBadgeLoadingCell,
+  TableIconBadgeLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
-import { LevelColors } from "@/src/components/level-colors";
+import { getLevelColors } from "@/src/components/level-colors";
 import {
   compactNumberFormatter,
   numberFormatter,
   usdFormatter,
 } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import {
-  toAbsoluteTimeRange,
+  getRowHeightIOCharLimit,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
+import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
+import {
   type TableDateRange,
+  TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-import { type ScoreAggregate } from "@langfuse/shared";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
+import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -73,7 +85,11 @@ import {
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import { useRouter } from "next/router";
+import {
+  demoteViewOnUserFilterEdit,
+  type ExplicitFilterStateChange,
+  type ViewDemotionControllers,
+} from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -91,7 +107,7 @@ import {
 } from "@/src/features/events/hooks/useAppRootDefault";
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { buildTracePath } from "@langfuse/shared";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 // Disabled for now because perhaps confusing
 // import {
@@ -102,9 +118,9 @@ import { getSafeRedirectPath } from "@/src/utils/redirect";
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import {
-  type RefreshInterval,
   REFRESH_INTERVALS,
-} from "@/src/components/table/data-table-refresh-button";
+  type RefreshInterval,
+} from "@/src/components/table/utils/refresh-intervals";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
@@ -114,27 +130,30 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
   observedScoreNamesFromOptions,
   toObservedOptions,
+  withMetadataPathOptions,
 } from "@/src/features/search-bar/lib/observed-options";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
+import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
 import {
   chartFilterExclusionReason,
   chartSearchFieldReason,
   CHART_SEARCH_QUERY_REASON,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
-import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
 import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
 import {
+  useFacetOptionsWithObservedMetadata,
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
-} from "@/src/features/search-bar/hooks/useObservedMetadata";
+} from "@/src/hooks/useObservedMetadata";
 
 export type EventsTableRow = {
   // Identity fields
@@ -154,6 +173,7 @@ export type EventsTableRow = {
   name?: string;
   environment?: string;
   version?: string;
+  release?: string;
   level?: ObservationLevelType;
   statusMessage?: string;
 
@@ -234,10 +254,10 @@ export type EventsTableProps = {
   isolateTableState?: boolean;
 };
 
-// Build the start-time `FilterState` for an absolute date range (lower bound
+// Build the start-time filters for an absolute date range (lower bound
 // always, upper bound when present). Shared by the live table-rows range and the
 // tick-decoupled facet-options range.
-const toStartTimeFilterState = (range?: TableDateRange): FilterState =>
+const toStartTimeFilterState = (range?: TableDateRange): TimeFilter[] =>
   range
     ? [
         {
@@ -275,8 +295,6 @@ export default function ObservationsEventsTable({
   isolateTableState = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
-  const router = useRouter();
-  const { viewId } = router.query;
   const eventsFilterConfig = useMemo(
     () => getObservationEventsFilterConfig(omittedFilter),
     [omittedFilter],
@@ -319,31 +337,6 @@ export default function ObservationsEventsTable({
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "observations",
     "s",
-  );
-
-  const [inputFilterState] = useQueryFilterState(
-    // Default type filter - exclude SPAN and EVENT types
-    !viewId
-      ? [
-          {
-            column: "type",
-            type: "stringOptions",
-            operator: "any of",
-            value: [
-              "GENERATION",
-              "AGENT",
-              "TOOL",
-              "CHAIN",
-              "RETRIEVER",
-              "EVALUATOR",
-              "EMBEDDING",
-              "GUARDRAIL",
-            ],
-          },
-        ]
-      : [],
-    "generations", // Use "generations" table name for compatibility
-    projectId,
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -414,69 +407,38 @@ export default function ObservationsEventsTable({
     [allowedValues, setRawRefreshInterval],
   );
 
-  const [refreshTick, setRefreshTick] = useState(0);
-  // Facet options are not "live": the auto-refresh tick must keep updating the
-  // table rows without re-fetching facets (their values don't change tick to
-  // tick). They re-anchor only on a real scope change — a new time range or an
-  // explicit refresh — tracked by this separate tick, which the auto interval
-  // never bumps.
-  const [filterOptionsRefreshTick, setFilterOptionsRefreshTick] = useState(0);
+  // When the chart/outlier-strip window (below) last advanced. Truncated to the
+  // minute: a to-the-millisecond bound re-keyed the chart query on every tick,
+  // and that cold load is what faded the strip out mid-refresh.
+  const [chartRefreshedAtMs, setChartRefreshedAt] = useState(() =>
+    startOfMinute(new Date()).getTime(),
+  );
 
-  // Tick-safe refresh: table rows + counts + the chart query, WITHOUT
-  // re-anchoring facet options (their values don't change tick-to-tick, so
-  // re-fetching open high-cardinality facets every tick is wasteful). The auto
-  // interval uses this. The chart runs dashboard.executeQuery; for absolute
-  // time ranges its query key is stable across refreshes, so invalidate it too.
-  const handleAutoRefresh = useCallback(() => {
-    setRefreshTick((t) => t + 1);
-    Promise.all([
-      utils.events.all.invalidate(),
-      utils.events.countAll.invalidate(),
-      utils.dashboard.executeQuery.invalidate(),
-    ]);
-  }, [utils]);
-
-  // Explicit refresh (manual button): everything the auto tick does, PLUS
-  // re-anchoring the facet options — the one place their values are re-read.
+  // A refresh is invalidation only: rows, counts and facet options share one
+  // anchored window (see useLiveTableDateRange), so every refetch reuses its
+  // query key and updates in place instead of re-keying into a cold load. The
+  // chart runs dashboard.executeQuery, which is invalidated alongside.
   const handleRefresh = useCallback(() => {
-    setRefreshTick((t) => t + 1);
-    setFilterOptionsRefreshTick((t) => t + 1);
+    setChartRefreshedAt(startOfMinute(new Date()).getTime());
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
+      // Invalidate filterOptions too so the "Total ≈ X" count refreshes.
       utils.events.filterOptions.invalidate(),
       utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
 
-  // Auto-refresh runs the tick-safe set (rows + chart), NOT the facet
-  // re-anchor — otherwise every tick re-issues facet queries for open columns.
   useEffect(() => {
     if (!refreshInterval) return;
-    const id = setInterval(() => {
-      handleAutoRefresh();
-    }, refreshInterval);
+    const id = setInterval(handleRefresh, refreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval, handleAutoRefresh]);
+  }, [refreshInterval, handleRefresh]);
 
-  // Convert timeRange to absolute date range for compatibility
-  // Include refreshTick to force recalculation on refresh
-  const tableDateRange = useMemo(() => {
-    // refreshTick forces recalculation but isn't used in computation
-    refreshTick;
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange, refreshTick]);
-
-  // Same absolute range, but anchored to scope changes only (NOT the auto tick),
-  // so opening/keeping a facet open never re-fetches on a refresh interval.
-  const filterOptionsTableDateRange = useMemo(() => {
-    filterOptionsRefreshTick;
-    return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange, filterOptionsRefreshTick]);
+  const { range: tableDateRange, anchoredTo } =
+    useLiveTableDateRange(timeRange);
 
   const dateRange = externalDateRange ?? tableDateRange;
-  const filterOptionsDateRange =
-    externalDateRange ?? filterOptionsTableDateRange;
 
   // Chart view ("any view is a chart"): URL-driven table↔chart toggle + config.
   // Only offered on the full (non-embedded) events surface, which is already
@@ -492,52 +454,72 @@ export default function ObservationsEventsTable({
     config: chartConfig,
     setConfig: setChartConfig,
   } = useChartViewState();
-  const chartTimeWindow = useMemo(
-    () => ({
-      from: dateRange?.from ?? new Date(Date.now() - 24 * 60 * 60 * 1000),
-      to: dateRange?.to ?? new Date(),
-    }),
-    [dateRange],
-  );
+  // Unlike the table, the chart and the outlier strip need a CLOSED window. Both
+  // ends are derived from the same length: the end is the later of the window's
+  // anchor and the last refresh, and the start is measured back from that end —
+  // never taken from the table's anchored `from`, which would let the window grow
+  // between anchors, or invert once the user picks a range shorter than the time
+  // since the last refresh.
+  const chartTimeWindow = useMemo(() => {
+    const anchorMs = anchoredTo?.getTime();
+    const fromMs = dateRange?.from.getTime();
+    const lengthMs =
+      anchorMs !== undefined && fromMs !== undefined
+        ? anchorMs - fromMs
+        : 24 * 60 * 60 * 1000;
+    const endMs = dateRange?.to
+      ? dateRange.to.getTime()
+      : Math.max(anchorMs ?? 0, chartRefreshedAtMs);
 
-  const dateRangeFilter: FilterState = toStartTimeFilterState(dateRange);
+    return { from: new Date(endMs - lengthMs), to: new Date(endMs) };
+  }, [dateRange, anchoredTo, chartRefreshedAtMs]);
 
-  // Facet options are scoped only by the time window (the facet hook reads just
-  // the start-time filters); use the tick-decoupled range so the auto refresh
-  // leaves them alone.
-  const oldFilterState = (isolateTableState ? [] : inputFilterState).concat(
-    toStartTimeFilterState(filterOptionsDateRange),
-  );
-
-  // Fetch filter options. Lazy: start with the eagerly-visible facets and load
-  // the rest (high-cardinality userId/sessionId, model/prompt/score facets) only
-  // when a sidebar section is opened or a field is typed into the search bar.
-  const {
-    filterOptions,
-    isFilterOptionsPending,
-    erroredColumns,
-    loadingColumns,
-    requestColumns,
-  } = useEventsFilterOptions({
-    projectId,
-    oldFilterState,
-    lazy: true,
+  // Drill-in writes the clicked bucket as an absolute range. URL-only
+  // (pushIn → browser Back restores the outer window) and deliberately NOT
+  // persisted as the project's default range — a transient zoom must not
+  // become tomorrow's baseline.
+  const { setTimeRange: setTimeRangeTransient } = useTableDateRange(projectId, {
+    persistAsDefault: false,
   });
+
+  // Facets describe the whole window (see facetStartTimeFilter below); the paged
+  // row/count queries take the pinned upper bound instead, so offset paging does
+  // not repeat or skip rows while the window keeps taking in newly ingested ones.
+  const { range: rowsDateRange, pinOnLeavingFirstPage } =
+    usePaginationWindowPin(dateRange, limitRows ? 0 : paginationState.page - 1);
+  const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({
     enabled: enableAppRootDefault,
     projectId,
   });
 
-  const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+  // Late-bound view controllers for the demotion callback below: the filter
+  // hook (and its onExplicitFilterStateChange) is created before
+  // useTableViewManager runs, so reach the controllers through a ref (same
+  // pattern as queryFilterRef).
+  const viewControllersRef = useRef<ViewDemotionControllers | null>(null);
+
+  const onAppRootExplicitFilterStateChange =
+    appRootDefault.onExplicitFilterStateChange;
+
+  // Composes the app-root default policy with the view demotion on user-origin
+  // filter edits (LFE-14699).
+  const onExplicitFilterStateChange = useCallback(
+    (change: ExplicitFilterStateChange) => {
+      onAppRootExplicitFilterStateChange(change);
+      demoteViewOnUserFilterEdit(change, viewControllersRef.current);
+    },
+    [onAppRootExplicitFilterStateChange],
+  );
+
+  // Route-state half of the sidebar filters, ahead of the facet-options query
+  // so the same state that scopes the rows can refine the counts (LFE-14489).
+  const filterStateOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
-      loading: isFilterOptionsPending,
-      loadingColumns,
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-      // v4 fast-mode surface — drives `isV4` on filters:* analytics (LFE-10781).
-      isV4: true,
       defaultExplicitFilterState: appRootDefault.defaultExplicitFilterState,
-      onExplicitFilterStateChange: appRootDefault.onExplicitFilterStateChange,
+      onExplicitFilterStateChange,
     };
 
     if (peekContext) {
@@ -558,22 +540,131 @@ export default function ObservationsEventsTable({
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        userId ? "user" : sessionId ? "session" : undefined,
+      ),
     };
   }, [
     tableStatePolicy.filterStateLocation,
-    isFilterOptionsPending,
-    loadingColumns,
     peekContext,
     projectId,
+    userId,
+    sessionId,
     appRootDefault.defaultExplicitFilterState,
-    appRootDefault.onExplicitFilterStateChange,
+    onExplicitFilterStateChange,
   ]);
 
-  const queryFilter = useSidebarFilterState(
+  const filterCore = useSidebarFilterStateCore(
     eventsFilterConfig,
+    filterStateOptions,
+  );
+
+  // Embed scoping (user/session detail tabs, prompt linked generations): these
+  // conditions bound the row query, so they refine the facet counts too.
+  const embedScopeFilterState: FilterState = useMemo(
+    () => [
+      ...(userId
+        ? [
+            {
+              column: "User ID",
+              type: "string" as const,
+              operator: "=" as const,
+              value: userId,
+            },
+          ]
+        : []),
+      ...(sessionId
+        ? [
+            {
+              column: "Session ID",
+              type: "string" as const,
+              operator: "=" as const,
+              value: sessionId,
+            },
+          ]
+        : []),
+      ...(promptName
+        ? [
+            {
+              column: "promptName",
+              type: "string" as const,
+              operator: "=" as const,
+              value: promptName,
+            },
+          ]
+        : []),
+      ...(promptVersion
+        ? [
+            {
+              column: "promptVersion",
+              type: "number" as const,
+              operator: "=" as const,
+              value: promptVersion,
+            },
+          ]
+        : []),
+    ],
+    [userId, sessionId, promptName, promptVersion],
+  );
+
+  const facetRefiningFilter = useMemo(
+    () =>
+      externalFilterState ??
+      filterCore.filterState.concat(embedScopeFilterState),
+    [externalFilterState, filterCore.filterState, embedScopeFilterState],
+  );
+  // Same anchored window as the rows: the facets no longer need a tick-decoupled
+  // range to survive an auto refresh, because the window itself no longer moves
+  // tick to tick.
+  const facetStartTimeFilter = useMemo(
+    () => toStartTimeFilterState(dateRange),
+    [dateRange],
+  );
+
+  // Fetch filter options. Lazy: start with the eagerly-visible facets and load
+  // the rest (high-cardinality userId/sessionId, model/prompt/score facets) only
+  // when a sidebar section is opened or a field is typed into the search bar.
+  const {
     filterOptions,
-    queryFilterOptions,
+    isFilterOptionsPending,
+    approxTotalCount,
+    isApproxTotalCountLoading,
+    approxTotalCountIsPartialScope,
+    erroredColumns,
+    loadingColumns,
+    requestColumns,
+  } = useEventsFilterOptions({
+    projectId,
+    startTimeFilter: facetStartTimeFilter,
+    refiningFilter: facetRefiningFilter,
+    // "Total ≈ X" rides the facet scan (uniq(span_id) over facetRefiningFilter); skip for embedded/preview tables.
+    includeApproxCount: !limitRows,
+    lazy: true,
+  });
+
+  // Partial scope (over-counts) when the server dropped filters (input/output/comment) or a full-text search is active.
+  const approxTotalCountIsPartial =
+    approxTotalCountIsPartialScope ||
+    Boolean(searchQuery && searchQuery.trim().length > 0);
+
+  // The sidebar's Metadata facet suggests the same observed keys/values the
+  // search bar does — one store, one projection (LFE-11030).
+  const facetOptions = useFacetOptionsWithObservedMetadata(
+    projectId,
+    filterOptions,
+  );
+
+  const queryFilter = useSidebarFilterPresentation(
+    filterCore,
+    eventsFilterConfig,
+    facetOptions,
+    {
+      loading: isFilterOptionsPending,
+      loadingColumns,
+      // v4 fast-mode surface — drives `isV4` on filters:* analytics (LFE-10781).
+      isV4: true,
+    },
   );
 
   // Lazy filter-options: load a facet's values when its sidebar section is
@@ -625,11 +716,9 @@ export default function ObservationsEventsTable({
   // Metadata key paths are not server-enumerated: merge the persisted
   // per-project map of paths observed on previously loaded rows (recorded
   // below, once the table data hook provides the rows) into the observed
-  // options, so `metadata.` completes with real keys and their types.
-  const observedMetadataPaths = useObservedMetadataPaths(
-    projectId,
-    searchBarMode,
-  );
+  // options, so `metadata.` completes with real keys and their types. The
+  // sidebar's Metadata facet reads the same map (see facetOptions above).
+  const observedMetadataPaths = useObservedMetadataPaths(projectId);
 
   const observedOptions = useMemo(
     () =>
@@ -688,59 +777,12 @@ export default function ObservationsEventsTable({
   //       ]
   //     : [];
 
-  // Create user ID filter if userId is provided
-  const userIdFilter: FilterState = userId
-    ? [
-        {
-          column: "User ID",
-          type: "string",
-          operator: "=",
-          value: userId,
-        },
-      ]
-    : [];
-
-  const sessionIdFilter: FilterState = sessionId
-    ? [
-        {
-          column: "Session ID",
-          type: "string",
-          operator: "=",
-          value: sessionId,
-        },
-      ]
-    : [];
-
-  const promptNameFilter: FilterState = promptName
-    ? [
-        {
-          column: "promptName",
-          type: "string",
-          operator: "=",
-          value: promptName,
-        },
-      ]
-    : [];
-
-  const promptVersionFilter: FilterState = promptVersion
-    ? [
-        {
-          column: "promptVersion",
-          type: "number",
-          operator: "=",
-          value: promptVersion,
-        },
-      ]
-    : [];
-
   // The sidebar's effective filter state is the single source of truth in both
-  // modes — the search bar syncs into it rather than replacing it.
+  // modes — the search bar syncs into it, and the facet counts above refine
+  // from the same state + embed scoping (LFE-14489).
   const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
-    .concat(userIdFilter)
-    .concat(sessionIdFilter)
-    .concat(promptNameFilter)
-    .concat(promptVersionFilter);
+    .concat(embedScopeFilterState);
 
   // Use external filter state if provided, otherwise use combined filter
   // state. Even with an external filter, still apply the date-range bound so
@@ -755,6 +797,13 @@ export default function ObservationsEventsTable({
   // chart: the chart forwards what it can and the sidebar + search bar mark the
   // rest as "not applied" (see chartFilterExclusions below).
   const chartEnabled = !hideControls && !userId && !sessionId;
+
+  // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
+  const outlierStripEnabled =
+    chartEnabled &&
+    promptVersion === undefined &&
+    !externalDateRange &&
+    !externalFilterState;
 
   // The chart is actually on screen (not just enabled). Only then do we mark
   // the filters it can't honour as "not applied", so table mode stays untouched.
@@ -774,8 +823,8 @@ export default function ObservationsEventsTable({
     isTotalCountError,
     hasMore,
     handleAddToAnnotationQueue,
-    dataUpdatedAt,
-    ioLoading,
+    isFetching,
+    isIoPending,
     isSilencedError,
     usedAppRootFallback,
   } = useEventsTableData({
@@ -794,6 +843,7 @@ export default function ObservationsEventsTable({
     // In chart mode the table is hidden and the chart runs its own aggregate
     // query — don't also run the expensive row + batched-I/O fetches.
     rowsEnabled: !chartActive,
+    ioCharLimit: getRowHeightIOCharLimit(rowHeight),
   });
 
   useApplyAppRootFallback({
@@ -828,11 +878,14 @@ export default function ObservationsEventsTable({
 
   // Record the visible rows' metadata paths into the persisted per-project
   // suggestions map (read above into observedMetadataPaths). Same sampling as
-  // the AI context below; runs once per fetch (rows identity).
+  // the AI context below; runs once per fetch (rows identity). Not gated on the
+  // search bar — the sidebar facet feeds from this map too — but embedded
+  // PREVIEW tables (`hideControls`: 10 rows under an arbitrary external filter)
+  // stay out: the per-key caps are drop-new-when-full, so a narrow preview's
+  // keys would crowd out the ones the project actually browses.
   useObservedMetadataRecorder({
     projectId,
-    rows: observations.rows,
-    enabled: searchBarMode,
+    rows: hideControls ? undefined : observations.rows,
   });
 
   // Project data context for the AI filter prompt: observed values (from
@@ -903,6 +956,8 @@ export default function ObservationsEventsTable({
     onSettled: () => {
       utils.events.all.invalidate();
       utils.events.countAll.invalidate();
+      // Refresh filterOptions so the "Total ≈ X" count updates after a delete.
+      utils.events.filterOptions.invalidate();
       utils.traces.all.invalidate();
     },
   });
@@ -927,11 +982,10 @@ export default function ObservationsEventsTable({
   }, [observations.rows, selectedRows]);
 
   const handleDeleteTraces = async ({ projectId }: { projectId: string }) => {
-    // Select-all deletes are dispatched even if a background refetch drained
-    // the visible-page selection to [] while the dialog was open: the server
-    // requires at least one traceId regardless, so such a dispatch fails
-    // loudly (as in the v3 traces table) — an empty selection while
-    // select-all is armed signals a consistency issue, not a no-op.
+    // Select-all deletes are dispatched even if paging or a background
+    // refetch drained the visible-page selection to []: the batch path
+    // deletes by query server-side and ignores traceIds. Only an id-based
+    // delete with nothing resolvable is a no-op.
     if (!selectAll && selectedTraceIds.length === 0) return;
 
     await traceDeleteMutation.mutateAsync({
@@ -994,10 +1048,9 @@ export default function ObservationsEventsTable({
             type: BatchActionType.Delete,
             label: "Delete Traces",
             description: `${itemCountDisplay} ${selectedItemCount === 1 ? "item is" : "items are"} selected, spanning ${traceCountDisplay} unique ${selectedUniqueTraceCount === 1 ? "trace" : "traces"}. A trace is always deleted as a whole — if at least one of its observations is selected, all of its observations are deleted with it. This action cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.`,
-            // Select-all is not gated on the visible-page selection; if that
-            // selection drained to empty, dispatch fails loudly with the
-            // server's min-1 traceIds rejection (as in the v3 traces table).
-            // Page selection needs concrete trace IDs.
+            // Select-all is not gated on the visible-page selection: the
+            // batch path deletes by query and ignores traceIds. Page
+            // selection needs concrete trace IDs.
             disabled: selectAll
               ? hasCommentFilter
               : selectedTraceIds.length === 0,
@@ -1060,10 +1113,15 @@ export default function ObservationsEventsTable({
     },
   ];
 
+  // Mobile collapses the whole toolbar away, so the batch-action surface (the
+  // action menu + select-all banner it hosts) is gone — orphan selection
+  // checkboxes would do nothing. Omit the select column on mobile until a
+  // dedicated mobile action affordance exists.
+  const isMobile = useIsMobile();
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
-    ...(hideControls ? [] : [selectActionColumn]),
+    ...(hideControls || isMobile ? [] : [selectActionColumn]),
     {
       accessorKey: "startTime",
       id: "startTime",
@@ -1128,7 +1186,7 @@ export default function ObservationsEventsTable({
       ),
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("input");
-        if (ioLoading) {
+        if (isIoPending(row.original.id)) {
           return (
             <JsonSkeleton
               numRows={rowHeight === "s" ? 1 : undefined}
@@ -1161,7 +1219,7 @@ export default function ObservationsEventsTable({
       ),
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("output");
-        if (ioLoading) {
+        if (isIoPending(row.original.id)) {
           return (
             <JsonSkeleton
               numRows={rowHeight === "s" ? 1 : undefined}
@@ -1198,7 +1256,7 @@ export default function ObservationsEventsTable({
       },
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("metadata");
-        if (ioLoading) {
+        if (isIoPending(row.original.id)) {
           return (
             <JsonSkeleton
               numRows={rowHeight === "s" ? 1 : undefined}
@@ -1234,8 +1292,8 @@ export default function ObservationsEventsTable({
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              LevelColors[value].bg,
-              LevelColors[value].text,
+              getLevelColors(value).bg,
+              getLevelColors(value).text,
             )}
           >
             {value}
@@ -1645,6 +1703,19 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
     },
     {
+      accessorKey: "release",
+      id: "release",
+      header: getEventsColumnName("release"),
+      size: 100,
+      headerTooltip: {
+        description: "Track changes to your application via the release tag.",
+        href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
+      },
+      enableHiding: true,
+      enableSorting,
+      defaultHidden: true,
+    },
+    {
       accessorKey: "userId",
       id: "userId",
       header: getEventsColumnName("userId"),
@@ -1713,6 +1784,7 @@ export default function ObservationsEventsTable({
     disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
   });
+  viewControllersRef.current = viewControllers;
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (hideControls) return undefined;
@@ -1745,6 +1817,7 @@ export default function ObservationsEventsTable({
               },
               name: observation.name ?? undefined,
               version: observation.version ?? "",
+              release: observation.release ?? "",
               providedModelName: observation.model ?? "",
               modelId: observation.internalModelId ?? undefined,
               level: observation.level,
@@ -1814,22 +1887,158 @@ export default function ObservationsEventsTable({
 
   const refreshConfig = {
     onRefresh: handleRefresh,
-    isRefreshing: observations.status === "loading",
+    isRefreshing: isFetching,
     interval: refreshInterval,
     setInterval: setRefreshInterval,
   };
 
+  // Mobile collapses the whole toolbar into one Filters bottom sheet. Desktop
+  // (≥768px) is byte-identical to before — everything below is gated on
+  // `isMobile`, declared above near the column list.
+  // Count shown on the mobile Filters trigger. Same source as the desktop
+  // rail's active-facet count — distinct filtered COLUMNS (a facet can emit
+  // several FilterState entries) — plus free-text search, which now also lives
+  // in the sheet.
+  const mobileActiveFilterCount =
+    new Set(
+      (queryFilter.explicitFilterState ?? []).map((filter) => filter.column),
+    ).size + (searchQuery && searchQuery.trim().length > 0 ? 1 : 0);
+
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
-        {showControlsInPageHeader && !hideControls && (
+        {showControlsInPageHeader && !hideControls && !isMobile && (
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}
             refresh={refreshConfig}
           />
         )}
-        {!hideControls && (
+        {/* Mobile: a single toolbar row — Filters(N) sheet trigger + view-mode
+            toggle. Search, time range, preset chips, saved views and the facet
+            sidebar all move INTO the sheet (same controllers, hosted there).
+            Columns / row-height / export are omitted on the card list. */}
+        {!hideControls && isMobile && (
+          <div className="my-2 flex items-center gap-2 px-2">
+            <MobileFiltersSheet
+              activeCount={mobileActiveFilterCount}
+              resultCount={totalCount}
+              onClearAll={() => {
+                queryFilter.clearAll();
+                setSearchQuery("");
+              }}
+              search={
+                searchBarMode ? (
+                  <EventsSearchBarRow
+                    projectId={projectId}
+                    tableName={eventsFilterConfig.tableName}
+                    store={searchBarStore}
+                    commit={searchBarCommit}
+                    observed={observedOptions}
+                    erroredColumns={erroredColumns}
+                    fieldReason={
+                      chartActive ? chartSearchFieldReason : undefined
+                    }
+                    freeTextReason={
+                      chartFreeTextIgnored
+                        ? CHART_SEARCH_QUERY_REASON
+                        : undefined
+                    }
+                    onApplyFilters={searchBarApplyFilters}
+                    onRequestColumns={requestColumns}
+                    aiDataContext={aiDataContext}
+                    aiScoreNames={aiScoreNames}
+                    // Flush inside the sheet: the section container owns the
+                    // padding, so the bar lines up with time range / presets.
+                    className="p-0"
+                  />
+                ) : (
+                  // No grammar bar (userId/sessionId-scoped tables): fall back
+                  // to the legacy full-text search so mobile keeps the search
+                  // desktop has via the toolbar's searchConfig (LFE-11067).
+                  <MobileFullTextSearch
+                    currentQuery={searchQuery ?? undefined}
+                    updateQuery={setSearchQuery}
+                    tableAllowsFullTextSearch
+                    metadataSearchFields={["ID", "Name", "Trace Name", "Model"]}
+                  />
+                )
+              }
+              headerControls={
+                // Compact time-range + refresh, pulled up into the sheet's
+                // header row so the body is a single uninterrupted scroll.
+                <div className="flex min-w-0 items-center gap-1">
+                  <TimeRangePicker
+                    compact
+                    timeRange={timeRange}
+                    onTimeRangeChange={setTimeRange}
+                    timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+                    className="my-0"
+                  />
+                  <DataTableRefreshButton
+                    compact
+                    onRefresh={refreshConfig.onRefresh}
+                    isRefreshing={refreshConfig.isRefreshing}
+                    interval={refreshConfig.interval}
+                    setInterval={refreshConfig.setInterval}
+                  />
+                </div>
+              }
+              presets={
+                tableStatePolicy.disableSavedViews ? undefined : (
+                  <CategoryPresetChips
+                    projectId={projectId}
+                    // URL viewId only — the sessionStorage appliedViewId can
+                    // go stale under explicit URL state and light the wrong
+                    // chip (see demoteViewOnUserFilterEdit).
+                    activeViewId={viewControllers.selectedViewId}
+                    onApplyView={viewControllers.handleSetViewId}
+                    applyViewState={viewControllers.applyViewState}
+                    onPreviewView={previewViewInSearchBar}
+                  />
+                )
+              }
+              savedViews={
+                tableStatePolicy.disableSavedViews ? undefined : (
+                  <TableViewPresetsDrawer
+                    viewConfig={{
+                      tableName: TableViewPresetTableName.ObservationsEvents,
+                      projectId,
+                      controllers: viewControllers,
+                    }}
+                    currentState={{
+                      orderBy: orderByState ?? null,
+                      filters: queryFilter.explicitFilterState ?? [],
+                      columnOrder,
+                      columnVisibility,
+                      searchQuery: searchQuery ?? "",
+                    }}
+                  />
+                )
+              }
+              facets={
+                <DataTableControls
+                  key={viewControllers.selectedViewId ?? "no-view"}
+                  queryFilter={queryFilter}
+                  filterWithAI={!searchBarMode}
+                  blockedColumnReason={
+                    chartActive ? chartFilterExclusionReason : undefined
+                  }
+                  // inline: flow at natural height in the sheet's single scroll
+                  // (no internal ScrollArea). Desktop sidebar stays default.
+                  layout="inline"
+                />
+              }
+            />
+            {chartEnabled && (
+              <ViewModeToggle
+                mode={chartViewMode}
+                onModeChange={setChartViewMode}
+              />
+            )}
+          </div>
+        )}
+        {!hideControls && !isMobile && (
           <div
             className={cn(
               // This is a table-internal sticky band below PageHeader. Using
@@ -1987,10 +2196,10 @@ export default function ObservationsEventsTable({
                   <div className="flex flex-wrap items-center gap-2">
                     <CategoryPresetChips
                       projectId={projectId}
-                      activeViewId={
-                        viewControllers.appliedViewId ??
-                        viewControllers.selectedViewId
-                      }
+                      // URL viewId only — the sessionStorage appliedViewId
+                      // can go stale under explicit URL state and light the
+                      // wrong chip (see demoteViewOnUserFilterEdit).
+                      activeViewId={viewControllers.selectedViewId}
                       onApplyView={viewControllers.handleSetViewId}
                       applyViewState={viewControllers.applyViewState}
                       onPreviewView={previewViewInSearchBar}
@@ -2019,7 +2228,10 @@ export default function ObservationsEventsTable({
         {/* Content area with sidebar and table. The facet sidebar stays in
             search-bar mode and syncs bidirectionally with the bar. */}
         <ResizableFilterLayout>
-          {!hideControls && (
+          {/* On mobile the facet sidebar moves into the Filters sheet above,
+              so it is not rendered inline here (leaving only the table content
+              in the layout). */}
+          {!hideControls && !isMobile && (
             <DataTableControls
               // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
               key={viewControllers.selectedViewId ?? "no-view"}
@@ -2037,6 +2249,18 @@ export default function ObservationsEventsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
+            {/* Pulse strip (LFE-14451): table-width, so the facet sidebar keeps
+                its full height (design feedback); hidden in full chart mode. */}
+            {outlierStripEnabled && chartViewMode !== "chart" && (
+              <EventsOutlierStrip
+                projectId={projectId}
+                filterState={filterState}
+                fromTimestamp={chartTimeWindow.from}
+                toTimestamp={chartTimeWindow.to}
+                searchIgnored={Boolean(searchQuery)}
+                onSelectRange={setTimeRangeTransient}
+              />
+            )}
             {chartEnabled && chartViewMode === "chart" ? (
               <EventsChartView
                 projectId={projectId}
@@ -2047,11 +2271,14 @@ export default function ObservationsEventsTable({
                 onConfigChange={setChartConfig}
               />
             ) : (
+              // No remount key: keying this on the fetch timestamp threw the
+              // table (and its scroll position) away on every refresh. The body
+              // re-renders on the new row array by itself.
               <DataTable
-                key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
                 tableName="observations"
                 columns={columns}
                 peekView={peekConfig}
+                isFetching={isFetching}
                 data={
                   observations.status === "loading" || isViewLoading
                     ? { isLoading: true, isError: false }
@@ -2088,6 +2315,11 @@ export default function ObservationsEventsTable({
                         hasNextPage: hasMore,
                         hideTotalCount: true,
                         canJumpPages: false,
+                        // Approx observation count ("Total ≈ X"), rides the filter-options scan (async).
+                        approxTotalCount,
+                        isApproxTotalCountLoading,
+                        approxTotalCountIsPartialScope:
+                          approxTotalCountIsPartial,
                         onChange: (updater) => {
                           const newState =
                             typeof updater === "function"
@@ -2096,6 +2328,13 @@ export default function ObservationsEventsTable({
                                   pageSize: paginationState.limit,
                                 })
                               : updater;
+                          // Leaving page 1 freezes the paged set at the newest
+                          // row still on screen, so page 2 continues where this
+                          // page ends even if rows keep arriving.
+                          pinOnLeavingFirstPage(
+                            newState.pageIndex,
+                            rows[0]?.startTime ?? undefined,
+                          );
                           setPaginationState({
                             page: newState.pageIndex + 1,
                             limit: newState.pageSize,
@@ -2129,7 +2368,7 @@ export default function ObservationsEventsTable({
                     const timestamp = row.timestamp;
 
                     if (traceId) {
-                      const observationUrl = buildTraceDetailPath({
+                      const observationUrl = buildTracePath({
                         projectId,
                         traceId,
                         observationId,

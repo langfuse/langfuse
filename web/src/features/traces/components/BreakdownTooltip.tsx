@@ -1,0 +1,230 @@
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { useState } from "react";
+import Decimal from "decimal.js";
+import Link from "next/link";
+import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
+import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
+import { ExternalLink } from "lucide-react";
+
+export interface PriceSource {
+  projectId: string;
+  modelId: string;
+  modelName: string;
+  pricingTierId: string;
+  pricingTierName: string;
+}
+
+interface BreakdownTooltipProps {
+  details: Details | Details[];
+  children: React.ReactNode;
+  isCost?: boolean;
+  pricingTierName?: string;
+  priceSource?: PriceSource;
+}
+
+export const BreakdownTooltip = ({
+  details,
+  children,
+  isCost = false,
+  pricingTierName,
+  priceSource,
+}: BreakdownTooltipProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Aggregate details if array is provided
+  const aggregatedDetails = Array.isArray(details)
+    ? details.reduce<Details>((acc, curr) => {
+        Object.entries(curr).forEach(([key, value]) => {
+          acc[key] = new Decimal(acc[key] || 0)
+            .plus(new Decimal(value || 0))
+            .toNumber();
+        });
+        return acc;
+      }, {})
+    : details;
+
+  const formatValueWithPadding = (value: number, maxDecimals: number) => {
+    return !value
+      ? "0"
+      : isCost
+        ? `$${value.toFixed(maxDecimals)}`
+        : value.toLocaleString();
+  };
+
+  const maxDecimals = isCost
+    ? Math.max(
+        ...Object.values(aggregatedDetails).map((v) => getMaxDecimals(v)),
+      )
+    : 0;
+
+  return (
+    <TooltipProvider>
+      <Tooltip open={isOpen} onOpenChange={setIsOpen}>
+        <TooltipTrigger
+          className="flex cursor-pointer"
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          {children}
+        </TooltipTrigger>
+        <TooltipContent className="w-64 p-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="font-bold">
+                {isCost ? "Cost breakdown" : "Usage breakdown"}
+              </span>
+
+              {isCost && priceSource && (
+                <Link
+                  href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
+                  className="text-muted-foreground flex flex-row gap-1 text-xs italic underline-offset-4 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {priceSource.pricingTierName} Tier Pricing
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              )}
+              {Array.isArray(details) && details.length > 0 && (
+                <span className="text-muted-foreground text-xs italic">
+                  Aggregate across {details.length}{" "}
+                  {details.length === 1 ? "generation" : "generations"}
+                </span>
+              )}
+              {pricingTierName && (
+                <div className="text-muted-foreground flex justify-between text-xs">
+                  <span>Pricing Tier:</span>
+                  <span className="font-mono">{pricingTierName}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Input Section */}
+            <Section
+              title={isCost ? "Input cost" : "Input usage"}
+              details={aggregatedDetails}
+              filterFn={(key) => key.includes("input")}
+              formatValue={(v) => formatValueWithPadding(v, maxDecimals)}
+            />
+
+            {/* Output Section */}
+            <Section
+              title={isCost ? "Output cost" : "Output usage"}
+              details={aggregatedDetails}
+              filterFn={(key) => key.includes("output")}
+              formatValue={(v) => formatValueWithPadding(v, maxDecimals)}
+            />
+
+            {/* Other Section */}
+            <OtherSection
+              details={aggregatedDetails}
+              isCost={isCost}
+              formatValue={(v) => formatValueWithPadding(v, maxDecimals)}
+            />
+
+            {/* Total */}
+            <div className="flex justify-between border-t border-b-4 border-double py-1">
+              <span className="text-xs font-bold">
+                {isCost ? "Total cost" : "Total usage"}
+              </span>
+              <span className="font-mono text-xs font-bold">
+                {formatValueWithPadding(
+                  aggregatedDetails.total ?? 0,
+                  maxDecimals,
+                )}
+              </span>
+            </div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+};
+
+interface SectionProps {
+  title: string;
+  details: Details;
+  filterFn: (key: string) => boolean;
+  formatValue: (value: number) => string;
+}
+
+const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
+  const filteredEntries = Object.entries(details)
+    .filter(([key]) => filterFn(key))
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
+
+  const sectionTotal = filteredEntries.reduce(
+    (sum, [_, value]) =>
+      new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
+    0,
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-between border-b pb-1">
+        <span className="text-xs font-bold">{title}</span>
+        <span className="text-right font-mono text-xs font-bold">
+          {formatValue(sectionTotal)}
+        </span>
+      </div>
+      {filteredEntries.map(([key, value]) => (
+        <div
+          key={key}
+          className="text-muted-foreground flex justify-between text-xs"
+        >
+          <span className="mr-4">{key}</span>
+          <span className="font-mono">{formatValue(value ?? 0)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+interface OtherSectionProps {
+  details: Details;
+  isCost: boolean;
+  formatValue: (value: number) => string;
+}
+
+const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
+  const otherEntries = Object.entries(details)
+    .filter(
+      ([key]) =>
+        !key.includes("input") && !key.includes("output") && key !== "total",
+    )
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
+
+  if (otherEntries.length === 0) return null;
+
+  const otherTotal = otherEntries.reduce((acc, val) => {
+    if (typeof val[1] !== "number") return acc;
+
+    return acc + (val[1] ?? 0);
+  }, 0);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-between border-b pb-2">
+        <span className="text-xs font-bold">
+          {isCost ? "Other cost" : "Other usage"}
+        </span>
+        <span className="text-right font-mono text-xs font-bold">
+          {formatValue(otherTotal)}
+        </span>
+      </div>
+      {otherEntries.map(([key, value]) => (
+        <div
+          key={key}
+          className="text-muted-foreground flex justify-between text-xs"
+        >
+          <span className="mr-4">{key}</span>
+          <span className="font-mono">{formatValue(value ?? 0)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};

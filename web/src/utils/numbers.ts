@@ -77,11 +77,7 @@ export const usdFormatter = (
 };
 
 export const costFormatter = (totalCost?: number) => {
-  return totalCost
-    ? totalCost < 5
-      ? usdFormatter(totalCost, 2, 6)
-      : usdFormatter(totalCost, 2, 2)
-    : usdFormatter(0);
+  return usdFormatter(totalCost, 2, 2);
 };
 
 export const formatTokenCounts = (

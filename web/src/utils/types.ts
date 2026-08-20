@@ -5,9 +5,7 @@ import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 
 // unreachable code check
 
-export function assertUnreachable(_x: never): never {
-  throw new Error("Didn't expect to get here");
-}
+export { assertUnreachable } from "@langfuse/shared";
 
 // primitive type checks
 

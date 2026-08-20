@@ -11,7 +11,7 @@ import { Info } from "lucide-react";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 
 interface DataTableAIFiltersProps {
@@ -55,7 +55,7 @@ export function DataTableAIFilters({
           setAiError("Invalid response format from API");
         }
       } catch (error) {
-        console.error("Error calling tRPC API:", error);
+        reportNonTrpcError(error, "ai-filters");
         setAiError(
           error instanceof Error ? error.message : "Failed to generate filters",
         );

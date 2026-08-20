@@ -7,6 +7,7 @@ const {
   mockIsPrismaException,
   mockRateLimitRequest,
   mockTraceException,
+  mockLoggerDebug,
   mockCreateUnstablePublicApiAuthError,
   mockSendUnstablePublicApiErrorResponse,
 } = vi.hoisted(() => ({
@@ -14,6 +15,7 @@ const {
   mockIsPrismaException: vi.fn(),
   mockRateLimitRequest: vi.fn(),
   mockTraceException: vi.fn(),
+  mockLoggerDebug: vi.fn(),
   mockCreateUnstablePublicApiAuthError: vi.fn((value) => value),
   mockSendUnstablePublicApiErrorResponse: vi.fn(),
 }));
@@ -31,7 +33,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 vi.mock("@langfuse/shared/src/server", () => ({
   redis: null,
   logger: {
-    debug: vi.fn(),
+    debug: mockLoggerDebug,
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
@@ -243,6 +245,43 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       errorContract: undefined,
       upgradePath,
     });
+  });
+
+  it("does not include request query or body data in debug logs", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const handler = createAuthedProjectAPIRoute({
+      name: "Sensitive Route",
+      querySchema: z.object({ token: z.string() }),
+      bodySchema: z.object({
+        secretKey: z.string(),
+        extraHeaders: z.record(z.string(), z.string()),
+      }),
+      responseSchema: z.object({ ok: z.literal(true) }),
+      fn: async () => ({ ok: true as const }),
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "PUT",
+      headers: {
+        authorization: "Basic test",
+      },
+      query: {
+        token: "SENTINEL_QUERY_TOKEN",
+      },
+      body: {
+        secretKey: "SENTINEL_SECRET_KEY",
+        extraHeaders: {
+          Authorization: "Bearer SENTINEL_HEADER_TOKEN",
+        },
+      },
+    });
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mockLoggerDebug).toHaveBeenCalledExactlyOnceWith(
+      "Request to route Sensitive Route projectId project-1",
+    );
   });
 
   it("throws a 422 payload error when response serialization exceeds V8 string limits", async () => {

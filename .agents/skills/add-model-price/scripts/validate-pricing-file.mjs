@@ -5,7 +5,33 @@ import path from "node:path";
 
 const defaultFile = "worker/src/constants/default-model-prices.json";
 const repoRoot = process.cwd();
-const filePath = path.resolve(repoRoot, process.argv[2] ?? defaultFile);
+const args = process.argv.slice(2);
+let pricingFile = defaultFile;
+let baseFile = null;
+const requestedUsageKeyModels = new Set();
+
+for (let index = 0; index < args.length; index += 1) {
+  const argument = args[index];
+  if (argument === "--base") {
+    if (!args[index + 1] || args[index + 1].startsWith("--")) {
+      throw new Error("--base requires a file path");
+    }
+    baseFile = args[index + 1];
+    index += 1;
+  } else if (argument === "--usage-key-model") {
+    if (!args[index + 1] || args[index + 1].startsWith("--")) {
+      throw new Error("--usage-key-model requires a model name");
+    }
+    requestedUsageKeyModels.add(args[index + 1]);
+    index += 1;
+  } else if (argument.startsWith("--")) {
+    throw new Error(`Unknown argument: ${argument}`);
+  } else {
+    pricingFile = argument;
+  }
+}
+
+const filePath = path.resolve(repoRoot, pricingFile);
 const failures = [];
 
 function compileMatchPattern(rawPattern, label) {
@@ -30,11 +56,185 @@ function keysOfPrices(prices) {
   return Object.keys(prices).sort();
 }
 
+function requireAliasFamily(model, tier, familyName, keys, required) {
+  const presentKeys = keys.filter((key) => key in tier.prices);
+  if (!required && presentKeys.length === 0) return;
+
+  const tierLabel = `${model.modelName}/${tier.name}`;
+  const missingKeys = keys.filter((key) => !(key in tier.prices));
+  if (missingKeys.length > 0) {
+    failures.push(
+      `${tierLabel}: incomplete ${familyName} usage-key family; missing ${missingKeys.join(", ")}`,
+    );
+    return;
+  }
+
+  const expectedPrice = tier.prices[keys[0]];
+  const mismatchedKeys = keys.filter(
+    (key) => tier.prices[key] !== expectedPrice,
+  );
+  if (mismatchedKeys.length > 0) {
+    failures.push(
+      `${tierLabel}: ${familyName} aliases must have the same price (${keys.join(", ")})`,
+    );
+  }
+}
+
+function validateUsageKeyCoverage(model) {
+  if (
+    typeof model.modelName !== "string" ||
+    typeof model.matchPattern !== "string" ||
+    !Array.isArray(model.pricingTiers)
+  ) {
+    return;
+  }
+  const modelName = model.modelName.toLowerCase();
+  const matchPattern = model.matchPattern.toLowerCase();
+  const isGemini =
+    modelName.includes("gemini") || matchPattern.includes("gemini");
+  const isClaude =
+    modelName.startsWith("claude-") ||
+    matchPattern.includes("anthropic\\.claude");
+  const isOpenAI =
+    !isGemini &&
+    !isClaude &&
+    (model.tokenizerId === "openai" ||
+      /^(chatgpt-|codex-|gpt-|o[0-9])/.test(modelName));
+
+  for (const tier of model.pricingTiers) {
+    if (!tier.prices || typeof tier.prices !== "object") continue;
+    if (isOpenAI) {
+      requireAliasFamily(
+        model,
+        tier,
+        "OpenAI cache-read",
+        ["input_cached_tokens", "input_cache_read", "cache_read_input_tokens"],
+        false,
+      );
+      requireAliasFamily(
+        model,
+        tier,
+        "OpenAI cache-write",
+        ["input_cache_creation", "cache_write_tokens"],
+        false,
+      );
+      requireAliasFamily(
+        model,
+        tier,
+        "OpenAI reasoning",
+        ["output_reasoning_tokens", "output_reasoning", "reasoning_tokens"],
+        false,
+      );
+    } else if (isClaude) {
+      requireAliasFamily(
+        model,
+        tier,
+        "Anthropic input",
+        ["input", "input_tokens"],
+        true,
+      );
+      requireAliasFamily(
+        model,
+        tier,
+        "Anthropic output",
+        ["output", "output_tokens"],
+        true,
+      );
+      requireAliasFamily(
+        model,
+        tier,
+        "Anthropic cache-write",
+        ["cache_creation_input_tokens", "input_cache_creation"],
+        false,
+      );
+      requireAliasFamily(
+        model,
+        tier,
+        "Anthropic cache-read",
+        ["cache_read_input_tokens", "input_cache_read", "input_cached_tokens"],
+        false,
+      );
+    } else if (isGemini) {
+      requireAliasFamily(
+        model,
+        tier,
+        "Gemini input",
+        [
+          "input",
+          "input_text",
+          "input_modality_1",
+          "prompt_token_count",
+          "promptTokenCount",
+        ],
+        true,
+      );
+      requireAliasFamily(
+        model,
+        tier,
+        "Gemini output",
+        [
+          "output",
+          "output_text",
+          "output_modality_1",
+          "candidates_token_count",
+          "candidatesTokenCount",
+        ],
+        true,
+      );
+      requireAliasFamily(
+        model,
+        tier,
+        "Gemini cache-read",
+        ["input_cached_tokens", "cached_content_token_count"],
+        false,
+      );
+      requireAliasFamily(
+        model,
+        tier,
+        "Gemini reasoning",
+        [
+          "thoughts_token_count",
+          "thoughtsTokenCount",
+          "output_reasoning_tokens",
+          "output_reasoning",
+        ],
+        false,
+      );
+    }
+  }
+}
+
 const raw = await fs.readFile(filePath, "utf8");
 const models = JSON.parse(raw);
 
 if (!Array.isArray(models)) {
   throw new Error("Expected the pricing file to be a JSON array.");
+}
+
+const usageKeyModels = new Set(requestedUsageKeyModels);
+if (baseFile) {
+  const basePath = path.resolve(repoRoot, baseFile);
+  const baseModels = JSON.parse(await fs.readFile(basePath, "utf8"));
+  if (!Array.isArray(baseModels)) {
+    throw new Error("Expected the base pricing file to be a JSON array.");
+  }
+  const baseByName = new Map(
+    baseModels.map((model) => [model.modelName, JSON.stringify(model)]),
+  );
+  for (const model of models) {
+    if (baseByName.get(model.modelName) !== JSON.stringify(model)) {
+      usageKeyModels.add(model.modelName);
+    }
+  }
+}
+
+const availableModelNames = new Set(models.map((model) => model.modelName));
+for (const modelName of requestedUsageKeyModels) {
+  if (!availableModelNames.has(modelName)) {
+    failures.push(
+      `Unknown model requested for usage-key validation: ${modelName}`,
+    );
+  }
 }
 
 const seenModelIds = new Set();
@@ -208,6 +408,10 @@ for (const model of models) {
       );
     }
   }
+
+  if (usageKeyModels.has(model.modelName)) {
+    validateUsageKeyCoverage(model);
+  }
 }
 
 if (failures.length > 0) {
@@ -221,3 +425,8 @@ if (failures.length > 0) {
 console.log(
   `Validated ${models.length} pricing entries in ${path.relative(repoRoot, filePath)}.`,
 );
+if (usageKeyModels.size > 0) {
+  console.log(
+    `Validated usage-key coverage for ${usageKeyModels.size} changed or selected pricing entries.`,
+  );
+}

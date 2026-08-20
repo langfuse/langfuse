@@ -7,9 +7,11 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
-import { createUnknownSdkIngestionAttribution } from "@langfuse/shared/src/server";
+import {
+  createUnknownSdkIngestionAttribution,
+  buildScoreTargetUrl,
+} from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
-import { buildScoreTargetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ApiServerError } from "../../../core/errors";
 import { z } from "zod";

@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 import { env } from "../../env";
 
@@ -40,20 +41,10 @@ export class MeteringDataPostgresExportQueue {
 
     if (MeteringDataPostgresExportQueue.instance) {
       logger.debug("Scheduling jobs for MeteringDataPostgresExportQueue");
-      MeteringDataPostgresExportQueue.instance
-        .add(
-          QueueJobs.MeteringDataPostgresExportJob,
-          {},
-          {
-            repeat: { pattern: "30 2 * * *" }, // every day at 2:30am UTC
-          },
-        )
-        .catch((err) => {
-          logger.error(
-            "Error adding MeteringDataPostgresExportJob schedule",
-            err,
-          );
-        });
+      scheduleRecurringJob(MeteringDataPostgresExportQueue.instance, {
+        jobName: QueueJobs.MeteringDataPostgresExportJob,
+        pattern: "30 2 * * *", // every day at 2:30am UTC
+      });
     }
 
     return MeteringDataPostgresExportQueue.instance;

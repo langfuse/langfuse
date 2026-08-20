@@ -13,6 +13,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { ForbiddenError } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { randomUUID } from "crypto";
 
 export default withMiddlewares({
@@ -63,6 +64,7 @@ export default withMiddlewares({
     name: "/api/public/scores",
     querySchema: GetScoresQueryV1,
     responseSchema: GetScoresResponseV1,
+    deprecation: SCORES_DEPRECATION,
     rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const scoresApiService = new ScoresApiService("v1");

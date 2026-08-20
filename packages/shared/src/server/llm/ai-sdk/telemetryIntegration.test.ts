@@ -49,6 +49,7 @@ const traceSinkParams: TraceSinkParams = {
   traceId: VALID_TRACE_ID,
   traceName: "Execute evaluator: helpfulness",
   environment: "langfuse-llm-judge",
+  metadata: { job_configuration_id: "evaluator-1" },
 };
 
 const modelParams: ModelParams = {
@@ -170,6 +171,10 @@ describe("AI SDK telemetry integration", () => {
       publicKey: "",
       sdkName: "langfuse-internal-ai-sdk",
       sdkVersion: "unknown",
+      // Mirrors production: publishInternalOtelSpans flags internal batches,
+      // and the queue passes the flag through to the processor. Without it,
+      // extractEnvironment applies the public schema and strips "langfuse-".
+      isLangfuseInternal: true,
     });
     // The seen-traces dedup cache is Redis-backed; CI runs shared tests
     // without a Redis service, so the lookup would hang until test timeout.
@@ -220,6 +225,7 @@ describe("AI SDK telemetry integration", () => {
       model: "gpt-4o",
       usageDetails: { input: 3, output: 5 },
       environment: "langfuse-llm-judge",
+      metadata: { job_configuration_id: "evaluator-1" },
     });
   });
 
@@ -238,6 +244,16 @@ describe("AI SDK telemetry integration", () => {
         traceId: experimentTraceId,
         traceName: "dataset-run-item-abc12",
         environment: "langfuse-prompt-experiment",
+        metadata: {
+          dataset_id: "dataset-1",
+          dataset_item_id: "item-1",
+          structured_output_schema: {
+            type: "object",
+            properties: { answer: { type: "string" } },
+          },
+          experiment_name: "run name",
+          experiment_run_name: "run-abc",
+        },
         eventsWriter: {
           experimentContext: {
             id: "run-1",
@@ -267,6 +283,9 @@ describe("AI SDK telemetry integration", () => {
       publicKey: "",
       sdkName: "langfuse-internal-ai-sdk",
       sdkVersion: "unknown",
+      // Mirrors production: internal batches reach the queue processor with
+      // this flag set, keeping the reserved "langfuse-*" environment intact.
+      isLangfuseInternal: true,
     }).processToEvent(resourceSpans);
 
     const roots = eventInputs.filter((input: any) => !input.parentSpanId);
@@ -299,6 +318,13 @@ describe("AI SDK telemetry integration", () => {
       expect(child.environment).toBe("langfuse-prompt-experiment");
       expect(child.experimentItemRootSpanId).toBe(root.spanId);
       expect(child.spanId).not.toBe(root.spanId);
+      expect(child.metadata).toMatchObject({
+        dataset_id: "dataset-1",
+        dataset_item_id: "item-1",
+        experiment_name: "run name",
+        experiment_run_name: "run-abc",
+      });
+      expect(child.metadata).not.toHaveProperty("structured_output_schema");
     }
   });
 

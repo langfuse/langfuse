@@ -4,6 +4,7 @@ import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
 
 vi.mock("@/src/components/PagedSettingsContainer", () => ({
@@ -86,6 +87,10 @@ vi.mock("@/src/components/layouts/container-page", () => ({
   default: () => null,
 }));
 
+vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
+  useV4UpgradeUiFlag: vi.fn(),
+}));
+
 const organization = {
   id: "org-1",
   name: "Org 1",
@@ -103,6 +108,7 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(useHasOrganizationAccess).mockReturnValue(false);
     vi.mocked(usePlan).mockReturnValue("oss");
     vi.mocked(useIsCloudBillingAvailable).mockReturnValue(false);
+    vi.mocked(useV4UpgradeUiFlag).mockReturnValue(false);
   });
 
   it("hides organization API key settings without organization api key access", () => {
@@ -136,5 +142,23 @@ describe("useOrganizationSettingsPages", () => {
     expect(result.current.find((page) => page.slug === "api-keys")?.show).toBe(
       false,
     );
+  });
+
+  it("gates the v4 migration link on the v4UpgradeUi flag", () => {
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(
+      result.current.find((page) => page.slug === "v4-migration")?.show,
+    ).toBe(false);
+
+    vi.mocked(useV4UpgradeUiFlag).mockReturnValue(true);
+
+    const { result: enabled } = renderHook(() =>
+      useOrganizationSettingsPages(),
+    );
+
+    expect(
+      enabled.current.find((page) => page.slug === "v4-migration")?.show,
+    ).toBe(true);
   });
 });

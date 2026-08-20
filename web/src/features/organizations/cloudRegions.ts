@@ -45,13 +45,20 @@ const cloudRegions = [
 
 export type CloudRegion = (typeof cloudRegions)[number];
 
+export type CloudRegionName = CloudRegion["name"];
+
+type ProductionCloudRegionName = Extract<
+  CloudRegion,
+  { isProduction: true }
+>["name"];
+
 const availableRegionsByCurrentRegion = {
   STAGING: ["STAGING"],
   DEV: ["DEV"],
   default: ["US", "EU", "JP", "HIPAA"],
 } as const;
 
-const getCloudRegion = (name: (typeof cloudRegions)[number]["name"]) => {
+const getCloudRegion = (name: CloudRegionName) => {
   const region = cloudRegions.find((region) => region.name === name);
   if (!region) {
     throw new Error(`Unknown cloud region: ${name}`);
@@ -85,7 +92,9 @@ export const getCloudRegionAuthUrl = (
   return authUrl.toString();
 };
 
-export const isRegionProduction = (regionName: string): boolean => {
-  const region = cloudRegions.find((r) => r.name === regionName);
-  return region ? region.isProduction : false;
-};
+export const isRegionProduction = (
+  regionName: CloudRegionName,
+): regionName is ProductionCloudRegionName =>
+  cloudRegions.some(
+    (region) => region.name === regionName && region.isProduction,
+  );

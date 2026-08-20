@@ -8,7 +8,6 @@ import {
   getAppRootDefaultPolicy,
   getAppRootFallbackDecision,
   getAppRootSuppressionToPersist,
-  shouldQuerySdkVersion,
   storedViewOwnsEventsTableState,
   urlOwnsEventsTableState,
   viewOwnsEventsTableState,
@@ -20,11 +19,9 @@ import {
   useBrowserStorageValue,
   writeStorage,
 } from "@/src/features/events/lib/appRootDefaultStorage";
-import {
-  getSdkVersionCapability,
-  sdkVersionStorageKeys,
-  toSdkVersionInfo,
-} from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { getSdkVersionCapability } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { useProjectSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
+import { clearProjectSdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionStorage";
 
 export function useAppRootDefault(params: {
   enabled: boolean;
@@ -70,16 +67,8 @@ export function useAppRootDefault(params: {
     );
   }, [projectId]);
 
-  const {
-    language: sdkLanguageKey,
-    version: sdkVersionKey,
-    checkedAt: sdkCheckedAtKey,
-  } = sdkVersionStorageKeys(projectId);
   const preferenceKey = appRootPreferenceStorageKey(projectId);
   const savedViewKey = appRootSavedViewSessionStorageKey(projectId);
-  const sdkLanguage = useBrowserStorageValue("localStorage", sdkLanguageKey);
-  const sdkVersion = useBrowserStorageValue("localStorage", sdkVersionKey);
-  const sdkCheckedAt = useBrowserStorageValue("localStorage", sdkCheckedAtKey);
   const preference = useBrowserStorageValue("localStorage", preferenceKey);
   const restoredSavedViewId = useBrowserStorageValue(
     "sessionStorage",
@@ -88,20 +77,10 @@ export function useAppRootDefault(params: {
   const currentViewOwnsState = viewOwnsEventsTableState(router.query);
   const now = Date.now();
 
-  const sdkQuery = api.events.getSdkVersionInfo.useQuery(
-    { projectId },
-    {
-      enabled: shouldQuerySdkVersion({
-        enabled,
-        routerReady: router.isReady,
-        sdkCheckedAt,
-        dismissed,
-        now,
-      }),
-      refetchOnWindowFocus: false,
-      retry: false,
-    },
-  );
+  const sdkVersionState = useProjectSdkVersionInfo({
+    projectId,
+    enabled: enabled && router.isReady && !dismissed,
+  });
 
   const defaultViewQuery = api.TableViewPresets.getDefault.useQuery(
     { projectId, viewName: TableViewPresetTableName.ObservationsEvents },
@@ -115,23 +94,15 @@ export function useAppRootDefault(params: {
     currentViewOwnsState ||
     storedViewOwnsEventsTableState(restoredSavedViewId) ||
     Boolean(defaultViewQuery.data?.viewId);
-  const sdkCheckSettled = sdkQuery.isSuccess && !sdkQuery.isFetching;
-  const checkedSdkVersion = toSdkVersionInfo(
-    sdkCheckSettled ? sdkQuery.data : undefined,
-  );
   const appRootSupported = getSdkVersionCapability(
-    checkedSdkVersion ??
-      (sdkCheckedAt
-        ? { language: sdkLanguage, version: sdkVersion }
-        : undefined),
+    sdkVersionState.sdkVersion,
     "appRootObservations",
   );
   const policy = getAppRootDefaultPolicy({
     enabled,
     routerReady: router.isReady,
     appRootSupported,
-    sdkCheckedAt,
-    sdkCheckSettled,
+    sdkCheckedAt: sdkVersionState.checkedAt,
     preference,
     defaultViewSettled: !defaultViewQuery.isLoading,
     savedViewOwnsState,
@@ -140,32 +111,10 @@ export function useAppRootDefault(params: {
   });
 
   useEffect(() => {
-    if (policy.shouldPersistSdkVersion) {
-      writeStorage(
-        "localStorage",
-        sdkLanguageKey,
-        checkedSdkVersion?.language ?? null,
-      );
-      writeStorage(
-        "localStorage",
-        sdkVersionKey,
-        checkedSdkVersion?.version ?? null,
-      );
-      writeStorage("localStorage", sdkCheckedAtKey, new Date().toISOString());
-    }
     if (policy.shouldPersistAuto) {
       writeStorage("localStorage", preferenceKey, "auto");
     }
-  }, [
-    checkedSdkVersion?.language,
-    checkedSdkVersion?.version,
-    policy.shouldPersistSdkVersion,
-    policy.shouldPersistAuto,
-    preferenceKey,
-    sdkCheckedAtKey,
-    sdkLanguageKey,
-    sdkVersionKey,
-  ]);
+  }, [policy.shouldPersistAuto, preferenceKey]);
 
   const autoProvenanceKnown = preference === "auto" && !savedViewOwnsState;
   const onExplicitFilterStateChange = useCallback(
@@ -195,17 +144,9 @@ export function useAppRootDefault(params: {
   );
 
   const removeSdkVersionCache = useCallback(() => {
-    writeStorage("localStorage", sdkCheckedAtKey, null);
-    writeStorage("localStorage", sdkLanguageKey, null);
-    writeStorage("localStorage", sdkVersionKey, null);
+    clearProjectSdkVersionInfo(projectId);
     utils.events.getSdkVersionInfo.reset({ projectId }).catch(() => undefined);
-  }, [
-    projectId,
-    sdkCheckedAtKey,
-    sdkLanguageKey,
-    sdkVersionKey,
-    utils.events.getSdkVersionInfo,
-  ]);
+  }, [projectId, utils.events.getSdkVersionInfo]);
 
   return {
     defaultExplicitFilterState: policy.shouldApplyFilter

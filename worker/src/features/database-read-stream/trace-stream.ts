@@ -72,6 +72,7 @@ export const getTraceStream = async (props: {
     filter: traceOnlyFilters,
     isTimestampFilter: isTraceTimestampFilter,
     clickhouseConfigs,
+    preferredClickhouseService: "ReadOnly",
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(
@@ -224,6 +225,7 @@ export const getTraceStream = async (props: {
     },
     clickhouseConfigs,
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   // Helper function to process a single trace row

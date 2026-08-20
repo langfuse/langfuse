@@ -1,4 +1,5 @@
 import React from "react";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
 import { LockIcon, SquarePen } from "lucide-react";
 import {
@@ -23,9 +24,18 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
   scoreMetadata,
   buttonVariant = "secondary",
   size = "default",
+  layout = "toolbar",
+  showAnnotationCount = false,
 }: AnnotateDrawerProps<Target> & {
   size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  /**
+   * "toolbar" (default) is the inline button; "menu" renders the same drawer
+   * trigger as a full-width labeled row for the mobile header overflow popover.
+   */
+  layout?: "toolbar" | "menu";
+  showAnnotationCount?: boolean;
 }) {
+  const isMenu = layout === "menu";
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -35,15 +45,20 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
   const hasNonAnnotationScores = scores.some(
     (score) => score.source !== "ANNOTATION",
   );
+  const annotationCount = scores.filter(
+    (score) => score.source === "ANNOTATION",
+  ).length;
 
   return (
     <Drawer>
       <DrawerTrigger asChild>
         <Button
-          variant={buttonVariant}
-          size={size}
+          variant={isMenu ? "ghost" : buttonVariant}
+          size={isMenu ? "sm" : size}
           disabled={!hasAccess}
-          className="rounded-r-none"
+          className={
+            isMenu ? "w-full justify-start gap-2 font-normal" : "rounded-r-none"
+          }
           onClick={() => {
             capture(
               Boolean(scores.length)
@@ -54,15 +69,24 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
           }}
         >
           {!hasAccess ? (
-            <LockIcon className="mr-1.5 h-3 w-3" />
+            <LockIcon className={isMenu ? "h-3 w-3" : "mr-1.5 h-3 w-3"} />
           ) : (
             <SquarePen
               className={
-                size === "sm" ? "mr-1.5 h-3.5 w-3.5" : "mr-1.5 h-4 w-4"
+                isMenu
+                  ? "h-4 w-4"
+                  : size === "sm"
+                    ? "mr-1.5 h-3.5 w-3.5"
+                    : "mr-1.5 h-4 w-4"
               }
             />
           )}
-          <span>Annotate</span>
+          <span className={isMenu ? "text-sm" : undefined}>Annotate</span>
+          {showAnnotationCount && annotationCount > 0 ? (
+            <span className="ml-1">
+              <ActionButtonCountBadge count={annotationCount} />
+            </span>
+          ) : null}
         </Button>
       </DrawerTrigger>
       <DrawerContent className="p-3">

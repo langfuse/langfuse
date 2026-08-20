@@ -1,9 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  logger,
-  recordIncrement,
-  traceException,
-} from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
@@ -46,6 +42,7 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
   constructor() {
     super({
       name: "BatchTraceDeletionCleaner",
+      metricName: "batch_trace_deletion_cleaner",
       lockKey: BATCH_TRACE_DELETION_CLEANER_LOCK_KEY,
       lockTtlSeconds:
         env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_LOCK_TTL_SECONDS,
@@ -78,7 +75,6 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
           logger.error(`${this.name}: Failed to query project workload`, {
             error,
           });
-          traceException(error);
           recordIncrement(`${METRIC_PREFIX}.query_failures`, 1);
           throw error;
         }
@@ -172,7 +168,7 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
       { backend: "clickhouse" as const, result: clickhouseDeletion },
     ].flatMap(({ backend, result }) => {
       if (result.status === "rejected") {
-        traceException(result.reason);
+        this.markRunFailed(result.reason);
         return [
           {
             backend,

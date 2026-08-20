@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { HOME_DASHBOARD_PRESET_IDS } from "@langfuse/shared";
 import {
   buildDashboardExport,

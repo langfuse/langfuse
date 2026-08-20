@@ -10,7 +10,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
     blobStorageIntegration: {
       findUnique: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
-      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      // count 1 = row still exists; 0 would signal deleted-mid-run and make
+      // the handler drop the job as obsolete (LFE-14894).
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     project: { findUnique: vi.fn().mockResolvedValue({ name: "p" }) },
   },

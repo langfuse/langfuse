@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useState } from "react";
 
 import { Button } from "@/src/components/ui/button";

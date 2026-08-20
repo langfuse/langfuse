@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useState, useRef, useEffect } from "react";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { Button } from "@/src/components/ui/button";

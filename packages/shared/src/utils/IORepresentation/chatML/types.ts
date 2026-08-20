@@ -36,6 +36,10 @@ export type ParsedMediaReferenceType = z.infer<
   typeof ParsedMediaReferenceSchema
 >;
 
+// Matches the format parsed by MediaReferenceStringSchema. Non-greedy, so
+// consecutive references in one string are separate matches.
+export const MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:.+?@@@/g;
+
 /**
  * Schema that parses Langfuse media reference magic strings.
  * Format: @@@langfuseMedia:type=image/jpeg|id=<uuid>|source=base64@@@
@@ -163,7 +167,27 @@ const OpenAIImageContentPart = z.object({
 export type OpenAIImageContentPartType = z.infer<typeof OpenAIImageContentPart>;
 
 /**
- * Array of OpenAI content parts (text, image, audio).
+ * A bare `@@@langfuseMedia:…@@@` reference used as a whole content part.
+ *
+ * Validates through the canonical parser but deliberately does NOT transform:
+ * a transforming member of this union hands the renderer a shape its own part
+ * guards reject, which is how inline media silently stopped rendering
+ * (LFE-14815). The raw string must survive.
+ */
+export const MediaReferencePartSchema = z.string().refine((value) => {
+  // Exactly ONE whole reference: the parser's `^…(.*)…$` is greedy, so two
+  // concatenated tags would parse as one, silently mixing tag 1's type with
+  // tag 2's id. Splitting first mirrors getStandaloneMediaReferenceStrings.
+  const matches = value.match(MEDIA_REFERENCE_PATTERN) ?? [];
+  return (
+    matches.length === 1 &&
+    matches[0] === value &&
+    MediaReferenceStringSchema.safeParse(value).success
+  );
+});
+
+/**
+ * Array of OpenAI content parts (text, image, audio, bare media reference).
  * Used when message content is structured with multiple parts.
  */
 export const OpenAIContentParts = z.array(
@@ -171,8 +195,14 @@ export const OpenAIContentParts = z.array(
     OpenAITextContentPart,
     OpenAIImageContentPart,
     OpenAIInputAudioContentPart,
+    MediaReferencePartSchema,
   ]),
 );
+
+export const isMediaReferencePart = (
+  content: unknown,
+): content is z.infer<typeof MediaReferencePartSchema> =>
+  MediaReferencePartSchema.safeParse(content).success;
 
 /**
  * OpenAI output audio schema.

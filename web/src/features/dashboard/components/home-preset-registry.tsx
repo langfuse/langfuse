@@ -1,5 +1,9 @@
 import { type ReactNode } from "react";
-import { type FilterState, type HomeDashboardPresetId } from "@langfuse/shared";
+import {
+  HOME_DASHBOARD_PRESET_IDS,
+  type FilterState,
+  type HomeDashboardPresetId,
+} from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
@@ -205,11 +209,19 @@ const HOME_PRESETS: Record<
 
 /**
  * Display metadata for the preset picker (Add Widget dialog). `illustration`
- * keys into ChartTypeIllustration.
+ * keys into ChartTypeIllustration. `queriesTracesView` marks a preset whose
+ * query still targets the legacy `traces` view under v2, so it is not
+ * suggested to v4 users (LFE-14444) — every other card branches to the events
+ * model on its own.
  */
 export const HOME_PRESET_METADATA: Record<
   HomeDashboardPresetId,
-  { name: string; description: string; illustration: string }
+  {
+    name: string;
+    description: string;
+    illustration: string;
+    queriesTracesView?: true;
+  }
 > = {
   "home-traces": {
     name: "Traces",
@@ -250,6 +262,8 @@ export const HOME_PRESET_METADATA: Record<
     name: "Trace Latency Percentiles",
     description: "p50–p99 latencies per trace name",
     illustration: "PIVOT_TABLE",
+    // LatencyTable kind="traces" has no v2 branch: always `view: "traces"`.
+    queriesTracesView: true,
   },
   "home-latency-table-generations": {
     name: "Generation Latency Percentiles",
@@ -272,6 +286,16 @@ export const HOME_PRESET_METADATA: Record<
     illustration: "HISTOGRAM",
   },
 };
+
+/** Home cards offered in the Add Widget dialog for a metrics version. */
+export function getSuggestedHomePresetIds(
+  version: ViewVersion,
+): HomeDashboardPresetId[] {
+  return HOME_DASHBOARD_PRESET_IDS.filter(
+    (presetId) =>
+      version !== "v2" || !HOME_PRESET_METADATA[presetId].queriesTracesView,
+  );
+}
 
 export function getHomePreset(
   presetId: string,

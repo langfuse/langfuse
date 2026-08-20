@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   AZURE_CONTAINER_NAME_REGEX,
   validateAzureContainerName,

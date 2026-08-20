@@ -12,9 +12,12 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
+import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 
 import filterSearchBarDarkIllustration from "../assets/filter-search-bar-dark.svg";
 import filterSearchBarLightIllustration from "../assets/filter-search-bar-light.svg";
+import compactTimelineDarkIllustration from "../assets/compact-timeline-dark.svg";
+import compactTimelineLightIllustration from "../assets/compact-timeline-light.svg";
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
 
@@ -23,12 +26,14 @@ import modernSessionLightIllustration from "../assets/modern-session-light.svg";
  *  `searchBar` is retired and no longer renders a tile — see
  *  ControlledFeaturePreviewModal. It remains as rollback plumbing.
  *  TODO(remove ~2026-06-19): drop "searchBar" once GA is confirmed. */
-export type PreviewFlag = "modernSession" | "searchBar";
+export type PreviewFlag = FeaturePreviewFlag;
 
 type PreviewIllustration = {
   light: React.ComponentProps<typeof Image>["src"];
   dark: React.ComponentProps<typeof Image>["src"];
   alt: string;
+  width?: number;
+  height?: number;
 };
 
 type PreviewRegistryItem = {
@@ -67,6 +72,38 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       light: modernSessionLightIllustration,
       dark: modernSessionDarkIllustration,
       alt: "Compact Session View showing a trace minimap beside a continuous session conversation feed.",
+    },
+  },
+  {
+    flag: "compactTimeline",
+    title: "Compact Timeline",
+    sidebarLabel: "Compact Timeline",
+    description:
+      "See a whole trace at once — every observation a single dense line, coloured by type — then zoom and pan it like a map.",
+    details:
+      "The Compact Timeline replaces the trace panel's Timeline view. It fits the entire trace into the space available on both axes instead of scrolling: rows shrink to a single-pixel line, and colour carries the observation type where there is no room for a name. Scroll to pan, pinch to zoom both time and rows together, and double-click an observation to fly to it at a readable size — at which point the rows grow their names back and the tree gutter returns. Hovering the left edge peeks the names without moving the bars.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+    illustration: {
+      light: compactTimelineLightIllustration,
+      dark: compactTimelineDarkIllustration,
+      alt: "A whole trace as dense coloured lines, one per observation, cascading across a time axis.",
+    },
+  },
+  {
+    flag: "v4UpgradeUi",
+    title: "V4 Migration",
+    sidebarLabel: "V4 Migration",
+    description:
+      "Review each project's readiness for Langfuse v4 and get guided steps for anything that still needs an update.",
+    details:
+      "The V4 Migration experience adds a migration status page, project-level readiness indicators, and contextual upgrade guidance for SDKs, evaluators, deprecated APIs, and integrations.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+    illustration: {
+      light: "/assets/v4-beta-intro.jpg",
+      dark: "/assets/v4-beta-intro.jpg",
+      alt: "Langfuse v4 performance improvements across common observability workflows.",
+      width: 1024,
+      height: 598,
     },
   },
   // TODO(remove ~2026-06-19): dead registry entry — "searchBar" is GA on the v4
@@ -231,11 +268,15 @@ function PreviewMockupPanel({
       <Image
         src={illustration.light}
         alt={illustration.alt}
+        width={illustration.width}
+        height={illustration.height}
         className="block h-auto w-full dark:hidden"
       />
       <Image
         src={illustration.dark}
         alt={illustration.alt}
+        width={illustration.width}
+        height={illustration.height}
         className="hidden h-auto w-full dark:block"
       />
     </div>

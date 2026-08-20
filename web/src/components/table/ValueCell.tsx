@@ -1,10 +1,11 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
-import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -382,7 +383,7 @@ export const ValueCell = memo(
           const mediaDescriptor = classifyMediaValue(stringValue);
           if (mediaDescriptor) {
             return {
-              content: <JsonMediaTag descriptor={mediaDescriptor} />,
+              content: <MediaReferenceTag descriptor={mediaDescriptor} />,
               needsTruncation: false,
             };
           }

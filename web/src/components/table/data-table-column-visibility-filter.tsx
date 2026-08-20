@@ -45,7 +45,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Separator } from "@/src/components/ui/separator";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
@@ -130,7 +130,6 @@ function ColumnVisibilityListItem<TData, TValue>({
               toggleColumn(column.accessorKey);
           }}
           disabled={!column.enableHiding || isFixedPosition}
-          className="h-4 w-4"
         />
         <span
           className={cn(

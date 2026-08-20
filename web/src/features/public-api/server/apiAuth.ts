@@ -178,6 +178,15 @@ export class ApiAuthService {
                 ? ("organization" as const)
                 : ("project" as const);
 
+            // The API key is resolved via the hash of the secret key, so the
+            // submitted public key may not belong to it, e.g. after a partial
+            // credential rotation on the client.
+            if (publicKey !== finalApiKey.publicKey) {
+              logger.warn(
+                `Public key mismatch on basic auth: submitted public key ${publicKey} does not match public key ${finalApiKey.publicKey} of the API key resolved via the secret key (apiKeyId ${finalApiKey.id}, projectId ${finalApiKey.projectId}, orgId ${finalApiKey.orgId})`,
+              );
+            }
+
             const result = {
               validKey: true as const,
               scope: {
@@ -188,7 +197,7 @@ export class ApiAuthService {
                 rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
                 apiKeyId: finalApiKey.id,
                 scope: finalApiKey.scope,
-                publicKey,
+                publicKey: finalApiKey.publicKey,
                 isIngestionSuspended: finalApiKey.isIngestionSuspended,
                 isInAppAgentKey: finalApiKey.isInAppAgentKey,
               },

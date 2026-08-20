@@ -203,7 +203,7 @@ const run = async (
           description: `Technical diagram ${i}: layout of the described component with callouts.`,
         }),
         metadata: {},
-        provided_model_name: "gemini-flash-preview",
+        provided_model_name: "gemini-3.6-flash",
         internal_model_id: null,
         model_parameters: JSON.stringify({ temperature: 1 }),
         provided_usage_details: usageDetails,

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
@@ -196,7 +197,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   }
 
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn("ph-no-capture w-full", className)}>
       <Card>
         <CardContent className="p-0">
           <div className="grid grid-cols-2">

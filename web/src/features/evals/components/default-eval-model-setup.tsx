@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { CardContent } from "@/src/components/ui/card";

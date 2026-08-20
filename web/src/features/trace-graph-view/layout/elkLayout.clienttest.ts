@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { type GraphCanvasData, type GraphNodeData } from "../types";
 import {
   computeGraphLayout,
@@ -104,9 +106,9 @@ describe("dedupeEdges", () => {
 });
 
 describe("computeGraphLayout layout budget", () => {
-  // A dense cyclic aggregated graph freezes ELK (measured: 100 nodes/800 edges
-  // ≈ 177s on the main thread, a real trace fed ~1,400 edges froze >110s). ELK
-  // is synchronous, so the only safe fix is to refuse the layout up front.
+  // A dense cyclic aggregated graph grinds for minutes (measured: 1,000
+  // nodes/3,000 edges ≈ 27s, 2,000/6,000 ≈ 107s). ELK is uninterruptible even in
+  // the layout worker, so past the ceiling the layout is refused up front.
 
   // `edgeCount` distinct directed edges among the first `nodeCount` node ids
   // (no self-loops) — a dense graph, but edge endpoints stay within the nodes.

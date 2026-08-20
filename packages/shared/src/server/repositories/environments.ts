@@ -35,7 +35,7 @@ export const getEnvironmentsForProject = async (
             )
           `,
           params: { projectId, fromTimestamp },
-          tags: { projectId },
+          tags: { projectId, route: "environments.getEnvironmentsForProject" },
           preferredClickhouseService: "ReadOnly",
         })
       : queryClickhouse<{ environment: string }>({
@@ -46,7 +46,7 @@ export const getEnvironmentsForProject = async (
             ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
           `,
           params: { projectId, fromTimestamp },
-          tags: { projectId },
+          tags: { projectId, route: "environments.getEnvironmentsForProject" },
           preferredClickhouseService: "EventsReadOnly",
         });
 
@@ -59,7 +59,7 @@ export const getEnvironmentsForProject = async (
       ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
     `,
     params: { projectId, fromTimestamp, dataTypes: LISTABLE_SCORE_TYPES },
-    tags: { projectId },
+    tags: { projectId, route: "environments.getEnvironmentsForProject" },
     preferredClickhouseService: "ReadOnly",
   });
 

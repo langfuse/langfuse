@@ -17,7 +17,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -45,9 +45,12 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
     );
   }
 
-  const hasProjectAccess = useHasProjectAccess({
+  // Viewing the list only needs apiKeys:read, which project MEMBERs hold.
+  // Create, delete, and note editing stay behind apiKeys:CUD and are gated
+  // individually by CreateApiKeyButton, DeleteApiKeyButton, and ApiKeyNote.
+  const hasProjectReadAccess = useHasProjectAccess({
     projectId: props.entityId,
-    scope: "apiKeys:CUD",
+    scope: "apiKeys:read",
   });
   const hasOrganizationAccess = useHasOrganizationAccess({
     organizationId: props.entityId,
@@ -55,11 +58,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   });
 
   const hasAccess =
-    props.scope === "project" ? hasProjectAccess : hasOrganizationAccess;
+    props.scope === "project" ? hasProjectReadAccess : hasOrganizationAccess;
 
   const projectApiKeysQuery = api.projectApiKeys.byProjectId.useQuery(
     { projectId: entityId },
-    { enabled: hasProjectAccess && props.scope === "project" },
+    { enabled: hasProjectReadAccess && props.scope === "project" },
   );
   const organizationApiKeysQuery =
     api.organizationApiKeys.byOrganizationId.useQuery(
@@ -228,9 +231,7 @@ function DeleteApiKeyButton(props: {
           capture(`${scope}_settings:api_key_delete`);
           setOpen(false);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     } else {
       mutDeleteOrgApiKey
         .mutateAsync({
@@ -241,9 +242,7 @@ function DeleteApiKeyButton(props: {
           capture(`${scope}_settings:api_key_delete`);
           setOpen(false);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
   };
 

@@ -18,6 +18,23 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 
+/**
+ * Bucket scores by name, the way the badges group them. Exported so a caller that
+ * has to RESERVE room for these badges buckets them identically — two copies of
+ * the grouping rule are two chances to price a chip that never renders.
+ */
+export const groupScoresByName = <
+  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
+>(
+  scores: T[],
+): Record<string, T[]> =>
+  scores.reduce<Record<string, T[]>>((groups, score) => {
+    const bucket = groups[score.name];
+    if (!bucket || !Array.isArray(bucket)) groups[score.name] = [score];
+    else bucket.push(score);
+    return groups;
+  }, {});
+
 const partitionScores = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
 >(
@@ -150,20 +167,22 @@ export const GroupedScoreBadges = <
   maxVisible,
   compact,
   badgeClassName,
+  expandable = true,
 }: {
   scores: T[];
   maxVisible?: number;
   compact?: boolean;
   badgeClassName?: string;
+  /**
+   * Whether "+N" expands the hidden chips IN PLACE. A caller that has measured a
+   * box for exactly `maxVisible` chips has to say no: expanding is unbounded by
+   * construction, so inside a clipping box it does not reveal the hidden scores,
+   * it cuts the visible ones. The hover preview stays either way, which is the
+   * part that actually shows them.
+   */
+  expandable?: boolean;
 }) => {
-  const groupedScores = scores.reduce<Record<string, T[]>>((acc, score) => {
-    if (!acc[score.name] || !Array.isArray(acc[score.name])) {
-      acc[score.name] = [score];
-    } else {
-      acc[score.name].push(score);
-    }
-    return acc;
-  }, {});
+  const groupedScores = groupScoresByName(scores);
 
   // Level tags only when this selection MIXES levels (LFE-10596): a row whose
   // scores all share one level (the common case — e.g. a span's own
@@ -181,12 +200,12 @@ export const GroupedScoreBadges = <
 
   const { visibleScores, hiddenScores } = partitionScores(
     groupedScores,
-    expanded ? undefined : maxVisible,
+    expanded && expandable ? undefined : maxVisible,
   );
 
   const overflowButtonClassName = cn(
     badgeVariants({ variant: "tertiary" }),
-    "cursor-pointer",
+    expandable ? "cursor-pointer" : "cursor-default",
     compact ? "px-0.5 py-0 leading-tight" : "px-1",
     "text-xs font-bold",
     badgeClassName,
@@ -213,10 +232,12 @@ export const GroupedScoreBadges = <
               // the hover-card preview.
               aria-label={`Show ${hiddenScores.length} more score${hiddenScores.length === 1 ? "" : "s"}`}
               // Chips render inside clickable rows (tree nodes, table rows) —
-              // expanding must not also select/navigate the row.
+              // expanding must not also select/navigate the row. Still swallowed
+              // when expansion is off, or the row would react to a click aimed at
+              // the preview.
               onClick={(event) => {
                 event.stopPropagation();
-                setExpanded(true);
+                if (expandable) setExpanded(true);
               }}
               className={overflowButtonClassName}
             >

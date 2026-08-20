@@ -17,7 +17,34 @@ vi.mock("../queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: mockShouldSkipObservationsFinal,
 }));
 
-import { getTraceDeleteCursorPageFromTraces } from "./traces-ui-table-service";
+import {
+  getTraceDeleteCursorPageFromTraces,
+  getTracesTable,
+  getTracesTableMetrics,
+} from "./traces-ui-table-service";
+import type { FilterState } from "../../types";
+
+const scoreFilter: FilterState = [
+  {
+    column: "scores_avg",
+    type: "numberObject",
+    key: "quality",
+    operator: ">",
+    value: 0.5,
+  },
+];
+
+const getCapturedQuery = () => {
+  const { query, params } = mockQueryClickhouse.mock.calls.at(-1)![0] as {
+    query: string;
+    params: Record<string, unknown>;
+  };
+
+  return {
+    query: query.replace(/\s+/g, " "),
+    params,
+  };
+};
 
 describe("getTraceDeleteCursorPageFromTraces", () => {
   beforeEach(() => {
@@ -51,5 +78,41 @@ describe("getTraceDeleteCursorPageFromTraces", () => {
     );
     expect(normalizedQuery).toContain("LIMIT 1 BY id, project_id");
     expect(normalizedQuery).toContain("LIMIT {limit: Int32}");
+  });
+
+  it("pushes referenced score names into filter-only score aggregation", async () => {
+    await getTracesTable({
+      projectId: "project-1",
+      filter: scoreFilter,
+      limit: 50,
+      page: 0,
+    });
+
+    const { query, params } = getCapturedQuery();
+    expect(query).toContain("name IN ({");
+    expect(Object.values(params)).toContainEqual(["quality"]);
+  });
+
+  it("keeps complete score aggregation for metrics", async () => {
+    await getTracesTableMetrics({
+      projectId: "project-1",
+      filter: scoreFilter,
+      limit: 50,
+      page: 0,
+    });
+
+    expect(getCapturedQuery().query).not.toContain("name IN ({");
+  });
+
+  it("keeps complete score aggregation when ordering by scores", async () => {
+    await getTracesTable({
+      projectId: "project-1",
+      filter: scoreFilter,
+      orderBy: { column: "scores_avg", order: "ASC" },
+      limit: 50,
+      page: 0,
+    });
+
+    expect(getCapturedQuery().query).not.toContain("name IN ({");
   });
 });

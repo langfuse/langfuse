@@ -9,6 +9,7 @@ import {
 import {
   CODE_EVAL_SOURCE_MAX_BYTES,
   DefaultEvalModelService,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   testModelCall,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
@@ -126,6 +127,7 @@ async function validateLlmAsJudgeTemplateModel(
       structuredOutputSchema: compilePersistedEvalOutputDefinition(
         input.outputDefinition,
       ).outputResultSchema,
+      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

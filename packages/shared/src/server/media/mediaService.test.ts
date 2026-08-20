@@ -29,6 +29,8 @@ vi.mock("../s3", () => ({
   getS3MediaStorageClient: vi.fn(() => ({ uploadFile: mocks.uploadFile })),
 }));
 
+import { MediaAssociationOrigin } from "@prisma/client";
+
 import { MediaContentType } from "../../domain/media";
 import { recordHistogram, recordIncrement } from "../instrumentation";
 import { uploadMediaForTrace } from "./mediaService";
@@ -55,6 +57,7 @@ describe("uploadMediaForTrace", () => {
       contentBytes: CONTENT_BYTES,
       mediaBucket: "media-bucket",
       mediaPrefix: "media/",
+      origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
     });
 
     expect(result).toEqual({
@@ -63,6 +66,9 @@ describe("uploadMediaForTrace", () => {
     });
     expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRaw.mock.calls[0]).toContain(
+      MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+    );
     expect(mocks.uploadFile).toHaveBeenCalledWith(
       expect.objectContaining({
         fileName: "media/project-id/n-vgG9Qb-2loPinXEdit_8.png",
@@ -106,6 +112,7 @@ describe("uploadMediaForTrace", () => {
         contentBytes: CONTENT_BYTES,
         mediaBucket: "media-bucket",
         mediaPrefix: "media/",
+        origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
       }),
     ).rejects.toBe(uploadError);
 
@@ -139,6 +146,7 @@ describe("uploadMediaForTrace", () => {
       contentBytes: CONTENT_BYTES,
       mediaBucket: "media-bucket",
       mediaPrefix: "media/",
+      origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
     });
 
     expect(result).toEqual({
@@ -146,6 +154,9 @@ describe("uploadMediaForTrace", () => {
       outcome: "reused",
     });
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRaw.mock.calls[0]).toContain(
+      MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+    );
     expect(mocks.executeRaw).not.toHaveBeenCalled();
     expect(mocks.uploadFile).not.toHaveBeenCalled();
   });
@@ -165,9 +176,13 @@ describe("uploadMediaForTrace", () => {
       contentBytes: CONTENT_BYTES,
       mediaBucket: "media-bucket",
       mediaPrefix: "media/",
+      origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
     });
 
     const query = mocks.queryRaw.mock.calls[0]?.[0] as TemplateStringsArray;
     expect(query.join(" ")).toContain('INSERT INTO "trace_media"');
+    expect(mocks.queryRaw.mock.calls[0]).toContain(
+      MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+    );
   });
 });

@@ -1,4 +1,4 @@
-import { parseTraceTimestampFromQuery } from "@/src/utils/parseTraceTimestampFromQuery";
+import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";
 
 /**
  * The trace-peek URL comes in two dialects, and links cross the v4-beta

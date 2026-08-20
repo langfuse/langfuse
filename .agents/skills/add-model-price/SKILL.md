@@ -34,6 +34,8 @@ updates in `packages/shared/`.
 - Generate a lowercase UUID for the model entry.
 - Create a `matchPattern` that covers supported provider formats.
 - Add at least one default pricing tier.
+- Map every supported semantic usage bucket to the provider aliases Langfuse
+  may persist.
 - Insert the pricing entry into `worker/src/constants/default-model-prices.json`.
 - Update `packages/shared/src/server/llm/types.ts` if the model should be
   selectable in playground or evaluation flows.
@@ -51,6 +53,7 @@ updates in `packages/shared/`.
 | ------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Schema and tier rules           | You need the entry shape or pricing-tier invariants                                   | [references/schema-and-tiers.md](references/schema-and-tiers.md)                               |
 | Provider sources and price keys | You need official pricing URLs, per-token conversion, or provider-specific usage keys | [references/provider-sources-and-price-keys.md](references/provider-sources-and-price-keys.md) |
+| Provider usage-key matrix       | You are adding or changing OpenAI, Gemini, Anthropic, or Bedrock usage keys           | [references/provider-usage-key-matrix.md](references/provider-usage-key-matrix.md)             |
 | Match patterns                  | You are editing `matchPattern` regexes or provider coverage                           | [references/match-patterns.md](references/match-patterns.md)                                   |
 | Workflow and validation         | You are applying the end-to-end edit process or checking common mistakes              | [references/workflow-and-validation.md](references/workflow-and-validation.md)                 |
 | Automated audit mode            | You are running a scheduled/default-price audit and need CI-safe edit rules           | [references/automated-audit.md](references/automated-audit.md)                                 |

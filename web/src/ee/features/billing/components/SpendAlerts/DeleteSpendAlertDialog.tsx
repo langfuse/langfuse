@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { toast } from "sonner";
 
@@ -46,7 +46,7 @@ export function DeleteSpendAlertDialog({
       toast.success("Spend alert deleted successfully");
       onSuccess();
     } catch (error) {
-      console.error("Failed to delete spend alert:", error);
+      reportNonTrpcError(error, "billing");
       toast.error("Failed to delete spend alert. Please try again.");
     } finally {
       setIsDeleting(false);

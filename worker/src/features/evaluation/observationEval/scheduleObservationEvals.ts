@@ -3,7 +3,10 @@ import {
   type ObservationEvalConfig,
   type ObservationEvalSchedulerDeps,
 } from "./types";
-import { shouldSampleObservation } from "./shouldSampleObservation";
+import {
+  getDeterministicSamplingValue,
+  shouldSampleEvaluation,
+} from "../deterministicSampling";
 import {
   InMemoryFilterService,
   LangfuseInternalTraceEnvironment,
@@ -18,6 +21,7 @@ import {
   mapEventEvalFilterColumnIdToField,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
+import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -30,7 +34,8 @@ interface ScheduleObservationEvalsParams {
  * Whether queue-driven (asynchronous OTel ingestion) observation-eval
  * scheduling is allowed for an observation.
  *
- * Internal Langfuse environments are excluded: LLM-as-a-judge executions
+ * Internal Langfuse environments and public-ingestion aliases are excluded:
+ * LLM-as-a-judge executions
  * publish their own telemetry through the OTel ingestion pipeline
  * (shared AI SDK LLM runtime), and scheduling evals on eval
  * observations would recurse indefinitely — the observation-eval counterpart
@@ -51,7 +56,7 @@ export function isObservationAllowedForQueuedObservationEvals(
     "environment" | "span_id" | "experiment_item_root_span_id"
   >,
 ): boolean {
-  if (!observation.environment?.startsWith("langfuse")) {
+  if (!isInternalEvalEnvironment(observation.environment)) {
     return true;
   }
 
@@ -86,6 +91,8 @@ export async function scheduleObservationEvals(
     return;
   }
 
+  const samplingValue = getDeterministicSamplingValue(observation.span_id);
+
   // Filter configs that match this observation (filter + sampling).
   // This is done before S3 upload to avoid unnecessary uploads.
   const matchingConfigs = configs.filter((config) => {
@@ -110,7 +117,12 @@ export async function scheduleObservationEvals(
 
     // Check sampling
     const samplingRate = config.sampling.toNumber();
-    if (!shouldSampleObservation({ samplingRate })) {
+    if (
+      !shouldSampleEvaluation({
+        samplingValue,
+        samplingRate,
+      })
+    ) {
       logger.debug("Observation sampled out for eval config", {
         configId: config.id,
         observationId: observation.span_id,

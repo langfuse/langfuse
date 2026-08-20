@@ -1,17 +1,16 @@
 import type { z } from "zod";
-import {
-  DashboardWidgetChartType,
-  DashboardWidgetViews,
-} from "@langfuse/shared/src/db";
+import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,
+  dashboardWidgetViewToQueryView,
+  queryViewToDashboardWidgetView,
+  resolveDashboardWidgetMinVersion,
   type WidgetDomain,
 } from "@langfuse/shared/src/server";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
-  type views,
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -32,31 +31,11 @@ import {
 } from "@/src/features/widgets/utils/pivot-table-utils";
 
 // The widget shape used internally after input normalization: the public
-// body with chartConfig fully resolved plus the internal minVersion.
+// body with chartConfig and filters fully resolved.
 type NormalizedWidgetInput = Omit<
   z.infer<typeof PostUnstableDashboardWidgetResponse>,
   "id" | "createdAt" | "updatedAt"
-> & { minVersion: number };
-
-const viewMapping: Record<DashboardWidgetViewOutputType, DashboardWidgetViews> =
-  {
-    observations: DashboardWidgetViews.OBSERVATIONS,
-    "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
-    "scores-boolean": DashboardWidgetViews.SCORES_BOOLEAN,
-    "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
-    traces: DashboardWidgetViews.TRACES,
-  };
-
-const reverseViewMapping: Record<
-  DashboardWidgetViews,
-  z.infer<typeof views>
-> = {
-  [DashboardWidgetViews.TRACES]: "traces",
-  [DashboardWidgetViews.OBSERVATIONS]: "observations",
-  [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
-  [DashboardWidgetViews.SCORES_BOOLEAN]: "scores-boolean",
-  [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
-};
+>;
 
 const throwInvalidWidget = (params: {
   message: string;
@@ -77,15 +56,27 @@ const throwInvalidWidget = (params: {
   });
 };
 
-function getWidgetViewVersion(widget: { minVersion: number }): ViewVersion {
-  return widget.minVersion >= 2 ? "v2" : "v1";
+function resolvePublicWidgetPersistedViewVersion(
+  widget: NormalizedWidgetInput,
+  persistedMinVersion?: number,
+): ViewVersion {
+  return resolveDashboardWidgetMinVersion(
+    {
+      view: widget.view,
+      dimensions: widget.dimensions,
+      measures: widget.metrics,
+      filters: widget.filters,
+    },
+    persistedMinVersion,
+  ) >= 2
+    ? "v2"
+    : "v1";
 }
 
 function getPublicDashboardWidgetViewDeclaration(
   widget: NormalizedWidgetInput,
+  viewVersion: ViewVersion,
 ): ReturnType<typeof getViewDeclaration> {
-  const viewVersion = getWidgetViewVersion(widget);
-
   try {
     return getViewDeclaration(widget.view, viewVersion);
   } catch (error) {
@@ -101,9 +92,19 @@ type PublicDashboardWidgetInput = Omit<
   "view"
 > & { view: DashboardWidgetViewOutputType };
 
+/**
+ * Normalize a public widget against the query tables available in this
+ * deployment. V2 widgets read the `events_*` tables, which the worker only
+ * writes in `dual` and `events_only` mode; preview opt-in controls whether the
+ * UI offers v4, not whether those tables contain data.
+ *
+ * The shape-required version is checked against what the deployment can
+ * actually query, so the API never accepts a widget that can never render
+ * (LFE-14581). The DashboardService derives the persisted version when it
+ * writes the normalized shape.
+ */
 export function normalizePublicDashboardWidgetInput(
   input: PublicDashboardWidgetInput,
-  minVersion = 2,
 ): NormalizedWidgetInput {
   const { mappedFilters, unsupportedFilters } =
     partitionStoredUiTableFiltersToView(input.view, input.filters);
@@ -152,22 +153,32 @@ export function normalizePublicDashboardWidgetInput(
     });
   }
 
+  const normalizedFilters = mappedFilters.map((filter) => ({
+    ...filter,
+    column: columnAliases[filter.column] ?? filter.column,
+  }));
   return {
     ...input,
-    filters: mappedFilters.map((filter) => ({
-      ...filter,
-      column: columnAliases[filter.column] ?? filter.column,
-    })),
+    filters: normalizedFilters,
     chartConfig: chartConfig.data,
-    minVersion,
   };
 }
 
 export function validatePublicDashboardWidgetInput(
   widget: NormalizedWidgetInput,
+  persistedMinVersion?: number,
 ): void {
-  const viewVersion = getWidgetViewVersion(widget);
-  const viewDeclaration = getPublicDashboardWidgetViewDeclaration(widget);
+  const viewVersion = resolvePublicWidgetPersistedViewVersion(
+    widget,
+    persistedMinVersion,
+  );
+  const viewDeclaration = getPublicDashboardWidgetViewDeclaration(
+    widget,
+    viewVersion,
+  );
+  const widgetCompatibleDimensions = Object.entries(
+    viewDeclaration.dimensions,
+  ).flatMap(([field, definition]) => (definition.uiHidden ? [] : [field]));
 
   for (const [index, dimension] of widget.dimensions.entries()) {
     const dimensionDefinition = viewDeclaration.dimensions[dimension.field];
@@ -176,7 +187,7 @@ export function validatePublicDashboardWidgetInput(
       throwInvalidWidget({
         message: `Dimension "${dimension.field}" is not available for view "${widget.view}" in version "${viewVersion}"`,
         field: `dimensions[${index}].field`,
-        allowedValues: Object.keys(viewDeclaration.dimensions),
+        allowedValues: widgetCompatibleDimensions,
       });
     }
 
@@ -184,6 +195,7 @@ export function validatePublicDashboardWidgetInput(
       throwInvalidWidget({
         message: `Dimension "${dimension.field}" is not available for widgets`,
         field: `dimensions[${index}].field`,
+        allowedValues: widgetCompatibleDimensions,
       });
     }
   }
@@ -250,7 +262,7 @@ export function toApiDashboardWidget(widget: WidgetDomain) {
     updatedAt: widget.updatedAt,
     name: widget.name,
     description: widget.description,
-    view: reverseViewMapping[widget.view],
+    view: dashboardWidgetViewToQueryView[widget.view],
     dimensions: widget.dimensions,
     metrics: widget.metrics,
     filters: widget.filters,
@@ -269,7 +281,7 @@ export async function createPublicDashboardWidget(params: {
 
   const widget = await DashboardService.createWidget(params.projectId, {
     ...input,
-    view: viewMapping[input.view],
+    view: queryViewToDashboardWidgetView[input.view],
   });
 
   await auditLog({
@@ -343,30 +355,30 @@ export async function updatePublicDashboardWidget(params: {
   const chartTypeChanged =
     params.input.chartType !== undefined &&
     params.input.chartType !== currentPublic.chartType;
-  // Keep the stored minVersion (and thus v1/v2 query semantics) unless the
-  // caller explicitly changes the view; view changes land on v2 like create.
-  const mergedView = params.input.view ?? currentPublic.view;
-  const minVersion = mergedView === currentPublic.view ? current.minVersion : 2;
-  const input = normalizePublicDashboardWidgetInput(
-    {
-      ...currentPublic,
-      ...params.input,
-      // A chartType change without an explicit chartConfig resets the config
-      // to the new type; carrying the stale config type over would always
-      // fail validation.
-      chartConfig:
-        params.input.chartConfig ??
-        (chartTypeChanged
-          ? { type: params.input.chartType }
-          : currentPublic.chartConfig),
-    },
-    minVersion,
-  );
-  validatePublicDashboardWidgetInput(input);
+  const input = normalizePublicDashboardWidgetInput({
+    ...currentPublic,
+    ...params.input,
+    // A chartType change without an explicit chartConfig resets the config
+    // to the new type; carrying the stale config type over would always
+    // fail validation.
+    chartConfig:
+      params.input.chartConfig ??
+      (chartTypeChanged
+        ? { type: params.input.chartType }
+        : currentPublic.chartConfig),
+  });
+  const persistedMinVersion =
+    current.view === queryViewToDashboardWidgetView[input.view]
+      ? current.minVersion
+      : undefined;
+  validatePublicDashboardWidgetInput(input, persistedMinVersion);
   const updated = await DashboardService.updateWidget(
     params.projectId,
     params.widgetId,
-    { ...input, view: viewMapping[input.view] },
+    {
+      ...input,
+      view: queryViewToDashboardWidgetView[input.view],
+    },
   );
   const result = toApiDashboardWidget(updated);
   await auditLog({

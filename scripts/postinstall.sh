@@ -18,4 +18,9 @@ if [[ ! -f "scripts/agents/sync-agent-shims.mjs" || ! -f ".agents/config.json" ]
 fi
 
 pnpm run agents:sync
-pnpm run agents:check
+
+# Verify the shims only. Deliberately not `pnpm run agents:check`, which also
+# validates that every path cited by an `AGENTS.md` resolves: that is a lint
+# concern, and failing it here would break `pnpm i` and with it every CI job
+# that installs. The lint job runs the full check.
+node scripts/agents/sync-agent-shims.mjs --check

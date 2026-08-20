@@ -239,11 +239,13 @@ function AccountSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   const capture = usePostHogClientCapture();
   const accountSettingsPages = useAccountSettingsPages();
 
-  const accountSettingsItems = accountSettingsPages.map((page) => ({
-    title: `Account Settings > ${page.title}`,
-    url: `/account/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
-    keywords: page.cmdKKeywords || [],
-  }));
+  const accountSettingsItems = accountSettingsPages
+    .filter((page) => !("href" in page))
+    .map((page) => ({
+      title: `Account Settings > ${page.title}`,
+      url: `/account/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
+      keywords: page.cmdKKeywords || [],
+    }));
 
   if (accountSettingsItems.length === 0) return null;
 

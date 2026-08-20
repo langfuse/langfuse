@@ -14,7 +14,7 @@ import {
   PROMPT_NAME_MAX_LENGTH,
 } from "@langfuse/shared";
 import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
-import { buildPromptUrl } from "@/src/utils/product-url";
+import { buildPromptUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ParamCreatePromptLabels } from "../validation";
 

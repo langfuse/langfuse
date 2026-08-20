@@ -1,0 +1,54 @@
+import { z } from "zod";
+
+export const FeedbackTargetType = z.enum([
+  "skill",
+  "mcp-tool",
+  "cli",
+  "docs",
+  "public-api",
+  "other",
+]);
+
+export const PostFeedbackBody = z
+  .object({
+    targetType: FeedbackTargetType.describe(
+      "Category of the thing the feedback is about.",
+    ),
+    target: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .describe(
+        "The specific instance within targetType: the skill name, MCP tool name, CLI command, API endpoint path, or docs page path (e.g. 'queryMetrics', '/docs/mcp'). An identifier, not a sentence.",
+      ),
+    feedback: z
+      .string()
+      .trim()
+      .min(1)
+      .max(3000)
+      .describe("The concise feedback text approved by the user."),
+    goal: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1500)
+      .optional()
+      .describe(
+        "Optional user-approved goal or use case they were trying to achieve. Do not infer or add secrets, customer data, trace payloads, or broad unrelated context.",
+      ),
+    referenceUrl: z
+      .url()
+      .max(2048)
+      .refine((url) => ["http:", "https:"].includes(new URL(url).protocol), {
+        message: "referenceUrl must use http or https",
+      })
+      .optional()
+      .describe("Optional URL reference. Langfuse stores it as text only."),
+  })
+  .strict();
+
+export const PostFeedbackResponse = z.object({ id: z.uuid() }).strict();
+
+export type PostFeedbackBodyType = z.infer<typeof PostFeedbackBody>;
+export type PostFeedbackResponseType = z.infer<typeof PostFeedbackResponse>;

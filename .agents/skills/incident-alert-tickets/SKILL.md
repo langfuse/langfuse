@@ -1,13 +1,9 @@
 ---
 name: incident-alert-tickets
 description: |
-  Look up, compare against, and (after human approval) update the Linear
-  incident-alert knowledge base: one ticket per production alert/monitor,
-  labeled `incident-alert`, with one dated cause section per distinct root
-  cause. Use whenever an investigation is anchored to a named alert identity —
-  a Datadog monitor ID or title, an incident.io alert/INC reference, or an
-  on-call page — both before debugging from scratch (a documented cause may
-  already answer it) and after establishing a new root cause (record it).
+  Read and, after human approval, update the Linear `incident-alert` knowledge
+  base. Use before and after investigating a named Datadog monitor, incident.io
+  alert or incident, or on-call page to find or record root causes.
 ---
 
 # Incident Alert Tickets

@@ -15,6 +15,10 @@ import {
   startLocalLlmServer,
   type LocalLlmServer,
 } from "./helpers/localLlmServer";
+import {
+  startLocalForwardProxy,
+  type LocalForwardProxy,
+} from "./helpers/localForwardProxy";
 
 // These tests replace the previous mock-heavy unit tests for the secure LLM
 // fetch path. The happy-path wiring is now proven against a real local HTTP
@@ -439,6 +443,134 @@ describe("secure LLM fetch", () => {
       expect(forwarded.headers["x-api-key"]).toBeUndefined();
       // Non-sensitive headers survive the redirect.
       expect(forwarded.headers["x-non-sensitive"]).toBe("keep-me");
+    });
+  });
+
+  describe("HTTPS_PROXY / NO_PROXY routing", () => {
+    const originalHttpsProxy = env.HTTPS_PROXY;
+    const originalNoProxy = env.NO_PROXY;
+    const originalNoProxyLower = env.no_proxy;
+    const proxies: LocalForwardProxy[] = [];
+
+    beforeEach(() => {
+      env.HTTPS_PROXY = undefined;
+      env.NO_PROXY = undefined;
+      env.no_proxy = undefined;
+    });
+
+    afterEach(async () => {
+      env.HTTPS_PROXY = originalHttpsProxy;
+      env.NO_PROXY = originalNoProxy;
+      env.no_proxy = originalNoProxyLower;
+      await Promise.all(proxies.splice(0).map((p) => p.close()));
+    });
+
+    async function spinUpProxy() {
+      const proxy = await startLocalForwardProxy();
+      proxies.push(proxy);
+      return proxy;
+    }
+
+    function spinUpTarget() {
+      return spinUp((_req, _body, res) => {
+        res.setHeader("content-type", "application/json");
+        res.end(OPENAI_RESPONSE_BODY);
+      });
+    }
+
+    async function fetchThroughSecureLlmFetch(url: string) {
+      const secureFetch = createSecureLlmFetch({
+        logContext: "Test LLM endpoint",
+      });
+      const response = await secureFetch(`${url}/v1/chat/completions`, {
+        method: "POST",
+        body: JSON.stringify({ messages: [] }),
+      });
+      // Consume the body so keep-alive sockets return to the pool instead of
+      // staying busy until close.
+      await response.text();
+      return response;
+    }
+
+    test("routes requests through HTTPS_PROXY when NO_PROXY does not match", async () => {
+      const target = await spinUpTarget();
+      const proxy = await spinUpProxy();
+
+      env.HTTPS_PROXY = proxy.url;
+      env.NO_PROXY = "does-not-match.example";
+
+      const response = await fetchThroughSecureLlmFetch(target.url);
+
+      expect(response.status).toBe(200);
+      expect(proxy.targets).toHaveLength(1);
+      expect(target.requests).toHaveLength(1);
+    });
+
+    test("connects directly when the target host matches NO_PROXY", async () => {
+      const target = await spinUpTarget();
+      const proxy = await spinUpProxy();
+
+      env.HTTPS_PROXY = proxy.url;
+      env.NO_PROXY = "127.0.0.1";
+
+      const response = await fetchThroughSecureLlmFetch(target.url);
+
+      expect(response.status).toBe(200);
+      expect(proxy.targets).toHaveLength(0);
+      expect(target.requests).toHaveLength(1);
+    });
+
+    test("NO_PROXY=* connects directly for every host", async () => {
+      const target = await spinUpTarget();
+      const proxy = await spinUpProxy();
+
+      env.HTTPS_PROXY = proxy.url;
+      env.NO_PROXY = "*";
+
+      const response = await fetchThroughSecureLlmFetch(target.url);
+
+      expect(response.status).toBe(200);
+      expect(proxy.targets).toHaveLength(0);
+      expect(target.requests).toHaveLength(1);
+    });
+
+    test("the lowercase no_proxy variant wins over NO_PROXY", async () => {
+      const target = await spinUpTarget();
+      const proxy = await spinUpProxy();
+
+      env.HTTPS_PROXY = proxy.url;
+      env.no_proxy = "127.0.0.1";
+      env.NO_PROXY = "does-not-match.example";
+
+      const response = await fetchThroughSecureLlmFetch(target.url);
+
+      expect(response.status).toBe(200);
+      expect(proxy.targets).toHaveLength(0);
+      expect(target.requests).toHaveLength(1);
+    });
+
+    test("redirect hops re-evaluate NO_PROXY per origin", async () => {
+      const target = await spinUpTarget();
+      const redirector = await spinUp((_req, _body, res) => {
+        res.statusCode = 302;
+        res.setHeader("location", `${target.url}/v1/chat/completions`);
+        res.end();
+      });
+      const proxy = await spinUpProxy();
+
+      env.HTTPS_PROXY = proxy.url;
+      // Port-qualified entry: only the redirector bypasses the proxy, the
+      // redirect target (same host, different port) must be proxied.
+      env.NO_PROXY = `127.0.0.1:${new URL(redirector.url).port}`;
+
+      const response = await fetchThroughSecureLlmFetch(redirector.url);
+
+      expect(response.status).toBe(200);
+      expect(redirector.requests).toHaveLength(1);
+      expect(target.requests).toHaveLength(1);
+      // Exactly one hop (the redirect target) traversed the proxy.
+      expect(proxy.targets).toHaveLength(1);
+      expect(proxy.targets[0]).toContain(`:${new URL(target.url).port}`);
     });
   });
 

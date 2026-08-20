@@ -34,6 +34,7 @@ const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "latency",
   "timeToFirstToken",
   "tags",
+  "isRootObservation",
   "hasParentObservation",
 ] as const satisfies readonly ObservationMcpFilterColumn[];
 
@@ -46,6 +47,7 @@ const GetObservationFilterValuesBaseSchema = z.object({
   fromStartTime: z.iso.datetime({ offset: true }).optional(),
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   observationType: ObservationTypeDomain.optional(),
+  isRootObservation: z.boolean().optional(),
   hasParentObservation: z.boolean().optional(),
   limit: ObservationLimitSchema,
   cursor: z.string().optional(),
@@ -89,8 +91,8 @@ const normalizeFilterOptions = (
 ): FilterOption[] => {
   const normalizeValue = (value: unknown): string | boolean | null => {
     if (typeof value === "string") {
-      // Special handling for the "hasParentObservation" column to convert "true"/"false" strings to boolean values.
-      if (column === "hasParentObservation") {
+      // ClickHouse returns boolean filter options as "true"/"false" strings.
+      if (column === "isRootObservation" || column === "hasParentObservation") {
         if (value === "true") return true;
         if (value === "false") return false;
       }
@@ -185,6 +187,7 @@ export const [
             column: eventsColumn,
             projectId: context.projectId,
             startTimeFilter,
+            isRootObservation: input.isRootObservation,
             hasParentObservation: input.hasParentObservation,
             observationType: input.observationType,
           });
@@ -203,6 +206,7 @@ export const [
           column: eventsColumn,
           projectId: context.projectId,
           startTimeFilter,
+          isRootObservation: input.isRootObservation,
           hasParentObservation: input.hasParentObservation,
           observationType: input.observationType,
           limit: input.limit,

@@ -1,6 +1,7 @@
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+import { type FilterState } from "@langfuse/shared";
 
 // Maps frontend column IDs to backend-expected column IDs
 // Frontend uses "tags" but backend CH mapping expects "trace_tags" for trace tags on scores table
@@ -108,6 +109,36 @@ export const scoreFilterConfig: FilterConfig = {
     },
   ],
 };
+
+/**
+ * Scopes the scores table to one observation. `includeTraceLevelScores` widens it
+ * to the trace's trace-level scores as well — `observation_id` is `''`-equals-NULL
+ * in the ClickHouse mapping, so "any of ['', id]" is the OR, matching each score
+ * row once (LFE-14405).
+ */
+export function observationScopeFilter(
+  observationId: string | undefined,
+  includeTraceLevelScores: boolean,
+): FilterState {
+  if (!observationId) return [];
+  return includeTraceLevelScores
+    ? [
+        {
+          column: "observationId",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["", observationId],
+        },
+      ]
+    : [
+        {
+          column: "observationId",
+          type: "string",
+          operator: "=",
+          value: observationId,
+        },
+      ];
+}
 
 export function getScoreFilterConfig(
   hiddenColumns: ScoresTableHiddenColumn[] = [],

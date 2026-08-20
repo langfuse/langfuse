@@ -14,6 +14,7 @@ import {
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get model definitions",
+    isAdminApiKeyAuthAllowed: true,
     querySchema: GetModelV1Query,
     responseSchema: GetModelV1Response,
     fn: async ({ query, auth }) => {
@@ -26,6 +27,7 @@ export default withMiddlewares({
 
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete model",
+    isAdminApiKeyAuthAllowed: true,
     querySchema: DeleteModelV1Query,
     responseSchema: DeleteModelV1Response,
     fn: async ({ query, auth }) => {

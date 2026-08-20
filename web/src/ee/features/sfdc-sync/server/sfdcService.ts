@@ -36,8 +36,11 @@ import {
  * Contract for callers: every public method is fire-and-forget safe.
  * Methods NEVER throw/reject — missing emails, NONE roles, validation
  * failures, HTTP errors, timeouts, and persistence errors are all handled
- * internally with a structured log line. Call sites therefore need no
- * null-checks beyond the factory and no try/catch:
+ * internally with a structured log line. Each method resolves to a delivery
+ * boolean: true only when Mulesoft acked the POST with a 2xx, false on any
+ * skip or failure. Live call sites ignore it (fire-and-forget); the SFDC
+ * backfill script uses it to track per-entity outcomes. Call sites therefore
+ * need no null-checks beyond the factory and no try/catch:
  *
  *     await getSfdcService()?.setUserRole({ orgId, userId, email, role });
  *
@@ -217,13 +220,13 @@ export class SfdcService {
   }
 
   /** Lead / contact upsert on user signup. POSTs to `/manage-user`. */
-  async upsertUser(input: UpsertUserInput): Promise<void> {
+  async upsertUser(input: UpsertUserInput): Promise<boolean> {
     return this.run("upsertUser", { userId: input.userId }, async () => {
       if (!input.email) {
         logger.warn("[SFDC] skipping upsertUser — user has no email", {
           userId: input.userId,
         });
-        return;
+        return false;
       }
       const parsed = UpsertUserPayload.safeParse({
         userId: input.userId,
@@ -239,14 +242,15 @@ export class SfdcService {
           userId: input.userId,
           error: parsed.error.message,
         });
-        return;
+        return false;
       }
-      await this.post({
+      const { ok } = await this.post({
         url: this.config.userUrl,
         payload: { isLangfuse: true, ...parsed.data },
         context: { event: "upsertUser", userId: parsed.data.userId },
         expectJsonResponse: false,
       });
+      return ok;
     });
   }
 
@@ -255,7 +259,7 @@ export class SfdcService {
    * endpoint. Carries no user fields (Mulesoft ignores them on updateOrg) —
    * member links are established exclusively via setUserRole.
    */
-  async upsertOrg(input: UpsertOrgInput): Promise<void> {
+  async upsertOrg(input: UpsertOrgInput): Promise<boolean> {
     return this.run("upsertOrg", { orgId: input.orgId }, async () => {
       const parsed = UpsertOrgPayload.safeParse({
         orgId: input.orgId,
@@ -271,9 +275,9 @@ export class SfdcService {
           orgId: input.orgId,
           error: parsed.error.message,
         });
-        return;
+        return false;
       }
-      const response = await this.post({
+      const { ok, data } = await this.post({
         url: this.config.orgUrl,
         payload: {
           isLangfuse: true,
@@ -288,9 +292,10 @@ export class SfdcService {
         },
         context: { event: "upsertOrg", orgId: parsed.data.orgId },
       });
-      if (response?.sfdcOrgId) {
-        await this.persistSfdcOrgId(parsed.data.orgId, response.sfdcOrgId);
+      if (data?.sfdcOrgId) {
+        await this.persistSfdcOrgId(parsed.data.orgId, data.sfdcOrgId);
       }
+      return ok;
     });
   }
 
@@ -301,7 +306,7 @@ export class SfdcService {
    * for the user, so it is synced as a removal — that covers downgrades of
    * existing members.
    */
-  async setUserRole(input: SetUserRoleInput): Promise<void> {
+  async setUserRole(input: SetUserRoleInput): Promise<boolean> {
     if (input.role === "NONE") {
       return this.removeUser({
         orgId: input.orgId,
@@ -318,7 +323,7 @@ export class SfdcService {
             orgId: input.orgId,
             userId: input.userId,
           });
-          return;
+          return false;
         }
         const parsed = SetUserRolePayload.safeParse(input);
         if (!parsed.success) {
@@ -327,9 +332,9 @@ export class SfdcService {
             userId: input.userId,
             error: parsed.error.message,
           });
-          return;
+          return false;
         }
-        await this.post({
+        const { ok } = await this.post({
           url: this.config.orgUrl,
           payload: {
             isLangfuse: true,
@@ -343,12 +348,13 @@ export class SfdcService {
           },
           expectJsonResponse: false,
         });
+        return ok;
       },
     );
   }
 
   /** Remove a user from an org. Fires on membership deletion. */
-  async removeUser(input: RemoveUserInput): Promise<void> {
+  async removeUser(input: RemoveUserInput): Promise<boolean> {
     return this.run(
       "removeUser",
       { orgId: input.orgId, userId: input.userId },
@@ -358,7 +364,7 @@ export class SfdcService {
             orgId: input.orgId,
             userId: input.userId,
           });
-          return;
+          return false;
         }
         const parsed = RemoveUserPayload.safeParse(input);
         if (!parsed.success) {
@@ -367,9 +373,9 @@ export class SfdcService {
             userId: input.userId,
             error: parsed.error.message,
           });
-          return;
+          return false;
         }
-        await this.post({
+        const { ok } = await this.post({
           url: this.config.orgUrl,
           payload: {
             isLangfuse: true,
@@ -383,22 +389,24 @@ export class SfdcService {
           },
           expectJsonResponse: false,
         });
+        return ok;
       },
     );
   }
 
   /**
    * Belt-and-braces never-throw wrapper around every public method body so
-   * the fire-and-forget contract holds even for unforeseen errors. Wraps the
-   * operation in one `sfdc.<event>` span; because errors never propagate to
-   * callers, this span (marked errored via traceException) is the only place
-   * failed syncs surface in APM.
+   * the fire-and-forget contract holds even for unforeseen errors (which
+   * resolve to a `false` delivery outcome). Wraps the operation in one
+   * `sfdc.<event>` span; because errors never propagate to callers, this
+   * span (marked errored via traceException) is the only place failed syncs
+   * surface in APM.
    */
   private async run(
     event: string,
     context: Record<string, unknown>,
-    fn: () => Promise<void>,
-  ): Promise<void> {
+    fn: () => Promise<boolean>,
+  ): Promise<boolean> {
     return instrumentAsync(
       { name: `sfdc.${event}`, spanKind: SpanKind.CLIENT },
       async (span) => {
@@ -408,20 +416,23 @@ export class SfdcService {
           }
         }
         try {
-          await fn();
+          return await fn();
         } catch (err) {
           traceException(err, span);
           logger.error(`[SFDC] ${event} failed unexpectedly`, {
             ...context,
             error: err instanceof Error ? err.message : String(err),
           });
+          return false;
         }
       },
     );
   }
 
   /**
-   * Single POST helper. Returns the parsed response on 2xx, null otherwise.
+   * Single POST helper. Returns `ok` (true iff Mulesoft answered 2xx) plus
+   * the parsed JSON body when one came back (`data` — null on plain-text or
+   * unexpected-shape responses, which still count as delivered).
    * Never throws — HTTP errors, timeouts, and malformed bodies are logged.
    * Every request leaves exactly one outcome log line (info on 2xx, warn
    * otherwise) so each Mulesoft call is auditable in the log stream. At
@@ -434,7 +445,7 @@ export class SfdcService {
     context: Record<string, unknown>;
     /** The user endpoint acks with plain text — set false to skip JSON parsing. */
     expectJsonResponse?: boolean;
-  }): Promise<z.infer<typeof SfdcResponse> | null> {
+  }): Promise<{ ok: boolean; data: z.infer<typeof SfdcResponse> | null }> {
     const { url, payload, context, expectJsonResponse = true } = args;
     const controller = new AbortController();
     const timeout = setTimeout(
@@ -478,7 +489,7 @@ export class SfdcService {
           durationMs: Date.now() - startTime,
           responseBody: responseText.slice(0, 500),
         });
-        return null;
+        return { ok: false, data: null };
       }
 
       logger.info("[SFDC] Mulesoft request succeeded", {
@@ -489,7 +500,7 @@ export class SfdcService {
       });
 
       // Tolerate empty / non-JSON bodies; we only care if an ID comes back.
-      if (!expectJsonResponse || !responseText) return null;
+      if (!expectJsonResponse || !responseText) return { ok: true, data: null };
 
       let parsed: unknown;
       try {
@@ -499,7 +510,7 @@ export class SfdcService {
           ...context,
           responseBody: responseText.slice(0, 500),
         });
-        return null;
+        return { ok: true, data: null };
       }
 
       const result = SfdcResponse.safeParse(parsed);
@@ -508,9 +519,9 @@ export class SfdcService {
           ...context,
           error: result.error.message,
         });
-        return null;
+        return { ok: true, data: null };
       }
-      return result.data;
+      return { ok: true, data: result.data };
     } catch (err) {
       const isAbort = err instanceof Error && err.name === "AbortError";
       traceException(err);
@@ -525,7 +536,7 @@ export class SfdcService {
           error: err instanceof Error ? err.message : String(err),
         },
       );
-      return null;
+      return { ok: false, data: null };
     } finally {
       clearTimeout(timeout);
     }

@@ -342,7 +342,9 @@ export const handleEventPropagationJob = async (
       },
       clickhouseSettings: {
         parallel_view_processing: 1,
-        max_insert_threads: "8",
+        max_insert_threads: String(
+          env.LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS,
+        ),
         type_json_skip_duplicated_paths: true,
       },
     });

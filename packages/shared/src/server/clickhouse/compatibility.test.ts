@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const envMock = vi.hoisted(() => ({
   env: {
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
+    CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "auto",
   },
 }));
 
@@ -14,105 +15,97 @@ import {
   resolveClickHouseCompatibility,
 } from "./compatibility";
 
+const noCompatibilitySettings = {};
+const disableLazyMaterialization = {
+  query_plan_optimize_lazy_materialization: 0,
+};
+const disableTopKThroughJoin = { query_plan_top_k_through_join: 0 };
+
 describe("ClickHouse compatibility version parsing", () => {
-  it("parses ClickHouse versions with build components", () => {
+  it("parses and compares ClickHouse build components", () => {
     expect(parseClickHouseVersion("26.5.1.882")).toMatchObject({
       major: 26,
       minor: 5,
       patch: 1,
-      tuple: [26, 5, 1],
+      build: 882,
+      tuple: [26, 5, 1, 882],
     });
+
+    const band = {
+      minInclusive: "26.5.1.651",
+      maxExclusive: "26.5.6.70",
+    };
+
+    expect(isClickHouseVersionInBand("26.5.1.650", band)).toBe(false);
+    expect(isClickHouseVersionInBand("26.5.1.651", band)).toBe(true);
+    expect(isClickHouseVersionInBand("26.5.6.69", band)).toBe(true);
+    expect(isClickHouseVersionInBand("26.5.6.70", band)).toBe(false);
   });
 
-  it("parses ClickHouse versions with dotted vendor suffixes", () => {
+  it("parses dotted vendor suffixes after the build component", () => {
     expect(parseClickHouseVersion("25.4.1.1.altinitystable")).toMatchObject({
       major: 25,
       minor: 4,
       patch: 1,
-      tuple: [25, 4, 1],
+      build: 1,
+      tuple: [25, 4, 1, 1],
     });
-  });
-
-  it("matches inclusive lower bounds", () => {
-    const band = { minInclusive: "25.4.0" };
-
-    expect(isClickHouseVersionInBand("25.3.99", band)).toBe(false);
-    expect(isClickHouseVersionInBand("25.4.0", band)).toBe(true);
-    expect(isClickHouseVersionInBand("25.4.1.1234", band)).toBe(true);
-    expect(isClickHouseVersionInBand("25.4.1.1.altinitystable", band)).toBe(
-      true,
-    );
-    expect(isClickHouseVersionInBand("26.5.1.882", band)).toBe(true);
-  });
-
-  it("matches exclusive upper bounds", () => {
-    const band = { minInclusive: "25.4.0", maxExclusive: "26.4.0" };
-
-    expect(isClickHouseVersionInBand("26.3.99", band)).toBe(true);
-    expect(isClickHouseVersionInBand("26.4.0", band)).toBe(false);
   });
 });
 
 describe("resolveClickHouseCompatibility", () => {
-  it("applies lazy materialization workaround in auto mode for affected versions", () => {
+  it.each([
+    // Patch-parts lower bound and upstream fix.
+    ["25.3.99.9999", noCompatibilitySettings],
+    ["25.4.0.0", disableLazyMaterialization],
+    ["26.4.1.1005", noCompatibilitySettings],
+    // Top-K introduction and the exact fix on each release line.
+    ["26.5.1.650", noCompatibilitySettings],
+    ["26.5.1.651", disableTopKThroughJoin],
+    ["26.5.6.70", noCompatibilitySettings],
+    ["26.6.0.0", disableTopKThroughJoin],
+    ["26.6.2.108", noCompatibilitySettings],
+    ["26.7.0.0", disableTopKThroughJoin],
+    ["26.7.1.1334", noCompatibilitySettings],
+    ["26.7.2.0", disableTopKThroughJoin],
+    ["26.7.2.11", noCompatibilitySettings],
+  ])("resolves automatic settings for %s", (version, expectedSettings) => {
+    expect(resolveClickHouseCompatibility({ version }).settings).toEqual(
+      expectedSettings,
+    );
+  });
+
+  it("reports both independently computed compatibility flags", () => {
     const resolved = resolveClickHouseCompatibility({
-      version: "26.5.1.882",
-      overrides: { CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto" },
+      version: "26.5.5.8",
     });
 
-    expect(resolved.settings).toEqual({
-      query_plan_optimize_lazy_materialization: 0,
-    });
-    expect(resolved.parsedVersion).toMatchObject({
-      major: 26,
-      minor: 5,
-      patch: 1,
-      tuple: [26, 5, 1],
-    });
+    expect(resolved.settings).toEqual(disableTopKThroughJoin);
     expect(resolved.flags).toEqual([
       expect.objectContaining({
-        id: "disable-lazy-materialization",
+        id: "disable-lazy-materialization-for-patch-parts",
         setting: "query_plan_optimize_lazy_materialization",
-        value: 0,
-        override: "auto",
+        matchesVersionBand: false,
+        applied: false,
+      }),
+      expect.objectContaining({
+        id: "disable-top-k-through-join",
+        setting: "query_plan_top_k_through_join",
         matchesVersionBand: true,
         applied: true,
       }),
     ]);
   });
 
-  it("does not apply lazy materialization workaround in auto mode before the affected band", () => {
-    const resolved = resolveClickHouseCompatibility({
-      version: "25.3.99",
-      overrides: { CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto" },
-    });
-
-    expect(resolved.settings).toEqual({});
-    expect(resolved.flags).toEqual([
-      expect.objectContaining({
-        id: "disable-lazy-materialization",
-        override: "auto",
-        matchesVersionBand: false,
-        applied: false,
-      }),
-    ]);
-  });
-
-  it("allows forcing lazy materialization workaround on", () => {
+  it("applies compatibility overrides independently", () => {
     expect(
       resolveClickHouseCompatibility({
-        version: null,
-        overrides: { CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "true" },
+        version: "26.5.5.8",
+        overrides: {
+          CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "true",
+          CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "false",
+        },
       }).settings,
-    ).toEqual({ query_plan_optimize_lazy_materialization: 0 });
-  });
-
-  it("allows forcing lazy materialization workaround off", () => {
-    expect(
-      resolveClickHouseCompatibility({
-        version: "26.5.1.882",
-        overrides: { CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "false" },
-      }).settings,
-    ).toEqual({});
+    ).toEqual(disableLazyMaterialization);
   });
 });

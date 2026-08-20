@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 type Accuracy = "day" | "hour" | "minute" | "second" | "millisecond";
 
 export const formatLocalIsoDate = (

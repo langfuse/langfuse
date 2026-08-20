@@ -40,7 +40,7 @@ function useLocalStorage<T>(
       // Parse stored value if it exists, otherwise use initial value
       return stored ? (JSON.parse(stored) as T) : initialValue;
     } catch (error) {
-      console.error("Error reading from local storage", error);
+      console.warn("Error reading from local storage", error);
       return initialValue;
     }
   });
@@ -55,7 +55,7 @@ function useLocalStorage<T>(
           localStorage.setItem(localStorageKey, stringified);
           return stringified;
         } catch (error) {
-          console.error("Error writing to local storage", error);
+          console.warn("Error writing to local storage", error);
           return null;
         }
       },
@@ -63,7 +63,7 @@ function useLocalStorage<T>(
         try {
           localStorage.removeItem(localStorageKey);
         } catch (error) {
-          console.error("Error clearing local storage", error);
+          console.warn("Error clearing local storage", error);
         }
       },
     }),
@@ -93,7 +93,7 @@ function useLocalStorage<T>(
         try {
           setValue(e.newValue ? (JSON.parse(e.newValue) as T) : initialValue);
         } catch (error) {
-          console.error("Error parsing storage change", error);
+          console.warn("Error parsing storage change", error);
         }
       }
     };
@@ -110,7 +110,7 @@ function useLocalStorage<T>(
               : initialValue,
           );
         } catch (error) {
-          console.error("Error parsing custom event", error);
+          console.warn("Error parsing custom event", error);
         }
       }
     };

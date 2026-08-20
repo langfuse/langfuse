@@ -7,7 +7,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 /** MonitorScope is the RBAC scope a monitor page can require for entry. */
-type MonitorScope = "monitors:read" | "monitors:CUD";
+type MonitorScope = "alerts:read" | "alerts:CUD";
 
 /** MonitorPagePermissions gates a monitor page on Langfuse Cloud and a project RBAC scope. */
 export function MonitorPagePermissions({

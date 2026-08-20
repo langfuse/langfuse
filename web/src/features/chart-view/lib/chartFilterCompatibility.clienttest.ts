@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   chartFilterExclusionReason,
   chartSearchFieldReason,
@@ -17,9 +19,12 @@ describe("chartFilterExclusionReason", () => {
       "userId",
       "sessionId",
       "traceName",
+      "version",
+      "release",
       "traceTags",
       "toolNames",
       "experimentId",
+      "isRootObservation",
     ]) {
       expect(chartFilterExclusionReason(col)).toBeNull();
     }
@@ -37,12 +42,6 @@ describe("chartFilterExclusionReason", () => {
     expect(chartFilterExclusionReason("promptVersion")).not.toBeNull();
     expect(chartFilterExclusionReason("commentContent")).toMatch(/comments/i);
     expect(chartFilterExclusionReason("metadata")).toMatch(/metadata/i);
-  });
-
-  it("falls back to a generic reason for other unsupported columns", () => {
-    const reason = chartFilterExclusionReason("isRootObservation");
-    expect(reason).not.toBeNull();
-    expect(reason).toMatch(/this field/i);
   });
 });
 
@@ -63,6 +62,12 @@ describe("toChartFilters", () => {
         value: ["prod"],
       },
       {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+      {
         column: "scores_avg",
         type: "numberObject",
         operator: ">",
@@ -75,7 +80,12 @@ describe("toChartFilters", () => {
     ];
     const result = toChartFilters(filters);
     // scores + latency + the null-check dropped; traceTags -> tags
-    expect(result.map((f) => f.column)).toEqual(["type", "userId", "tags"]);
+    expect(result.map((f) => f.column)).toEqual([
+      "type",
+      "userId",
+      "tags",
+      "isRootObservation",
+    ]);
     // the rename keeps the rest of the filter intact
     const tags = result.find((f) => f.column === "tags");
     expect(tags).toMatchObject({ operator: "all of", value: ["prod"] });

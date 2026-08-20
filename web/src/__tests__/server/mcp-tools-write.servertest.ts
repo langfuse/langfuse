@@ -483,6 +483,28 @@ describe("MCP Write Tools", () => {
         }),
       ).resolves.toMatchObject({ resourceId: result.id, action: "create" });
     });
+
+    it("should list supported fields when widget dimensions are invalid", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleCreateDashboardWidget(
+          {
+            name: `mcp-widget-${nanoid()}`,
+            description: "Created by MCP",
+            view: "observations",
+            dimensions: [{ field: "notAViewDimension" }],
+            metrics: [{ measure: "count", agg: "count" }],
+            filters: [],
+            chartType: "BAR_TIME_SERIES",
+            chartConfig: { type: "BAR_TIME_SERIES" },
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        /supported dimensions for "observations":.*name.*getMetricsSchema/i,
+      );
+    });
   });
 
   describe("dashboard CRUD tools", () => {

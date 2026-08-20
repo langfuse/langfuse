@@ -1,5 +1,5 @@
 import { Transform, type TransformCallback } from "stream";
-import { stringify } from "./stringify";
+import { stringify } from "../../../utils/stringify";
 
 export function transformStreamToJsonl(): Transform {
   return new Transform({

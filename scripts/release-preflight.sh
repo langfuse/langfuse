@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 
-# Shared safety gates run before any path that promotes main to production.
-# Sourced by release-cloud.sh and invoked standalone by the `release` script so
-# both entry points enforce the same preconditions:
-#   - the release is cut from `main`
-#   - local `main` matches `origin/main`
-#   - any migrations on main but not yet on production are confirmed as applied
+# Shared safety gates run before any path that cuts a release or promotes
+# main to production. Sourced by release-cloud.sh and invoked standalone by
+# the `release` script so both entry points enforce the same preconditions:
+#   - the release is cut from an allowed release branch (`main` or `v3`)
+#   - the local branch matches its origin counterpart
+#   - for `main` releases only: any migrations on main but not yet on
+#     production are confirmed as applied (`main` is the only branch that
+#     promotes to Langfuse Cloud; `v3` releases are OSS-only)
 # Helpers (log/fail/require_command) are exposed for sourcing callers to reuse.
 
 set -euo pipefail
 
 LOG_PREFIX="${LOG_PREFIX:-release}"
 MIGRATION_CONFIRMATION_TOKEN="applied"
+RELEASE_BRANCHES=("main" "v3")
 
 log() {
   echo "[${LOG_PREFIX}] $*"
@@ -29,27 +32,44 @@ require_command() {
   fi
 }
 
+current_branch() {
+  git rev-parse --abbrev-ref HEAD
+}
+
 ensure_on_main_branch() {
-  local current_branch
-  current_branch="$(git rev-parse --abbrev-ref HEAD)"
-  if [[ "$current_branch" != "main" ]]; then
-    fail "Current branch is '$current_branch'. Switch to 'main' before running this command."
+  local branch
+  branch="$(current_branch)"
+  if [[ "$branch" != "main" ]]; then
+    fail "Current branch is '$branch'. Switch to 'main' before running this command."
   fi
 }
 
-ensure_main_matches_origin() {
-  git fetch origin main
+ensure_on_release_branch() {
+  local branch
+  branch="$(current_branch)"
+  for allowed in "${RELEASE_BRANCHES[@]}"; do
+    if [[ "$branch" == "$allowed" ]]; then
+      return 0
+    fi
+  done
+  fail "Current branch is '$branch'. Releases can only be cut from: ${RELEASE_BRANCHES[*]}."
+}
 
-  local local_main_sha
-  local origin_main_sha
-  local_main_sha="$(git rev-parse HEAD)"
-  origin_main_sha="$(git rev-parse origin/main)"
+ensure_branch_matches_origin() {
+  local branch
+  branch="$(current_branch)"
+  git fetch origin "$branch"
 
-  if [[ "$local_main_sha" != "$origin_main_sha" ]]; then
-    fail "Local main ($local_main_sha) is not in sync with origin/main ($origin_main_sha)."
+  local local_sha
+  local origin_sha
+  local_sha="$(git rev-parse HEAD)"
+  origin_sha="$(git rev-parse "origin/${branch}")"
+
+  if [[ "$local_sha" != "$origin_sha" ]]; then
+    fail "Local ${branch} ($local_sha) is not in sync with origin/${branch} ($origin_sha)."
   fi
 
-  log "Local main is in sync with origin/main ($local_main_sha)."
+  log "Local ${branch} is in sync with origin/${branch} ($local_sha)."
 }
 
 fetch_production_branch() {
@@ -102,8 +122,17 @@ confirm_migrations_are_applied() {
 }
 
 run_release_preflight() {
-  ensure_on_main_branch
-  ensure_main_matches_origin
+  ensure_on_release_branch
+  ensure_branch_matches_origin
+
+  # Only `main` promotes to Langfuse Cloud production. Releases from other
+  # branches never reach the production databases, so confirming migrations
+  # against origin/production would be meaningless there.
+  if [[ "$(current_branch)" != "main" ]]; then
+    log "Skipping production migration check: releases from '$(current_branch)' are OSS-only and never promote to production."
+    return 0
+  fi
+
   fetch_production_branch
 
   local prisma_migrations

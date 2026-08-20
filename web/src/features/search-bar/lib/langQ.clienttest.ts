@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import type { ASTNode } from "@/src/features/search-bar/lib/ast";
 import { parse, serialize, termAt } from "@/src/features/search-bar/lib/langQ";
 import {
@@ -30,13 +32,70 @@ function strip(node: ASTNode | null): unknown {
 
 describe("langQ parser", () => {
   it("resolves aliases to canonical field ids", () => {
-    const r = parse("env:prod");
+    const r = parse("env:prod apiKey:pk-lf-test");
     expect(r.valid).toBe(true);
     expect(strip(r.ast)).toEqual({
-      kind: "filter",
-      key: "environment",
-      op: "=",
-      values: ["prod"],
+      kind: "and",
+      children: [
+        {
+          kind: "filter",
+          key: "environment",
+          op: "=",
+          values: ["prod"],
+        },
+        {
+          kind: "filter",
+          key: "ingestionApiKey",
+          op: "=",
+          values: ["pk-lf-test"],
+        },
+      ],
+    });
+  });
+
+  it("resolves ingestion attribution aliases to canonical field ids", () => {
+    const r = parse("sdk_name:python sdkVersion:4.7.1 source:otel");
+    expect(r.valid).toBe(true);
+    expect(strip(r.ast)).toEqual({
+      kind: "and",
+      children: [
+        {
+          kind: "filter",
+          key: "ingestionSdkName",
+          op: "=",
+          values: ["python"],
+        },
+        {
+          kind: "filter",
+          key: "ingestionSdkVersion",
+          op: "=",
+          values: ["4.7.1"],
+        },
+        {
+          kind: "filter",
+          key: "ingestionSource",
+          op: "=",
+          values: ["otel"],
+        },
+      ],
+    });
+    // Snake-case and canonical spellings resolve to the same fields.
+    const alt = parse(
+      "sdkName:js ingestion_sdk_version:3.2.1 ingestionSource:api",
+    );
+    expect(alt.valid).toBe(true);
+    expect(strip(alt.ast)).toEqual({
+      kind: "and",
+      children: [
+        { kind: "filter", key: "ingestionSdkName", op: "=", values: ["js"] },
+        {
+          kind: "filter",
+          key: "ingestionSdkVersion",
+          op: "=",
+          values: ["3.2.1"],
+        },
+        { kind: "filter", key: "ingestionSource", op: "=", values: ["api"] },
+      ],
     });
   });
 

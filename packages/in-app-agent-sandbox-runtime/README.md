@@ -2,7 +2,7 @@
 
 Minimal HTTP control server for the in-app agent sandbox runtime.
 
-See `web/src/ee/features/in-app-agent/README.md` for how this package fits into the in-app agent sandbox architecture.
+See `web/src/features/in-app-agent/README.md` for how this package fits into the in-app agent sandbox architecture.
 
 ## Privileges
 
@@ -33,6 +33,27 @@ pnpm turbo run build:docker-image --filter @repo/in-app-agent-sandbox-runtime --
 ```
 
 This produces `langfuse-in-app-agent-sandbox:latest`.
+
+## Testing
+
+Typecheck:
+
+```bash
+pnpm --filter @repo/in-app-agent-sandbox-runtime run typecheck
+```
+
+Unit tests:
+
+```bash
+pnpm --filter @repo/in-app-agent-sandbox-runtime run test
+```
+
+The end-to-end test builds the runtime Docker image, starts the container, and
+sends HTTP requests to `/health`, `/sandbox`, and the MicroVM lifecycle hooks:
+
+```bash
+pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
+```
 
 ## Build And Publish An AWS Lambda MicroVM Image
 

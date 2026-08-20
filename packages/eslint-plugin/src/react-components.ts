@@ -9,6 +9,10 @@ type RootElementCallbacks = {
   onRootElement: (node: TSESTree.JSXElement) => void;
 };
 
+type ReturnExpressionCallbacks = {
+  onReturnExpression: (node: TSESTree.Expression) => void;
+};
+
 const REACT_COMPONENT_TYPES = new Set([
   "FC",
   "FunctionComponent",
@@ -299,18 +303,35 @@ function isComponentWrapperCall(
 
 function unwrapComponentInit(node: TSESTree.Node): TSESTree.Node {
   let current = node;
-  while (isComponentWrapperCall(current) && current.arguments[0]) {
-    const firstArg = current.arguments[0];
+  while (true) {
     if (
-      firstArg.type !== AST_NODE_TYPES.ArrowFunctionExpression &&
-      firstArg.type !== AST_NODE_TYPES.FunctionExpression &&
-      firstArg.type !== AST_NODE_TYPES.CallExpression
+      current.type === AST_NODE_TYPES.TSAsExpression ||
+      current.type === AST_NODE_TYPES.TSNonNullExpression ||
+      current.type === AST_NODE_TYPES.TSSatisfiesExpression ||
+      current.type === AST_NODE_TYPES.TSTypeAssertion
     ) {
-      break;
+      current = current.expression;
+      continue;
     }
-    current = firstArg;
+
+    if (isComponentWrapperCall(current) && current.arguments[0]) {
+      const firstArg = current.arguments[0];
+      if (
+        firstArg.type === AST_NODE_TYPES.ArrowFunctionExpression ||
+        firstArg.type === AST_NODE_TYPES.FunctionExpression ||
+        firstArg.type === AST_NODE_TYPES.CallExpression ||
+        firstArg.type === AST_NODE_TYPES.TSAsExpression ||
+        firstArg.type === AST_NODE_TYPES.TSNonNullExpression ||
+        firstArg.type === AST_NODE_TYPES.TSSatisfiesExpression ||
+        firstArg.type === AST_NODE_TYPES.TSTypeAssertion
+      ) {
+        current = firstArg;
+        continue;
+      }
+    }
+
+    return current;
   }
-  return current;
 }
 
 export function createComponentRootElementVisitors(
@@ -345,6 +366,165 @@ export function createComponentRootElementVisitors(
         maybeVisitFunctionComponentRoots(init, node.id.name);
       }
     },
+    ExportDefaultDeclaration(node: TSESTree.ExportDefaultDeclaration) {
+      const init = unwrapComponentInit(node.declaration);
+      if (
+        init.type === AST_NODE_TYPES.ArrowFunctionExpression ||
+        init.type === AST_NODE_TYPES.FunctionExpression
+      ) {
+        maybeVisitFunctionComponentRoots(init, null);
+      }
+    },
+  };
+}
+
+function visitReturnExpressionsInStatement(
+  statement: TSESTree.Statement | null | undefined,
+  callbacks: ReturnExpressionCallbacks,
+): void {
+  if (!statement) return;
+
+  if (statement.type === AST_NODE_TYPES.ReturnStatement) {
+    if (statement.argument) callbacks.onReturnExpression(statement.argument);
+    return;
+  }
+  if (statement.type === AST_NODE_TYPES.BlockStatement) {
+    for (const child of statement.body) {
+      visitReturnExpressionsInStatement(child, callbacks);
+    }
+    return;
+  }
+  if (statement.type === AST_NODE_TYPES.IfStatement) {
+    visitReturnExpressionsInStatement(statement.consequent, callbacks);
+    visitReturnExpressionsInStatement(statement.alternate, callbacks);
+    return;
+  }
+  if (statement.type === AST_NODE_TYPES.SwitchStatement) {
+    for (const switchCase of statement.cases) {
+      for (const child of switchCase.consequent) {
+        visitReturnExpressionsInStatement(child, callbacks);
+      }
+    }
+    return;
+  }
+  if (statement.type === AST_NODE_TYPES.TryStatement) {
+    visitReturnExpressionsInStatement(statement.block, callbacks);
+    visitReturnExpressionsInStatement(statement.handler?.body, callbacks);
+    visitReturnExpressionsInStatement(statement.finalizer, callbacks);
+  }
+}
+
+/**
+ * Visits complete expressions returned by React components. Unlike the root
+ * element visitor, this preserves fragments and sibling relationships for
+ * rules that need to understand the component's full render boundary.
+ */
+export function createComponentReturnExpressionVisitors(
+  callbacks: ReturnExpressionCallbacks,
+) {
+  function getDirectVariableInitializers(
+    node:
+      | TSESTree.ArrowFunctionExpression
+      | TSESTree.FunctionDeclaration
+      | TSESTree.FunctionExpression,
+  ) {
+    const initializers = new Map<string, TSESTree.Expression>();
+    for (const statement of (node.body as TSESTree.BlockStatement).body) {
+      if (
+        statement.type !== AST_NODE_TYPES.VariableDeclaration ||
+        statement.kind !== "const"
+      ) {
+        continue;
+      }
+      for (const declaration of statement.declarations) {
+        if (
+          declaration.id.type === AST_NODE_TYPES.Identifier &&
+          declaration.init
+        ) {
+          initializers.set(declaration.id.name, declaration.init);
+        }
+      }
+    }
+    return initializers;
+  }
+
+  function resolveDirectVariable(
+    expression: TSESTree.Expression,
+    initializers: Map<string, TSESTree.Expression>,
+  ) {
+    if (expression.type !== AST_NODE_TYPES.Identifier) return expression;
+    return initializers.get(expression.name) ?? expression;
+  }
+
+  function maybeVisitFunctionComponentReturns(
+    node:
+      | TSESTree.ArrowFunctionExpression
+      | TSESTree.FunctionDeclaration
+      | TSESTree.FunctionExpression,
+    name: string | null,
+  ): void {
+    if (name && !isCapitalizedName(name)) return;
+
+    if (
+      node.type === AST_NODE_TYPES.ArrowFunctionExpression &&
+      node.expression
+    ) {
+      if (!expressionReturnsJsxOrNull(node.body)) return;
+      callbacks.onReturnExpression(node.body);
+      return;
+    }
+
+    const initializers = getDirectVariableInitializers(node);
+    const returnExpressions: TSESTree.Expression[] = [];
+    for (const statement of (node.body as TSESTree.BlockStatement).body) {
+      if (statement.type === AST_NODE_TYPES.ReturnStatement) {
+        if (statement.argument) {
+          returnExpressions.push(
+            resolveDirectVariable(statement.argument, initializers),
+          );
+        }
+        continue;
+      }
+      visitReturnExpressionsInStatement(statement, {
+        onReturnExpression(expression) {
+          returnExpressions.push(
+            resolveDirectVariable(expression, initializers),
+          );
+        },
+      });
+    }
+    if (!returnExpressions.some(expressionReturnsJsxOrNull)) return;
+    for (const expression of returnExpressions) {
+      callbacks.onReturnExpression(expression);
+    }
+  }
+
+  return {
+    FunctionDeclaration(node: TSESTree.FunctionDeclaration) {
+      maybeVisitFunctionComponentReturns(node, node.id?.name ?? null);
+    },
+    VariableDeclarator(node: TSESTree.VariableDeclarator) {
+      if (node.id.type !== AST_NODE_TYPES.Identifier) return;
+      if (!isCapitalizedName(node.id.name)) return;
+      if (!node.init) return;
+
+      const init = unwrapComponentInit(node.init);
+      if (
+        init.type === AST_NODE_TYPES.ArrowFunctionExpression ||
+        init.type === AST_NODE_TYPES.FunctionExpression
+      ) {
+        maybeVisitFunctionComponentReturns(init, node.id.name);
+      }
+    },
+    ExportDefaultDeclaration(node: TSESTree.ExportDefaultDeclaration) {
+      const init = unwrapComponentInit(node.declaration);
+      if (
+        init.type === AST_NODE_TYPES.ArrowFunctionExpression ||
+        init.type === AST_NODE_TYPES.FunctionExpression
+      ) {
+        maybeVisitFunctionComponentReturns(init, null);
+      }
+    },
   };
 }
 
@@ -352,15 +532,41 @@ function getWrappedForwardRefPropsType(
   node: TSESTree.Node,
 ): TSESTree.TypeNode | null {
   let current = node;
-  while (isComponentWrapperCall(current)) {
+  while (true) {
+    if (
+      current.type === AST_NODE_TYPES.TSAsExpression ||
+      current.type === AST_NODE_TYPES.TSSatisfiesExpression ||
+      current.type === AST_NODE_TYPES.TSTypeAssertion
+    ) {
+      const propsType = getReactComponentPropsType(current.typeAnnotation);
+      if (propsType) return propsType;
+
+      current = current.expression;
+      continue;
+    }
+
+    if (current.type === AST_NODE_TYPES.TSNonNullExpression) {
+      current = current.expression;
+      continue;
+    }
+
+    if (!isComponentWrapperCall(current)) return null;
+
     const propsType = getForwardRefPropsType(current);
     if (propsType) return propsType;
 
     const firstArg = current.arguments[0];
-    if (firstArg?.type !== AST_NODE_TYPES.CallExpression) break;
+    if (
+      firstArg?.type !== AST_NODE_TYPES.CallExpression &&
+      firstArg?.type !== AST_NODE_TYPES.TSAsExpression &&
+      firstArg?.type !== AST_NODE_TYPES.TSNonNullExpression &&
+      firstArg?.type !== AST_NODE_TYPES.TSSatisfiesExpression &&
+      firstArg?.type !== AST_NODE_TYPES.TSTypeAssertion
+    ) {
+      return null;
+    }
     current = firstArg;
   }
-  return null;
 }
 
 function getFunctionPropsType(
@@ -529,9 +735,20 @@ export function createComponentPropTypeVisitors(callbacks: PropTypeCallbacks) {
       if (init.type === AST_NODE_TYPES.ClassExpression) {
         addPropTypeRoot(getClassPropsType(init));
       }
-      if (node.init.type === AST_NODE_TYPES.CallExpression) {
-        addPropTypeRoot(getWrappedForwardRefPropsType(node.init));
+      addPropTypeRoot(getWrappedForwardRefPropsType(node.init));
+    },
+    ExportDefaultDeclaration(node: TSESTree.ExportDefaultDeclaration) {
+      const init = unwrapComponentInit(node.declaration);
+      if (
+        init.type === AST_NODE_TYPES.ArrowFunctionExpression ||
+        init.type === AST_NODE_TYPES.FunctionExpression
+      ) {
+        maybeAddFunctionComponent(init, null);
       }
+      if (init.type === AST_NODE_TYPES.ClassExpression) {
+        addPropTypeRoot(getClassPropsType(init));
+      }
+      addPropTypeRoot(getWrappedForwardRefPropsType(node.declaration));
     },
     ClassDeclaration(node: TSESTree.ClassDeclaration) {
       if (!node.id || !isCapitalizedName(node.id.name)) return;

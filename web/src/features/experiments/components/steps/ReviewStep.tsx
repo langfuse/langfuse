@@ -18,6 +18,7 @@ import { StepHeader } from "@/src/features/experiments/components/shared/StepHea
 export const ReviewStep: React.FC<ReviewStepProps> = ({
   formState,
   navigationState,
+  errorMessage,
   summary,
 }) => {
   const { form } = formState;
@@ -39,6 +40,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
       <StepHeader
         title="Review & Run"
         description="Review your experiment configuration before running it. You can go back to any step to make changes."
+        errorMessage={errorMessage}
       />
 
       {/* Two-column grid layout */}

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
@@ -26,6 +27,18 @@ const defaultHeights: Record<RowHeight, string> = {
 
 export type RowHeight = (typeof heightOptions)[number]["id"];
 export type CustomHeights = Record<RowHeight, string>;
+
+/**
+ * Chars of Input/Output a taller row needs to fill its cells. Small shows a
+ * single truncated line, so it stays on the cheap pre-truncated read; Medium
+ * and Large have room for far more text than that (LFE-14586). Sized to fill a
+ * Large row even at a generously widened column.
+ */
+export const EXPANDED_ROW_IO_CHAR_LIMIT = 2_000;
+
+/** Undefined for Small, which keeps the default truncated read. */
+export const getRowHeightIOCharLimit = (rowHeight: RowHeight) =>
+  rowHeight === "s" ? undefined : EXPANDED_ROW_IO_CHAR_LIMIT;
 
 export const getRowHeightTailwindClass = (
   rowHeight?: RowHeight,

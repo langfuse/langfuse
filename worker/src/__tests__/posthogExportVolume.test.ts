@@ -12,7 +12,7 @@ describe("countingFetch (posthog export volume)", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("counts /batch/ string and Blob bodies, ignores /flags/, forwards all", async () => {
+  it("counts V0 and V1 capture bodies, ignores /flags/, and forwards all", async () => {
     const volume = { bytes: 0 };
     const wrapped = countingFetch(volume)!;
 
@@ -30,15 +30,22 @@ describe("countingFetch (posthog export volume)", () => {
     });
     expect(volume.bytes).toBe(14);
 
+    await wrapped("https://app.posthog.com/i/v1/analytics/events", {
+      method: "POST",
+      headers: {},
+      body: "v1-body",
+    });
+    expect(volume.bytes).toBe(21);
+
     // Feature-flag traffic must not be counted as export egress.
     await wrapped("https://app.posthog.com/flags/?v=2", {
       method: "POST",
       headers: {},
       body: "ignored",
     });
-    expect(volume.bytes).toBe(14);
+    expect(volume.bytes).toBe(21);
 
     // Every request is still forwarded to the underlying fetch.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 });

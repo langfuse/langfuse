@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  paginationZod,
+  publicApiPaginationZod,
   LLMAdapter,
   type JSONValue,
   BedrockConfigSchema,
@@ -31,7 +31,7 @@ export const LlmConnectionResponse = z
 // GET /api/public/llm-connections query parameters
 export const GetLlmConnectionsV1Query = z
   .object({
-    ...paginationZod,
+    ...publicApiPaginationZod,
   })
   .strict();
 

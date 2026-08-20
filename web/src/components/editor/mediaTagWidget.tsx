@@ -15,7 +15,7 @@ import {
   classifyMediaValue,
   type MediaDescriptor,
 } from "@/src/components/ui/media/mediaUtils";
-import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 
@@ -33,7 +33,7 @@ const EMPTY: MediaAnchor[] = [];
  * The CodeMirror widget can only produce a detached DOM node — which has no
  * access to the app's React providers (tRPC, router, layers) — so instead of
  * mounting React there, the widget registers an empty anchor here and the
- * in-tree portal host (`MediaTagWidgetPortals`) renders `JsonMediaTag` into it,
+ * in-tree portal host (`MediaTagWidgetPortals`) renders `MediaReferenceTag` into it,
  * keeping the hover-peek's lazy fetch and popover working.
  */
 class MediaTagWidgetStore {
@@ -189,7 +189,7 @@ function MediaTagWidgetPortals({ store }: { store: MediaTagWidgetStore }) {
     <>
       {anchors.map((anchor) =>
         createPortal(
-          <JsonMediaTag descriptor={anchor.descriptor} />,
+          <MediaReferenceTag descriptor={anchor.descriptor} />,
           anchor.dom,
           String(anchor.id),
         ),

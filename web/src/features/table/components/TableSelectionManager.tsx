@@ -1,6 +1,6 @@
 import { useRef, type RefObject } from "react";
 import { TableCheckboxLoadingCell } from "@/src/components/table/loading-cells";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import {
   type TableSelectionStoreLike,
   useTableRowIsSelected,

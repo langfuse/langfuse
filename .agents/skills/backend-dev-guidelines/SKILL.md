@@ -1,6 +1,6 @@
 ---
 name: backend-dev-guidelines
-description: Shared backend guide for Langfuse's Next.js, tRPC, BullMQ, and TypeScript monorepo. Use when creating or reviewing tRPC routers, public REST endpoints, BullMQ queue processors, backend services, middleware, Prisma or ClickHouse data access, OpenTelemetry instrumentation, Zod validation, env configuration, or backend tests across web, worker, or packages/shared.
+description: Build or review Langfuse backend code. Use for tRPC routers, public REST APIs, BullMQ processors, services, middleware, Prisma or ClickHouse access, OpenTelemetry, Zod, environment configuration, or backend tests.
 ---
 
 # Backend Development Guidelines
@@ -42,6 +42,23 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 - Use `traceException` for error handling where relevant.
 - Add unit or integration tests in `__tests__/`.
 - Access config via `env.mjs`.
+
+### Existing Endpoint: Additive Field or Filter
+
+Before coding, classify the change as a new endpoint, an additive field/filter
+on an existing endpoint, or a semantic replacement/breaking change.
+
+For an additive field/filter:
+
+- Reuse the canonical predicate. For endpoints that already support field-group
+  selection, reuse their existing field-group/projection path.
+- Preserve the endpoint's existing response contract: use the normal optional
+  partial-row schema and converter path for field-group endpoints; retain the
+  strict response schema and converter path for ordinary endpoints.
+- Do not create API-version-specific field sets, casts, or "must be selected"
+  runtime assertions unless compatibility requires them.
+- Extend examples and contracts; do not replace an existing filter example.
+- Write one test per unique boundary, not one test per file touched.
 
 ### SDKs: New Public API Endpoint
 

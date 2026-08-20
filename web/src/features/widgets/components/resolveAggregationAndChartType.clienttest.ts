@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { resolveAggregationAndChartType } from "./WidgetForm";
 
 const allAggs = [

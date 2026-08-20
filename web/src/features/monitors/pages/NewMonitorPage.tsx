@@ -10,13 +10,13 @@ export default function NewMonitorPage() {
   const projectId = router.query.projectId as string;
 
   return (
-    <MonitorPagePermissions scope="monitors:CUD">
+    <MonitorPagePermissions scope="alerts:CUD">
       <Page
         withPadding
         headerProps={{
-          title: "New Monitor",
+          title: "New Alert",
           breadcrumb: [
-            { name: "Monitors", href: `/project/${projectId}/monitors` },
+            { name: "Alerts", href: `/project/${projectId}/alerts` },
           ],
         }}
       >

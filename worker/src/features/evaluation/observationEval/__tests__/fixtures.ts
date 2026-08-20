@@ -60,6 +60,7 @@ export function createTestObservation(
     trace_name: "test-trace",
     user_id: "user-123",
     session_id: "session-456",
+    is_app_root: false,
     tags: ["test-tag"],
     release: "v1.0.0",
 

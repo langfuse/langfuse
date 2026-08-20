@@ -93,6 +93,7 @@ Repo-local skills in `langfuse/.agents/skills`:
 - `changelog-writing`: user-facing release notes.
 - `clickhouse-best-practices`: ClickHouse schema/query/migration review.
 - `code-review`: repo-specific correctness/regression review.
+- `cursor-agents-workflow`: Cursor agent Linear branch names, human test steps, Claude/Greptile/Codex review comments, and review-doubt PR notes.
 - `datadog-query-recipes`: reusable Datadog query shapes for production research.
 - `debug-issue-with-datadog`: production debugging tied to Langfuse code paths.
 - `frontend-browser-review`: user-visible `web/**` changes and browser verification.

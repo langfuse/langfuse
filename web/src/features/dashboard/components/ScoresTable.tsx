@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import {

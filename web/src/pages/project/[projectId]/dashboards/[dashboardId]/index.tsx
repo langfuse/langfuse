@@ -59,6 +59,7 @@ import {
 import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
+  getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
 import {
@@ -80,6 +81,7 @@ import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboa
 import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
 import { Layer } from "@/src/components/ui/layer";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useDashboardDefinitionDraft";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -175,17 +177,17 @@ export default function DashboardDetail() {
     return JSON.stringify(currentFilters) !== JSON.stringify(savedFilters);
   }, [currentFilters, savedFilters]);
 
-  // State for handling widget deletion and addition
-  const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
-    widgets: DashboardPlacement[];
-  } | null>(null);
+  const {
+    definition: dashboardDefinition,
+    definitionRef: dashboardDefinitionRef,
+    applyDraft,
+    clearDraftIfSaved,
+  } = useDashboardDefinitionDraft(dashboard.data?.definition);
   // The async flows below (paste/duplicate/import) commit a definition change
   // only after a network round-trip. They must compute it from this ref — the
   // definition as of NOW — not from the state captured when the handler
   // started, or a drag/delete/paste that landed during the await gets
   // silently discarded.
-  const localDashboardDefinitionRef = useRef(localDashboardDefinition);
-  localDashboardDefinitionRef.current = localDashboardDefinition;
 
   // State for the widget selection dialog
   const [isWidgetDialogOpen, setIsWidgetDialogOpen] = useState(false);
@@ -194,9 +196,16 @@ export default function DashboardDetail() {
   const updateDashboardDefinition =
     api.dashboard.updateDashboardDefinition.useMutation({
       // Saves are silent; the header shows a spinner while in flight.
-      onSuccess: () => {
-        // Invalidate the dashboard query to refetch the data
-        dashboard.refetch();
+      onSuccess: (updatedDashboard, variables) => {
+        if (!clearDraftIfSaved(variables.definition)) return;
+
+        utils.dashboard.getDashboard.setData(
+          {
+            projectId: variables.projectId,
+            dashboardId: variables.dashboardId,
+          },
+          updatedDashboard,
+        );
       },
       onError: (error) => {
         showErrorToast("Error updating dashboard", error.message);
@@ -265,11 +274,10 @@ export default function DashboardDetail() {
   // the debounced save.
   const applyDashboardDefinition = useCallback(
     (updated: { widgets: DashboardPlacement[] }) => {
-      localDashboardDefinitionRef.current = updated;
-      setLocalDashboardDefinition(updated);
+      applyDraft(updated);
       saveDashboardChanges(updated);
     },
-    [saveDashboardChanges],
+    [applyDraft, saveDashboardChanges],
   );
 
   // Function to save current filters
@@ -293,7 +301,7 @@ export default function DashboardDetail() {
     ) => {
       // Read through the ref: async callers (paste/duplicate) reach here
       // after a network round-trip.
-      const currentDefinition = localDashboardDefinitionRef.current;
+      const currentDefinition = dashboardDefinitionRef.current;
       if (!currentDefinition) return;
 
       // Find the maximum y position to place the new widget at the bottom
@@ -331,7 +339,7 @@ export default function DashboardDetail() {
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
     },
-    [applyDashboardDefinition],
+    [applyDashboardDefinition, dashboardDefinitionRef],
   );
 
   const addWidgetToDashboard = useCallback(
@@ -347,7 +355,7 @@ export default function DashboardDetail() {
       presetId: HomeDashboardPresetId,
       position?: { x: number; y: number; x_size: number; y_size: number },
     ) => {
-      const currentDefinition = localDashboardDefinitionRef.current;
+      const currentDefinition = dashboardDefinitionRef.current;
       if (!currentDefinition) return;
 
       const maxY =
@@ -380,7 +388,7 @@ export default function DashboardDetail() {
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
     },
-    [applyDashboardDefinition],
+    [applyDashboardDefinition, dashboardDefinitionRef],
   );
 
   const addPresetToDashboard = useCallback(
@@ -481,7 +489,7 @@ export default function DashboardDetail() {
       // Don't create a widget row the placement step couldn't attach — a
       // paste firing before the dashboard definition has loaded would
       // otherwise leave an orphan widget in the library.
-      if (!localDashboardDefinitionRef.current) return;
+      if (!dashboardDefinitionRef.current) return;
       try {
         const result = await createWidgetAsync({
           projectId,
@@ -512,7 +520,14 @@ export default function DashboardDetail() {
         );
       }
     },
-    [capture, createWidgetAsync, dashboardId, insertWidgetPlacement, projectId],
+    [
+      capture,
+      createWidgetAsync,
+      dashboardDefinitionRef,
+      dashboardId,
+      insertWidgetPlacement,
+      projectId,
+    ],
   );
 
   // Menu-driven paste ("Paste widget" / "Paste to the right"): read the
@@ -638,7 +653,7 @@ export default function DashboardDetail() {
   // file's relative layout.
   const handleDashboardImport = useCallback(
     async (imported: ParsedDashboardImport) => {
-      if (!localDashboardDefinitionRef.current) return;
+      if (!dashboardDefinitionRef.current) return;
       try {
         const widgetPlacements = imported.placements.flatMap((p) =>
           p.type === "widget" ? [p] : [],
@@ -676,7 +691,7 @@ export default function DashboardDetail() {
 
         // Re-read the definition after the awaits: a drag/delete/paste may
         // have landed while the widgets were being created.
-        const currentDefinition = localDashboardDefinitionRef.current;
+        const currentDefinition = dashboardDefinitionRef.current;
         if (!currentDefinition) return;
         const maxY =
           currentDefinition.widgets.length > 0
@@ -751,6 +766,7 @@ export default function DashboardDetail() {
     },
     [
       createWidgetAsync,
+      dashboardDefinitionRef,
       deleteWidgetAsync,
       projectId,
       applyDashboardDefinition,
@@ -978,12 +994,6 @@ export default function DashboardDetail() {
     },
   );
 
-  useEffect(() => {
-    if (dashboard.data && !localDashboardDefinition) {
-      setLocalDashboardDefinition(dashboard.data.definition);
-    }
-  }, [dashboard.data, localDashboardDefinition]);
-
   // Initialize filters from dashboard data
   useEffect(() => {
     if (dashboard.data?.filters) {
@@ -993,9 +1003,9 @@ export default function DashboardDetail() {
   }, [dashboard.data?.filters]);
 
   useEffect(() => {
-    if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
+    if (dashboardDefinition && widgetToAdd.data && addWidgetId) {
       if (
-        !localDashboardDefinition.widgets.some(
+        !dashboardDefinition.widgets.some(
           (w) => w.type === "widget" && w.widgetId === addWidgetId,
         )
       ) {
@@ -1011,7 +1021,7 @@ export default function DashboardDetail() {
     widgetToAdd.data,
     addWidgetId,
     addWidgetToDashboard,
-    localDashboardDefinition,
+    dashboardDefinition,
     projectId,
     dashboardId,
     router,
@@ -1019,13 +1029,13 @@ export default function DashboardDetail() {
 
   // Handle deleting a widget
   const handleDeleteWidget = (tileId: string) => {
-    if (localDashboardDefinition) {
-      const updatedWidgets = localDashboardDefinition.widgets.filter(
+    if (dashboardDefinition) {
+      const updatedWidgets = dashboardDefinition.widgets.filter(
         (widget) => widget.id !== tileId,
       );
 
       const updatedDefinition = {
-        ...localDashboardDefinition,
+        ...dashboardDefinition,
         widgets: updatedWidgets,
       };
 
@@ -1076,10 +1086,6 @@ export default function DashboardDetail() {
 
   const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
   const widgetSchedulerPrefix = `dashboard:${projectId}:${dashboardId}:widget:`;
-  const widgetPlacements = useMemo(
-    () => localDashboardDefinition?.widgets ?? [],
-    [localDashboardDefinition?.widgets],
-  );
 
   const getWidgetSchedulerId = useCallback(
     (widgetPlacementId: string) =>
@@ -1087,25 +1093,30 @@ export default function DashboardDetail() {
     [widgetSchedulerPrefix],
   );
 
-  const schedulerResetKey = useMemo(() => {
-    return [
-      projectId,
+  // Reset key intentionally excludes the widget set: adding or removing a
+  // widget must not re-queue in-flight or already-rendered siblings (which,
+  // on the SSE path, blanks them while they re-stream — LFE-10986). A new
+  // widget registers with the scheduler incrementally; a removed one
+  // unregisters. Only genuinely query-affecting params belong here.
+  const schedulerResetKey = useMemo(
+    () =>
+      getDashboardSchedulerResetKey({
+        projectId,
+        dashboardId,
+        fromIso: absoluteTimeRange?.from?.toISOString() ?? "",
+        toIso: absoluteTimeRange?.to?.toISOString() ?? "",
+        filters: currentFilters,
+        environments: selectedEnvironments,
+      }),
+    [
+      absoluteTimeRange?.from,
+      absoluteTimeRange?.to,
+      currentFilters,
       dashboardId,
-      absoluteTimeRange?.from?.toISOString() ?? "",
-      absoluteTimeRange?.to?.toISOString() ?? "",
-      JSON.stringify(currentFilters),
-      selectedEnvironments.join(","),
-      widgetPlacements.map((widget) => widget.id).join(","),
-    ].join("|");
-  }, [
-    absoluteTimeRange?.from,
-    absoluteTimeRange?.to,
-    currentFilters,
-    dashboardId,
-    projectId,
-    selectedEnvironments,
-    widgetPlacements,
-  ]);
+      projectId,
+      selectedEnvironments,
+    ],
+  );
 
   const scheduler = useDashboardQueryScheduler({
     maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
@@ -1340,7 +1351,7 @@ export default function DashboardDetail() {
             setGridResetKey((key) => key + 1);
           }}
         />
-        {dashboard.isPending || !localDashboardDefinition ? (
+        {dashboard.isPending || !dashboardDefinition ? (
           <NoDataOrLoading isLoading={true} />
         ) : dashboard.isError ? (
           <div className="flex h-64 items-center justify-center">
@@ -1352,18 +1363,18 @@ export default function DashboardDetail() {
           <div>
             <DashboardGrid
               key={gridResetKey}
-              widgets={localDashboardDefinition.widgets}
+              widgets={dashboardDefinition.widgets}
               onChange={(updatedWidgets) => {
                 if (isLockedEditable) {
                   // Carry the attempted layout change into the clone.
                   openCloneFirst("layout_change", {
-                    ...localDashboardDefinition,
+                    ...dashboardDefinition,
                     widgets: updatedWidgets,
                   });
                   return;
                 }
                 applyDashboardDefinition({
-                  ...localDashboardDefinition,
+                  ...dashboardDefinition,
                   widgets: updatedWidgets,
                 });
               }}

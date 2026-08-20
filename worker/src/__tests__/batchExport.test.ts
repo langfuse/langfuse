@@ -4731,6 +4731,43 @@ describe("batch export test suite", () => {
 });
 
 maybeDescribe("getEventsForBlobStorageExport", () => {
+  // The published field reference types `trace_name` as a plain string, not
+  // "string or null":
+  // https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields
+  // Exports therefore keep the events table's '' wire form instead of the null
+  // that JS-facing surfaces normalize to (normalizeEventsTraceName), and the
+  // raw JSONL / Parquet paths never pass through JS at all.
+  it("exports an unresolvable trace name as '' rather than null", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: randomUUID(),
+      parent_span_id: randomUUID(),
+      type: "SPAN",
+      name: "child-without-trace-name",
+      trace_name: "",
+      start_time: now * 1000,
+    });
+
+    await createEventsCh([event]);
+
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000),
+      new Date(now + 60 * 60 * 1000),
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].trace_name).toBe("");
+  });
+
   it("should stream events for blob storage export", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const now = Date.now();
@@ -4955,6 +4992,7 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
       "release",
       "trace_name",
       "parent_observation_id",
+      "is_root_observation",
       "bookmarked",
       "public",
       "created_at",
@@ -4990,6 +5028,7 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     // --- Boolean columns ---
     expect(row.bookmarked).toBe(true);
     expect(row.public).toBe(true);
+    expect(row.is_root_observation).toBe(true);
 
     // --- Numeric columns ---
     expect(row.prompt_version).toBe(1);
@@ -5028,8 +5067,8 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(row.release).toBe("");
     // parent_span_id is non-nullable String; createEvent sets it to null → stored as ""
     expect(row.parent_observation_id).toBe("");
-    // trace_name is non-nullable String; not populated (no trace inserted) → ""
-    expect(row.trace_name).toBe("");
+    // With no stored trace name, exports use the semantic root's observation name.
+    expect(row.trace_name).toBe("column-contract-event");
 
     // --- Nullable columns (NULL when unset) ---
     // usage_pricing_tier_id is Nullable(String) in events_core
@@ -5111,6 +5150,7 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
       "release",
       "trace_name",
       "parent_observation_id",
+      "is_root_observation",
       "bookmarked",
       "public",
       "created_at",

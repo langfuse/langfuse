@@ -12,7 +12,8 @@ import type { MediaField } from "../../domain/media";
 import { recordDistribution, recordIncrement } from "../instrumentation";
 import {
   processOtelMedia,
-  type OtelMediaEvent,
+  type OtelMediaPayload,
+  type OtelMediaTarget,
   type UploadOtelMedia,
 } from "./OtelMediaProcessor";
 
@@ -21,18 +22,33 @@ const SPAN_ID = "0123456789abcdef";
 const MEDIA_ID = "test-media-id";
 const PNG_BYTES = Buffer.from("test-image");
 const PNG_BASE64 = PNG_BYTES.toString("base64");
+const PYTHON_BYTES = Buffer.from([
+  0xff,
+  0xd8,
+  0xff,
+  0xe0,
+  ...Buffer.from("test\nquote'slash\\"),
+  0x00,
+]);
+const PYTHON_BYTES_LITERAL =
+  "b'\\xff\\xd8\\xff\\xe0test\\nquote\\'slash\\\\\\x00'";
 const MEDIA_REFERENCE = `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`;
 
 function createEvent(params: { value: unknown; field?: MediaField }): {
-  event: OtelMediaEvent;
-  body: OtelMediaEvent;
+  event: OtelMediaTarget;
+  body: OtelMediaPayload;
 } {
-  const body: OtelMediaEvent = {
-    traceId: TRACE_ID,
-    spanId: SPAN_ID,
+  const body: OtelMediaPayload = {
     [params.field ?? "input"]: params.value,
   };
-  return { event: body, body };
+  return {
+    event: {
+      traceId: TRACE_ID,
+      observationId: SPAN_ID,
+      payload: body,
+    },
+    body,
+  };
 }
 
 function createUploadMock(
@@ -42,12 +58,13 @@ function createUploadMock(
 }
 
 async function processEvents(
-  events: OtelMediaEvent[],
+  targets: OtelMediaTarget[],
   uploadMedia: UploadOtelMedia = createUploadMock(),
 ) {
   return processOtelMedia({
-    events,
+    targets,
     projectId: "project-id",
+    writePath: "direct",
     mediaBucket: "media-bucket",
     mediaPrefix: "media/",
     uploadMedia,
@@ -76,12 +93,21 @@ describe("processOtelMedia", () => {
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.detection_check",
       1,
-      { path: "data_uri" },
+      { path: "data_uri", write_path: "direct" },
     );
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.detection_check_byte_length",
       Buffer.byteLength(dataUri, "utf8"),
-      { path: "data_uri" },
+      { path: "data_uri", write_path: "direct" },
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.byte_length",
+      PNG_BYTES.length,
+      {
+        outcome: "uploaded",
+        media_kind: "data_uri",
+        write_path: "direct",
+      },
     );
     expect(result).toMatchObject({
       candidates: 1,
@@ -99,11 +125,26 @@ describe("processOtelMedia", () => {
     });
   });
 
+  it("tags reused media byte length separately from uploaded media", async () => {
+    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const { event } = createEvent({ value: dataUri });
+
+    await processEvents([event], createUploadMock("reused"));
+
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.byte_length",
+      PNG_BYTES.length,
+      {
+        outcome: "reused",
+        media_kind: "data_uri",
+        write_path: "direct",
+      },
+    );
+  });
+
   it("processes every normalized media field and ignores unrelated fields", async () => {
     const dataUri = `data:image/png;base64,${PNG_BASE64}`;
     const body = {
-      traceId: TRACE_ID,
-      spanId: SPAN_ID,
       input: dataUri,
       output: dataUri,
       metadata: { image: dataUri },
@@ -111,7 +152,16 @@ describe("processOtelMedia", () => {
     };
     const uploadMedia = createUploadMock();
 
-    await processEvents([body], uploadMedia);
+    await processEvents(
+      [
+        {
+          traceId: TRACE_ID,
+          observationId: SPAN_ID,
+          payload: body,
+        },
+      ],
+      uploadMedia,
+    );
 
     expect(uploadMedia).toHaveBeenCalledTimes(3);
     expect(uploadMedia).toHaveBeenNthCalledWith(
@@ -204,6 +254,55 @@ describe("processOtelMedia", () => {
     expect(result.detectionChecks.stringified_json).toBe(1);
   });
 
+  it("processes Gemini media serialized as a Python bytes literal", async () => {
+    const { event, body } = createEvent({
+      value: JSON.stringify({
+        inline_data: {
+          mime_type: "image/jpeg",
+          data: PYTHON_BYTES_LITERAL,
+        },
+      }),
+    });
+    const uploadMedia = createUploadMock();
+
+    const result = await processEvents([event], uploadMedia);
+
+    expect(uploadMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentType: "image/jpeg",
+        contentBytes: PYTHON_BYTES,
+      }),
+    );
+    expect(JSON.parse(body.input as string).inline_data.data).toBe(
+      `@@@langfuseMedia:type=image/jpeg|id=${MEDIA_ID}|source=bytes@@@`,
+    );
+    expect(result).toMatchObject({
+      uploaded: 1,
+      invalid: 0,
+      ignored: 0,
+      candidates: 1,
+      bytesProcessed: PYTHON_BYTES.length,
+    });
+  });
+
+  it("leaves malformed Python bytes literals unchanged", async () => {
+    const value = {
+      inline_data: {
+        mime_type: "image/jpeg",
+        data: "b'\\xff\\x0g'",
+      },
+    };
+    const { event, body } = createEvent({ value });
+    const uploadMedia = createUploadMock();
+
+    const result = await processEvents([event], uploadMedia);
+
+    expect(uploadMedia).not.toHaveBeenCalled();
+    expect(body.input).toBe(value);
+    expect(value.inline_data.data).toBe("b'\\xff\\x0g'");
+    expect(result.invalid).toBe(1);
+  });
+
   it("leaves normalized values unchanged when upload fails", async () => {
     const dataUri = `data:image/png;base64,${PNG_BASE64}`;
     const { event, body } = createEvent({ value: dataUri });
@@ -226,10 +325,31 @@ describe("processOtelMedia", () => {
     expect(body.input).toBe(reference);
   });
 
-  it.each([
-    ["an unsupported media type", "data:application/x-test;base64,dGVzdA=="],
-    ["invalid base64", "data:image/png;base64,%%%"],
-  ])("leaves %s unchanged", async (_, value) => {
+  it("classifies unsupported Data URI content types as ignored", async () => {
+    const value = "data:application/x-test;base64,dGVzdA==";
+    const { event, body } = createEvent({ value });
+    const uploadMedia = createUploadMock();
+
+    const result = await processEvents([event], uploadMedia);
+
+    expect(uploadMedia).not.toHaveBeenCalled();
+    expect(body.input).toBe(value);
+    expect(result.invalid).toBe(0);
+    expect(result.ignored).toBe(1);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media",
+      1,
+      {
+        outcome: "ignored",
+        media_kind: "data_uri",
+        reason: "unsupported_content_type",
+        write_path: "direct",
+      },
+    );
+  });
+
+  it("classifies malformed Data URI base64 as invalid", async () => {
+    const value = "data:image/png;base64,%%%";
     const { event, body } = createEvent({ value });
     const uploadMedia = createUploadMock();
 
@@ -238,5 +358,32 @@ describe("processOtelMedia", () => {
     expect(uploadMedia).not.toHaveBeenCalled();
     expect(body.input).toBe(value);
     expect(result.invalid).toBe(1);
+    expect(result.ignored).toBe(0);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media",
+      1,
+      {
+        outcome: "invalid",
+        media_kind: "data_uri",
+        reason: "invalid_base64",
+        write_path: "direct",
+      },
+    );
+  });
+
+  it("links trace-level media without an observation id", async () => {
+    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const body = { input: dataUri };
+    const uploadMedia = createUploadMock();
+
+    await processEvents([{ traceId: TRACE_ID, payload: body }], uploadMedia);
+
+    expect(uploadMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        traceId: TRACE_ID,
+        observationId: undefined,
+      }),
+    );
+    expect(body.input).toBe(MEDIA_REFERENCE);
   });
 });

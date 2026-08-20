@@ -8,7 +8,8 @@ import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
-import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import { projectRoleAccessRights } from "@langfuse/shared";
+import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -16,7 +17,11 @@ export async function createProjectMembershipsOnSignup(
     email: string | null;
     name: string | null;
   },
-  options?: { userWasJustCreated?: boolean },
+  options?: {
+    userWasJustCreated?: boolean;
+    /** Ad-platform click ids, see getAdClickIdsFromRequest */
+    adClickIds?: AdClickIds;
+  },
 ) {
   try {
     const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
@@ -277,10 +282,17 @@ export async function createProjectMembershipsOnSignup(
     }
 
     // for conversion metric tracking in posthog: did a new user sign up?
+    // Fires on all production cloud regions, including ones added in the
+    // future. STAGING/DEV are excluded to keep test signups out of
+    // conversion metrics, HIPAA is excluded deliberately to keep product
+    // analytics off that deployment, and self-hosted deployments never emit
+    // this event as the region env is unset.
     if (
       isNewUser &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      ["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+      !["STAGING", "DEV", "HIPAA"].includes(
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      )
     ) {
       try {
         const posthog = new ServerPosthog();
@@ -292,6 +304,10 @@ export async function createProjectMembershipsOnSignup(
             hasDemoAccess: demoProject !== undefined,
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
+            // Google Ads click id for ad conversion attribution
+            // ad-platform click ids (gclid, li_fat_id, rdt_cid, twclid)
+            // for ad conversion attribution; only resolved ids are present
+            ...(options?.adClickIds ?? {}),
           },
         });
         await posthog.shutdown();

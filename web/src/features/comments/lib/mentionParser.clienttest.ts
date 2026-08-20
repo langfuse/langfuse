@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   extractUniqueMentionedUserIds,
   MENTION_USER_PREFIX,

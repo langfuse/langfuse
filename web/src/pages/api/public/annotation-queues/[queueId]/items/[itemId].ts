@@ -19,6 +19,7 @@ export default withMiddlewares({
     name: "Get annotation queue item by ID",
     querySchema: GetAnnotationQueueItemByIdQuery,
     responseSchema: GetAnnotationQueueItemByIdResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, auth }) =>
       await getAnnotationQueueItemForApi({
         projectId: auth.scope.projectId,
@@ -31,6 +32,7 @@ export default withMiddlewares({
     querySchema: GetAnnotationQueueItemByIdQuery,
     bodySchema: UpdateAnnotationQueueItemBody,
     responseSchema: UpdateAnnotationQueueItemResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, body, auth }) =>
       await updateAnnotationQueueItemForApi({
         projectId: auth.scope.projectId,
@@ -44,6 +46,7 @@ export default withMiddlewares({
     name: "Delete annotation queue item",
     querySchema: DeleteAnnotationQueueItemQuery,
     responseSchema: DeleteAnnotationQueueItemResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, auth }) =>
       await deleteAnnotationQueueItemForApi({
         projectId: auth.scope.projectId,

@@ -52,7 +52,8 @@ export default async function handler(
   // Return the service provider configuration
   return res.status(200).json({
     schemas: ["urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"],
-    documentationUri: "https://docs.langfuse.com/scim",
+    documentationUri:
+      "https://langfuse.com/docs/administration/scim-and-org-api",
     patch: {
       supported: false,
     },

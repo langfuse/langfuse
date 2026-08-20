@@ -51,7 +51,13 @@ const expectedScores = [
     dataType: "TEXT",
     metadata: { source: "runner-fixture" },
   },
-  { name: "rating", value: "good", dataType: "CATEGORICAL" },
+  {
+    name: "rating",
+    value: "good",
+    dataType: "CATEGORICAL",
+    configId: "rating-config",
+  },
+  { name: "untyped", value: "fallback" },
 ] as const;
 
 const sources: Record<CodeEvalRuntimeLanguage, string> = {
@@ -75,7 +81,8 @@ function evaluate(ctx: {
       { name: "output-contains-input-str", value: contains ? "True" : "False", dataType: "BOOLEAN" },
       { name: ctx.observation.metadata.topic, value: ctx.experiment?.itemMetadata.item ?? 0, dataType: "NUMERIC" },
       { name: "expected-output", value: ctx.experiment?.itemExpectedOutput ?? "", dataType: "TEXT", metadata: { source: "runner-fixture" } },
-      { name: "rating", value: "good", dataType: "CATEGORICAL" },
+      { name: "rating", value: "good", dataType: "CATEGORICAL", configId: "rating-config" },
+      { name: "untyped", value: "fallback" },
     ],
   };
 }
@@ -90,7 +97,8 @@ def evaluate(ctx):
             {"name": "output-contains-input-str", "value": "true" if contains else "false", "dataType": "BOOLEAN"},
             {"name": ctx.observation.metadata["topic"], "value": ctx.experiment.item_metadata["item"], "dataType": "NUMERIC"},
             Score(name="expected-output", value=ctx.experiment.item_expected_output, data_type="TEXT", metadata={"source": "runner-fixture"}),
-            {"name": "rating", "value": "good", "dataType": "CATEGORICAL"},
+            {"name": "rating", "value": "good", "data_type": "CATEGORICAL", "config_id": "rating-config"},
+            {"name": "untyped", "value": "fallback", "data_type": None, "config_id": None},
         ],
     }
 `,

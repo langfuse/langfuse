@@ -78,19 +78,6 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       id: "description",
       enableHiding: true,
       size: 200,
-      cell: ({ row }) => {
-        const description: RowData["description"] = row.getValue("description");
-        return (
-          <span
-            className={cn(
-              "grid h-full items-center overflow-auto",
-              rowHeight === "s" && "leading-3",
-            )}
-          >
-            {description}
-          </span>
-        );
-      },
     },
     {
       accessorKey: "countCompletedItems",

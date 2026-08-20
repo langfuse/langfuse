@@ -1,18 +1,18 @@
 import { MonitorService } from "@langfuse/shared/monitors/server";
 import { z } from "zod";
 
-import { buildMonitorUrl } from "@/src/utils/product-url";
+import { buildMonitorUrl } from "@langfuse/shared/src/server";
 
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const GetMonitorInputSchema = z.object({
-  monitorId: z.string().describe("ID of the monitor to retrieve."),
+  monitorId: z.string().describe("ID of the alert to retrieve."),
 });
 
 export const [getMonitorTool, handleGetMonitor] = defineTool({
-  name: "getMonitor",
-  description: "Get a monitor by ID.",
+  name: "getAlert",
+  description: "Get an alert by ID.",
   baseSchema: GetMonitorInputSchema,
   inputSchema: GetMonitorInputSchema,
   handler: async (input, context) =>

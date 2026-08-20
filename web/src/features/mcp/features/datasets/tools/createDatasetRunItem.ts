@@ -4,6 +4,7 @@ import { createDatasetRunItemForApi } from "@/src/features/datasets/server/publi
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { getMcpPublicApiAuth } from "../../publicApi";
+import { rejectDatasetRunToolsInEventsOnlyMode } from "../events-only-guard";
 
 const CreateDatasetRunItemBaseSchema = z.object({
   runName: z.string(),
@@ -42,6 +43,7 @@ export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =
           "mcp.dataset_run_name": input.runName,
         },
         fn: async () => {
+          rejectDatasetRunToolsInEventsOnlyMode();
           const auth = await getMcpPublicApiAuth(context);
           return await createDatasetRunItemForApi({
             body: input,

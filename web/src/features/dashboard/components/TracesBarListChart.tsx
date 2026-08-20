@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { type FilterState } from "@langfuse/shared";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";

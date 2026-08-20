@@ -12,7 +12,40 @@ describe("MixpanelClient export volume", () => {
     vi.stubGlobal("fetch", fetchMock);
   });
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("aborts a hung sendBatch instead of leaving flush() pending indefinitely", async () => {
+    vi.useFakeTimers();
+
+    // Simulate an unresponsive Mixpanel endpoint: the request never settles
+    // on its own, only when the abort signal fires (mirrors real fetch).
+    fetchMock.mockImplementation(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => {
+            const abortError = new Error("The operation was aborted");
+            abortError.name = "AbortError";
+            reject(abortError);
+          });
+        }),
+    );
+
+    const client = new MixpanelClient({ projectToken: "t", region: "api" });
+    client.addEvent({
+      event: "trace",
+      properties: { token: "t", distinct_id: "1", $insert_id: 1 },
+    } as unknown as MixpanelEvent);
+
+    const flushPromise = client.flush();
+    const rejection = expect(flushPromise).rejects.toThrow(/timed out/i);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await rejection;
+  });
 
   it("accumulates gzipped on-wire bytes across sendBatch chunks", async () => {
     const client = new MixpanelClient({ projectToken: "t", region: "api" });

@@ -1,6 +1,6 @@
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
-import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import {
+  type ProjectScope,
   type BatchActionType,
   type ActionId,
   type BatchExportTableName,

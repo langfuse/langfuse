@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * Integration tests for filter query encoding/decoding through full URL lifecycle.
  * These tests verify the complete flow: FilterState → URL → FilterState
@@ -9,12 +11,12 @@ import {
   type ColumnDefinition,
   tracesTableCols,
   observationsTableCols,
-} from "@langfuse/shared";
-import {
+  sessionsViewCols,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
   computeSelectedValues,
-} from "./lib/filter-query-encoding";
+  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
+} from "@langfuse/shared";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
 import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
@@ -38,7 +40,9 @@ import {
   buildEffectiveEnvironmentFilter,
   stripImplicitEnvironmentFilterFromExplicitState,
 } from "./lib/managedEnvironmentPolicy";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
+import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { validateQuery } from "@/src/features/search-bar/lib/validate";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -592,6 +596,74 @@ describe("Config Validation of old saved views", () => {
   });
 });
 
+describe("Retired bookmarked filters (traces + sessions)", () => {
+  const bookmarkedFilter: FilterState = [
+    { column: "bookmarked", type: "boolean", operator: "=", value: true },
+  ];
+  const surfaces = [
+    ["traces", traceFilterConfig],
+    ["sessions", sessionFilterConfig],
+    ["sessions (v4)", sessionEventsFilterConfig],
+  ] as const;
+
+  it.each(surfaces)(
+    "drops a deep-linked bookmarked filter on the %s table",
+    (_label, config) => {
+      expect(
+        decodeAndNormalizeFilters(
+          encodeFiltersGeneric(bookmarkedFilter),
+          config.columnDefinitions,
+          config.migrateFilterState,
+        ),
+      ).toEqual([]);
+    },
+  );
+
+  it.each(surfaces)(
+    "drops a saved-view bookmarked filter on the %s table but keeps the rest",
+    (_label, config) => {
+      const savedView: FilterState = [
+        ...bookmarkedFilter,
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ];
+
+      expect(
+        validateFilters(
+          savedView,
+          config.columnDefinitions,
+          config.migrateFilterState,
+        ),
+      ).toEqual([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ]);
+    },
+  );
+
+  it("drops the legacy star display name a pre-ID saved view stored", () => {
+    expect(
+      validateFilters(
+        [{ column: "⭐️", type: "boolean", operator: "=", value: true }],
+        sessionFilterConfig.columnDefinitions,
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps bookmarked in the shared definitions the public API filters on", () => {
+    expect(tracesTableCols.some((col) => col.id === "bookmarked")).toBe(true);
+    expect(sessionsViewCols.some((col) => col.id === "bookmarked")).toBe(true);
+  });
+});
+
 describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
   it("should preserve multiple string contains filters from URL", () => {
     // environment contains "e" AND environment contains "a"
@@ -655,6 +727,35 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     ];
 
     expect(simulateUrlFlow(filters)).toEqual(filters);
+  });
+
+  it("should preserve v4 release filters through the URL and search-bar flow", () => {
+    const filters: FilterState = [
+      {
+        column: "release",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["181"],
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toEqual(filters);
+
+    const { text, skipped } = filterStateToQueryText(normalized);
+    expect(skipped).toEqual([]);
+    expect(text).toBe("release:181");
+
+    const parsed = validateQuery(text);
+    expect(parsed.valid, text).toBe(true);
+    expect(astToFilterState(parsed.ast)).toMatchObject({
+      filters,
+      errors: [],
+    });
   });
 
   it("should discard stale positionInTrace URL filters on the general events table", () => {

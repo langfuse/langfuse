@@ -1,13 +1,9 @@
 ---
 name: weekly-production-review
 description: |
-  Prepare Langfuse weekly production reviews that audit what broke, what was
-  fixed, what remains open, and where Datadog, incident.io, or Linear tracking
-  needs cleanup. Use when asked for a production review, "what broke last week",
-  fixed/open production bugs, Datadog alerted monitors/pages, Datadog error log
-  patterns, incident.io incidents, incident.io alert load, pager load by
-  engineer or time of day, or a source-table engineering review across
-  incident.io, Linear bugs, Datadog alerts, and Datadog logs.
+  Prepare Langfuse weekly production reviews covering failures, fixes, open
+  issues, and tracking gaps. Use for "what broke last week," production bugs,
+  Datadog alerts or error patterns, incident.io activity, or pager load.
 ---
 
 # Weekly Production Review

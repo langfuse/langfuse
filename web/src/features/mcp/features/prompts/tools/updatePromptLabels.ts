@@ -10,7 +10,7 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { ParamPromptName, ParamNewLabels } from "../validation";
 import { updatePromptLabelsForApi } from "@/src/features/prompts/server/prompt-api-service";
-import { buildPromptUrl } from "@/src/utils/product-url";
+import { buildPromptUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 import { PROMPT_NAME_MAX_LENGTH } from "@langfuse/shared";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
 import * as z from "zod";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
@@ -11,7 +12,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import {
   useState,
   useMemo,
@@ -333,9 +334,7 @@ export const NewDatasetItemForm = (props: {
           `Item does not match dataset schema. Errors: ${JSON.stringify(result.validationErrors, null, 2)}`,
         );
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportTrpcErrorWithoutToast(error, "datasets"));
   }
 
   return (

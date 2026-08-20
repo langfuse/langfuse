@@ -4,6 +4,7 @@ import { FilterState } from "../types";
 import { filterOperators, timeFilter } from "../interfaces/filters";
 import { z } from "zod";
 import { logger } from "./index";
+import { InvalidRequestError } from "../errors";
 
 const operatorReplacements = {
   "any of": "IN",
@@ -53,7 +54,7 @@ export function tableColumnsToSqlFilter(
     );
     if (!col) {
       logger.error("Invalid filter column", filter.column);
-      throw new Error("Invalid filter column: " + filter.column);
+      throw new InvalidRequestError("Invalid filter column: " + filter.column);
     }
     const colPrisma = Prisma.raw(col.internal);
     return {

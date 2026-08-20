@@ -26,10 +26,9 @@ import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/Langfu
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
 import { TestModelMatchButton } from "@/src/features/models/components/test-match/TestModelMatchButton";
 import { ActionButton } from "@/src/components/ActionButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
@@ -63,7 +62,6 @@ const modelConfigDescriptions = {
 
 export default function ModelTable({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const capture = usePostHogClientCapture();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
@@ -323,7 +321,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
                 variant="secondary"
                 icon={<PlusIcon className="h-4 w-4" />}
                 hasAccess={hasWriteAccess}
-                onClick={() => capture("models:new_form_open")}
+                trackingEventName="models:new_form_open"
               >
                 Add Model Definition
               </ActionButton>

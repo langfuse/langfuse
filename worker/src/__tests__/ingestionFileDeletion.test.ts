@@ -141,6 +141,36 @@ describe("ingestion file deletion pipeline", () => {
     }
   });
 
+  it("checkpoints a deleted S3 batch when progress reporting fails", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    await seedRefs(projectId, 1, { uploadFiles: false });
+
+    const eventStorageClient = getS3EventStorageClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
+    const deleteFilesSpy = vi
+      .spyOn(eventStorageClient, "deleteFiles")
+      .mockResolvedValue(undefined);
+    const onProgress = vi.fn().mockRejectedValue(new Error("lease lost"));
+
+    await expect(
+      removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
+        projectId,
+        undefined,
+        {
+          s3ChunkSize: 1,
+          s3Concurrency: 1,
+          tombstoneFlushSize: 100,
+          onProgress,
+        },
+      ),
+    ).rejects.toThrow("lease lost");
+
+    expect(deleteFilesSpy).toHaveBeenCalledOnce();
+    expect(onProgress).toHaveBeenCalledOnce();
+    expect(await visibleBucketPaths(projectId)).toHaveLength(0);
+  });
+
   it("rethrows on a failed chunk, tombstones only the chunks that succeeded, and leaves the failed chunk retry-able", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     await seedRefs(projectId, 13);

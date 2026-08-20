@@ -11,6 +11,7 @@ import {
   getCategoricalScoresGroupedByName,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
+  getEventsMetadataValues,
   getEventsNumericStatsByFilterColumn,
   getNumericScoresGroupedByName,
   getBooleanScoresGroupedByName,
@@ -20,6 +21,7 @@ import {
   getScoresForTraces,
   logger,
   traceException,
+  EVENTS_APPROX_TOTAL_COUNT_MARKER,
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
@@ -100,9 +102,27 @@ interface GetObservationsFilterOptionsParams {
   columns?: readonly EventFilterOptionsColumn[];
 }
 
+interface GetEventFilterOptionsParams extends GetObservationsFilterOptionsParams {
+  /**
+   * Full-text search is intentionally not part of facet refinement: repeating
+   * that scan for filter options is prohibitively expensive.
+   */
+  filter?: FilterState;
+  /**
+   * When true, the bulk facet query also returns the approximate total
+   * observation count matching `filter` (`uniq(span_id)` over the same facet
+   * scan) for the traces-table footer "Total ≈ X". The scan honors `filter`
+   * (incl. score filters) but not input/output/comment (dropped upstream, so
+   * `omitCounts` → the count is flagged partial) nor full-text search. Set only
+   * on the eager bulk request so the count is computed once.
+   */
+  includeApproxCount?: boolean;
+}
+
 type EventFilterValueOption = {
   value: string;
   count?: number;
+  displayValue?: string;
 };
 
 // Subset of event filter option columns returned by the bulk filter-options response.
@@ -116,15 +136,21 @@ const EVENT_FILTER_OPTION_COLUMNS = [
   "type",
   "userId",
   "version",
+  "release",
   "sessionId",
   "level",
   "environment",
+  "ingestionApiKey",
+  "ingestionSdkName",
+  "ingestionSdkVersion",
+  "ingestionSource",
   "experimentDatasetId",
   "experimentId",
   "experimentName",
   "isRootObservation",
   "toolNames",
   "calledToolNames",
+  "metadataKeys",
 ] as const satisfies readonly EventFilterOptionColumn[];
 
 const EVENT_SCORE_FILTER_OPTION_COLUMNS = [
@@ -383,13 +409,59 @@ const toFilterValueOptions = (
 ): EventFilterValueOption[] =>
   items
     .filter((item) => item.column === column)
-    .map((item) => ({ value: item.value, count: item.count }));
+    .map((item) => ({
+      value: item.value,
+      count: item.count,
+      ...(item.displayValue && item.displayValue.length > 0
+        ? { displayValue: item.displayValue }
+        : {}),
+    }));
 
 const EVENT_FILTER_VALUE_ONLY_COLUMNS = new Set<EventFilterOptionColumn>([
   "traceTags",
   "toolNames",
   "calledToolNames",
 ]);
+
+const EVENT_FILTER_OPTIONS_NON_PARTICIPATING_COLUMNS = new Set([
+  "input",
+  "output",
+  "commentCount",
+  "commentContent",
+]);
+
+export const partitionEventFilterOptionsFilter = (
+  filter: FilterState = [],
+): {
+  participatingFilter: FilterState;
+  omitCounts: boolean;
+} => {
+  const participatingFilter: FilterState = [];
+  let omitCounts = false;
+
+  for (const filterItem of filter) {
+    // The dedicated startTimeFilter remains authoritative for the bounded
+    // facet query and its score lookback.
+    if (
+      filterItem.type === "datetime" &&
+      (filterItem.column === "startTime" || filterItem.column === "Start Time")
+    ) {
+      continue;
+    }
+
+    if (
+      filterItem.type === "positionInTrace" ||
+      EVENT_FILTER_OPTIONS_NON_PARTICIPATING_COLUMNS.has(filterItem.column)
+    ) {
+      omitCounts = true;
+      continue;
+    }
+
+    participatingFilter.push(filterItem);
+  }
+
+  return { participatingFilter, omitCounts };
+};
 
 type EventFilterOptionsByColumn = Record<
   (typeof EVENT_FILTER_OPTION_COLUMNS)[number],
@@ -399,10 +471,11 @@ type EventFilterOptionsByColumn = Record<
 const toEventFilterValueOptions = (
   items: EventFilterOptionRow[],
   column: EventFilterOptionColumn,
+  omitCounts: boolean,
 ): EventFilterValueOption[] => {
   const options = toFilterValueOptions(items, column);
 
-  return EVENT_FILTER_VALUE_ONLY_COLUMNS.has(column)
+  return omitCounts || EVENT_FILTER_VALUE_ONLY_COLUMNS.has(column)
     ? options.map(({ value }) => ({ value }))
     : options;
 };
@@ -414,9 +487,10 @@ const toEventFilterValueOptions = (
 const toEventFilterOptionsByColumn = (
   items: EventFilterOptionRow[],
   columns: readonly (keyof EventFilterOptionsByColumn)[],
+  omitCounts: boolean,
 ): Partial<EventFilterOptionsByColumn> =>
   columns.reduce((acc, column) => {
-    acc[column] = toEventFilterValueOptions(items, column);
+    acc[column] = toEventFilterValueOptions(items, column, omitCounts);
     return acc;
   }, {} as Partial<EventFilterOptionsByColumn>);
 
@@ -488,6 +562,7 @@ export async function getEventFilterValuePage(
   params: GetObservationsFilterOptionsParams & {
     column:
       | "traceTags"
+      | "isRootObservation"
       | "hasParentObservation"
       | "providedModelName"
       | "modelId"
@@ -551,12 +626,16 @@ export async function getEventFilterNumericRange(
  * Get all available filter options for events table
  */
 export async function getEventFilterOptions(
-  params: GetObservationsFilterOptionsParams,
+  params: GetEventFilterOptionsParams,
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
   const { projectId, columns = EVENT_FILTER_OPTIONS_COLUMNS } = scopedParams;
+  const { participatingFilter, omitCounts } = partitionEventFilterOptionsFilter(
+    scopedParams.filter,
+  );
   const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
     getEventFilterOptionsScope(scopedParams);
+  const refinedEventsFilter = eventsFilter.concat(participatingFilter);
   const requestedColumns = new Set<EventFilterOptionsColumn>(columns);
   const eventColumns = EVENT_FILTER_OPTION_COLUMNS.filter((column) =>
     requestedColumns.has(column),
@@ -650,8 +729,12 @@ export async function getEventFilterOptions(
     eventColumns.length > 0
       ? getEventsFilterOptionsForColumns({
           projectId,
-          filter: eventsFilter,
+          filter: refinedEventsFilter,
           columns: eventColumns,
+          // Only the eager bulk request sets includeApproxCount, so the
+          // approximate total is computed once (riding this scan), not per lazy
+          // facet. uniq(span_id) over this scan already honors refinedEventsFilter.
+          includeApproxCount: scopedParams.includeApproxCount,
         })
       : Promise.resolve([]),
   ]);
@@ -668,7 +751,24 @@ export async function getEventFilterOptions(
   const eventFilterOptionsByColumn = toEventFilterOptionsByColumn(
     eventFilterOptions,
     eventColumns,
+    omitCounts,
   );
+
+  // Approximate total observation count for the footer "Total ≈ X": the bulk
+  // facet query returns it as a sentinel row (only when includeApproxCount was
+  // set — i.e. the eager request). `null` when not requested.
+  const approxTotalCountRow = eventFilterOptions.find(
+    (row) => (row.column as string) === EVENTS_APPROX_TOTAL_COUNT_MARKER,
+  );
+  const approxTotalCount = approxTotalCountRow
+    ? Number(approxTotalCountRow.count)
+    : null;
+  // Partial scope: the facet scan omits input/output/comment filters
+  // (`omitCounts`), so the count over-counts vs the visible rows — the UI marks
+  // it and drops the "within a few percent" claim. Score filters ARE honored
+  // by the scan. (Full-text search isn't part of this query, so the client ORs
+  // in its own searchQuery signal.)
+  const approxTotalCountIsPartial = approxTotalCount !== null && omitCounts;
 
   // name → the level(s) the name actually exists at, SPLIT PER DATA-TYPE
   // class: a name can be reused across types at different levels (a NUMERIC
@@ -707,6 +807,13 @@ export async function getEventFilterOptions(
   // column only offers names its filter can match (LFE-10596).
   return {
     ...eventFilterOptionsByColumn,
+    // Approximate total observation count for the footer "Total ≈ X". Included
+    // ONLY when requested (the eager bulk query), so callers that didn't ask —
+    // lazy per-column facet requests, the sidebar/search-bar option loaders —
+    // don't carry stray count keys (mirrors the conditional score keys below).
+    ...(scopedParams.includeApproxCount
+      ? { approxTotalCount, approxTotalCountIsPartial }
+      : {}),
     ...(shouldLoadScoresAvg
       ? { scores_avg: numericScoreNames.map((score) => score.name) }
       : {}),
@@ -739,6 +846,23 @@ export async function getEventFilterOptions(
   };
 }
 
+/** getEventMetadataValues returns the most common values observed for one metadata key. */
+export async function getEventMetadataValues(
+  params: GetObservationsFilterOptionsParams & { key: string },
+): Promise<EventFilterValueOption[]> {
+  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const { projectId, key } = scopedParams;
+  const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
+
+  const rows = await getEventsMetadataValues({
+    projectId,
+    filter: eventsFilter,
+    key,
+  });
+
+  return rows.map((row) => ({ value: row.value, count: row.count }));
+}
+
 interface GetEventBatchIOParams<
   TIncludeExperiment extends boolean = false,
   TIncludeToolCalls extends boolean = false,
@@ -751,6 +875,7 @@ interface GetEventBatchIOParams<
   minStartTime: Date;
   maxStartTime: Date;
   truncated?: boolean;
+  ioCharLimit?: number;
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
@@ -771,6 +896,7 @@ export async function getEventBatchIO<
     minStartTime: params.minStartTime,
     maxStartTime: params.maxStartTime,
     truncated: params.truncated,
+    ioCharLimit: params.ioCharLimit,
     includeExperimentFields: params.includeExperimentFields,
     includeToolCallFields: params.includeToolCallFields,
   });

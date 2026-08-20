@@ -3,6 +3,7 @@ import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { type ChartViewConfig } from "./types";
 import { buildChartQuery, rowsToDataPoints } from "./lib/buildChartQuery";
+import { chartConfigToWidgetInput } from "./lib/chartConfigToWidget";
 import { toChartFilters } from "./lib/chartFilterCompatibility";
 import { ChartViewPanel } from "./components/ChartViewPanel";
 import { AddToDashboardButton } from "./components/AddToDashboardButton";
@@ -62,6 +63,11 @@ export function EventsChartView({
         "Couldn't build a chart for the current view.")
       : null;
 
+  const widgetInput = useMemo(
+    () => chartConfigToWidgetInput({ config, filters }),
+    [config, filters],
+  );
+
   return (
     <ChartViewPanel
       config={config}
@@ -70,11 +76,7 @@ export function EventsChartView({
       isLoading={validRange && queryResult.isPending && !queryResult.isError}
       error={error}
       chartActions={
-        <AddToDashboardButton
-          projectId={projectId}
-          config={config}
-          filters={filters}
-        />
+        <AddToDashboardButton projectId={projectId} widgetInput={widgetInput} />
       }
     />
   );

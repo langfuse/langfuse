@@ -1,4 +1,8 @@
-import { EvalTemplateType, Prisma } from "@langfuse/shared/src/db";
+import {
+  EvalTemplateType,
+  Prisma,
+  type PrismaClient,
+} from "@langfuse/shared/src/db";
 
 /**
  * Data access for eval templates ("evaluators" in the public naming).
@@ -116,4 +120,29 @@ export async function deleteEvalTemplatesByIds({
   await tx.evalTemplate.deleteMany({
     where: { projectId, id: { in: evalTemplateIds } },
   });
+}
+
+/**
+ * Deletes a job configuration and its executions atomically. Takes the plain
+ * client rather than a `tx` because it runs a batch (array) transaction: an
+ * interactive `$transaction(async (tx) => …)` would cap the delete at Prisma's
+ * default 5s timeout, which configurations with a long execution history exceed.
+ */
+export async function deleteJobConfigurationWithExecutions({
+  prisma,
+  projectId,
+  jobConfigurationId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  jobConfigurationId: string;
+}) {
+  await prisma.$transaction([
+    prisma.jobExecution.deleteMany({
+      where: { projectId, jobConfigurationId },
+    }),
+    prisma.jobConfiguration.delete({
+      where: { id: jobConfigurationId, projectId },
+    }),
+  ]);
 }

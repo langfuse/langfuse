@@ -1,12 +1,10 @@
 ---
 name: datadog-query-recipes
 description: |
-  Langfuse-specific Datadog query recipes for production telemetry research.
-  Use when asked to investigate tenant or project activity, public API endpoint
-  usage, queue consumer behavior, spans, logs, metrics, or ad hoc production
-  questions across prod-us, prod-eu, prod-hipaa, and prod-jp. This skill is for
-  reusable query shapes and measured research; pair it with
-  debug-issue-with-datadog when the task is an incident or root-cause analysis.
+  Research Langfuse production telemetry with reusable Datadog queries. Use for
+  tenant or project activity, API usage, queue behavior, spans, logs, metrics,
+  or ad hoc measurements across production regions; pair with
+  debug-issue-with-datadog for root-cause analysis.
 ---
 
 # Datadog Query Recipes

@@ -383,9 +383,30 @@ export async function* queryClickhouseStreamRawText(
 // flushes at whichever cap hits first. The bytes cap is the real memory governor
 // (auto-adapts to row width); set below CH's 512 MiB default since the dispatcher
 // exports up to 4 tables concurrently (peak ≈ 4×). The row cap bounds narrow tables.
+//
+// The remaining settings guard Arrow's 2^31-byte ceiling on a single column-chunk
+// buffer ("Capacity error: array cannot contain more than 2147483646 bytes",
+// surfacing to the worker as ECONNRESET mid-stream). Two ClickHouse behaviors
+// compose into it: ParquetBlockOutputFormat splits oversized staging by rows
+// only, so the bytes cap above cannot split one fat pipeline chunk (sorted/FINAL
+// stages emit blocks bounded by max_block_size rows, not bytes), and the
+// writer's page/dictionary size checks run once per write batch, so multi-MB
+// payload values overshoot int32 limits between checks (~125 × 17 MiB values in
+// one 1024-value batch overflow the dictionary before its 1 MiB fallback fires).
 export const BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS: ClickHouseSettings = {
   output_format_parquet_row_group_size: "1000000",
   output_format_parquet_row_group_size_bytes: String(128 * 1024 * 1024), // 128 MiB
+  // Keep source chunks small so the bytes cap actually binds; at the default
+  // ~65k rows per sorted block, multi-MB payloads reach multi-GiB row groups.
+  max_block_size: "8192",
+  // Run the size checks every 16 rows instead of 1024, capping the per-page /
+  // per-dictionary overshoot at 16 rows' worth of bytes.
+  output_format_parquet_batch_size: "16",
+  // 0 disables dictionary encoding. Near-unique LLM payloads fall back to plain
+  // anyway (dictionary ≈ data), and disabling removes the Arrow dictionary
+  // memo-table ceiling as a failure class; zstd output compression recovers
+  // most of the size difference on low-cardinality columns.
+  output_format_parquet_max_dictionary_size: "0",
 };
 
 export type ClickhouseExecRawResult = {

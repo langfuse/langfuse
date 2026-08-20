@@ -32,14 +32,11 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
           </div>
         )}
         {link && (
-          <ActionButton
-            href={link.href}
-            size="sm"
-            variant="secondary"
-            className="self-start"
-          >
-            {link.text}
-          </ActionButton>
+          <div className="self-start">
+            <ActionButton href={link.href} size="sm" variant="secondary">
+              {link.text}
+            </ActionButton>
+          </div>
         )}
       </div>
       <button

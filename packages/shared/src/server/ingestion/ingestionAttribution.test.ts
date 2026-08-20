@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AuthHeaderValidVerificationResult } from "../auth/types";
 import {
+  classifyIngestionSdkAttribution,
   classifyIngestionSdkVersion,
   createIngestionAttribution,
   createUnknownSdkIngestionAttribution,
@@ -141,6 +142,21 @@ describe("ingestion attribution", () => {
     "classifies $sdkName@$sdkVersion SDK upgrade status",
     ({ sdkName, sdkVersion, expected }) => {
       expect(classifyIngestionSdkVersion({ sdkName, sdkVersion })).toEqual(
+        expected,
+      );
+    },
+  );
+
+  it.each([
+    ["python", "4.7.0", "attributed"],
+    ["unknown", "4.7.0", "missing_name"],
+    ["python", "unknown", "missing_version"],
+    ["unknown", "unknown", "missing_name_and_version"],
+    ["", "", "missing_name_and_version"],
+  ] as const)(
+    "classifies %s@%s attribution as %s",
+    (sdkName, sdkVersion, expected) => {
+      expect(classifyIngestionSdkAttribution({ sdkName, sdkVersion })).toBe(
         expected,
       );
     },

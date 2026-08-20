@@ -42,6 +42,8 @@ export async function createMcpTestSetup(): Promise<{
     apiKeyId: apiKey.id,
     accessLevel: "project",
     publicKey: result.publicKey,
+    plan: "oss",
+    rateLimitOverrides: [],
   };
 
   return {
@@ -66,6 +68,8 @@ export function mockServerContext(
     apiKeyId: overrides?.apiKeyId ?? "test-api-key-id",
     accessLevel: "project",
     publicKey: overrides?.publicKey ?? "pk-lf-test",
+    plan: overrides?.plan ?? "oss",
+    rateLimitOverrides: overrides?.rateLimitOverrides ?? [],
     ...overrides,
   };
 }

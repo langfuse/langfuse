@@ -1,5 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
+import { type ProjectScope } from "@langfuse/shared";
 import {
   BellRing,
   Database,
@@ -26,8 +26,9 @@ import { type Entitlement } from "@/src/features/entitlements/constants/entitlem
 import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
-import { BookACallButton } from "@/src/components/nav/book-a-call-button";
+import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
+import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -130,10 +131,10 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Monitors",
-    pathname: "/project/[projectId]/monitors",
+    title: "Alerts",
+    pathname: "/project/[projectId]/alerts",
     icon: BellRing,
-    projectRbacScopes: ["monitors:read"],
+    projectRbacScopes: ["alerts:read"],
     show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
@@ -221,7 +222,15 @@ export const ROUTES: Route[] = [
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "Preview (fast)",
+    title: "Update",
+    pathname: "",
+    section: RouteSection.Secondary,
+    featureFlag: "v4UpgradeUi",
+    show: ({ projectId }) => projectId !== undefined,
+    menuNode: <V4MigrationNavItem />,
+  },
+  {
+    title: "V4 Preview",
     pathname: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",

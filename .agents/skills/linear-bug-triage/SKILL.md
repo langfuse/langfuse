@@ -1,13 +1,8 @@
 ---
 name: linear-bug-triage
 description: |
-  Deduplicate measured bug or regression evidence against Linear, then either
-  add evidence comments to related existing issues or create concise Linear bug
-  issues in Triage. Use when Codex has confirmed evidence from Datadog,
-  benchmarks, traces, timings, flamegraphs, logs, or production measurements and
-  needs Linear search, comments, labels, Datadog links, or bug ticket creation
-  without fix suggestions, but only after a human has approved sharing the
-  findings in Linear.
+  Use this skill after a bug or regression candidate has measured evidence to document
+  them within linear.
 ---
 
 # Linear Bug Triage

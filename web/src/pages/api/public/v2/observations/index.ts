@@ -34,11 +34,13 @@ export default withMiddlewares({
         limit: query.limit,
         traceId: query.traceId ?? undefined,
         userId: query.userId ?? undefined,
+        sessionId: query.sessionId ?? undefined,
         level: query.level ?? undefined,
         name: query.name ?? undefined,
         type: query.type ?? undefined,
         environment: query.environment ?? undefined,
         parentObservationId: query.parentObservationId ?? undefined,
+        isRootObservation: query.isRootObservation,
         fromStartTime: query.fromStartTime ?? undefined,
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
@@ -49,10 +51,8 @@ export default withMiddlewares({
       };
 
       // Fetch observations from events table with field groups applied at query time
-      const items = await getObservationsV2FromEventsTableForPublicApi({
-        ...filterProps,
-        fields: filterProps.fields ?? [], // V2 requires fields array
-      });
+      const items =
+        await getObservationsV2FromEventsTableForPublicApi(filterProps);
 
       // Determine if there are more results (we fetched limit+1)
       const hasMore = items.length > query.limit;

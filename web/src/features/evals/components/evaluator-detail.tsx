@@ -2,7 +2,7 @@ import * as React from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import EvalLogTable from "@/src/features/evals/components/eval-log";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import Page from "@/src/components/layouts/page";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
@@ -120,11 +120,7 @@ export const EvaluatorDetail = () => {
                 />
               </div>
             )}
-            <StatusBadge
-              type={displayStatus.toLowerCase()}
-              isLive
-              className="max-h-8"
-            />
+            <StatusBadge type={displayStatus.toLowerCase()} isLive />
 
             {evaluator.data && (
               <DetailPageNav

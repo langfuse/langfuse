@@ -13,7 +13,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   createBooleanEvalOutputDefinition,
@@ -47,7 +47,7 @@ import { CodeMirrorEditor } from "@/src/components/editor";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { AlertCircle, AlertTriangle, PlusIcon, Trash } from "lucide-react";
@@ -440,12 +440,14 @@ export const InnerEvalTemplateForm = (props: {
         );
       })
       .catch((error) => {
+        // The mutation's local onError owns the form UX; this owns
+        // classification + Sentry capture.
+        reportTrpcErrorWithoutToast(error, "evals");
         if ("message" in error && typeof error.message === "string") {
           setFormError(error.message as string);
           return;
         }
         setFormError(JSON.stringify(error));
-        console.error(error);
       });
   }
 

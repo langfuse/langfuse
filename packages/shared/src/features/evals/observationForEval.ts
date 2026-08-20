@@ -7,6 +7,7 @@ import { SingleValueOption } from "../../tableDefinitions";
 import { ColumnDefinition } from "../../tableDefinitions";
 import { formatColumnOptions } from "../../tableDefinitions/typeHelpers";
 import { parseJsonIfString } from "../../utils/json";
+import { isRootObservation } from "../../eventsTable";
 
 const flexibleUsageCostSchema = z.record(
   z.string(),
@@ -32,6 +33,7 @@ export const observationForEvalSchema = z.object({
   trace_name: z.string().nullish(),
   user_id: z.string().nullish(),
   session_id: z.string().nullish(),
+  is_app_root: z.boolean().default(false),
   tags: z.array(z.string()).default([]),
   release: z.string().nullish(),
 
@@ -181,6 +183,7 @@ export type ObservationEvalFilterColumnInternal =
     | "experiment_dataset_id"
     | "metadata"
     | "parent_span_id"
+    | "is_app_root"
     | "tool_call_names"
     | "tool_call_count"
   >;
@@ -370,6 +373,12 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     internal: "metadata",
   },
   {
+    name: "Is Root Observation",
+    id: "isRootObservation",
+    type: "boolean",
+    internal: "is_app_root",
+  },
+  {
     name: "Parent Observation",
     id: "parentObservationId",
     type: "null",
@@ -474,5 +483,13 @@ export function mapEventEvalFilterColumnIdToField(
   if (!columnMapping) {
     return undefined;
   }
+
+  if (columnMapping.id === "isRootObservation") {
+    return isRootObservation({
+      parentObservationId: observation.parent_span_id,
+      isAppRoot: observation.is_app_root,
+    });
+  }
+
   return observation[columnMapping.internal];
 }

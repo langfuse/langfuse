@@ -1,7 +1,7 @@
 import { GetDatasetItemsV1Response } from "@/src/features/public-api/types/datasets";
 import { listDatasetItemsForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
-import { buildDatasetItemUrl } from "@/src/utils/product-url";
+import { buildDatasetItemUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   GetDatasetItemsMcpBaseSchema,

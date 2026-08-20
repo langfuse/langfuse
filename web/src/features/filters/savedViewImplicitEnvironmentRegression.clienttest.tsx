@@ -5,13 +5,16 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
+import {
+  TableViewPresetTableName,
+  type FilterState,
+  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
+  encodeFiltersGeneric,
+} from "@langfuse/shared";
 import { useState } from "react";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
-import { encodeFiltersGeneric } from "./lib/filter-query-encoding";
 
 const mockUseRouter = vi.fn();
 const mockCapture = vi.fn();

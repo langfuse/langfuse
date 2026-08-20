@@ -15,6 +15,11 @@ export type PricingTierMatchResult = {
   prices: Record<string, Decimal>; // usageType -> price
 };
 
+export type PricingTierMatchAttributes = {
+  modelParameters?: Record<string, string>;
+  metadata?: Record<string, string>;
+};
+
 /**
  * Pricing tier with prices included (from database)
  */

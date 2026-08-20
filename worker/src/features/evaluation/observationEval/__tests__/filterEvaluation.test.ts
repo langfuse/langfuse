@@ -1151,6 +1151,33 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(false);
     });
   });
+
+  it.each([
+    ["physical root", null, false, true],
+    ["app root", "external-parent", true, true],
+    ["ordinary child", "parent", false, false],
+  ] as const)(
+    "matches semantic roots for a %s",
+    async (_name, parentObservationId, isAppRoot, expected) => {
+      expect(
+        await testFilterMatch(
+          createTestObservation({
+            project_id: projectId,
+            parent_span_id: parentObservationId,
+            is_app_root: isAppRoot,
+          }),
+          [
+            {
+              column: "isRootObservation",
+              type: "boolean",
+              operator: "=",
+              value: true,
+            },
+          ],
+        ),
+      ).toBe(expected);
+    },
+  );
 });
 
 describe("tool_calls computation", () => {

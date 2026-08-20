@@ -33,6 +33,7 @@ import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
   generateLLMText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   LLMAdapter,
   logger,
   mapLegacyLLMCompletionParams,
@@ -162,6 +163,7 @@ async function testLLMConnection(
         messages: testMessages,
       }),
       maxRetries: 1,
+      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
     });
 
     return { success: true };
@@ -631,6 +633,13 @@ export const llmApiKeyRouter = createTRPCRouter({
             ? input.baseURL !== existingKey.baseURL
             : false;
 
+        if (isBaseURLChanged && !input.secretKey) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Secret key is required when changing the base URL",
+          });
+        }
+
         if (input.baseURL && isBaseURLChanged) {
           await validateBaseURLForWrite({
             baseURL: input.baseURL,
@@ -678,7 +687,9 @@ export const llmApiKeyRouter = createTRPCRouter({
         const decryptedHeaders = existingKey.extraHeaders
           ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
           : null;
-        const existingHeaders: Record<string, string> = decryptedHeaders ?? {};
+        const existingHeaders: Record<string, string> = isBaseURLChanged
+          ? {}
+          : (decryptedHeaders ?? {});
 
         // Ensure we only update the extraHeaders where the value is not null
         let extraHeaders: Record<string, string> | undefined;
@@ -720,10 +731,14 @@ export const llmApiKeyRouter = createTRPCRouter({
             ...(input.secretKey ? { secretKey: encrypt(input.secretKey) } : {}),
             extraHeaders: extraHeaders
               ? encrypt(JSON.stringify(extraHeaders))
-              : undefined,
+              : isBaseURLChanged
+                ? null
+                : undefined,
             extraHeaderKeys: extraHeaders
               ? Object.keys(extraHeaders)
-              : undefined,
+              : isBaseURLChanged
+                ? []
+                : undefined,
             displaySecretKey: input.secretKey
               ? getDisplaySecretKey(input.secretKey)
               : undefined,

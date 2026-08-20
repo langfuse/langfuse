@@ -81,6 +81,28 @@ export function translateBedrockProviderOptions(
 const SUPPRESS_BEARER_TOKEN_ENV_FALLBACK = { apiKey: "" };
 
 /**
+ * Returns the Bedrock auth options for the AWS default credential chain.
+ *
+ * The empty API key deliberately prevents the AI SDK from selecting an
+ * ambient AWS_BEARER_TOKEN_BEDROCK value ahead of the configured AWS
+ * credentials. An optional profile is useful for local worker development;
+ * production workloads should normally rely on the default AWS role chain.
+ */
+export function createDefaultBedrockProviderAuth(params?: {
+  profile?: string;
+}): Pick<
+  Parameters<typeof createAmazonBedrock>[0] & object,
+  "apiKey" | "credentialProvider"
+> {
+  return {
+    credentialProvider: fromNodeProviderChain(
+      params?.profile ? { profile: params.profile } : {},
+    ),
+    ...SUPPRESS_BEARER_TOKEN_ENV_FALLBACK,
+  };
+}
+
+/**
  * Resolves the persisted Bedrock credential contract: the decrypted secret is
  * either the default-credentials sentinel (allowed only self-hosted or for
  * Langfuse-internal AI features), AWS access key JSON, or a Bedrock API key
@@ -101,10 +123,7 @@ export function resolveBedrockProviderAuth(params: {
   ) {
     // Unlike the AI SDK's built-in env-only fallback, the node provider chain
     // includes env, profile, IMDS, IRSA, and the remaining AWS defaults.
-    return {
-      credentialProvider: fromNodeProviderChain(),
-      ...SUPPRESS_BEARER_TOKEN_ENV_FALLBACK,
-    };
+    return createDefaultBedrockProviderAuth();
   }
 
   try {

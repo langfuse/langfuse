@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { planCommit } from "@/src/features/search-bar/lib/commit";
 
 describe("planCommit", () => {

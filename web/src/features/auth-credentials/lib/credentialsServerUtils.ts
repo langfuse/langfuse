@@ -1,4 +1,5 @@
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import { prisma } from "@langfuse/shared/src/db";
 import { compare, hash } from "bcryptjs";
 
@@ -15,6 +16,10 @@ export async function createUserEmailPassword(
   email: string,
   password: string,
   name: string,
+  options?: {
+    /** Ad-platform click ids, see getAdClickIdsFromRequest */
+    adClickIds?: AdClickIds;
+  },
 ) {
   if (!isValidPassword(password))
     throw new Error("Password needs to be at least 8 characters long.");
@@ -42,7 +47,10 @@ export async function createUserEmailPassword(
     },
   });
 
-  await createProjectMembershipsOnSignup(newUser, { userWasJustCreated: true });
+  await createProjectMembershipsOnSignup(newUser, {
+    userWasJustCreated: true,
+    adClickIds: options?.adClickIds,
+  });
 
   return newUser.id;
 }
