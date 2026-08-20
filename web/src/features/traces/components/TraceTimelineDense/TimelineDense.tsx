@@ -57,25 +57,13 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import {
-  Palette,
-  Scan,
-  Minus,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Plus,
-} from "lucide-react";
+import { Scan, Minus, Plus } from "lucide-react";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import {
   tooltipPlacement,
   type TooltipPlacement,
 } from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/ui/layer";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
 import {
@@ -1287,16 +1275,6 @@ export function TimelineDense({
       compression.toRealMs(current.time.start),
   );
   const windowHint = `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`;
-  // Palette order, not first-seen order: a legend that reshuffles as you scroll
-  // is a legend you have to re-read.
-  const typesPresent = useMemo(() => {
-    const present = new Set(
-      prepared.rows.map((row) => row.node.type).filter(Boolean),
-    );
-    const known = Object.keys(TYPE_COLOR).filter((type) => present.has(type));
-    const unknown = [...present].filter((type) => !(type! in TYPE_COLOR));
-    return [...known, ...unknown] as string[];
-  }, [prepared.rows]);
 
   return (
     <div
@@ -1329,57 +1307,6 @@ export function TimelineDense({
               as "fullscreen", so a control that was merely spent looked broken. */}
           <Scan className="h-3 w-3" />
         </ToolbarButton>
-        {/* What the colours mean. Only the types this trace actually contains —
-            the full ten-colour palette is a reference card, and the question
-            being answered is "why is THIS one pink". */}
-        {barColor === "type" && typesPresent.length > 0 ? (
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                aria-label="Colour legend"
-                title="Colour legend"
-                className="hover:bg-muted flex h-4 w-4 shrink-0 items-center justify-center rounded"
-                data-testid="timeline-dense-legend-trigger"
-              >
-                <Palette className="h-3 w-3" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="start"
-              className="w-auto min-w-24 p-1.5"
-              data-testid="timeline-dense-legend"
-            >
-              <div className="flex flex-col gap-1" style={{ fontSize: "10px" }}>
-                {typesPresent.map((type) => (
-                  <span key={type} className="flex items-center gap-1.5">
-                    <span
-                      className={cn(
-                        "h-2 w-2 shrink-0 rounded-[1px]",
-                        TYPE_COLOR[type] ?? FALLBACK_COLOR,
-                      )}
-                    />
-                    {typeLabel(type)}
-                  </span>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-        ) : null}
-        {/* Hidden when there is nothing to expand: a control that cannot do
-            anything is worse than no control. */}
-        {canShowNames ? (
-          <ToolbarButton
-            label={isOpen ? "Collapse names" : "Show names"}
-            onClick={() => setOverride(isOpen ? "collapsed" : "expanded")}
-          >
-            {isOpen ? (
-              <PanelLeftClose className="h-3 w-3" />
-            ) : (
-              <PanelLeftOpen className="h-3 w-3" />
-            )}
-          </ToolbarButton>
-        ) : null}
         {/* Where you are, when you are somewhere — and nothing at all when the
             whole trace is in view. This carried a list of gestures once. Every
             way of interacting with this surface is one you would have tried:

@@ -1782,37 +1782,6 @@ export const HoverDoesNotRecolourTheBar = meta.story({
   },
 });
 
-/** What the colours mean, for the types this trace actually has. */
-export const TheLegendListsTheTypesPresent = meta.story({
-  name: "(Test) The Legend Lists The Types Present",
-  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
-  play: async ({ canvasElement }) => {
-    const trigger = canvasElement.querySelector<HTMLElement>(
-      '[data-testid="timeline-dense-legend-trigger"]',
-    );
-    if (!trigger) throw new Error("no legend");
-    await userEvent.click(trigger);
-    const legend = await waitFor(() => {
-      const el = document.querySelector<HTMLElement>(
-        '[data-testid="timeline-dense-legend"]',
-      );
-      if (!el) throw new Error("legend did not open");
-      return el;
-    });
-    // Types the fixture contains...
-    await expect(legend.innerText).toContain("Generation");
-    await expect(legend.innerText).toContain("Retriever");
-    // ...and each entry brings its own swatch, or it explains nothing.
-    await expect(
-      legend.querySelectorAll('[class*="bg-muted-magenta"]').length,
-    ).toBe(1);
-    // Sized to a short list of one-word labels. The popover primitive floors at
-    // `min-w-72`, and a `w-auto` cannot override a MIN width — so without an
-    // explicit floor this renders as a 288px box that is mostly empty.
-    await expect(legend.getBoundingClientRect().width).toBeLessThan(160);
-  },
-});
-
 /** A control that can do nothing should say so rather than look broken. */
 export const FitIsDisabledWhenItWouldDoNothing = meta.story({
   name: "(Test) Fit Is Disabled When It Would Do Nothing",
@@ -2058,6 +2027,18 @@ export const TheToolbarDoesNotExplainItself = meta.story({
     for (const word of ["drag", "scroll", "pinch", "double-click", "window"]) {
       await expect(toolbar.innerText.toLowerCase()).not.toContain(word);
     }
+
+    // Three controls, all of them about the view: out, in, fit. No colour
+    // reference card (the tooltip names a type where you are asking) and no
+    // names toggle (`auto` decides, and the rail peeks when you want a look).
+    const labels = [
+      ...toolbar.querySelectorAll<HTMLButtonElement>("button"),
+    ].map((button) => button.getAttribute("aria-label"));
+    await expect(labels).toEqual([
+      "Zoom out",
+      "Zoom in",
+      "Whole trace already fits",
+    ]);
 
     const zoomIn = canvasElement.querySelector<HTMLButtonElement>(
       'button[aria-label="Zoom in"]',
