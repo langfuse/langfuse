@@ -22,10 +22,36 @@ const file = (
 });
 
 describe("blob export manifest builders (LFE-10843)", () => {
-  it("strips colons from the timestamp stem and truncates to seconds", () => {
+  it("strips colons and dots from the timestamp stem and keeps milliseconds", () => {
     expect(
       formatBlobExportTimestamp(new Date("2026-07-10T10:20:30.123Z")),
-    ).toBe("2026-07-10T10-20-30");
+    ).toBe("2026-07-10T10-20-30-123");
+  });
+
+  it("produces distinct keys for timestamps within the same wall-clock second", () => {
+    // A caught-up run can emit a full-interval chunk and a sub-second
+    // remainder chunk back-to-back; their keys must never collide or the
+    // remainder silently overwrites the full window's files.
+    const first = formatBlobExportTimestamp(
+      new Date("2026-07-10T10:20:30.058Z"),
+    );
+    const second = formatBlobExportTimestamp(
+      new Date("2026-07-10T10:20:30.447Z"),
+    );
+    expect(first).not.toBe(second);
+    expect(
+      buildBlobExportManifestKey({
+        projectId: "proj",
+        maxTimestamp: new Date("2026-07-10T10:20:30.058Z"),
+      }),
+    ).not.toBe(
+      buildBlobExportManifestKey({
+        projectId: "proj",
+        maxTimestamp: new Date("2026-07-10T10:20:30.447Z"),
+      }),
+    );
+    // Fixed-width stems must preserve chronological lexicographic order.
+    expect(first < second).toBe(true);
   });
 
   it("builds the manifest key under the project's manifests/ prefix", () => {
@@ -35,7 +61,7 @@ describe("blob export manifest builders (LFE-10843)", () => {
         projectId: "proj",
         maxTimestamp: new Date("2026-07-10T10:20:30Z"),
       }),
-    ).toBe("team/proj/manifests/2026-07-10T10-20-30.json");
+    ).toBe("team/proj/manifests/2026-07-10T10-20-30-000.json");
   });
 
   it("treats an absent prefix as empty", () => {
@@ -44,7 +70,7 @@ describe("blob export manifest builders (LFE-10843)", () => {
         projectId: "proj",
         maxTimestamp: new Date("2026-07-10T10:20:30Z"),
       }),
-    ).toBe("proj/manifests/2026-07-10T10-20-30.json");
+    ).toBe("proj/manifests/2026-07-10T10-20-30-000.json");
   });
 
   it("assembles the manifest payload with version, window, and distinct tables", () => {
