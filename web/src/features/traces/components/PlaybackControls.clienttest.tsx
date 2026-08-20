@@ -11,7 +11,10 @@ const h = vi.hoisted(() => ({
   showPlayhead: false,
   viewMode: null as string | null,
   observationCount: 42,
-  dimensions: { isV4: true, traceContext: "fullscreen" as const },
+  dimensions: {
+    isV4: true,
+    traceContext: "fullscreen" as "fullscreen" | "peek" | "annotation",
+  },
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -142,6 +145,7 @@ describe("PlaybackControls analytics", () => {
 
   it("captures stop with the same dimensions as play", () => {
     h.viewMode = "timeline";
+    h.showPlayhead = true;
     render(<PlaybackControls />);
 
     fireEvent.click(screen.getByRole("button", { name: "Stop playback" }));
@@ -154,6 +158,17 @@ describe("PlaybackControls analytics", () => {
       isV4: true,
       traceContext: "fullscreen",
     });
+  });
+
+  it("does not capture stop before a playhead is placed", () => {
+    render(<PlaybackControls />);
+
+    const stopButton = screen.getByRole("button", { name: "Stop playback" });
+    expect(stopButton).toBeDisabled();
+    fireEvent.click(stopButton);
+
+    expect(h.stop).not.toHaveBeenCalled();
+    expect(h.capture).not.toHaveBeenCalled();
   });
 
   it("does not capture when the store pauses without a click", () => {

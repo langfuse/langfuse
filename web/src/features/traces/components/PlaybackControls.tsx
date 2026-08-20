@@ -83,6 +83,7 @@ function usePlaybackClickHandlers() {
   const [viewMode] = useQueryParam("view", StringParam);
   const { play, pause, stop } = usePlayhead();
   const isPlaying = useIsPlaying();
+  const showPlayhead = useShowPlayhead();
 
   // Tree is stored as a null query param; anything else is still tree.
   const props = {
@@ -94,6 +95,7 @@ function usePlaybackClickHandlers() {
 
   return {
     isPlaying,
+    showPlayhead,
     handlePlayPause: () => {
       if (isPlaying) {
         capture("trace_detail:playback_pause", props);
@@ -104,6 +106,9 @@ function usePlaybackClickHandlers() {
       }
     },
     handleStop: () => {
+      // Menu already disables Stop until a playhead exists; the header
+      // button must do the same or idle clicks inflate playback_stop.
+      if (!showPlayhead) return;
       capture("trace_detail:playback_stop", props);
       stop();
     },
@@ -114,7 +119,8 @@ export function PlaybackControls() {
   const { traceDuration } = useTraceData();
   const { getPlayheadSec, subscribePosition } = usePlayhead();
   const hasPlayback = useHasPlayback();
-  const { isPlaying, handlePlayPause, handleStop } = usePlaybackClickHandlers();
+  const { isPlaying, showPlayhead, handlePlayPause, handleStop } =
+    usePlaybackClickHandlers();
   const ringRef = useRef<SVGCircleElement>(null);
 
   // Fill the ring to the current playhead fraction; update imperatively as the
@@ -183,6 +189,7 @@ export function PlaybackControls() {
         variant="ghost"
         size="icon"
         onClick={handleStop}
+        disabled={!showPlayhead}
         title="Stop playback"
         aria-label="Stop playback"
         className="h-7 w-7"
@@ -201,9 +208,9 @@ export function PlaybackControls() {
  * stays reachable while a playhead is placed.
  */
 export function PlaybackMenuItems() {
-  const showPlayhead = useShowPlayhead();
   const hasPlayback = useHasPlayback();
-  const { isPlaying, handlePlayPause, handleStop } = usePlaybackClickHandlers();
+  const { isPlaying, showPlayhead, handlePlayPause, handleStop } =
+    usePlaybackClickHandlers();
 
   if (!hasPlayback) return null;
 
