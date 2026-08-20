@@ -287,6 +287,33 @@ root`). First lesson: netem's default 1000-packet queue DROPS under
     not faster code. → A buys wall time with hardware: 2× the service
     for a 1.24× wall gap, while B leaves the smaller service half idle.
     Placement, not engine speed, is the durable difference.
+38. **Transfer formats web→worker: packaging beats re-encoding** — packed
+    the seeded corpus (202 request files, 328.6 MB) into candidate
+    web→worker transfer formats at 16-32 MB objects (`transfer-bench.mjs`;
+    every format verified by full decode + probe equality — span/attr
+    counts, string and id bytes, int64 sums). Uncompressed OTLP protobuf
+    is only 1.02× smaller than the stored JSON: the bytes are LLM text,
+    so structural encoding is noise. After compression the spread across
+    formats is ~1%: tar.zst of untouched payloads 43.9 MB (7.5×) vs
+    protobuf-frames+zstd 44.5 vs parquet+zstd 44.2; every gzip flavor
+    (zip, tar.gz, framed-proto+gzip, per-request gzip) lands at 47.7
+    (6.9×); parquet+snappy 84.7 (3.9×). Per-request zstd with no batching
+    already reaches 44.0 — batching wins object count (202 → 2), not
+    bytes, because level-3 windows barely cross payload boundaries and
+    the corpus carries no cross-request repetition by design; --long=27
+    confirms with +1%. Effort is the only real bytes lever: zstd -19
+    --long → 37.8 MB (another 14%) at ~200× the compress cost (0.13 s →
+    26 s). Pack cost at level 3 is seconds-scale either way (tar.zst
+    0.2 s, gzip ~2 s, parquet-via-CH 0.9 s for the whole corpus).
+    Operational bonus, verified against MinIO: ClickHouse reads members
+    straight out of archives over both file() and s3() —
+    `obj-*.tar.zst :: **/*.json`, zip alike — so Path A could consume
+    dumb archives without an unpack step. → No transformed format is
+    massively more efficient; re-encoding to protobuf or parquet as a
+    _transfer_ format is not worth the moving parts. Open caveat: real
+    traffic repeats system prompts across requests, which per-request
+    compression cannot reach and solid archives can — the one effect this
+    corpus deliberately cannot measure; needs a production sample.
 
 ## Key findings (measured)
 

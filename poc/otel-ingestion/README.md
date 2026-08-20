@@ -22,13 +22,14 @@ deduplication tokens or their limited retention window.
 
 ```
 # shared driver + verifiers (engine-agnostic)
-EXPERIMENTS.md        37-entry experiment log, findings, and deep dives
+EXPERIMENTS.md        38-entry experiment log, findings, and deep dives
 harness.mjs           run driver (--engine ch|rust): schedules commit batches, prints summary
 bench.mjs             alternating multi-run comparison -> median [min..max] table
 checksum.mjs          per-column cityHash64 sums: proves Path A output ≡ Path B output
 verify-retry.mjs      crash after INSERT, before MOVE -> retry publishes one copy
 verify-media.mjs      verifies manifest offsets and hashes against raw files
 gen-fixtures.mjs      corpus -> MinIO (protobuf-decoded + OTLP/JSON, ~28 attributes, media)
+transfer-bench.mjs    web->worker format shootout: raw archives vs protobuf vs parquet
 # Path A (commit protocol in engine.mjs)
 engine-ch/engine.mjs  TRUNCATE -> INSERT SELECT FROM s3() -> count -> MOVE
 engine-ch/sql/        schema mirroring events_full + generated transform
@@ -121,8 +122,8 @@ The TypeScript pipeline generates SQL; it is not in the runtime data path.
 One batch follows five steps:
 
 1. **Land:** The web tier writes the raw batch to S3 and adds its object keys
-   to the Redis ledger. Whether the web tier handles individual payloads or
-   batches them more aggressively is out of scope for this PoC.
+   to the Redis ledger. How it assembles those batches is outside this PoC;
+   the proposed object format is described below.
 
 2. **Claim:** A coordinator claims the batch through a Redis stream consumer
    group. Multiple coordinators can share the stream, and claims left by a
@@ -160,6 +161,20 @@ Only the final `MOVE PARTITION TO TABLE` calls are serialized. ClickHouse
 25.12 can race when concurrent moves target the same table. Since each move
 takes only milliseconds, the lock has negligible cost; the slower INSERTs
 still run concurrently.
+
+**The raw-zone object format.** Today the web tier decodes protobuf and JSON
+exports and rewrites both as JSON before storing them in S3. The proposed flow
+keeps each validated payload unchanged and packs payloads into 16–32 MB
+tar.zst objects. This removes the re-encoding step and, in our comparison, cut
+the object count from 202 to 2.
+
+Re-encoding did not save enough space to justify the extra format. On this
+corpus, uncompressed protobuf was only 2% smaller than JSON; after zstd, the
+archive of unchanged JSON was 43.9 MB, versus 44.5 MB for protobuf and 44.2 MB
+for parquet. ClickHouse can read JSON members directly from tar.zst, so Path A
+does not need an unpacking step. Reading protobuf members from SQL remains
+untested. The engine *benchmarks below still use one file per request*; entry 38
+in [EXPERIMENTS.md](EXPERIMENTS.md) has the transfer-format results.
 
 **Path A compute placement.** The measured layout runs the generated SQL on
 the ClickHouse service that also stores the events. The same SQL can instead
