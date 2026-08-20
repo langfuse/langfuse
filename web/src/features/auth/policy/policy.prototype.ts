@@ -61,8 +61,8 @@ export type Source =
   | { kind: "grant" }
   | { kind: "system"; rule: "ingestion_suspended" };
 
-/** ResourceRef is a policy's resource matcher; coverage is hierarchical and downward. */
-export type ResourceRef = { orgId: string; projectId?: string } | "*";
+/** ResourceRef is a policy's resource matcher; orgId "*" is the everything wildcard, coverage downward. */
+export type ResourceRef = { orgId: string | "*"; projectId?: string };
 
 /** Policy grants or denies a set of actions on a set of resources. */
 export type Policy = {
@@ -152,7 +152,7 @@ export function resolveGrants(ctx: AuthorizationContext): Grant[] {
   for (const p of ctx.policies) {
     if (p.effect !== "allow") continue;
     for (const ref of p.resources) {
-      if (ref === "*") continue; // admin resource is represented out-of-band, never enumerated
+      if (ref.orgId === "*") continue; // admin resource is represented out-of-band, never enumerated
       const entry = byOrg.get(ref.orgId) ?? {
         projects: new Set<string>(),
         actions: new Set<Action>(),
@@ -177,8 +177,7 @@ function actionMatches(granted: Action[], action: Action): boolean {
 
 /** resourceCovers reports whether ref hierarchically covers resource. */
 function resourceCovers(ref: ResourceRef, resource: Resource): boolean {
-  if (ref === "*") return true;
-  if (ref.orgId !== resource.orgId) return false;
+  if (ref.orgId !== "*" && ref.orgId !== resource.orgId) return false;
   if (resource.projectId === undefined) return ref.projectId === undefined;
   return ref.projectId === undefined || ref.projectId === resource.projectId;
 }
@@ -247,7 +246,10 @@ if (import.meta.vitest) {
   });
 
   describe("authorize — admin wildcard has no PDP branch", () => {
-    const admin = ctx([allow(["*"], ["*"])], { kind: "admin", userId: null });
+    const admin = ctx([allow(["*"], [{ orgId: "*" }])], {
+      kind: "admin",
+      userId: null,
+    });
     it.each([
       ["project action", "traces:read" as Action, { orgId: "x", projectId: "y" }],
       ["org action", "projects:create" as Action, { orgId: "x" }],
