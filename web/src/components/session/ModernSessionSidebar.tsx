@@ -81,7 +81,7 @@ export type ModernSessionSidebarFilterControls =
 function ObservationListRows({
   state,
   onSelectObservation,
-  onExcludeObservation,
+  onFilterObservationByName,
 }:
   | {
       state: Extract<
@@ -89,12 +89,15 @@ function ObservationListRows({
         { type: "loading" | "error" | "trace-io-only" | "empty" }
       >;
       onSelectObservation?: never;
-      onExcludeObservation?: never;
+      onFilterObservationByName?: never;
     }
   | {
       state: Extract<ObservationListRowsState, { type: "loaded" }>;
       onSelectObservation: (observationId: string) => void;
-      onExcludeObservation?: (name: string) => void;
+      onFilterObservationByName?: (
+        name: string,
+        operator: "any of" | "none of",
+      ) => void;
     }) {
   if (state.type === "loading") {
     return (
@@ -160,7 +163,7 @@ function ObservationListRows({
               </span>
             ) : null}
           </button>
-          {observation.name && onExcludeObservation ? (
+          {observation.name && onFilterObservationByName ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -176,10 +179,23 @@ function ObservationListRows({
               <DropdownMenuContent align="end" sideOffset={0}>
                 <DropdownMenuItem
                   onSelect={() =>
-                    onExcludeObservation(observation.name as string)
+                    onFilterObservationByName(
+                      observation.name as string,
+                      "any of",
+                    )
                   }
                 >
-                  Exclude similar observations
+                  Only show observations with the same name
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    onFilterObservationByName(
+                      observation.name as string,
+                      "none of",
+                    )
+                  }
+                >
+                  Exclude observations with the same name
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -199,7 +215,7 @@ const TurnCard = React.memo(
     onToggleCollapse,
     onSelect,
     hasFilters,
-    onExcludeObservation,
+    onFilterObservationByName,
   }: {
     sidebarTrace: ModernSessionSidebarTrace;
     selectIndex: number;
@@ -208,7 +224,10 @@ const TurnCard = React.memo(
     onToggleCollapse: (traceId: string) => void;
     onSelect: (index: number, observationId?: string) => void;
     hasFilters: boolean;
-    onExcludeObservation: (name: string) => void;
+    onFilterObservationByName: (
+      name: string,
+      operator: "any of" | "none of",
+    ) => void;
   }) => {
     const { trace, turnNumber, observations, hasMatchingTraceLevelIO } =
       sidebarTrace;
@@ -282,7 +301,7 @@ const TurnCard = React.memo(
               onSelectObservation={(observationId) =>
                 onSelect(selectIndex, observationId)
               }
-              onExcludeObservation={onExcludeObservation}
+              onFilterObservationByName={onFilterObservationByName}
             />
           )
         ) : null}
@@ -304,7 +323,10 @@ export function ModernSessionSidebar(
         onSearchChange: (search: string) => void;
         expandedTraceIds: ReadonlySet<string>;
         onToggleTraceExpanded: (traceId: string) => void;
-        onExcludeObservation: (name: string) => void;
+        onFilterObservationByName: (
+          name: string,
+          operator: "any of" | "none of",
+        ) => void;
         onSelect: (index: number, observationId?: string) => void;
         onVisibleTraceIdsChange: (traceIds: string[]) => void;
         hasMoreObservations: boolean;
@@ -441,7 +463,7 @@ export function ModernSessionSidebar(
     onSearchChange,
     expandedTraceIds,
     onToggleTraceExpanded,
-    onExcludeObservation,
+    onFilterObservationByName,
     onSelect,
   } = props;
   const handleSearchChange = (nextSearch: string) => {
@@ -655,7 +677,7 @@ export function ModernSessionSidebar(
                         search.trim() !== "" ||
                         filterControls.activeFilterCount > 0
                       }
-                      onExcludeObservation={onExcludeObservation}
+                      onFilterObservationByName={onFilterObservationByName}
                     />
                   </div>
                 </SessionVirtualizedRow>

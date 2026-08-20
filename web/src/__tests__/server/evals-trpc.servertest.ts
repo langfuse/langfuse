@@ -769,6 +769,92 @@ describe("legacy evaluator compatibility service", () => {
     ]);
   });
 
+  it("orders configurations by generated score name", async () => {
+    const { project, service } = await prepare();
+    const zeta = await createLegacyRule(project.id, { name: "zeta-score" });
+    const alpha = await createLegacyRule(project.id, { name: "alpha-score" });
+    const beta = await createLegacyRule(project.id, { name: "beta-score" });
+
+    const ascending = await service.listConfigs({
+      projectId: project.id,
+      orderBy: { column: "scoreName", order: "ASC" },
+    });
+    expect(ascending.configs.map(({ id }) => id)).toEqual([
+      alpha.id,
+      beta.id,
+      zeta.id,
+    ]);
+
+    const descending = await service.listConfigs({
+      projectId: project.id,
+      orderBy: { column: "scoreName", order: "DESC" },
+    });
+    expect(descending.configs.map(({ id }) => id)).toEqual([
+      zeta.id,
+      beta.id,
+      alpha.id,
+    ]);
+  });
+
+  it("keeps duplicate score names in stable order across pages", async () => {
+    const { project, service } = await prepare();
+    const first = await createLegacyRule(project.id, {
+      name: "duplicate-score",
+    });
+    const second = await createLegacyRule(project.id, {
+      name: "duplicate-score",
+    });
+    const third = await createLegacyRule(project.id, {
+      name: "duplicate-score",
+    });
+    const expectedIds = [first.id, second.id, third.id].toSorted();
+
+    const page0 = await service.listConfigs({
+      projectId: project.id,
+      orderBy: { column: "scoreName", order: "ASC" },
+      limit: 2,
+      page: 0,
+    });
+    const page1 = await service.listConfigs({
+      projectId: project.id,
+      orderBy: { column: "scoreName", order: "ASC" },
+      limit: 2,
+      page: 1,
+    });
+
+    expect([
+      ...page0.configs.map(({ id }) => id),
+      ...page1.configs.map(({ id }) => id),
+    ]).toEqual(expectedIds);
+  });
+
+  it("falls back to created-at order when orderBy is cleared", async () => {
+    const { project, service } = await prepare();
+    const older = await createLegacyRule(project.id, { name: "older-score" });
+    const newer = await createLegacyRule(project.id, { name: "newer-score" });
+    await prisma.evaluationRule.update({
+      where: { id: older.id },
+      data: {
+        createdAt: new Date("2024-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2024-03-01T00:00:00.000Z"),
+      },
+    });
+    await prisma.evaluationRule.update({
+      where: { id: newer.id },
+      data: {
+        createdAt: new Date("2024-02-01T00:00:00.000Z"),
+        updatedAt: new Date("2024-01-01T00:00:00.000Z"),
+      },
+    });
+
+    const result = await service.listConfigs({
+      projectId: project.id,
+      orderBy: null,
+    });
+
+    expect(result.configs.map(({ id }) => id)).toEqual([newer.id, older.id]);
+  });
+
   it("paginates without over-reporting the total", async () => {
     const { project, service } = await prepare();
     await createLegacyRule(project.id, { name: "First" });

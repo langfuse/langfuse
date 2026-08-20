@@ -564,14 +564,24 @@ const legacyConfigIdsQuery = (params: {
 `;
 
 const legacyConfigsOrderBy = (orderBy: OrderByState) => {
-  if (!orderBy) return Prisma.sql`ORDER BY jc."updated_at" DESC, jc."id" DESC`;
-
-  const orderByCondition = orderByToPrismaSql(orderBy, evalConfigsTableCols);
+  const resolvedOrderBy = orderBy ?? {
+    column: "createdAt",
+    order: "DESC" as const,
+  };
+  const orderByCondition = orderByToPrismaSql(
+    resolvedOrderBy,
+    evalConfigsTableCols,
+  );
+  const idTieBreak =
+    resolvedOrderBy.order === "DESC"
+      ? Prisma.sql`jc."id" DESC`
+      : Prisma.sql`jc."id" ASC`;
   // Status sorts into three buckets, so break ties by recency like the legacy
   // table did. The id keeps pagination stable for equal sort keys.
-  return orderBy.column === "status" || orderBy.column === "Status"
-    ? Prisma.sql`${orderByCondition}, jc."created_at" DESC, jc."id" DESC`
-    : Prisma.sql`${orderByCondition}, jc."id" DESC`;
+  return resolvedOrderBy.column === "status" ||
+    resolvedOrderBy.column === "Status"
+    ? Prisma.sql`${orderByCondition}, jc."created_at" DESC, ${idTieBreak}`
+    : Prisma.sql`${orderByCondition}, ${idTieBreak}`;
 };
 
 export class LegacyEvalCompatibilityService {
