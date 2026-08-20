@@ -12,10 +12,13 @@ const SENSITIVE_REDIRECT_HEADERS = new Set([
 
 // A Location header may carry userinfo, so a rejected target can hold a
 // password. Strip it before the URL reaches a log line or a retained error.
-const URL_CREDENTIALS = /([a-z][a-z0-9+.-]*:\/\/)[^/?#\s@]*@/gi;
+// Anchored on `://` rather than on a scheme pattern: a leading `[a-z][a-z0-9+.-]*`
+// rescans and backtracks at every offset of an attacker-supplied string, which
+// is quadratic, and the scheme itself contributes nothing to the match.
+const URL_CREDENTIALS = /:\/\/[^/?#\s@]*@/g;
 
 export const redactUrlCredentials = (text: string): string =>
-  text.replace(URL_CREDENTIALS, "$1***@");
+  text.replace(URL_CREDENTIALS, "://***@");
 
 /**
  * Custom error for redirect validation failures. `cause` is required so the

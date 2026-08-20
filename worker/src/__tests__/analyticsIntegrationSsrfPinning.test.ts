@@ -256,8 +256,11 @@ describe("PostHog integration project job — SSRF block on a redirect hop", () 
     const actual = await vi.importActual<
       typeof import("@langfuse/shared/src/server")
     >("@langfuse/shared/src/server");
+    const exporterOrigin = new URL(exporterHost).origin;
     vi.mocked(validateWebhookURL).mockImplementation(async (url, whitelist) => {
-      if (url.startsWith(exporterHost)) return;
+      // Origin equality, not a prefix: exporter.analytics.example.evil.test
+      // starts with the harness host but is a different origin.
+      if (new URL(url).origin === exporterOrigin) return;
       await actual.validateWebhookURL(url, whitelist);
     });
   }
