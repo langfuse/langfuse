@@ -78,6 +78,12 @@ const MAX_STRIP_BUCKETS = 2000;
 const MAX_DENSE_BINS = 4000;
 /** Minimum horizontal pixels between gridline ticks / labels. */
 const TICK_MIN_SPACING_PX = 110;
+/** 9px sans, generous per-glyph width so we end-anchor before the svg clips. */
+const TICK_LABEL_PX_PER_CHAR = 6;
+/** Left inset for a start-anchored tick (matches the visualiser). */
+const TICK_LABEL_START_INSET_PX = 3;
+/** Right inset for an end-anchored tick so the last glyph isn't flush-clipped. */
+const TICK_LABEL_END_INSET_PX = 4;
 
 /**
  * Picks the finest granularity preset that fits the range into the available
@@ -328,7 +334,31 @@ export type OutlierStripDenseBin = {
 };
 
 /** A prepared gridline tick: dense-bin index + presentation-ready label. */
-export type OutlierStripTick = { index: number; label: string };
+export type OutlierStripTick = {
+  index: number;
+  label: string;
+  /** SVG x of the label (already inset / end-flipped so it stays on-canvas). */
+  x: number;
+  /** `end` when a start-anchored label would overflow the plot's right edge. */
+  textAnchor: "start" | "end";
+};
+
+function layoutOutlierStripTick(params: {
+  index: number;
+  label: string;
+  slotPx: number;
+  widthPx: number;
+}): Pick<OutlierStripTick, "x" | "textAnchor"> {
+  const startX = params.index * params.slotPx + TICK_LABEL_START_INSET_PX;
+  const estimatedWidth = params.label.length * TICK_LABEL_PX_PER_CHAR;
+  if (startX + estimatedWidth > params.widthPx) {
+    return {
+      x: params.widthPx - TICK_LABEL_END_INSET_PX,
+      textAnchor: "end",
+    };
+  }
+  return { x: startX, textAnchor: "start" };
+}
 
 /** A bucket's tooltip time range, day-scale buckets without the time part. */
 export const formatBucketRange = (fromMs: number, stepMs: number): string => {
@@ -428,12 +458,19 @@ export function prepareOutlierSeries(params: {
     const tickStepMs = pickTickStepMs(stepMs, slotPx, TICK_MIN_SPACING_PX);
     for (let i = 1; i < dense.length; i++) {
       if ((dense[i].bucketStartMs - phase) % tickStepMs === 0) {
+        const label = format(
+          new Date(dense[i].bucketStartMs),
+          tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm",
+        );
         ticks.push({
           index: i,
-          label: format(
-            new Date(dense[i].bucketStartMs),
-            tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm",
-          ),
+          label,
+          ...layoutOutlierStripTick({
+            index: i,
+            label,
+            slotPx,
+            widthPx: params.widthPx,
+          }),
         });
       }
     }
