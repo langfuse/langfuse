@@ -1,25 +1,36 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+const constructed: { name: string; opts: any }[] = [];
+
+vi.mock("bullmq", () => ({
+  Queue: class {
+    opts: any;
+    on = vi.fn();
+    constructor(name: string, opts: any) {
+      this.opts = opts;
+      constructed.push({ name, opts });
+    }
+  },
+}));
+
+vi.mock("./redis", () => ({
+  createBullMQQueueOptionsWithRedis: vi.fn(() => ({
+    connection: {},
+    prefix: "test",
+  })),
+}));
+
 import { MixpanelIntegrationProcessingQueue } from "./mixpanelIntegrationProcessingQueue";
 import { BlobStorageIntegrationProcessingQueue } from "./blobStorageIntegrationProcessingQueue";
 
 describe("analytics/blob storage processing queue attempts budget", () => {
   it("Mixpanel processing queue has a fixed 5-attempt budget", () => {
     const queue = MixpanelIntegrationProcessingQueue.getInstance();
-    if (!queue) {
-      throw new Error(
-        "MixpanelIntegrationProcessingQueue.getInstance() returned null — no Redis connection available to assert defaultJobOptions against",
-      );
-    }
-    expect(queue.opts.defaultJobOptions?.attempts).toBe(5);
+    expect((queue as any)?.opts.defaultJobOptions?.attempts).toBe(5);
   });
 
   it("Blob storage processing queue has a fixed 5-attempt budget", () => {
     const queue = BlobStorageIntegrationProcessingQueue.getInstance();
-    if (!queue) {
-      throw new Error(
-        "BlobStorageIntegrationProcessingQueue.getInstance() returned null — no Redis connection available to assert defaultJobOptions against",
-      );
-    }
-    expect(queue.opts.defaultJobOptions?.attempts).toBe(5);
+    expect((queue as any)?.opts.defaultJobOptions?.attempts).toBe(5);
   });
 });
