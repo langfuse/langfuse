@@ -303,6 +303,17 @@ Formula:
 price_per_token = price_per_mtok / 1_000_000
 ```
 
+Per-request server-tool fees are not token-scaled. Convert them per call:
+
+| Provider Price          | JSON Value |
+| ----------------------- | ---------- |
+| `$10 / 1,000 searches`  | `10e-3`    |
+| `$14 / 1,000 queries`   | `14e-3`    |
+
+```text
+price_per_request = price_per_thousand / 1_000
+```
+
 ## Provider Usage Keys
 
 Use [provider-usage-key-matrix.md](provider-usage-key-matrix.md) as the single

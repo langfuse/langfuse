@@ -61,6 +61,21 @@ keys as equal-price aliases. Verify which TTLs the model supports. Current
 `claude-sonnet-4-6`, `claude-opus-4-6`, and `claude-opus-4-8` entries are mature
 templates and include direct Anthropic plus regional Bedrock model IDs.
 
+Server tools are billed per request rather than per token, so they need their
+own key:
+
+| Bucket            | Key                   | Source                                     |
+| ----------------- | --------------------- | ------------------------------------------ |
+| Web search request | `web_search_requests` | `usage.server_tool_use.web_search_requests` |
+
+Anthropic's Messages API reports `server_tool_use` counters in snake_case only,
+so this bucket takes a single key with no camelCase alias — unlike the Gemini
+grounding family. Add it only to entries whose model documents web-search
+support: Claude 3.5 and later carry it, and the Claude 1.x, 2.x, instant, and
+original Claude 3 (February–March 2024) entries do not. The key is safe on the
+shared Anthropic/Bedrock/Vertex entries because web search is unavailable on
+Bedrock, so the counter is simply never emitted there.
+
 ## Gemini
 
 Use these core aliases for priced text-generation models:
