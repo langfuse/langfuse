@@ -3876,6 +3876,61 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/DeleteMembershipRequest'
+  /api/public/organizations/memberships/user/{email}:
+    get:
+      description: >-
+        Get the projects a user of the organization associated with the API key
+        has access to, including the access level per project (requires
+        organization-scoped API key).
+
+
+        The email must be URL-encoded (e.g. `jane%40example.com`) and the lookup
+        is case-insensitive. An explicit project role overrides the organization
+        role; projects the user has no access to are omitted. Returns a 404 if
+        the user is not a member of the organization.
+      operationId: organizations_getOrganizationMembershipUserProjects
+      tags:
+        - Organizations
+      parameters:
+        - name: email
+          in: path
+          description: URL-encoded email address of the user (lookup is case-insensitive)
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProjectAccessResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/projects/{projectId}/memberships:
     get:
       description: >-
@@ -12633,6 +12688,66 @@ components:
             $ref: '#/components/schemas/MembershipResponse'
       required:
         - memberships
+    OrganizationAccessLevel:
+      title: OrganizationAccessLevel
+      type: string
+      enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        - VIEWER
+        - NONE
+      description: >-
+        Access level of a user within an organization. `NONE` means the user is
+        a member of the
+
+        organization without default access to its projects, and only reaches
+        projects for which
+
+        an explicit project role is set.
+    UserProjectAccess:
+      title: UserProjectAccess
+      type: object
+      properties:
+        projectId:
+          type: string
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+          description: Effective access level of the user for this project
+        inheritedFromOrgRole:
+          type: boolean
+          description: >-
+            True if the access level is inherited from the organization role,
+            false if an explicit project role is set
+      required:
+        - projectId
+        - name
+        - role
+        - inheritedFromOrgRole
+    UserProjectAccessResponse:
+      title: UserProjectAccessResponse
+      type: object
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+          nullable: true
+        orgRole:
+          $ref: '#/components/schemas/OrganizationAccessLevel'
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProjectAccess'
+      required:
+        - userId
+        - email
+        - orgRole
+        - projects
     OrganizationProject:
       title: OrganizationProject
       type: object
