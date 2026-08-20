@@ -40,14 +40,20 @@ export const openAiChatMultimodalRichResponseFixture = {
                 url: "@@@langfuseMedia:type=image/jpeg|id=media-ref-image-1|source=base64@@@",
               },
             },
-            { type: "input_audio", input_audio: { data: "UklGRg==", format: "wav" } },
+            {
+              type: "input_audio",
+              input_audio: { data: "UklGRg==", format: "wav" },
+            },
             {
               type: "input_audio",
               input_audio: {
                 data: "@@@langfuseMedia:type=audio/mpeg|id=media-ref-audio-1|source=base64@@@",
               },
             },
-            { type: "file", file: { file_data: "JVBERi0=", filename: "report.pdf" } },
+            {
+              type: "file",
+              file: { file_data: "JVBERi0=", filename: "report.pdf" },
+            },
             { type: "file", file: { file_id: "file-abc123" } },
             "@@@langfuseMedia:type=application/pdf|id=media-ref-file-1|source=bytes@@@",
             // Text with several embedded media tokens splits into
@@ -190,7 +196,7 @@ export const openAiChatMultimodalRichResponseFixture = {
             type: "text",
             text: "The Eiffel Tower is 330 meters tall.",
             providerMetadata: {
-              annotations: [
+              citations: [
                 {
                   type: "url_citation",
                   url_citation: {

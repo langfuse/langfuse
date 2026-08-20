@@ -19,7 +19,10 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
       {
         role: "user",
         content: [
-          { type: "input_text", text: "Check the docs and describe the diagram." },
+          {
+            type: "input_text",
+            text: "Check the docs and describe the diagram.",
+          },
           {
             type: "input_image",
             detail: "auto",
@@ -189,7 +192,7 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
             type: "text",
             text: "The diagram shows a simple flow.",
             providerMetadata: {
-              annotations: [
+              citations: [
                 {
                   type: "url_citation",
                   url_citation: {
