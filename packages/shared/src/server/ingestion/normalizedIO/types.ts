@@ -26,10 +26,25 @@ export type TextPart = NormalizedPartBase & {
   text: string;
 };
 
+/**
+ * One reasoning part type with a discriminated payload instead of
+ * per-provider part types (mirrors FilePart.content):
+ * - `text` — visible chain-of-thought or summaries; Anthropic's integrity
+ *   `signature` rides on it since it certifies exactly that text.
+ * - `redacted` — a blob the provider withheld (Anthropic redacted_thinking).
+ * - `encrypted` — a blob the provider returns for replay (OpenAI Responses
+ *   encrypted_content).
+ * - `data` — structured/unrecognized reasoning payloads.
+ * Opaque blobs are first-class stream elements rather than providerMetadata
+ * piggybacks so replay and audit consumers can find them.
+ */
 export type ReasoningPart = NormalizedPartBase & {
   type: "reasoning";
-  text?: string;
-  data?: JsonValue;
+  content:
+    | { kind: "text"; text: string; signature?: string }
+    | { kind: "redacted"; data: string }
+    | { kind: "encrypted"; data: string }
+    | { kind: "data"; value: JsonValue };
 };
 
 export type ToolCallPart = NormalizedPartBase & {

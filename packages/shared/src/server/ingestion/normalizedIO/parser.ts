@@ -13,6 +13,7 @@ import type {
   NormalizedMessage,
   NormalizedMessagePart,
   NormalizedMessageRole,
+  ReasoningPart,
   SpanIO,
   ToolCallPart,
   ToolDefinition,
@@ -351,6 +352,17 @@ function omitKeys(
   );
 }
 
+/** String payloads become visible reasoning text; everything else is data. */
+function reasoningPart(payload: unknown, signature?: string): ReasoningPart {
+  return {
+    type: "reasoning",
+    content:
+      typeof payload === "string"
+        ? compact({ kind: "text" as const, text: payload, signature })
+        : { kind: "data", value: toJsonValue(payload) },
+  };
+}
+
 /**
  * Citations land under one provider-neutral `citations` key, payloads kept
  * verbatim. Anthropic and OpenAI Responses put `citations`/`annotations` on
@@ -608,7 +620,7 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     case "input_text":
     case "output_text": {
       const text = optionalString(value.text ?? value.content) ?? "";
-      if (value.thought === true) return { type: "reasoning", text };
+      if (value.thought === true) return reasoningPart(text);
       const citations = extractCitations(value);
       return {
         type: "text",
@@ -616,11 +628,12 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
         ...(citations ? { providerMetadata: { citations } } : {}),
       };
     }
-    case "redacted_thinking":
-      return {
-        type: "reasoning",
-        data: toJsonValue(value.data ?? null),
-      };
+    case "redacted_thinking": {
+      const data = optionalString(value.data);
+      return data
+        ? { type: "reasoning", content: { kind: "redacted", data } }
+        : reasoningPart(value.data ?? null);
+    }
     case "image": {
       const source = asRecord(value.source);
       const part = source
@@ -675,25 +688,14 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
       return normalizeToolResult(value);
     case "cache_control":
       return null;
-    case "thinking": {
-      const reasoning = value.thinking;
-      const signature = optionalString(value.signature);
-      return compact({
-        type: "reasoning" as const,
-        ...(typeof reasoning === "string"
-          ? { text: reasoning }
-          : { data: toJsonValue(reasoning) }),
-        providerMetadata: signature ? { signature } : undefined,
-      });
-    }
+    case "thinking":
+      return reasoningPart(value.thinking, optionalString(value.signature));
     case "reasoning":
     case "reasoning_text":
     case "summary_text": {
       const reasoning =
         value.text ?? value.content ?? value.thinking ?? value.summary;
-      return typeof reasoning === "string"
-        ? { type: "reasoning", text: reasoning }
-        : { type: "reasoning", data: toJsonValue(reasoning) };
+      return reasoningPart(reasoning);
     }
     case "tool_call":
     case "tool-call":
@@ -991,20 +993,14 @@ function normalizeMessage(
       .filter((entry) => entry !== undefined && entry !== null);
     appendParts(parts, reasoningValues);
 
+    // The replayable encrypted blob is its own stream element, appended after
+    // the visible summary/content parts it accompanies.
     const encryptedContent = optionalString(value.encrypted_content);
     if (encryptedContent) {
-      const reasoningPart = parts.find((part) => part.type === "reasoning");
-      if (reasoningPart) {
-        reasoningPart.providerMetadata = {
-          ...reasoningPart.providerMetadata,
-          encrypted_content: encryptedContent,
-        };
-      } else {
-        parts.push({
-          type: "reasoning",
-          providerMetadata: { encrypted_content: encryptedContent },
-        });
-      }
+      parts.push({
+        type: "reasoning",
+        content: { kind: "encrypted", data: encryptedContent },
+      });
     }
   }
 

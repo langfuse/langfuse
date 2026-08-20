@@ -210,7 +210,10 @@ export const anthropicMessagesRawServerToolsAndMediaFixture = {
       {
         role: "assistant",
         parts: [
-          { type: "reasoning", data: "opaque-thinking-data" },
+          {
+            type: "reasoning",
+            content: { kind: "redacted", data: "opaque-thinking-data" },
+          },
           {
             type: "tool-call",
             toolCallId: "server-call-1",

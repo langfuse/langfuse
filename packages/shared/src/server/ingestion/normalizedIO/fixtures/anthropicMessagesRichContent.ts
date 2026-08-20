@@ -213,8 +213,11 @@ export const anthropicMessagesRichContentFixture = {
         parts: [
           {
             type: "reasoning",
-            text: "The user wants a comparison across two pricing versions plus recent release notes. I should search two sources in parallel: current pricing docs and release notes.",
-            providerMetadata: { signature: "sig_1a2b3c" },
+            content: {
+              kind: "text",
+              text: "The user wants a comparison across two pricing versions plus recent release notes. I should search two sources in parallel: current pricing docs and release notes.",
+              signature: "sig_1a2b3c",
+            },
           },
           {
             type: "tool-call",
@@ -238,8 +241,11 @@ export const anthropicMessagesRichContentFixture = {
         parts: [
           {
             type: "reasoning",
-            text: "Both searches are running in parallel to gather the current and legacy pricing details plus any recent release notes.",
-            providerMetadata: { signature: "sig_4d5e6f" },
+            content: {
+              kind: "text",
+              text: "Both searches are running in parallel to gather the current and legacy pricing details plus any recent release notes.",
+              signature: "sig_4d5e6f",
+            },
           },
           {
             type: "tool-call",

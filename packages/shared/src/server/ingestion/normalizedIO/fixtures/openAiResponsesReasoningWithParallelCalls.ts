@@ -115,7 +115,10 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
         parts: [
           {
             type: "reasoning",
-            text: "I should check both the refund policy doc and the annual-plan terms doc, since the answer may differ for annual vs monthly plans.",
+            content: {
+              kind: "text",
+              text: "I should check both the refund policy doc and the annual-plan terms doc, since the answer may differ for annual vs monthly plans.",
+            },
           },
         ],
         source: "input",
@@ -166,7 +169,10 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
         parts: [
           {
             type: "reasoning",
-            text: "Both documents indicate refunds aren't available after 30 days for annual plans, so no further lookup is needed.",
+            content: {
+              kind: "text",
+              text: "Both documents indicate refunds aren't available after 30 days for annual plans, so no further lookup is needed.",
+            },
           },
         ],
         source: "output",

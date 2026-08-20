@@ -126,10 +126,17 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
         parts: [
           {
             type: "reasoning",
-            text: "Detailed chain of thought.",
-            providerMetadata: { encrypted_content: "enc_abc123" },
+            content: { kind: "text", text: "Detailed chain of thought." },
           },
-          { type: "reasoning", text: "Weighing the sources." },
+          {
+            type: "reasoning",
+            content: { kind: "text", text: "Weighing the sources." },
+          },
+          // The replayable encrypted blob is its own stream element.
+          {
+            type: "reasoning",
+            content: { kind: "encrypted", data: "enc_abc123" },
+          },
         ],
         source: "output",
       },

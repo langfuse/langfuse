@@ -211,7 +211,10 @@ export const vercelAiSdkMixedToolMessagesFixture = {
         parts: [
           {
             type: "reasoning",
-            text: "I need to find out what Langfuse is used for and review the documentation overview first.",
+            content: {
+              kind: "text",
+              text: "I need to find out what Langfuse is used for and review the documentation overview first.",
+            },
           },
           {
             type: "tool-call",

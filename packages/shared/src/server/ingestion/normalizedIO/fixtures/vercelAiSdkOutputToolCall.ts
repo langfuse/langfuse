@@ -211,7 +211,10 @@ export const vercelAiSdkOutputToolCallFixture = {
         parts: [
           {
             type: "reasoning",
-            text: "Looking into the RAG integration documentation.",
+            content: {
+              kind: "text",
+              text: "Looking into the RAG integration documentation.",
+            },
           },
           {
             type: "tool-call",
