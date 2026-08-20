@@ -41,12 +41,14 @@ import {
 import {
   bindManagedCredentialToRedis,
   getRedisManagedCredentialProviderFromEnv,
+  initializeRedisManagedCredentials,
+  resetRedisManagedCredentialsForTests,
 } from "./redisCredentials";
 import type { ManagedAccessToken, ManagedCredentialProvider } from "./types";
 
 const ONE_HOUR = 60 * 60 * 1000;
 
-// Controllable provider for the manager/bind tests.
+// Controllable provider for the bind tests.
 function fakeProvider(
   options: { username?: string; ttlMs?: number } = {},
 ): ManagedCredentialProvider & {
@@ -66,6 +68,36 @@ function fakeProvider(
   };
 }
 
+/**
+ * Mirrors ioredis where it matters here: `duplicate()` is
+ * `new Redis({ ...this.options })`, so a copy is a fresh instance that inherits
+ * no event subscriptions and holds a by-value snapshot of the options.
+ */
+function fakeRedisClient() {
+  const handlers: Record<string, () => void> = {};
+  const client = {
+    options: {} as { username?: string; password?: string },
+    status: "wait" as string,
+    handlers,
+    connect: vi.fn(async () => {
+      client.status = "ready";
+    }),
+    call: vi.fn(async () => "OK"),
+    once: vi.fn((event: string, handler: () => void) => {
+      handlers[event] = handler;
+    }),
+    duplicate: vi.fn(() => {
+      const copy = fakeRedisClient();
+      copy.options = { ...client.options };
+      return copy;
+    }),
+  };
+  return client;
+}
+
+/** Lets the deduplicated first token fetch settle. */
+const settle = () => vi.advanceTimersByTimeAsync(1);
+
 beforeEach(() => {
   azureMocks.defaultGetToken.mockReset();
   azureMocks.managedGetToken.mockReset();
@@ -74,9 +106,11 @@ beforeEach(() => {
   envMock.env.REDIS_USERNAME = undefined;
   envMock.env.REDIS_AZURE_CLIENT_ID = undefined;
   envMock.env.REDIS_AZURE_SCOPE = "https://redis.azure.com/.default";
+  resetRedisManagedCredentialsForTests();
 });
 
 afterEach(() => {
+  resetRedisManagedCredentialsForTests();
   vi.useRealTimers();
 });
 
@@ -129,41 +163,23 @@ describe("AzureManagedIdentityCredentialProvider", () => {
 });
 
 describe("bindManagedCredentialToRedis", () => {
-  function fakeRedisClient() {
-    const client = {
-      options: {} as { username?: string; password?: string },
-      status: "wait" as string,
-      connect: vi.fn(async () => {
-        client.status = "ready";
-      }),
-      call: vi.fn(async () => "OK"),
-    };
-    return client;
-  }
-
-  it("applies the first token before connecting, then re-AUTHs on refresh", async () => {
+  it("writes the token to options and re-AUTHs a live socket on refresh", async () => {
     vi.useFakeTimers();
     const provider = fakeProvider({ username: "object-id-123" });
     const client = fakeRedisClient();
-    const originalConnect = client.connect;
 
     const manager = bindManagedCredentialToRedis(
       client as unknown as Redis,
       provider,
     );
 
-    // Nothing is fetched or connected until a caller triggers connect().
-    expect(client.options.password).toBeUndefined();
-    expect(originalConnect).not.toHaveBeenCalled();
+    expect(client.connect).not.toHaveBeenCalled();
 
-    await client.connect();
-    // The token is applied before the wrapped connect runs.
+    await settle();
     expect(client.options.password).toBe("token-1");
     expect(client.options.username).toBe("object-id-123");
-    expect(originalConnect).toHaveBeenCalledTimes(1);
-    expect(client.call).not.toHaveBeenCalled();
 
-    // On refresh: options updated AND a live AUTH issued (no reconnect).
+    client.status = "ready";
     await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
     expect(client.options.password).toBe("token-2");
     expect(client.call).toHaveBeenCalledWith(
@@ -174,27 +190,163 @@ describe("bindManagedCredentialToRedis", () => {
     manager.stop();
   });
 
-  it("rejects connect when the first token fetch fails, and retries on the next connect", async () => {
+  it("updates options but issues no AUTH for a client that never connected", async () => {
+    vi.useFakeTimers();
     const provider = fakeProvider();
-    (provider.fetchToken as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-      new Error("token endpoint unavailable"),
-    );
-    const client = fakeRedisClient();
-    const originalConnect = client.connect;
+    const client = fakeRedisClient(); // stays in "wait"
 
     const manager = bindManagedCredentialToRedis(
       client as unknown as Redis,
       provider,
     );
+    await settle();
 
-    await expect(client.connect()).rejects.toThrow(/token endpoint/);
-    expect(originalConnect).not.toHaveBeenCalled();
-
-    // Bootstrap reset on failure, so a later connect retries the fetch.
-    await client.connect();
-    expect(client.options.password).toBe("token-1");
-    expect(originalConnect).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
+    expect(client.options.password).toBe("token-2");
+    // Commanding an unconnected client would force a connection nobody asked for.
+    expect(client.call).not.toHaveBeenCalled();
     manager.stop();
+  });
+
+  it("retries the initial fetch on a later connection after a failure", async () => {
+    vi.useFakeTimers();
+    const provider = fakeProvider();
+    provider.fetchToken.mockRejectedValueOnce(
+      new Error("token endpoint unavailable"),
+    );
+
+    const first = fakeRedisClient();
+    bindManagedCredentialToRedis(first as unknown as Redis, provider);
+    await settle();
+    expect(first.options.password).toBeUndefined();
+
+    // The rejected promise is cleared, so a later connection retries rather than
+    // inheriting the failure for the lifetime of the process.
+    const second = fakeRedisClient();
+    const manager = bindManagedCredentialToRedis(
+      second as unknown as Redis,
+      provider,
+    );
+    await settle();
+    expect(second.options.password).toBe("token-1");
+    manager.stop();
+  });
+
+  it("shares one token across every connection", async () => {
+    vi.useFakeTimers();
+    const provider = fakeProvider();
+    const clients = [
+      fakeRedisClient(),
+      fakeRedisClient(),
+      fakeRedisClient(),
+      fakeRedisClient(),
+    ];
+
+    const managers = clients.map((c) =>
+      bindManagedCredentialToRedis(c as unknown as Redis, provider),
+    );
+    await settle();
+
+    // One request, not one per connection -- the metadata endpoint throttles.
+    expect(provider.fetchToken).toHaveBeenCalledTimes(1);
+    for (const c of clients) expect(c.options.password).toBe("token-1");
+    expect(new Set(managers).size).toBe(1);
+    managers[0].stop();
+  });
+
+  it("keeps duplicated connections refreshing on the shared token", async () => {
+    vi.useFakeTimers();
+    const provider = fakeProvider({ username: "object-id-123" });
+    const client = fakeRedisClient();
+
+    const manager = bindManagedCredentialToRedis(
+      client as unknown as Redis,
+      provider,
+    );
+    await settle();
+
+    const blocking = client.duplicate();
+    blocking.status = "ready";
+    client.status = "ready";
+    expect(provider.fetchToken).toHaveBeenCalledTimes(1);
+
+    // Before duplicate() was bound the copy kept a stale password and died at the
+    // first expiry, halting consumption while producers kept succeeding.
+    await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
+    expect(client.options.password).toBe("token-2");
+    expect(blocking.options.password).toBe("token-2");
+    expect(blocking.call).toHaveBeenCalledWith(
+      "AUTH",
+      "object-id-123",
+      "token-2",
+    );
+    manager.stop();
+  });
+
+  it("refreshes connections duplicated from a duplicate", async () => {
+    vi.useFakeTimers();
+    const provider = fakeProvider();
+    const client = fakeRedisClient();
+
+    const manager = bindManagedCredentialToRedis(
+      client as unknown as Redis,
+      provider,
+    );
+    await settle();
+
+    const nested = client.duplicate().duplicate();
+    expect(provider.fetchToken).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
+    expect(nested.options.password).toBe("token-2");
+    manager.stop();
+  });
+
+  it("stops refreshing a connection once it has ended", async () => {
+    vi.useFakeTimers();
+    const provider = fakeProvider();
+    const client = fakeRedisClient();
+
+    const manager = bindManagedCredentialToRedis(
+      client as unknown as Redis,
+      provider,
+    );
+    await settle();
+    client.status = "ready";
+
+    // A closed connection must not keep receiving AUTH for every rotation.
+    client.handlers.end();
+    await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
+    expect(client.call).not.toHaveBeenCalled();
+    manager.stop();
+  });
+});
+
+describe("initializeRedisManagedCredentials", () => {
+  it("is a no-op under the default static auth", async () => {
+    envMock.env.REDIS_AUTH_METHOD = "static";
+    await expect(initializeRedisManagedCredentials()).resolves.toBeUndefined();
+    expect(azureMocks.defaultGetToken).not.toHaveBeenCalled();
+  });
+
+  it("acquires the token once so later connections authenticate immediately", async () => {
+    envMock.env.REDIS_AUTH_METHOD = "azure_managed_identity";
+    envMock.env.REDIS_USERNAME = "object-id-xyz";
+    azureMocks.defaultGetToken.mockResolvedValue({
+      token: "pre-warmed-token",
+      expiresOnTimestamp: Date.now() + ONE_HOUR,
+    });
+
+    await initializeRedisManagedCredentials();
+    await initializeRedisManagedCredentials(); // idempotent
+    expect(azureMocks.defaultGetToken).toHaveBeenCalledTimes(1);
+
+    // Authenticated synchronously at construction -- no cold-start window.
+    const provider = getRedisManagedCredentialProviderFromEnv();
+    const client = fakeRedisClient();
+    bindManagedCredentialToRedis(client as unknown as Redis, provider!);
+    expect(client.options.password).toBe("pre-warmed-token");
+    expect(client.options.username).toBe("object-id-xyz");
   });
 });
 
@@ -219,5 +371,13 @@ describe("getRedisManagedCredentialProviderFromEnv", () => {
     // The scope default now comes from env.ts rather than a fallback in code.
     await provider?.fetchToken();
     expect(azureMocks.defaultGetToken).toHaveBeenCalledWith(AZURE_REDIS_SCOPE);
+  });
+
+  it("memoises the provider so one credential serves the whole process", () => {
+    envMock.env.REDIS_AUTH_METHOD = "azure_managed_identity";
+    const first = getRedisManagedCredentialProviderFromEnv();
+    const second = getRedisManagedCredentialProviderFromEnv();
+    expect(first).not.toBeNull();
+    expect(first).toBe(second);
   });
 });

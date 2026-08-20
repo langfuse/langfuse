@@ -3,12 +3,18 @@ import { upsertLangfuseDashboards } from "./scripts/upsertLangfuseDashboards";
 import { hello, initTelemetry } from "@langfuse/native";
 import {
   initializeClickhouseCompatibility,
+  initializeRedisManagedCredentials,
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
 
 export const initializeWorker = async (): Promise<void> => {
   initializeNativeAddon();
+
+  // Must precede app.ts, which registers every queue and worker: ioredis does not
+  // retry a rejected AUTH handshake, so a connection opened before the first
+  // managed credential arrives is closed for good rather than recovered.
+  await initializeRedisManagedCredentials();
 
   await initializeClickhouseCompatibility();
 
