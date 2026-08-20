@@ -61,8 +61,8 @@ export type Source =
   | { kind: "grant" }
   | { kind: "system"; rule: "ingestion_suspended" };
 
-/** ResourceRef is a policy's resource matcher; orgId "*" is the everything wildcard, coverage downward. */
-export type ResourceRef = { orgId: string | "*"; projectId?: string };
+/** ResourceRef is a policy's resource matcher; both segments are explicit, "*" is the wildcard. */
+export type ResourceRef = { orgId: string | "*"; projectId: string | "*" };
 
 /** Policy grants or denies a set of actions on a set of resources. */
 export type Policy = {
@@ -99,7 +99,7 @@ export type Decision =
 /** Access is what mustAuthorize returns on success. */
 export type Access = Success;
 
-/** Resource is the thing being checked; projectId omitted ⇒ an org-level check. */
+/** Resource is the thing being checked; projectId absent ⇒ a genuinely org-level operation. */
 export type Resource = { orgId: string; projectId?: string };
 
 /** Grant is one org's effective grant for the resolve-style auth/me body. */
@@ -157,7 +157,7 @@ export function resolveGrants(ctx: AuthorizationContext): Grant[] {
         projects: new Set<string>(),
         actions: new Set<Action>(),
       };
-      if (ref.projectId === undefined) entry.projects = "*";
+      if (ref.projectId === "*") entry.projects = "*";
       else if (entry.projects !== "*") entry.projects.add(ref.projectId);
       for (const a of p.actions) entry.actions.add(a);
       byOrg.set(ref.orgId, entry);
@@ -175,11 +175,11 @@ function actionMatches(granted: Action[], action: Action): boolean {
   return granted.includes("*") || granted.includes(action);
 }
 
-/** resourceCovers reports whether ref hierarchically covers resource. */
+/** resourceCovers reports whether ref hierarchically covers resource; projectId "*" spans org scope. */
 function resourceCovers(ref: ResourceRef, resource: Resource): boolean {
   if (ref.orgId !== "*" && ref.orgId !== resource.orgId) return false;
-  if (resource.projectId === undefined) return ref.projectId === undefined;
-  return ref.projectId === undefined || ref.projectId === resource.projectId;
+  if (ref.projectId === "*") return true;
+  return ref.projectId === resource.projectId;
 }
 
 if (import.meta.vitest) {
@@ -217,7 +217,9 @@ if (import.meta.vitest) {
   });
 
   describe("authorize — hierarchical coverage", () => {
-    const projectSubtree = ctx([allow(["traces:read"], [{ orgId: ORG }])]);
+    const projectSubtree = ctx([
+      allow(["traces:read"], [{ orgId: ORG, projectId: "*" }]),
+    ]);
     const singleProject = ctx([
       allow(["traces:read"], [{ orgId: ORG, projectId: PRJ }]),
     ]);
@@ -236,7 +238,9 @@ if (import.meta.vitest) {
   });
 
   describe("authorize — org-level actions", () => {
-    const orgAdmin = ctx([allow(["projects:create"], [{ orgId: ORG }])]);
+    const orgAdmin = ctx([
+      allow(["projects:create"], [{ orgId: ORG, projectId: "*" }]),
+    ]);
     it("org ref grants an org action on the org node", () => {
       expect(authorize(orgAdmin, "projects:create", { orgId: ORG }).success).toBe(true);
     });
@@ -246,7 +250,7 @@ if (import.meta.vitest) {
   });
 
   describe("authorize — admin wildcard has no PDP branch", () => {
-    const admin = ctx([allow(["*"], [{ orgId: "*" }])], {
+    const admin = ctx([allow(["*"], [{ orgId: "*", projectId: "*" }])], {
       kind: "admin",
       userId: null,
     });
@@ -266,8 +270,8 @@ if (import.meta.vitest) {
     });
     it("a matching deny beats a matching allow", () => {
       const suspended = ctx([
-        allow(["ingestion:write"], [{ orgId: ORG }]),
-        deny(["ingestion:write"], [{ orgId: ORG }]),
+        allow(["ingestion:write"], [{ orgId: ORG, projectId: "*" }]),
+        deny(["ingestion:write"], [{ orgId: ORG, projectId: "*" }]),
       ]);
       expect(
         authorize(suspended, "ingestion:write", {
@@ -313,7 +317,7 @@ if (import.meta.vitest) {
       const grants = resolveGrants(
         ctx([
           allow(["traces:read", "scores:CUD"], [{ orgId: ORG, projectId: PRJ }]),
-          allow(["projects:create"], [{ orgId: ORG }]),
+          allow(["projects:create"], [{ orgId: ORG, projectId: "*" }]),
         ]),
       );
       expect(grants).toHaveLength(1);
