@@ -111,6 +111,17 @@ describe("app shell chrome row", () => {
     expect(container.querySelector(".h-1.flex-1.border-b")).toBeNull();
   });
 
+  it("sizes the desktop sidebar toggle to the same 20px as the wordmark", () => {
+    const { container } = render(<Shell />);
+
+    const desktopToggle = [
+      ...container.querySelectorAll("[data-sidebar=trigger] svg"),
+    ].find((svg) => (svg.getAttribute("class") ?? "").includes("md:block"));
+
+    expect(desktopToggle?.getAttribute("class")).toContain("size-5");
+    expect(desktopToggle?.getAttribute("class")).not.toContain("size-4");
+  });
+
   it("keeps the page-header chrome divider full-width on container pages", () => {
     render(
       <SidebarPresenceProvider>

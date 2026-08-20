@@ -316,7 +316,7 @@ const SidebarTrigger = React.forwardRef<
       {/* Hamburger below `md` (opens the sheet); panel-collapse glyph on
           desktop (toggles the docked sidebar). */}
       <Menu className="size-5 md:hidden" />
-      <PanelLeft className="hidden size-4 md:block" />
+      <PanelLeft className="hidden size-5 md:block" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );

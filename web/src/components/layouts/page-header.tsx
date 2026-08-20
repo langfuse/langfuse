@@ -109,11 +109,11 @@ const PageHeader = ({
               // one line but fall back to the LEFT edge when they wrap to
               // their own line on narrow viewports (a line with a single
               // flex item renders as flex-start).
-              "flex w-full flex-wrap items-center justify-between gap-3 px-3",
+              "flex h-full w-full flex-wrap items-center justify-between gap-3 px-3 leading-none",
               container && containerLayoutClassName,
             )}
           >
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="flex min-h-5 min-w-0 flex-wrap items-center gap-3">
               {showSidebarChrome ? (
                 <>
                   <SidebarTrigger />
