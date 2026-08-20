@@ -355,6 +355,56 @@ describe("evals trpc", () => {
       ]);
     });
 
+    it("keeps duplicate score names in a stable order across pages", async () => {
+      const { project, caller } = await prepare();
+
+      const createEvaluator = () =>
+        prisma.jobConfiguration.create({
+          data: {
+            projectId: project.id,
+            jobType: "EVAL",
+            scoreName: "duplicate-score",
+            filter: [],
+            targetObject: EvalTargetObject.TRACE,
+            variableMapping: [],
+            sampling: 1,
+            delay: 0,
+            status: "ACTIVE",
+          },
+        });
+
+      const first = await createEvaluator();
+      const second = await createEvaluator();
+      const third = await createEvaluator();
+      const expectedIds = [first.id, second.id, third.id].toSorted();
+
+      const page0 = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [],
+        orderBy: {
+          column: "scoreName",
+          order: "ASC",
+        },
+        limit: 2,
+        page: 0,
+      });
+      const page1 = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [],
+        orderBy: {
+          column: "scoreName",
+          order: "ASC",
+        },
+        limit: 2,
+        page: 1,
+      });
+
+      expect([
+        ...page0.configs.map((config) => config.id),
+        ...page1.configs.map((config) => config.id),
+      ]).toEqual(expectedIds);
+    });
+
     it("falls back to created-at order when orderBy is cleared", async () => {
       const { project, caller } = await prepare();
 
