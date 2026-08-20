@@ -27,7 +27,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
-import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/search-bar/lib/filter-aliases";
+import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];

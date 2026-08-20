@@ -23,7 +23,6 @@ import {
   type FieldRef,
   type FieldRegistry,
 } from "./fields";
-import { extractRegisteredFilterAlias } from "./filter-aliases";
 import { serialize } from "./langQ";
 import { quoteIfNeeded } from "./quoting";
 
@@ -281,20 +280,7 @@ export function filterStateToQueryText(
   const nodes: ASTNode[] = [];
   const skipped: string[] = [];
   const skippedFilters: FilterState = [];
-  const registeredAlias = extractRegisteredFilterAlias(
-    filters,
-    registry.filterAliases,
-  );
-  if (registeredAlias.alias !== null) {
-    nodes.push({
-      kind: "not",
-      child: {
-        kind: "text",
-        value: registeredAlias.alias.token.slice(1),
-      },
-    });
-  }
-  for (const filter of registeredAlias.remaining) {
+  for (const filter of filters) {
     const node = lowerSingle(filter, registry);
     if (node === null) {
       skipped.push(`${filter.column} (${filter.type} ${filter.operator})`);

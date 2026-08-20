@@ -1,8 +1,6 @@
 // @vitest-environment node
 
 import { planCommit } from "@/src/features/search-bar/lib/commit";
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
 
 const experimentAndEvalExclusions = [
   {
@@ -62,27 +60,17 @@ describe("planCommit", () => {
     expect(r.canonical).toBe("");
   });
 
-  it.each([
-    ["sample observation filters", undefined],
-    ["rule filters", RULE_FIELD_REGISTRY],
-  ])("expands the experiments-and-evals alias for %s", (_name, registry) => {
-    const r = planCommit("-experiments-and-evals", undefined, registry);
+  it("commits the explicit experiment and evaluation exclusions", () => {
+    const r = planCommit(
+      "-environment:*langfuse-* -environment:sdk-experiment -has:experimentId",
+    );
     expect(r.status).toBe("committed");
     if (r.status !== "committed") return;
     expect(r.filters).toEqual(experimentAndEvalExclusions);
     expect(r.searchQuery).toBeNull();
-    expect(r.canonical).toBe("-experiments-and-evals");
-  });
-
-  it("rejects an alias that is not registered for the current view", () => {
-    const registry = fieldRegistryFromColumns([], {
-      id: "evaluationRules",
-      allowFreeText: false,
-    });
-
-    expect(
-      planCommit("-experiments-and-evals", undefined, registry).status,
-    ).toBe("invalid");
+    expect(r.canonical).toBe(
+      "-environment:*langfuse-* -environment:sdk-experiment -has:experimentId",
+    );
   });
 
   it("returns invalid with diagnostics for unrepresentable queries", () => {

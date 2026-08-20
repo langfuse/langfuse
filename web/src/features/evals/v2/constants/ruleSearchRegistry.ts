@@ -1,7 +1,6 @@
 import { eventsEvalFilterColumns } from "@langfuse/shared";
 
 import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
-import { EXPERIMENTS_AND_EVALS_FILTER_ALIAS } from "@/src/features/search-bar/lib/filter-aliases";
 
 /**
  * Derived from the same columns the rule service validates. The overlay only
@@ -13,7 +12,6 @@ export const RULE_FIELD_REGISTRY = fieldRegistryFromColumns(
     id: "evaluationRules",
     allowFreeText: false,
     metadata: true,
-    filterAliases: [EXPERIMENTS_AND_EVALS_FILTER_ALIAS],
     aiContextFields: [
       { observedOptionsKey: "type", promptLabel: "type" },
       { observedOptionsKey: "level", promptLabel: "level" },

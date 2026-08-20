@@ -19,7 +19,6 @@ import {
 } from "@/src/features/search-bar/lib/fields";
 import {
   deriveComposerSegments,
-  type AliasSegment,
   type FilterSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
 import { indexOfOutsideQuotes } from "@/src/features/search-bar/lib/langQ";
@@ -43,7 +42,6 @@ export const composerTokenVariants = cva("max-w-full", {
   variants: {
     kind: {
       filter: "",
-      alias: "",
       freeText:
         "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
       operator: "font-bold uppercase text-qlang-keyword",
@@ -62,13 +60,7 @@ export const composerTokenVariants = cva("max-w-full", {
   defaultVariants: { kind: "freeText", deactivated: false, highlighted: false },
 });
 
-type TokenKind =
-  | "filter"
-  | "alias"
-  | "freeText"
-  | "operator"
-  | "paren"
-  | "invalid";
+type TokenKind = "filter" | "freeText" | "operator" | "paren" | "invalid";
 
 function renderPlainText(text: string, keyPrefix: string): React.ReactNode[] {
   return text
@@ -115,17 +107,6 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
         {value}
       </span>
     </>
-  );
-}
-
-function AliasTokenBody({ segment }: { segment: AliasSegment }) {
-  return (
-    <span className="whitespace-nowrap">
-      <span className="text-muted-foreground">-</span>
-      <span data-part="field" className="text-qlang-field">
-        {segment.raw.slice(1)}
-      </span>
-    </span>
   );
 }
 
@@ -185,8 +166,6 @@ export function ComposerTokens({
       <>
         {segment.kind === "filter" ? (
           <FilterTokenBody segment={segment} />
-        ) : segment.kind === "alias" ? (
-          <AliasTokenBody segment={segment} />
         ) : (
           segment.raw
         )}
@@ -200,7 +179,7 @@ export function ComposerTokens({
       </>
     );
     out.push(
-      segment.kind === "filter" || segment.kind === "alias" ? (
+      segment.kind === "filter" ? (
         <FilterToken
           key={segment.id}
           data-testid="search-bar-token"

@@ -19,11 +19,6 @@
 import { eventsTableCols, type ColumnDefinition } from "@langfuse/shared";
 
 import type { CompareOp } from "./ast";
-import {
-  EXPERIMENTS_AND_EVALS_FILTER_ALIAS,
-  resolveFilterAlias,
-  type FilterAlias,
-} from "./filter-aliases";
 import { quoteIfNeeded, unquote } from "./quoting";
 
 export type FieldKind = "text" | "number" | "datetime" | "boolean";
@@ -68,9 +63,7 @@ export type FieldRegistry = {
   allowFreeText: boolean;
   metadata: boolean;
   scores: boolean;
-  filterAliases: readonly FilterAlias[];
   aiContextFields: readonly AIContextField[];
-  resolveFilterAlias: (token: string) => FilterAlias | null;
   resolveField: (name: string) => FieldRef | null;
   nullableFields: () => readonly FieldDef[];
   /** Ids of `nullableFields`, precomputed for per-keystroke validation. */
@@ -101,7 +94,6 @@ export function fieldRegistryFromColumns(
     metadata?: boolean;
     scores?: boolean;
     allowFreeText?: boolean;
-    filterAliases?: readonly FilterAlias[];
     aiContextFields?: readonly AIContextField[];
   },
 ): FieldRegistry {
@@ -143,7 +135,6 @@ export function fieldRegistryFromColumns(
     metadata: overlay.metadata ?? false,
     scores: overlay.scores ?? false,
     allowFreeText: overlay.allowFreeText ?? true,
-    filterAliases: overlay.filterAliases ?? [],
     aiContextFields: overlay.aiContextFields ?? [],
   });
 }
@@ -239,7 +230,6 @@ function createFieldRegistry({
   metadata,
   scores,
   allowFreeText,
-  filterAliases,
   aiContextFields,
 }: {
   id: FieldRegistry["id"];
@@ -248,7 +238,6 @@ function createFieldRegistry({
   metadata: boolean;
   scores: boolean;
   allowFreeText: boolean;
-  filterAliases: readonly FilterAlias[];
   aiContextFields: readonly AIContextField[];
 }): FieldRegistry {
   const byName = new Map<string, FieldDef>();
@@ -273,9 +262,7 @@ function createFieldRegistry({
     allowFreeText,
     metadata,
     scores,
-    filterAliases,
     aiContextFields,
-    resolveFilterAlias: (token) => resolveFilterAlias(token, filterAliases),
     resolveField: (name) => resolveFromRegistry(name, registry, byName),
     nullableFields: () => nullable,
     nullableFieldIds: new Set(nullable.map((field) => field.id)),
@@ -300,7 +287,6 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   metadata: true,
   scores: true,
   allowFreeText: true,
-  filterAliases: [EXPERIMENTS_AND_EVALS_FILTER_ALIAS],
   aiContextFields: [
     { observedOptionsKey: "type", promptLabel: "type" },
     { observedOptionsKey: "level", promptLabel: "level" },

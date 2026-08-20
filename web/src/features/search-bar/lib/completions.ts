@@ -173,20 +173,6 @@ const PATTERN_OPTIONS: CompletionOption[] = [
   },
 ];
 
-function filterAliasOptions(
-  registry: FieldRegistry,
-  replaceSpan?: { from: number; to: number },
-): CompletionOption[] {
-  return registry.filterAliases.map((alias) => ({
-    id: `alias:${alias.token.replace(/^-/, "")}`,
-    kind: "pattern",
-    label: alias.token,
-    detail: alias.label,
-    insert: alias.token,
-    ...(replaceSpan ? { replaceSpan } : {}),
-  }));
-}
-
 // Ranking (prefix-before-substring) lives in ./rank so the filter sidebar's
 // per-facet value search can share it — see that module's header.
 
@@ -1166,9 +1152,7 @@ export function planInputCompletions(
         sections: [
           ...section(
             SECTION_SUGGESTIONS,
-            filterAliasOptions(registry).concat(
-              querySuggestionOptions(ctx.observed, registry),
-            ),
+            querySuggestionOptions(ctx.observed, registry),
           ),
           ...section(SECTION_FIELDS, fieldOptions(registry)),
           ...section(
@@ -1280,16 +1264,6 @@ export function planInputCompletions(
             (p) => !(negated && p.id === "pat:negation"),
           )
         : [];
-    const aliases =
-      colon === -1
-        ? rankFilter(
-            filterAliasOptions(registry, {
-              from: start,
-              to: term?.to ?? caret,
-            }),
-            tokenBody,
-          )
-        : [];
     // Free-text guidance: a bare word (or a coalesced multi-word run) can become
     // a scoped full-text search. The rewrite wraps the WHOLE run — so it scopes
     // the block the user sees, not one word — and quotes via serializeValue so a
@@ -1327,7 +1301,6 @@ export function planInputCompletions(
         : [];
     if (
       fields.length +
-        aliases.length +
         operators.length +
         patterns.length +
         matchingFilters.length +
@@ -1352,7 +1325,6 @@ export function planInputCompletions(
           ? registry.resolveField(keyPart) !== null
           : resolvedKey === null && fields.length > 0,
       sections: [
-        ...section(SECTION_SUGGESTIONS, aliases),
         // Fields stay first: options[0] must remain the field so the
         // exact-alias autoHighlight (Enter → `level:`) keeps picking it.
         // Concrete facet matches beat the generic operator/pattern syntax help
