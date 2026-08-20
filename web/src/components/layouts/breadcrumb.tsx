@@ -6,9 +6,10 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { ChevronDownIcon, PlusIcon, Slash } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
@@ -23,7 +24,7 @@ import {
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
 import { Badge } from "@/src/components/ui/badge";
-import SwitcherMenu, {
+import SwitcherMenuContent, {
   type SwitcherItem,
 } from "@/src/components/layouts/switcher-menu";
 
@@ -37,6 +38,8 @@ const BreadcrumbComponent = ({
   const session = useSession();
   const { organization, project } = useQueryProjectOrOrganization();
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
+  const [orgSwitcherOpen, setOrgSwitcherOpen] = useState(false);
+  const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
 
   const organizations = session.data?.user?.organizations;
 
@@ -79,81 +82,93 @@ const BreadcrumbComponent = ({
     <Breadcrumb className={className}>
       <BreadcrumbList>
         {organization && (
-          <SwitcherMenu
-            trigger={
-              <>
-                {organization?.name ?? "Organization"}
-                {isCloudPlan(organization?.plan) &&
-                  organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
-                    <Badge
-                      className="ml-1 px-1 py-0 text-xs font-normal"
-                      variant="secondary"
-                    >
-                      {planLabels[organization.plan]}
-                    </Badge>
-                  )}
-                <ChevronDownIcon className="h-4 w-4" />
-              </>
-            }
-            triggerClassName="h-5 p-0 text-sm leading-none"
-            headerLink={{ label: "Organizations", href: "/" }}
-            items={orgItems}
-            searchPlaceholder="Search organizations..."
-            emptyText="No organization found."
-            separatorBeforeId={env.NEXT_PUBLIC_DEMO_ORG_ID}
-            footer={
-              canCreateOrganizations ? (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="h-8 w-full text-sm font-normal"
-                  asChild
-                >
-                  <Link href={createOrganizationRoute}>
-                    <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                    New Organization
-                  </Link>
-                </Button>
-              ) : undefined
-            }
-          />
-        )}
-        {organization && project && (
-          <>
-            <BreadcrumbSeparator>
-              <Slash />
-            </BreadcrumbSeparator>
-            <SwitcherMenu
-              trigger={
-                <>
-                  {project?.name ?? "Project"}
-                  <ChevronDownIcon className="h-4 w-4" />
-                </>
-              }
-              triggerClassName="h-5 p-0 leading-none"
-              headerLink={{
-                label: "Projects",
-                href: `/organization/${organization.id}`,
-              }}
-              items={projectItems}
-              searchPlaceholder="Search projects..."
-              emptyText="No project found."
+          <Popover open={orgSwitcherOpen} onOpenChange={setOrgSwitcherOpen}>
+            <PopoverTrigger className="text-primary flex h-5 items-center gap-1 p-0 text-sm leading-none">
+              {organization?.name ?? "Organization"}
+              {isCloudPlan(organization?.plan) &&
+                organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
+                  <Badge
+                    className="ml-1 px-1 py-0 text-xs font-normal"
+                    variant="secondary"
+                  >
+                    {planLabels[organization.plan]}
+                  </Badge>
+                )}
+              <ChevronDownIcon className="h-4 w-4" />
+            </PopoverTrigger>
+            <SwitcherMenuContent
+              onClose={() => setOrgSwitcherOpen(false)}
+              headerLink={{ label: "Organizations", href: "/" }}
+              items={orgItems}
+              searchPlaceholder="Search organizations..."
+              emptyText="No organization found."
+              separatorBeforeId={env.NEXT_PUBLIC_DEMO_ORG_ID}
               footer={
-                canCreateProjects ? (
+                canCreateOrganizations ? (
                   <Button
                     variant="ghost"
                     size="xs"
                     className="h-8 w-full text-sm font-normal"
                     asChild
                   >
-                    <Link href={createProjectRoute(organization.id)}>
+                    <Link
+                      href={createOrganizationRoute}
+                      onClick={() => setOrgSwitcherOpen(false)}
+                    >
                       <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                      New Project
+                      New Organization
                     </Link>
                   </Button>
                 ) : undefined
               }
             />
+          </Popover>
+        )}
+        {organization && project && (
+          <>
+            <BreadcrumbSeparator>
+              <Slash />
+            </BreadcrumbSeparator>
+            <Popover
+              open={projectSwitcherOpen}
+              onOpenChange={setProjectSwitcherOpen}
+            >
+              <PopoverTrigger className="text-primary flex h-5 items-center gap-1 p-0 leading-none">
+                {project?.name ?? "Project"}
+                <ChevronDownIcon className="h-4 w-4" />
+              </PopoverTrigger>
+              <SwitcherMenuContent
+                onClose={() => setProjectSwitcherOpen(false)}
+                headerLink={{
+                  label: "Projects",
+                  href: `/organization/${organization.id}`,
+                }}
+                items={projectItems}
+                searchPlaceholder="Search projects..."
+                emptyText="No project found."
+                footer={
+                  canCreateProjects ? (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="h-8 w-full text-sm font-normal"
+                      asChild
+                    >
+                      <Link
+                        href={createProjectRoute(organization.id)}
+                        onClick={() => setProjectSwitcherOpen(false)}
+                      >
+                        <PlusIcon
+                          className="mr-1.5 h-4 w-4"
+                          aria-hidden="true"
+                        />
+                        New Project
+                      </Link>
+                    </Button>
+                  ) : undefined
+                }
+              />
+            </Popover>
           </>
         )}
         {items?.map((item, index) => (
