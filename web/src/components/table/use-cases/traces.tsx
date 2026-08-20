@@ -617,13 +617,11 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
-  const displayCount = totalCountQuery.isPending ? (
-    <span className="inline-block font-mono">...</span>
-  ) : selectAll ? (
-    compactNumberFormatter(totalCountQuery.data?.totalCount)
-  ) : (
-    compactNumberFormatter(Object.keys(selectedRows).length)
-  );
+  const displayCount = totalCountQuery.isPending
+    ? "..."
+    : selectAll
+      ? compactNumberFormatter(totalCountQuery.data?.totalCount)
+      : compactNumberFormatter(Object.keys(selectedRows).length);
 
   // Select-all deletes persist the raw filterState into the batch action, but
   // comment filters resolve via Postgres at read time and the server rejects
