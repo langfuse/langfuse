@@ -84,4 +84,73 @@ describe("buildMonitorAlertSlackMessage", () => {
     expect(inner.some((b: any) => b.type === "actions")).toBe(false);
     expect(inner.some((b: any) => b.type === "context")).toBe(true);
   });
+
+  it("adds a 'View observations' button to the windowed data table when dataPermalink is set (observations view)", () => {
+    const dataPermalink =
+      "https://cloud.langfuse.com/project/proj_01/observations?dateRange=1779450930000-1779451230000";
+    const { attachments } = buildMonitorAlertSlackMessage({
+      ...mockMonitorAlert,
+      dataPermalink,
+    });
+    const actions = attachments![0].blocks!.find(
+      (b: any) => b.type === "actions",
+    );
+    expect(actions.elements).toHaveLength(2);
+    // Config button kept.
+    expect(actions.elements[0]).toMatchObject({
+      text: { text: "View in Langfuse" },
+      url: mockMonitorAlert.permalink,
+    });
+    // Windowed data-table button added.
+    expect(actions.elements[1]).toMatchObject({
+      text: { text: "View observations" },
+      url: dataPermalink,
+    });
+  });
+
+  it("labels the data button 'View traces' for a scores view", () => {
+    const dataPermalink =
+      "https://cloud.langfuse.com/project/proj_01/traces?dateRange=1779450930000-1779451230000";
+    const { attachments } = buildMonitorAlertSlackMessage({
+      ...mockMonitorAlert,
+      view: "scores-numeric",
+      dataPermalink,
+    });
+    const actions = attachments![0].blocks!.find(
+      (b: any) => b.type === "actions",
+    );
+    expect(actions.elements).toHaveLength(2);
+    expect(actions.elements[1]).toMatchObject({
+      text: { text: "View traces" },
+      url: dataPermalink,
+    });
+  });
+
+  it("keeps only the config button when dataPermalink is absent", () => {
+    const { attachments } = buildMonitorAlertSlackMessage(mockMonitorAlert);
+    const actions = attachments![0].blocks!.find(
+      (b: any) => b.type === "actions",
+    );
+    expect(actions.elements).toHaveLength(1);
+    expect(actions.elements[0].text.text).toBe("View in Langfuse");
+  });
+
+  // buildAlert only sets dataPermalink for breaching severities, so recovery
+  // (OK) and NO_DATA notifications arrive here with dataPermalink undefined and
+  // must render no "View traces" button — recovery messages stay unchanged.
+  it.each(["OK", "NO_DATA"] as const)(
+    "renders no secondary data button for a %s (non-breach) alert",
+    (severity) => {
+      const { attachments } = buildMonitorAlertSlackMessage({
+        ...mockMonitorAlert,
+        severity,
+        dataPermalink: undefined,
+      });
+      const actions = attachments![0].blocks!.find(
+        (b: any) => b.type === "actions",
+      );
+      expect(actions.elements).toHaveLength(1);
+      expect(actions.elements[0].text.text).toBe("View in Langfuse");
+    },
+  );
 });

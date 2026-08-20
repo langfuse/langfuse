@@ -146,7 +146,10 @@ const viewFilterDefinitions: Record<
     ),
     defineField(
       "release",
-      sourceSpec("Observation Release", { uiTableId: "release" }),
+      sourceSpec("Release", {
+        uiTableId: "release",
+        aliases: ["Observation Release"],
+      }),
     ),
     defineField("version", sourceSpec("Version", { uiTableId: "version" })),
     // Experiment fields (v2 only - experiment data only exists in events table)
@@ -162,6 +165,10 @@ const viewFilterDefinitions: Record<
       "experimentId",
       sourceSpec("Experiment ID", { uiTableId: "experimentId" }),
     ),
+    defineField(
+      "isRootObservation",
+      sourceSpec("Is Root Observation", { uiTableId: "isRootObservation" }),
+    ),
   ],
   "scores-numeric": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
@@ -175,6 +182,53 @@ const viewFilterDefinitions: Record<
         uiTableId: "value",
         aliases: ["value"],
       }),
+    ),
+    defineField(
+      "dataType",
+      sourceSpec("Scores Data Type", { uiTableId: "scoreDataType" }),
+    ),
+    defineField("tags", sourceSpec("Tags", { uiTableId: "traceTags" })),
+    defineField(
+      "environment",
+      sourceSpec("Environment", { uiTableId: "environment" }),
+    ),
+    defineField(
+      "userId",
+      sourceSpec("User", { uiTableId: "user" }),
+      sourceSpec("User", { uiTableId: "userId" }),
+    ),
+    defineField(
+      "sessionId",
+      sourceSpec("Session", { uiTableId: "session" }),
+      sourceSpec("Session", { uiTableId: "sessionId" }),
+    ),
+    defineField("metadata", sourceSpec("Metadata", { uiTableId: "metadata" })),
+    defineField(
+      "traceName",
+      sourceSpec("Trace Name", { uiTableId: "traceName" }),
+    ),
+    defineField(
+      "observationName",
+      sourceSpec("Observation Name", { uiTableId: "observationName" }),
+    ),
+    defineField(
+      "traceRelease",
+      sourceSpec("Release", { uiTableId: "release" }),
+    ),
+    defineField(
+      "traceVersion",
+      sourceSpec("Version", { uiTableId: "version" }),
+    ),
+  ],
+  "scores-boolean": [
+    defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
+    defineField(
+      "source",
+      sourceSpec("Score Source", { uiTableId: "scoreSource" }),
+    ),
+    defineField(
+      "booleanValue",
+      sourceSpec("Boolean Value", { uiTableId: "booleanValue" }),
     ),
     defineField(
       "dataType",
@@ -433,6 +487,13 @@ export const normalizeStoredWidgetFiltersForEditor = (
     unsupportedFilters: partitionedFilters.unsupportedFilters,
   };
 };
+
+/** displayNameForFilterColumn resolves any filter column spelling to the label the filter builder shows. */
+export const displayNameForFilterColumn = (column: string): string =>
+  allWidgetFilterMappings.find(
+    (mapping) =>
+      mapping.viewName === column || matchesFilterMapping(mapping, column),
+  )?.uiTableName ?? column;
 
 export const mapViewFilterToUiTableFilter = (
   view: z.infer<typeof views>,

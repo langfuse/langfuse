@@ -43,6 +43,8 @@ const h = vi.hoisted(() => {
 
   const mixpanelIntegrationUpdate = vi.fn();
 
+  const flushError: { value: Error | undefined } = { value: undefined };
+
   const defaultIntegration = () => ({
     projectId: "project-1",
     enabled: true,
@@ -65,6 +67,7 @@ const h = vi.hoisted(() => {
     mixpanelIntegrationUpdate,
     defaultIntegration,
     db,
+    flushError,
   };
 });
 
@@ -72,6 +75,11 @@ vi.mock("../features/mixpanel/mixpanelClient", () => ({
   MixpanelClient: class {
     addEvent = vi.fn();
     flush = vi.fn().mockImplementation(async () => {
+      if (h.flushError.value) {
+        const err = h.flushError.value;
+        h.flushError.value = undefined; // reject once, then behave
+        throw err;
+      }
       h.timeline.push("flush");
     });
     getBatchSize = vi.fn().mockReturnValue(0);
@@ -94,13 +102,17 @@ vi.mock("@langfuse/shared/encryption", () => ({
 }));
 
 // Keep the throttle delay out of the unit test (real value defaults to 500ms).
-// Path is relative to this test file -> resolves to worker/src/env (also the
-// module the exportWriteModeGuard reads its write mode from).
+// Resolves to worker/src/env (read by exportWriteModeGuard and the score
+// routing); the helpers mirror the real implementations.
 vi.mock("../env", () => ({
   env: {
     LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: 0,
-    LANGFUSE_MIGRATION_V4_WRITE_MODE: "legacy",
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: "dual",
   },
+  v4WritesToLegacyTables: (e: { LANGFUSE_MIGRATION_V4_WRITE_MODE: string }) =>
+    e.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only",
+  v4WritesToEventsTable: (e: { LANGFUSE_MIGRATION_V4_WRITE_MODE: string }) =>
+    e.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy",
 }));
 
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -126,10 +138,26 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 
 // Import after mocks are registered.
-import { handleMixpanelIntegrationProjectJob } from "../features/mixpanel/handleMixpanelIntegrationProjectJob";
+import {
+  handleMixpanelIntegrationProjectJob,
+  MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC,
+} from "../features/mixpanel/handleMixpanelIntegrationProjectJob";
+import {
+  getScoresForAnalyticsIntegrations,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import { env } from "../env";
 
-function makeJob() {
+// Mirrors the real queue's defaultJobOptions (mixpanelIntegrationProcessingQueue.ts).
+function makeJob(attemptsMade = 0) {
+  return {
+    data: { id: "job-1", payload: { projectId: "project-1" } },
+    attemptsMade,
+    opts: { attempts: 5 },
+  } as unknown as Parameters<typeof handleMixpanelIntegrationProjectJob>[0];
+}
+
+function makeJobWithoutOpts() {
   return {
     data: { id: "job-1", payload: { projectId: "project-1" } },
     attemptsMade: 0,
@@ -144,7 +172,8 @@ describe("handleMixpanelIntegrationProjectJob throttling (issue #12786)", () => 
     h.state.maxConcurrentStreams = 0;
     h.mixpanelIntegrationUpdate.mockClear();
     h.db.integration = h.defaultIntegration();
-    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+    // dual: the only mode where TRACES_OBSERVATIONS_EVENTS passes the guard
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
   });
 
   it("reuses a single MixpanelClient for the whole job", async () => {
@@ -174,7 +203,7 @@ describe("handleMixpanelIntegrationProjectJob events_only legacy guard (LFE-1014
     h.timeline.length = 0;
     h.mixpanelIntegrationUpdate.mockClear();
     h.db.integration = h.defaultIntegration();
-    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
   });
 
   it("throws before export and does not advance lastSyncAt on events_only + legacy source", async () => {
@@ -194,7 +223,7 @@ describe("handleMixpanelIntegrationProjectJob events_only legacy guard (LFE-1014
     expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
   });
 
-  it("exports an EVENTS source normally on events_only", async () => {
+  it("exports an EVENTS source normally on events_only, routing score enrichment to events", async () => {
     (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
     h.db.integration = {
       ...h.defaultIntegration(),
@@ -204,5 +233,133 @@ describe("handleMixpanelIntegrationProjectJob events_only legacy guard (LFE-1014
     await handleMixpanelIntegrationProjectJob(makeJob());
 
     expect(h.mixpanelIntegrationUpdate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(getScoresForAnalyticsIntegrations)).toHaveBeenCalledWith(
+      "project-1",
+      "Test Project",
+      expect.any(Date),
+      expect.any(Date),
+      expect.objectContaining({ traceAttributesSource: "events" }),
+    );
+  });
+
+  it("enriches scores from traces on dual write mode", async () => {
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    expect(vi.mocked(getScoresForAnalyticsIntegrations)).toHaveBeenCalledWith(
+      "project-1",
+      "Test Project",
+      expect.any(Date),
+      expect.any(Date),
+      expect.objectContaining({ traceAttributesSource: "traces" }),
+    );
+  });
+});
+
+// LFE-11009: enriched sources on legacy write mode must fail loudly instead
+// of silently exporting empty data while lastSyncAt advances.
+describe("handleMixpanelIntegrationProjectJob legacy-mode enriched guard (LFE-11009)", () => {
+  beforeEach(() => {
+    h.timeline.length = 0;
+    h.mixpanelIntegrationUpdate.mockClear();
+    h.db.integration = h.defaultIntegration();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+  });
+
+  it.each(["EVENTS", "TRACES_OBSERVATIONS_EVENTS"])(
+    "throws before export and does not advance lastSyncAt on legacy + %s source",
+    async (exportSource) => {
+      h.db.integration = { ...h.defaultIntegration(), exportSource };
+
+      await expect(
+        handleMixpanelIntegrationProjectJob(makeJob()),
+      ).rejects.toThrow(/does not write them/);
+
+      expect(h.timeline).toHaveLength(0);
+      expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+    },
+  );
+
+  it("exports a TRACES_OBSERVATIONS source normally on legacy write mode", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      exportSource: "TRACES_OBSERVATIONS",
+    };
+
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    expect(h.mixpanelIntegrationUpdate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("handleMixpanelIntegrationProjectJob customer-fault observation (no disable)", () => {
+  beforeEach(() => {
+    h.timeline.length = 0;
+    h.mixpanelIntegrationUpdate.mockClear();
+    h.db.integration = h.defaultIntegration();
+    h.flushError.value = undefined;
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+  });
+
+  it("still throws a 401-shaped error and never calls update to disable the integration", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+
+    await expect(handleMixpanelIntegrationProjectJob(makeJob())).rejects.toBe(
+      unauthorized,
+    );
+
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+  });
+
+  it("a job with no opts still does not disable on a classified-fault-shaped error", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+
+    await expect(
+      handleMixpanelIntegrationProjectJob(makeJobWithoutOpts()),
+    ).rejects.toBe(unauthorized);
+
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("handleMixpanelIntegrationProjectJob customer-fault observability", () => {
+  beforeEach(() => {
+    h.timeline.length = 0;
+    h.mixpanelIntegrationUpdate.mockClear();
+    h.db.integration = h.defaultIntegration();
+    h.flushError.value = undefined;
+    vi.mocked(recordIncrement).mockClear();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+  });
+
+  it("records the customer-fault metric with reason and attempt, then still rethrows", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+
+    await expect(handleMixpanelIntegrationProjectJob(makeJob(2))).rejects.toBe(
+      unauthorized,
+    );
+
+    expect(recordIncrement).toHaveBeenCalledWith(
+      MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC,
+      1,
+      { reason: "credentials", attempt: 2 },
+    );
+  });
+
+  it("does not record the customer-fault metric for an unclassified error", async () => {
+    const infraError = new Error("connection reset");
+    Object.assign(infraError, { code: "ECONNRESET" });
+    h.flushError.value = infraError;
+
+    await expect(handleMixpanelIntegrationProjectJob(makeJob())).rejects.toBe(
+      infraError,
+    );
+
+    expect(recordIncrement).not.toHaveBeenCalled();
   });
 });

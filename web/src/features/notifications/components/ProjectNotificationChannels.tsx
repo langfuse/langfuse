@@ -16,6 +16,7 @@ import { ProjectNotificationChannelsList } from "@/src/features/notifications/co
 import { useProjectNotificationChannels } from "@/src/features/notifications/hooks/useProjectNotificationChannels";
 import { cn } from "@/src/utils/tailwind";
 import {
+  ProjectNotificationEventTypeSchema,
   TriggerEventSource,
   type ActionTypes,
   type ProjectNotificationEventType,
@@ -24,24 +25,30 @@ import {
 /** Project notifications route to webhooks or Slack; GitHub dispatch is not wired for this event source. */
 const PROJECT_NOTIFICATION_ACTION_TYPES: ActionTypes[] = ["WEBHOOK", "SLACK"];
 
-/** NOTIFIED_EVENTS lists the toggleable project-notification events, keyed by their eventType. */
-const NOTIFIED_EVENTS: {
-  value: ProjectNotificationEventType;
-  title: string;
-  description: string;
-}[] = [
-  {
-    value: "blob-export-failed",
+const NOTIFIED_EVENT_COPY: Record<
+  ProjectNotificationEventType,
+  { title: string; description: string }
+> = {
+  "blob-export-failed": {
     title: "Blob storage export failed",
     description: "Sent when a scheduled blob storage export fails.",
   },
-  {
-    value: "evaluator-blocked",
+  "posthog-export-failed": {
+    title: "PostHog export failed",
+    description:
+      "Sent when a PostHog export is disabled after a configuration error, such as an unreachable host.",
+  },
+  "evaluator-blocked": {
     title: "Evaluator deactivated",
     description:
       "Sent when an evaluator is deactivated due to an unrecoverable error, such as a deleted model or LLM connection.",
   },
-];
+};
+
+/** NOTIFIED_EVENTS lists the toggleable project-notification events, in schema order. */
+export const NOTIFIED_EVENTS = ProjectNotificationEventTypeSchema.options.map(
+  (value) => ({ value, ...NOTIFIED_EVENT_COPY[value] }),
+);
 
 /**
  * ProjectNotificationChannels is the admin-only "Project Notifications"
@@ -93,7 +100,7 @@ export function ProjectNotificationChannels({
 
           <div className="flex flex-col gap-4">
             <div>
-              <h3 className="text-lg font-medium">Events</h3>
+              <h3 className="text-lg font-bold">Events</h3>
               <p className="text-muted-foreground text-sm">
                 {hasChannels
                   ? "Choose which events are delivered to your channels."
@@ -111,7 +118,7 @@ export function ProjectNotificationChannels({
                     !hasChannels && "opacity-50",
                   )}
                 >
-                  <p className="text-base font-medium">{event.title}</p>
+                  <p className="text-base font-bold">{event.title}</p>
                   <p className="text-muted-foreground text-sm">
                     {event.description}
                   </p>

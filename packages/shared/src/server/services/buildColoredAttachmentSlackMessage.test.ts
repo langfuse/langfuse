@@ -39,4 +39,40 @@ describe("buildColoredAttachmentSlackMessage", () => {
     expect(serialized).not.toContain("View in Langfuse");
     expect(serialized).toContain("*Something failed*");
   });
+
+  it("renders a labeled secondary button after the primary when secondaryUrl is set", () => {
+    const blocks = buildColoredAttachmentSlackMessage({
+      ...base,
+      secondaryUrl: "https://cloud.langfuse.com/y?dateRange=1-2",
+      secondaryLabel: "View traces",
+    }).attachments![0].blocks!;
+    const actions = blocks.find((b: any) => b.type === "actions");
+    expect(actions.elements).toHaveLength(2);
+    expect(actions.elements[0]).toMatchObject({
+      type: "button",
+      text: { text: "View in Langfuse" },
+      url: base.url,
+    });
+    expect(actions.elements[1]).toMatchObject({
+      type: "button",
+      text: { text: "View traces" },
+      url: "https://cloud.langfuse.com/y?dateRange=1-2",
+    });
+  });
+
+  it("defaults the secondary button label to 'View data'", () => {
+    const blocks = buildColoredAttachmentSlackMessage({
+      ...base,
+      secondaryUrl: "https://cloud.langfuse.com/y?dateRange=1-2",
+    }).attachments![0].blocks!;
+    const actions = blocks.find((b: any) => b.type === "actions");
+    expect(actions.elements[1].text.text).toBe("View data");
+  });
+
+  it("omits the secondary button when secondaryUrl is absent", () => {
+    const blocks =
+      buildColoredAttachmentSlackMessage(base).attachments![0].blocks!;
+    const actions = blocks.find((b: any) => b.type === "actions");
+    expect(actions.elements).toHaveLength(1);
+  });
 });

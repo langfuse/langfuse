@@ -1,8 +1,12 @@
 import React from "react";
 import { api } from "@/src/utils/api";
-import { JobConfigState, type AutomationDomain } from "@langfuse/shared";
+import {
+  JobConfigState,
+  TriggerEventSource,
+  type AutomationDomain,
+} from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 
 interface AutomationSidebarProps {
   projectId: string;
@@ -87,7 +91,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                       {/* Top row: Name and Active badge */}
                       <div className="flex items-center justify-between gap-2">
                         <h4
-                          className="truncate text-sm leading-tight font-medium"
+                          className="truncate text-sm leading-tight font-bold"
                           title={automation.name}
                         >
                           {automation.name}
@@ -102,7 +106,10 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                       {/* Bottom row: eventSource -> automation type */}
                       <p className="text-muted-foreground text-xs">
                         <span className="font-mono">
-                          {automation.trigger.eventSource}
+                          {automation.trigger.eventSource ===
+                          TriggerEventSource.Monitor
+                            ? "alert"
+                            : automation.trigger.eventSource}
                         </span>
                         {" → "}
                         {automation.action.type === "WEBHOOK"

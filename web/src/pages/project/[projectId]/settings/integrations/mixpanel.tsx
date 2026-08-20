@@ -1,7 +1,7 @@
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -33,19 +33,19 @@ import {
   type MixpanelRegion,
 } from "@/src/features/mixpanel-integration/types";
 import {
-  AnalyticsIntegrationExportSource,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   validateExportSource,
+  type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
-  getExportSourceOptions,
+  buildExportSourceContext,
+  getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-  shouldHideExportSourceSelector,
 } from "@/src/features/analytics-integrations/exportSource";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -53,9 +53,10 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
 import { Info, ExternalLink } from "lucide-react";
@@ -74,6 +75,8 @@ export default function MixpanelIntegrationSettings() {
       enabled: hasAccess,
     },
   );
+
+  const { project } = useQueryProject();
 
   const status =
     state.isLoading || !hasAccess
@@ -121,12 +124,19 @@ export default function MixpanelIntegrationSettings() {
           <Header title="Configuration" />
           <Card className="p-3">
             <MixpanelLogo className="text-foreground mb-4 w-20" />
-            <MixpanelIntegrationSettingsForm
-              state={state.data?.config ?? undefined}
-              projectId={projectId}
-              isLoading={state.isLoading}
-              legacyWritesActive={state.data?.legacyWritesActive ?? true}
-            />
+            {!state.data || !project ? (
+              <IntegrationSettingsSkeleton />
+            ) : (
+              <MixpanelIntegrationSettingsForm
+                // Draft lifetime = entity identity, so background refetches
+                // cannot reset a draft in progress.
+                key={`${projectId}:${state.data.config ? "configured" : "new"}`}
+                state={state.data.config ?? undefined}
+                projectId={projectId}
+                writeMode={state.data.writeMode}
+                projectCreatedAt={project.createdAt}
+              />
+            )}
           </Card>
         </>
       )}
@@ -148,59 +158,51 @@ export default function MixpanelIntegrationSettings() {
 const MixpanelIntegrationSettingsForm = ({
   state,
   projectId,
-  isLoading,
-  legacyWritesActive,
+  writeMode,
+  projectCreatedAt,
 }: {
   state?: NonNullable<RouterOutput["mixpanelIntegration"]["get"]["config"]>;
   projectId: string;
-  isLoading: boolean;
-  legacyWritesActive: boolean;
+  writeMode: V4WriteMode;
+  // Raw ISO string, not a Date: a Date built in the parent's JSX would be a new
+  // reference on every render and would defeat the memo below.
+  projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { project } = useQueryProject();
-
-  // Policy context; EVENTS is always accepted by this router, hence
-  // enrichedAvailable: true (see export-source-policy.ts).
-  const projectCreatedAt = project?.createdAt;
+  const integrationCreatedAt = state?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
-    () => ({
-      isCloud: isLangfuseCloud,
-      enrichedAvailable: true,
-      legacyWritesActive,
-      projectCreatedAt: projectCreatedAt
-        ? new Date(projectCreatedAt)
-        : undefined,
-    }),
-    [isLangfuseCloud, legacyWritesActive, projectCreatedAt],
+    () =>
+      buildExportSourceContext({
+        writeMode,
+        isCloud: isLangfuseCloud,
+        projectCreatedAt: new Date(projectCreatedAt),
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+      }),
+    [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
   );
-  const legacyValidation = validateExportSource(
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-    exportSourceCtx,
-  );
-  // Post-cutoff Cloud projects: field hidden, form value pinned to EVENTS via
-  // the default below (LFE-9688 / 9830 behavior, unchanged).
-  const isPostCutoffCloud =
-    !legacyValidation.ok && legacyValidation.reason === "cloud-cutoff";
-  const exportSourceOptions = getExportSourceOptions(
-    state?.exportSource ?? null,
-    exportSourceCtx,
-  );
-  // Selector is beta-gated, except a persisted source blocked by capability
-  // forces it visible so the blocked-save alert has something to point at.
-  const persistedBlockedByCapability =
-    state?.exportSource != null &&
-    !isPostCutoffCloud &&
-    !isExportSourceSelectable(state.exportSource, exportSourceCtx);
-  const showExportSourceField =
-    ((isBetaEnabled && !isPostCutoffCloud) || persistedBlockedByCapability) &&
-    !shouldHideExportSourceSelector(exportSourceOptions);
+  const {
+    options: exportSourceOptions,
+    showField: showExportSourceField,
+    defaultValue: defaultExportSource,
+  } = getExportSourceFieldState(state?.exportSource, exportSourceCtx);
 
-  // Blocked-save validation instead of silent rewrite (LFE-10296).
+  // Blocked-save validation instead of silent rewrite.
   const formSchema = useMemo(
     () =>
       mixpanelIntegrationFormSchema.superRefine((data, ctx) => {
+        // The credential is write-only: blank keeps the saved token, so it is
+        // only required when no integration exists yet.
+        if (!state && !data.mixpanelProjectToken) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["mixpanelProjectToken"],
+            message: "Mixpanel Project Token is required",
+          });
+        }
         if (!isExportSourceSelectable(data.exportSource, exportSourceCtx)) {
           ctx.addIssue({
             code: "custom",
@@ -210,15 +212,8 @@ const MixpanelIntegrationSettingsForm = ({
           });
         }
       }),
-    [exportSourceCtx],
+    [exportSourceCtx, state],
   );
-
-  const defaultExportSource = isPostCutoffCloud
-    ? AnalyticsIntegrationExportSource.EVENTS
-    : (state?.exportSource ??
-      (isBetaEnabled || !legacyWritesActive
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS));
 
   const mixpanelForm = useForm({
     resolver: zodResolver(formSchema),
@@ -226,24 +221,11 @@ const MixpanelIntegrationSettingsForm = ({
       mixpanelRegion:
         (state?.mixpanelRegion as MixpanelRegion) ??
         MIXPANEL_REGIONS[0].subdomain,
-      mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
+      mixpanelProjectToken: "",
       enabled: state?.enabled ?? false,
       exportSource: defaultExportSource,
     },
-    disabled: isLoading,
   });
-
-  useEffect(() => {
-    mixpanelForm.reset({
-      mixpanelRegion:
-        (state?.mixpanelRegion as MixpanelRegion) ??
-        MIXPANEL_REGIONS[0].subdomain,
-      mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
-      enabled: state?.enabled ?? false,
-      exportSource: defaultExportSource,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
 
   const watchedExportSource = mixpanelForm.watch("exportSource");
   const watchedValidation =
@@ -313,11 +295,15 @@ const MixpanelIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Mixpanel Project Token</FormLabel>
               <FormControl>
-                <PasswordInput {...field} />
+                <PasswordInput
+                  {...field}
+                  placeholder={state?.mixpanelProjectTokenDisplay}
+                />
               </FormControl>
               <FormDescription>
-                You can find your Project Token in your Mixpanel project
-                settings
+                {state
+                  ? "Leave blank to keep the current token."
+                  : "You can find your Project Token in your Mixpanel project settings"}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -341,7 +327,7 @@ const MixpanelIntegrationSettingsForm = ({
                     >
                       {exportSourceOptions.map((option) => (
                         <div key={option.value} className="space-y-0.5">
-                          <div className="font-medium">{option.label}</div>
+                          <div className="font-bold">{option.label}</div>
                           <div className="text-muted-foreground text-xs">
                             {option.description}
                           </div>
@@ -424,14 +410,13 @@ const MixpanelIntegrationSettingsForm = ({
         <Button
           loading={mut.isPending}
           onClick={mixpanelForm.handleSubmit(onSubmit)}
-          disabled={isLoading}
         >
           Save
         </Button>
         <Button
           variant="ghost"
           loading={mutDelete.isPending}
-          disabled={isLoading || !!!state}
+          disabled={!state}
           onClick={() => {
             if (
               confirm(

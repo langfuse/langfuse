@@ -7,7 +7,7 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { useIsMobile } from "@/src/hooks/use-mobile";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { getPathnameWithoutBasePath } from "@/src/utils/api";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -110,7 +110,7 @@ const ALWAYS_KEEP_PEEK_OPEN_SELECTORS = ['[role="checkbox"]'];
  * - clicking another table row (`[data-row-index]`) switches the peeked item in
  *   place rather than closing (handled by the row's own click handler),
  * - shared selection controls and any table-specific `ignoredSelectors`
- *   (bookmark toggles, etc.) don't close it, and
+ *   (row action buttons, etc.) don't close it, and
  * - regions that opt out via `data-ignore-outside-interaction` (e.g. the in-app
  *   assistant) never trigger a close.
  *
@@ -154,7 +154,9 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const { isBetaEnabled: isV4 } = useV4Beta();
   const itemId = router.query.peek as string | undefined;
   const isExpanded = router.query[PEEK_VIEW_PARAM] === PEEK_VIEW_EXPANDED;
-  const isMobile = useIsMobile();
+  // Handheld, not width-only: a phone in landscape is wider than `md` but is
+  // still a phone, and must get the full-screen drawer rather than the sheet.
+  const isHandheld = useIsHandheld();
 
   // Expanded is view state, owned by the peek and reflected in the URL so it is
   // shareable + survives reload. Managed here (not threaded through every table
@@ -209,7 +211,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const ignoredSelectors = props.peekEventOptions?.ignoredSelectors ?? [];
 
   // Gate the first render on mount so we never paint the desktop sheet before
-  // `useIsMobile` resolves (which would flash the wrong shell on a mobile
+  // `useIsHandheld` resolves (which would flash the wrong shell on a mobile
   // deep-link). Click-to-open is already post-mount, so it has no delay.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -245,7 +247,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       actions={props.actions}
       actionsMenu={props.actionsMenu}
       expand={
-        isMobile
+        isHandheld
           ? undefined
           : {
               isExpanded: panel.isExpanded,
@@ -279,7 +281,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // `return null` above), which is what resets the state (see README).
   return (
     <PeekTableStateProvider>
-      {isMobile ? (
+      {isHandheld ? (
         // Mobile: a vaul bottom drawer with native swipe-down dismissal.
         <Drawer
           open={!!itemId}
@@ -335,10 +337,13 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                 // No overflow-hidden here: the resize handle straddles the left
                 // edge (overhangs onto the table) so it's grabbable from either
                 // side. The body clips its own content instead.
-                "bg-background top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 border-l",
+                "bg-modal top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 border-l",
                 // Soft shadow cast leftward (toward the table) to lift the peek
-                // off the content behind it.
-                "shadow-[-12px_0_32px_-16px_rgb(0_0_0_/_0.30)]",
+                // off the content behind it. Token-backed so it stays a DARK
+                // cast in both modes: foreground is near-black in light mode,
+                // and background is near-black in dark mode (where foreground
+                // would flip to a white glow).
+                "shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]",
                 "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
                 panel.isResizing && "select-none",
               )}

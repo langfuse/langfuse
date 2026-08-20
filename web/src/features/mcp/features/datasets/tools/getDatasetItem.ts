@@ -4,7 +4,7 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { getDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
-import { buildDatasetItemUrl } from "@/src/utils/product-url";
+import { buildDatasetItemUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [getDatasetItemTool, handleGetDatasetItem] = defineTool({

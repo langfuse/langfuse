@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { parseArgs } from "node:util";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   commandClickhouse,
   getQueryError,
@@ -11,7 +12,6 @@ import {
   type QueryStatus,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "../../env";
 import { IBackgroundMigration } from "../IBackgroundMigration";
 
 // ============================================================================
@@ -78,18 +78,6 @@ export function assertSafePartition(partition: string): void {
 // ============================================================================
 // Cluster-aware helpers
 // ============================================================================
-
-/**
- * Returns `ON CLUSTER <name>` when running against a clustered ClickHouse
- * deployment, an empty string otherwise. Shared by every chain step that
- * issues DDL or SYSTEM commands so they fan out to all nodes consistently.
- */
-export function onClusterClause(): string {
-  if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
-    return `ON CLUSTER ${env.CLICKHOUSE_CLUSTER_NAME}`;
-  }
-  return "";
-}
 
 /**
  * Returns the engine ClickHouse actually picked for a table. On ClickHouse
@@ -570,7 +558,15 @@ export abstract class ChunkedClickhouseBackfillMigration<
   }
 
   private async findFirstMissingTable(): Promise<string | null> {
-    const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
+    const tables = await clickhouseClient().query({
+      query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          surface: "worker",
+          route: `background-migration.${this.constructor.name}`,
+        }),
+      },
+    });
     const tableNames = (await tables.json()).data as { name: string }[];
     return (
       this.requiredTables.find(

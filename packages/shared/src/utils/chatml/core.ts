@@ -84,10 +84,16 @@ export function cleanLegacyOutput(output: unknown, fallback?: unknown) {
 export function extractAdditionalInput(
   input: unknown,
 ): Record<string, unknown> | undefined {
+  const adapter = selectAdapter({ metadata: input, data: input });
+  const consumedInputKeys = new Set(
+    ["messages"].concat(adapter.getConsumedInputKeys?.(input) ?? []),
+  );
   const additionalInput =
     typeof input === "object" && input !== null && !Array.isArray(input)
       ? Object.fromEntries(
-          Object.entries(input as object).filter(([key]) => key !== "messages"),
+          Object.entries(input as object).filter(
+            ([key]) => !consumedInputKeys.has(key),
+          ),
         )
       : undefined;
 

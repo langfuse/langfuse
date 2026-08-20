@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: "alter_update",
     CLICKHOUSE_UPDATE_PARALLEL_MODE: "auto",
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
+    CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "auto",
     LANGFUSE_LOG_LEVEL: "error",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
   },
@@ -45,11 +46,12 @@ describe("ClickHouseClientManager compatibility settings", () => {
     mocks.createClient.mockReset();
     mocks.createClient.mockReturnValue({ close: mocks.close });
     mocks.env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION = "auto";
+    mocks.env.CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN = "auto";
     setClickHouseCompatibilityVersionForTests(null);
   });
 
   it("applies resolved compatibility settings globally", () => {
-    setClickHouseCompatibilityVersionForTests("26.5.1.882");
+    setClickHouseCompatibilityVersionForTests("26.5.5.8");
 
     clickhouseClient();
 
@@ -57,29 +59,29 @@ describe("ClickHouseClientManager compatibility settings", () => {
     expect(
       mocks.createClient.mock.calls[0][0].clickhouse_settings,
     ).toMatchObject({
-      query_plan_optimize_lazy_materialization: 0,
+      query_plan_top_k_through_join: 0,
     });
   });
 
   it("lets explicit client settings override compatibility settings", () => {
-    setClickHouseCompatibilityVersionForTests("26.5.1.882");
+    setClickHouseCompatibilityVersionForTests("26.5.5.8");
 
     clickhouseClient({
       clickhouse_settings: {
-        query_plan_optimize_lazy_materialization: 1,
+        query_plan_top_k_through_join: 1,
       } as ClickHouseSettings,
     });
 
     expect(mocks.createClient).toHaveBeenCalledTimes(1);
     expect(
       mocks.createClient.mock.calls[0][0].clickhouse_settings
-        .query_plan_optimize_lazy_materialization,
+        .query_plan_top_k_through_join,
     ).toBe(1);
   });
 
   it("uses a new cached client key after compatibility settings change", () => {
     clickhouseClient();
-    setClickHouseCompatibilityVersionForTests("26.5.1.882");
+    setClickHouseCompatibilityVersionForTests("26.5.5.8");
     clickhouseClient();
 
     expect(mocks.createClient).toHaveBeenCalledTimes(2);

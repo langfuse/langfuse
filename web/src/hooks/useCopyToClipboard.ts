@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
+import {
+  copyRichTextToClipboard,
+  copyTextToClipboard,
+} from "@/src/utils/clipboard";
 
 /**
  * Copies text to the clipboard and exposes a temporary success state for UI feedback.
@@ -20,10 +23,10 @@ export function useCopyToClipboard({
     };
   }, []);
 
-  const copy = async (text: string) => {
+  const runCopy = async (copyToClipboard: () => Promise<void> | void) => {
     setIsCopied(true);
     try {
-      await copyTextToClipboard(text);
+      await copyToClipboard();
     } finally {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -35,5 +38,10 @@ export function useCopyToClipboard({
     }
   };
 
-  return { copy, isCopied };
+  const copy = async (text: string) => runCopy(() => copyTextToClipboard(text));
+
+  const copyRich = async (content: { text: string; html: string }) =>
+    runCopy(() => copyRichTextToClipboard(content));
+
+  return { copy, copyRich, isCopied };
 }

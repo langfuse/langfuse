@@ -5,7 +5,7 @@
  * We also create a few inference helpers for input and output types.
  */
 
-import { captureException } from "@sentry/nextjs";
+import { addBreadcrumb } from "@sentry/nextjs";
 import {
   createTRPCProxyClient,
   httpBatchLink,
@@ -24,7 +24,9 @@ import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
 import { env } from "@/src/env.mjs";
 import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
+import { versionUpdateStore } from "@/src/features/version-update/versionUpdateStore";
 import { type AppRouter } from "@/src/server/api/root";
+import { reportError } from "@/src/utils/reportError";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
@@ -93,6 +95,172 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
     (cause instanceof TypeError && hasReportedFailedFetchMessage(cause)) ||
     hasReportedFailedFetchMessage(error)
   );
+};
+
+/**
+ * tRPC error codes that represent EXPECTED, user-facing product states rather
+ * than actionable application errors:
+ *  - NOT_FOUND     — a missing/deleted/never-existed resource (opening a trace
+ *                    URL that no longer resolves)
+ *  - FORBIDDEN     — the signed-in user may not access this resource (a trace in
+ *                    another org, a project they are not a member of)
+ *  - UNAUTHORIZED  — the session expired or the user is not signed in
+ *  - UNPROCESSABLE_CONTENT — a resource guardrail rejected the request with
+ *                    user-facing advice. The server mints this code only for
+ *                    query resource limits (`ClickHouseResourceError` → "narrow
+ *                    your request…", see `withErrorHandling` in
+ *                    `web/src/server/api/trpc.ts`) and oversized payloads
+ *                    (`PayloadTooLargeError`, httpCode 422)
+ *
+ * The UI already renders each of these as an error page or toast — it is the
+ * product working as designed, not a regression a human should act on. Sending
+ * them to Sentry turns the error tracker into a log of ordinary navigation
+ * (`Trace not found` alone is the #2 issue by volume, ~30k events / ~3.3k
+ * users; the query-guardrail advice minted ~2.3k events / ~600 users in two
+ * weeks) and drowns real signal.
+ *
+ * Suppressing capture here does NOT blind us to real authz/lookup regressions:
+ * the server owns that signal — a genuine regression surfaces as a 4xx-rate
+ * anomaly server-side and as user reports, whereas the client Sentry event is
+ * only an amplified, lower-fidelity copy. The server itself already logs
+ * NOT_FOUND / UNAUTHORIZED as non-errors and every guardrail hit as a warning
+ * (`web/src/server/api/trpc.ts`), and `handleTrpcError` leaves a breadcrumb
+ * for each suppressed error so its path + code stay in the trail of any real
+ * event captured later in the session.
+ *
+ * Deliberately narrow: only these codes on an actual `TRPCClientError`. A 5xx
+ * (`INTERNAL_SERVER_ERROR`), a `BAD_REQUEST`, an unrecognized code, or any
+ * non-tRPC error is not expected and keeps flowing to Sentry unchanged.
+ */
+export const EXPECTED_TRPC_ERROR_CODES = [
+  "NOT_FOUND",
+  "FORBIDDEN",
+  "UNAUTHORIZED",
+  "UNPROCESSABLE_CONTENT",
+] as const;
+
+const getTrpcErrorData = (
+  error: unknown,
+): { code?: unknown; path?: unknown } | undefined =>
+  error instanceof TRPCClientError
+    ? (error.data as { code?: unknown; path?: unknown } | undefined)
+    : undefined;
+
+/** The tRPC error code (`data.code`) when `error` is a TRPCClientError. */
+export const getTrpcErrorCode = (error: unknown): string | undefined => {
+  const code = getTrpcErrorData(error)?.code;
+  return typeof code === "string" ? code : undefined;
+};
+
+/** The tRPC procedure path (`data.path`) when available — used as a Sentry tag. */
+export const getTrpcErrorPath = (error: unknown): string | undefined => {
+  const path = getTrpcErrorData(error)?.path;
+  return typeof path === "string" ? path : undefined;
+};
+
+/**
+ * Sentry fingerprint for a captured tRPC client error.
+ *
+ * Sentry's default grouping keys on the stack trace, and every
+ * `TRPCClientError` throws from the same client-link frames — so unrelated
+ * failures (different procedures, different codes, different messages)
+ * collapse into one mega-issue. Grouping by code + procedure path gives each
+ * distinct failure class its own issue with bounded cardinality
+ * (procedures × codes) and no user data: `data.path` is the static procedure
+ * name from the router definition (e.g. `traces.deleteMany`) — query input,
+ * ids, and messages are never part of it.
+ */
+export const getTrpcErrorFingerprint = (error: unknown): string[] => [
+  "trpc-client-error",
+  getTrpcErrorCode(error) ?? "unknown",
+  getTrpcErrorPath(error) ?? "unknown",
+];
+
+/**
+ * True when `error` is a TRPCClientError whose code is an EXPECTED, user-facing
+ * state that should not be captured to Sentry.
+ * See {@link EXPECTED_TRPC_ERROR_CODES}.
+ */
+export const isExpectedTrpcClientError = (error: unknown): boolean => {
+  const code = getTrpcErrorCode(error);
+  return (
+    code !== undefined &&
+    (EXPECTED_TRPC_ERROR_CODES as readonly string[]).includes(code)
+  );
+};
+
+// HTTP statuses returned when a request's URL/headers are too large for the
+// browser or an upstream proxy. The response body is usually not a tRPC
+// envelope, so these are otherwise hard to diagnose.
+const REQUEST_TOO_LARGE_STATUSES = [414, 431];
+
+type SyntaxErrorWithResponseStatus = SyntaxError & { responseStatus?: number };
+
+/**
+ * `@trpc/client` (11.13.4) rejects with the bare `SyntaxError` when
+ * JSON-parsing a response body fails — the link only records the response
+ * meta (and so the HTTP status) for fulfilled requests. This fetch wrapper
+ * re-attaches the status to the parse `SyntaxError` so error classification
+ * can tell an app-owned 414/431 failure from transport garbage.
+ * Exported for tests.
+ */
+export const fetchWithParseErrorStatus: typeof fetch = async (input, init) => {
+  const response = await fetch(input, init);
+  const originalJson = response.json.bind(response);
+  response.json = async () => {
+    try {
+      return await originalJson();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        (error as SyntaxErrorWithResponseStatus).responseStatus =
+          response.status;
+      }
+      throw error;
+    }
+  };
+  return response;
+};
+
+/** HTTP status of a failed tRPC response: from the annotated parse error
+ * (`fetchWithParseErrorStatus`) or, when a link attached it, the response meta. */
+const getResponseStatus = (error: TRPCClientError<any>): number | undefined => {
+  const cause = getCause(error);
+  if (
+    cause instanceof SyntaxError &&
+    typeof (cause as SyntaxErrorWithResponseStatus).responseStatus === "number"
+  ) {
+    return (cause as SyntaxErrorWithResponseStatus).responseStatus;
+  }
+  return error.meta?.response instanceof Response
+    ? error.meta.response.status
+    : undefined;
+};
+
+/**
+ * True when `error` is a TRPCClientError caused by the tRPC client failing to
+ * JSON-parse the HTTP response body (a `SyntaxError` cause, e.g. "JSON.parse:
+ * unexpected character at line 1 column 1 of the JSON data" / "Unexpected end
+ * of JSON input").
+ *
+ * Our tRPC handler always returns JSON, so a non-JSON body means something
+ * between server and client replaced or truncated it (a proxy/LB error page,
+ * an interrupted connection, an intercepting proxy). That is transport state,
+ * not an app bug — the server owns the real signal. A parsed tRPC error
+ * envelope (`error.data`) means the server DID answer with a real error
+ * shape; those keep flowing to Sentry unchanged.
+ *
+ * Deliberately NOT matched: a parse failure on HTTP 414/431. That is the
+ * app-owned oversized-GET-URL bug class (see `sendAsPostOption`) and must
+ * keep capturing. Unknown status (no annotation, no meta) stays classified
+ * as transport — the live client drops the response meta on parse failures,
+ * which is why `fetchWithParseErrorStatus` exists.
+ */
+export const isTrpcResponseParseError = (error: unknown): boolean => {
+  if (!(error instanceof TRPCClientError)) return false;
+  if (error.data) return false;
+  if (!(getCause(error) instanceof SyntaxError)) return false;
+  const status = getResponseStatus(error);
+  return status === undefined || !REQUEST_TOO_LARGE_STATUSES.includes(status);
 };
 
 /**
@@ -174,10 +342,53 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
       }
     }
 
-    captureException(error);
+    if (isExpectedTrpcClientError(error)) {
+      // Expected, user-facing states (a missing/forbidden resource, an expired
+      // session) are the product working as designed — don't mint a Sentry
+      // issue for them. Leave a breadcrumb so the path + code stay in the trail
+      // of any real event captured later this session; the server owns the real
+      // authz/lookup-regression signal. See `isExpectedTrpcClientError`.
+      addBreadcrumb({
+        category: "trpc",
+        type: "http",
+        level: "info",
+        message: "Suppressed expected tRPC error (not sent to Sentry)",
+        data: {
+          code: getTrpcErrorCode(error),
+          path: getTrpcErrorPath(error),
+          httpStatus,
+        },
+      });
+    } else if (isTrpcResponseParseError(error)) {
+      // The response body was not JSON (proxy error page, truncated body) —
+      // transport state, not an app bug. Breadcrumb instead of capture; the
+      // toast below still renders. See `isTrpcResponseParseError`.
+      addBreadcrumb({
+        category: "trpc",
+        type: "http",
+        level: "warning",
+        message: "Suppressed tRPC response parse error (not sent to Sentry)",
+        data: {
+          message: error.message,
+          status: getResponseStatus(error),
+        },
+      });
+    } else {
+      // Real tRPC errors keep flowing to Sentry, tagged and fingerprinted by
+      // procedure/code so each failure class gets its own issue instead of
+      // collapsing into one opaque bucket (see getTrpcErrorFingerprint).
+      reportError(error, {
+        area: "trpc",
+        fingerprint: getTrpcErrorFingerprint(error),
+        tags: {
+          "trpc.code": getTrpcErrorCode(error),
+          "trpc.path": getTrpcErrorPath(error),
+        },
+      });
+    }
   } else {
-    // For non-TRPC errors, still send to Sentry
-    captureException(error);
+    // For non-TRPC errors, still send to Sentry (coerced to a real Error).
+    reportError(error, { area: "trpc" });
   }
 
   if (!shouldSilenceError && shouldShowToast(error)) {
@@ -185,22 +396,73 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
   }
 };
 
-// onError update build id to compare versions
+/**
+ * Error handler for `mutateAsync` catch blocks whose mutation KEEPS the
+ * react-query default `onError`: the seam (`handleTrpcError`) already
+ * classified, captured, and toasted the tRPC failure, so the catch only needs
+ * to swallow the rejection — a `console.error` there would mint a second,
+ * unclassified Sentry event via `captureConsoleIntegration`. Non-tRPC errors
+ * (thrown by the catch's own post-success work: callbacks, router.push, ...)
+ * were NOT seen by the seam and are reported with the caller's `area`.
+ */
+export const reportNonTrpcError = (
+  error: unknown,
+  area: string,
+  extra?: Record<string, unknown>,
+): void => {
+  if (error instanceof TRPCClientError) return;
+  reportError(error, { area, extra });
+};
+
+/**
+ * Error handler for `mutateAsync` catch blocks whose mutation defines a local
+ * `onError` (which REPLACES the react-query default): nothing classified or
+ * captured the failure, so route it through the seam here — with the standard
+ * error toast silenced, since the local `onError` owns the UX (form errors,
+ * custom toasts). Replaces the `console.error(error)` anti-pattern, which
+ * minted unclassified Sentry events via `captureConsoleIntegration`.
+ * Non-tRPC errors (thrown by the catch's own post-success work) were never a
+ * tRPC failure, so they are reported with the caller's `area` — mirroring
+ * `reportNonTrpcError` — instead of the seam's generic `trpc` area.
+ */
+export const reportTrpcErrorWithoutToast = (
+  error: unknown,
+  area: string,
+): void => {
+  if (error instanceof TRPCClientError) {
+    handleTrpcError(error, true);
+    return;
+  }
+  reportError(error, { area });
+};
+
+// Reads the `x-build-id` response header (the build id serving this response)
+// and records it: the module-level `buildId` still drives the legacy
+// stale-cache toast, and the version-update store drives the persistent reload
+// banner (see src/features/version-update). Called on EVERY response — success
+// and error — so a mismatch is detected on the first response after a deploy,
+// not only when a stale chunk 404s.
+const captureBuildId = (response: unknown) => {
+  if (!(response instanceof Response)) return;
+  const observed = response.headers.get("x-build-id");
+  if (!observed) return;
+  buildId = observed;
+  versionUpdateStore.reportObservedBuildId(observed);
+};
+
+// Track the build id serving tRPC responses to compare against the running one.
 const buildIdLink = (): TRPCLink<AppRouter> => () => {
   return ({ next, op }) => {
     return observable((observer) => {
       const unsubscribe = next(op).subscribe({
         next(value) {
+          captureBuildId(value.context?.response);
           observer.next(value);
         },
         error(err) {
-          if (
-            err.meta &&
-            err.meta.response &&
-            err.meta.response instanceof Response
-          ) {
-            buildId = err.meta.response.headers.get("x-build-id");
-          }
+          captureBuildId(
+            err.meta && err.meta.response ? err.meta.response : undefined,
+          );
           observer.error(err);
         },
         complete() {
@@ -211,11 +473,6 @@ const buildIdLink = (): TRPCLink<AppRouter> => () => {
     });
   };
 };
-
-// HTTP statuses returned when a request's URL/headers are too large for the
-// browser or an upstream proxy. The response body is usually not a tRPC
-// envelope, so these are otherwise hard to diagnose.
-const REQUEST_TOO_LARGE_STATUSES = [414, 431];
 
 // Logs request-size context to the console when a GET-routed query fails because
 // its URL was too large. tRPC serializes query input into the GET URL, so an
@@ -234,10 +491,9 @@ const requestTooLargeDiagnosticsLink = (): TRPCLink<AppRouter> => () => {
         error(err) {
           const sentAsGet =
             op.type === "query" && op.context.sendAsPost !== true;
-          const status =
-            err.meta?.response instanceof Response
-              ? err.meta.response.status
-              : undefined;
+          // Annotation-first (meta is dropped on JSON-parse failures — the
+          // common shape of a real 414/431, whose body is empty/HTML).
+          const status = getResponseStatus(err);
 
           if (
             sentAsGet &&
@@ -311,7 +567,7 @@ export const api = createTRPCNext<AppRouter>({
         requestTooLargeDiagnosticsLink(),
         loggerLink({
           // Only enable in development - production logs would be captured by Sentry
-          // in an unreadable format. We handle 5xx errors via captureException() in
+          // in an unreadable format. We handle 5xx errors via reportError in
           // handleTrpcError and use DataDog for additional server-side logging.
           enabled: () => process.env.NODE_ENV === "development",
         }),
@@ -334,10 +590,12 @@ export const api = createTRPCNext<AppRouter>({
               url: `${getBaseUrl()}/api/trpc`,
               transformer: superjson,
               methodOverride: "POST",
+              fetch: fetchWithParseErrorStatus,
             }),
             false: httpLink({
               url: `${getBaseUrl()}/api/trpc`,
               transformer: superjson,
+              fetch: fetchWithParseErrorStatus,
             }),
           }),
           // when condition is false, use batching
@@ -345,6 +603,7 @@ export const api = createTRPCNext<AppRouter>({
             url: `${getBaseUrl()}/api/trpc`,
             transformer: superjson,
             maxURLLength: 2083, // avoid too large batches
+            fetch: fetchWithParseErrorStatus,
           }),
         }),
       ],
@@ -396,7 +655,7 @@ export const directApi = createTRPCProxyClient<AppRouter>({
   links: [
     loggerLink({
       // Only enable in development - production logs would be captured by Sentry
-      // in an unreadable format. We handle 5xx errors via captureException() in
+      // in an unreadable format. We handle 5xx errors via reportError in
       // handleTrpcError and use DataDog for additional server-side logging.
       enabled: () => process.env.NODE_ENV === "development",
     }),

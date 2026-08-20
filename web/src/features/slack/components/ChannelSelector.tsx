@@ -16,7 +16,7 @@ import {
   CommandList,
 } from "@/src/components/ui/command";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
 import { type SlackChannel } from "@langfuse/shared/src/server";
 
@@ -90,9 +90,9 @@ const useSlackChannels = (projectId: string) => {
   useEffect(() => {
     if (error || !hasNextPage || isFetchingNextPage) return;
 
-    fetchNextPage().catch((error) => {
-      console.error("Failed to load next Slack channels page", error);
-    });
+    // Query failures are classified + captured by the QueryCache seam; only
+    // report non-tRPC failures of the fetch dispatch itself.
+    fetchNextPage().catch((error) => reportNonTrpcError(error, "slack"));
   }, [error, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   return {
@@ -402,7 +402,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
             Private channels are not visible. To access private channels,{" "}
             <button
               type="button"
-              className="font-medium underline"
+              className="font-bold underline"
               onClick={() =>
                 window.open(
                   `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${projectId}`,

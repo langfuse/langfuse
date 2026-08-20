@@ -34,6 +34,7 @@ import { PersonalNotificationSettings } from "@/src/features/notifications/compo
 import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
 import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 type ProjectSettingsPage = {
   title: string;
@@ -50,6 +51,7 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
+  const showV4Migration = useV4UpgradeUiFlag();
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -61,6 +63,7 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     showRetentionSettings,
     showLLMConnectionsSettings: true,
     showProtectedLabelsSettings,
+    showV4Migration,
   });
 }
 
@@ -71,6 +74,7 @@ export const getProjectSettingsPages = ({
   showRetentionSettings,
   showLLMConnectionsSettings,
   showProtectedLabelsSettings,
+  showV4Migration,
 }: {
   project: { id: string; name: string; metadata: Record<string, unknown> };
   organization: { id: string; name: string; metadata: Record<string, unknown> };
@@ -78,6 +82,7 @@ export const getProjectSettingsPages = ({
   showRetentionSettings: boolean;
   showLLMConnectionsSettings: boolean;
   showProtectedLabelsSettings: boolean;
+  showV4Migration: boolean;
 }): ProjectSettingsPage[] => [
   {
     title: "General",
@@ -260,6 +265,12 @@ export const getProjectSettingsPages = ({
     slug: "organization",
     href: `/organization/${organization.id}/settings`,
   },
+  {
+    title: "v4 Migration",
+    slug: "v4-migration",
+    href: "/v4-migration",
+    show: showV4Migration,
+  },
 ];
 
 export default function SettingsPage() {
@@ -349,7 +360,7 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <span className="font-semibold">Blob Storage</span>
+          <span className="font-bold">Blob Storage</span>
           <p className="text-primary mb-4 text-sm">
             Configure scheduled exports of your trace data to S3 compatible
             storages or Azure Blob Storage. Set up a scheduled export to your
@@ -378,7 +389,7 @@ const Integrations = (props: { projectId: string }) => {
         <Card className="p-3">
           <div className="mb-4 flex items-center gap-2">
             <SiSlack className="text-foreground h-5 w-5" />
-            <span className="font-semibold">Slack</span>
+            <span className="font-bold">Slack</span>
           </div>
           <p className="text-primary mb-4 text-sm">
             Connect a Slack workspace and create channel automations to receive

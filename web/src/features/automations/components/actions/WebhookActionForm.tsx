@@ -8,24 +8,17 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { X, Plus, RefreshCw, Lock, LockOpen } from "lucide-react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 import {
   type ActionDomain,
   type ActionDomainWithSecrets,
-  AvailableWebhookApiSchema,
   type SafeWebhookActionConfig,
   WebhookDefaultHeaders,
+  WebhookProtectedHeaders,
 } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { useState } from "react";
 import {
   Dialog,
@@ -52,8 +45,7 @@ export const webhookSchema = z.object({
       name: z.string().refine(
         (name) => {
           if (!name.trim()) return true; // Allow empty names (will be filtered out)
-          const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
-          return !defaultHeaderKeys.includes(name.trim().toLowerCase());
+          return !WebhookProtectedHeaders.includes(name.trim().toLowerCase());
         },
         {
           message:
@@ -66,7 +58,6 @@ export const webhookSchema = z.object({
       wasSecret: z.boolean(),
     }),
   ),
-  apiVersion: AvailableWebhookApiSchema,
 });
 
 export type WebhookFormValues = z.infer<typeof webhookSchema>;
@@ -93,13 +84,10 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
     name: "webhook.headers",
   });
 
-  // Get default header keys to filter them out
-  const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
-
-  // Filter out default headers from the user-editable headers
+  // Filter out headers managed by Langfuse from the user-editable headers
   const customHeaderFields = headerFields.filter((field, index) => {
     const headerName = form.watch(`webhook.headers.${index}.name`);
-    return !defaultHeaderKeys.includes(headerName?.toLowerCase());
+    return !WebhookProtectedHeaders.includes(headerName?.toLowerCase());
   });
 
   // Function to add a new header pair
@@ -140,35 +128,6 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
             <FormDescription>
               The HTTP URL to call when the trigger fires. We will send a POST
               request to this URL. Only HTTPS URLs are allowed for security.
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="webhook.apiVersion.prompt"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>API Version</FormLabel>
-            <Select
-              onValueChange={field.onChange}
-              value={field.value}
-              disabled={disabled}
-            >
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select API version" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                <SelectItem value="v1">v1</SelectItem>
-              </SelectContent>
-            </Select>
-            <FormDescription>
-              The API version to use for the webhook payload format when prompt
-              events are triggered.
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -386,7 +345,7 @@ export const RegenerateWebhookSecretButton = ({
       });
       setShowConfirmPopover(false);
     } catch (error) {
-      console.error("Failed to regenerate webhook secret:", error);
+      reportNonTrpcError(error, "automations");
     }
   };
 
@@ -407,7 +366,7 @@ export const RegenerateWebhookSecretButton = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent>
-          <h2 className="mb-3 font-semibold">Please confirm</h2>
+          <h2 className="mb-3 font-bold">Please confirm</h2>
           <p className="mb-3 max-w-sm text-sm">
             This action will invalidate the current webhook secret and generate
             a new one. Any existing integrations using the old secret will stop
@@ -479,12 +438,10 @@ export const formatWebhookHeaders = (
   }[],
 ): Record<string, { secret: boolean; value: string }> => {
   const requestHeaders: Record<string, { secret: boolean; value: string }> = {};
-  const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
-
   headers.forEach((header) => {
     if (header.name.trim()) {
-      // Exclude default headers - they will be added automatically by the API
-      if (!defaultHeaderKeys.includes(header.name.trim().toLowerCase())) {
+      // Exclude managed headers; they are added automatically by the API.
+      if (!WebhookProtectedHeaders.includes(header.name.trim().toLowerCase())) {
         requestHeaders[header.name.trim()] = {
           secret: header.isSecret || false,
           value: header.value.trim(),

@@ -91,6 +91,18 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
     expect(mockNextAuth).not.toHaveBeenCalled();
   });
 
+  it("rejects a callbackUrl containing decoded control characters", async () => {
+    const { res } = await callHandler({
+      query: {
+        nextauth: ["callback", "email"],
+        callbackUrl: "/project/test\r\nscanner-payload",
+      },
+    });
+
+    expect(res._getStatusCode()).toBe(400);
+    expect(mockNextAuth).not.toHaveBeenCalled();
+  });
+
   it("rejects an invalid callback-url cookie with 400", async () => {
     const { res } = await callHandler({
       cookies: { "next-auth.callback-url": "z`z'z\"${{%{{\\" },
@@ -177,6 +189,57 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
     });
 
     expect(res._getStatusCode()).toBe(400);
+    expect(mockNextAuth).not.toHaveBeenCalled();
+  });
+});
+
+describe("[...nextauth] credentials callback method guard", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects a GET to the credentials callback with 405 and an Allow: POST header", async () => {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      query: { nextauth: ["callback", "credentials"] },
+    });
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(405);
+    expect(res.getHeader("Allow")).toBe("POST");
+    expect(mockNextAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects a PUT to the credentials callback with 405", async () => {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "PUT",
+      query: { nextauth: ["callback", "credentials"] },
+    });
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(405);
+    expect(mockNextAuth).not.toHaveBeenCalled();
+  });
+
+  it("passes a POST to the credentials callback through to next-auth", async () => {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      query: { nextauth: ["callback", "credentials"] },
+    });
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(mockNextAuth).toHaveBeenCalledTimes(1);
+  });
+
+  it("still returns 200 for a HEAD to the credentials callback", async () => {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "HEAD",
+      query: { nextauth: ["callback", "credentials"] },
+    });
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
     expect(mockNextAuth).not.toHaveBeenCalled();
   });
 });

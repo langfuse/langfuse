@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import { normalizeEventsTraceName } from "../../eventsTable";
 import type { FilterCondition } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
 import { buildEventsStreamQuery } from "../queries";
@@ -44,6 +45,7 @@ export const getEventsStreamForEval = async (props: {
     trace_id: string;
     project_id: string;
     parent_observation_id: string | null;
+    is_app_root: boolean;
     type: string;
     name: string | null;
     environment: string | null;
@@ -99,6 +101,7 @@ export const getEventsStreamForEval = async (props: {
           ...row,
           span_id: row.id,
           parent_span_id: row.parent_observation_id,
+          trace_name: normalizeEventsTraceName(row.trace_name),
         };
       }
     })(),

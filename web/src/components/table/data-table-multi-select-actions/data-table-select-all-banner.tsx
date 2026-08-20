@@ -19,13 +19,13 @@ export function DataTableSelectAllBanner({
       {selectAll ? (
         <span className="text-sm">
           All{" "}
-          <span className="font-semibold">
+          <span className="font-bold">
             {exactCount === null ? "matching" : numberFormatter(exactCount, 0)}
           </span>{" "}
           items are selected.{" "}
           <Button
             variant="ghost"
-            className="text-accent-dark-blue hover:text-accent-dark-blue/80 h-auto p-0 font-semibold"
+            className="text-accent-dark-blue hover:text-accent-dark-blue/80 h-auto p-0 font-bold"
             onClick={() => {
               setSelectAll(false);
               setRowSelection({});
@@ -36,12 +36,11 @@ export function DataTableSelectAllBanner({
         </span>
       ) : (
         <span className="text-sm">
-          All{" "}
-          <span className="font-semibold">{numberFormatter(pageSize, 0)}</span>{" "}
+          All <span className="font-bold">{numberFormatter(pageSize, 0)}</span>{" "}
           items on this page are selected.{" "}
           <Button
             variant="ghost"
-            className="text-accent-dark-blue hover:text-accent-dark-blue/80 h-auto p-0 font-semibold"
+            className="text-accent-dark-blue hover:text-accent-dark-blue/80 h-auto p-0 font-bold"
             onClick={() => {
               setSelectAll(true);
             }}

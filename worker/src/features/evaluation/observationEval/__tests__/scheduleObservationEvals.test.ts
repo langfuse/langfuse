@@ -328,6 +328,33 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
     });
+
+    it("should deterministically create nested samples across configs", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation({ span_id: "obs-123" });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            id: "sampled-out-config",
+            sampling: { toNumber: () => 0.5 } as unknown as Prisma.Decimal,
+          }),
+          createMockConfig({
+            id: "sampled-in-config",
+            sampling: { toNumber: () => 0.7 } as unknown as Prisma.Decimal,
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ jobConfigurationId: "sampled-in-config" }),
+      );
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("job creation and enqueuing", () => {

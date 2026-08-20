@@ -1,6 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { AlertTriangle, X } from "lucide-react";
 
 interface ErrorNotificationProps {
@@ -21,6 +22,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   path,
 }) => {
   const { setOpen } = useSupportDrawer();
+  const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
   const capture = usePostHogClientCapture();
   const isError = type === "ERROR";
   const textColor = isError
@@ -41,7 +43,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
           <AlertTriangle size={20} className={textColor} />
-          <div className={`m-0 text-sm leading-tight font-medium ${textColor}`}>
+          <div className={`m-0 text-sm leading-tight font-bold ${textColor}`}>
             {error}
           </div>
         </div>
@@ -67,6 +69,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
                 toast_type: type,
                 path,
               });
+              setMigrationPanelOpen(false);
               setOpen(true);
             }}
           >

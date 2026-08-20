@@ -11,7 +11,7 @@ import {
   organizationRoleAccessRights,
   type OrganizationScope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
-import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import { projectRoleAccessRights } from "@langfuse/shared";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 
 const DEFAULT_STARTER_PROJECT_NAME = "My Project";

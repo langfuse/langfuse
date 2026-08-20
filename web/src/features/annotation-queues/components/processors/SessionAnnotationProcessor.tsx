@@ -10,7 +10,7 @@ import { asCommentCounts } from "@/src/components/session/sessionDetailPageTypes
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { CopyIdsPopover } from "@/src/components/trace/components/_shared/CopyIdsPopover";
+import { CopyIdsPopover } from "@/src/features/traces";
 import { Badge } from "@/src/components/ui/badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
@@ -124,7 +124,7 @@ export const SessionAnnotationProcessor: React.FC<
             <Link
               href={`/project/${projectId}/sessions/${encodeURIComponent(item.objectId)}`}
               target="_blank"
-              className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all hover:underline md:break-normal md:wrap-break-word"
+              className="mb-0 ml-1 line-clamp-2 min-w-0 font-bold break-all hover:underline md:break-normal md:wrap-break-word"
             >
               {item.objectId}
             </Link>

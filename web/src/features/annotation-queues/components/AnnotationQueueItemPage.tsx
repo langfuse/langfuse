@@ -37,8 +37,9 @@ import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
-import { ObjectNotFoundCard } from "@/src/components/ui/object-not-found-card";
+import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/object-not-found-card";
 import { useSession } from "next-auth/react";
+import { SplashScreen } from "@/src/components/ui/splash-screen";
 
 // A single row in the keyboard-shortcuts cheatsheet: label on the left, one or
 // more <KeyboardShortcut> glyphs (passed as children) on the right.
@@ -367,7 +368,12 @@ export const AnnotationQueueItemPage: React.FC<{
   }
 
   if (!relevantItem && !(itemId && seenItemIds.includes(itemId))) {
-    return <div>No more items left to annotate!</div>;
+    return (
+      <SplashScreen
+        title="All queue items processed"
+        description="There are no more items left to annotate."
+      />
+    );
   }
 
   const renderContent = () => {
@@ -543,7 +549,7 @@ export const AnnotationQueueItemPage: React.FC<{
                 </TooltipContent>
               </Tooltip>
             ) : (
-              <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-medium">
+              <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-bold">
                 Completed
               </div>
             ))}
@@ -559,7 +565,7 @@ export const AnnotationQueueItemPage: React.FC<{
           </DialogHeader>
           <DialogBody className="gap-4 py-3">
             <div>
-              <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+              <p className="text-muted-foreground mb-1 text-xs font-bold tracking-wide uppercase">
                 Navigate
               </p>
               <ShortcutRow label="Complete & go to next item">
@@ -573,7 +579,7 @@ export const AnnotationQueueItemPage: React.FC<{
               </ShortcutRow>
             </div>
             <div>
-              <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+              <p className="text-muted-foreground mb-1 text-xs font-bold tracking-wide uppercase">
                 Score the item
               </p>
               <ShortcutRow label="Move between score fields">

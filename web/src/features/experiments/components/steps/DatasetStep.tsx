@@ -147,7 +147,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                   </PopoverTrigger>
                   <PopoverContent className="w-80">
                     <div className="space-y-2">
-                      <h4 className="leading-none font-medium">
+                      <h4 className="leading-none font-bold">
                         Expected Dataset Structure
                       </h4>
                       <p className="text-muted-foreground text-sm">
@@ -155,13 +155,13 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                         {selectedPromptVersion}
                       </p>
                       <div className="space-y-1 pt-2">
-                        <p className="text-sm font-medium">Input variables:</p>
+                        <p className="text-sm font-bold">Input variables:</p>
                         <ul className="list-inside list-disc text-sm">
                           {expectedColumns.inputVariables.map((variable) => (
                             <li key={variable}>{variable}</li>
                           ))}
                         </ul>
-                        <p className="text-sm font-medium">Expected output:</p>
+                        <p className="text-sm font-bold">Expected output:</p>
                         <ul className="list-inside list-disc text-sm">
                           <li>
                             {expectedColumns.outputVariableName} (

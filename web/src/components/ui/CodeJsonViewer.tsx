@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -20,7 +21,7 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
-import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import {
   renderRichPromptContent,
@@ -100,7 +101,7 @@ export function JSONView(props: {
     <>
       <div
         className={cn(
-          "io-message-content flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
+          "io-message-content ph-no-capture flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
           props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green/30"
@@ -122,7 +123,7 @@ export function JSONView(props: {
           </code>
         ) : (
           <div
-            className="max-w-full min-w-0 flex-1 overflow-hidden"
+            className="max-w-full min-w-0 flex-1"
             onClick={() => {
               // If externally collapsed and user clicks to expand, sync the state
               if (props.externalJsonCollapsed && props.onToggleCollapse) {
@@ -153,7 +154,7 @@ export function JSONView(props: {
               customizeNode={({ node }) => {
                 const descriptor = classifyMediaValue(node);
                 return descriptor ? (
-                  <JsonMediaTag descriptor={descriptor} />
+                  <MediaReferenceTag descriptor={descriptor} />
                 ) : undefined;
               }}
               customizeCopy={(node) => stringifyJsonNode(node)}
@@ -167,7 +168,7 @@ export function JSONView(props: {
           <div className="text-muted-foreground my-1 px-0 py-1 text-xs">
             Media
           </div>
-          <div className="flex flex-wrap gap-2 pt-1 pb-4">
+          <div className="ph-no-capture flex flex-wrap gap-2 pt-1 pb-4">
             {props.media.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
@@ -298,7 +299,7 @@ export function CodeView(props: {
       <>
         {props.title ? (
           <div className="my-1 flex shrink-0 items-center justify-between pl-1">
-            <div className="text-sm font-medium">{props.title}</div>
+            <div className="text-sm font-bold">{props.title}</div>
             <Button
               variant="ghost"
               size="icon-xs"
@@ -328,7 +329,7 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs",
+            "ph-no-capture relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs",
             !props.title && !lineWrap ? "w-[calc(100%-2.5rem)] pr-12" : "",
             lineWrap
               ? "wrap-break-word whitespace-pre-wrap"

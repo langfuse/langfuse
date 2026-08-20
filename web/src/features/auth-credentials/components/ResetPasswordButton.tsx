@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -68,6 +69,8 @@ export function RequestResetPasswordEmailButton({
         : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
       const callback = encodeURIComponent(targetCb);
       const url = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
+      // Existing hard navigation is accepted during the Next.js 16.3 migration.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = url;
     } catch (error) {
       console.error("Error verifying code:", error);
@@ -81,7 +84,7 @@ export function RequestResetPasswordEmailButton({
     <>
       {isEmailSent ? (
         <div>
-          <label htmlFor="otp-code" className="mb-2 block text-sm font-medium">
+          <label htmlFor="otp-code" className="mb-2 block text-sm font-bold">
             Check your inbox for the code
           </label>
           <Input

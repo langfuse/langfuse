@@ -4,9 +4,11 @@ import { sessionCols } from "../tableMappings/mapSessionTable";
 import { FilterState } from "../../types";
 import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  type PreferredClickhouseService,
+} from "../clickhouse/client";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
-import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
 import {
   getProjectIdDefaultFilter,
@@ -92,6 +94,7 @@ export const getSessionsWithMetrics = async (props: {
   limit?: number;
   page?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const rows = await getSessionsTableGeneric<SessionWithMetricsReturnType>({
     select: "metrics",
@@ -101,6 +104,7 @@ export const getSessionsWithMetrics = async (props: {
     limit: props.limit,
     page: props.page,
     clickhouseConfigs: props.clickhouseConfigs,
+    preferredClickhouseService: props.preferredClickhouseService,
   });
 
   return rows.map((row) => ({
@@ -120,11 +124,20 @@ export type FetchSessionsTableProps = {
   page?: number;
   tags?: Record<string, string>;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
-  const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
-    props;
+  const {
+    select,
+    projectId,
+    filter,
+    orderBy,
+    limit,
+    page,
+    clickhouseConfigs,
+    preferredClickhouseService,
+  } = props;
 
   let sqlSelect: string;
   switch (select) {
@@ -379,34 +392,30 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
         `;
 
-  return measureAndReturn({
-    operationName: "getSessionsTableGeneric",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        limit: limit,
-        offset: limit && page ? limit * page : 0,
-        ...tracesFilterRes.params,
-        ...singleTraceFilter?.params,
-        ...scoresFilterRes.params,
-        ...(traceTimestampFilter
-          ? {
-              observationsStartTime: convertDateToClickhouseDateTime(
-                traceTimestampFilter.value,
-              ),
-            }
-          : {}),
-      },
-      tags: { ...(props.tags ?? {}), projectId },
+  const input = {
+    params: {
+      projectId,
+      limit: limit,
+      offset: limit && page ? limit * page : 0,
+      ...tracesFilterRes.params,
+      ...singleTraceFilter?.params,
+      ...scoresFilterRes.params,
+      ...(traceTimestampFilter
+        ? {
+            observationsStartTime: convertDateToClickhouseDateTime(
+              traceTimestampFilter.value,
+            ),
+          }
+        : {}),
     },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs,
-      });
-    },
+    tags: { ...(props.tags ?? {}), projectId },
+  };
+
+  return queryClickhouse<T>({
+    query: query.replace("__TRACE_TABLE__", "traces"),
+    params: input.params,
+    tags: input.tags,
+    clickhouseConfigs,
+    preferredClickhouseService,
   });
 };

@@ -177,7 +177,7 @@ export default function NewEvaluatorPage() {
               className={cn(
                 step !== "select"
                   ? "text-muted-foreground"
-                  : "text-foreground font-semibold",
+                  : "text-foreground font-bold",
               )}
             >
               1. Select Evaluator
@@ -191,7 +191,7 @@ export default function NewEvaluatorPage() {
             <BreadcrumbPage
               className={cn(
                 isProviderStepActive
-                  ? "text-foreground font-semibold"
+                  ? "text-foreground font-bold"
                   : "text-muted-foreground",
               )}
             >
@@ -207,7 +207,7 @@ export default function NewEvaluatorPage() {
               className={cn(
                 step !== "run"
                   ? "text-muted-foreground"
-                  : "text-foreground font-semibold",
+                  : "text-foreground font-bold",
               )}
             >
               <div className="flex flex-row">

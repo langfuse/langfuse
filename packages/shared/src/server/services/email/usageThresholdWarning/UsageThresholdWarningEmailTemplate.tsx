@@ -162,5 +162,3 @@ export const UsageThresholdWarningEmailTemplate = ({
     </Html>
   );
 };
-
-export default UsageThresholdWarningEmailTemplate;

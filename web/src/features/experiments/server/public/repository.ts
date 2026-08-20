@@ -5,7 +5,6 @@ import {
   FilterList,
   ExperimentsAggregationQueryBuilder,
   buildEventsFullTableSplitQuery,
-  measureAndReturn,
   parseClickhouseUTCDateTimeFormat,
   publicApiExperimentItemColumnDefinitions,
   publicApiExperimentItemColumnMappings,
@@ -319,26 +318,22 @@ async function queryExperimentSummaryRowsForPublicApi(
 
   const { query, params: queryParams } = aggregationBuilder.buildWithParams();
 
-  const rows = await measureAndReturn({
-    operationName: "queryExperimentSummaryRowsForPublicApi",
-    projectId: params.projectId,
-    input: {
-      params: queryParams,
-      tags: {
-        feature: "experiments",
-        type: "events",
-        kind: "publicApi",
-        projectId: params.projectId,
-        operation_name: "queryExperimentSummaryRowsForPublicApi",
-      },
+  const input = {
+    params: queryParams,
+    tags: {
+      feature: "experiments",
+      type: "events",
+      kind: "publicApi",
+      projectId: params.projectId,
+      operation_name: "queryExperimentSummaryRowsForPublicApi",
     },
-    fn: async (input) =>
-      await queryClickhouse<ExperimentSummaryRow>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      }),
+  };
+
+  const rows = await queryClickhouse<ExperimentSummaryRow>({
+    query,
+    params: input.params,
+    tags: input.tags,
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows;
@@ -444,26 +439,22 @@ async function queryExperimentItemRowsForPublicApi(
 
   const { query, params: queryParams } = builder.buildWithParams();
 
-  const rows = await measureAndReturn({
-    operationName: "queryExperimentItemRowsForPublicApi",
-    projectId: params.projectId,
-    input: {
-      params: queryParams,
-      tags: {
-        feature: "experiments",
-        type: "events",
-        kind: "publicApi",
-        projectId: params.projectId,
-        operation_name: "queryExperimentItemRowsForPublicApi",
-      },
+  const input = {
+    params: queryParams,
+    tags: {
+      feature: "experiments",
+      type: "events",
+      kind: "publicApi",
+      projectId: params.projectId,
+      operation_name: "queryExperimentItemRowsForPublicApi",
     },
-    fn: async (input) =>
-      await queryClickhouse<ExperimentItemRow>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      }),
+  };
+
+  const rows = await queryClickhouse<ExperimentItemRow>({
+    query,
+    params: input.params,
+    tags: input.tags,
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows;

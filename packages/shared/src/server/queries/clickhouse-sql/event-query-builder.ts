@@ -1,7 +1,12 @@
 import {
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
-  ObservationFieldGroupPublicApi,
+  type ObservationFieldGroupPublicApi,
 } from "../../../domain/observation-field-groups";
+import {
+  eventsTableIsRootObservationSql,
+  eventsTableTraceNameAggregationSql,
+  eventsTableTraceNameSelectSql,
+} from "../../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
@@ -117,6 +122,8 @@ const EVENTS_FIELDS = {
   environment: 'e.environment as "environment"',
   type: "e.type as type",
   parentObservationId: 'e.parent_span_id as "parent_observation_id"',
+  isRootObservation: `toBool(${eventsTableIsRootObservationSql}) as "is_root_observation"`,
+  isAppRoot: 'e.is_app_root as "is_app_root"',
   name: "e.name as name",
   level: "e.level as level",
   statusMessage: 'e.status_message as "status_message"',
@@ -125,7 +132,8 @@ const EVENTS_FIELDS = {
   public: "e.public as public",
   userId: 'e.user_id as "user_id"',
   sessionId: 'e.session_id as "session_id"',
-  traceName: 'e.trace_name as "trace_name"',
+  // String-typed on purpose; see eventsTableTraceNameSelectSql (LFE-14924).
+  traceName: `${eventsTableTraceNameSelectSql} as "trace_name"`,
 
   // Time fields
   startTime: 'e.start_time as "start_time"',
@@ -380,6 +388,7 @@ const FIELD_SETS = {
     "public",
     "userId",
     "sessionId",
+    "isRootObservation",
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],
@@ -440,6 +449,7 @@ const FIELD_SETS = {
     "traceId",
     "projectId",
     "parentObservationId",
+    "isAppRoot",
     "type",
     "name",
     "environment",
@@ -516,7 +526,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   projectId: "project_id",
 
   // Aggregated fields
-  name: "argMaxIf(trace_name, event_ts, trace_name <> '') AS name",
+  name: `${eventsTableTraceNameAggregationSql} AS name`,
   timestamp: "min(start_time) as timestamp",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
@@ -536,6 +546,8 @@ const EVENTS_AGGREGATION_FIELDS = {
     "date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds",
   observation_ids:
     "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
+  observation_count:
+    "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
 
   bookmarked:
     "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",
@@ -770,6 +782,19 @@ abstract class AbstractQueryBuilder {
 abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   protected ctes: string[] = [];
   protected joins: string[] = [];
+  protected sampleRowCount: number | null = null;
+
+  /** sampleRows caps the base table read at `rows` events via ClickHouse SAMPLE. */
+  sampleRows(rows: number): this {
+    if (rows > 0) {
+      this.sampleRowCount = Math.floor(rows);
+    }
+    return this;
+  }
+
+  protected buildSampleSection(): string {
+    return this.sampleRowCount === null ? "" : ` SAMPLE ${this.sampleRowCount}`;
+  }
 
   /**
    * Add a CTE (Common Table Expression) to the query
@@ -936,7 +961,7 @@ abstract class BaseEventsQueryBuilder<
 
     // FROM - choose table based on data requirements
     const tableName = this.getTableName();
-    parts.push(`FROM ${tableName} e`);
+    parts.push(`FROM ${tableName} e${this.buildSampleSection()}`);
 
     // JOINs
     const joinSection = this.buildJoinSection();
@@ -1855,7 +1880,7 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
     parts.push(`SELECT ${this.selectExpression}`);
 
     // FROM - use events_core for reads (lightweight table with truncated I/O)
-    parts.push("FROM events_core e");
+    parts.push(`FROM events_core e${this.buildSampleSection()}`);
 
     // JOINs
     const joinSection = this.buildJoinSection();

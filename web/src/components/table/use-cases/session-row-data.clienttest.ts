@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { joinSessionCoreAndMetrics } from "@/src/components/table/use-cases/session-row-data";
 
 describe("joinSessionCoreAndMetrics", () => {
@@ -10,7 +12,6 @@ describe("joinSessionCoreAndMetrics", () => {
         {
           id: "session-1",
           createdAt: filteredCreatedAt,
-          bookmarked: false,
           public: false,
           userIds: ["filtered-user"],
           countTraces: 1,
@@ -22,7 +23,6 @@ describe("joinSessionCoreAndMetrics", () => {
         {
           id: "session-1",
           createdAt: allTimeCreatedAt,
-          bookmarked: true,
           public: true,
           userIds: ["all-time-user"],
           countTraces: 5,
@@ -38,7 +38,6 @@ describe("joinSessionCoreAndMetrics", () => {
     expect(result.rows).toHaveLength(1);
     expect(result.rows?.[0]).toMatchObject({
       id: "session-1",
-      bookmarked: false,
       public: false,
       userIds: ["filtered-user"],
       countTraces: 1,

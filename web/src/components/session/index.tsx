@@ -1,8 +1,8 @@
+import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
-import { StarSessionToggle } from "@/src/components/star-toggle";
-import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
+import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -18,7 +18,15 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
-import { CheckIcon, CopyIcon, Download, ExternalLinkIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronDown,
+  ChevronUp,
+  CopyIcon,
+  Download,
+  ExternalLinkIcon,
+  MoreVertical,
+} from "lucide-react";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
@@ -34,6 +42,7 @@ import {
   type FilterState,
   type ScoreDomain,
   TableViewPresetTableName,
+  normalizeLegacySessionPositionInTraceFilters,
 } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { WebCalloutButton } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
@@ -47,7 +56,6 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { normalizeLegacySessionPositionInTraceFilters } from "@/src/components/session/session-position-in-trace";
 import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
@@ -76,6 +84,14 @@ import { downloadSessionAsJson } from "@/src/components/session/actions/download
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
+import { ModernSession } from "@/src/components/session/ModernSession";
+import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
+import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
+import { ModernSessionHeaderActionsController } from "@/src/components/session/ModernSessionHeaderActionsController";
+import { ModernSessionFilterControls } from "@/src/components/session/ModernSessionFilterControls";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsMobile } from "@/src/hooks/use-mobile";
+import { useStore } from "zustand";
 import { useHistoryEntryRevisit } from "@/src/components/session/useHistoryEntryRevisit";
 import {
   areDetailPageListsEqual,
@@ -88,10 +104,12 @@ import {
   type LegacySessionTrace,
 } from "@/src/components/session/sessionDetailPageTypes";
 import { getSessionFilterOptionsStartTimeFilters } from "@/src/components/session/sessionFilterOptions";
+import {
+  INITIAL_SESSION_USERS_DISPLAY_COUNT,
+  SESSION_USERS_PER_PAGE,
+} from "@/src/components/session/sessionUsers";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
-const INITIAL_USERS_DISPLAY_COUNT = 10;
-const USERS_PER_PAGE_IN_POPOVER = 50;
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.
 const SESSION_VIRTUALIZER_OVERSCAN = 5;
 
@@ -106,8 +124,8 @@ export function SessionUsers({
 
   if (!users) return null;
 
-  const initialUsers = users?.slice(0, INITIAL_USERS_DISPLAY_COUNT);
-  const remainingUsers = users?.slice(INITIAL_USERS_DISPLAY_COUNT);
+  const initialUsers = users?.slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT);
+  const remainingUsers = users?.slice(INITIAL_SESSION_USERS_DISPLAY_COUNT);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -144,8 +162,8 @@ export function SessionUsers({
               <div className="flex flex-col gap-2 p-2">
                 {remainingUsers
                   .slice(
-                    page * USERS_PER_PAGE_IN_POPOVER,
-                    (page + 1) * USERS_PER_PAGE_IN_POPOVER,
+                    page * SESSION_USERS_PER_PAGE,
+                    (page + 1) * SESSION_USERS_PER_PAGE,
                   )
                   .map((userId: string) => {
                     const userBadgeText = `User ID: ${userId}`;
@@ -169,7 +187,7 @@ export function SessionUsers({
                   })}
               </div>
             </ScrollArea>
-            {remainingUsers.length > USERS_PER_PAGE_IN_POPOVER && (
+            {remainingUsers.length > SESSION_USERS_PER_PAGE && (
               <div className="flex items-center justify-between border-t p-2 pt-4">
                 <Button
                   variant="outline"
@@ -181,15 +199,14 @@ export function SessionUsers({
                 </Button>
                 <span className="text-muted-foreground text-sm">
                   Page {page + 1} of{" "}
-                  {Math.ceil(remainingUsers.length / USERS_PER_PAGE_IN_POPOVER)}
+                  {Math.ceil(remainingUsers.length / SESSION_USERS_PER_PAGE)}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={
-                    (page + 1) * USERS_PER_PAGE_IN_POPOVER >=
-                    remainingUsers.length
+                    (page + 1) * SESSION_USERS_PER_PAGE >= remainingUsers.length
                   }
                 >
                   Next
@@ -203,6 +220,69 @@ export function SessionUsers({
   );
 }
 
+/**
+ * SessionControlsBar — the session's sticky metadata/controls bar (LLM-call
+ * preset, Saved Views, "Filter observations", trace/cost/user/score stats).
+ *
+ * Desktop (>=768px): renders the always-visible bar exactly as before — the
+ * caller passes the original `desktopClassName`, so the DOM is byte-identical.
+ *
+ * Mobile: that bar wraps into a tall block which, stacked under the page title
+ * and action row, leaves the virtualized trace feed only a sliver of the
+ * viewport. Here it collapses into a default-closed accordion: a sticky summary
+ * header the user taps to reveal the full bar, mirroring the trace view's
+ * mobile NavigationPanel (plain `useState` + a click handler, no effects).
+ */
+const SessionControlsBar = ({
+  isMobile,
+  summary,
+  desktopClassName,
+  children,
+}: {
+  isMobile: boolean;
+  summary: React.ReactNode;
+  desktopClassName: string;
+  children: React.ReactNode;
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!isMobile) {
+    return <div className={desktopClassName}>{children}</div>;
+  }
+
+  return (
+    <div className="bg-background sticky top-0 z-40 flex shrink-0 flex-col border-b">
+      <Button
+        variant="ghost"
+        className="flex w-full justify-between gap-2 rounded-none px-4 py-3 text-left"
+        aria-expanded={isExpanded}
+        onClick={() => setIsExpanded((prev) => !prev)}
+      >
+        <span className="flex min-w-0 items-center gap-2">{summary}</span>
+        {isExpanded ? (
+          <ChevronUp className="h-4 w-4 shrink-0" />
+        ) : (
+          <ChevronDown className="h-4 w-4 shrink-0" />
+        )}
+      </Button>
+      {/* Keep children MOUNTED when collapsed (hidden, not unmounted): the
+          TableViewPresetsDrawer trigger (#session-detail-view-trigger) lives in
+          here, and the per-trace "Switch the view" link clicks it by id — it
+          must be in the DOM before the accordion is ever expanded. `hidden`
+          (display:none) still takes no layout space, so the content keeps the
+          reclaimed viewport. */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2 border-t p-4",
+          !isExpanded && "hidden",
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
 const SessionScores = ({
   scores,
 }: {
@@ -214,11 +294,39 @@ const SessionScores = ({
     </div>
   );
 };
+
 const CopySessionIdButton: React.FC<{
   sessionId: string;
-}> = ({ sessionId }) => {
+  /** "menu" renders a full-width labeled row for the mobile ⋯ overflow;
+   *  default "toolbar" keeps the inline icon-only button. */
+  layout?: "toolbar" | "menu";
+}> = ({ sessionId, layout = "toolbar" }) => {
   const capture = usePostHogClientCapture();
   const { copy, isCopied } = useCopyToClipboard();
+  const isMenu = layout === "menu";
+  const onCopy = async () => {
+    capture("session_detail:copy_session_id_click");
+    await copy(sessionId);
+  };
+
+  if (isMenu) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label="Copy session ID"
+        className="w-full justify-start gap-2 font-normal"
+        onClick={onCopy}
+      >
+        {isCopied ? (
+          <CheckIcon className="text-muted-green h-4 w-4" />
+        ) : (
+          <CopyIcon className="h-4 w-4" />
+        )}
+        <span className="text-sm">Copy session ID</span>
+      </Button>
+    );
+  }
 
   return (
     <Button
@@ -226,10 +334,7 @@ const CopySessionIdButton: React.FC<{
       size="icon-xs"
       title="Copy session ID"
       aria-label="Copy session ID"
-      onClick={async () => {
-        capture("session_detail:copy_session_id_click");
-        await copy(sessionId);
-      }}
+      onClick={onCopy}
     >
       {isCopied ? (
         <CheckIcon className="text-muted-green h-4 w-4" />
@@ -249,6 +354,7 @@ export const SessionPage: React.FC<{
   const userSession = useSession();
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
   const session = api.sessions.byIdWithScores.useQuery(
     {
@@ -317,8 +423,12 @@ export const SessionPage: React.FC<{
     () => ({
       expandConfig: {
         basePath: `/project/${projectId}/traces`,
+        pathParam: "traceId",
+        reader: "trace" as const,
       },
-      queryParams: ["observation", "display", "timestamp"],
+      // traceId: not written here, but cleared so a v4-dialect shared URL
+      // cannot pin the trace peek (LFE-11041).
+      queryParams: ["observation", "display", "timestamp", "traceId"],
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
       }),
@@ -395,13 +505,6 @@ export const SessionPage: React.FC<{
           ],
           actionButtonsLeft: (
             <div className="flex items-center gap-0">
-              <StarSessionToggle
-                key="star"
-                projectId={projectId}
-                sessionId={sessionId}
-                value={session.data?.bookmarked ?? false}
-                size="icon-xs"
-              />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
@@ -414,16 +517,6 @@ export const SessionPage: React.FC<{
           ),
           actionButtonsRight: (
             <>
-              {!router.query.peek && (
-                <DetailPageNav
-                  key="nav"
-                  currentId={encodeURIComponent(sessionId)}
-                  path={(entry) =>
-                    `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
-                  }
-                  listKey="sessions"
-                />
-              )}
               <WebCalloutButton
                 projectId={projectId}
                 traceId={null}
@@ -438,6 +531,16 @@ export const SessionPage: React.FC<{
               >
                 <Download className="h-4 w-4" />
               </Button>
+              {!router.query.peek && (
+                <DetailPageNav
+                  key="nav"
+                  currentId={encodeURIComponent(sessionId)}
+                  path={(entry) =>
+                    `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                  }
+                  listKey="sessions"
+                />
+              )}
               <CommentDrawerButton
                 key="comment"
                 variant="outline"
@@ -481,10 +584,95 @@ export const SessionPage: React.FC<{
               </div>
             </>
           ),
+          // Mobile compact header: the same session actions as full-width
+          // labeled menu rows for the `⋯` overflow popover, instead of the
+          // inline icon toolbar. Session-to-session nav stays desktop-only.
+          actionButtonsMenu: (
+            <>
+              <PublishSessionSwitch
+                projectId={projectId}
+                sessionId={sessionId}
+                isPublic={session.data?.public ?? false}
+                label="Share"
+              />
+              <CopySessionIdButton sessionId={sessionId} layout="menu" />
+              <CommentDrawerButton
+                variant="outline"
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
+                layout="menu"
+              />
+              <AnnotateDrawer
+                projectId={projectId}
+                scoreTarget={{
+                  type: "session",
+                  sessionId,
+                }}
+                scores={session.data?.scores ?? []}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.data?.environment,
+                }}
+                buttonVariant="outline"
+                layout="menu"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                variant="outline"
+                layout="menu"
+              />
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+                layout="menu"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDownloadSessionAsJson}
+                className="w-full justify-start gap-2 font-normal"
+              >
+                <Download className="h-4 w-4" />
+                <span className="text-sm">Download JSON</span>
+              </Button>
+              <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                <span className="text-sm">Show corrections</span>
+                <Switch
+                  checked={showCorrections}
+                  onCheckedChange={setShowCorrectionsForSession}
+                  size="sm"
+                />
+              </label>
+            </>
+          ),
         }}
       >
         <div className="flex h-full flex-col overflow-auto">
-          <div className="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4">
+          <SessionControlsBar
+            isMobile={isMobile}
+            desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4"
+            summary={
+              <>
+                <span className="text-sm font-bold">Session controls</span>
+                <span
+                  className="text-muted-foreground min-w-0 truncate text-xs"
+                  title={`${session.data?.traces.length ?? 0} traces · ${usdFormatter(
+                    session.data?.totalCost ?? 0,
+                    2,
+                  )}`}
+                >
+                  {session.data?.traces.length ?? 0} traces ·{" "}
+                  {usdFormatter(session.data?.totalCost ?? 0, 2)}
+                </span>
+              </>
+            }
+          >
             {session.data?.users?.length ? (
               <SessionUsers projectId={projectId} users={session.data.users} />
             ) : null}
@@ -497,7 +685,7 @@ export const SessionPage: React.FC<{
               </Badge>
             )}
             <SessionScores scores={session.data?.scores ?? []} />
-          </div>
+          </SessionControlsBar>
           <div ref={parentRef} className="flex-1 overflow-auto p-4">
             <div
               style={{
@@ -641,13 +829,13 @@ const LoadedSessionEventsPage: React.FC<{
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
+  const capture = usePostHogClientCapture();
+  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+    enableForAdmins: false,
+  });
+  const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
-  const defaultPresetAppliedRef = useRef(false);
-
-  // Reset default preset flag when session changes (e.g., navigating between sessions)
-  useEffect(() => {
-    defaultPresetAppliedRef.current = false;
-  }, [sessionId]);
+  const defaultPresetResolvedSessionRef = useRef<string | null>(null);
 
   const [showCorrections, setShowCorrections] = useLocalStorage(
     "showCorrections",
@@ -658,6 +846,14 @@ const LoadedSessionEventsPage: React.FC<{
       initialSessionId: sessionId,
       initialShowCorrections: showCorrections,
     }),
+  );
+  const showInlineToolCalls = useStore(
+    sessionDetailStore,
+    (state) => state.showInlineToolCalls,
+  );
+  const showSystemPrompt = useStore(
+    sessionDetailStore,
+    (state) => state.showSystemPrompt,
   );
 
   useEffect(() => {
@@ -677,6 +873,19 @@ const LoadedSessionEventsPage: React.FC<{
     },
     [sessionDetailStore, setShowCorrections],
   );
+
+  const setInlineToolCallsForSession = (isEnabled: boolean) => {
+    capture("session_detail:inline_tools_toggled", { isEnabled, isV4: true });
+    sessionDetailStore.getState().actions.setShowInlineToolCalls(isEnabled);
+  };
+
+  const setShowSystemPromptForSession = (isEnabled: boolean) => {
+    capture("session_detail:system_prompt_toggled", {
+      isEnabled,
+      isV4: true,
+    });
+    sessionDetailStore.getState().actions.setShowSystemPrompt(isEnabled);
+  };
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
@@ -700,8 +909,12 @@ const LoadedSessionEventsPage: React.FC<{
     () => ({
       expandConfig: {
         basePath: `/project/${projectId}/traces`,
+        pathParam: "traceId",
+        reader: "trace" as const,
       },
-      queryParams: ["observation", "display", "timestamp"],
+      // traceId: not written here, but cleared so a v4-dialect shared URL
+      // cannot pin the trace peek (LFE-11041).
+      queryParams: ["observation", "display", "timestamp", "traceId"],
       // observationId: set by a card's "Open in trace view" on a truncated
       // observation so the peek opens AT that observation (LFE-10958).
       extractParamsValuesFromRow: (row: any) => ({
@@ -774,7 +987,7 @@ const LoadedSessionEventsPage: React.FC<{
 
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
-    oldFilterState: timeFiltersForOptions,
+    startTimeFilter: timeFiltersForOptions,
   });
   const typedFilterOptions = filterOptions as EventFilterOptions;
 
@@ -999,7 +1212,7 @@ const LoadedSessionEventsPage: React.FC<{
   // useRef initializer wouldn't re-run, leaving a stale viewId that blocks the
   // default-view effect on the new session. Re-read the URL during render (not
   // an effect, which would race the view manager's strip on reload) whenever the
-  // sessionId changes, mirroring the defaultPresetAppliedRef reset above.
+  // sessionId changes, mirroring the per-session default-preset decision above.
   const initialViewIdSessionRef = useRef(sessionId);
   if (initialViewIdSessionRef.current !== sessionId) {
     initialViewIdSessionRef.current = sessionId;
@@ -1022,6 +1235,49 @@ const LoadedSessionEventsPage: React.FC<{
       ? filterMatchedView
       : null;
   const viewLabel = matchedView?.name ?? null;
+  const hasSessionControls =
+    !isModernSessionEnabled ||
+    Boolean(session.users?.length || session.scores.length);
+  const excludeObservationsByName = useCallback(
+    (name: string) => {
+      const existingFilter = queryFilter.filterState.find(
+        (
+          filter,
+        ): filter is Extract<FilterState[number], { type: "stringOptions" }> =>
+          filter.column === "name" &&
+          filter.type === "stringOptions" &&
+          filter.operator === "none of",
+      );
+      if (existingFilter?.value.includes(name)) return;
+
+      const nextFilters = existingFilter
+        ? queryFilter.filterState.map((filter) =>
+            filter === existingFilter
+              ? { ...existingFilter, value: [...existingFilter.value, name] }
+              : filter,
+          )
+        : queryFilter.filterState.concat({
+            column: "name",
+            type: "stringOptions",
+            operator: "none of",
+            value: [name],
+          });
+
+      queryFilter.setFilterState(nextFilters);
+      capture("filters:applied", {
+        surface: "filter_builder",
+        tableName: "session-detail",
+        column: "name",
+        filterType: "stringOptions",
+        operator: "none of",
+        valueCount: 1,
+        conditionCount: nextFilters.length,
+        columnConditionCount: 1,
+        isV4: true,
+      });
+    },
+    [capture, queryFilter],
+  );
 
   // Recover the system-preset viewId the view manager strips from the URL on
   // reload/shared-link (frontend presets aren't backend-fetchable). Idempotent
@@ -1054,7 +1310,11 @@ const LoadedSessionEventsPage: React.FC<{
   // prev/next session navigation re-decides, mirroring initialViewIdRef.
   const arrivedOnVisitedHistoryEntry = useHistoryEntryRevisit(sessionId);
 
-  // Fresh load with nothing in the URL → apply the default view. Skipped on
+  // On each session's first resolved view state, apply the default view when
+  // nothing else is selected. The decision is consumed even when existing
+  // filters make us skip it, so clearing those filters later remains a user
+  // clear action instead of unexpectedly applying the default preset.
+  // Skipped on
   // reload/shared-link (a viewId was in the URL) so the recovery effect above,
   // not the default, decides the view — otherwise "All observations" would be
   // silently replaced by the default on every reload. Also skipped when the
@@ -1063,8 +1323,9 @@ const LoadedSessionEventsPage: React.FC<{
   // default would overwrite what the user deliberately left there
   // (LFE-10715).
   useEffect(() => {
-    if (defaultPresetAppliedRef.current) return;
+    if (defaultPresetResolvedSessionRef.current === sessionId) return;
     if (isViewLoading) return; // Wait for view manager to initialize
+    defaultPresetResolvedSessionRef.current = sessionId;
     if (selectedViewId) return;
     if (initialViewIdRef.current) return;
     if (arrivedOnVisitedHistoryEntry) return;
@@ -1073,13 +1334,13 @@ const LoadedSessionEventsPage: React.FC<{
       hasFilters: visibleFilterState.length > 0,
     });
     if (!presetToApply) return;
-    defaultPresetAppliedRef.current = true;
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
     arrivedOnVisitedHistoryEntry,
     isViewLoading,
     selectedViewId,
+    sessionId,
     visibleFilterState,
   ]);
 
@@ -1104,15 +1365,8 @@ const LoadedSessionEventsPage: React.FC<{
               href: `/project/${projectId}/sessions`,
             },
           ],
-          actionButtonsLeft: (
+          actionButtonsLeft: !isModernSessionEnabled ? (
             <div className="flex items-center gap-0">
-              <StarSessionToggle
-                key="star"
-                projectId={projectId}
-                sessionId={sessionId}
-                value={session.bookmarked}
-                size="icon-xs"
-              />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
@@ -1122,9 +1376,15 @@ const LoadedSessionEventsPage: React.FC<{
               />
               <CopySessionIdButton key="copy-id" sessionId={sessionId} />
             </div>
-          ),
+          ) : undefined,
           actionButtonsRight: (
             <>
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+              />
               {!router.query.peek && (
                 <DetailPageNav
                   key="nav"
@@ -1135,12 +1395,6 @@ const LoadedSessionEventsPage: React.FC<{
                   listKey="sessions"
                 />
               )}
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-              />
               <CommentDrawerButton
                 key="comment"
                 variant="outline"
@@ -1162,6 +1416,7 @@ const LoadedSessionEventsPage: React.FC<{
                     environment: session.environment,
                   }}
                   buttonVariant="outline"
+                  showAnnotationCount={isModernSessionEnabled}
                 />
                 <CreateNewAnnotationQueueItem
                   projectId={projectId}
@@ -1170,112 +1425,293 @@ const LoadedSessionEventsPage: React.FC<{
                   variant="outline"
                 />
               </div>
-              <div className="flex items-center">
-                <div className="mx-1">
+              {!isModernSessionEnabled ? (
+                <label className="flex items-center gap-1.5">
                   <Switch
                     checked={showCorrections}
                     onCheckedChange={setShowCorrectionsForSession}
                     size="sm"
                   />
-                </div>
-                <span className="text-muted-foreground text-xs">
-                  Show corrections
-                </span>
-              </div>
+                  <span className="text-muted-foreground text-xs">
+                    Show corrections
+                  </span>
+                </label>
+              ) : (
+                <ModernSessionHeaderActionsController
+                  projectId={projectId}
+                  sessionId={sessionId}
+                  isPublic={session.public}
+                  showCorrections={showCorrections}
+                  showInlineToolCalls={showInlineToolCalls}
+                  showSystemPrompt={showSystemPrompt}
+                  onShowCorrectionsChange={setShowCorrectionsForSession}
+                  onShowInlineToolCallsChange={setInlineToolCallsForSession}
+                  onShowSystemPromptChange={setShowSystemPromptForSession}
+                >
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="Session actions"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </ModernSessionHeaderActionsController>
+              )}
+            </>
+          ),
+          // Mobile compact header: the same session actions as full-width
+          // labeled menu rows for the `⋯` overflow popover, instead of the
+          // inline icon toolbar. Session-to-session nav stays desktop-only.
+          actionButtonsMenu: (
+            <>
+              <PublishSessionSwitch
+                projectId={projectId}
+                sessionId={sessionId}
+                isPublic={session.public}
+                label="Share"
+              />
+              <CopySessionIdButton sessionId={sessionId} layout="menu" />
+              <CommentDrawerButton
+                variant="outline"
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
+                layout="menu"
+              />
+              <AnnotateDrawer
+                projectId={projectId}
+                scoreTarget={{
+                  type: "session",
+                  sessionId,
+                }}
+                scores={session.scores}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.environment,
+                }}
+                buttonVariant="outline"
+                layout="menu"
+                showAnnotationCount={isModernSessionEnabled}
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                variant="outline"
+                layout="menu"
+              />
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+                layout="menu"
+              />
+              {!isModernSessionEnabled ? (
+                <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                  <span className="text-sm">Show corrections</span>
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </label>
+              ) : null}
             </>
           ),
         }}
       >
-        <div className="flex h-full flex-col overflow-auto">
-          <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">
-            {/* Saved Views */}
-            <TableViewPresetsDrawer
-              viewConfig={{
-                tableName: TableViewPresetTableName.SessionDetail,
-                projectId,
-                controllers: viewControllers,
-              }}
-              currentState={{
+        <div
+          className={
+            isModernSessionEnabled
+              ? "flex h-full min-h-0 flex-col overflow-hidden"
+              : "flex h-full flex-col overflow-auto"
+          }
+        >
+          {isModernSessionEnabled ? (
+            <ModernSessionHeader
+              projectId={projectId}
+              countTraces={session.countTraces}
+              traces={
+                isTracesSuccess
+                  ? { state: "loaded", data: traces ?? [] }
+                  : { state: "loading" }
+              }
+              tokensIn={session.inputUsage}
+              tokensOut={session.outputUsage}
+              totalTokens={session.totalTokens}
+              totalCost={session.totalCost ?? 0}
+              environment={session.environment ?? null}
+              users={session.users ?? []}
+              scores={session.scores}
+            />
+          ) : null}
+          {!isModernSessionEnabled && hasSessionControls ? (
+            <SessionControlsBar
+              isMobile={isMobile && !isModernSessionEnabled}
+              desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
+              summary={
+                <>
+                  <span className="text-sm font-bold">Session controls</span>
+                  <span
+                    className="text-muted-foreground min-w-0 truncate text-xs"
+                    title={`${session.countTraces} traces · ${usdFormatter(
+                      session.totalCost ?? 0,
+                      2,
+                    )}`}
+                  >
+                    {session.countTraces} traces ·{" "}
+                    {usdFormatter(session.totalCost ?? 0, 2)}
+                  </span>
+                </>
+              }
+            >
+              {/* Saved Views */}
+              {!isModernSessionEnabled ? (
+                <TableViewPresetsDrawer
+                  viewConfig={{
+                    tableName: TableViewPresetTableName.SessionDetail,
+                    projectId,
+                    controllers: viewControllers,
+                  }}
+                  currentState={{
+                    orderBy: null,
+                    filters: queryFilter.filterState,
+                    columnOrder,
+                    columnVisibility,
+                    searchQuery: "",
+                  }}
+                  systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+                  triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
+                />
+              ) : null}
+
+              {/* Refines the selected view by filtering observations within each
+                trace (it does not filter the list of traces) — labelled to say
+                so (LFE-10520). */}
+              {!isModernSessionEnabled ? (
+                <PopoverFilterBuilder
+                  columns={filterColumns}
+                  filterState={visibleFilterState}
+                  onChange={queryFilter.setFilterState}
+                  columnsWithCustomSelect={filterColumnsWithCustomSelect}
+                  label="Filter observations"
+                  // Analytics (LFE-10781): session-detail observation refinement is a
+                  // v3/legacy surface (the v4 events table filters via the grammar bar).
+                  tableName="session-detail"
+                  isV4={false}
+                />
+              ) : null}
+
+              {/* Separator */}
+              {!isModernSessionEnabled ? (
+                <Separator orientation="vertical" className="h-6" />
+              ) : null}
+
+              {/* Stats stay in the toolbar for the existing card layout. Modern
+                Session shows trace count and cost in its minimap header. */}
+              {!isModernSessionEnabled ? (
+                <>
+                  <Badge variant="outline">
+                    Total traces: {session.countTraces}
+                  </Badge>
+                  <Badge variant="outline">
+                    Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
+                  </Badge>
+                </>
+              ) : null}
+
+              {/* Users */}
+              {session.users?.length ? (
+                <SessionUsers projectId={projectId} users={session.users} />
+              ) : null}
+
+              {/* Scores */}
+              <SessionScores scores={session.scores} />
+            </SessionControlsBar>
+          ) : null}
+          {!isModernSessionEnabled ? (
+            <div ref={parentRef} className="flex-1 overflow-auto p-4">
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {virtualItems.map((virtualItem) => {
+                  const trace = traces?.[virtualItem.index];
+                  if (!trace) return null;
+
+                  return (
+                    <SessionVirtualizedRow
+                      key={virtualItem.key}
+                      itemKey={String(virtualItem.key)}
+                      measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
+                      source="events"
+                      virtualItem={virtualItem}
+                      virtualizer={virtualizer}
+                    >
+                      <LazySessionTraceEventsRow
+                        trace={trace}
+                        projectId={projectId}
+                        sessionId={sessionId}
+                        openPeek={openPeek}
+                        traceCommentCounts={asCommentCounts(
+                          traceCommentCounts.data,
+                        )}
+                        index={virtualItem.index}
+                        filterState={visibleFilterState}
+                        viewLabel={viewLabel}
+                      />
+                    </SessionVirtualizedRow>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <ModernSessionFilterControls
+              projectId={projectId}
+              filterState={visibleFilterState}
+              filterColumns={filterColumns}
+              filterColumnsWithCustomSelect={filterColumnsWithCustomSelect}
+              onChange={queryFilter.setFilterState}
+              viewControllers={viewControllers}
+              currentViewState={{
                 orderBy: null,
                 filters: queryFilter.filterState,
                 columnOrder,
                 columnVisibility,
                 searchQuery: "",
               }}
-              systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
-              triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
-            />
-
-            {/* Refines the selected view by filtering observations within each
-                trace (it does not filter the list of traces) — labelled to say
-                so (LFE-10520). */}
-            <PopoverFilterBuilder
-              columns={filterColumns}
-              filterState={visibleFilterState}
-              onChange={queryFilter.setFilterState}
-              columnsWithCustomSelect={filterColumnsWithCustomSelect}
-              label="Filter observations"
-              // Analytics (LFE-10781): session-detail observation refinement is a
-              // v3/legacy surface (the v4 events table filters via the grammar bar).
-              tableName="session-detail"
-              isV4={false}
-            />
-
-            {/* Separator */}
-            <Separator orientation="vertical" className="h-6" />
-
-            {/* Stats */}
-            <Badge variant="outline">Total traces: {session.countTraces}</Badge>
-            <Badge variant="outline">
-              Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
-            </Badge>
-
-            {/* Users */}
-            {session.users?.length ? (
-              <SessionUsers projectId={projectId} users={session.users} />
-            ) : null}
-
-            {/* Scores */}
-            <SessionScores scores={session.scores} />
-          </div>
-          <div ref={parentRef} className="flex-1 overflow-auto p-4">
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: "100%",
-                position: "relative",
-              }}
             >
-              {virtualItems.map((virtualItem) => {
-                const trace = traces?.[virtualItem.index];
-                if (!trace) return null;
-
-                return (
-                  <SessionVirtualizedRow
-                    key={virtualItem.key}
-                    itemKey={String(virtualItem.key)}
-                    measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
-                    source="events"
-                    virtualItem={virtualItem}
-                    virtualizer={virtualizer}
-                  >
-                    <LazySessionTraceEventsRow
-                      trace={trace}
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      openPeek={openPeek}
-                      traceCommentCounts={asCommentCounts(
-                        traceCommentCounts.data,
-                      )}
-                      index={virtualItem.index}
-                      filterState={visibleFilterState}
-                      viewLabel={viewLabel}
-                    />
-                  </SessionVirtualizedRow>
-                );
-              })}
-            </div>
-          </div>
+              {(sidebarFilterControls) => (
+                <ModernSession
+                  tracesState={
+                    isTracesSuccess
+                      ? { type: "loaded", traces: traces ?? [] }
+                      : { type: "loading" }
+                  }
+                  projectId={projectId}
+                  sessionId={sessionId}
+                  sessionMinTimestamp={session.minTimestamp}
+                  sessionMaxTimestamp={session.maxTimestamp}
+                  openPeek={openPeek}
+                  traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
+                  filterState={visibleFilterState}
+                  filterMeasurementKey={visibleFilterMeasurementKey}
+                  viewLabel={viewLabel}
+                  showInlineToolCalls={showInlineToolCalls}
+                  showSystemPrompt={showSystemPrompt}
+                  sidebarFilterControls={sidebarFilterControls}
+                  onExcludeObservation={excludeObservationsByName}
+                />
+              )}
+            </ModernSessionFilterControls>
+          )}
         </div>
         <TablePeekViewTraceDetail
           itemType="TRACE"
