@@ -10,7 +10,7 @@ import {
 } from "@/src/features/evals/v2/scoreOutputDefaults";
 
 // A blank input means "no bound". Anything else is handed to the schema as-is
-// (NaN included) so an unparseable entry fails validation instead of silently
+// (NaN included) so an unparsable entry fails validation instead of silently
 // dropping the bound the user typed.
 function parseNumericBound(key: "minValue" | "maxValue", raw: string) {
   return raw.trim() ? { [key]: Number(raw) } : {};

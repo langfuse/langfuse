@@ -124,6 +124,7 @@ export const Expanded = meta.story({
 });
 
 export const Recommended = meta.story({
+  name: "(Test) Recommended",
   args: {
     section: recommendedSection,
     expanded: false,
@@ -152,6 +153,7 @@ export const Recommended = meta.story({
 });
 
 export const Safety = meta.story({
+  name: "(Test) Safety",
   args: {
     section: safetySection,
     expanded: false,

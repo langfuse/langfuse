@@ -1,4 +1,4 @@
-import { EvalTemplateType } from "@langfuse/shared";
+import { type EvalTemplateType, EvalTemplateTypeEnum } from "@langfuse/shared";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 
 export function formatEvaluatorCostCalculation({
@@ -14,7 +14,7 @@ export function formatEvaluatorCostCalculation({
   estimatedCostUsd: number | null;
   evaluatorType: EvalTemplateType;
 }) {
-  if (evaluatorType === EvalTemplateType.CODE) {
+  if (evaluatorType === EvalTemplateTypeEnum.CODE) {
     return "Code evaluators do not call an LLM, so they do not incur model-provider / LLM costs.";
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EvalTemplateType } from "@langfuse/shared";
+import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
 import { formatEvaluatorCostCalculation } from "./formatEvaluatorCostCalculation";
 
@@ -11,7 +11,7 @@ describe("formatEvaluatorCostCalculation", () => {
         sampling: 0.4,
         testRunCostUsd: 0.001,
         estimatedCostUsd: 0.736,
-        evaluatorType: EvalTemplateType.LLM_AS_JUDGE,
+        evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
       }),
     ).toBe(
       "1,840 matching observations × 40% sampling × $0.001 per evaluation = ≈ $0.74 / week. Estimated model-provider / LLM cost only.",
@@ -25,7 +25,7 @@ describe("formatEvaluatorCostCalculation", () => {
         sampling: 0.25,
         testRunCostUsd: null,
         estimatedCostUsd: null,
-        evaluatorType: EvalTemplateType.LLM_AS_JUDGE,
+        evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
       }),
     ).toBe(
       "The evaluator test call did not return a usable model cost, so the weekly estimate is unavailable. Estimated model-provider / LLM cost only.",
@@ -39,7 +39,7 @@ describe("formatEvaluatorCostCalculation", () => {
         sampling: 1,
         testRunCostUsd: null,
         estimatedCostUsd: 0,
-        evaluatorType: EvalTemplateType.LLM_AS_JUDGE,
+        evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
       }),
     ).toBe(
       "0 matching observations × 100% sampling = ≈ $0.00 / week. Estimated model-provider / LLM cost only.",
@@ -53,7 +53,7 @@ describe("formatEvaluatorCostCalculation", () => {
         sampling: 0.25,
         testRunCostUsd: 0,
         estimatedCostUsd: 0,
-        evaluatorType: EvalTemplateType.CODE,
+        evaluatorType: EvalTemplateTypeEnum.CODE,
       }),
     ).toBe(
       "Code evaluators do not call an LLM, so they do not incur model-provider / LLM costs.",

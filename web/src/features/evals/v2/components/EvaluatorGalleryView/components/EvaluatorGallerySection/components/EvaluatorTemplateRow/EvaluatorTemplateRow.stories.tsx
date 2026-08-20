@@ -31,17 +31,6 @@ const managedTemplate = {
 
 const meta = preview.meta({ component: EvaluatorTemplateRow });
 
-export const Managed = meta.story({
-  args: {
-    template: managedTemplate,
-    onSelect: fn(),
-  },
-  play: async ({ canvas }) => {
-    await expect(canvas.getByText("Answer relevance")).toBeInTheDocument();
-    await expect(canvas.queryByText("NUMERIC")).not.toBeInTheDocument();
-  },
-});
-
 export const CustomCodeEvaluator = meta.story({
   args: {
     template: {
@@ -56,5 +45,17 @@ export const CustomCodeEvaluator = meta.story({
       createdByUser: { name: "Ada Lovelace", email: "ada@example.com" },
     },
     onSelect: fn(),
+  },
+});
+
+export const Managed = meta.story({
+  name: "(Test) Managed",
+  args: {
+    template: managedTemplate,
+    onSelect: fn(),
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Answer relevance")).toBeInTheDocument();
+    await expect(canvas.queryByText("NUMERIC")).not.toBeInTheDocument();
   },
 });

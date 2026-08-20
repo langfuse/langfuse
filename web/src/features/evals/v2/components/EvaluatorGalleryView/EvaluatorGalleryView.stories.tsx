@@ -219,6 +219,7 @@ export const Loading = meta.story({
 });
 
 export const EmptySearch = meta.story({
+  name: "(Test) Empty search",
   args: {
     ...defaultArgs,
     search: "does not exist",

@@ -1,4 +1,4 @@
-import { EvalTemplateType } from "@langfuse/shared";
+import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
 import { RuleEvaluatorCostEstimate } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorCostEstimate";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -37,7 +37,7 @@ export function ActivationCostEstimateView({
             <RuleEvaluatorCostEstimate
               estimate={{
                 ...estimate,
-                evaluatorType: EvalTemplateType.LLM_AS_JUDGE,
+                evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
               }}
             />
           </li>
