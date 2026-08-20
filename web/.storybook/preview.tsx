@@ -174,8 +174,24 @@ export default definePreview({
       container: ThemedDocsContainer,
     },
     options: {
-      storySort: {
-        order: ["Design", "Playground"],
+      storySort: (a, b) => {
+        const sectionOrder = ["Design", "Playground"];
+        const aSectionIndex = sectionOrder.indexOf(a.title.split("/")[0] ?? "");
+        const bSectionIndex = sectionOrder.indexOf(b.title.split("/")[0] ?? "");
+        const sectionDifference =
+          (aSectionIndex === -1 ? sectionOrder.length : aSectionIndex) -
+          (bSectionIndex === -1 ? sectionOrder.length : bSectionIndex);
+        if (sectionDifference !== 0) return sectionDifference;
+
+        // Returning 0 preserves Storybook's existing stable order. Only
+        // partition test stories when both entries belong to the same component.
+        if (a.title !== b.title) return 0;
+
+        const aIsTest = a.name.startsWith("(Test)");
+        const bIsTest = b.name.startsWith("(Test)");
+        if (aIsTest !== bIsTest) return aIsTest ? 1 : -1;
+
+        return 0;
       },
     },
   },

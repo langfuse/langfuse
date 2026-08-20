@@ -164,6 +164,7 @@ export const LatestLaunchWeek = meta.story({
 });
 
 export const GitHubStar = meta.story({
+  name: "(Test) GitHub star",
   args: {
     v4UpgradeUiEnabled: false,
     notificationState: {
