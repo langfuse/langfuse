@@ -637,6 +637,34 @@ export const FeedbackPopoverInteraction = meta.story({
   },
 });
 
+export const OptimisticFeedbackInteraction = meta.story({
+  name: "(Test) Optimistic Feedback",
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "Langfuse tracks traces, observations, scores, and metadata so teams can debug LLM applications.",
+    },
+    onSubmitFeedback: fn(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 1_000)),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const goodResponseButton = await canvas.findByRole("button", {
+      name: "Good response",
+    });
+
+    await userEvent.click(goodResponseButton);
+
+    expect(goodResponseButton).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      body.findByPlaceholderText("Optional feedback comment"),
+    ).resolves.toBeInTheDocument();
+  },
+});
+
 export const CopyMessageInteraction = meta.story({
   name: "(Test) Copy Whole Message",
   args: {

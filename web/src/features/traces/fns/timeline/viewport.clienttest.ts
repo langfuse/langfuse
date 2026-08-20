@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { traceSpaceOf } from "./viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
+  anchorTimeToRows,
   MAX_ROW_HEIGHT,
   MIN_ROW_HEIGHT,
   clampViewport,
@@ -9,18 +10,21 @@ import {
   focusViewport,
   isViewportFitted,
   panViewport,
+  revealViewport,
   rowHeightOf,
   viewportsEqual,
   interpolateViewport,
   visibleRowRange,
+  zoomToBox,
   zoomViewport,
   type Viewport,
 } from "./viewport";
 
-// 600px of rows over a 24s trace, one row per span.
+// 600px of rows over a 24s trace, one row per span. More spans than the box has
+// pixels, so the floor and the panning both get exercised.
 const limits = {
   traceSpace: traceSpaceOf(24_000),
-  rowCount: 500,
+  rowCount: 2_000,
   boxHeight: 600,
 };
 const BOX_WIDTH = 340;
@@ -28,14 +32,14 @@ const BOX_WIDTH = 340;
 describe("viewport", () => {
   it("fits to the densest row window the height allows", () => {
     const fitted = fitViewport(limits);
-    // 600px at the 4px floor shows 150 of the 500 rows; the rest is panned to.
+    // 600px at the 1px floor shows 600 of the 2000 rows; the rest is panned to.
     expect(fitted.rows.count).toBe(limits.boxHeight / MIN_ROW_HEIGHT);
     expect(fitted.rows.start).toBe(0);
     expect(rowHeightOf(fitted, limits.boxHeight)).toBe(MIN_ROW_HEIGHT);
     expect(fitted.time).toEqual(limits.traceSpace);
     expect(isViewportFitted(fitted, limits)).toBe(true);
 
-    // A trace that fits entirely shows every row and still floors at 4px.
+    // A trace that fits entirely shows every row, floor or no floor.
     const forty = { ...limits, rowCount: 40 };
     expect(fitViewport(forty).rows.count).toBe(40);
     expect(rowHeightOf(fitViewport(forty), 600)).toBe(15);
@@ -73,8 +77,8 @@ describe("viewport", () => {
     expect(zoomed.time.duration).toBeCloseTo(12_000, 6);
     expect(zoomed.time.start).toBeCloseTo(6_000, 6);
     // ...and so does the row window, so the rows get twice as tall.
-    expect(zoomed.rows.count).toBeCloseTo(75, 6);
-    expect(rowHeightOf(zoomed, limits.boxHeight)).toBeCloseTo(8, 6);
+    expect(zoomed.rows.count).toBeCloseTo(300, 6);
+    expect(rowHeightOf(zoomed, limits.boxHeight)).toBeCloseTo(2, 6);
     expect(isViewportFitted(zoomed, limits)).toBe(false);
 
     // The row under the anchor stays under the anchor.
@@ -177,7 +181,7 @@ describe("viewport", () => {
 
     // Focusing the last row keeps the window inside the content.
     const last = focusViewport(limits, {
-      rowIndex: 499,
+      rowIndex: limits.rowCount - 1,
       startMs: 23_000,
       durationMs: 100,
     });
@@ -186,9 +190,165 @@ describe("viewport", () => {
     );
   });
 
+  it("slides the clock to the rows when a zoom lands on empty air", () => {
+    // The rows of this trace all live in its first third — a chain that finishes
+    // early inside a trace whose duration one long root sets.
+    const extentOf = (rowIndex: number) => ({
+      startMs: rowIndex * 4,
+      endMs: rowIndex * 4 + 3,
+    });
+    const zoomed = zoomViewport(fitViewport(limits), limits, {
+      factor: 4,
+      xRatio: 0.5,
+      yRatio: 0,
+    });
+    // Rows 0-150ish, in a window centred on the middle of the trace: carets only.
+    expect(zoomed.time.start).toBeGreaterThan(600 * 4);
+
+    const anchored = anchorTimeToRows(zoomed, limits, extentOf);
+    expect(anchored.time.duration).toBeCloseTo(zoomed.time.duration, 6);
+    expect(anchored.rows).toEqual(zoomed.rows);
+    // The window now covers the rows on screen.
+    const range = visibleRowRange(anchored, limits.rowCount, 0);
+    const first = extentOf(range.startIndex);
+    const last = extentOf(range.endIndex);
+    expect(anchored.time.start).toBeLessThanOrEqual(last.endMs);
+    expect(anchored.time.start + anchored.time.duration).toBeGreaterThanOrEqual(
+      first.startMs,
+    );
+
+    // Idempotent, and a no-op whenever there is anything to look at — it must
+    // never move the ground under someone reading a span.
+    expect(
+      viewportsEqual(anchorTimeToRows(anchored, limits, extentOf), anchored),
+    ).toBe(true);
+    expect(anchorTimeToRows(fitViewport(limits), limits, extentOf)).toEqual(
+      fitViewport(limits),
+    );
+    // No extents at all (an empty or unknown trace) leaves it untouched.
+    expect(anchorTimeToRows(zoomed, limits, () => null)).toEqual(zoomed);
+  });
+
+  it("zooms to a drawn box on both axes", () => {
+    const fitted = fitViewport(limits);
+    // The right half of the width, the second quarter of the height.
+    const boxed = zoomToBox(fitted, limits, {
+      xStartRatio: 0.5,
+      xEndRatio: 1,
+      yStartRatio: 0.25,
+      yEndRatio: 0.5,
+    });
+    expect(boxed.time.start).toBeCloseTo(12_000, 6);
+    expect(boxed.time.duration).toBeCloseTo(12_000, 6);
+    expect(boxed.rows.start).toBeCloseTo(150, 6);
+    expect(boxed.rows.count).toBeCloseTo(150, 6);
+
+    // Drawn right-to-left and bottom-to-top is the same box.
+    expect(
+      zoomToBox(fitted, limits, {
+        xStartRatio: 1,
+        xEndRatio: 0.5,
+        yStartRatio: 0.5,
+        yEndRatio: 0.25,
+      }),
+    ).toEqual(boxed);
+
+    // A flat box keeps that axis rather than asking for an infinite zoom.
+    const flat = zoomToBox(fitted, limits, {
+      xStartRatio: 0.5,
+      xEndRatio: 0.5,
+      yStartRatio: 0.25,
+      yEndRatio: 0.5,
+    });
+    expect(flat.time.duration).toBeCloseTo(fitted.time.duration, 6);
+    expect(flat.rows.count).toBeCloseTo(150, 6);
+
+    // And a pinhole box still cannot take the rows past the height ceiling.
+    const tiny = zoomToBox(fitted, limits, {
+      xStartRatio: 0.5,
+      xEndRatio: 0.5001,
+      yStartRatio: 0.5,
+      yEndRatio: 0.5001,
+    });
+    expect(rowHeightOf(tiny, limits.boxHeight)).toBeCloseTo(MAX_ROW_HEIGHT, 6);
+    expect(Number.isFinite(tiny.time.start)).toBe(true);
+
+    for (const degenerate of [
+      { xStartRatio: NaN, xEndRatio: NaN, yStartRatio: NaN, yEndRatio: NaN },
+      { xStartRatio: -3, xEndRatio: 9, yStartRatio: -1, yEndRatio: 4 },
+    ]) {
+      const result = zoomToBox(fitted, limits, degenerate);
+      expect(Number.isFinite(result.time.start)).toBe(true);
+      expect(Number.isFinite(result.rows.count)).toBe(true);
+    }
+  });
+
+  it("reveals a row without changing the zoom", () => {
+    const zoomed = zoomViewport(fitViewport(limits), limits, {
+      factor: 16,
+      xRatio: 0,
+      yRatio: 0,
+    });
+    expect(zoomed.rows.start).toBe(0);
+
+    // A selection from the tree, a search or a deep link lands on row 900 —
+    // nowhere near the window — and it has to become visible.
+    const revealed = revealViewport(zoomed, limits, {
+      rowIndex: 900,
+      startMs: 18_000,
+      endMs: 18_100,
+    });
+    expect(revealed.rows.start).toBeLessThanOrEqual(900);
+    expect(revealed.rows.start + revealed.rows.count).toBeGreaterThan(900);
+    expect(revealed.time.start).toBeLessThanOrEqual(18_000);
+    expect(revealed.time.start + revealed.time.duration).toBeGreaterThanOrEqual(
+      18_100,
+    );
+    // But NOT by zooming: how far in you are looking is the user's business.
+    expect(revealed.rows.count).toBeCloseTo(zoomed.rows.count, 6);
+    expect(revealed.time.duration).toBeCloseTo(zoomed.time.duration, 6);
+
+    // A row already comfortably inside the window is left exactly alone, which
+    // is what keeps a click on a visible row from moving the ground under it.
+    const inside = revealViewport(revealed, limits, {
+      rowIndex: Math.round(revealed.rows.start + revealed.rows.count / 2),
+      startMs: revealed.time.start + revealed.time.duration / 2,
+      endMs: revealed.time.start + revealed.time.duration / 2 + 1,
+    });
+    expect(viewportsEqual(inside, revealed)).toBe(true);
+
+    // A span wider than the window cannot be contained, so it is centred.
+    const wide = revealViewport(zoomed, limits, {
+      rowIndex: 10,
+      startMs: 0,
+      endMs: 24_000,
+    });
+    expect(wide.time.start + wide.time.duration / 2).toBeCloseTo(12_000, 6);
+
+    for (const viewport of [
+      revealViewport(zoomed, limits, {
+        rowIndex: NaN,
+        startMs: NaN,
+        endMs: NaN,
+      }),
+      revealViewport(
+        zoomed,
+        { ...limits, rowCount: 0 },
+        {
+          rowIndex: 5,
+          startMs: 0,
+          endMs: 1,
+        },
+      ),
+    ]) {
+      expect(Number.isFinite(viewport.rows.start)).toBe(true);
+      expect(Number.isFinite(viewport.time.start)).toBe(true);
+    }
+  });
+
   it("windows the rows it renders", () => {
     const zoomed = zoomViewport(fitViewport(limits), limits, {
-      factor: 8,
+      factor: 64,
       xRatio: 0.5,
       yRatio: 0.5,
     });

@@ -61,6 +61,11 @@ export enum InAppAgentRunErrorCode {
   APPROVAL_SUPERSEDED = "approval_superseded",
   /** Pending approval cancelled by the user (recorded on CANCELLED). */
   APPROVAL_CANCELLED = "approval_cancelled",
+  /**
+   * Loop hit maxSteps without a `stop` finish — the run completed the
+   * configured wall but did not produce a final answer.
+   */
+  STEP_LIMIT = "step_limit",
 }
 
 /**

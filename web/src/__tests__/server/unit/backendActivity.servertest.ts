@@ -45,7 +45,7 @@ const createTracker = (
 };
 
 describe("backend activity tracking", () => {
-  it("captures a project-scoped activity event once per UTC day", async () => {
+  it("captures a project-scoped activity event once per UTC hour", async () => {
     const { capture, setIfAbsent, tracker } = createTracker();
 
     await tracker({
@@ -61,8 +61,8 @@ describe("backend activity tracking", () => {
 
     expect(setIfAbsent).toHaveBeenCalledOnce();
     expect(setIfAbsent).toHaveBeenCalledWith(
-      "langfuse:backend-activity:2026-08-10:user-1:project:project-1",
-      172_800,
+      "langfuse:backend-activity:v2:2026-08-10T12:user-1:project:project-1",
+      3_600,
     );
     expect(capture).toHaveBeenCalledOnce();
     expect(capture).toHaveBeenCalledWith({
@@ -73,6 +73,7 @@ describe("backend activity tracking", () => {
         cloudRegion: "US",
         organizationId: "org-1",
         projectId: "project-1",
+        userId: "user-1",
       },
       timestamp: new Date("2026-08-10T12:00:00.000Z"),
       disableGeoip: true,
@@ -97,6 +98,7 @@ describe("backend activity tracking", () => {
           activityScope: "organization",
           cloudRegion: "US",
           organizationId: "org-1",
+          userId: "user-1",
         },
       }),
     );
@@ -108,13 +110,14 @@ describe("backend activity tracking", () => {
           cloudRegion: "US",
           organizationId: "org-1",
           projectId: "project-1",
+          userId: "user-1",
         },
       }),
     );
   });
 
-  it("captures the same project again on the next UTC day", async () => {
-    let now = new Date("2026-08-10T23:59:59.000Z");
+  it("captures the same project again in the next UTC hour", async () => {
+    let now = new Date("2026-08-10T12:59:59.000Z");
     const capture = vi.fn();
     const setIfAbsent = vi.fn().mockResolvedValue(true);
     const tracker = createBackendActivityTracker({
@@ -129,7 +132,7 @@ describe("backend activity tracking", () => {
       organizationId: "org-1",
       projectId: "project-1",
     });
-    now = new Date("2026-08-11T00:00:01.000Z");
+    now = new Date("2026-08-10T13:00:01.000Z");
     await tracker({
       userId: "user-1",
       organizationId: "org-1",
@@ -139,13 +142,13 @@ describe("backend activity tracking", () => {
     expect(setIfAbsent).toHaveBeenCalledTimes(2);
     expect(setIfAbsent).toHaveBeenNthCalledWith(
       1,
-      "langfuse:backend-activity:2026-08-10:user-1:project:project-1",
-      172_800,
+      "langfuse:backend-activity:v2:2026-08-10T12:user-1:project:project-1",
+      3_600,
     );
     expect(setIfAbsent).toHaveBeenNthCalledWith(
       2,
-      "langfuse:backend-activity:2026-08-11:user-1:project:project-1",
-      172_800,
+      "langfuse:backend-activity:v2:2026-08-10T13:user-1:project:project-1",
+      3_600,
     );
     expect(capture).toHaveBeenCalledTimes(2);
   });
