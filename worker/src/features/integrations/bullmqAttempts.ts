@@ -5,17 +5,12 @@ interface BullmqAttemptState {
   opts?: { attempts?: number };
 }
 
-// Fail-closed "is this the last BullMQ attempt" predicate for disable-on-fault
-// handlers. Blob storage, PostHog, and Mixpanel share this so a missing
-// attempts budget never gets misread as an already-exhausted one.
 export function isFinalBullmqAttempt(
   job: BullmqAttemptState,
   error?: unknown,
 ): boolean {
-  // Duck-type on `.name` rather than `instanceof UnrecoverableError`: BullMQ
-  // and this worker can each hold their own copy of the error class across a
-  // module boundary, so `instanceof` can silently miss a real
-  // UnrecoverableError and let the loop keep retrying an unretriable job.
+  // Duck-type on `.name`: instanceof can miss a real UnrecoverableError
+  // across a module boundary and let the loop keep retrying it.
   if (
     error &&
     typeof error === "object" &&
