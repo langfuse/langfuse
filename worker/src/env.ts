@@ -656,11 +656,13 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
-  // Floor is the heartbeat-stale window (60s). Faster would race a live worker.
+  // Default 15 minutes. Do not go below the heartbeat-stale window (60s) or a
+  // live worker can lose the race. Faster also adds no resolution: every
+  // deadline this runner reports against is 5 minutes or longer.
   LANGFUSE_IN_APP_AGENT_INTEGRITY_SCANNER_INTERVAL_MS: z.coerce
     .number()
     .positive()
-    .default(60_000),
+    .default(15 * 60_000),
   LANGFUSE_IN_APP_AGENT_DLQ_RETRY_INTERVAL_MS: z.coerce
     .number()
     .positive()
