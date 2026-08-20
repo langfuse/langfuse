@@ -21,16 +21,13 @@ import {
 } from "@/src/features/rbac/constants/organizationAccessRights";
 
 // projectScopes has no data-plane read/write tokens (only traces:delete); this
-// vocabulary is net-new and unratified. Ingestion is resource-oriented:
-// observations are trace children, so trace+observation events gate on
-// traces:create (LFE-15053). The LFE-15042 suspension deny is the write subset
-// {traces:create, scores:create, media:CUD}; media reads still need a read token.
+// vocabulary is net-new and unratified. Ingestion folds to parents: observations
+// and trace-media gate on traces:create (LFE-15053); media always requires a
+// parent so it needs no own write token (dataset media folds under the existing
+// datasets:CUD). LFE-15042 suspension deny reduces to {traces:create,
+// scores:create}; media GET-by-id read still needs media:read or a resolve step.
 /** PendingApiAction holds net-new public-API tokens absent from projectScopes. */
-export type PendingApiAction =
-  | "traces:read"
-  | "traces:create"
-  | "scores:create"
-  | "media:CUD";
+export type PendingApiAction = "traces:read" | "traces:create" | "scores:create";
 
 /** Action a principal takes on a resource, e.g. "prompts:read". */
 export type Action = ProjectScope | OrganizationScope | PendingApiAction | "*";
