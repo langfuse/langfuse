@@ -119,8 +119,18 @@ Two things about `--next` that read like bugs and are not:
 
 ## Enforcement today
 
-Measured, not gated. The tooling counts violations, points at them and proposes
-the rework; nothing blocks a merge on the total. Enforcement arrives one rule at
+Measured, not gated — with one exception. A pre-write hook refuses to **create**
+a file whose path would add a violation of rules 1, 3, 4, 5, 9 or 13, and
+surfaces rule 18. It answers from the path alone, so it never has an opinion
+about a graph rule, it never fires on an edit to an existing file, it fails
+open, and `LANGFUSE_SKIP_STRUCTURE_HOOK=1` turns it off. Check a path yourself:
+
+```sh
+pnpm --filter web run structure:check-path src/features/traces/utils/formatCost.ts
+```
+
+Everything else is counted, not blocked: the tooling points at violations and
+proposes the rework; nothing blocks a merge on the total. Enforcement arrives one rule at
 a time: when a rule's count is small enough to finish, it graduates and CI
 starts failing on new violations of it.
 

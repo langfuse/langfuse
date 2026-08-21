@@ -119,6 +119,38 @@ is instant, which is why the CLI is batch-shaped.
 
 Splitting a file and renaming a directory are not part of the surface yet.
 
+# structure:check-path — the placement question, answered in one directory read
+
+```sh
+pnpm --filter web run structure:check-path src/features/traces/utils/formatCost.ts
+node scripts/structure/check-path.mjs --json <path...>          # from a hook
+```
+
+"Would creating this file add a violation?" — decided from the path alone. It
+is the fast lane of `structure:stats`: no dependency-cruiser graph, no TS
+parse, so it answers in a directory read (2,711 existing paths in 25 ms
+in-process; ~70 ms wall as a process, almost all of it node startup) instead of
+seconds.
+
+It therefore answers only for the census rules a path decides on its own — 1,
+3, 4, 5, 9, 13, 18 — and never for a graph rule, which cannot be known before
+the file's imports exist. Rule 5 calls `detectors.rule5` directly so the check
+and the dashboard cannot disagree about what a kind folder is; rules 1 and 3
+mirror only the naming half of their detectors, because "named after the
+export" needs the file's text.
+
+The verdict is a prediction of what the sensor would count, and it was
+calibrated against it: over all 2,711 existing files, 700 would be flagged and
+exactly one disagrees with `stats.mjs` — a kebab-case `.tsx` exporting no
+component, which no rule counts today but which is wrong under either naming
+rule. A rule the sensor does not count is not denied.
+
+`scripts/agents/hooks/structure-path-guard.mjs` wraps it as a pre-write hook
+for Claude Code, Cursor and Codex, declared once in `.agents/config.json`. That
+hook fires **only when the target path does not exist** — editing a badly-named
+file is never blocked — **fails open** on anything unexpected, and is disabled
+by `LANGFUSE_SKIP_STRUCTURE_HOOK=1`.
+
 ## Rule → mechanism
 
 | Rule   | What                                                                                          | Counted by                                                               |

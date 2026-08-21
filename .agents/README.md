@@ -19,10 +19,11 @@ or `.vscode/`.
 
 ## `config.json`
 
-`.agents/config.json` contains four kinds of data:
+`.agents/config.json` contains five kinds of data:
 
 - `shared`: defaults used across tools
 - `mcpServers`: project MCP servers and how to connect to them
+- `hooks`: tool-neutral agent hooks, one declaration per hook
 - `claude`: Claude-specific generated settings inputs
 - `codex`: Codex-specific generated settings inputs
 - `cursor`: Cursor-specific generated settings inputs
@@ -59,6 +60,16 @@ Current shape:
       "transport": "http",
       "url": "https://mcp.linear.app/mcp"
     }
+  },
+  "hooks": {
+    "preFileWrite": [
+      {
+        "name": "structure-path-guard",
+        "description": "...",
+        "script": "scripts/agents/hooks/structure-path-guard.mjs",
+        "timeoutSeconds": 10
+      }
+    ]
   },
   "claude": {
     "settings": {
@@ -118,9 +129,15 @@ Generated local artifacts:
 - `.codex/config.toml`
 - `.codex/environments/environment.toml`
 
+Generated and committed:
+
+- `.cursor/environment.json`
+- `.cursor/hooks.json`
+- `.codex/hooks.json`
+
 Cursor must read its environment contract before it can run the install script,
-so `.cursor/environment.json` is the one generated configuration file committed
-to the repository. Generate it from `.agents/config.json`; never edit it by
+and it reads its hooks before `pnpm install` can generate anything, so those
+files are committed. Generate it from `.agents/config.json`; never edit it by
 hand. `.cursor/Dockerfile` is also committed because it is an intentionally
 Cursor-specific runtime definition.
 
@@ -217,6 +234,38 @@ Update values in `shared`:
 - `setupScript`
 - `devCommand`
 - `devTerminalDescription`
+
+### Add a hook
+
+Declare it once under `hooks`, with a tool-neutral event name, and let the
+generator emit each tool's shape. Do not hand-write `.claude/settings.json`,
+`.cursor/hooks.json` or `.codex/hooks.json`.
+
+```json
+{
+  "hooks": {
+    "preFileWrite": [
+      {
+        "name": "example",
+        "description": "What it refuses, and how to get past it",
+        "script": "scripts/agents/hooks/example.mjs",
+        "timeoutSeconds": 10
+      }
+    ]
+  }
+}
+```
+
+`HOOK_EVENTS` in `scripts/agents/sync-agent-shims.mjs` maps a neutral event to
+each tool's event name and tool-name matcher; a tool with no mapping for an
+event simply gets no hook. One implementation per hook lives in
+`scripts/agents/hooks/`, receives the tool's payload on stdin, and writes that
+tool's response shape based on `--tool`.
+
+Two rules for any hook that can block: **fail open** — an unreadable payload,
+a throw or a timeout must allow the action — and **name an escape hatch** in
+the message it prints, following `LANGFUSE_PRE_COMMIT_SKIP_LINT` in
+`.husky/pre-commit`. A gate with no exit gets deleted.
 
 ### Add tool-specific generated inputs
 

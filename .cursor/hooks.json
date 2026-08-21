@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "node scripts/agents/hooks/structure-path-guard.mjs --tool cursor",
+        "matcher": "Write",
+        "timeout": 10
+      }
+    ]
+  }
+}
