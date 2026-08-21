@@ -2,13 +2,28 @@
 
 import * as React from "react";
 import { ChevronDown, Search } from "lucide-react";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { cn } from "@/src/utils/tailwind";
+
+const searchInputVariants = cva(
+  "border-input bg-background focus-within:ring-ring flex w-full min-w-0 items-stretch overflow-hidden rounded-md border focus-within:ring-2 focus-within:ring-offset-0",
+  {
+    variants: {
+      size: {
+        default: "h-8",
+        large: "h-9",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+    },
+  },
+);
 
 type SearchInputProps = {
   value: string;
@@ -18,13 +33,12 @@ type SearchInputProps = {
   disabled?: boolean;
   autoFocus?: boolean;
   onBlur?: (value: string) => void;
-  size?: "default" | "large";
   dropdown?: {
     label: React.ReactNode;
     labelAccessory?: React.ReactNode;
     content: React.ReactNode;
   };
-};
+} & VariantProps<typeof searchInputVariants>;
 
 export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
   (
@@ -41,12 +55,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
     },
     ref,
   ) => (
-    <div
-      className={cn(
-        "border-input bg-background focus-within:ring-ring flex w-full min-w-0 items-stretch overflow-hidden rounded-md border focus-within:ring-2 focus-within:ring-offset-0",
-        size === "default" ? "h-8" : "h-9",
-      )}
-    >
+    <div className={searchInputVariants({ size })}>
       <button
         type="button"
         aria-label="Search"
@@ -59,6 +68,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
       <input
         ref={ref}
         type="search"
+        data-1p-ignore
         value={value}
         placeholder={placeholder}
         disabled={disabled}
