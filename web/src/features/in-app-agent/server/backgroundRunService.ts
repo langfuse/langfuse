@@ -37,6 +37,7 @@ import {
   reconcileConversationRuns,
   recordImmediateCancelOutcomes,
   requestRunCancellation,
+  staleRunSettledStatus,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 
 import { serializeInAppAgentDisplayState } from "@/src/features/in-app-agent/lib/display";
@@ -173,7 +174,7 @@ export function serializeConversationLatestRun(
 
   return {
     id: run.id,
-    status: stale ? InAppAgentRunStatus.FAILED : parsedStatus.data,
+    status: stale ? staleRunSettledStatus(stale.errorCode) : parsedStatus.data,
     errorCode: stale ? stale.errorCode : run.errorCode,
     cancelRequested: Boolean(run.cancelRequestedAt),
   };

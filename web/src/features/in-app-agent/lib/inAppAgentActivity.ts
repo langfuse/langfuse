@@ -119,7 +119,11 @@ function getActivityEntry(params: {
     };
   }
 
-  if (params.run.status === InAppAgentRunStatus.CANCELLED || params.isHandled) {
+  if (
+    params.run.status === InAppAgentRunStatus.CANCELLED ||
+    params.run.status === InAppAgentRunStatus.EXPIRED ||
+    params.isHandled
+  ) {
     return null;
   }
 

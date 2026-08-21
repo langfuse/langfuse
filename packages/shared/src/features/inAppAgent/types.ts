@@ -16,6 +16,8 @@ export enum InAppAgentRunStatus {
   SUCCEEDED = "SUCCEEDED",
   FAILED = "FAILED",
   CANCELLED = "CANCELLED",
+  /** Parked approval hit its TTL without a decision. */
+  EXPIRED = "EXPIRED",
 }
 
 export const InAppAgentRunStatusSchema = z.enum(InAppAgentRunStatus);

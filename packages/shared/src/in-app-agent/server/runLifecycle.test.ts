@@ -206,6 +206,51 @@ describe("in-app agent run lifecycle races", () => {
     });
   });
 
+  it("records an expired parked approval as EXPIRED, not FAILED", async () => {
+    const tx = {
+      inAppAgentRun: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "run-1",
+            status: InAppAgentRunStatus.AWAITING_APPROVAL,
+            createdAt: new Date(Date.now() - 25 * 60 * 60_000),
+            claimedAt: new Date(Date.now() - 25 * 60 * 60_000),
+            heartbeatAt: null,
+            finishedAt: new Date(Date.now() - 25 * 60 * 60_000),
+          },
+        ]),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const prisma = {
+      $transaction: async (callback: (transaction: typeof tx) => unknown) =>
+        callback(tx),
+    } as unknown as PrismaClient;
+
+    await expect(
+      reconcileConversationRuns({
+        prisma,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      }),
+    ).resolves.toEqual([
+      { runId: "run-1", errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED },
+    ]);
+    expect(tx.inAppAgentRun.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: InAppAgentRunStatus.EXPIRED,
+          errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+        }),
+      }),
+    );
+    expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledTimes(1);
+    expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledWith({
+      status: InAppAgentRunStatus.EXPIRED,
+      errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+    });
+  });
+
   it("records a queued cancel with the cancelled error code after commit", async () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ deletedAt: null }]),

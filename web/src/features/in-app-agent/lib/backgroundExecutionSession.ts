@@ -621,7 +621,10 @@ export function getBackgroundRunNotice(
     return { text: "Stopping the run…", tone: "info" };
   }
 
-  if (run.status === InAppAgentRunStatus.FAILED) {
+  if (
+    run.status === InAppAgentRunStatus.FAILED ||
+    run.status === InAppAgentRunStatus.EXPIRED
+  ) {
     return {
       text: getBackgroundRunFailureMessage(run.errorCode ?? null),
       tone: "info",
@@ -650,7 +653,9 @@ export function getSettledActivityOutcome(
   if (
     (run.status === InAppAgentRunStatus.SUCCEEDED &&
       run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT) ||
-    run.status === InAppAgentRunStatus.CANCELLED
+    run.status === InAppAgentRunStatus.CANCELLED ||
+    run.status === InAppAgentRunStatus.EXPIRED ||
+    run.errorCode === InAppAgentRunErrorCode.APPROVAL_EXPIRED
   ) {
     return "stopped";
   }

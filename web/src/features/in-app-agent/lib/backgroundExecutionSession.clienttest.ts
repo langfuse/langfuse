@@ -18,6 +18,7 @@ import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors"
 import {
   BackgroundExecutionSessionController,
   getBackgroundRunNotice,
+  getSettledActivityOutcome,
   type BackgroundExecutionView,
 } from "./backgroundExecutionSession";
 
@@ -1387,10 +1388,6 @@ describe("getBackgroundRunNotice", () => {
     [InAppAgentRunErrorCode.INIT_FAILED, assistantFailedTryAgain],
     [InAppAgentRunErrorCode.ENQUEUE_FAILED, assistantFailedTryAgain],
     [
-      InAppAgentRunErrorCode.APPROVAL_EXPIRED,
-      "The approval request expired. The action was not run. Send another message if you still want it.",
-    ],
-    [
       InAppAgentRunErrorCode.RUN_TIMEOUT,
       "The run hit the time limit. Send another message to continue.",
     ],
@@ -1404,6 +1401,27 @@ describe("getBackgroundRunNotice", () => {
       text,
       tone: "info",
     });
+  });
+
+  it("maps EXPIRED approval_expired to the expiry notice, not a failure", () => {
+    const expiredRun = {
+      id: "run-1",
+      status: InAppAgentRunStatus.EXPIRED,
+      errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+      cancelRequested: false,
+    };
+
+    expect(getBackgroundRunNotice(expiredRun)).toEqual({
+      text: "The approval request expired. The action was not run. Send another message if you still want it.",
+      tone: "info",
+    });
+    expect(getSettledActivityOutcome(expiredRun)).toBe("stopped");
+    expect(
+      getSettledActivityOutcome({
+        ...expiredRun,
+        status: InAppAgentRunStatus.FAILED,
+      }),
+    ).toBe("stopped");
   });
 });
 

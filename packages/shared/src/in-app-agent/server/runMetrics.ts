@@ -10,8 +10,8 @@ const RUN_COMPLETED_METRIC = "langfuse.in_app_agent.run.completed";
  *
  * Settledness is the complement of `IN_APP_AGENT_UNSETTLED_RUN_STATUSES` in
  * constants.ts. `AWAITING_APPROVAL` is parked, not settled; emitting on the
- * park would double-count when the parent later becomes SUCCEEDED, FAILED, or
- * CANCELLED.
+ * park would double-count when the parent later becomes SUCCEEDED, FAILED,
+ * CANCELLED, or EXPIRED.
  *
  * `error_code` is "none" rather than absent so Datadog can group every outcome
  * on one tag key.
