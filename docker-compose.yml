@@ -76,9 +76,9 @@ services:
       # Shared AI features configuration. These apply to AI features that run
       # in both web and worker.
       LANGFUSE_IN_APP_AGENT_ENABLED: ${LANGFUSE_IN_APP_AGENT_ENABLED:-}
-      # Deprecated Bedrock aliases; fallback during LANGFUSE_AI_* cutover.
-      # Remove after Cloud and OSS env migrate to LANGFUSE_AI_MODEL,
-      # LANGFUSE_AI_SMALL_MODEL, and LANGFUSE_AI_AWS_BEDROCK_REGION.
+      # LANGFUSE_AWS_BEDROCK_REGION is a deprecated alias of
+      # LANGFUSE_AI_AWS_BEDROCK_REGION. Bedrock model IDs stay on
+      # LANGFUSE_AWS_BEDROCK_MODEL / LANGFUSE_AWS_BEDROCK_SMALL_MODEL.
       LANGFUSE_AWS_BEDROCK_MODEL: ${LANGFUSE_AWS_BEDROCK_MODEL:-}
       LANGFUSE_AWS_BEDROCK_SMALL_MODEL: ${LANGFUSE_AWS_BEDROCK_SMALL_MODEL:-}
       LANGFUSE_AWS_BEDROCK_REGION: ${LANGFUSE_AWS_BEDROCK_REGION:-}

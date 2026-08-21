@@ -18,7 +18,9 @@ export function createInAppAgentLanguageModel(params: {
   if (params.config.provider === "anthropic") {
     const anthropic = createAnthropic({
       apiKey: params.config.apiKey,
-      ...(params.config.baseURL ? { baseURL: params.config.baseURL } : {}),
+      // Always pass a base URL so the SDK cannot fall back to ambient
+      // ANTHROPIC_BASE_URL (e.g. a local Claude Code proxy).
+      baseURL: params.config.baseURL ?? "https://api.anthropic.com/v1",
     });
 
     return anthropic(

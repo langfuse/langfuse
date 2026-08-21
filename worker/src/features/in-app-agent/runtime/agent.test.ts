@@ -662,6 +662,22 @@ describe("createAgUiStream", () => {
     });
   });
 
+  it("defaults Anthropic base URL so ambient ANTHROPIC_BASE_URL cannot win", async () => {
+    const { createAnthropic } = await import("ai-sdk-anthropic-v4");
+
+    await initializeBasicTracedAgent("run-anthropic-default-base-url", {
+      provider: "anthropic",
+      modelId: "claude-opus-4-8",
+      titleModelId: "claude-haiku-4-5",
+      apiKey: "sk-ant-test",
+    });
+
+    expect(createAnthropic).toHaveBeenCalledWith({
+      apiKey: "sk-ant-test",
+      baseURL: "https://api.anthropic.com/v1",
+    });
+  });
+
   it("keeps Anthropic provider getters on the traced model wrapper", async () => {
     await initializeBasicTracedAgent(
       "run-anthropic-provider-getters",

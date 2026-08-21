@@ -1,4 +1,5 @@
 import { env } from "../../env";
+import { logger } from "../../server/logger";
 import {
   assertValidBedrockRegion,
   getLangfuseAIBedrockRegion,
@@ -28,9 +29,10 @@ export const LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE =
 /**
  * Resolves the instance-wide Langfuse-operated AI model (Assistant + Ask AI).
  *
- * Callers should not branch on vendor beyond this discriminated config. Cloud
- * always uses Bedrock. Self-hosted selects `LANGFUSE_AI_PROVIDER=bedrock|anthropic`.
- * Unset provider defaults to Bedrock when `LANGFUSE_AWS_BEDROCK_MODEL` is set.
+ * Callers should not branch on vendor beyond this discriminated config.
+ * `LANGFUSE_AI_PROVIDER` selects `bedrock` or `anthropic`. Unset provider
+ * defaults to Bedrock, including when `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` is
+ * set. Cloud does not override an explicit Anthropic provider.
  *
  * Region is optional for Bedrock: Cloud web historically omits it and lets
  * the AWS SDK use the task region. Prefer LANGFUSE_AI_AWS_BEDROCK_REGION;
@@ -63,6 +65,7 @@ export function getInAppAgentModelConfig(params?: {
     return undefined;
   }
 
+  warnIfBedrockIgnoresAnthropicEnv();
   assertValidBedrockRegion(region);
 
   return {
@@ -74,11 +77,24 @@ export function getInAppAgentModelConfig(params?: {
 }
 
 function resolveLangfuseAIProvider(): LangfuseAIProvider {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    return "bedrock";
+  return env.LANGFUSE_AI_PROVIDER ?? "bedrock";
+}
+
+function warnIfBedrockIgnoresAnthropicEnv() {
+  const ignored: string[] = [];
+  if (env.LANGFUSE_AI_API_KEY) {
+    ignored.push("LANGFUSE_AI_API_KEY");
+  }
+  if (env.LANGFUSE_AI_BASE_URL) {
+    ignored.push("LANGFUSE_AI_BASE_URL");
+  }
+  if (ignored.length === 0) {
+    return;
   }
 
-  return env.LANGFUSE_AI_PROVIDER ?? "bedrock";
+  logger.warn(
+    `Ignoring ${ignored.join(" and ")} because the Langfuse AI provider is bedrock. Bedrock uses the instance AWS credential chain, not an Anthropic API key or base URL.`,
+  );
 }
 
 /**
