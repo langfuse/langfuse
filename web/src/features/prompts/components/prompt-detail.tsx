@@ -67,6 +67,11 @@ import {
 } from "@/src/components/ui/PromptReferences";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
+import {
+  JSON_VIEW_RENDER_CHAR_LIMIT,
+  probeJsonField,
+} from "@/src/features/traces/components/IOPreview/fns/jsonViewSizeGate";
 
 const getPythonCode = (
   name: string,
@@ -261,6 +266,13 @@ export const PromptDetail = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt?.id]);
+
+  // Size-gate the raw prompt/config JSON: a chat prompt with large few-shot
+  // messages or a big JSON-schema config can otherwise freeze this page when
+  // rendered through the unvirtualized JSONView (same failure mode already
+  // fixed for the trace IO views).
+  const promptProbe = useMemo(() => probeJsonField(prompt?.prompt), [prompt]);
+  const configProbe = useMemo(() => probeJsonField(prompt?.config), [prompt]);
 
   if (!promptHistory.data || !prompt) {
     return <div className="p-3">Loading...</div>;
@@ -577,6 +589,14 @@ export const PromptDetail = ({
                         title="Text Prompt"
                       />
                     )
+                  ) : promptProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT ? (
+                    <LargeJsonFieldFallback
+                      title="Prompt"
+                      serialized={promptProbe.serialized}
+                      isString={promptProbe.isString}
+                      charCount={promptProbe.size}
+                      downloadFileBase={`prompt-${prompt.name}-v${prompt.version}`}
+                    />
                   ) : (
                     <JSONView json={prompt.prompt} title="Prompt" />
                   )}
@@ -589,11 +609,21 @@ export const PromptDetail = ({
               className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
             >
               <div className="flex max-h-full min-h-0 w-full flex-col overflow-y-auto pb-4">
-                <JSONView
-                  json={prompt.config}
-                  title="Config"
-                  className="pb-2"
-                />
+                {configProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT ? (
+                  <LargeJsonFieldFallback
+                    title="Config"
+                    serialized={configProbe.serialized}
+                    isString={configProbe.isString}
+                    charCount={configProbe.size}
+                    downloadFileBase={`config-${prompt.name}-v${prompt.version}`}
+                  />
+                ) : (
+                  <JSONView
+                    json={prompt.config}
+                    title="Config"
+                    className="pb-2"
+                  />
+                )}
               </div>
             </TabsBarContent>
             <TabsBarContent

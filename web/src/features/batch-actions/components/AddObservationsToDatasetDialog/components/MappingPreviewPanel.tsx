@@ -23,6 +23,11 @@ import {
   type JsonPathMissInfo,
   type JsonPathErrorInfo,
 } from "@langfuse/shared";
+import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
+import {
+  JSON_VIEW_RENDER_CHAR_LIMIT,
+  probeJsonField,
+} from "@/src/features/traces/components/IOPreview/fns/jsonViewSizeGate";
 
 type MappingPreviewPanelProps = {
   fieldLabel: string;
@@ -187,6 +192,15 @@ export function MappingPreviewPanel({
     return `observation.${defaultSourceField}`;
   }, [config, defaultSourceField]);
 
+  // Size-gate both previewed fields: a verbose observation (large agent
+  // context/tool output) rendered through the unvirtualized JSONView can
+  // otherwise freeze this dialog on open (same failure mode already fixed for
+  // the trace IO views).
+  const sourceProbe = useMemo(() => probeJsonField(sourceData), [sourceData]);
+  const resultProbe = useMemo(() => probeJsonField(resultData), [resultData]);
+  const sourceTooLarge = sourceProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const resultTooLarge = resultProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -235,7 +249,18 @@ export function MappingPreviewPanel({
           Source: {sourceLabel}
         </p>
         <div className="bg-muted/30 max-h-[21vh] overflow-auto rounded-md border">
-          <JSONView json={sourceData} className="text-xs" />
+          {sourceTooLarge ? (
+            <LargeJsonFieldFallback
+              title="Source"
+              serialized={sourceProbe.serialized}
+              isString={sourceProbe.isString}
+              charCount={sourceProbe.size}
+              downloadFileBase={`mapping-preview-source-${fieldLabel}`}
+              hideTitle
+            />
+          ) : (
+            <JSONView json={sourceData} className="text-xs" />
+          )}
         </div>
       </div>
 
@@ -277,6 +302,15 @@ export function MappingPreviewPanel({
         >
           {config.mode === "none" ? (
             <div className="text-muted-foreground p-3 text-xs italic">null</div>
+          ) : resultTooLarge ? (
+            <LargeJsonFieldFallback
+              title="Result"
+              serialized={resultProbe.serialized}
+              isString={resultProbe.isString}
+              charCount={resultProbe.size}
+              downloadFileBase={`mapping-preview-result-${fieldLabel}`}
+              hideTitle
+            />
           ) : (
             <JSONView json={resultData} className="text-xs" />
           )}
