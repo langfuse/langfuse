@@ -2147,9 +2147,9 @@ export default function ObservationsEventsTable({
                     key="observations-multi-select-actions"
                     projectId={projectId}
                     actionId={ActionId.ObservationAddToAnnotationQueue}
-                    tableName={BatchExportTableName.Observations}
+                    tableName={BatchExportTableName.Events}
                     objectLabel="observations"
-                    description={`Add ${selectedObservationCount ?? "..."} selected observations to an annotation queue.`}
+                    description={`Add ${itemCountDisplay} selected observations to an annotation queue.`}
                     onAddToQueue={handleAddToAnnotationQueue}
                     onSuccess={() => {
                       setSelectedRows({});
