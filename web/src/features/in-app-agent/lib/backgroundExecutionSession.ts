@@ -577,8 +577,8 @@ const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.STALE]: ASSISTANT_FAILED_CONTINUE,
   [InAppAgentRunErrorCode.QUEUE_TIMEOUT]: ASSISTANT_FAILED_CONTINUE,
   [InAppAgentRunErrorCode.WORKER_SHUTDOWN]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.OUTCOME_UNKNOWN]: ASSISTANT_FAILED_CONTINUE,
   [InAppAgentRunErrorCode.INIT_FAILED]: ASSISTANT_FAILED_TRY_AGAIN,
-  [InAppAgentRunErrorCode.OUTCOME_UNKNOWN]: ASSISTANT_FAILED_TRY_AGAIN,
   [InAppAgentRunErrorCode.ENQUEUE_FAILED]: ASSISTANT_FAILED_TRY_AGAIN,
   [InAppAgentRunErrorCode.APPROVAL_EXPIRED]:
     "The approval request expired. The action was not run. Send another message if you still want it.",

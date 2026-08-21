@@ -1383,8 +1383,8 @@ describe("getBackgroundRunNotice", () => {
     [InAppAgentRunErrorCode.STALE, assistantFailedContinue],
     [InAppAgentRunErrorCode.QUEUE_TIMEOUT, assistantFailedContinue],
     [InAppAgentRunErrorCode.WORKER_SHUTDOWN, assistantFailedContinue],
+    [InAppAgentRunErrorCode.OUTCOME_UNKNOWN, assistantFailedContinue],
     [InAppAgentRunErrorCode.INIT_FAILED, assistantFailedTryAgain],
-    [InAppAgentRunErrorCode.OUTCOME_UNKNOWN, assistantFailedTryAgain],
     [InAppAgentRunErrorCode.ENQUEUE_FAILED, assistantFailedTryAgain],
     [
       InAppAgentRunErrorCode.APPROVAL_EXPIRED,
