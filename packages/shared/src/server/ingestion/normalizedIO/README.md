@@ -1,18 +1,34 @@
 # [DEV DRAFT] Normalized I/O parser
 
-One parser owns observation I/O interpretation. Adapters turn a transport
-format (OTel span, ClickHouse event record) into `SpanIO`; `normalizeIO`
-turns `SpanIO` into `NormalizedIO`; projections derive consumer shapes
-(ClickHouse tool columns, eval records) from `NormalizedIO` — never from the
-raw formats.
+One parser owns observation I/O interpretation. `normalizeIO(source)` takes a
+discriminated source — a ClickHouse event row, a plain
+`{input, output, metadata}`, or (stubbed) a raw OTel span — and returns
+`NormalizedIO`: an ordered message stream (`messages`, each with a role, a
+`parts` union of text/reasoning/tool-call/tool-result/file/data/custom, an
+optional `finishReason`, and its input/output `source`), the merged
+`toolDefinitions`, and the raw pre-normalization values (`span`). Recognition
+is shape-based, never dispatched on a provider label; provider extras ride in
+part-level `providerMetadata` with well-known flags typed as
+`KnownPartFlags` (`refusal`, `reasoning`, `invalid`). Projections derive
+consumer shapes (ClickHouse tool columns, eval records) from `NormalizedIO` —
+never from the raw formats.
+
+Covered formats: OpenAI Chat Completions + Responses API, Anthropic Messages,
+Vercel AI SDK, Gemini/Vertex, LangChain/LangGraph (incl. the `lc`
+serialization envelope), plus fixture-locked Microsoft Agent Framework,
+Pydantic AI, Semantic Kernel, agno/koog-style loose shapes, and raw
+passthrough. Bedrock/Mistral/Cohere ride the generic shape-sniffing paths.
 
 ## Validation status
 
-- Fixture registry (`fixtures/`): 17 fixtures across Vercel AI SDK, OpenAI
-  chat completions + Responses API, Anthropic Messages, LangGraph, Microsoft
-  Agent Framework, Pydantic AI, Semantic Kernel, Gemini, and raw passthrough
-  shapes; parser output locked per fixture, tool-column projection asserted
-  against the same locked output.
+- Fixture registry (`fixtures/`): one locked parser output per fixture
+  (`parser.test.ts` runs the registry); the tool-column projection is
+  asserted against the same locked outputs (`projections/toolCallColumns.test.ts`).
+- ChatML corpus cross-check: `worker/src/__tests__/chatml/normalizedIO.crosscheck.test.ts`
+  (temporary harness) replays the 20 real framework traces the trace-IO
+  ChatML parser is locked against and compares text/tool-call/tool-definition
+  projections; survey mode dumps side-by-side review files. Divergences are
+  triaged into parser fixes or an explicit allowlist.
 - Legacy compatibility: with the (temporary) hookup of
   `toToolColumns(normalizeIO(...))` into `normalizeToolsForObservation`,
   53/54 of the legacy `extractToolsBackend` worker tests pass. The one
@@ -33,14 +49,28 @@ raw formats.
 2. **How to deal with empty strings**: Proposal implementation: messages whose only
    content is an empty string are dropped. TBD how to handle non-string `text` values
    — align with the trace IO view, which renders both.
-3. **Messages/metadata confidence**: use prod replay against the
-   ChatML parser tests, same method as the tool-column comparison.
-4. **Projection coverage**: tests for `toEvalRecord`. Other projects have been tested.
-5. **Rollout**: across product surfaces. Start with ingestion, continue with evals.
-6. **LangChain tool_call_chunks**: deliberately ignored — they are streaming
+3. **Projection coverage**: tests for `toEvalRecord`. Other projects have been tested.
+4. **Rollout**: across product surfaces. Start with ingestion, continue with evals.
+5. **LangChain tool_call_chunks**: deliberately ignored — they are streaming
    deltas (partial JSON fragments per index) and redundant with the parsed
    `tool_calls` on final messages. Later: merge and parse them only when
    `tool_calls` is absent (mid-stream captures).
+6. **Provenance / provider labeling (pinned)**: NormalizedIO deliberately has
+   no single "system"/adapter identity — parsing is shape-based and real
+   payloads are mixed-dialect (AI SDK + Anthropic blocks in one message,
+   LangChain wrapping OpenAI), so one label per observation would lie. The
+   provider label UIs want is metadata, not parse output. Options when a
+   consumer materializes:
+   (a) observation-level echo `NormalizedIO.provenance?: { provider?, scope? }`
+   filled by a dumb lookup over `gen_ai.system` / `ls_provider` / scope name —
+   honest at span altitude, zero parse coupling;
+   (b) per-message `provenance?.dialect` set only when a distinctly-dialected
+   path fired (langchain-envelope, responses-item, ...) — needs branch
+   bookkeeping, mostly undefined;
+   (c) per-part provenance, which already exists implicitly via `toolType`
+   raw item types and providerMetadata keys. Lean: (a) when needed, (c) is
+   free, (b) only on demonstrated demand. Parsing must never _depend_ on the
+   label (that is ChatML's adapter-dispatch fragility).
 7. **providerMetadata persistence**: several semantics now ride on part-level
    `providerMetadata` (refusal flags, audio transcripts, citations,
    media-token `source`). We need a good story for saving and querying it —
@@ -49,17 +79,11 @@ raw formats.
 
 ## Questions for review
 
-1. **Interface structure**: The current interface still exposes IO extraction (OTel or ClickHouse → SpanIO)
-   and normalization (SpanIO → NormalizedIO), as individually callable; callers to coordinate both steps.
-   We are considering a single input-format-aware wrapper that returns both SpanIO and NormalizedIO.
-   This would clearly preserve which source and semantic adapters were used (extensible with schema version or confidence).
-   Discuss sign-off on `NormalizedIO` / the part union in
-   `types.ts`, and on `source: "input" | "output"`.
-2. **Unnamed provider tools**: the parser admits provider tools without a
+1. **Unnamed provider tools**: the parser admits provider tools without a
    `name` (e.g. `web_search_preview`) into `tool_definitions`; the legacy
    extractor excludes them. Keep (available-tool filtering covers provider
    tools too) or match legacy?
-3. **File parts baked in text**: Think about if it should be: "Compare <tok1> with <tok2> please." → [text "Compare ", file, text " with ", file, text " please."]. Each token becomes a FilePart {content: {kind:"reference", id}, mediaType: token.type}. Or if we should have a simpler implementation.
+2. **File parts baked in text**: Think about if it should be: "Compare <tok1> with <tok2> please." → [text "Compare ", file, text " with ", file, text " please."]. Each token becomes a FilePart {content: {kind:"reference", id}, mediaType: token.type}. Or if we should have a simpler implementation.
 
 ## Assumptions
 
@@ -194,12 +218,21 @@ rather than dedicated fields.
 - **Challenge with:** a media shape whose type is derivable but lands as a
   wildcard, or a consumer that needs a sidecar field promoted to the schema.
 
-### Anthropic-specific normalization notes
+### Provider notes and intentional losses
 
-- Anthropic text-block citations and OpenAI text annotations are exposed as
-  `providerMetadata.citations`.
+- Citations are unified: Anthropic text-block `citations`, OpenAI
+  `annotations` (message- and part-level) all land under
+  `providerMetadata.citations`, payloads verbatim. Anchor-less references
+  (AI SDK `source` parts) stay stream-positioned as
+  `CustomPart { kind: "source" }` — one vocabulary, two carriers.
 - Anthropic text or structured-content documents normalize to
   `CustomPart { kind: "document" }`; they are semantic content, not resolvable
   file references.
-- Anthropic `cache_control` is intentionally dropped because it is a request
-  caching hint rather than conversation content.
+- Intentionally dropped: Anthropic `cache_control` (request caching hint),
+  LangChain `tool_call_chunks` (streaming deltas, see what's-left), and
+  response-envelope metadata such as Gemini `usageMetadata`/`modelVersion`
+  and OpenAI Responses envelope `status` — usage and model info have their
+  own pipeline columns, and the raw envelope survives in `span`.
+- Non-message payloads (function-span args/results, `{text}` items, loose
+  records) become `data`/text parts rather than being dropped — parity with
+  the trace view's JSON passthrough rendering.

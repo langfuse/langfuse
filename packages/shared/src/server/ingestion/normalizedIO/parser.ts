@@ -1110,6 +1110,27 @@ function appendParts(target: NormalizedMessagePart[], values: unknown[]): void {
   }
 }
 
+/**
+ * Agno logs messages as Python reprs:
+ * "role='user' content='...' name=None tool_call_id=None ...".
+ * Bounded parse: role, then content up to the quote preceding the next
+ * `field=`; anything the pattern doesn't match stays plain text.
+ */
+function parsePythonReprMessage(
+  value: string,
+): { role: string; content: string } | undefined {
+  if (!value.startsWith("role='")) return undefined;
+
+  const match =
+    /^role='(\w+)' content=(?:'([\s\S]*?)'|"([\s\S]*?)")(?= \w+=)/.exec(value);
+  if (!match) return undefined;
+
+  const content = (match[2] ?? match[3] ?? "")
+    .replace(/\\'/g, "'")
+    .replace(/\\n/g, "\n");
+  return { role: match[1], content };
+}
+
 // FunctionMessage maps to the deprecated "function" role so the legacy
 // function-result handling (name as tool name) applies.
 const LANGCHAIN_ROLE_BY_CLASS: Record<string, string> = {
@@ -1128,6 +1149,8 @@ function normalizeMessage(
 ): NormalizedMessage | null {
   if (typeof value === "string") {
     if (value.length === 0) return null;
+    const reprMessage = parsePythonReprMessage(value);
+    if (reprMessage) return normalizeMessage(reprMessage, fallbackRole, source);
     const parts = normalizePartsFromString(value);
     return parts.length > 0 ? { role: fallbackRole, parts, source } : null;
   }
@@ -1157,6 +1180,20 @@ function normalizeMessage(
       fallbackRole,
       source,
     );
+  }
+
+  // GenAI choice-style event envelopes ({index, message, finish_reason},
+  // event.name "gen_ai.choice"): the actual message nests under `message`.
+  const nestedMessage = !isMessageLike(value)
+    ? asRecord(value.message)
+    : undefined;
+  if (nestedMessage) {
+    const message = normalizeMessage(nestedMessage, fallbackRole, source);
+    if (!message) return null;
+    const finishReason =
+      normalizeFinishReason(value.finish_reason ?? value.finishReason) ??
+      message.finishReason;
+    return compact({ ...message, finishReason });
   }
 
   const directToolPart =
@@ -1215,7 +1252,21 @@ function normalizeMessage(
     if (rawParts) {
       appendParts(parts, rawParts);
     } else if (typeof value.content === "string" && value.content.length > 0) {
-      parts.push(...normalizePartsFromString(value.content));
+      // Content that is a JSON-string array of tool parts (e.g. koog logs an
+      // assistant call batch as a stringified array under role "tool").
+      const parsedContent = parseArray(value.content);
+      const isToolPartArray =
+        parsedContent !== undefined &&
+        parsedContent.length > 0 &&
+        parsedContent.every(
+          (item) =>
+            isRecord(item) && (isToolCallLike(item) || isToolResultLike(item)),
+        );
+      if (isToolPartArray) {
+        appendParts(parts, parsedContent);
+      } else {
+        parts.push(...normalizePartsFromString(value.content));
+      }
     } else if (isRecord(value.content)) {
       const part = normalizeMessagePart(value.content);
       if (part) parts.push(part);
@@ -1284,6 +1335,29 @@ function normalizeMessage(
     role = "tool";
   }
 
+  // Tool-labeled turns without a tool_call_id (TraceLoop-style koog
+  // conversions): a batch of calls is a mislabeled assistant turn; plain
+  // text IS the tool's response, not conversation text.
+  if (
+    role === "tool" &&
+    !value.tool_call_id &&
+    !isLegacyFunctionMessage &&
+    parts.length > 0
+  ) {
+    if (parts.every((part) => part.type === "tool-call")) {
+      role = "assistant";
+    } else if (parts.every((part) => part.type === "text")) {
+      const output = parts
+        .map((part) => (part.type === "text" ? part.text : ""))
+        .join("\n");
+      parts.splice(0, parts.length, {
+        type: "tool-result",
+        toolCallId: null,
+        output,
+      });
+    }
+  }
+
   if (value.type === "reasoning") {
     // A reasoning item's content[] is collected via the regular parts path;
     // summary is a sibling stream and must be collected either way.
@@ -1305,6 +1379,14 @@ function normalizeMessage(
     }
   }
 
+  // Last resort for non-message payloads (function-span args/results, plain
+  // records, {text} items): represent them instead of dropping — the trace
+  // view renders these as JSON too.
+  if (parts.length === 0 && !isMessageLike(value)) {
+    const part = normalizeMessagePart(value);
+    if (part) parts.push(part);
+  }
+
   // Anthropic carries stop_reason on the response envelope beside `content`;
   // some instrumentation flattens finish_reason onto the message itself;
   // LangChain nests it under response_metadata. Choice/candidate-level
@@ -1318,6 +1400,12 @@ function normalizeMessage(
       responseMetadata?.stop_reason,
   );
 
+  // Unrecognized declared roles (e.g. LangGraph putting the tool name in the
+  // role field) collapse to "unknown" — keep the raw string as the name so
+  // the information survives.
+  const declaredRole =
+    typeof value.role === "string" ? optionalString(value.role) : undefined;
+
   return parts.length > 0
     ? {
         ...(optionalString(value.id) ? { id: String(value.id) } : {}),
@@ -1325,7 +1413,9 @@ function normalizeMessage(
         // a participant name there.
         ...(!isLegacyFunctionMessage && optionalString(value.name)
           ? { name: String(value.name) }
-          : {}),
+          : role === "unknown" && declaredRole
+            ? { name: declaredRole }
+            : {}),
         role,
         parts,
         ...(finishReason ? { finishReason } : {}),
