@@ -421,7 +421,7 @@ so a new view must check the field dropdown, not just that Enter applies.
    sidebar by construction: no bar-authored filter the sidebar cannot display or
    clear, and adding a facet gives the bar the field for free. Anything outside
    that set resolves to null, so an old saved view's filter on it lands in
-   `skippedFilters` (preserved) instead of becoming an unparseable token.
+   `skippedFilters` (preserved) instead of becoming an unparsable token.
 2. **Add a thin per-view grammar overlay** for what `ColumnDefinition`
    deliberately does not carry (it is a UI/SQL contract, not a grammar):
    user-facing **field aliases** (`env`, `tags`, `ttft`), **inline filter
