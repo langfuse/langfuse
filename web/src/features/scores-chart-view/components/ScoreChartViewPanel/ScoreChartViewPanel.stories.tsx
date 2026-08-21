@@ -52,7 +52,7 @@ const meta = preview.meta({
   // inside `ScoresChartView`). The standalone story provides that ancestor.
   decorators: [
     (Story) => (
-      <div className="h-[420px]">
+      <div className="flex h-[420px]">
         <Story />
       </div>
     ),
