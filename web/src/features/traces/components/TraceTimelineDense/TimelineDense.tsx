@@ -1279,7 +1279,7 @@ export function TimelineDense({
     compression.toRealMs(current.time.start + current.time.duration) -
       compression.toRealMs(current.time.start),
   );
-  const windowHint = `${rowHeight.toFixed(1)}px rows · ${windowLabel} window`;
+  const windowHint = `${windowLabel} window`;
 
   return (
     <div

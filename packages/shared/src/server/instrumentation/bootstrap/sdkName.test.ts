@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  SDK_NAME_HEADER,
-  extractSdkName,
-} from "@/src/server/observability/sdkName";
+import { SDK_NAME_HEADER, extractSdkName } from "./sdkName";
 
 describe("extractSdkName", () => {
   it("canonicalizes first-party SDK names to the ingestion closed set", () => {
@@ -24,7 +21,6 @@ describe("extractSdkName", () => {
 
   it("drops unknown, caller-controlled values to cap cardinality", () => {
     expect(extractSdkName({ [SDK_NAME_HEADER]: "b3d1c0de" })).toBeUndefined();
-    // Node comma-joins duplicate headers; the joined value fails the allowlist.
     expect(
       extractSdkName({ [SDK_NAME_HEADER]: "python, javascript" }),
     ).toBeUndefined();
