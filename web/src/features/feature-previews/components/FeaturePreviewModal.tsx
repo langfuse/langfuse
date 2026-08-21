@@ -14,6 +14,8 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 
+import { featurePreviewLabels } from "../feature-preview-labels";
+
 import filterSearchBarDarkIllustration from "../assets/filter-search-bar-dark.svg";
 import filterSearchBarLightIllustration from "../assets/filter-search-bar-light.svg";
 import compactTimelineDarkIllustration from "../assets/compact-timeline-dark.svg";
@@ -38,8 +40,6 @@ type PreviewIllustration = {
 
 type PreviewRegistryItem = {
   flag: PreviewFlag;
-  title: string;
-  sidebarLabel: string;
   description: string;
   details: string;
   feedbackUrl: string;
@@ -61,8 +61,6 @@ export type PreviewState = {
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
     flag: "modernSession",
-    title: "Compact Session View",
-    sidebarLabel: "Compact Session View",
     description:
       "Navigate every trace in a session from one continuous conversation feed, with tools and structured data available on demand.",
     details:
@@ -76,8 +74,6 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   },
   {
     flag: "compactTimeline",
-    title: "Compact Timeline",
-    sidebarLabel: "Compact Timeline",
     description:
       "See a whole trace at once — every observation a single dense line, coloured by type — then zoom and pan it like a map.",
     details:
@@ -91,8 +87,6 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   },
   {
     flag: "v4UpgradeUi",
-    title: "V4 Migration",
-    sidebarLabel: "V4 Migration",
     description:
       "Review each project's readiness for Langfuse v4 and get guided steps for anything that still needs an update.",
     details:
@@ -112,8 +106,6 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   // Kept for a safe rollback; delete with the rest of the searchBar plumbing.
   {
     flag: "searchBar",
-    title: "Filter Search Bar",
-    sidebarLabel: "Filter Search Bar",
     description:
       "A keyboard-driven query bar on the Observations and Traces tables — type filters like level:ERROR -env:dev latency:>2 with inline suggestions, alongside the existing filter sidebar.",
     details:
@@ -188,7 +180,7 @@ export function FeaturePreviewModal({
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-bold">
-                        {item.sidebarLabel}
+                        {featurePreviewLabels[item.flag]}
                       </span>
                       <span className="text-muted-foreground mt-1 line-clamp-2 block text-xs">
                         {state[item.flag]?.disabled
@@ -216,7 +208,7 @@ export function FeaturePreviewModal({
                 <div className="flex items-start justify-between gap-6">
                   <div>
                     <h2 className="text-foreground text-xl font-bold">
-                      {selected.title}
+                      {featurePreviewLabels[selected.flag]}
                     </h2>
                     <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-5">
                       {selected.description}
@@ -239,7 +231,7 @@ export function FeaturePreviewModal({
                         selectedState.isToggling === true
                       }
                       onCheckedChange={selectedState.onToggle}
-                      aria-label={`Toggle ${selected.title}`}
+                      aria-label={`Toggle ${featurePreviewLabels[selected.flag]}`}
                     />
                   </div>
                 </div>

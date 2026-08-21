@@ -51,7 +51,7 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
-  const showV4Migration = useV4UpgradeUiFlag();
+  const showV4Migration = useV4UpgradeUiFlag({ projectId: project?.id });
   if (!project || !organization || !router.query.projectId) {
     return [];
   }

@@ -38,6 +38,7 @@ declare module "next-auth" {
             metadata: Record<string, unknown>;
             aiFeaturesEnabled: boolean;
             aiTelemetryEnabled: boolean;
+            featureFlags?: Flags;
             projects: {
               id: PrismaProject["id"];
               name: PrismaProject["name"];

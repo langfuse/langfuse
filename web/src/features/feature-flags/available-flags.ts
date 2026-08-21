@@ -13,6 +13,41 @@ export const featurePreviewFlags = [
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
+export const organizationManageableFeaturePreviewFlags = [
+  "modernSession",
+  "v4UpgradeUi",
+  "compactTimeline",
+] as const satisfies readonly FeaturePreviewFlag[];
+
+export type OrganizationManageableFeaturePreviewFlag =
+  (typeof organizationManageableFeaturePreviewFlags)[number];
+
+export const featurePreviewMetadata: Record<
+  FeaturePreviewFlag,
+  { title: string; description: string }
+> = {
+  modernSession: {
+    title: "Compact Session View",
+    description:
+      "Navigate every trace in a session from one continuous conversation feed, with tools and structured data available on demand.",
+  },
+  searchBar: {
+    title: "Filter Search Bar",
+    description:
+      "A keyboard-driven query bar on the Observations and Traces tables — type filters like level:ERROR -env:dev latency:>2 with inline suggestions, alongside the existing filter sidebar.",
+  },
+  v4UpgradeUi: {
+    title: "V4 Migration",
+    description:
+      "Review each project's readiness for Langfuse v4 and get guided steps for anything that still needs an update.",
+  },
+  compactTimeline: {
+    title: "Compact Timeline",
+    description:
+      "See a whole trace at once — every observation a single dense line, coloured by type — then zoom and pan it like a map.",
+  },
+};
+
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;
 };

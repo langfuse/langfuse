@@ -6,6 +6,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { api } from "@/src/utils/api";
 
+import { featurePreviewLabels } from "../feature-preview-labels";
 import {
   FeaturePreviewModal,
   type PreviewFlag,
@@ -15,13 +16,6 @@ import {
 type ControlledFeaturePreviewModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-};
-
-const PREVIEW_LABEL: Record<PreviewFlag, string> = {
-  modernSession: "Compact Session View",
-  searchBar: "Filter Search Bar",
-  v4UpgradeUi: "V4 Migration",
-  compactTimeline: "Compact Timeline",
 };
 
 export function ControlledFeaturePreviewModal({
@@ -41,9 +35,7 @@ export function ControlledFeaturePreviewModal({
         });
         showSuccessToast({
           title: "Feature preview updated",
-          description: `${PREVIEW_LABEL[variables.flag]} preview has been ${
-            variables.enabled ? "enabled" : "disabled"
-          }.`,
+          description: `${featurePreviewLabels[variables.flag]} preview has been ${variables.enabled ? "enabled" : "disabled"}.`,
         });
       },
       onError: (error) => {

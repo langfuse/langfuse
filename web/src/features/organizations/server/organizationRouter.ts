@@ -21,6 +21,12 @@ import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBi
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { organizationManageableFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import {
+  filterOrganizationManageableFeaturePreviewFlags,
+  setOrganizationFeatureFlagDefault,
+} from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import { parseFlags } from "@/src/features/feature-flags/utils";
 
 import { env } from "@/src/env.mjs";
 
@@ -53,6 +59,121 @@ export const organizationsRouter = createTRPCRouter({
       return getLastTraceTimestampsByProjects({
         projectIds: organization?.projects.map((project) => project.id) ?? [],
       });
+    }),
+  getFeatureFlagOrgDefaults: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:update",
+      });
+      if (
+        env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        input.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Feature preview defaults are unavailable for the demo organization",
+        });
+      }
+
+      const organization = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+        select: {
+          featureFlagOrgDefaults: true,
+          _count: { select: { organizationMemberships: true } },
+        },
+      });
+      if (!organization) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+
+      return {
+        defaults: filterOrganizationManageableFeaturePreviewFlags(
+          organization.featureFlagOrgDefaults,
+        ),
+        memberCount: organization._count.organizationMemberships,
+      };
+    }),
+  setFeatureFlagOrgDefault: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        flag: z.enum(organizationManageableFeaturePreviewFlags),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:update",
+      });
+      if (
+        env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        input.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Feature preview defaults are unavailable for the demo organization",
+        });
+      }
+
+      if (
+        input.enabled &&
+        env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES !== "true"
+      ) {
+        const actor = await ctx.prisma.user.findUnique({
+          where: { id: ctx.session.user.id },
+          select: {
+            email: true,
+            featureFlags: true,
+            v4BetaEnabled: true,
+          },
+        });
+        const actorHasPreviewEnabled =
+          actor !== null &&
+          parseFlags(actor.featureFlags, {
+            email: actor.email,
+            v4BetaEnabled:
+              ctx.session.user.v4BetaEnabled ?? actor.v4BetaEnabled,
+          })[input.flag] === true;
+        if (!actorHasPreviewEnabled) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Enable and test this preview in your personal Feature Preview settings before enabling it for the organization.",
+          });
+        }
+      }
+
+      const result = await setOrganizationFeatureFlagDefault({
+        prisma: ctx.prisma,
+        orgId: input.orgId,
+        flag: input.flag,
+        enabled: input.enabled,
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "organization",
+        resourceId: input.orgId,
+        action: "updateFeatureFlagDefault",
+        before: { featureFlagOrgDefaults: result.before },
+        after: { featureFlagOrgDefaults: result.after },
+      });
+
+      return {
+        defaults: result.after,
+        flag: input.flag,
+        enabled: input.enabled,
+      };
     }),
   create: authenticatedProcedure
     .input(organizationNameSchema)
