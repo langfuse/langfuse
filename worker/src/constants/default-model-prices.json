@@ -4896,9 +4896,9 @@
         ],
         "prices": {
           "input": 2.5e-6,
-          "input_cached_tokens": 0.26e-6,
-          "input_cache_read": 0.26e-6,
-          "cache_read_input_tokens": 0.26e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "cache_read_input_tokens": 0.25e-6,
           "output": 11.25e-6,
           "output_reasoning_tokens": 11.25e-6,
           "output_reasoning": 11.25e-6,
@@ -5128,9 +5128,9 @@
         ],
         "prices": {
           "input": 2.5e-6,
-          "input_cached_tokens": 0.26e-6,
-          "input_cache_read": 0.26e-6,
-          "cache_read_input_tokens": 0.26e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "cache_read_input_tokens": 0.25e-6,
           "output": 11.25e-6,
           "output_reasoning_tokens": 11.25e-6,
           "output_reasoning": 11.25e-6,
@@ -5713,37 +5713,10 @@
         }
       },
       {
-        "id": "74f47bc2-3c4e-4bc8-8fb1-3677a3da4619",
-        "name": "Flex · Large context (>272K)",
-        "isDefault": false,
-        "priority": 1,
-        "conditions": [
-          {
-            "source": "model_parameters",
-            "key": "service_tier",
-            "operator": "in",
-            "values": ["flex"]
-          },
-          {
-            "usageDetailPattern": "(input)",
-            "operator": "gt",
-            "value": 272000,
-            "caseSensitive": false
-          }
-        ],
-        "prices": {
-          "input": 30e-6,
-          "output": 135e-6,
-          "output_reasoning_tokens": 135e-6,
-          "output_reasoning": 135e-6,
-          "reasoning_tokens": 135e-6
-        }
-      },
-      {
         "id": "921195dc-7b97-44c7-a12e-0dd4acafe335",
         "name": "Flex",
         "isDefault": false,
-        "priority": 2,
+        "priority": 1,
         "conditions": [
           {
             "source": "model_parameters",
@@ -5764,7 +5737,7 @@
         "id": "56beb248-e8af-4d42-a861-1f921e81cfb2",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 3,
+        "priority": 2,
         "conditions": [
           {
             "usageDetailPattern": "(input)",
