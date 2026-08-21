@@ -36,9 +36,11 @@ import {
 } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   claimQueuedRun,
+  cleanupTerminalRunMcpApiKeys,
   clearRunMcpApiKeyPointer,
   finishClaimedRun,
   heartbeatClaimedRun,
+  isMissingInAppAgentMcpApiKeyError,
   reconcileConversationRuns,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import {
@@ -77,6 +79,27 @@ export function abortActiveInAppAgentRuns(): void {
 /** Thrown for claim-time revalidation failures; maps to FAILED (init_failed). */
 class InAppAgentRunInitError extends Error {}
 
+async function deleteInAppAgentMcpApiKey(params: {
+  projectId: string;
+  apiKeyId: string;
+}): Promise<void> {
+  try {
+    await deleteApiKeyFromDb({
+      prisma,
+      id: params.apiKeyId,
+      entityId: params.projectId,
+      scope: "PROJECT",
+      redis,
+    });
+  } catch (error) {
+    // Concurrent cleanup or a prior delete already removed the row. Treat
+    // that as success so the mcpApiKeyId pointer can still be cleared.
+    if (!isMissingInAppAgentMcpApiKeyError(error)) {
+      throw error;
+    }
+  }
+}
+
 export async function executeInAppAgentRun(params: {
   projectId: string;
   runId: string;
@@ -104,6 +127,13 @@ export async function executeInAppAgentRun(params: {
         prisma,
         projectId,
         conversationId: existing.conversationId,
+      });
+      await cleanupTerminalRunMcpApiKeys({
+        prisma,
+        projectId,
+        conversationId: existing.conversationId,
+        deleteApiKey: (apiKeyId) =>
+          deleteInAppAgentMcpApiKey({ projectId, apiKeyId }),
       });
     }
 
@@ -144,16 +174,8 @@ export async function executeInAppAgentRun(params: {
     if (!mcpApiKey) return Promise.resolve();
     const keyId = mcpApiKey.id;
     mcpApiKeyCleanup ??= (async () => {
-      await deleteApiKeyFromDb({
-        prisma,
-        id: keyId,
-        entityId: projectId,
-        scope: "PROJECT",
-        redis,
-      });
-      // Pointer is nulled only after the delete is confirmed; if the delete
-      // failed above, the terminal run keeps the pointer so reconciliation
-      // retries the cleanup.
+      await deleteInAppAgentMcpApiKey({ projectId, apiKeyId: keyId });
+      // Pointer is nulled after delete succeeds or the key is already gone.
       await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
     })().catch((error: unknown) => {
       mcpApiKeyCleanup = undefined;
