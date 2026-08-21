@@ -1,39 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NewOrganizationForm } from "./NewOrganizationForm";
 
-const mocks = vi.hoisted(() => ({
-  captureMock: vi.fn(),
-  mutateAsyncMock: vi.fn(),
-  onSuccessMock: vi.fn(),
-  updateSessionMock: vi.fn(),
-}));
-
-vi.mock("next-auth/react", () => ({
-  useSession: () => ({ update: mocks.updateSessionMock }),
-}));
-
-vi.mock("@/src/features/organizations/hooks", () => ({
-  useLangfuseCloudRegion: () => ({ isLangfuseCloud: true }),
-}));
-
-vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => mocks.captureMock,
-}));
-
-vi.mock("@/src/utils/api", () => ({
-  api: {
-    organizations: {
-      create: {
-        useMutation: () => ({
-          isPending: false,
-          mutateAsync: mocks.mutateAsyncMock,
-        }),
-      },
-    },
-  },
-  reportTrpcErrorWithoutToast: () => undefined,
-}));
-
 vi.mock("@/src/components/design-system/Switch/Switch", () => ({
   Switch: ({
     checked,
@@ -55,14 +22,9 @@ vi.mock("@/src/components/design-system/Switch/Switch", () => ({
 }));
 
 describe("NewOrganizationForm", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.mutateAsyncMock.mockResolvedValue({ id: "org-1" });
-    mocks.updateSessionMock.mockResolvedValue(undefined);
-  });
-
   it("enables AI features by default when creating an organization", async () => {
-    render(<NewOrganizationForm onSuccess={mocks.onSuccessMock} />);
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<NewOrganizationForm isLangfuseCloud onSubmit={onSubmit} />);
 
     expect(
       screen.getByRole("switch", { name: "Enable AI powered features" }),
@@ -74,7 +36,7 @@ describe("NewOrganizationForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => {
-      expect(mocks.mutateAsyncMock).toHaveBeenCalledWith({
+      expect(onSubmit).toHaveBeenCalledWith({
         name: "Acme",
         aiFeaturesEnabled: true,
       });
@@ -82,7 +44,8 @@ describe("NewOrganizationForm", () => {
   });
 
   it("submits an explicit AI features opt-out", async () => {
-    render(<NewOrganizationForm onSuccess={mocks.onSuccessMock} />);
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<NewOrganizationForm isLangfuseCloud onSubmit={onSubmit} />);
 
     fireEvent.click(
       screen.getByRole("switch", { name: "Enable AI powered features" }),
@@ -93,7 +56,7 @@ describe("NewOrganizationForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => {
-      expect(mocks.mutateAsyncMock).toHaveBeenCalledWith({
+      expect(onSubmit).toHaveBeenCalledWith({
         name: "Acme",
         aiFeaturesEnabled: false,
       });
