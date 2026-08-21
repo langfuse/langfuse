@@ -1,14 +1,34 @@
 import type { Session } from "next-auth";
+import type { Mock } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
   createObservation,
   createObservationsCh,
+  createScoresCh,
   createTrace,
+  createTraceScore,
   createTracesCh,
+  getTracesIdentifierForSession,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+
+// getTracesIdentifierForSession is spied so the trace-cap test below can
+// force a synthetic trace list without inserting SESSION_TRACES_LIMIT+1 rows
+// into ClickHouse; every other test falls through to the real implementation.
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    getTracesIdentifierForSession: vi.fn(
+      (actual as any).getTracesIdentifierForSession,
+    ),
+  };
+});
+
+// Keep in sync with SESSION_TRACES_LIMIT in web/src/server/api/routers/sessions.ts.
+const SESSION_TRACES_LIMIT = 2_000;
 
 describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -133,7 +153,102 @@ describe("traces trpc", () => {
         ]),
         totalCost: expect.any(Number),
         users: expect.arrayContaining([trace.user_id, trace2.user_id]),
+        tracesTruncated: false,
       });
+    });
+
+    it("associates each trace with only its own scores via a single-pass map, not a per-trace filter over all scores", async () => {
+      // Regression test: sessions.byIdWithScores used to build each trace's
+      // scores with `validatedScores.filter((s) => s.traceId === t.id)`
+      // inside the per-trace map, i.e. O(traces * scores). It must instead
+      // build one Map<traceId, Score[]> in a single pass and look each trace
+      // up in O(1). This test does not measure complexity directly; it
+      // exercises several traces each with a distinct, non-overlapping set of
+      // scores (plus a session-level score with no traceId, and a trace with
+      // no scores) and asserts every trace ends up with exactly its own
+      // scores and nothing from any other trace — the invariant a per-trace
+      // filter and a traceId->scores map both must uphold identically.
+      const sessionId = randomUUID();
+
+      await prisma.traceSession.create({
+        data: { id: sessionId, projectId },
+      });
+
+      const traceCount = 5;
+      const scoresPerTrace = 4;
+      const traces = Array.from({ length: traceCount }, () =>
+        createTrace({ project_id: projectId, session_id: sessionId }),
+      );
+      // One trace deliberately has zero scores.
+      const traceWithNoScores = traces[traces.length - 1];
+
+      await createTracesCh(traces);
+
+      const scores = traces.flatMap((t) =>
+        t.id === traceWithNoScores.id
+          ? []
+          : Array.from({ length: scoresPerTrace }, () =>
+              createTraceScore({
+                project_id: projectId,
+                trace_id: t.id,
+                observation_id: null,
+              }),
+            ),
+      );
+      await createScoresCh(scores);
+
+      const sessionRes = await caller.sessions.byIdWithScores({
+        projectId,
+        sessionId,
+      });
+
+      expect(sessionRes.tracesTruncated).toBe(false);
+      expect(sessionRes.traces).toHaveLength(traceCount);
+
+      for (const trace of traces) {
+        const returnedTrace = sessionRes.traces.find((t) => t.id === trace.id);
+        expect(returnedTrace).toBeDefined();
+        const expectedScoreIds = scores
+          .filter((s) => s.trace_id === trace.id)
+          .map((s) => s.id)
+          .sort();
+        const actualScoreIds = (returnedTrace!.scores as { id: string }[])
+          .map((s) => s.id)
+          .sort();
+        expect(actualScoreIds).toEqual(expectedScoreIds);
+      }
+    });
+  });
+
+  describe("sessions.byIdWithScores trace cap", () => {
+    it("caps the number of traces processed and signals truncation when a session has more traces than the cap", async () => {
+      const sessionId = randomUUID();
+
+      await prisma.traceSession.create({
+        data: { id: sessionId, projectId },
+      });
+
+      const overCapCount = SESSION_TRACES_LIMIT + 1;
+      const now = Date.now();
+      const syntheticTraces = Array.from({ length: overCapCount }, (_, i) => ({
+        id: `synthetic-trace-${i}`,
+        userId: "",
+        name: "synthetic",
+        timestamp: new Date(now - i * 1000),
+        environment: "default",
+      }));
+
+      (getTracesIdentifierForSession as Mock).mockResolvedValueOnce(
+        syntheticTraces,
+      );
+
+      const sessionRes = await caller.sessions.byIdWithScores({
+        projectId,
+        sessionId,
+      });
+
+      expect(sessionRes.tracesTruncated).toBe(true);
+      expect(sessionRes.traces).toHaveLength(SESSION_TRACES_LIMIT);
     });
   });
 
