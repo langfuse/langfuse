@@ -218,15 +218,12 @@ export const vercelAiSdkOutputToolCallFixture = {
           {
             type: "tool-result",
             toolCallId: previousToolCallId,
-            output: {
-              type: "content",
-              value: [
-                {
-                  type: "text",
-                  text: "[Reduced documentation search response]",
-                },
-              ],
-            },
+            output: [
+              {
+                type: "text",
+                text: "[Reduced documentation search response]",
+              },
+            ],
           },
         ],
         source: "input",
