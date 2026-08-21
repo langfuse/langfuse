@@ -318,7 +318,7 @@ describe("chbApiClient", () => {
       expect(mocks.logger.error).toHaveBeenCalledTimes(1);
     });
 
-    it("does not fail on a non-2xx with an unparseable body", async () => {
+    it("does not fail on a non-2xx with an unparsable body", async () => {
       onChb({
         status: 502,
         ok: false,

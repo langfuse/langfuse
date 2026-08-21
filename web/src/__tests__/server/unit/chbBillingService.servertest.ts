@@ -490,7 +490,7 @@ describe("chbBillingService", () => {
       ]);
     });
 
-    it("never emits NaN for an unparseable or missing timestamp", async () => {
+    it("never emits NaN for an unparsable or missing timestamp", async () => {
       withOrg(chbConfig());
       clientMock.listInvoices.mockResolvedValue([
         { id: "inv_1", createdAt: "not a date" },
