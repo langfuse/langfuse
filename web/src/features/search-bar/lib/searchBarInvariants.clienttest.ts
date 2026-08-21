@@ -454,6 +454,16 @@ describe("search bar invariants — sessions registry", () => {
     ]);
   });
 
+  it("does not offer Ask AI until the view has its own prompt", () => {
+    // buildFilterSystemPrompt branches on registry.id and falls back to the
+    // EVENTS prompt — events prose, events worked examples. A view without its
+    // own branch must not offer AI generation, or the model gets a correct field
+    // catalog wrapped in instructions aimed at columns the view lacks.
+    expect(SESSIONS_FIELD_REGISTRY.aiFilterPrompt).toBe(false);
+    expect(EVENTS_FIELD_REGISTRY.aiFilterPrompt).toBe(true);
+    expect(RULE_FIELD_REGISTRY.aiFilterPrompt).toBe(true);
+  });
+
   it("drops metadata on the v3 registry, which has no metadata column", () => {
     expect(
       SESSIONS_V3_FIELD_REGISTRY.resolveField("metadata.region"),

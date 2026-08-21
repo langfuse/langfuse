@@ -319,21 +319,23 @@ export default function SessionsTable({
   // Sessions has no full-text lane (`sessions.all*` takes no searchQuery), so
   // the registry rejects free text and these stay inert.
   const noSearchLane = useCallback(() => {}, []);
-  const { store: searchBarStore, commit: searchBarCommit } = useEventsSearchBar(
-    {
-      projectId,
-      tableName: sessionsFilterConfig.tableName,
-      enabled: sessionsSearchBarEnabled,
-      filterState: queryFilter.explicitFilterState,
-      searchQuery: null,
-      searchType: DEFAULT_SEARCH_TYPE,
-      observed: observedOptions,
-      setFilterState: setFiltersWrapper,
-      setSearchQuery: noSearchLane,
-      setSearchType: noSearchLane,
-      registry: searchRegistry,
-    },
-  );
+  const {
+    store: searchBarStore,
+    commit: searchBarCommit,
+    applyFilters: searchBarApplyFilters,
+  } = useEventsSearchBar({
+    projectId,
+    tableName: sessionsFilterConfig.tableName,
+    enabled: sessionsSearchBarEnabled,
+    filterState: queryFilter.explicitFilterState,
+    searchQuery: null,
+    searchType: DEFAULT_SEARCH_TYPE,
+    observed: observedOptions,
+    setFilterState: setFiltersWrapper,
+    setSearchQuery: noSearchLane,
+    setSearchType: noSearchLane,
+    registry: searchRegistry,
+  });
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
@@ -858,7 +860,7 @@ export default function SessionsTable({
             store={searchBarStore}
             commit={searchBarCommit}
             observed={observedOptions}
-            onApplyFilters={setFiltersWrapper}
+            onApplyFilters={searchBarApplyFilters}
             registry={searchRegistry}
           />
         )}

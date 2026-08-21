@@ -73,6 +73,14 @@ export type FieldRegistry = {
   /** Placeholder examples. Written per view, never derived from field ids: the
    *  events examples advertise `latency:`/`level:` on a view that has neither. */
   searchExamples: readonly string[];
+  /**
+   * Whether this view has its OWN branch in `buildFilterSystemPrompt`. False
+   * hides Ask AI: the fallback prompt is the events one — events prose, events
+   * worked examples — so a view without its own branch would be handed a
+   * correct field catalog wrapped in instructions steering the model at columns
+   * it does not have. Write the branch, then flip this.
+   */
+  aiFilterPrompt: boolean;
   aiContextFields: readonly AIContextField[];
   resolveField: (name: string) => FieldRef | null;
   nullableFields: () => readonly FieldDef[];
@@ -108,6 +116,7 @@ export function fieldRegistryFromColumns(
     allowFreeText?: boolean;
     defaultTextField?: string;
     searchExamples?: readonly string[];
+    aiFilterPrompt?: boolean;
     aiContextFields?: readonly AIContextField[];
   },
 ): FieldRegistry {
@@ -162,6 +171,7 @@ export function fieldRegistryFromColumns(
     allowFreeText: overlay.allowFreeText ?? true,
     defaultTextField: overlay.defaultTextField ?? null,
     searchExamples: overlay.searchExamples ?? [],
+    aiFilterPrompt: overlay.aiFilterPrompt ?? false,
     aiContextFields: overlay.aiContextFields ?? [],
   });
 }
@@ -269,6 +279,7 @@ function createFieldRegistry({
   allowFreeText,
   defaultTextField,
   searchExamples,
+  aiFilterPrompt,
   aiContextFields,
 }: {
   id: FieldRegistry["id"];
@@ -280,6 +291,7 @@ function createFieldRegistry({
   allowFreeText: boolean;
   defaultTextField: string | null;
   searchExamples: readonly string[];
+  aiFilterPrompt: boolean;
   aiContextFields: readonly AIContextField[];
 }): FieldRegistry {
   const byName = new Map<string, FieldDef>();
@@ -307,6 +319,7 @@ function createFieldRegistry({
     traceScores,
     defaultTextField,
     searchExamples,
+    aiFilterPrompt,
     aiContextFields,
     resolveField: (name) => resolveFromRegistry(name, registry, byName),
     nullableFields: () => nullable,
@@ -339,6 +352,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
     "latency:>2",
     "scores.accuracy:>0.8",
   ],
+  aiFilterPrompt: true,
   aiContextFields: [
     { observedOptionsKey: "type", promptLabel: "type" },
     { observedOptionsKey: "level", promptLabel: "level" },

@@ -11,6 +11,7 @@ export const RULE_FIELD_REGISTRY = fieldRegistryFromColumns(
   {
     id: "evaluationRules",
     allowFreeText: false,
+    aiFilterPrompt: true,
     searchExamples: [
       "level:ERROR",
       "-env:dev",

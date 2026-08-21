@@ -92,6 +92,15 @@ export const searchBarRouter = createTRPCRouter({
             : input.registryId === "sessions"
               ? SESSIONS_FIELD_REGISTRY
               : EVENTS_FIELD_REGISTRY;
+        // Defence in depth for the client gate above: generating against the
+        // fallback (events) prompt for a view that has no branch of its own
+        // produces filters for columns that view does not have.
+        if (!registry.aiFilterPrompt) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "AI filter generation is not available for this view",
+          });
+        }
         // Generating a filter reads nothing a project member cannot already
         // read by hand, so membership is the right bar; whether the org uses
         // AI at all is governed by `aiFeaturesEnabled` below.
