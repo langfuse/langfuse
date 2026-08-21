@@ -617,7 +617,7 @@ function IOPreviewJSONInner({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col border-t border-b">
+    <div className="ph-no-capture flex min-h-0 flex-1 flex-col border-t border-b">
       {/* Inline comment bubble - shows when text is selected */}
       {enableInlineComments && (
         <InlineCommentBubble onAddComment={handleAddComment} />

@@ -29,6 +29,9 @@ import { type AppRouter } from "@/src/server/api/root";
 import { reportError } from "@/src/utils/reportError";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
+
+export { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 
 setUpSuperjson();
 
@@ -128,9 +131,12 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * for each suppressed error so its path + code stay in the trail of any real
  * event captured later in the session.
  *
- * Deliberately narrow: only these codes on an actual `TRPCClientError`. A 5xx
- * (`INTERNAL_SERVER_ERROR`), a `BAD_REQUEST`, an unrecognized code, or any
- * non-tRPC error is not expected and keeps flowing to Sentry unchanged.
+ * Deliberately narrow: only these codes on an actual `TRPCClientError`, plus
+ * Zod input validation (`BAD_REQUEST` whose message is a Zod 4 issue list or
+ * whose `data.zodError` is populated). Empty/too-short fields are the product
+ * working as designed — the toast is the UX; Sentry must not log them.
+ * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST`, an unrecognized
+ * code, or any non-tRPC error is not expected and keeps flowing to Sentry.
  */
 export const EXPECTED_TRPC_ERROR_CODES = [
   "NOT_FOUND",
@@ -183,10 +189,13 @@ export const getTrpcErrorFingerprint = (error: unknown): string[] => [
  */
 export const isExpectedTrpcClientError = (error: unknown): boolean => {
   const code = getTrpcErrorCode(error);
-  return (
+  if (
     code !== undefined &&
     (EXPECTED_TRPC_ERROR_CODES as readonly string[]).includes(code)
-  );
+  ) {
+    return true;
+  }
+  return isTrpcZodValidationError(error);
 };
 
 // HTTP statuses returned when a request's URL/headers are too large for the

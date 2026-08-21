@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import type { InAppAgentUiMessage } from "../schema";
 
 /**
  * Rendering-only derivation of the persisted event log. The canonical messages
@@ -24,7 +25,9 @@ export type InAppAgentDisplayState = {
   nativeToolCallParentMessageId: string | null;
   latestNewMessageId: string | null;
   nextOrder: number;
-  seenMessageIds: ReadonlySet<string>;
+  /** Message id to when this client first saw it. Doubles as the processed-id
+   * ledger: a key exists exactly when the message has been recorded. */
+  messageTimestamps: Record<string, number>;
   textByMessageId: Record<
     string,
     {
@@ -34,6 +37,7 @@ export type InAppAgentDisplayState = {
         InAppAgentDisplayPlacement & {
           id: string;
           content: string;
+          timestamp?: number;
         }
       >;
     }
@@ -41,8 +45,9 @@ export type InAppAgentDisplayState = {
   toolCallPlacements: Record<string, InAppAgentDisplayPlacement | null>;
 };
 
-type InAppAgentDisplayMessage = AgUiMessage & {
+type InAppAgentDisplayMessage = InAppAgentUiMessage & {
   feedbackMessageId?: string;
+  timestamp?: number;
 };
 
 type InAppAgentToolCall = NonNullable<
@@ -55,9 +60,10 @@ const InAppAgentDisplayPlacementSchema = z.object({
 });
 
 /**
- * Wire form of {@link InAppAgentDisplayState}: identical except that the seen
- * message ids travel as an array. Validated rather than relying on the tRPC
- * transformer so the contract stays explicit and transport-independent.
+ * Wire form of {@link InAppAgentDisplayState}. Validated rather than relying on
+ * the tRPC transformer so the contract stays explicit and transport-independent.
+ * Nothing stores it: the server rebuilds the state from the event log on every
+ * conversation fetch, so the only skew to survive is a rolling deploy.
  *
  * The sidecar duplicates assistant text, and `publishedContent` is always
  * `nativeContent` plus every segment's content joined in order, so it could be
@@ -71,7 +77,11 @@ export const SerializedInAppAgentDisplayStateSchema = z.object({
   nativeToolCallParentMessageId: z.string().nullable(),
   latestNewMessageId: z.string().nullable(),
   nextOrder: z.number(),
-  seenMessageIds: z.array(z.string()),
+  // Superseded by messageTimestamps' keys. Still written so a tab holding the
+  // previous bundle keeps parsing this payload across a rolling deploy;
+  // ignored on read and removable a release later.
+  seenMessageIds: z.array(z.string()).optional(),
+  messageTimestamps: z.record(z.string(), z.number()).default({}),
   textByMessageId: z.record(
     z.string(),
     z.object({
@@ -81,6 +91,7 @@ export const SerializedInAppAgentDisplayStateSchema = z.object({
         InAppAgentDisplayPlacementSchema.extend({
           id: z.string(),
           content: z.string(),
+          timestamp: z.number().optional(),
         }),
       ),
     }),
@@ -98,7 +109,7 @@ export type SerializedInAppAgentDisplayState = z.infer<
 export function serializeInAppAgentDisplayState(
   state: InAppAgentDisplayState,
 ): SerializedInAppAgentDisplayState {
-  return { ...state, seenMessageIds: [...state.seenMessageIds] };
+  return { ...state, seenMessageIds: Object.keys(state.messageTimestamps) };
 }
 
 export function deserializeInAppAgentDisplayState(
@@ -109,10 +120,8 @@ export function deserializeInAppAgentDisplayState(
     return createInAppAgentDisplayState();
   }
 
-  return {
-    ...parsed.data,
-    seenMessageIds: new Set(parsed.data.seenMessageIds),
-  };
+  const { seenMessageIds: _legacySeenMessageIds, ...state } = parsed.data;
+  return state;
 }
 
 export function createInAppAgentDisplayState(): InAppAgentDisplayState {
@@ -121,7 +130,7 @@ export function createInAppAgentDisplayState(): InAppAgentDisplayState {
     nativeToolCallParentMessageId: null,
     latestNewMessageId: null,
     nextOrder: 0,
-    seenMessageIds: new Set(),
+    messageTimestamps: {},
     textByMessageId: {},
     toolCallPlacements: {},
   };
@@ -130,8 +139,9 @@ export function createInAppAgentDisplayState(): InAppAgentDisplayState {
 export function recordInAppAgentMessagesForDisplay(
   state: InAppAgentDisplayState,
   messages: readonly AgUiMessage[],
+  observedAt = Date.now(),
 ): InAppAgentDisplayState {
-  const seenMessageIds = new Set(state.seenMessageIds);
+  const messageTimestamps = { ...state.messageTimestamps };
   const textByMessageId = { ...state.textByMessageId };
   let latestNewMessageId = state.latestNewMessageId;
   let latestPlacement = state.latestPlacement;
@@ -139,11 +149,11 @@ export function recordInAppAgentMessagesForDisplay(
   let nextOrder = state.nextOrder;
 
   for (const message of messages) {
-    if (seenMessageIds.has(message.id)) {
+    if (message.id in messageTimestamps) {
       continue;
     }
 
-    seenMessageIds.add(message.id);
+    messageTimestamps[message.id] = observedAt;
     latestNewMessageId = message.id;
     latestPlacement = null;
     nativeToolCallParentMessageId = null;
@@ -218,6 +228,7 @@ export function recordInAppAgentMessagesForDisplay(
       ...placement,
       id: `display-text-${message.id}-${textState.segments.length + 1}`,
       content: appendedContent,
+      timestamp: observedAt,
     };
     nextOrder += 1;
     latestPlacement = placement;
@@ -234,7 +245,7 @@ export function recordInAppAgentMessagesForDisplay(
     nativeToolCallParentMessageId,
     latestNewMessageId,
     nextOrder,
-    seenMessageIds,
+    messageTimestamps,
     textByMessageId,
   };
 }
@@ -270,7 +281,7 @@ export function recordInAppAgentToolCallForDisplay(
 }
 
 export function projectInAppAgentMessagesForDisplay(
-  messages: readonly AgUiMessage[],
+  messages: readonly InAppAgentUiMessage[],
   state: InAppAgentDisplayState,
 ): InAppAgentDisplayMessage[] {
   // Canonical messages stay untouched for persistence and subsequent runs.
@@ -349,6 +360,7 @@ export function projectInAppAgentMessagesForDisplay(
         id: segment.id,
         role: "assistant",
         content: segment.content,
+        timestamp: segment.timestamp,
         ...(sourceMessage?.role === "assistant"
           ? {
               runId: sourceMessage.runId,
@@ -368,10 +380,11 @@ export function projectInAppAgentMessagesForDisplay(
     firstToolCallMessageIds.get(toolCall.id) !== messageId;
 
   return messages.flatMap<InAppAgentDisplayMessage>((message) => {
-    const projectedMessage =
+    const projectedMessage: InAppAgentDisplayMessage =
       message.role === "assistant"
         ? {
             ...message,
+            timestamp: state.messageTimestamps[message.id],
             content:
               state.textByMessageId[message.id]?.nativeContent ??
               message.content,
@@ -388,7 +401,12 @@ export function projectInAppAgentMessagesForDisplay(
               return !placement || !messageIds.has(placement.anchorMessageId);
             }),
           }
-        : message;
+        : // Reasoning is its own role here and starts most turns, so it carries
+          // the timestamp the "Worked for" duration measures from.
+          {
+            ...message,
+            timestamp: state.messageTimestamps[message.id],
+          };
     const isEmptyDuplicateToolCallMessage =
       message.role === "assistant" &&
       projectedMessage.role === "assistant" &&

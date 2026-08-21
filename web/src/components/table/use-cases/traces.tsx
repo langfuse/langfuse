@@ -1,4 +1,3 @@
-import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -7,7 +6,6 @@ import {
 } from "@/src/components/table/data-table-controls";
 import {
   TableBadgeLoadingCell,
-  TableIconButtonLoadingCell,
   TableTextLoadingCell,
 } from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
@@ -107,10 +105,10 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
 
 export type TracesTableRow = {
   // Shown by default
-  bookmarked: boolean;
   timestamp: Date;
   name: string;
   // i/o and metadata not set explicitly, but fetched from the server from the cell
@@ -352,7 +350,6 @@ export default function TracesTable({
         environmentFilterOptions.data?.map((value) => value.environment) ??
         undefined,
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
-      bookmarked: ["Bookmarked", "Not bookmarked"],
       userId:
         traceFilterOptionsResponse.data?.users?.map((u) => ({
           value: u.value,
@@ -620,13 +617,11 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
-  const displayCount = totalCountQuery.isPending ? (
-    <span className="inline-block font-mono">...</span>
-  ) : selectAll ? (
-    compactNumberFormatter(totalCountQuery.data?.totalCount)
-  ) : (
-    compactNumberFormatter(Object.keys(selectedRows).length)
-  );
+  const displayCount = totalCountQuery.isPending
+    ? "..."
+    : selectAll
+      ? compactNumberFormatter(totalCountQuery.data?.totalCount)
+      : compactNumberFormatter(Object.keys(selectedRows).length);
 
   // Select-all deletes persist the raw filterState into the batch action, but
   // comment filters resolve via Postgres at read time and the server rejects
@@ -660,9 +655,8 @@ export default function TracesTable({
       id: ActionId.TraceAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
-      description: "Add selected traces to an annotation queue.",
-      targetLabel: "Annotation Queue",
-      execute: handleAddToAnnotationQueue,
+      description: `Add ${displayCount} selected traces to an annotation queue.`,
+      customDialog: true,
       accessCheck: {
         scope: "annotationQueues:CUD",
       },
@@ -672,35 +666,7 @@ export default function TracesTable({
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
-    ...(hideControls
-      ? []
-      : ([
-          selectActionColumn,
-          {
-            accessorKey: "bookmarked",
-            header: undefined,
-            id: "bookmarked",
-            size: 30,
-            isFixedPosition: true,
-            loadingCell: <TableIconButtonLoadingCell />,
-            cell: ({ row }) => {
-              const bookmarked: TracesTableRow["bookmarked"] =
-                row.getValue("bookmarked");
-              const traceId = row.getValue("id");
-              return typeof traceId === "string" &&
-                typeof bookmarked === "boolean" ? (
-                <StarTraceToggle
-                  tracesFilter={tracesAllQueryFilter}
-                  traceId={traceId}
-                  projectId={projectId}
-                  value={bookmarked}
-                  size="icon-xs"
-                />
-              ) : undefined;
-            },
-            enableSorting,
-          },
-        ] satisfies LangfuseColumnDef<TracesTableRow>[])),
+    ...(hideControls ? [] : [selectActionColumn]),
     {
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -1375,11 +1341,6 @@ export default function TracesTable({
     return {
       itemType: "TRACE" as const,
       detailNavigationKey: detailPageListKeys.traces,
-      peekEventOptions: {
-        // Stable hook (decoupled from the star's state-aware aria-label) so
-        // clicking a row's bookmark toggles it without dismissing the peek.
-        ignoredSelectors: ['[role="checkbox"]', "[data-bookmark-toggle]"],
-      },
       ...peekNavigationProps,
     };
   }, [hideControls, peekNavigationProps]);
@@ -1420,7 +1381,6 @@ export default function TracesTable({
     return traces.isSuccess
       ? (traceRowData?.rows?.map((trace) => {
           return {
-            bookmarked: trace.bookmarked,
             id: trace.id,
             timestamp: trace.timestamp,
             name: trace.name ?? "",
@@ -1514,17 +1474,34 @@ export default function TracesTable({
             columnsWithCustomSelect={["traceName", "traceTags"]}
             actionButtons={[
               selectedTraceIds.length > 0 || selectAll ? (
-                <TableActionMenu
+                <AddTracesToAnnotationQueueDialogController
                   key="traces-multi-select-actions"
                   projectId={projectId}
-                  actions={tableActions}
-                  tableName={BatchExportTableName.Traces}
-                  selectedCount={selectedTraceCount}
-                  onClearSelection={() => {
+                  onSuccess={() => {
                     setSelectedRows({});
                     setSelectAll(false);
                   }}
-                />
+                  description={`Add ${displayCount} selected traces to an annotation queue.`}
+                  onAddToQueue={handleAddToAnnotationQueue}
+                >
+                  {({ openDialog }) => (
+                    <TableActionMenu
+                      projectId={projectId}
+                      actions={tableActions}
+                      tableName={BatchExportTableName.Traces}
+                      selectedCount={selectedTraceCount}
+                      onClearSelection={() => {
+                        setSelectedRows({});
+                        setSelectAll(false);
+                      }}
+                      onCustomAction={(actionType) => {
+                        if (actionType === ActionId.TraceAddToAnnotationQueue) {
+                          openDialog();
+                        }
+                      }}
+                    />
+                  )}
+                </AddTracesToAnnotationQueueDialogController>
               ) : null,
               <BatchExportTableButton
                 {...{

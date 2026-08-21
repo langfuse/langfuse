@@ -76,11 +76,13 @@ export const getEventsStream = async (props: {
   const { query, params: queryParams } = queryBuilder.buildWithParams();
 
   // Get distinct score names for empty columns
+  // Same service as the values read below: a missing name is silently dropped.
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
     startTimeFrom,
     clickhouseConfigs,
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(

@@ -5,6 +5,11 @@ import { expect, fn } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
+import {
+  APP_SHELL_CHROME_ROW_CLASS,
+  APP_SHELL_CHROME_ROW_TEST_ID,
+} from "@/src/components/layouts/app-shell-chrome";
+import { cn } from "@/src/utils/tailwind";
 
 type AppSidebarProps = ComponentProps<typeof AppSidebar>;
 type VersionState = AppSidebarProps["versionState"];
@@ -23,6 +28,10 @@ const setCurrentTimestamp = (timestamp: number) => {
 
 const meta = preview.meta({
   component: AppSidebar,
+  // Fullscreen: the docked sidebar is `position: fixed` to the iframe, so
+  // Storybook's default 1rem padded layout sat the inset chrome 16px below
+  // the logo strip and made the T-junction look broken.
+  parameters: { layout: "fullscreen" },
   render: (args) => <SidebarStory open args={args} />,
   args: {
     navItems: {
@@ -73,14 +82,33 @@ const meta = preview.meta({
 const SidebarStory = ({
   open,
   args,
+  showPageChrome = false,
 }: {
   open: boolean;
   args: AppSidebarProps;
+  showPageChrome?: boolean;
 }) => (
   <SidebarProvider open={open}>
     <AppSidebar {...args} />
     <SidebarInset>
-      <div className="bg-muted/30 h-full" />
+      {showPageChrome ? (
+        <>
+          <div
+            data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
+            className={cn(APP_SHELL_CHROME_ROW_CLASS, "gap-3 px-3")}
+          >
+            <span className="text-muted-foreground text-sm">Toggle</span>
+            <span className="bg-light-red text-dark-red rounded-md px-1 text-xs">
+              PROD-EU
+            </span>
+          </div>
+          <div className="text-primary px-3 py-1 text-lg leading-7 font-bold">
+            Tracing
+          </div>
+        </>
+      ) : (
+        <div className="bg-muted/30 h-full" />
+      )}
     </SidebarInset>
   </SidebarProvider>
 );
@@ -164,6 +192,7 @@ export const LatestLaunchWeek = meta.story({
 });
 
 export const GitHubStar = meta.story({
+  name: "(Test) GitHub star",
   args: {
     v4UpgradeUiEnabled: false,
     notificationState: {
@@ -227,4 +256,37 @@ export const MobileNavigation = meta.story({
 
 export const Collapsed = meta.story({
   render: (args) => <SidebarStory open={false} args={args} />,
+});
+
+export const WithPageChrome = meta.story({
+  args: {
+    showDemoBadge: true,
+  },
+  render: (args) => <SidebarStory open args={args} showPageChrome />,
+});
+
+export const ChromeRowAlignment = meta.story({
+  name: "(Test) Chrome Row Aligns With Page Header",
+  args: {
+    showDemoBadge: true,
+  },
+  render: (args) => <SidebarStory open args={args} showPageChrome />,
+  play: async ({ canvas }) => {
+    const rows = canvas.getAllByTestId(APP_SHELL_CHROME_ROW_TEST_ID);
+    await expect(rows).toHaveLength(2);
+
+    const [sidebarRow, pageRow] = rows;
+    const sidebarBox = sidebarRow.getBoundingClientRect();
+    const pageBox = pageRow.getBoundingClientRect();
+
+    // Skip geometry when the desktop sidebar is `display: none` (narrow
+    // Storybook viewport uses the mobile sheet instead).
+    if (sidebarBox.width === 0) return;
+
+    // Same box geometry (the shared min-h-11 + border-b class). Absolute Y
+    // also matches when this file uses `layout: fullscreen` so the fixed
+    // sidebar and the in-flow inset share an origin.
+    await expect(Math.abs(sidebarBox.height - pageBox.height)).toBeLessThan(1);
+    await expect(Math.abs(sidebarBox.bottom - pageBox.bottom)).toBeLessThan(1);
+  },
 });

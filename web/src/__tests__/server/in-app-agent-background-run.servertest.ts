@@ -10,25 +10,31 @@ import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { type Plan } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
+  IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
-  type Plan,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-  IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
-} from "@langfuse/shared/in-app-agent";
+} from "@/src/features/in-app-agent/ids";
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
+import {
+  IN_APP_AGENT_HEARTBEAT_STALE_MS,
+  IN_APP_AGENT_QUEUE_TIMEOUT_MS,
+  IN_APP_AGENT_RUN_MAX_DURATION_MS,
+} from "@langfuse/shared/in-app-agent/server/tunables";
 import { env } from "@/src/env.mjs";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 import type * as SharedServerModule from "@langfuse/shared/src/server";
+import type * as PersistenceModule from "@langfuse/shared/in-app-agent/server/persistence";
 
 const enqueuedJobs: Array<{ name: string; payload: unknown; jobId?: string }> =
   [];
@@ -37,6 +43,22 @@ let enqueueShouldFail = false;
 const rateLimitMocks = vi.hoisted(() => ({
   rateLimitRequest: vi.fn(),
 }));
+
+const persistenceMocks = vi.hoisted(() => ({
+  maybeInferAndPersistConversationTitle: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@langfuse/shared/in-app-agent/server/persistence", async () => {
+  const actual = await vi.importActual<typeof PersistenceModule>(
+    "@langfuse/shared/in-app-agent/server/persistence",
+  );
+
+  return {
+    ...actual,
+    maybeInferAndPersistConversationTitle:
+      persistenceMocks.maybeInferAndPersistConversationTitle,
+  };
+});
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual<typeof SharedServerModule>(
@@ -75,16 +97,26 @@ vi.mock("@/src/server/auth", () => ({
 describe("in-app agent background runs", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalSharedCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalSharedBedrockModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalSharedBedrockRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+  const originalSharedInAppAgentEnabled =
+    sharedEnv.LANGFUSE_IN_APP_AGENT_ENABLED;
   const originalMaxActiveRunsPerUser =
-    sharedEnv.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER;
+    env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER;
   const originalMaxActiveRunsPerOrg =
-    sharedEnv.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG;
+    env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = "eu-central-1";
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = undefined;
     enqueuedJobs.length = 0;
     enqueueShouldFail = false;
+    persistenceMocks.maybeInferAndPersistConversationTitle.mockClear();
     rateLimitMocks.rateLimitRequest.mockResolvedValue({
       isRateLimited: () => false,
       res: undefined,
@@ -92,11 +124,19 @@ describe("in-app agent background runs", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+      originalSharedCloudRegion;
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = originalSharedBedrockModel;
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION =
+      originalSharedBedrockRegion;
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED =
+      originalSharedInAppAgentEnabled;
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
       originalMaxActiveRunsPerUser;
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG =
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG =
       originalMaxActiveRunsPerOrg;
   });
 
@@ -170,6 +210,120 @@ describe("in-app agent background runs", () => {
       conversationId: createInAppAgentConversationId(),
       userId: params.userId,
     });
+
+  it.each([
+    {
+      name: "starts a self-hosted run when LANGFUSE_IN_APP_AGENT_ENABLED is true",
+      cloudRegion: undefined,
+      enabled: "true" as const,
+      plan: "self-hosted:enterprise" as const,
+      expected: "queued" as const,
+    },
+    {
+      name: "rejects a self-hosted run when LANGFUSE_IN_APP_AGENT_ENABLED is unset",
+      cloudRegion: undefined,
+      enabled: undefined,
+      plan: "self-hosted:enterprise" as const,
+      expected: "rejected" as const,
+    },
+    {
+      name: "rejects a self-hosted run when LANGFUSE_IN_APP_AGENT_ENABLED is false",
+      cloudRegion: undefined,
+      enabled: "false" as const,
+      plan: "self-hosted:enterprise" as const,
+      expected: "rejected" as const,
+    },
+    {
+      name: "starts a Cloud run when LANGFUSE_IN_APP_AGENT_ENABLED is unset",
+      cloudRegion: "DEV" as const,
+      enabled: undefined,
+      plan: "cloud:hobby" as const,
+      expected: "queued" as const,
+    },
+    {
+      name: "rejects a Cloud run when LANGFUSE_IN_APP_AGENT_ENABLED is false",
+      cloudRegion: "DEV" as const,
+      enabled: "false" as const,
+      plan: "cloud:hobby" as const,
+      expected: "rejected" as const,
+    },
+  ])("$name", async ({ cloudRegion, enabled, plan, expected }) => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloudRegion;
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloudRegion;
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = enabled;
+    const { caller, projectId, userId } = await createCaller(undefined, plan);
+    const conversation = await createConversation({ projectId, userId });
+
+    const startRun = caller.startRun({
+      projectId,
+      conversationId: conversation.id,
+      message: "Inspect a trace",
+    });
+
+    if (expected === "queued") {
+      await expect(startRun).resolves.toMatchObject({
+        conversationId: conversation.id,
+      });
+      expect(enqueuedJobs).toHaveLength(1);
+      return;
+    }
+
+    await expect(startRun).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message: "In-app agent is not enabled on this instance.",
+    });
+    expect(enqueuedJobs).toHaveLength(0);
+  });
+
+  it("lists conversations when the in-app agent model is not configured", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+
+    const listed = await caller.listConversations({ projectId, limit: 50 });
+
+    expect(listed.conversations.map((item) => item.id)).toEqual([
+      conversation.id,
+    ]);
+  });
+
+  it("starts a Cloud run when LANGFUSE_AWS_BEDROCK_REGION is unset", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "Inspect a trace",
+      }),
+    ).resolves.toMatchObject({
+      conversationId: conversation.id,
+    });
+    expect(enqueuedJobs).toHaveLength(1);
+  });
+
+  it("rejects requests before queueing when the in-app agent model is not configured", async () => {
+    const { caller, projectId } = await createCaller();
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: createInAppAgentConversationId(),
+        message: "Do not queue this",
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message:
+        "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL.",
+    });
+
+    expect(enqueuedJobs).toHaveLength(0);
+  });
 
   /** Park a run for approval the way the worker does: interrupt event, then CAS. */
   const parkRunForApproval = async (params: {
@@ -289,6 +443,9 @@ describe("in-app agent background runs", () => {
         }),
       }),
     ]);
+    expect(
+      persistenceMocks.maybeInferAndPersistConversationTitle,
+    ).toHaveBeenCalledOnce();
   });
 
   it("rejects a second submit while a run is active without duplicating anything", async () => {
@@ -343,7 +500,7 @@ describe("in-app agent background runs", () => {
       userId,
     });
 
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG = 1;
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG = 1;
 
     await expect(
       caller.startRun({
@@ -377,13 +534,13 @@ describe("in-app agent background runs", () => {
       userId,
       createdAt: new Date(
         Date.now() -
-          sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
-          sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS -
+          IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+          IN_APP_AGENT_RUN_MAX_DURATION_MS -
           60_000,
       ),
     });
 
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
 
     const { runId } = await caller.startRun({
       projectId,
@@ -408,8 +565,8 @@ describe("in-app agent background runs", () => {
     // its slot in the accounting, or the ceiling leaks while hung runs pile up.
     const overdue = new Date(
       Date.now() -
-        sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
-        sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS -
+        IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+        IN_APP_AGENT_RUN_MAX_DURATION_MS -
         60_000,
     );
     await prisma.inAppAgentRun.create({
@@ -426,7 +583,7 @@ describe("in-app agent background runs", () => {
       },
     });
 
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
 
     await expect(
       caller.startRun({
@@ -455,13 +612,11 @@ describe("in-app agent background runs", () => {
         request: { kind: "userMessage", context: [] },
         createdAt: new Date(Date.now() - 5 * 60_000),
         claimedAt: new Date(Date.now() - 5 * 60_000),
-        heartbeatAt: new Date(
-          Date.now() - sharedEnv.LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS * 3,
-        ),
+        heartbeatAt: new Date(Date.now() - IN_APP_AGENT_HEARTBEAT_STALE_MS * 3),
       },
     });
 
-    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+    (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
 
     const { runId } = await caller.startRun({
       projectId,
@@ -571,11 +726,13 @@ describe("in-app agent background runs", () => {
     });
     expect(decisionEvent.event).toMatchObject({
       name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
-      value: { toolCallId: "tool-call-grant", scope: "conversation" },
+      value: { toolCallId: "tool-call-grant" },
     });
   });
 
   it("decides an approval exactly once and reads the tool args server-side", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-14T10:01:00.000Z"));
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const context = [
@@ -585,12 +742,14 @@ describe("in-app agent background runs", () => {
       },
       { description: "user_name", value: "Agent User" },
     ];
+    const parkedAt = new Date("2026-08-14T10:00:05.000Z");
     const parkedRunId = await parkRunForApproval({
       projectId,
       conversationId: conversation.id,
       userId,
       toolCallId: "tool-call-1",
       context,
+      parkedAt,
     });
 
     const { runId: continuationRunId } = await caller.decideToolApproval({
@@ -615,6 +774,10 @@ describe("in-app agent background runs", () => {
     expect(continuation.request).toMatchObject({
       kind: "approvalDecision",
       parentRunId: parkedRunId,
+      rootRunId: parkedRunId,
+      traceStartedAt: parkedRun.createdAt.toISOString(),
+      approvalRequestedAt: parkedAt.toISOString(),
+      continuationNumber: 1,
       toolCallId: "tool-call-1",
       approved: true,
       context,
@@ -655,6 +818,8 @@ describe("in-app agent background runs", () => {
   });
 
   it("preserves context through an approved then rejected chained continuation", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-14T10:01:00.000Z"));
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const context = [
@@ -681,13 +846,26 @@ describe("in-app agent background runs", () => {
       approved: true,
     });
 
+    const approvedContinuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: approvedContinuationId, projectId },
+    });
+    expect(approvedContinuation.request).toMatchObject({
+      kind: "approvalDecision",
+      parentRunId: initialRunId,
+      rootRunId: initialRunId,
+      traceStartedAt: expect.any(String),
+      approvalRequestedAt: expect.any(String),
+      continuationNumber: 1,
+    });
+
+    const secondParkedAt = new Date("2026-08-14T10:03:00.000Z");
     await prisma.inAppAgentRun.update({
       where: {
         id_projectId: { id: approvedContinuationId, projectId },
       },
       data: {
         status: InAppAgentRunStatus.AWAITING_APPROVAL,
-        finishedAt: new Date(),
+        finishedAt: secondParkedAt,
       },
     });
     await prisma.inAppAgentEvent.create({
@@ -710,6 +888,7 @@ describe("in-app agent background runs", () => {
         },
       },
     });
+    vi.setSystemTime(new Date("2026-08-14T10:04:00.000Z"));
 
     const { runId: rejectedContinuationId } = await caller.decideToolApproval({
       projectId,
@@ -725,6 +904,11 @@ describe("in-app agent background runs", () => {
     expect(rejectedContinuation.request).toMatchObject({
       kind: "approvalDecision",
       parentRunId: approvedContinuationId,
+      rootRunId: initialRunId,
+      traceStartedAt: (approvedContinuation.request as Record<string, unknown>)
+        .traceStartedAt,
+      approvalRequestedAt: secondParkedAt.toISOString(),
+      continuationNumber: 2,
       toolCallId: "tool-call-2",
       approved: false,
       context,
@@ -764,66 +948,6 @@ describe("in-app agent background runs", () => {
     ).resolves.toMatchObject({
       status: InAppAgentRunStatus.AWAITING_APPROVAL,
     });
-    expect(enqueuedJobs).toEqual([]);
-  });
-
-  it("rejects approval continuations for write-locked conversations before mutating", async () => {
-    const { caller, projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
-    const parkedRunId = await parkRunForApproval({
-      projectId,
-      conversationId: conversation.id,
-      userId,
-      toolCallId: "write-locked-tool-call",
-    });
-
-    await prisma.inAppAgentConversation.update({
-      where: {
-        id_projectId: { id: conversation.id, projectId },
-      },
-      data: { createdAt: new Date(Date.now() - 9 * 60 * 60 * 1000) },
-    });
-    await prisma.inAppAgentEvent.create({
-      data: {
-        projectId,
-        conversationId: conversation.id,
-        runId: parkedRunId,
-        sequenceNumber: 1,
-        type: EventType.TOOL_CALL_START,
-        event: {
-          type: EventType.TOOL_CALL_START,
-          toolCallId: "sandbox-tool-call",
-          toolCallName: "bash",
-        },
-      },
-    });
-
-    await expect(
-      caller.decideToolApproval({
-        projectId,
-        conversationId: conversation.id,
-        runId: parkedRunId,
-        toolCallId: "write-locked-tool-call",
-        approved: true,
-      }),
-    ).rejects.toMatchObject({
-      code: "PRECONDITION_FAILED",
-      message:
-        "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.",
-    });
-
-    await expect(
-      prisma.inAppAgentRun.findFirstOrThrow({
-        where: { id: parkedRunId, projectId },
-      }),
-    ).resolves.toMatchObject({
-      status: InAppAgentRunStatus.AWAITING_APPROVAL,
-    });
-    await expect(
-      prisma.inAppAgentRun.count({
-        where: { projectId, conversationId: conversation.id },
-      }),
-    ).resolves.toBe(1);
     expect(enqueuedJobs).toEqual([]);
   });
 

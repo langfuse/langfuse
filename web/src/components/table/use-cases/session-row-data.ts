@@ -3,7 +3,6 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 type SessionCoreFields = {
   id: string;
   createdAt?: Date;
-  bookmarked?: boolean;
   public?: boolean;
   userIds?: string[];
   countTraces?: number;
@@ -14,7 +13,6 @@ type SessionCoreFields = {
 const pickSessionCoreFields = <Core extends SessionCoreFields>(core: Core) => ({
   id: core.id,
   createdAt: core.createdAt,
-  bookmarked: core.bookmarked,
   public: core.public,
   userIds: core.userIds,
   countTraces: core.countTraces,

@@ -17,13 +17,11 @@ export const events = {
     "pagination_page_size_select",
     "column_visibility_change",
     "column_sorting_header_click",
-    "bookmark_button_click",
     "column_visibility_changed",
   ],
   trace: ["delete_form_open", "delete", "delete_form_submit"],
   trace_detail: [
     "publish_button_click",
-    "bookmark_button_click",
     "observation_tree_collapse",
     "observation_tree_expand",
     "observation_tree_toggle_scores",
@@ -44,6 +42,13 @@ export const events = {
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
+    // Trace playhead transport in the navigation header (and the overflow
+    // menu on a narrow panel). Distinguishes play vs pause vs stop; `viewMode`
+    // is tree vs timeline at click time; `observationCount` is the loaded
+    // trace size. Metadata only — never a trace/observation id.
+    "playback_play",
+    "playback_pause",
+    "playback_stop",
     // Download from the large-string IO fallback (LFE-10991): a top-level
     // string over the render limit is shown as a bounded preview + download
     // instead of the full Pretty/JSON viewer. Measures how often users hit it.
@@ -326,9 +331,13 @@ export const events = {
   // panel_opened carries the entry surface; panel_checks_loaded carries the
   // amount of work shown (counts only — never keys or SDK payload values).
   v4_migration: [
-    "coding_agent_prompt_viewed",
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
+    // Discoverability pair for the table delay badge: `shown` is the
+    // exposure denominator (badge actually rendered), `hovered` counts
+    // noticed-but-not-clicked (pill expanded long enough to read).
+    "delay_badge_shown",
+    "delay_badge_hovered",
     "project_chip_clicked",
     "contact_book_call_clicked",
     "contact_support_clicked",
@@ -346,6 +355,7 @@ export const events = {
     "section_link_clicked",
     "project_keys_copied",
     "evals_manual_upgrade_clicked",
+    "walkthrough_video_clicked",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
@@ -357,6 +367,7 @@ export const events = {
     "facet_operator_toggled",
     "active_only_toggled",
     "facet_added",
+    "facet_search",
     "facet_mode_switched",
     "sidebar_toggled",
     "search_submitted",
@@ -367,7 +378,7 @@ export const events = {
   ],
 } as const;
 
-// type that represents all possible event names, e.g. "traces:bookmark"
+// type that represents all possible event names, e.g. "trace:delete"
 type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];

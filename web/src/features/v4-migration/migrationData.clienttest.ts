@@ -1,6 +1,6 @@
+// @vitest-environment node
+
 import {
-  aggregateLegacyApiUsage,
-  createV4MigrationDetectionRange,
   getLegacyIntegrationLabels,
   getMigrationActionState,
   getMigrationCountState,
@@ -30,17 +30,6 @@ const migrationStatus = (
 });
 
 describe("v4 migration data", () => {
-  it("uses a stable fourteen-day range aligned to the hour", () => {
-    const range = createV4MigrationDetectionRange(
-      new Date("2026-07-23T10:42:31.000Z").getTime(),
-    );
-
-    expect(range).toEqual({
-      fromTimestamp: new Date("2026-07-09T11:00:00.000Z"),
-      toTimestamp: new Date("2026-07-23T11:00:00.000Z"),
-    });
-  });
-
   it("keeps loading and errors distinct from a real zero", () => {
     expect(getMigrationCountState(null, () => 4)).toEqual({
       status: "loading",
@@ -126,48 +115,6 @@ describe("v4 migration data", () => {
         }),
       ),
     ).toBe("unavailable");
-  });
-
-  it("aggregates real API usage by normalized endpoint and sorts most recent first", () => {
-    expect(
-      aggregateLegacyApiUsage([
-        {
-          time: "2026-07-23T09:00:00Z",
-          entrypoint: "publicapi: GET /api/public/traces",
-          count: 2,
-          lastSeen: "2026-07-23T09:42:00Z",
-        },
-        {
-          time: "2026-07-23T10:00:00Z",
-          entrypoint: "publicapi: GET /api/public/traces",
-          count: 3,
-          lastSeen: "2026-07-23T10:37:00Z",
-        },
-        {
-          time: "2026-07-23T10:00:00Z",
-          entrypoint: "",
-          count: 0,
-          lastSeen: null,
-        },
-        {
-          time: "2026-07-23T08:00:00Z",
-          entrypoint: "publicapi: GET /api/public/sessions",
-          count: 20,
-          lastSeen: "2026-07-23T08:37:00Z",
-        },
-      ]),
-    ).toEqual([
-      {
-        endpoint: "GET /api/public/traces",
-        count: 5,
-        lastSeen: "2026-07-23T10:37:00Z",
-      },
-      {
-        endpoint: "GET /api/public/sessions",
-        count: 20,
-        lastSeen: "2026-07-23T08:37:00Z",
-      },
-    ]);
   });
 
   it("returns only enabled legacy integration labels", () => {

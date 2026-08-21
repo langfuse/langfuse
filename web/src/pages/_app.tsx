@@ -8,6 +8,10 @@ import Head from "next/head";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
+import {
+  clearV4BetaEnabledSentryTag,
+  setV4BetaEnabledSentryTag,
+} from "@/src/utils/sentryV4BetaTag";
 import { useSession } from "next-auth/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -103,6 +107,8 @@ if (
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
     session_recording: {
+      maskAllInputs: true,
+      maskTextSelector: "*",
       maskCapturedNetworkRequestFn(request) {
         request.requestBody = request.requestBody ? "REDACTED" : undefined;
         request.responseBody = request.responseBody ? "REDACTED" : undefined;
@@ -110,7 +116,7 @@ if (
       },
     },
     autocapture: false,
-    enable_heatmaps: false,
+    enable_heatmaps: true,
     persistence: "cookie",
   });
 }
@@ -151,8 +157,9 @@ const MyApp: AppType<{ session: Session | null }> = ({
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
           sub-16px field; iOS ignores `user-scalable=no` for user gestures, so
-          the engine-level zoom block is `touch-action` on html/body
-          (styles/globals.css). `viewport-fit=cover` is what makes
+          the engine-level zoom block is `touch-action` on `#__next` and the
+          overlay layers — NOT on html/body, which WebKit ignores for page
+          pinch (styles/globals.css). `viewport-fit=cover` is what makes
           `env(safe-area-inset-*)` non-zero. */}
       <Head>
         <meta
@@ -249,16 +256,18 @@ function UserTracking() {
         });
       }
 
-      // Sentry
+      // Sentry — user identity stays on setUser; v4 is a boolean tag only
       setUser({
         email: sessionUser.email ?? undefined,
         id: sessionUser.id ?? undefined,
       });
+      setV4BetaEnabledSentryTag(sessionUser.v4BetaEnabled);
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
       posthog.unregister(V4_BETA_ENABLED_POSTHOG_PROPERTY);
       // Sentry
       setUser(null);
+      clearV4BetaEnabledSentryTag();
     }
   }, [sessionUser, session.status, region]);
 

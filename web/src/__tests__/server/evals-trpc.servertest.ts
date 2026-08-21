@@ -298,6 +298,160 @@ describe("evals trpc", () => {
       ]);
     });
 
+    it("should order evaluators by generated score name", async () => {
+      const { project, caller } = await prepare();
+
+      const createEvaluator = (scoreName: string) =>
+        prisma.jobConfiguration.create({
+          data: {
+            projectId: project.id,
+            jobType: "EVAL",
+            scoreName,
+            filter: [],
+            targetObject: EvalTargetObject.TRACE,
+            variableMapping: [],
+            sampling: 1,
+            delay: 0,
+            status: "ACTIVE",
+          },
+        });
+
+      const zeta = await createEvaluator("zeta-score");
+      const alpha = await createEvaluator("alpha-score");
+      const beta = await createEvaluator("beta-score");
+
+      const ascending = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [],
+        orderBy: {
+          column: "scoreName",
+          order: "ASC",
+        },
+        limit: 10,
+        page: 0,
+      });
+
+      expect(ascending.configs.map((config) => config.id)).toEqual([
+        alpha.id,
+        beta.id,
+        zeta.id,
+      ]);
+
+      const descending = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [],
+        orderBy: {
+          column: "scoreName",
+          order: "DESC",
+        },
+        limit: 10,
+        page: 0,
+      });
+
+      expect(descending.configs.map((config) => config.id)).toEqual([
+        zeta.id,
+        beta.id,
+        alpha.id,
+      ]);
+    });
+
+    it("keeps duplicate score names in a stable order across pages", async () => {
+      const { project, caller } = await prepare();
+
+      const createEvaluator = () =>
+        prisma.jobConfiguration.create({
+          data: {
+            projectId: project.id,
+            jobType: "EVAL",
+            scoreName: "duplicate-score",
+            filter: [],
+            targetObject: EvalTargetObject.TRACE,
+            variableMapping: [],
+            sampling: 1,
+            delay: 0,
+            status: "ACTIVE",
+          },
+        });
+
+      const first = await createEvaluator();
+      const second = await createEvaluator();
+      const third = await createEvaluator();
+      const expectedIds = [first.id, second.id, third.id].toSorted();
+
+      const page0 = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [],
+        orderBy: {
+          column: "scoreName",
+          order: "ASC",
+        },
+        limit: 2,
+        page: 0,
+      });
+      const page1 = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [],
+        orderBy: {
+          column: "scoreName",
+          order: "ASC",
+        },
+        limit: 2,
+        page: 1,
+      });
+
+      expect([
+        ...page0.configs.map((config) => config.id),
+        ...page1.configs.map((config) => config.id),
+      ]).toEqual(expectedIds);
+    });
+
+    it("falls back to created-at order when orderBy is cleared", async () => {
+      const { project, caller } = await prepare();
+
+      const older = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "older-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          createdAt: new Date("2024-01-01T00:00:00.000Z"),
+        },
+      });
+
+      const newer = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "newer-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          createdAt: new Date("2024-02-01T00:00:00.000Z"),
+        },
+      });
+
+      const response = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [],
+        orderBy: null,
+        limit: 10,
+        page: 0,
+      });
+
+      expect(response.configs.map((config) => config.id)).toEqual([
+        newer.id,
+        older.id,
+      ]);
+    });
+
     it("filters evaluator configurations by time scope", async () => {
       const { project, caller } = await prepare();
 
@@ -352,6 +506,58 @@ describe("evals trpc", () => {
       );
       expect(response.totalCount).toBe(2);
     });
+
+    // A Time Scope filter with no selected values is a reachable UI state
+    // (the facet's operator toggle can be flipped before any checkbox is
+    // checked). It must not crash the query — passing an empty value list
+    // into the Postgres array literal throws (`Prisma.join([])`), so the
+    // router treats an empty-value arrayOptions filter as no filter on that
+    // column. Only "all of"/"none of" can carry an empty value at all — the
+    // arrayOptionsFilter zod schema itself rejects "any of" with an empty
+    // value before this ever runs.
+    it.each(["all of", "none of"] as const)(
+      "does not throw and does not filter on an empty time scope value list ('%s')",
+      async (operator) => {
+        const { project, caller } = await prepare();
+
+        const evaluator = await prisma.jobConfiguration.create({
+          data: {
+            projectId: project.id,
+            jobType: "EVAL",
+            scoreName: "unfiltered-score",
+            filter: [],
+            targetObject: EvalTargetObject.TRACE,
+            variableMapping: [],
+            sampling: 1,
+            delay: 0,
+            status: "ACTIVE",
+            timeScope: ["NEW"],
+          },
+        });
+
+        const response = await caller.evals.allConfigs({
+          projectId: project.id,
+          filter: [
+            {
+              column: "timeScope",
+              type: "arrayOptions",
+              operator,
+              value: [],
+            },
+          ],
+          orderBy: {
+            column: "createdAt",
+            order: "DESC",
+          },
+          limit: 10,
+          page: 0,
+        });
+
+        expect(response.configs.map((config) => config.id)).toEqual([
+          evaluator.id,
+        ]);
+      },
+    );
   });
 
   describe("evals.templateNames", () => {
