@@ -415,6 +415,17 @@ export const env = createEnv({
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
+    // ARN of CHB's cross-account EventBridge bus we publish project lifecycle
+    // events to. Unset = no events are emitted. The ARN carries the bus region,
+    // so it is the only input needed; authentication is SigV4 from the task
+    // role, which infrastructure grants events:PutEvents on exactly this ARN.
+    CLICKHOUSE_BILLING_EVENT_BUS_ARN: z
+      .string()
+      .regex(
+        /^arn:aws:events:[a-z0-9-]+:\d{12}:event-bus\/.+$/,
+        "must be an EventBridge bus ARN (arn:aws:events:<region>:<account-id>:event-bus/<name>)",
+      )
+      .optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -452,6 +463,7 @@ export const env = createEnv({
     // AWS Bedrock for langfuse native AI feature such as natural language filters
     LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
     LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
+    LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
 
     // Tracing for Langfuse AI Features
     LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
@@ -948,6 +960,8 @@ export const env = createEnv({
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
+    CLICKHOUSE_BILLING_EVENT_BUS_ARN:
+      process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
@@ -977,6 +991,7 @@ export const env = createEnv({
     LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
     LANGFUSE_AWS_BEDROCK_SMALL_MODEL:
       process.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,
+    LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
 
     // Langfuse Tracing AI Features
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,

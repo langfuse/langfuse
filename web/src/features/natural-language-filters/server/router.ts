@@ -32,6 +32,9 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           scope: "project:read",
         });
 
+        // Leftover table-wand path: still Cloud-only. It needs the managed
+        // `get-filter-conditions-from-query` prompt and has no bundled fallback.
+        // v4 Ask AI (`searchBar.generateFilter`) is the self-hosted path.
         if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -102,14 +105,12 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           { type: "chat" },
         );
 
-        const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
-
-        if (aiTelemetryEnabled && !isLangfuseAITracingConfigured()) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Langfuse AI Features not configured.",
-          });
-        }
+        // Tracing is optional: skip it when the AI-features project is not
+        // configured (the default self-hosted case) rather than failing the
+        // generation. Self-hosted cannot toggle `aiTelemetryEnabled` off.
+        const aiTelemetryEnabled =
+          project.organization.aiTelemetryEnabled &&
+          isLangfuseAITracingConfigured();
 
         // Get current datetime in ISO format with day of week for AI context
         const now = new Date();

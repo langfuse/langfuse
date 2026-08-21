@@ -117,7 +117,9 @@ export default withMiddlewares(
                   ],
                 },
                 include: {
-                  Price: true,
+                  Price: {
+                    where: { pricingTier: { isDefault: true } },
+                  },
                 },
               })
             : [];

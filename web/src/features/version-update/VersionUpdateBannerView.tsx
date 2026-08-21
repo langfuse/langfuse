@@ -36,6 +36,9 @@ export function VersionUpdateBannerView({
     <div
       role="status"
       aria-live="polite"
+      // Peek (and any other dismissable overlay) must not close when this
+      // banner is dismissed — it lives in a higher overlay layer than the peek.
+      data-ignore-outside-interaction
       className={cn(
         // `top-banner-offset` = safe-area + any registered top banner's height,
         // so the pill sits below a full-width top banner (e.g. PaymentBanner)

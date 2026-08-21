@@ -63,6 +63,13 @@ export default [
   ...nextConfig,
   ...storybook.configs["flat/recommended"],
   {
+    name: "langfuse/web/storybook-test-story-names",
+    files: ["src/**/*.stories.{ts,tsx}"],
+    rules: {
+      "@repo/storybook-play-requires-test-name": "error",
+    },
+  },
+  {
     ...tailwindcssRecommendedConfig,
     settings: {
       tailwindcss: {

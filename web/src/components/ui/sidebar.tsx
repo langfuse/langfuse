@@ -316,7 +316,7 @@ const SidebarTrigger = React.forwardRef<
       {/* Hamburger below `md` (opens the sheet); panel-collapse glyph on
           desktop (toggles the docked sidebar). */}
       <Menu className="size-5 md:hidden" />
-      <PanelLeft className="hidden md:block" />
+      <PanelLeft className="hidden size-5 md:block" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
@@ -392,7 +392,7 @@ const SidebarHeader = React.forwardRef<
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn("flex min-h-11 flex-col pt-2 md:h-fit", className)}
+      className={cn("flex flex-col", className)}
       {...props}
     />
   );

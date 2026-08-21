@@ -98,6 +98,19 @@ it("VersionUpdateBannerView renders both controls and invokes their callbacks", 
   expect(onDismiss).toHaveBeenCalledTimes(1);
 });
 
+it("VersionUpdateBannerView opts out of outside-interaction dismissal", () => {
+  render(
+    <VersionUpdateBannerView
+      onReload={() => undefined}
+      onDismiss={() => undefined}
+    />,
+  );
+
+  expect(screen.getByRole("status")).toHaveAttribute(
+    "data-ignore-outside-interaction",
+  );
+});
+
 describe("VersionUpdateBanner (connected)", () => {
   it("shows and reports banner_shown exactly once when available and settled", () => {
     render(<VersionUpdateBanner />);

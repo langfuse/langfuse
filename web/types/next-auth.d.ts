@@ -62,6 +62,9 @@ declare module "next-auth" {
     environment: {
       // Run-time environment variables that need to be available client-side
       enableExperimentalFeatures: boolean;
+      // Instance-wide in-app agent switch. Populated by the session callback.
+      // Optional so existing session mocks need not set it.
+      inAppAgentEnabled?: boolean;
       // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse
       selfHostedInstancePlan: Plan | null;
       // V4 migration write mode. Mirrors LANGFUSE_MIGRATION_V4_WRITE_MODE so the
