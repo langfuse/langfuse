@@ -133,16 +133,33 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  *
  * Deliberately narrow: only these codes on an actual `TRPCClientError`, plus
  * Zod input validation (`BAD_REQUEST` whose message is a Zod 4 issue list or
- * whose `data.zodError` is populated). Empty/too-short fields are the product
- * working as designed — the toast is the UX; Sentry must not log them.
- * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST`, an unrecognized
- * code, or any non-tRPC error is not expected and keeps flowing to Sentry.
+ * whose `data.zodError` is populated), plus CONFLICT on
+ * {@link EXPECTED_TRPC_CONFLICT_PATHS}. Empty/too-short fields and stale
+ * in-app-agent approvals are the product working as designed — the toast is
+ * the UX; Sentry must not log them.
+ * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST`, a CONFLICT
+ * outside the allowlist, an unrecognized code, or any non-tRPC error is not
+ * expected and keeps flowing to Sentry.
  */
 export const EXPECTED_TRPC_ERROR_CODES = [
   "NOT_FOUND",
   "FORBIDDEN",
   "UNAUTHORIZED",
   "UNPROCESSABLE_CONTENT",
+] as const;
+
+/**
+ * CONFLICT is usually a uniqueness / concurrency failure we still want
+ * (duplicate names, unique-constraint races). These procedures throw 409
+ * only as an optimistic-concurrency / stale-UI race the product already
+ * toasts — expected user-facing state, not a regression.
+ *
+ * `inAppAgent.decideToolApproval` is the only current member: every CONFLICT
+ * it throws means the parent run is no longer AWAITING_APPROVAL (already
+ * decided, expired, or cancelled). The UI already tells the user to reload.
+ */
+export const EXPECTED_TRPC_CONFLICT_PATHS = [
+  "inAppAgent.decideToolApproval",
 ] as const;
 
 const getTrpcErrorData = (
@@ -185,13 +202,21 @@ export const getTrpcErrorFingerprint = (error: unknown): string[] => [
 /**
  * True when `error` is a TRPCClientError whose code is an EXPECTED, user-facing
  * state that should not be captured to Sentry.
- * See {@link EXPECTED_TRPC_ERROR_CODES}.
+ * See {@link EXPECTED_TRPC_ERROR_CODES} and {@link EXPECTED_TRPC_CONFLICT_PATHS}.
  */
 export const isExpectedTrpcClientError = (error: unknown): boolean => {
   const code = getTrpcErrorCode(error);
   if (
     code !== undefined &&
     (EXPECTED_TRPC_ERROR_CODES as readonly string[]).includes(code)
+  ) {
+    return true;
+  }
+  const path = getTrpcErrorPath(error);
+  if (
+    code === "CONFLICT" &&
+    path !== undefined &&
+    (EXPECTED_TRPC_CONFLICT_PATHS as readonly string[]).includes(path)
   ) {
     return true;
   }
