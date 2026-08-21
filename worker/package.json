@@ -54,7 +54,7 @@
     "@prisma/client": "^6.19.3",
     "@prisma/instrumentation": "^6.19.3",
     "ai-sdk-amazon-bedrock-v4": "npm:@ai-sdk/amazon-bedrock@4.0.81",
-    "ai-sdk-anthropic-v4": "npm:@ai-sdk/anthropic@3.0.62",
+    "ai-sdk-anthropic-v4": "npm:@ai-sdk/anthropic@3.0.111",
     "bullmq": "^5.76.3",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",

@@ -874,8 +874,15 @@ function withModelTracing(
     return model;
   }
 
+  // Copy provider/supportedUrls after the spread: @ai-sdk/anthropic defines
+  // them as prototype getters, and object spread only copies own enumerable
+  // properties. Mastra then does `model.provider.includes(...)` on every turn.
   return {
     ...model,
+    specificationVersion: model.specificationVersion,
+    provider: model.provider,
+    modelId: model.modelId,
+    supportedUrls: model.supportedUrls,
     doGenerate: (options) => model.doGenerate(options),
     doStream: async (options) => {
       callbacks.onStart?.(options);
