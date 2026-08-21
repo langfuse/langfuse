@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   createAndAddApiKeysToDb,
-  deleteApiKeyFromDb,
+  deleteInAppAgentMcpApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   InAppAgentRunErrorCode,
@@ -84,11 +84,10 @@ async function deleteInAppAgentMcpApiKey(params: {
   apiKeyId: string;
 }): Promise<void> {
   try {
-    await deleteApiKeyFromDb({
+    await deleteInAppAgentMcpApiKeyFromDb({
       prisma,
       id: params.apiKeyId,
-      entityId: params.projectId,
-      scope: "PROJECT",
+      projectId: params.projectId,
       redis,
     });
   } catch (error) {
