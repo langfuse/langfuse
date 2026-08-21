@@ -1,14 +1,9 @@
-export type LocalIsoDateAccuracy =
-  | "day"
-  | "hour"
-  | "minute"
-  | "second"
-  | "millisecond";
+type Accuracy = "day" | "hour" | "minute" | "second" | "millisecond";
 
 export const formatLocalIsoDate = (
   date: Date,
   useUTC = false,
-  pAccuracy: LocalIsoDateAccuracy,
+  pAccuracy: Accuracy,
 ) => {
   const pad = (num: number) => String(num).padStart(2, "0");
 
@@ -43,7 +38,7 @@ export const prepareLocalIsoDate = ({
   accuracy = "second",
 }: {
   date: unknown;
-  accuracy?: LocalIsoDateAccuracy;
+  accuracy?: Accuracy;
 }) => {
   if (!(date instanceof Date) || isNaN(date.getTime())) {
     return null;
@@ -60,7 +55,7 @@ export const LocalIsoDate = ({
   accuracy,
 }: {
   date: Date;
-  accuracy?: LocalIsoDateAccuracy;
+  accuracy?: Accuracy;
 }) => {
   const preparedDate = prepareLocalIsoDate({ date, accuracy });
 
