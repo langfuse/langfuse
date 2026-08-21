@@ -578,7 +578,7 @@ describe("MCP Read Tools", () => {
       expect(result.templates).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            key: "exact-match",
+            key: "all-caps",
             evaluator: expect.objectContaining({ type: "CODE" }),
           }),
         ]),
