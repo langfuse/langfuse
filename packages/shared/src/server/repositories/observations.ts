@@ -811,6 +811,14 @@ const getObservationsTableInternal = async <T>(
       ? [{ column: "order_by_date", order: orderBy.order }, orderBy]
       : [orderBy ?? null];
 
+  // Append the unique observation id as a tiebreaker so offset-based
+  // pagination is stable when observations share the same sort-column
+  // value (e.g. start_time). The count query is a single aggregate row,
+  // so it must not receive the extra clause.
+  if (opts.select === "rows" && orderBy?.column !== "id") {
+    newDefaultOrder.push({ column: "id", order: "DESC" });
+  }
+
   const chOrderBy = orderByToClickhouseSql(newDefaultOrder, [
     ...observationsTableUiColumnDefinitions,
     {

@@ -301,6 +301,18 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   )`;
 
   // We use deduplicated traces and observations CTEs instead of final to be able to use Skip indices in Clickhouse.
+  // Append the unique session_id as a tiebreaker so offset-based pagination
+  // is stable when sessions share the same sort-column value (e.g. the
+  // creation-time derived createdAt). The count query is a single aggregate
+  // row, so it must not receive the extra clause.
+  const sessionsOrderBy: OrderByState[] = [];
+  if (orderBy) {
+    sessionsOrderBy.push(orderBy);
+  }
+  if (select !== "count" && orderBy?.column !== "id") {
+    sessionsOrderBy.push({ column: "id", order: "DESC" });
+  }
+
   const query = `
         WITH ${select === "metrics" || requiresScoresJoin ? `${scoresCte},` : ""}
         deduplicated_traces AS (
@@ -388,7 +400,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         SELECT ${sqlSelect}
         FROM session_data s
         WHERE ${tracesFilterRes.query ? tracesFilterRes.query : ""}
-        ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
+        ${orderByToClickhouseSql(sessionsOrderBy.length > 0 ? sessionsOrderBy : null, sessionCols)}
         ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
         `;
 
