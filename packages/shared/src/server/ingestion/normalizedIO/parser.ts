@@ -61,6 +61,10 @@ type NormalizedIOAccumulator = {
   toolCallKeys: Record<"input" | "output", Set<string>>;
 };
 
+// ---------------------------------------------------------------------------
+// JSON utilities
+// ---------------------------------------------------------------------------
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -133,6 +137,10 @@ function compact<T extends Record<string, unknown>>(obj: T): T {
   ) as T;
 }
 
+// ---------------------------------------------------------------------------
+// Media and file parts
+// ---------------------------------------------------------------------------
+
 type ParsedMediaReference = {
   type: string;
   id: string;
@@ -146,8 +154,14 @@ type ParsedMediaReference = {
  * Strings that merely contain a token (or several) stay text; splitting
  * mid-string remains the renderer's concern.
  */
+// Cheap substring pre-check so token-free strings (nearly all) never pay
+// for regex scans.
+const MEDIA_TOKEN_HINT = "@@@langfuseMedia";
+
 function parseMediaReference(value: unknown): ParsedMediaReference | undefined {
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== "string" || !value.includes(MEDIA_TOKEN_HINT)) {
+    return undefined;
+  }
 
   const matches = value.match(MEDIA_REFERENCE_PATTERN) ?? [];
   if (matches.length !== 1 || matches[0] !== value) return undefined;
@@ -178,6 +192,8 @@ function filePartFromMediaReference(
  * preserve their original spacing.
  */
 function normalizePartsFromString(value: string): NormalizedMessagePart[] {
+  if (!value.includes(MEDIA_TOKEN_HINT)) return [{ type: "text", text: value }];
+
   const parts: NormalizedMessagePart[] = [];
   let lastIndex = 0;
 
@@ -414,6 +430,10 @@ function omitKeys(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Finish reasons
+// ---------------------------------------------------------------------------
+
 // Provider finish/stop vocabularies -> the canonical FinishReason set.
 // Lookups are lowercased (Gemini reports uppercase values).
 const FINISH_REASON_TYPE_BY_RAW: Record<string, FinishReason["type"]> = {
@@ -533,6 +553,10 @@ function toSpanIO(source: NormalizeIOSource): SpanIO {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Accumulation: per-side tool-call dedup, tool-definition merge
+// ---------------------------------------------------------------------------
+
 function createAccumulator(): NormalizedIOAccumulator {
   return {
     messages: [],
@@ -610,6 +634,10 @@ function addToolDefinition(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Tool parts
+// ---------------------------------------------------------------------------
+
 function normalizeToolCall(
   value: unknown,
   options: { toolType?: string } = {},
@@ -640,6 +668,10 @@ function normalizeToolCall(
         : undefined,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Part parser
+// ---------------------------------------------------------------------------
 
 /**
  * OpenAI Responses built-in (provider-executed) tool items. They carry no
@@ -689,17 +721,16 @@ function normalizeBuiltInToolItem(
   });
 }
 
-function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
-  if (typeof value === "string") {
-    const mediaReference = parseMediaReference(value);
-    if (mediaReference) return filePartFromMediaReference(mediaReference);
-    return { type: "text", text: value };
-  }
-  if (!isRecord(value)) return null;
-
-  const builtInToolCall = normalizeBuiltInToolItem(value);
-  if (builtInToolCall) return builtInToolCall;
-
+/**
+ * Keyed-union parts without a `type` discriminator: legacy
+ * function_call/function_response wrappers and Gemini's keyed parts
+ * (inlineData, fileData, executableCode, codeExecutionResult, bare text).
+ * Only probed when `value.type` is absent — typed blocks go straight to the
+ * part switch.
+ */
+function normalizeKeyedPart(
+  value: Record<string, unknown>,
+): NormalizedMessagePart | null {
   const functionCall =
     asRecord(value.function_call) ?? asRecord(value.functionCall);
   if (functionCall) {
@@ -718,8 +749,6 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     });
   }
 
-  // Gemini parts carry no `type` discriminator — they are keyed unions like
-  // functionCall/functionResponse above.
   const inlineData = asRecord(value.inline_data) ?? asRecord(value.inlineData);
   if (inlineData) {
     const data = optionalString(inlineData.data);
@@ -735,7 +764,7 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
   }
 
   // Record shape only: OpenAI's `file_data` is a base64 string and belongs
-  // to the file/input_file cases below.
+  // to the typed file/input_file cases.
   const geminiFileData = asRecord(value.file_data) ?? asRecord(value.fileData);
   if (geminiFileData) {
     const fileUri = optionalString(
@@ -779,7 +808,7 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
 
   // Gemini text/thought parts: a bare `text` field, optionally flagged as
   // thought with a signature sibling.
-  if (typeof value.type !== "string" && typeof value.text === "string") {
+  if (typeof value.text === "string") {
     const signature = optionalString(
       value.thoughtSignature ?? value.thought_signature,
     );
@@ -787,6 +816,35 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
       return reasoningPart(value.text, signature);
     }
     return { type: "text", text: value.text };
+  }
+
+  return null;
+}
+
+function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
+  const part = normalizeMessagePartValue(value);
+  // AI SDK carries provider extras as `providerOptions` on every part —
+  // promoted here, in the one choke point every path shares (content
+  // arrays, standalone items, direct tool parts).
+  return part && isRecord(value) ? withProviderOptions(part, value) : part;
+}
+
+function normalizeMessagePartValue(
+  value: unknown,
+): NormalizedMessagePart | null {
+  if (typeof value === "string") {
+    const mediaReference = parseMediaReference(value);
+    if (mediaReference) return filePartFromMediaReference(mediaReference);
+    return { type: "text", text: value };
+  }
+  if (!isRecord(value)) return null;
+
+  const builtInToolCall = normalizeBuiltInToolItem(value);
+  if (builtInToolCall) return builtInToolCall;
+
+  if (typeof value.type !== "string") {
+    const keyedPart = normalizeKeyedPart(value);
+    if (keyedPart) return keyedPart;
   }
 
   switch (value.type) {
@@ -1024,6 +1082,10 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Message normalization
+// ---------------------------------------------------------------------------
+
 function normalizeRole(
   message: Record<string, unknown>,
 ): NormalizedMessageRole | undefined {
@@ -1034,7 +1096,7 @@ function normalizeRole(
     // Deprecated OpenAI function-calling protocol: function messages are
     // tool results.
     if (role === "function") return "tool";
-    if (["system", "developer", "user", "assistant", "tool"].includes(role)) {
+    if (CANONICAL_ROLES.has(role)) {
       return role as NormalizedMessageRole;
     }
     return "unknown";
@@ -1087,9 +1149,8 @@ function appendParts(target: NormalizedMessagePart[], values: unknown[]): void {
       target.push(...normalizePartsFromString(value));
       continue;
     }
-    let part = normalizeMessagePart(value);
+    const part = normalizeMessagePart(value);
     if (!part) continue;
-    if (isRecord(value)) part = withProviderOptions(part, value);
     // Text parts frequently embed media reference tokens mid-string; split
     // them out. Refusals and annotated text stay intact.
     if (part.type === "text" && !part.providerMetadata && !part.refusal) {
@@ -1132,20 +1193,19 @@ const LANGCHAIN_ROLE_BY_CLASS: Record<string, string> = {
   FunctionMessage: "function",
 };
 
-function normalizeMessage(
-  value: unknown,
+/**
+ * Envelope unwraps: shapes that wrap the actual message (Semantic Kernel
+ * gen_ai.event.content, the LangChain lc/kwargs serialization envelope with
+ * the role derived from the class path, GenAI choice events
+ * {index, message, finish_reason}). Returns the normalized message (or null
+ * to drop it) when an envelope matched; undefined when the value is not an
+ * envelope.
+ */
+function unwrapMessageEnvelope(
+  value: Record<string, unknown>,
   fallbackRole: "user" | "assistant",
   source: "input" | "output",
-): NormalizedMessage | null {
-  if (typeof value === "string") {
-    if (value.length === 0) return null;
-    const reprMessage = parsePythonReprMessage(value);
-    if (reprMessage) return normalizeMessage(reprMessage, fallbackRole, source);
-    const parts = normalizePartsFromString(value);
-    return parts.length > 0 ? { role: fallbackRole, parts, source } : null;
-  }
-  if (!isRecord(value) || isToolDefinitionMessage(value)) return null;
-
+): NormalizedMessage | null | undefined {
   const semanticKernelContent = parseRecord(value["gen_ai.event.content"]);
   if (semanticKernelContent) {
     return normalizeMessage(
@@ -1155,10 +1215,6 @@ function normalizeMessage(
     );
   }
 
-  // LangChain serialization envelope: instrumentation that dumps LangChain
-  // message objects (dumpd) wraps the actual message in constructor kwargs,
-  // with the class path in `id` (e.g. ["langchain_core", "messages",
-  // "AIMessage"]) supplying the role.
   const langchainKwargs =
     value.lc !== undefined ? asRecord(value.kwargs) : undefined;
   if (langchainKwargs) {
@@ -1172,8 +1228,6 @@ function normalizeMessage(
     );
   }
 
-  // GenAI choice-style event envelopes ({index, message, finish_reason},
-  // event.name "gen_ai.choice"): the actual message nests under `message`.
   const nestedMessage = !isMessageLike(value)
     ? asRecord(value.message)
     : undefined;
@@ -1186,32 +1240,17 @@ function normalizeMessage(
     return compact({ ...message, finishReason });
   }
 
-  const directToolPart =
-    isToolCallLike(value) || isToolResultLike(value)
-      ? normalizeMessagePart(value)
-      : null;
-  if (directToolPart && !isMessageLike(value)) {
-    return {
-      role: directToolPart.type === "tool-result" ? "tool" : "assistant",
-      parts: [directToolPart],
-      source,
-    };
-  }
+  return undefined;
+}
 
-  const nestedContent = asRecord(value.content);
-  let role =
-    normalizeRole(value) ??
-    (nestedContent ? normalizeRole(nestedContent) : undefined) ??
-    // Responses reasoning items carry no role but are model output even when
-    // replayed on the input side.
-    (value.type === "reasoning" ? "assistant" : fallbackRole);
-  const parts: NormalizedMessagePart[] = [];
-
-  // Deprecated OpenAI function-calling protocol: the result message carries
-  // the function name instead of a tool_call_id.
-  const isLegacyFunctionMessage =
-    typeof value.role === "string" && value.role.toLowerCase() === "function";
-
+/** Parts from the message's own content (parts/content array, string, record). */
+function collectContentParts(
+  value: Record<string, unknown>,
+  nestedContent: Record<string, unknown> | undefined,
+  role: NormalizedMessageRole,
+  isLegacyFunctionMessage: boolean,
+  parts: NormalizedMessagePart[],
+): void {
   if (role === "tool" && (value.tool_call_id || isLegacyFunctionMessage)) {
     // LangChain ToolMessage extras: status marks failed executions; artifact
     // is side-band data, preserved without treating it as output content.
@@ -1231,38 +1270,49 @@ function normalizeMessage(
             : undefined,
       }),
     );
-  } else {
-    const rawParts = Array.isArray(value.parts)
-      ? value.parts
-      : Array.isArray(value.content)
-        ? value.content
-        : Array.isArray(nestedContent?.parts)
-          ? nestedContent.parts
-          : undefined;
-    if (rawParts) {
-      appendParts(parts, rawParts);
-    } else if (typeof value.content === "string" && value.content.length > 0) {
-      // Content that is a JSON-string array of tool parts (e.g. koog logs an
-      // assistant call batch as a stringified array under role "tool").
-      const parsedContent = parseArray(value.content);
-      const isToolPartArray =
-        parsedContent !== undefined &&
-        parsedContent.length > 0 &&
-        parsedContent.every(
-          (item) =>
-            isRecord(item) && (isToolCallLike(item) || isToolResultLike(item)),
-        );
-      if (isToolPartArray) {
-        appendParts(parts, parsedContent);
-      } else {
-        parts.push(...normalizePartsFromString(value.content));
-      }
-    } else if (isRecord(value.content)) {
-      const part = normalizeMessagePart(value.content);
-      if (part) parts.push(part);
-    }
+    return;
   }
 
+  const rawParts = Array.isArray(value.parts)
+    ? value.parts
+    : Array.isArray(value.content)
+      ? value.content
+      : Array.isArray(nestedContent?.parts)
+        ? nestedContent.parts
+        : undefined;
+  if (rawParts) {
+    appendParts(parts, rawParts);
+  } else if (typeof value.content === "string" && value.content.length > 0) {
+    // Content that is a JSON-string array of tool parts (e.g. koog logs an
+    // assistant call batch as a stringified array under role "tool").
+    const parsedContent = parseArray(value.content);
+    const isToolPartArray =
+      parsedContent !== undefined &&
+      parsedContent.length > 0 &&
+      parsedContent.every(
+        (item) =>
+          isRecord(item) && (isToolCallLike(item) || isToolResultLike(item)),
+      );
+    if (isToolPartArray) {
+      appendParts(parts, parsedContent);
+    } else {
+      parts.push(...normalizePartsFromString(value.content));
+    }
+  } else if (isRecord(value.content)) {
+    const part = normalizeMessagePart(value.content);
+    if (part) parts.push(part);
+  }
+}
+
+/**
+ * Parts and part mutations from fields that live beside `content`:
+ * tool_calls (+ additional_kwargs), invalid_tool_calls, Anthropic thinking
+ * arrays, OpenAI refusal/audio/annotations.
+ */
+function applySiblingFields(
+  value: Record<string, unknown>,
+  parts: NormalizedMessagePart[],
+): void {
   const thinking = Array.isArray(value.thinking) ? value.thinking : [];
   appendParts(parts, thinking);
 
@@ -1311,18 +1361,29 @@ function normalizeMessage(
       };
     }
   }
+}
 
+/**
+ * Role corrections that depend on the collected parts: user turns holding
+ * only tool results are tool turns; tool-labeled turns without a
+ * tool_call_id (TraceLoop-style koog conversions) are either mislabeled
+ * assistant call batches or tool responses (the content IS the result).
+ * May rewrite `parts` in place.
+ */
+function coerceRole(
+  role: NormalizedMessageRole,
+  value: Record<string, unknown>,
+  parts: NormalizedMessagePart[],
+  isLegacyFunctionMessage: boolean,
+): NormalizedMessageRole {
   if (
     role === "user" &&
     parts.length > 0 &&
     parts.every((part) => part.type === "tool-result")
   ) {
-    role = "tool";
+    return "tool";
   }
 
-  // Tool-labeled turns without a tool_call_id (TraceLoop-style koog
-  // conversions): a batch of calls is a mislabeled assistant turn; plain
-  // text IS the tool's response, not conversation text.
   if (
     role === "tool" &&
     !value.tool_call_id &&
@@ -1332,8 +1393,9 @@ function normalizeMessage(
     // Explicit boolean return type: TS would otherwise infer a type
     // predicate and narrow `parts` to TextPart[], rejecting the splice.
     if (parts.every((part): boolean => part.type === "tool-call")) {
-      role = "assistant";
-    } else if (parts.every((part): boolean => part.type === "text")) {
+      return "assistant";
+    }
+    if (parts.every((part): boolean => part.type === "text")) {
       const output = parts
         .map((part) => (part.type === "text" ? part.text : ""))
         .join("\n");
@@ -1345,26 +1407,89 @@ function normalizeMessage(
     }
   }
 
-  if (value.type === "reasoning") {
-    // A reasoning item's content[] is collected via the regular parts path;
-    // summary is a sibling stream and must be collected either way.
-    const reasoningValues = (
-      parts.length === 0 ? [value.summary, value.content] : [value.summary]
-    )
-      .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
-      .filter((entry) => entry !== undefined && entry !== null);
-    appendParts(parts, reasoningValues);
+  return role;
+}
 
-    // The replayable encrypted blob is its own stream element, appended after
-    // the visible summary/content parts it accompanies.
-    const encryptedContent = optionalString(value.encrypted_content);
-    if (encryptedContent) {
-      parts.push({
-        type: "reasoning",
-        content: { kind: "encrypted", data: encryptedContent },
-      });
-    }
+/**
+ * Responses reasoning items: content[] is collected via the regular parts
+ * path; summary is a sibling stream collected either way, and the replayable
+ * encrypted blob becomes its own stream element after the visible parts.
+ */
+function applyReasoningItemFields(
+  value: Record<string, unknown>,
+  parts: NormalizedMessagePart[],
+): void {
+  if (value.type !== "reasoning") return;
+
+  const reasoningValues = (
+    parts.length === 0 ? [value.summary, value.content] : [value.summary]
+  )
+    .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
+    .filter((entry) => entry !== undefined && entry !== null);
+  appendParts(parts, reasoningValues);
+
+  const encryptedContent = optionalString(value.encrypted_content);
+  if (encryptedContent) {
+    parts.push({
+      type: "reasoning",
+      content: { kind: "encrypted", data: encryptedContent },
+    });
   }
+}
+
+function normalizeMessage(
+  value: unknown,
+  fallbackRole: "user" | "assistant",
+  source: "input" | "output",
+): NormalizedMessage | null {
+  if (typeof value === "string") {
+    if (value.length === 0) return null;
+    const reprMessage = parsePythonReprMessage(value);
+    if (reprMessage) return normalizeMessage(reprMessage, fallbackRole, source);
+    const parts = normalizePartsFromString(value);
+    return parts.length > 0 ? { role: fallbackRole, parts, source } : null;
+  }
+  if (!isRecord(value) || isToolDefinitionMessage(value)) return null;
+
+  const unwrapped = unwrapMessageEnvelope(value, fallbackRole, source);
+  if (unwrapped !== undefined) return unwrapped;
+
+  const directToolPart =
+    isToolCallLike(value) || isToolResultLike(value)
+      ? normalizeMessagePart(value)
+      : null;
+  if (directToolPart && !isMessageLike(value)) {
+    return {
+      role: directToolPart.type === "tool-result" ? "tool" : "assistant",
+      parts: [directToolPart],
+      source,
+    };
+  }
+
+  const nestedContent = asRecord(value.content);
+  let role =
+    normalizeRole(value) ??
+    (nestedContent ? normalizeRole(nestedContent) : undefined) ??
+    // Responses reasoning items carry no role but are model output even when
+    // replayed on the input side.
+    (value.type === "reasoning" ? "assistant" : fallbackRole);
+
+  // Deprecated OpenAI function-calling protocol: the result message carries
+  // the function name instead of a tool_call_id.
+  const isLegacyFunctionMessage =
+    typeof value.role === "string" && value.role.toLowerCase() === "function";
+
+  const parts: NormalizedMessagePart[] = [];
+  collectContentParts(
+    value,
+    nestedContent,
+    role,
+    isLegacyFunctionMessage,
+    parts,
+  );
+  applySiblingFields(value, parts);
+  role = coerceRole(role, value, parts, isLegacyFunctionMessage);
+  applyReasoningItemFields(value, parts);
 
   // Last resort for non-message payloads (function-span args/results, plain
   // records, {text} items): represent them instead of dropping — the trace
@@ -1485,15 +1610,7 @@ function isToolCallLike(value: Record<string, unknown>): boolean {
   const hasToolCallMarker =
     "id" in value ||
     "index" in value ||
-    [
-      "function",
-      "function_call",
-      "tool-call",
-      "tool_call",
-      "tool_use",
-      "server_tool_use",
-      "mcp_tool_use",
-    ].includes(String(value.type));
+    TOOL_CALL_TYPE_MARKERS.has(String(value.type));
   const hasFlatShape = Boolean(
     value.name && "arguments" in value && hasToolCallMarker,
   );
@@ -1507,24 +1624,48 @@ function isToolCallLike(value: Record<string, unknown>): boolean {
   );
 }
 
+const CANONICAL_ROLES = new Set([
+  "system",
+  "developer",
+  "user",
+  "assistant",
+  "tool",
+]);
+
+const TOOL_CALL_TYPE_MARKERS = new Set([
+  "function",
+  "function_call",
+  "tool-call",
+  "tool_call",
+  "tool_use",
+  "server_tool_use",
+  "mcp_tool_use",
+]);
+
+const TOOL_RESULT_PART_TYPES = new Set([
+  "tool-error",
+  "function_call_output",
+  "custom_tool_call_output",
+  "computer_call_output",
+  "local_shell_call_output",
+  "tool_call_response",
+  "tool-result",
+  "tool_result",
+  "web_search_tool_result",
+  "code_execution_tool_result",
+  "bash_code_execution_result",
+  "text_editor_code_execution_tool_result",
+  "text_editor_code_execution_view_result",
+  "mcp_tool_result",
+]);
+
 function isToolResultLike(value: Record<string, unknown>): boolean {
-  return [
-    "tool-error",
-    "function_call_output",
-    "custom_tool_call_output",
-    "computer_call_output",
-    "local_shell_call_output",
-    "tool_call_response",
-    "tool-result",
-    "tool_result",
-    "web_search_tool_result",
-    "code_execution_tool_result",
-    "bash_code_execution_result",
-    "text_editor_code_execution_tool_result",
-    "text_editor_code_execution_view_result",
-    "mcp_tool_result",
-  ].includes(String(value.type));
+  return TOOL_RESULT_PART_TYPES.has(String(value.type));
 }
+
+// ---------------------------------------------------------------------------
+// Container discovery
+// ---------------------------------------------------------------------------
 
 function collectMessageArray(
   values: unknown[],
@@ -1899,6 +2040,10 @@ function collectMetadataToolDefinitions(
     collectToolDefinitionValue(attributes[key], accumulator);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
 
 export function normalizeIO(source: NormalizeIOSource): NormalizedIO {
   const span = toSpanIO(source);
