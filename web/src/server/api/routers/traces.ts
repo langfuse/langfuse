@@ -40,6 +40,7 @@ import {
   getTracesGroupedByTags,
   getObservationsForTrace,
   getTraceById,
+  getTracesByIds,
   logger,
   upsertTrace,
   convertTraceDomainToClickhouse,
@@ -382,6 +383,38 @@ export const traceRouter = createTRPCRouter({
           ? JSON.stringify(ctx.trace.metadata)
           : undefined,
       };
+    }),
+  // Batched counterpart to `byId`. Used by views (e.g. the dataset run
+  // comparison grid) that need many traces at once and would otherwise fire
+  // one `byId` request per cell. Project membership (checked by
+  // protectedProjectProcedure) is sufficient here because this endpoint is
+  // read-only and scoped to the caller's own project; unlike `byId`, it does
+  // not do the per-trace public/session visibility check used to expose a
+  // single trace outside its owning project.
+  byIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceIds: z.array(z.string()),
+        // lower bound across the requested traces, used to query CH more efficiently
+        fromTimestamp: z.date().nullish(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (input.traceIds.length === 0) return [];
+
+      const traces = await getTracesByIds(
+        input.traceIds,
+        ctx.session.projectId,
+        input.fromTimestamp ?? undefined,
+      );
+
+      return traces.map((trace) => ({
+        ...trace,
+        input: trace.input as string,
+        output: trace.output as string,
+        metadata: trace.metadata ? JSON.stringify(trace.metadata) : undefined,
+      }));
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
     .input(

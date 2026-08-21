@@ -1,6 +1,10 @@
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
+import {
+  DatasetAggregateTableCell,
+  type ObservationByIdsItem,
+  type TraceByIdsItem,
+} from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { type DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@langfuse/shared";
@@ -14,19 +18,27 @@ import { Toggle } from "@/src/components/ui/toggle";
 import { useRouter } from "next/router";
 import { cn } from "@/src/utils/tailwind";
 
+type CellDataLookups = {
+  tracesById: Map<string, TraceByIdsItem>;
+  observationsById: Map<string, ObservationByIdsItem>;
+  isTracesLoading: boolean;
+  isObservationsLoading: boolean;
+};
+
 function DatasetAggregateCellWithBaselineDetection({
   value,
   runData,
   runId,
   projectId,
   serverScoreColumns,
+  ...cellDataLookups
 }: {
   value: EnrichedDatasetRunItem;
   runData: Record<string, EnrichedDatasetRunItem>;
   runId: string;
   projectId: string;
   serverScoreColumns?: ScoreColumn[];
-}) {
+} & CellDataLookups) {
   const router = useRouter();
   const baselineRunId = router.query.baseline as string | undefined;
 
@@ -41,6 +53,7 @@ function DatasetAggregateCellWithBaselineDetection({
       serverScoreColumns={serverScoreColumns ?? []}
       isBaselineRun={isBaselineRun}
       baselineRunValue={baselineRunValue}
+      {...cellDataLookups}
     />
   );
 }
@@ -175,6 +188,7 @@ export const constructDatasetRunAggregateColumns = ({
   updateRunFilters,
   getFiltersForRun,
   serverScoreColumns,
+  ...cellDataLookups
 }: {
   runAggregateColumnProps: RunAggregateColumnProps[];
   projectId: string;
@@ -182,7 +196,7 @@ export const constructDatasetRunAggregateColumns = ({
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
   serverScoreColumns?: ScoreColumn[];
-}): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
+} & CellDataLookups): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
   const isDataLoading = !isScoreColumnsAvailable(serverScoreColumns);
 
   return runAggregateColumnProps.map((col) => {
@@ -226,6 +240,7 @@ export const constructDatasetRunAggregateColumns = ({
             runId={id}
             projectId={projectId}
             serverScoreColumns={serverScoreColumns}
+            {...cellDataLookups}
           />
         );
       },

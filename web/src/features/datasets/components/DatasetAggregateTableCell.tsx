@@ -3,7 +3,6 @@ import { Button } from "@/src/components/ui/button";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
-import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { ClockIcon, ListTree } from "lucide-react";
@@ -15,7 +14,6 @@ import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
 import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
-import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { useMemo } from "react";
@@ -25,6 +23,17 @@ import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourc
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type RouterOutput } from "@/src/utils/types";
+
+// The dataset run comparison grid renders up to 50 rows x N selected runs at
+// once. Rather than each cell independently querying its trace/observation
+// (one HTTP request per cell), the page's full set of trace/observation ids
+// is batch-fetched once by DatasetCompareRunsTable via `traces.byIds` /
+// `observations.byIds`, and the resulting lookup maps are threaded down as
+// props so a cell only reads from the map.
+export type TraceByIdsItem = RouterOutput["traces"]["byIds"][number];
+export type ObservationByIdsItem =
+  RouterOutput["observations"]["byIds"][number];
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -33,6 +42,10 @@ const DatasetAggregateCellContent = ({
   serverScoreColumns,
   scoreDiffs,
   baselineRunValue,
+  tracesById,
+  observationsById,
+  isTracesLoading,
+  isObservationsLoading,
 }: {
   projectId: string;
   value: EnrichedDatasetRunItem;
@@ -40,11 +53,14 @@ const DatasetAggregateCellContent = ({
   serverScoreColumns: ScoreColumn[];
   scoreDiffs?: Record<string, BaselineDiff>;
   baselineRunValue?: EnrichedDatasetRunItem;
+  tracesById: Map<string, TraceByIdsItem>;
+  observationsById: Map<string, ObservationByIdsItem>;
+  isTracesLoading: boolean;
+  isObservationsLoading: boolean;
 }) => {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const { isBetaEnabled: isV4 } = useV4Beta();
-  const silentHttpCodes = [404];
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
 
@@ -56,49 +72,15 @@ const DatasetAggregateCellContent = ({
   // Merge server columns with cache-only columns
   const mergedScoreColumns = useMergeScoreColumns(serverScoreColumns);
 
-  // Subtract 1 day from the run item creation timestamp as a buffer in case the trace happened before the run
-  const fromTimestamp = new Date(
-    value.createdAt.getTime() - 24 * 60 * 60 * 1000,
-  );
-
-  // conditionally fetch the trace or observation depending on the presence of observationId
-  const trace = api.traces.byId.useQuery(
-    { traceId: value.trace.id, projectId, fromTimestamp },
-    {
-      enabled: value.observation === undefined,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      retry: false,
-      staleTime: Infinity,
-      meta: { silentHttpCodes },
-    },
-  );
-  const observation = api.observations.byId.useQuery(
-    {
-      observationId: value.observation?.id as string, // disabled when observationId is undefined
-      projectId,
-      traceId: value.trace.id,
-    },
-    {
-      enabled: value.observation !== undefined,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      retry: false,
-      staleTime: Infinity,
-      meta: { silentHttpCodes },
-    },
-  );
-
-  const data = value.observation === undefined ? trace.data : observation.data;
-  const isLoading =
-    value.observation === undefined ? trace.isLoading : observation.isLoading;
-
-  const { isSilentError } = useTrpcError(
-    value.observation === undefined ? trace.error : observation.error,
-    silentHttpCodes,
-  );
+  const isObservationCell = value.observation !== undefined;
+  const data =
+    value.observation === undefined
+      ? tracesById.get(value.trace.id)
+      : observationsById.get(value.observation.id);
+  const isLoading = isObservationCell ? isObservationsLoading : isTracesLoading;
+  // The batch fetch has completed but this cell's trace/observation was not
+  // returned (e.g. deleted, or outside the shared fromTimestamp bound).
+  const isSilentError = !isLoading && !data;
 
   const { latency, totalCost, latencyDiff, totalCostDiff } =
     useResourceMetricsDiff(value, baselineRunValue);
@@ -275,17 +257,25 @@ const DatasetAggregateCellContent = ({
   );
 };
 
+type CellDataLookups = {
+  tracesById: Map<string, TraceByIdsItem>;
+  observationsById: Map<string, ObservationByIdsItem>;
+  isTracesLoading: boolean;
+  isObservationsLoading: boolean;
+};
+
 const DatasetAggregateCellAgainstBaseline = ({
   value,
   projectId,
   serverScoreColumns,
   baselineRunValue,
+  ...cellDataLookups
 }: {
   projectId: string;
   value: EnrichedDatasetRunItem;
   serverScoreColumns: ScoreColumn[];
   baselineRunValue: EnrichedDatasetRunItem;
-}) => {
+} & CellDataLookups) => {
   // Merge cached score writes into aggregates for optimistic display
   const displayScores = useMergedAggregates(
     value.scores,
@@ -313,6 +303,7 @@ const DatasetAggregateCellAgainstBaseline = ({
       scores={displayScores}
       scoreDiffs={scoreDiffs}
       baselineRunValue={baselineRunValue}
+      {...cellDataLookups}
     />
   );
 };
@@ -321,11 +312,12 @@ const DatasetAggregateCell = ({
   value,
   projectId,
   serverScoreColumns,
+  ...cellDataLookups
 }: {
   projectId: string;
   value: EnrichedDatasetRunItem;
   serverScoreColumns: ScoreColumn[];
-}) => {
+} & CellDataLookups) => {
   // Merge cached score writes into aggregates for optimistic display
   const displayScores = useMergedAggregates(
     value.scores,
@@ -339,6 +331,7 @@ const DatasetAggregateCell = ({
       value={value}
       serverScoreColumns={serverScoreColumns}
       scores={displayScores}
+      {...cellDataLookups}
     />
   );
 };
@@ -349,7 +342,7 @@ type DatasetAggregateTableCellProps = {
   serverScoreColumns: ScoreColumn[];
   isBaselineRun: boolean;
   baselineRunValue?: EnrichedDatasetRunItem;
-};
+} & CellDataLookups;
 
 export const DatasetAggregateTableCell = ({
   projectId,
@@ -357,6 +350,7 @@ export const DatasetAggregateTableCell = ({
   serverScoreColumns,
   isBaselineRun,
   baselineRunValue,
+  ...cellDataLookups
 }: DatasetAggregateTableCellProps) => {
   return baselineRunValue && !isBaselineRun ? (
     <DatasetAggregateCellAgainstBaseline
@@ -364,12 +358,14 @@ export const DatasetAggregateTableCell = ({
       value={value}
       serverScoreColumns={serverScoreColumns}
       baselineRunValue={baselineRunValue}
+      {...cellDataLookups}
     />
   ) : (
     <DatasetAggregateCell
       projectId={projectId}
       value={value}
       serverScoreColumns={serverScoreColumns}
+      {...cellDataLookups}
     />
   );
 };
