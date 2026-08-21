@@ -20,9 +20,9 @@ export function MarkdownRenderCharacterLimitProvider({
 }) {
   const config = api.public.markdownRenderConfig.useQuery(undefined, {
     staleTime: Infinity,
-    // Failure is harmless (the default applies), so settle after
-    // the initial attempt instead of retrying on every window focus — same
-    // guard as the other app-shell config queries (see checkUpdate).
+    // The local default applies if the request fails. Do not retry this
+    // optional app-shell config query or refetch it during the session.
+    retry: false,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

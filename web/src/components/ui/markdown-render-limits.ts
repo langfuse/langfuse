@@ -125,8 +125,8 @@ export function estimateMarkdownNestingDepth(content: string): number {
  * The byte preempt follows `characterLimit` (the configured markdown render
  * limit, see `useMarkdownRenderCharacterLimit`) floored at its 150_000
  * default, so raising the limit also raises this backstop for surfaces
- * without a caller-side gate (e.g. comments). Raising is safe: flat byte size
- * never overflows; the depth check is the overflow guard.
+ * without a caller-side gate (e.g. comments). The depth check remains the
+ * stack-overflow guard.
  */
 export function exceedsMarkdownRenderLimits(
   content: string,
