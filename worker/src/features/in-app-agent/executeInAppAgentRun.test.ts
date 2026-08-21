@@ -772,6 +772,28 @@ describe("executeInAppAgentRun", () => {
     );
   });
 
+  it("records the APM exception when the loop reports onError and the stream closes cleanly", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+
+    scenarioRef.current = async ({ options }) => {
+      await options.onEvent(textChunk("partial"));
+      await options.onError(new Error("Bedrock returned an empty stream"));
+      await options.onFinish();
+    };
+
+    await expect(
+      executeInAppAgentRun({ projectId, runId: run.id }),
+    ).resolves.toBeUndefined();
+
+    const failed = await getRun(projectId, run.id);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.errorCode).toBe("agent_error");
+    expect(failed.errorMessage).toBe("Bedrock returned an empty stream");
+    expect(observabilityRef.traceException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Bedrock returned an empty stream" }),
+    );
+  });
+
   it("still fails the job when terminal persist throws", async () => {
     const { projectId, run } = await seedBackgroundRun();
 
