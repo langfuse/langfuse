@@ -190,6 +190,29 @@ function lowerTopLevel(
       // here so every commit path (typed Enter and structured pick) is gated.
       // Quoted text is an explicit literal search and is allowed.
       if (!ctx.registry.allowFreeText) {
+        // A view with no full-text lane can still give a bare word a useful
+        // meaning: rewrite it onto the view's default text field and lower it
+        // through the normal field path (one lowering path, no second one).
+        // The canonicalization is visible — the commit echo re-renders the word
+        // as `<field>:<word>`, so nothing is hidden.
+        const defaultField = ctx.registry.defaultTextField;
+        if (
+          defaultField !== null &&
+          !isDanglingDotPrefix(node.value, ctx.registry)
+        ) {
+          lowerFilterNode(
+            {
+              kind: "filter",
+              key: defaultField,
+              op: "=",
+              values: [node.value],
+              span: node.span,
+            },
+            negated,
+            ctx,
+          );
+          return;
+        }
         ctx.errors.push("Free-text search is not supported by this view");
         return;
       }

@@ -10,6 +10,7 @@ import {
 } from "@/src/features/filters/config/sessionsSearchRegistry";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
+import { filterStateToQueryText } from "./filter-state-to-query";
 import { planInputCompletions } from "./completions";
 import {
   generateQueryCases,
@@ -310,7 +311,9 @@ const sessionsView: RegistryUnderTest = {
     },
   ],
   fieldValues: ["x", "default", "5", "0.8", "true", "a b", "user-1"],
-  freeTextValues: [],
+  // Free text is rewritten onto `id`, not dropped, so the quoting/reserved-word
+  // mirror still has to hold on this registry.
+  freeTextValues: ["hello", "refund policy", "or", "and", "!important", "-foo"],
 };
 
 describe("search bar invariants — sessions registry", () => {
@@ -413,6 +416,34 @@ describe("search bar invariants — sessions registry", () => {
         },
       ],
     });
+  });
+
+  it("rewrites a bare word onto the session id and settles there", () => {
+    const first = planCommit("refund", undefined, SESSIONS_FIELD_REGISTRY);
+    if (first.status !== "committed") throw new Error(first.status);
+    expect(first).toMatchObject({
+      status: "committed",
+      searchQuery: null,
+      filters: [
+        { column: "id", type: "string", operator: "contains", value: "refund" },
+      ],
+    });
+    // The canonicalization is visible AND terminal: the echo renders `id:refund`
+    // and committing that again produces the identical filter, so the bar does
+    // not keep rewriting itself.
+    expect(
+      filterStateToQueryText(first.filters, undefined, SESSIONS_FIELD_REGISTRY)
+        .text,
+    ).toBe("id:refund");
+    expect(
+      planCommit("id:refund", undefined, SESSIONS_FIELD_REGISTRY),
+    ).toMatchObject({ status: "committed", filters: first.filters });
+
+    // A dangling dot-prefix must stay an error rather than becoming an id search
+    // for the literal text "metadata.".
+    expect(
+      planCommit("metadata.", undefined, SESSIONS_FIELD_REGISTRY).status,
+    ).toBe("invalid");
   });
 
   it("drops metadata on the v3 registry, which has no metadata column", () => {
