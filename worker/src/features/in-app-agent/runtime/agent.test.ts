@@ -957,6 +957,9 @@ describe("createAgUiStream", () => {
         ).join(", "),
       }),
     );
+    expect(
+      promptMocks.compile.mock.calls[0]?.[0].sandboxFilesystem,
+    ).not.toContain("tool_calls");
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
         screenContext: expect.stringContaining(
@@ -1180,8 +1183,11 @@ describe("createAgUiStream", () => {
     const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0];
     const runInstruction = (agentConfig?.defaultOptions as { system?: string })
       ?.system;
-    expect(runInstruction).toContain("has been replaced with an empty one");
-    expect(runInstruction).toContain("restored in full");
+    expect(runInstruction).toContain("has expired and been replaced");
+    expect(runInstruction).toContain(
+      "Persisted tool-output files explicitly named in tool results remain available",
+    );
+    expect(runInstruction).not.toContain("/workspace/tool_calls");
     expect(
       promptMocks.compile.mock.calls.at(-1)?.[0]?.sandboxFilesystem,
     ).not.toContain("has been replaced with an empty one");
@@ -1633,6 +1639,8 @@ describe("createAgUiStream", () => {
     const input = createToolApprovalResumeInput(true, { silent: true });
     adapterEvents.createScoreConfigExecute.mockResolvedValueOnce({
       type: "silent-mcp-output",
+      toolCallId: "tool-call-1",
+      toolName: "langfuse_createScoreConfig",
       output: {
         id: "score-config-1",
         name: "readiness",
@@ -1640,7 +1648,8 @@ describe("createAgUiStream", () => {
       },
     });
     adapterEvents.createScoreConfigToModelOutput.mockImplementationOnce(
-      async () => "Output saved to /workspace/tool_calls",
+      async () =>
+        "Output saved to /workspace/tool_calls/langfuse_createScoreConfig_tool-call-1.json",
     );
     adapterEvents.inputs = [];
     adapterEvents.items = [
@@ -1690,15 +1699,20 @@ describe("createAgUiStream", () => {
 
     expect(resumedToolMessage).toMatchObject({
       role: "tool",
-      content: "Output saved to /workspace/tool_calls",
+      content:
+        "Output saved to /workspace/tool_calls/langfuse_createScoreConfig_tool-call-1.json",
     });
-    expect(streamedText).toContain("Output saved to /workspace/tool_calls");
+    expect(streamedText).toContain(
+      "Output saved to /workspace/tool_calls/langfuse_createScoreConfig_tool-call-1.json",
+    );
     expect(streamedText).not.toContain("full-tool-output");
     expect(persistedEvents).toContainEqual(
       expect.objectContaining({
         type: EventType.TOOL_CALL_RESULT,
         content: JSON.stringify({
           type: "silent-mcp-output",
+          toolCallId: "tool-call-1",
+          toolName: "langfuse_createScoreConfig",
           output: {
             id: "score-config-1",
             name: "readiness",
