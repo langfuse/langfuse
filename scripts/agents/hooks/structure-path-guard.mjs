@@ -9,7 +9,7 @@
 //   1. Creation only. The check runs when the target path does not exist yet.
 //      An edit to a badly-named file is never blocked — the name is not the
 //      bug you were asked to fix.
-//   2. Fail open, always. Unreadable stdin, unparseable payload, a throw, a
+//   2. Fail open, always. Unreadable stdin, unparsable payload, a throw, a
 //      missing check — every one of them allows the write. A broken sensor
 //      must not be able to stop work.
 //

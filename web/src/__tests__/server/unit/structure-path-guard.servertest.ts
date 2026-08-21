@@ -173,7 +173,7 @@ describe("structure path check", () => {
         tool_name: "Bash",
         tool_input: { command: "ls" },
       }),
-      // unparseable stdin, and no stdin
+      // unparsable stdin, and no stdin
       runHook("claude", "not json at all"),
       runHook("claude", ""),
       // the escape hatch
