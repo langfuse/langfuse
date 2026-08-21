@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { forwardRef, type ReactNode } from "react";
 
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Badge } from "@/src/components/ui/badge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
@@ -73,7 +74,19 @@ export const JudgeModelPickerTrigger = forwardRef<
   JudgeModelPickerTriggerProps
 >(
   (
-    { mode, defaultModel, selectedModel, missingDefaultLabel, ...buttonProps },
+    {
+      mode,
+      defaultModel,
+      selectedModel,
+      missingDefaultLabel,
+      // Handled here rather than by `Button`, which swaps its children for the
+      // spinner. That would drop the model label mid-mutation and collapse this
+      // content-width trigger, shifting everything next to it in the header.
+      loading,
+      loadingText,
+      disabled,
+      ...buttonProps
+    },
     forwardedRef,
   ) => {
     const customSelectionLabel = selectedModel
@@ -92,6 +105,11 @@ export const JudgeModelPickerTrigger = forwardRef<
         ref={forwardedRef}
         type="button"
         variant="outline"
+        disabled={disabled || loading}
+        // The label stays put while loading, so announce the pending action
+        // for anyone who cannot see the spinner.
+        aria-label={loading && loadingText ? String(loadingText) : undefined}
+        aria-busy={loading || undefined}
         className={cn(
           selectTriggerClassName,
           "w-auto max-w-full min-w-0 justify-start",
@@ -130,7 +148,11 @@ export const JudgeModelPickerTrigger = forwardRef<
             ) : null}
           </span>
         )}
-        <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+        {loading ? (
+          <Spinner size="sm" variant="muted" />
+        ) : (
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+        )}
       </Button>
     );
   },

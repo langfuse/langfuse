@@ -15,7 +15,7 @@ import {
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getRecentEvaluatorExecutionTraces,
-  getTotalCostByEvaluatorIds,
+  getTotalCostByEvaluatorTraceNames,
   invalidateProjectEvalConfigCaches,
   logger,
 } from "@langfuse/shared/src/server";
@@ -183,12 +183,30 @@ export class EvaluatorService {
   }
 
   async getTotalCosts(params: { projectId: string; evaluatorIds: string[] }) {
-    const costs = await getTotalCostByEvaluatorIds(
-      params.projectId,
-      params.evaluatorIds,
-    );
+    const evaluators = await repository.findEvaluatorsByIds({
+      prisma: this.prisma,
+      projectId: params.projectId,
+      evaluatorIds: params.evaluatorIds,
+    });
+    const evaluatorIdsByTraceName = new Map<string, string[]>();
+    for (const evaluator of evaluators) {
+      const traceName = `Execute evaluator: ${evaluator.name}`;
+      evaluatorIdsByTraceName.set(traceName, [
+        ...(evaluatorIdsByTraceName.get(traceName) ?? []),
+        evaluator.id,
+      ]);
+    }
+
+    const costs = await getTotalCostByEvaluatorTraceNames(params.projectId, [
+      ...evaluatorIdsByTraceName.keys(),
+    ]);
     return Object.fromEntries(
-      costs.map(({ evaluatorId, totalCost }) => [evaluatorId, totalCost]),
+      costs.flatMap(({ traceName, totalCost }) =>
+        (evaluatorIdsByTraceName.get(traceName) ?? []).map((evaluatorId) => [
+          evaluatorId,
+          totalCost,
+        ]),
+      ),
     );
   }
 

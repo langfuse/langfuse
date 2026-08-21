@@ -18,7 +18,7 @@ import {
   getLatestEvaluatorRunCost,
   getRecentEvaluatorExecutionTraces,
   getRecentRuleExecutionTraces,
-  getTotalCostByEvaluatorIds,
+  getTotalCostByEvaluatorTraceNames,
   getTotalCostByRule,
   createScoresCh,
   createTraceScore,
@@ -71,26 +71,26 @@ describe("Clickhouse Events Repository Test", () => {
   maybe("evaluator execution metrics", () => {
     it("returns evaluator costs from the last seven days excluding test runs", async () => {
       const evaluatorId = randomUUID();
+      const evaluatorTraceName = `Execute evaluator: Quality ${evaluatorId}`;
       const testTraceId = randomUUID();
       const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
 
       await createEventsCh([
         createEvent({
           project_id: projectId,
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
+          trace_name: evaluatorTraceName,
           cost_details: { total: 1.5 },
         }),
         createEvent({
           project_id: projectId,
           start_time: eightDaysAgo,
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
+          trace_name: evaluatorTraceName,
           cost_details: { total: 20 },
         }),
         createEvent({
           project_id: projectId,
           trace_id: testTraceId,
+          trace_name: evaluatorTraceName,
           type: "SPAN",
           metadata_names: ["evaluator_id", "evaluator_test"],
           metadata_values: [evaluatorId, "true"],
@@ -99,14 +99,15 @@ describe("Clickhouse Events Repository Test", () => {
         createEvent({
           project_id: projectId,
           trace_id: testTraceId,
+          trace_name: evaluatorTraceName,
           type: "GENERATION",
           cost_details: { total: 0.9 },
         }),
       ]);
 
       await expect(
-        getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
-      ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
+        getTotalCostByEvaluatorTraceNames(projectId, [evaluatorTraceName]),
+      ).resolves.toEqual([{ traceName: evaluatorTraceName, totalCost: 1.5 }]);
     });
 
     it("returns the latest evaluator trace cost", async () => {
@@ -277,7 +278,7 @@ describe("Clickhouse Events Repository Test", () => {
       );
     });
 
-    it("returns the last five traces using evaluation_rule_id only", async () => {
+    it("returns the last five traces, falling back to job_configuration_id", async () => {
       const ruleId = randomUUID();
       const legacyRuleId = randomUUID();
       const traceIds = Array.from({ length: 6 }, () => randomUUID());
@@ -309,7 +310,11 @@ describe("Clickhouse Events Repository Test", () => {
 
       expect(traces.filter((trace) => trace.ruleId === ruleId)).toHaveLength(5);
       expect(traces.map(({ id }) => id)).not.toContain(traceIds[5]);
-      expect(traces.map(({ id }) => id)).not.toContain(legacyTraceId);
+      expect(traces).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: legacyTraceId, ruleId: legacyRuleId }),
+        ]),
+      );
     });
   });
 

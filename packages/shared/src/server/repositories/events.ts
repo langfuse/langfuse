@@ -3579,6 +3579,57 @@ export const getTotalCostByEvaluatorIds = async (
   }));
 };
 
+// Temporary compatibility path: remove in a few weeks in favor of evaluator_id.
+export const getTotalCostByEvaluatorTraceNames = async (
+  projectId: string,
+  traceNames: string[],
+) => {
+  if (traceNames.length === 0) return [];
+
+  const traceCostsBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.trace_id, e.trace_name",
+    selectExpression: [
+      "e.trace_id as trace_id",
+      "e.trace_name as trace_name",
+      "sum(e.total_cost) as trace_total_cost",
+      `countIf(${evaluatorTestEventCondition}) as test_event_count`,
+    ].join(", "),
+  })
+    .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
+    .whereRaw("e.trace_name IN ({traceNames: Array(String)})", { traceNames })
+    .havingRaw("test_event_count = 0");
+
+  const traceCosts = traceCostsBuilder.buildWithParams();
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTE("trace_costs", {
+      ...traceCosts,
+      schema: ["trace_id", "trace_name", "trace_total_cost"] as const,
+    })
+    .from("trace_costs", "tc")
+    .select(
+      "tc.trace_name as trace_name",
+      "sum(tc.trace_total_cost) as total_cost",
+    )
+    .groupBy("tc.trace_name");
+
+  const { query, params } = queryBuilder.buildWithParams();
+  const rows = await queryClickhouse<{
+    trace_name: string;
+    total_cost: string;
+  }>({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    traceName: row.trace_name,
+    totalCost: Number(row.total_cost),
+  }));
+};
+
 /** Returns the latest cost-bearing evaluator trace from the last seven days. */
 export const getLatestEvaluatorRunCost = async (
   projectId: string,
@@ -3667,9 +3718,14 @@ export const getRecentRuleExecutionTraces = async (
 ) => {
   if (ruleIds.length === 0) return [];
 
-  const evaluationRuleId = eventMetadataValue(
+  const evaluationRuleId = eventMetadataValueWithFallback([
     EvalExecutionMetadataKey.EVALUATION_RULE_ID,
-  );
+    EvalExecutionMetadataKey.JOB_CONFIGURATION_ID,
+  ]);
+  const hasEvaluationRuleId = hasAnyEventMetadataKey([
+    EvalExecutionMetadataKey.EVALUATION_RULE_ID,
+    EvalExecutionMetadataKey.JOB_CONFIGURATION_ID,
+  ]);
   const builder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: `e.trace_id, ${EvalExecutionMetadataKey.EVALUATION_RULE_ID}`,
@@ -3681,13 +3737,8 @@ export const getRecentRuleExecutionTraces = async (
     ].join(", "),
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw(
-      `has(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}')`,
-    )
-    .whereRaw(
-      `${EvalExecutionMetadataKey.EVALUATION_RULE_ID} IN ({ruleIds: Array(String)})`,
-      { ruleIds },
-    )
+    .whereRaw(`(${hasEvaluationRuleId})`)
+    .whereRaw(`${evaluationRuleId} IN ({ruleIds: Array(String)})`, { ruleIds })
     .orderBy("ORDER BY timestamp DESC, id DESC")
     .limitByCount(5, EvalExecutionMetadataKey.EVALUATION_RULE_ID);
 

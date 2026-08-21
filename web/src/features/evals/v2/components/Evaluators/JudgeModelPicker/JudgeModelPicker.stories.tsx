@@ -86,6 +86,51 @@ export const Custom = meta.story({
   render: StatefulJudgeModelPicker,
 });
 
+export const CustomWithoutSelection = meta.story({
+  args: {
+    ...actions,
+    open: true,
+    mode: "custom",
+    defaultModel: { provider: "OpenAI", model: "gpt-4.1-mini" },
+    providerGroups: [["OpenAI", ["gpt-4.1-mini", "gpt-4.1"]]],
+    selectedModel: null,
+  },
+  render: StatefulJudgeModelPicker,
+});
+
+/** The custom selection is the project default, so promoting it is a no-op. */
+export const SelectedModelMatchesProjectDefault = meta.story({
+  args: {
+    ...actions,
+    open: true,
+    mode: "custom",
+    defaultModel: { provider: "OpenAI", model: "gpt-4.1-mini" },
+    providerGroups: [["OpenAI", ["gpt-4.1-mini", "gpt-4.1"]]],
+    selectedModel: { provider: "OpenAI", model: "gpt-4.1-mini" },
+  },
+  render: StatefulJudgeModelPicker,
+});
+
+/** Without `evalDefaultModel:CUD` the promote action stays disabled. */
+export const CannotSetProjectDefault = meta.story({
+  args: {
+    ...actions,
+    open: true,
+    mode: "custom",
+    canSetProjectDefault: false,
+    defaultModel: { provider: "OpenAI", model: "gpt-4.1-mini" },
+    providerGroups: [["Anthropic", ["claude-sonnet-4"]]],
+    selectedModel: { provider: "Anthropic", model: "claude-sonnet-4" },
+  },
+  render: StatefulJudgeModelPicker,
+});
+
+/**
+ * Also what the list looks like while the LLM connections query is still
+ * pending — the picker cannot tell "no providers configured" apart from
+ * "providers not loaded yet". In the app the trigger is disabled meanwhile, so
+ * the popover is not reachable in the pending case.
+ */
 export const NoModels = meta.story({
   args: {
     ...actions,
