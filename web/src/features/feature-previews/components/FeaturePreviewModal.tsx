@@ -90,6 +90,21 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     },
   },
   {
+    flag: "sessionsSearchBar",
+    title: "Sessions Search Bar",
+    sidebarLabel: "Sessions Search Bar",
+    description:
+      "Filter sessions by typing instead of clicking — the same query bar the observations table uses, now over the sessions table.",
+    details:
+      "One keyboard-driven bar over the sessions table: type `userIds:alice`, `tags:(billing AND urgent)`, `duration:>30`, `metadata.region:eu`, or `scores.helpfulness:>0.8` and press Enter. Autocomplete suggests fields and the values your project has actually recorded. The facet sidebar stays and stays in sync — the bar is an additional editor over the same filters, so saved views keep working from either side.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+    illustration: {
+      light: filterSearchBarLightIllustration,
+      dark: filterSearchBarDarkIllustration,
+      alt: "A query bar above the sessions table with typed filter pills and an autocomplete list.",
+    },
+  },
+  {
     flag: "v4UpgradeUi",
     title: "V4 Migration",
     sidebarLabel: "V4 Migration",

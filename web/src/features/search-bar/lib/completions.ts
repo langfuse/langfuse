@@ -536,7 +536,8 @@ function pathKindOf(
   const lower = keyPart.toLowerCase();
   for (const kind of PATH_PREFIXES) {
     if (kind.canonical === "metadata." && !registry.metadata) continue;
-    if (kind.canonical !== "metadata." && !registry.scores) continue;
+    if (kind.canonical === "scores." && !registry.scores) continue;
+    if (kind.canonical === "traceScores." && !registry.traceScores) continue;
     if (lower.startsWith(kind.prefix)) {
       return { kind, typedKey: keyPart.slice(kind.prefix.length) };
     }

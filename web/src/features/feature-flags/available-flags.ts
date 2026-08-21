@@ -9,6 +9,7 @@ export const featurePreviewFlags = [
   "searchBar",
   "v4UpgradeUi",
   "compactTimeline",
+  "sessionsSearchBar",
 ] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
@@ -34,6 +35,10 @@ export const isFeaturePreviewAvailable = (
   }
 
   if (flag === "compactTimeline") {
+    return true;
+  }
+
+  if (flag === "sessionsSearchBar") {
     return true;
   }
 

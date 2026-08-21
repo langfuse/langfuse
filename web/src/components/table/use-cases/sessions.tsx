@@ -65,6 +65,12 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useSession } from "next-auth/react";
+import { sessionsFieldRegistry } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 
 export type SessionTableRow = {
   id: string;
@@ -291,6 +297,42 @@ export default function SessionsTable({
   const setFiltersWrapper = useCallback(
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
+  );
+
+  // Grammar search bar (Feature Preview): an ADDITIONAL editor over the same
+  // FilterState the facet sidebar edits — the sidebar stays and the two reflect
+  // each other with no explicit sync. Off on the user-detail mount, which is
+  // page-scoped by a userId filter the bar must not fight (same embedded
+  // opt-out as EventsTable).
+  const sessionsSearchBarEnabled =
+    useSession().data?.user?.featureFlags.sessionsSearchBar === true &&
+    isBetaEnabled &&
+    !userId;
+  const searchRegistry = useMemo(
+    () => sessionsFieldRegistry(isBetaEnabled),
+    [isBetaEnabled],
+  );
+  const observedOptions = useMemo(
+    () => toObservedOptions(newFilterOptions, isSidebarFilterLoading),
+    [newFilterOptions, isSidebarFilterLoading],
+  );
+  // Sessions has no full-text lane (`sessions.all*` takes no searchQuery), so
+  // the registry rejects free text and these stay inert.
+  const noSearchLane = useCallback(() => {}, []);
+  const { store: searchBarStore, commit: searchBarCommit } = useEventsSearchBar(
+    {
+      projectId,
+      tableName: sessionsFilterConfig.tableName,
+      enabled: sessionsSearchBarEnabled,
+      filterState: queryFilter.explicitFilterState,
+      searchQuery: null,
+      searchType: DEFAULT_SEARCH_TYPE,
+      observed: observedOptions,
+      setFilterState: setFiltersWrapper,
+      setSearchQuery: noSearchLane,
+      setSearchType: noSearchLane,
+      registry: searchRegistry,
+    },
   );
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
@@ -809,8 +851,19 @@ export default function SessionsTable({
             setTimeRange={setTimeRange}
           />
         )}
+        {sessionsSearchBarEnabled && (
+          <EventsSearchBarRow
+            projectId={projectId}
+            tableName={sessionsFilterConfig.tableName}
+            store={searchBarStore}
+            commit={searchBarCommit}
+            observed={observedOptions}
+            onApplyFilters={setFiltersWrapper}
+          />
+        )}
         {/* Toolbar spanning full width */}
         <DataTableToolbar
+          rowClassName={sessionsSearchBarEnabled ? "my-1" : undefined}
           filterState={queryFilter.explicitFilterState}
           actionButtons={[
             selectedSessionIds.length > 0 || selectAll ? (

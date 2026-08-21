@@ -57,12 +57,15 @@ export type FieldDef = {
 };
 
 export type FieldRegistry = {
-  id: "events" | "evaluationRules";
+  id: "events" | "evaluationRules" | "sessions";
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
   metadata: boolean;
   scores: boolean;
+  /** Trace-level `traceScores.<name>` paths. Views whose backend has no
+   *  trace-score columns (sessions) keep observation scores without them. */
+  traceScores: boolean;
   aiContextFields: readonly AIContextField[];
   resolveField: (name: string) => FieldRef | null;
   nullableFields: () => readonly FieldDef[];
@@ -93,12 +96,24 @@ export function fieldRegistryFromColumns(
     fields?: Readonly<Record<string, FieldOverlay>>;
     metadata?: boolean;
     scores?: boolean;
+    /** Defaults to `scores`. */
+    traceScores?: boolean;
     allowFreeText?: boolean;
     aiContextFields?: readonly AIContextField[];
   },
 ): FieldRegistry {
+  const scores = overlay.scores ?? false;
   const fields = columns
-    .filter((column) => !column.type.endsWith("Object"))
+    // `*Object` columns and the categorical score column are keyed dot-paths
+    // (`metadata.<key>`, `scores.<name>`), never plain fields — a derived
+    // `score_categories` field would lower to a keyless categoryOptions filter
+    // the backend cannot answer. They stay in `columns` so the reverse adapter
+    // still resolves them.
+    .filter(
+      (column) =>
+        !column.type.endsWith("Object") &&
+        !(scores && isKeyedScoreColumn(column.id)),
+    )
     .map((column): FieldDef => {
       const fieldOverlay = overlay.fields?.[column.id];
       const kind: FieldKind =
@@ -133,7 +148,8 @@ export function fieldRegistryFromColumns(
     fields,
     columns,
     metadata: overlay.metadata ?? false,
-    scores: overlay.scores ?? false,
+    scores,
+    traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
     aiContextFields: overlay.aiContextFields ?? [],
   });
@@ -217,6 +233,15 @@ export const SCORE_COLUMNS = {
   },
 } as const;
 
+const KEYED_SCORE_COLUMNS: ReadonlySet<string> = new Set([
+  ...Object.values(SCORE_COLUMNS.observation),
+  ...Object.values(SCORE_COLUMNS.trace),
+]);
+
+function isKeyedScoreColumn(column: string): boolean {
+  return KEYED_SCORE_COLUMNS.has(column);
+}
+
 export type FieldRef =
   | { type: "field"; field: FieldDef }
   | { type: "metadata"; key: string }
@@ -229,6 +254,7 @@ function createFieldRegistry({
   columns,
   metadata,
   scores,
+  traceScores,
   allowFreeText,
   aiContextFields,
 }: {
@@ -237,6 +263,7 @@ function createFieldRegistry({
   columns: readonly ColumnDefinition[];
   metadata: boolean;
   scores: boolean;
+  traceScores: boolean;
   allowFreeText: boolean;
   aiContextFields: readonly AIContextField[];
 }): FieldRegistry {
@@ -262,6 +289,7 @@ function createFieldRegistry({
     allowFreeText,
     metadata,
     scores,
+    traceScores,
     aiContextFields,
     resolveField: (name) => resolveFromRegistry(name, registry, byName),
     nullableFields: () => nullable,
@@ -270,9 +298,8 @@ function createFieldRegistry({
       const lower = value.toLowerCase();
       return (
         (metadata && lower === METADATA_PREFIX) ||
-        (scores &&
-          (SCORE_PREFIXES.includes(lower) ||
-            TRACE_SCORE_PREFIXES.includes(lower)))
+        (scores && SCORE_PREFIXES.includes(lower)) ||
+        (traceScores && TRACE_SCORE_PREFIXES.includes(lower))
       );
     },
     columnIdOf: (column) => columnIds.get(column.toLowerCase()) ?? null,
@@ -286,6 +313,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   columns: eventsTableCols,
   metadata: true,
   scores: true,
+  traceScores: true,
   allowFreeText: true,
   aiContextFields: [
     { observedOptionsKey: "type", promptLabel: "type" },
@@ -336,13 +364,15 @@ function resolveFromRegistry(
     const key = unquote(name.slice(METADATA_PREFIX.length)).value;
     return key.length > 0 ? { type: "metadata", key } : null;
   }
-  if (registry.scores) {
+  if (registry.traceScores) {
     for (const prefix of TRACE_SCORE_PREFIXES) {
       if (lower.startsWith(prefix)) {
         const key = unquote(name.slice(prefix.length)).value;
         return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
       }
     }
+  }
+  if (registry.scores) {
     for (const prefix of SCORE_PREFIXES) {
       if (lower.startsWith(prefix)) {
         const key = unquote(name.slice(prefix.length)).value;
