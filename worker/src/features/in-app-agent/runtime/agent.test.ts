@@ -984,6 +984,7 @@ describe("createAgUiStream", () => {
         bedrock: {
           additionalModelRequestFields: {
             thinking: { type: "adaptive", display: "summarized" },
+            output_config: { effort: "medium" },
           },
         },
       },

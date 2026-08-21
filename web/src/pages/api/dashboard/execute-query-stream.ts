@@ -6,9 +6,9 @@ import {
   isException,
   ClickHouseResourceError,
   queryClickhouseWithProgress,
+  logger,
 } from "@langfuse/shared/src/server";
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";

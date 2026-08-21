@@ -4,8 +4,11 @@ import {
   LangfuseConflictError,
   ServiceUnavailableError,
 } from "@langfuse/shared";
-import type { ApiAccessScope } from "@langfuse/shared/src/server";
-import { logger, recordIncrement } from "@langfuse/shared/src/server";
+import {
+  type ApiAccessScope,
+  logger,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import type {

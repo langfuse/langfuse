@@ -7,7 +7,6 @@ export const featurePreviewFlags = [
   // no longer a per-user Feature Preview opt-in. Kept as dead plumbing for a
   // safe rollback; drop once the GA rollout is confirmed stable.
   "searchBar",
-  "v4UpgradeUi",
   "compactTimeline",
 ] as const;
 
@@ -26,10 +25,6 @@ export const isFeaturePreviewAvailable = (
   }
 
   if (flag === "searchBar") {
-    return true;
-  }
-
-  if (flag === "v4UpgradeUi") {
     return true;
   }
 

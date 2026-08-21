@@ -386,7 +386,7 @@ export async function createAgUiStream(params: {
         subscription?.unsubscribe();
 
         logger.error("Failed to persist in-app agent event", {
-          error,
+          error: toLoggableError(error),
           runId: params.input.runId,
           threadId: params.input.threadId,
           eventType,
@@ -722,7 +722,7 @@ export async function createAgUiStream(params: {
               }
 
               logger.error("Error in agent execution", {
-                error,
+                error: toLoggableError(error),
                 runId: params.input.runId,
                 threadId: params.input.threadId,
               });
@@ -796,7 +796,7 @@ export async function createAgUiStream(params: {
           }
 
           logger.error("Error initializing agent", {
-            error,
+            error: toLoggableError(error),
             runId: params.input.runId,
             threadId: params.input.threadId,
           });
@@ -1508,6 +1508,22 @@ function createRunErrorEvent(
     runId: input.runId,
     message,
   };
+}
+
+function toLoggableError(error: unknown): {
+  name?: string;
+  message: string;
+  stack?: string;
+} {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return { message: String(error) };
 }
 
 function getRunErrorMessage(event: AgUiEvent) {

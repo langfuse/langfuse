@@ -6,7 +6,8 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
  * remeasures when its width, item widths, or overflow-control width changes.
  * `additionalOverflowCount` reserves the control for paginated or virtualized
  * entries that should not be mounted in the measurement row. Item and overflow
- * presentation remain entirely caller-defined.
+ * presentation remain entirely caller-defined. `trailingContent` stays pinned
+ * immediately after the overflow control and participates in width measurement.
  */
 export function SingleLineOverflowList<TItem>({
   items,
@@ -14,6 +15,7 @@ export function SingleLineOverflowList<TItem>({
   getKey,
   renderItem,
   renderOverflow,
+  trailingContent,
 }: {
   items: readonly TItem[];
   additionalOverflowCount: number;
@@ -23,9 +25,11 @@ export function SingleLineOverflowList<TItem>({
     hiddenItems: readonly TItem[];
     overflowItemCount: number;
   }) => ReactNode;
+  trailingContent?: ReactNode;
 }) {
   const measurementRowRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
+  const trailingContentRef = useRef<HTMLDivElement>(null);
   const [hiddenKeys, setHiddenKeys] = useState<string[]>([]);
   const itemKeys = items.map(getKey);
   const itemKeySignature = itemKeys.join("\u0000");
@@ -33,6 +37,8 @@ export function SingleLineOverflowList<TItem>({
   const visibleItems = items.filter((item) => !hiddenKeySet.has(getKey(item)));
   const hiddenItems = items.filter((item) => hiddenKeySet.has(getKey(item)));
   const overflowItemCount = hiddenItems.length + additionalOverflowCount;
+  const hasTrailingContent =
+    trailingContent !== null && trailingContent !== undefined;
 
   useEffect(() => {
     const measurementRow = measurementRowRef.current;
@@ -44,17 +50,23 @@ export function SingleLineOverflowList<TItem>({
       const contentWidth = lastItem
         ? lastItem.offsetLeft + lastItem.offsetWidth
         : 0;
-      const hasOverflow =
-        additionalOverflowCount > 0 ||
-        contentWidth > measurementRow.clientWidth - 1;
       const gap = Number.parseFloat(
         window.getComputedStyle(measurementRow).columnGap,
       );
+      const normalizedGap = Number.isFinite(gap) ? gap : 0;
+      const trailingContentWidth = trailingContentRef.current?.offsetWidth ?? 0;
+      const availableWidthBeforeOverflow =
+        measurementRow.clientWidth -
+        trailingContentWidth -
+        (trailingContentWidth > 0 ? normalizedGap : 0);
+      const hasOverflow =
+        additionalOverflowCount > 0 ||
+        contentWidth > availableWidthBeforeOverflow - 1;
       const availableWidth = hasOverflow
-        ? measurementRow.clientWidth -
+        ? availableWidthBeforeOverflow -
           (overflowRef.current?.offsetWidth ?? 0) -
-          (Number.isFinite(gap) ? gap : 0)
-        : measurementRow.clientWidth;
+          normalizedGap
+        : availableWidthBeforeOverflow;
       const nextHiddenKeys = itemElements.flatMap((element) => {
         const key = element.dataset.overflowItemKey;
         return key &&
@@ -82,9 +94,17 @@ export function SingleLineOverflowList<TItem>({
     if (overflowRef.current) {
       resizeObserver.observe(overflowRef.current);
     }
+    if (trailingContentRef.current) {
+      resizeObserver.observe(trailingContentRef.current);
+    }
 
     return () => resizeObserver.disconnect();
-  }, [additionalOverflowCount, itemKeySignature, overflowItemCount]);
+  }, [
+    additionalOverflowCount,
+    hasTrailingContent,
+    itemKeySignature,
+    overflowItemCount,
+  ]);
 
   return (
     <div className="relative flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
@@ -123,6 +143,11 @@ export function SingleLineOverflowList<TItem>({
       {overflowItemCount > 0 ? (
         <div ref={overflowRef} className="flex shrink-0 items-center">
           {renderOverflow({ hiddenItems, overflowItemCount })}
+        </div>
+      ) : null}
+      {hasTrailingContent ? (
+        <div ref={trailingContentRef} className="flex shrink-0 items-center">
+          {trailingContent}
         </div>
       ) : null}
     </div>

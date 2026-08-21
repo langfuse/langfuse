@@ -5,8 +5,7 @@ import {
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
-import { Role, Prisma } from "@langfuse/shared/src/db";
-import type { PrismaClient } from "@langfuse/shared/src/db";
+import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
