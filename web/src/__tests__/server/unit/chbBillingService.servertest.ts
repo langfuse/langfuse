@@ -45,6 +45,9 @@ const productIdFor = (planCode: string) => {
 
 const findUnique = vi.fn();
 const update = vi.fn();
+// Checkout claims the CH organization id with a guarded UPDATE rather than a
+// read-then-write, so the claim is a raw statement returning a row count.
+const executeRaw = vi.fn();
 
 const clientMock = {
   createCheckoutSession: vi.fn(),
@@ -56,7 +59,7 @@ const clientMock = {
 };
 
 const ctx = {
-  prisma: { organization: { findUnique, update } },
+  prisma: { organization: { findUnique, update }, $executeRaw: executeRaw },
   session: {
     orgId: ORG_ID,
     orgRole: "OWNER",
@@ -105,6 +108,8 @@ describe("chbBillingService", () => {
     // would otherwise leak into every following test.
     vi.resetAllMocks();
     update.mockResolvedValue({});
+    // Default: the claim succeeds. Tests that exercise the race override it.
+    executeRaw.mockResolvedValue(1);
   });
 
   describe("getSubscriptionInfo", () => {
@@ -225,13 +230,14 @@ describe("chbBillingService", () => {
       organizationId: CH_ORG_ID,
     };
 
-    it("persists the CH organization id returned by checkout", async () => {
+    it("claims the CH organization id returned by checkout", async () => {
       withOrg(null);
       clientMock.createCheckoutSession.mockResolvedValue(session);
 
       const url = await service().createCheckoutSession(
         ORG_ID,
         productIdFor("pro"),
+        "op-checkout",
       );
 
       expect(url).toBe(session.url);
@@ -240,15 +246,51 @@ describe("chbBillingService", () => {
         email: "user@example.com",
         planCode: "pro",
         returnUrl: `https://cloud.langfuse.com/organization/${ORG_ID}/settings/billing`,
+        idempotencyKey: `chb.checkout.create:orgId=${ORG_ID}:planCode=pro:op=op-checkout`,
       });
-      expect(update).toHaveBeenCalledWith({
-        where: { id: ORG_ID },
-        data: { cloudConfig: { clickhouse: { organizationId: CH_ORG_ID } } },
-      });
+      // Claimed with the guarded statement, never a blind read-then-write.
+      expect(executeRaw).toHaveBeenCalledTimes(1);
+      expect(update).not.toHaveBeenCalled();
       expect(mocks.auditLog).toHaveBeenCalledTimes(1);
     });
 
-    it("reuses the CH organization from an earlier attempt", async () => {
+    it("keys the idempotency key on the plan so a plan switch is not replayed", async () => {
+      // The dialog keeps one opId across plan re-clicks, so the plan code is
+      // what separates "core, then team" into two operations.
+      clientMock.createCheckoutSession.mockResolvedValue(session);
+
+      withOrg(null);
+      await service().createCheckoutSession(
+        ORG_ID,
+        productIdFor("core"),
+        "op-1",
+      );
+      withOrg(null);
+      await service().createCheckoutSession(
+        ORG_ID,
+        productIdFor("team"),
+        "op-1",
+      );
+
+      const keys = clientMock.createCheckoutSession.mock.calls.map(
+        ([params]) => params.idempotencyKey,
+      );
+      expect(new Set(keys).size).toBe(2);
+    });
+
+    it("sends no idempotency key without an opId", async () => {
+      withOrg(null);
+      clientMock.createCheckoutSession.mockResolvedValue(session);
+
+      await service().createCheckoutSession(ORG_ID, productIdFor("pro"));
+
+      // Matches makeIdempotencyKey's contract: no client opId, no claim.
+      expect(clientMock.createCheckoutSession).toHaveBeenCalledWith(
+        expect.objectContaining({ idempotencyKey: undefined }),
+      );
+    });
+
+    it("reuses the CH organization from an earlier attempt without rewriting it", async () => {
       withOrg({ clickhouse: { organizationId: CH_ORG_ID } });
       clientMock.createCheckoutSession.mockResolvedValue(session);
 
@@ -261,6 +303,75 @@ describe("chbBillingService", () => {
           planCode: "team",
         }),
       );
+      // Already stored, so the retry claims nothing.
+      expect(executeRaw).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it("refuses when a retry comes back with a different CH organization", async () => {
+      withOrg({ clickhouse: { organizationId: CH_ORG_ID } });
+      clientMock.createCheckoutSession.mockResolvedValue({
+        url: session.url,
+        organizationId: "11111111-2222-4333-8444-555555555555",
+      });
+
+      // Sticky provider routing is broken; clobbering the stored id would point
+      // the org at a bundle it never bought.
+      expect(
+        await trpcCode(
+          service().createCheckoutSession(ORG_ID, productIdFor("team")),
+        ),
+      ).toBe("INTERNAL_SERVER_ERROR");
+      expect(executeRaw).not.toHaveBeenCalled();
+    });
+
+    it("refuses an unusable organization id rather than leaking a ZodError", async () => {
+      withOrg(null);
+      clientMock.createCheckoutSession.mockResolvedValue({
+        url: session.url,
+        organizationId: "not-a-uuid",
+      });
+
+      // A ZodError escaping here would surface as an opaque 500, and a bad id
+      // reaching Postgres would make parseDbOrg null the whole cloudConfig.
+      expect(
+        await trpcCode(
+          service().createCheckoutSession(ORG_ID, productIdFor("pro"), "op-1"),
+        ),
+      ).toBe("INTERNAL_SERVER_ERROR");
+      expect(executeRaw).not.toHaveBeenCalled();
+    });
+
+    it("fails closed when a concurrent checkout wins the claim", async () => {
+      withOrg(null);
+      clientMock.createCheckoutSession.mockResolvedValue(session);
+      executeRaw.mockResolvedValue(0);
+
+      // Returning this URL would send the user to a checkout whose webhook
+      // resolves to a CH org the Langfuse row no longer points at.
+      expect(
+        await trpcCode(
+          service().createCheckoutSession(ORG_ID, productIdFor("pro"), "op-1"),
+        ),
+      ).toBe("CONFLICT");
+      expect(mocks.auditLog).not.toHaveBeenCalled();
+      expect(mocks.logger.error).toHaveBeenCalledWith(
+        "chbBillingService.checkout.session.create:claimLost",
+        expect.objectContaining({ orphanedChOrganizationId: CH_ORG_ID }),
+      );
+    });
+
+    it("leaves the org row untouched when CHB checkout fails", async () => {
+      withOrg(null);
+      clientMock.createCheckoutSession.mockRejectedValue(
+        new Error("CHB unavailable"),
+      );
+
+      await expect(
+        service().createCheckoutSession(ORG_ID, productIdFor("pro"), "op-1"),
+      ).rejects.toThrow();
+      expect(executeRaw).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
     });
 
     it("refuses an org with a manual plan override", async () => {

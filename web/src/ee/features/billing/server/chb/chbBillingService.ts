@@ -164,7 +164,49 @@ export class ChbBillingService {
     };
   }
 
-  async createCheckoutSession(orgId: string, stripeProductId: string) {
+  /**
+   * Claim `cloudConfig.clickhouse.organizationId` for this org, atomically.
+   *
+   * A read-then-write would let two concurrent first-time checkouts each create
+   * a CH organization and then race to persist one. The loser's CH org is not
+   * just orphaned: the loser is holding a checkout URL whose completion webhook
+   * resolves the Langfuse org by a JSONB lookup on this very field, so a payment
+   * completed against it would land on an organization we can no longer see.
+   *
+   * The WHERE guard makes the claim single-winner — only a row whose
+   * organizationId is still absent can be written. The merge rebuilds just the
+   * `clickhouse` sub-object from the row's own current value rather than from
+   * the caller's earlier read, so a webhook concurrently writing `planCode` or
+   * `paymentStatus` is not clobbered by a stale snapshot.
+   *
+   * Returns the number of rows claimed; 0 means another caller won the race.
+   */
+  private async claimChOrganizationId(
+    orgId: string,
+    chOrganizationId: string,
+  ): Promise<number> {
+    return await this.ctx.prisma.$executeRaw`
+      UPDATE organizations
+      SET cloud_config = jsonb_set(
+            COALESCE(cloud_config, '{}'::jsonb),
+            '{clickhouse}',
+            COALESCE(cloud_config -> 'clickhouse', '{}'::jsonb)
+              || jsonb_build_object('organizationId', ${chOrganizationId}::text),
+            true
+          )
+      WHERE id = ${orgId}
+        AND COALESCE(
+              cloud_config -> 'clickhouse' -> 'organizationId',
+              'null'::jsonb
+            ) = 'null'::jsonb
+    `;
+  }
+
+  async createCheckoutSession(
+    orgId: string,
+    stripeProductId: string,
+    opId?: string,
+  ) {
     const { parsedOrg } = await this.getParsedOrg(orgId);
 
     // Interlocks: CHB checkout must never run for an org that is manually
@@ -204,9 +246,23 @@ export class ChbBillingService {
       });
     }
 
+    // Scoped to orgId + planCode rather than the opId alone: the dialog keeps
+    // one opId across plan re-clicks, so without planCode a user switching
+    // from core to team would replay the first plan's session.
+    const idempotencyKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["chb.checkout.create"],
+      fields: { orgId, planCode },
+      opId,
+    });
+
+    const existingChOrgId = parsedOrg.cloudConfig?.clickhouse?.organizationId;
+
     logger.info("chbBillingService.checkout.session.create", {
       orgId,
       planCode,
+      chOrganizationId: existingChOrgId,
+      idempotencyKey,
+      opId,
       userId: this.ctx.session.user.id,
       userEmail: email,
     });
@@ -214,27 +270,81 @@ export class ChbBillingService {
     const session = await this.client.createCheckoutSession({
       // Reuse the CH organization from an earlier checkout attempt so a retry
       // recovers the same org instead of orphaning one
-      organizationId: parsedOrg.cloudConfig?.clickhouse?.organizationId,
+      organizationId: existingChOrgId,
       email,
       planCode,
       returnUrl: this.returnUrl(orgId),
+      idempotencyKey,
     });
 
-    // The only non-webhook write to cloudConfig.clickhouse: persist the CH
-    // organization id so provider routing becomes sticky and the webhook can
-    // resolve this org by JSONB lookup. Validated through the stored schema
-    // so a bad id can never poison parseDbOrg.
-    const updatedCloudConfig = {
-      ...parsedOrg.cloudConfig,
-      clickhouse: CloudConfigSchema.shape.clickhouse.parse({
-        ...parsedOrg.cloudConfig?.clickhouse,
-        organizationId: session.organizationId,
-      }),
-    };
-    await this.ctx.prisma.organization.update({
-      where: { id: orgId },
-      data: { cloudConfig: updatedCloudConfig },
+    // Validated through the stored schema before it reaches Postgres: a bad id
+    // would make parseDbOrg null the *entire* cloudConfig, discarding the org's
+    // plan override, rate-limit overrides and stripe.customerId.
+    const validatedChb = CloudConfigSchema.shape.clickhouse.safeParse({
+      ...parsedOrg.cloudConfig?.clickhouse,
+      organizationId: session.organizationId,
     });
+    if (!validatedChb.success || !validatedChb.data) {
+      // safeParse, not parse: a raw ZodError escaping the service surfaces as
+      // an opaque 500, and the CHB response schemas are deliberately loose, so
+      // a malformed organization id is a wire-format problem worth naming.
+      logger.error("chbBillingService.checkout.session.create:invalidChOrgId", {
+        orgId,
+        returnedChOrganizationId: session.organizationId,
+        error: validatedChb.success ? undefined : validatedChb.error,
+      });
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message:
+          "ClickHouse Billing returned an unusable organization id for this checkout",
+      });
+    }
+    const chOrganizationId = validatedChb.data.organizationId;
+
+    if (existingChOrgId) {
+      // Retry against an org that already has a CH organization. CHB must hand
+      // back the one we asked it to reuse; a different id means sticky provider
+      // routing is broken, so refuse rather than clobber the stored id or send
+      // the user to a checkout whose webhook resolves elsewhere.
+      if (chOrganizationId !== existingChOrgId) {
+        logger.error(
+          "chbBillingService.checkout.session.create:orgIdMismatch",
+          {
+            orgId,
+            requestedChOrganizationId: existingChOrgId,
+            returnedChOrganizationId: chOrganizationId,
+          },
+        );
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "ClickHouse Billing returned a different organization for this checkout",
+        });
+      }
+      return session.url;
+    }
+
+    // First checkout for this org: the CH organization id is the one thing
+    // checkout persists outside the webhook, and it must be written exactly
+    // once. Only reached after CHB succeeded, so a failed call leaves the org
+    // row untouched.
+    const claimed = await this.claimChOrganizationId(orgId, chOrganizationId);
+
+    if (claimed === 0) {
+      // A concurrent checkout claimed the org first. Its id is now the stored
+      // one, which makes the CH org we just created an orphan — log it so it is
+      // traceable, and fail instead of returning a URL that would misroute a
+      // payment. The user's next attempt takes the reuse path and succeeds.
+      logger.error("chbBillingService.checkout.session.create:claimLost", {
+        orgId,
+        orphanedChOrganizationId: chOrganizationId,
+      });
+      throw new TRPCError({
+        code: "CONFLICT",
+        message:
+          "Another checkout for this organization is already in progress. Please try again.",
+      });
+    }
 
     auditLog({
       session: this.ctx.session,
@@ -243,7 +353,13 @@ export class ChbBillingService {
       resourceId: parsedOrg.id,
       action: "BillingService.createCheckoutSession",
       before: parsedOrg.cloudConfig,
-      after: updatedCloudConfig,
+      after: {
+        ...parsedOrg.cloudConfig,
+        clickhouse: {
+          ...parsedOrg.cloudConfig?.clickhouse,
+          organizationId: chOrganizationId,
+        },
+      },
     });
 
     return session.url;
