@@ -307,6 +307,36 @@ describe("MCP Write Tools", () => {
       ).rejects.toThrow(/not found/i);
     });
 
+    it("rejects unsupported filters without creating a rule", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+
+      await expect(
+        handleCreateEvaluationRule(
+          {
+            name: `invalid-filter-rule-${nanoid()}`,
+            evaluatorAssignments: [{ evaluatorId: evaluator.id }],
+            enabled: true,
+            sampling: 1,
+            filter: [
+              {
+                column: "totalCost",
+                type: "number",
+                operator: ">",
+                value: 0.01,
+              },
+            ],
+          },
+          setup.context,
+        ),
+      ).rejects.toThrow('Filter column "totalCost" is not supported');
+      await expect(
+        prisma.evaluationRule.count({
+          where: { projectId: setup.projectId },
+        }),
+      ).resolves.toBe(0);
+    });
+
     it("should create an evaluation rule and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;

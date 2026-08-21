@@ -23,6 +23,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
+import { classifySampleFiltersForRule } from "@/src/features/evals/v2/fns/rules/classifySampleFiltersForRule";
+import { EvaluatorSavedRuleFilterPreview } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedRuleFilterPreview";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
 type DialogPhase = "saved" | "closing-saved" | "create-rule" | "closed";
@@ -85,6 +87,13 @@ export function EvaluatorSavedDialogContainer({
       ),
     [rules.data?.rules],
   );
+  const {
+    supportedFilters: supportedRuleFilters,
+    unsupportedReasons: unsupportedRuleFilterReasons,
+  } = useMemo(
+    () => classifySampleFiltersForRule(evaluator.sampleFilter),
+    [evaluator.sampleFilter],
+  );
   const selectedRule = availableRules.find(
     (rule) => rule.id === selectedRuleId,
   );
@@ -132,13 +141,13 @@ export function EvaluatorSavedDialogContainer({
     const result = await createOrAttachFromEvaluatorFilters.mutateAsync({
       projectId,
       evaluatorId: evaluator.id,
-      filter: evaluator.sampleFilter,
+      filter: supportedRuleFilters,
       sampling,
     });
     if (result.action === "created") {
       capture("evaluation_rules:create", {
         assignmentCount: 1,
-        filterCount: evaluator.sampleFilter.length,
+        filterCount: supportedRuleFilters.length,
         samplingPercent: Math.round(sampling * 100),
         isEnabled: true,
         source: "evaluator_create_test_filters",
@@ -236,14 +245,14 @@ export function EvaluatorSavedDialogContainer({
     }
     initialEstimateRequested.current = true;
     requestEstimate({
-      filter: evaluator.sampleFilter,
+      filter: supportedRuleFilters,
       sampling: testFilterSampling,
     }).catch(() => undefined);
   }, [
     dialogPhase,
-    evaluator.sampleFilter,
     mode,
     requestEstimate,
+    supportedRuleFilters,
     testFilterSampling,
   ]);
 
@@ -375,7 +384,10 @@ export function EvaluatorSavedDialogContainer({
 
   const modeContentByMode = {
     "test-filters": (
-      <RuleFilterPills filter={evaluator.sampleFilter} display="search-bar" />
+      <EvaluatorSavedRuleFilterPreview
+        filter={evaluator.sampleFilter}
+        unsupportedReasons={unsupportedRuleFilterReasons}
+      />
     ),
     "different-scope": (
       <div className="min-w-0 space-y-3">

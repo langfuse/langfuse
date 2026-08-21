@@ -309,6 +309,34 @@ describe("/api/public/unstable evaluators API", () => {
     });
   });
 
+  it("rejects unsupported filters without creating a rule", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/unstable/evaluation-rules",
+      {
+        name: "unsupported_filter_rule",
+        evaluator: { name: "unused", type: "llm_as_judge" },
+        target: "observation",
+        enabled: false,
+        sampling: 1,
+        filter: [
+          {
+            column: "totalCost",
+            type: "number",
+            operator: ">",
+            value: 0.01,
+          },
+        ],
+      },
+      auth,
+    );
+
+    expectUnstableError(response, { status: 400, code: "invalid_body" });
+    await expect(
+      prisma.evaluationRule.count({ where: { projectId } }),
+    ).resolves.toBe(0);
+  });
+
   it("uses public project evaluators in observation rules without changing the API contract", async () => {
     const evaluator = await makeZodVerifiedAPICall(
       PostUnstableEvaluatorResponse,

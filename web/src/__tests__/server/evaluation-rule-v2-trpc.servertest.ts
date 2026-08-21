@@ -228,6 +228,30 @@ describe("evaluation rule v2 tRPC", () => {
     ).resolves.toMatchObject({ enabled: false });
   });
 
+  it("rejects unsupported filters when creating a rule", async () => {
+    await expect(
+      caller.evalsV2.rules.create({
+        ...ruleInput(),
+        filter: [
+          {
+            column: "totalCost",
+            type: "number",
+            operator: ">",
+            value: 0.01,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(
+        'Filter column "totalCost" is not supported',
+      ),
+    });
+    await expect(
+      prisma.evaluationRule.count({ where: { projectId } }),
+    ).resolves.toBe(0);
+  });
+
   it("supports attaching and detaching an evaluator", async () => {
     const [first, second] = await Promise.all([
       createEvaluator("First transport evaluator"),

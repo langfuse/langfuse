@@ -1,9 +1,11 @@
 import { Button } from "@/src/components/ui/button";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
+import { classifySampleFiltersForRule } from "@/src/features/evals/v2/fns/rules/classifySampleFiltersForRule";
 import preview from "../../../../../../../.storybook/preview";
 import { fn } from "storybook/test";
 import { EvaluatorSavedCostSummary } from "./EvaluatorSavedCostSummary";
 import { EvaluatorSavedDialog } from "./EvaluatorSavedDialog";
+import { EvaluatorSavedRuleFilterPreview } from "./EvaluatorSavedRuleFilterPreview";
 
 const meta = preview.meta({ component: EvaluatorSavedDialog });
 
@@ -79,6 +81,42 @@ const newRuleModeContent = {
   ),
 };
 
+const filtersWithUnsupportedConditions = [
+  {
+    column: "type",
+    type: "stringOptions" as const,
+    operator: "any of" as const,
+    value: ["GENERATION"],
+  },
+  {
+    column: "totalCost",
+    type: "number" as const,
+    operator: ">" as const,
+    value: 0.01,
+  },
+  {
+    column: "scores_avg",
+    type: "numberObject" as const,
+    key: "accuracy",
+    operator: ">" as const,
+    value: 0.8,
+  },
+];
+
+const { unsupportedReasons } = classifySampleFiltersForRule(
+  filtersWithUnsupportedConditions,
+);
+
+const unsupportedFilterModeContent = {
+  ...modeContentByMode,
+  "test-filters": (
+    <EvaluatorSavedRuleFilterPreview
+      filter={filtersWithUnsupportedConditions}
+      unsupportedReasons={unsupportedReasons}
+    />
+  ),
+};
+
 const sharedArgs = {
   open: true,
   modeContentByMode,
@@ -108,6 +146,35 @@ export const FromTestFilters = meta.story({
         ]}
         unavailableEstimateCount={0}
         matchingObservations={1_840}
+        sampling={0.4}
+        isEstimating={false}
+        evaluatorType="LLM_AS_JUDGE"
+        onSamplingChange={fn()}
+      />
+    ),
+    primaryActionLabel: "Execute",
+  },
+});
+
+export const UnsupportedFilters = meta.story({
+  args: {
+    ...sharedArgs,
+    mode: "test-filters",
+    modeContentByMode: unsupportedFilterModeContent,
+    costSummary: (
+      <EvaluatorSavedCostSummary
+        estimates={[
+          {
+            evaluatorId: "evaluator-1",
+            evaluatorName: "Conciseness",
+            matchingObservations: 624,
+            sampling: 0.4,
+            testRunCostUsd: 0.001,
+            estimatedCostUsd: 0.2496,
+          },
+        ]}
+        unavailableEstimateCount={0}
+        matchingObservations={624}
         sampling={0.4}
         isEstimating={false}
         evaluatorType="LLM_AS_JUDGE"
