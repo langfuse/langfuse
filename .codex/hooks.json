@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/agents/hooks/structure-path-guard.mjs --tool codex",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -130,8 +130,99 @@ const formatCodexToml = () => {
   return lines.join("\n");
 };
 
-const formatClaudeSettings = () =>
-  JSON.stringify(config.claude.settings, null, 2) + "\n";
+// Hooks are declared once, tool-neutrally, in `.agents/config.json`. Each tool
+// names the same events differently and identifies a file write by a different
+// tool name, so the mapping lives here and the hook implementation stays one
+// script. Claude resolves the script through ${CLAUDE_PROJECT_DIR}; Cursor and
+// Codex run project hooks from the repo root.
+const HOOK_EVENTS = {
+  preFileWrite: {
+    claude: { event: "PreToolUse", matcher: "Write" },
+    cursor: { event: "preToolUse", matcher: "Write" },
+    codex: { event: "PreToolUse", matcher: "apply_patch|Edit|Write" },
+  },
+};
+
+/** @type {(tool: "claude" | "cursor" | "codex", hook: any) => string} */
+const hookCommand = (tool, hook) => {
+  const script =
+    tool === "claude" ? `"\${CLAUDE_PROJECT_DIR}/${hook.script}"` : hook.script;
+  return `node ${script} --tool ${tool}`;
+};
+
+/**
+ * Groups the declared hooks by a tool's event name, dropping any event that
+ * tool does not support.
+ * @type {(tool: "claude" | "cursor" | "codex") => [string, any[]][]}
+ */
+const hooksFor = (tool) => {
+  const byEvent = new Map();
+  for (const [neutralEvent, hooks] of Object.entries(config.hooks ?? {})) {
+    const mapping = HOOK_EVENTS[neutralEvent]?.[tool];
+    if (!mapping) continue;
+    for (const hook of hooks) {
+      const entries = byEvent.get(mapping.event) ?? [];
+      entries.push({ ...hook, matcher: mapping.matcher });
+      byEvent.set(mapping.event, entries);
+    }
+  }
+  return [...byEvent.entries()];
+};
+
+// Claude and Codex share the matcher-plus-nested-hooks shape.
+/** @type {(tool: "claude" | "codex") => object | undefined} */
+const nestedHookShape = (tool) => {
+  const events = hooksFor(tool);
+  if (!events.length) return undefined;
+  return Object.fromEntries(
+    events.map(([event, hooks]) => [
+      event,
+      hooks.map((hook) => ({
+        matcher: hook.matcher,
+        hooks: [
+          {
+            type: "command",
+            command: hookCommand(tool, hook),
+            ...(hook.timeoutSeconds ? { timeout: hook.timeoutSeconds } : {}),
+          },
+        ],
+      })),
+    ]),
+  );
+};
+
+const formatClaudeSettings = () => {
+  const hooks = nestedHookShape("claude");
+  return (
+    JSON.stringify(
+      { ...config.claude.settings, ...(hooks ? { hooks } : {}) },
+      null,
+      2,
+    ) + "\n"
+  );
+};
+
+const formatCursorHooks = () =>
+  JSON.stringify(
+    {
+      version: 1,
+      hooks: Object.fromEntries(
+        hooksFor("cursor").map(([event, hooks]) => [
+          event,
+          hooks.map((hook) => ({
+            command: hookCommand("cursor", hook),
+            matcher: hook.matcher,
+            ...(hook.timeoutSeconds ? { timeout: hook.timeoutSeconds } : {}),
+          })),
+        ]),
+      ),
+    },
+    null,
+    2,
+  ) + "\n";
+
+const formatCodexHooks = () =>
+  JSON.stringify({ hooks: nestedHookShape("codex") ?? {} }, null, 2) + "\n";
 
 const formatCursorEnvironment = () =>
   JSON.stringify(
@@ -180,6 +271,16 @@ const fileOutputs = [
   {
     path: resolve(repoRoot, ".cursor/mcp.json"),
     content: formatSharedJsonConfig(),
+  },
+  // Committed, unlike the generated MCP configs: Cursor reads hooks before
+  // `pnpm install` has had a chance to generate anything.
+  {
+    path: resolve(repoRoot, ".cursor/hooks.json"),
+    content: formatCursorHooks(),
+  },
+  {
+    path: resolve(repoRoot, ".codex/hooks.json"),
+    content: formatCodexHooks(),
   },
   {
     path: resolve(repoRoot, ".cursor/environment.json"),
