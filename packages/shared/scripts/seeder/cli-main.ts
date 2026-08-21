@@ -64,6 +64,16 @@ const baseUrl = (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(
   "",
 );
 
+const truncateDescription = (text: string, maxLen = 100): string => {
+  if (text.length <= maxLen) return text;
+  const cut = text.slice(0, maxLen);
+  const lastSpace = cut.lastIndexOf(" ");
+  // Keep at least 60% of the budget before bailing on the word boundary, so
+  // we don't return a useless 3-character stub if a single word is huge.
+  const wordEnd = lastSpace > maxLen * 0.6 ? lastSpace : maxLen;
+  return `${cut.slice(0, wordEnd).trimEnd()}…`;
+};
+
 const usage = (): string => {
   const lines = [
     "Langfuse seed CLI — one-shot local test data.",
@@ -229,7 +239,9 @@ const main = async (): Promise<number> => {
       console.log(JSON.stringify({ scenarios: listed }));
     } else {
       for (const scenario of listed) {
-        console.log(`${scenario.name}\n  ${scenario.description}`);
+        console.log(
+          `${scenario.name}\n  ${truncateDescription(scenario.description)}`,
+        );
         for (const flag of scenario.flags) {
           console.log(
             `    --${flag.flag.padEnd(24)} default: ${String(flag.default) || '""'}  ${flag.description}`,
