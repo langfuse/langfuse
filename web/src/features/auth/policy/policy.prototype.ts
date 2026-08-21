@@ -11,8 +11,9 @@ import {
   projectRoleAccessRights,
   BaseError,
   ForbiddenError,
-  InvalidRequestError,
   type ProjectScope,
+  type Plan,
+  type CloudConfigSchema,
 } from "@langfuse/shared";
 import {
   organizationScopes,
@@ -20,63 +21,111 @@ import {
   type OrganizationScope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
 
-// projectScopes has no data-plane read/write tokens (only traces:delete); this
-// vocabulary is net-new and unratified. Ingestion folds to parents: observations
-// and trace-media gate on traces:create (LFE-15053); media always requires a
-// parent so it needs no own write token (dataset media folds under the existing
-// datasets:CUD). LFE-15042 suspension deny reduces to {traces:create,
-// scores:create}; media GET-by-id read still needs media:read or a resolve step.
-/** PendingApiAction holds net-new public-API tokens absent from projectScopes. */
-export type PendingApiAction = "traces:read" | "traces:create" | "scores:create";
+/** wildcard matches any org, project, or action in a policy. */
+const wildcard = "*" as const;
 
-/** Action a principal takes on a resource, e.g. "prompts:read". */
-export type Action = ProjectScope | OrganizationScope | PendingApiAction | "*";
+/** Wildcard is the type of the wildcard matcher literal. */
+type Wildcard = typeof wildcard;
 
-/** Actions aliases Action for the PEP wrapper signatures. */
-export type Actions = Action;
+/** SystemRule is a system-originated deny rule the PIP can attach. */
+type SystemRule = "ingestion_suspended";
 
-/** Plan stands in for the org plan the PIP attaches; the PDP never reads it. */
-type Plan = string;
+/** systemRuleMessages maps each system deny rule to the 403 message its endpoint throws. */
+const systemRuleMessages: Record<SystemRule, string> = {
+  ingestion_suspended:
+    "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+};
 
-/** CloudConfig stands in for the org config the PIP attaches; the PDP never reads it. */
-type CloudConfig = Record<string, unknown>;
+/** PendingProjectApiAction holds net-new project-level public-API tokens absent from projectScopes. */
+export type PendingProjectApiAction =
+  | "traces:read"
+  | "traces:create"
+  | "scores:read"
+  | "scores:create"
+  | "sessions:read"
+  | "metrics:read"
+  | "models:read"
+  | "experiments:read"
+  | "projects:read";
+
+/** ProjectAction is an action assignable to a project policy. */
+export type ProjectAction = ProjectScope | PendingProjectApiAction | Wildcard;
+
+/** OrganizationAction is an action assignable to an organization policy. */
+export type OrganizationAction = OrganizationScope | Wildcard;
+
+/** Action is any checkable action. */
+export type Action = ProjectAction | OrganizationAction;
 
 /** PrincipalOrganization carries the org+project config the PIP attaches to a non-admin principal. */
 export type PrincipalOrganization = {
-  id: string;
+  orgId: string;
   plan: Plan;
-  config: CloudConfig;
-  projects: { id: string }[];
+  config: CloudConfigSchema | null;
+  projectIds: string[];
 };
 
 /** Principal is an authorized admin, user, or api key, discriminated on kind. */
 export type Principal =
   | { kind: "admin"; userId: string | null }
-  | { kind: "user"; id: string; organizations: PrincipalOrganization[] }
+  | { kind: "user"; userId: string; organizations: PrincipalOrganization[] }
   | {
       kind: "apiKey";
-      id: string;
+      apiKeyId: string;
       userId: string | null;
       organizations: PrincipalOrganization[];
+      boundResource?: Resource; // legacy single-target; absent on granular keys, which require the request header
     };
 
 /** Source describes where a policy came from. */
 export type Source =
   | { kind: "role"; id: string }
   | { kind: "grant" }
-  | { kind: "system"; rule: "ingestion_suspended" };
+  | { kind: "system"; rule: SystemRule };
 
-/** ResourceRef is a policy's resource matcher; both segments are explicit, "*" is the wildcard. */
-export type ResourceRef = { orgId: string | "*"; projectId: string | "*" };
+/** OrgRef targets an org node; only organization policies carry it. */
+export type OrgRef = { orgId: string };
 
-/** Policy grants or denies a set of actions on a set of resources. */
-export type Policy = {
+/** OrgProjectsRef targets projects in an org; the PIP always materializes the full list — an org-wide grant spells out every project id. */
+export type OrgProjectsRef = { orgId: string; projectIds: string[] };
+
+/** ScopedRef is a non-wildcard resource ref of either kind. */
+export type ScopedRef = OrgRef | OrgProjectsRef;
+
+/** ResourceRef is any resource matcher evaluation can meet. */
+export type ResourceRef = Wildcard | ScopedRef;
+
+/** ProjectResource identifies a checked project by id alone. */
+export type ProjectResource = { projectId: string };
+
+/** OrgResource identifies a checked org node. */
+export type OrgResource = { orgId: string };
+
+/** Resource is the thing being checked: a bare project or an org node. */
+export type Resource = ProjectResource | OrgResource;
+
+/** PolicyBase carries the fields every policy kind shares. */
+type PolicyBase = {
   source: Source;
-  actions: Action[];
-  resources: ResourceRef[];
   effect: "allow" | "deny";
-  // conditions?: Condition[]; // optional-add ships when RLS is required (LFE-15149 retired toFilterState)
 };
+
+/** OrganizationPolicy grants or denies org-level actions on org nodes. */
+export type OrganizationPolicy = PolicyBase & {
+  kind: "organization";
+  actions: OrganizationAction[];
+  resources: (Wildcard | OrgRef)[];
+};
+
+/** ProjectPolicy grants or denies project-level actions on materialized project lists. */
+export type ProjectPolicy = PolicyBase & {
+  kind: "project";
+  actions: ProjectAction[];
+  resources: (Wildcard | OrgProjectsRef)[];
+};
+
+/** Policy is kind-discriminated to compile-enforce action/resource pairing; evaluation reads only actions and resources. */
+export type Policy = OrganizationPolicy | ProjectPolicy;
 
 /** AuthorizationContext is the PIP output and PDP input for one principal. */
 export type AuthorizationContext = {
@@ -90,95 +139,162 @@ export type Success = { success: true; error?: never };
 /** ErrorResult is a failed outcome carrying the typed error. */
 export type ErrorResult<E extends BaseError> = { success: false; error: E };
 
-/** Decision is a PDP outcome: allowed, or a typed 400/403. */
-export type Decision =
-  | Success
-  | ErrorResult<InvalidRequestError | ForbiddenError>;
-
-/** Access is what mustAuthorize returns on success. */
-export type Access = Success;
-
-/** Resource is the thing being checked; projectId absent ⇒ a genuinely org-level operation. */
-export type Resource = { orgId: string; projectId?: string };
-
-/** Grant is one org's effective grant for the resolve-style auth/me body. */
-export type Grant = {
-  organizationId: string;
-  projectIds: string[] | "*";
-  actions: Action[];
+/** Access is the residual resource filter a successful decision carries: consumers include the covered refs and exclude the denied ones (IN … AND NOT IN …). */
+export type Access = {
+  includes: ResourceRef[];
+  excludes: ScopedRef[]; // never the wildcard — a wildcard deny is a 403
 };
 
-/** authorize decides whether the context permits action on resource, deny-overrides. */
+/** AccessResult is a successful outcome carrying the residual Access filter. */
+export type AccessResult = Success & { access: Access };
+
+/** Decision is a PDP outcome: an AccessResult, or a typed 403. */
+export type Decision = AccessResult | ErrorResult<ForbiddenError>;
+
+/** authorize decides whether the context permits action on resource, overload-typed: org actions check org nodes; project actions check a project, or an org for list filtering. */
+export function authorize(
+  ctx: AuthorizationContext,
+  action: OrganizationAction,
+  resource: OrgResource,
+): Decision;
+export function authorize(
+  ctx: AuthorizationContext,
+  action: ProjectAction,
+  resource: Resource,
+): Decision;
 export function authorize(
   ctx: AuthorizationContext,
   action: Action,
   resource: Resource,
 ): Decision {
-  const matching = ctx.policies.filter(
-    (p) =>
-      actionMatches(p.actions, action) &&
-      p.resources.some((ref) => resourceCovers(ref, resource)),
-  );
-  if (matching.some((p) => p.effect === "deny")) {
-    return { success: false, error: new ForbiddenError(`denied: ${action}`) };
-  }
-  if (matching.some((p) => p.effect === "allow")) {
-    return { success: true };
-  }
-  return {
-    success: false,
-    error: new ForbiddenError(`not permitted: ${action}`),
-  };
+  return decide(ctx, action, resource);
 }
 
-/** mustAuthorize is authorize but throws the 400/403 instead of returning it. */
+/** mustAuthorize is authorize but throws the 403 on denial, returning the Access filter on success. */
+export function mustAuthorize(
+  ctx: AuthorizationContext,
+  action: OrganizationAction,
+  resource: OrgResource,
+): Access;
+export function mustAuthorize(
+  ctx: AuthorizationContext,
+  action: ProjectAction,
+  resource: Resource,
+): Access;
 export function mustAuthorize(
   ctx: AuthorizationContext,
   action: Action,
   resource: Resource,
 ): Access {
-  const decision = authorize(ctx, action, resource);
+  const decision = decide(ctx, action, resource);
   if (!decision.success) throw decision.error;
-  return decision;
+  return decision.access;
 }
 
-/** resolveGrants projects the resolve-style auth/me body from a context (provisional, LFE-15150). */
-export function resolveGrants(ctx: AuthorizationContext): Grant[] {
-  const byOrg = new Map<
-    string,
-    { projects: Set<string> | "*"; actions: Set<Action> }
-  >();
-  for (const p of ctx.policies) {
-    if (p.effect !== "allow") continue;
-    for (const ref of p.resources) {
-      if (ref.orgId === "*") continue; // admin resource is represented out-of-band, never enumerated
-      const entry = byOrg.get(ref.orgId) ?? {
-        projects: new Set<string>(),
-        actions: new Set<Action>(),
-      };
-      if (ref.projectId === "*") entry.projects = "*";
-      else if (entry.projects !== "*") entry.projects.add(ref.projectId);
-      for (const a of p.actions) entry.actions.add(a);
-      byOrg.set(ref.orgId, entry);
+/** decide evaluates the policies for action on resource: a wildcard deny 403s outright (it cannot be materialized into excludes), every scoped deny subtracts inside survives. */
+function decide(
+  ctx: AuthorizationContext,
+  action: Action,
+  resource: Resource,
+): Decision {
+  const matchesRef = matchesResource(resource);
+
+  const matches = ctx.policies
+    .filter(hasAction(action))
+    .filter((p) => p.resources.some(matchesRef));
+
+  const denies = matches.filter(hasEffect("deny"));
+  const denyAll = denies.find((p) => p.resources.includes(wildcard));
+  if (denyAll) return forbidden(denyAll);
+
+  const includes = matches
+    .filter(hasEffect("allow"))
+    .flatMap(getResources)
+    .filter(matchesRef);
+  const excludes = denies
+    .flatMap(getResources)
+    .filter(matchesRef)
+    .filter(notWild);
+
+  if (!survives(resource, includes, excludes))
+    return forbidden(denies.find(hasSource("system")));
+  return access(includes.includes(wildcard) ? [wildcard] : includes, excludes);
+}
+
+/** getResources returns a policy's resource refs. */
+const getResources = (p: Policy): ResourceRef[] => p.resources;
+
+/** matchesResource reports whether ref covers any part of the checked resource: the wildcard, a list containing a checked project, or any same-org ref on an org check. */
+const matchesResource =
+  (resource: Resource) =>
+  (ref: ResourceRef): boolean => {
+    if (ref === wildcard) return true;
+    if ("projectId" in resource) {
+      return "projectIds" in ref && ref.projectIds.includes(resource.projectId);
     }
+    return ref.orgId === resource.orgId;
+  };
+
+/** survives reports whether any granted ref still covers part of the check after the denies: grants slice to the checked resource, an org-node deny kills its whole org, project denies subtract ids. */
+const survives = (
+  resource: Resource,
+  includes: ResourceRef[],
+  excludes: ScopedRef[],
+): boolean =>
+  includes.some((ref) => {
+    if (ref === wildcard) return true;
+    if (excludes.some((d) => !("projectIds" in d) && d.orgId === ref.orgId))
+      return false;
+    if (!("projectIds" in ref)) return true;
+    const granted =
+      "projectId" in resource
+        ? ref.projectIds.filter((id) => id === resource.projectId)
+        : ref.projectIds;
+    const denied = new Set(
+      excludes.flatMap((d) =>
+        "projectIds" in d && d.orgId === ref.orgId ? d.projectIds : [],
+      ),
+    );
+    return granted.some((id) => !denied.has(id));
+  });
+
+/** hasAction matches a policy granting the action, explicitly or by wildcard. */
+const hasAction = (action: Action) => (p: Policy) =>
+  p.actions.some((a) => a === wildcard || a === action);
+
+/** hasEffect matches a policy of the given effect. */
+const hasEffect = (effect: Policy["effect"]) => (p: Policy) =>
+  p.effect === effect;
+
+/** hasSource matches a policy from the given source kind. */
+const hasSource = (kind: Source["kind"]) => (p: Policy) =>
+  p.source.kind === kind;
+
+/** notWild narrows out the wildcard. */
+const notWild = <T>(value: T | Wildcard): value is T => value !== wildcard;
+
+/** access builds a successful Decision carrying the residual filter. */
+function access(
+  includes: ResourceRef[],
+  excludes: ScopedRef[] = [],
+): AccessResult {
+  return { success: true, access: { includes, excludes } };
+}
+
+/** forbidden builds a 403 Decision, using the deny policy's message when given one. */
+function forbidden(policy?: Policy): ErrorResult<ForbiddenError> {
+  return {
+    success: false,
+    error: new ForbiddenError(forbiddenErrorMessage(policy)),
+  };
+}
+
+/** forbiddenErrorMessage returns the 403 message a deny policy carries; system rules override the vanilla default. */
+function forbiddenErrorMessage(policy?: Policy): string {
+  if (policy?.source.kind === "system") {
+    return systemRuleMessages[policy.source.rule];
   }
-  return [...byOrg].map(([organizationId, e]) => ({
-    organizationId,
-    projectIds: e.projects === "*" ? "*" : [...e.projects],
-    actions: [...e.actions],
-  }));
-}
-
-/** actionMatches reports whether granted covers action, explicitly or by wildcard. */
-function actionMatches(granted: Action[], action: Action): boolean {
-  return granted.includes("*") || granted.includes(action);
-}
-
-/** resourceCovers reports whether ref hierarchically covers resource; projectId "*" spans org scope. */
-function resourceCovers(ref: ResourceRef, resource: Resource): boolean {
-  if (ref.orgId !== "*" && ref.orgId !== resource.orgId) return false;
-  if (ref.projectId === "*") return true;
-  return ref.projectId === resource.projectId;
+  return "Forbidden";
 }
 
 if (import.meta.vitest) {
@@ -188,13 +304,31 @@ if (import.meta.vitest) {
   const PRJ = "prj_1";
   const OTHER_PRJ = "prj_2";
 
-  const allow = (actions: Action[], resources: ResourceRef[]): Policy => ({
+  const allowProject = (
+    actions: ProjectAction[],
+    resources: (Wildcard | OrgProjectsRef)[],
+  ): ProjectPolicy => ({
+    kind: "project",
     source: { kind: "role", id: "OWNER" },
     actions,
     resources,
     effect: "allow",
   });
-  const deny = (actions: Action[], resources: ResourceRef[]): Policy => ({
+  const allowOrg = (
+    actions: OrganizationAction[],
+    resources: (Wildcard | OrgRef)[],
+  ): OrganizationPolicy => ({
+    kind: "organization",
+    source: { kind: "role", id: "OWNER" },
+    actions,
+    resources,
+    effect: "allow",
+  });
+  const denyProject = (
+    actions: ProjectAction[],
+    resources: (Wildcard | OrgProjectsRef)[],
+  ): ProjectPolicy => ({
+    kind: "project",
     source: { kind: "system", rule: "ingestion_suspended" },
     actions,
     resources,
@@ -206,134 +340,253 @@ if (import.meta.vitest) {
   ): AuthorizationContext => ({
     principal: principal ?? {
       kind: "apiKey",
-      id: "key_1",
+      apiKeyId: "key_1",
       userId: null,
       organizations: [
-        { id: ORG, plan: "cloud", config: {}, projects: [{ id: PRJ }] },
+        { orgId: ORG, plan: "cloud:hobby", config: {}, projectIds: [PRJ] },
       ],
     },
     policies,
   });
 
-  describe("authorize — hierarchical coverage", () => {
-    const projectSubtree = ctx([
-      allow(["prompts:read"], [{ orgId: ORG, projectId: "*" }]),
+  describe("authorize — project coverage", () => {
+    const grant = ctx([
+      allowProject(["prompts:read"], [{ orgId: ORG, projectIds: [PRJ] }]),
     ]);
-    const singleProject = ctx([
-      allow(["prompts:read"], [{ orgId: ORG, projectId: PRJ }]),
-    ]);
-
     it.each([
-      ["org-subtree ref covers a project", projectSubtree, { orgId: ORG, projectId: PRJ }, true],
-      ["single-project ref covers its own project", singleProject, { orgId: ORG, projectId: PRJ }, true],
-      ["single-project ref denies a sibling", singleProject, { orgId: ORG, projectId: OTHER_PRJ }, false],
-      ["project ref does not cover the org node", singleProject, { orgId: ORG }, false],
-      ["wrong org denies", singleProject, { orgId: "org_x", projectId: PRJ }, false],
-    ] as const)("%s", (_name, c, resource, expected) => {
-      expect(authorize(c, "prompts:read", resource as Resource).success).toBe(
-        expected,
+      ["a ref covers a project in its list", { projectId: PRJ }, true],
+      [
+        "a ref denies a project outside its list",
+        { projectId: OTHER_PRJ },
+        false,
+      ],
+    ] as const)("%s", (_name, resource, expected) => {
+      expect(authorize(grant, "prompts:read", resource).success).toBe(expected);
+    });
+    it("an org-wide grant is its materialized project list, nothing implicit", () => {
+      const orgWide = ctx([
+        allowProject(
+          ["prompts:read"],
+          [{ orgId: ORG, projectIds: [PRJ, OTHER_PRJ] }],
+        ),
+      ]);
+      expect(
+        authorize(orgWide, "prompts:read", { projectId: OTHER_PRJ }).success,
+      ).toBe(true);
+      expect(
+        authorize(orgWide, "prompts:read", { projectId: "prj_x" }).success,
+      ).toBe(false);
+    });
+    it("an empty project list grants nothing", () => {
+      const empty = ctx([
+        allowProject(["auditLogs:read"], [{ orgId: ORG, projectIds: [] }]),
+      ]);
+      expect(
+        authorize(empty, "auditLogs:read", { projectId: PRJ }).success,
+      ).toBe(false);
+      expect(authorize(empty, "auditLogs:read", { orgId: ORG }).success).toBe(
+        false,
       );
     });
   });
 
   describe("authorize — org-level actions", () => {
-    const orgAdmin = ctx([
-      allow(["projects:create"], [{ orgId: ORG, projectId: "*" }]),
-    ]);
-    it("org ref grants an org action on the org node", () => {
-      expect(authorize(orgAdmin, "projects:create", { orgId: ORG }).success).toBe(true);
+    const orgAdmin = ctx([allowOrg(["projects:create"], [{ orgId: ORG }])]);
+    it("an org ref covers org-level actions", () => {
+      expect(
+        authorize(orgAdmin, "projects:create", { orgId: ORG }).success,
+      ).toBe(true);
     });
     it("org grant does not leak to another org", () => {
-      expect(authorize(orgAdmin, "projects:create", { orgId: "org_x" }).success).toBe(false);
+      expect(
+        authorize(orgAdmin, "projects:create", { orgId: "org_x" }).success,
+      ).toBe(false);
+    });
+    it("an org check carries every covering allow ref", () => {
+      const c = ctx([
+        allowProject(["auditLogs:read"], [{ orgId: ORG, projectIds: [PRJ] }]),
+        allowProject(
+          ["auditLogs:read"],
+          [{ orgId: ORG, projectIds: [PRJ, OTHER_PRJ] }],
+        ),
+      ]);
+      const decision = authorize(c, "auditLogs:read", { orgId: ORG });
+      expect(decision.success && decision.access.includes).toEqual([
+        { orgId: ORG, projectIds: [PRJ] },
+        { orgId: ORG, projectIds: [PRJ, OTHER_PRJ] },
+      ]);
     });
   });
 
   describe("authorize — admin wildcard has no PDP branch", () => {
-    const admin = ctx([allow(["*"], [{ orgId: "*", projectId: "*" }])], {
+    const admin = ctx([allowOrg([wildcard], [wildcard])], {
       kind: "admin",
       userId: null,
     });
-    it.each([
-      ["project action", "prompts:read" as Action, { orgId: "x", projectId: "y" }],
-      ["org action", "projects:create" as Action, { orgId: "x" }],
-    ] as const)("admin allows any %s", (_n, action, resource) => {
-      expect(authorize(admin, action, resource as Resource).success).toBe(true);
+    it("admin allows any project action", () => {
+      expect(authorize(admin, "prompts:read", { projectId: "y" }).success).toBe(
+        true,
+      );
+    });
+    it("admin allows any org action", () => {
+      expect(authorize(admin, "projects:create", { orgId: "x" }).success).toBe(
+        true,
+      );
     });
   });
 
   describe("authorize — deny-overrides and deny-by-default", () => {
     it("denies by default when nothing matches", () => {
       expect(
-        authorize(ctx([]), "prompts:read", { orgId: ORG, projectId: PRJ }).success,
+        authorize(ctx([]), "prompts:read", { projectId: PRJ }).success,
       ).toBe(false);
+    });
+    it("an org check carries the deny refs as excludes", () => {
+      const c = ctx([
+        allowProject(
+          ["auditLogs:read"],
+          [{ orgId: ORG, projectIds: [PRJ, OTHER_PRJ] }],
+        ),
+        denyProject(
+          ["auditLogs:read"],
+          [{ orgId: ORG, projectIds: [OTHER_PRJ] }],
+        ),
+      ]);
+      const decision = authorize(c, "auditLogs:read", { orgId: ORG });
+      expect(decision.success && decision.access).toEqual({
+        includes: [{ orgId: ORG, projectIds: [PRJ, OTHER_PRJ] }],
+        excludes: [{ orgId: ORG, projectIds: [OTHER_PRJ] }],
+      });
+    });
+    it("an org check whose grants are fully denied is a 403", () => {
+      const c = ctx([
+        allowProject(["auditLogs:read"], [{ orgId: ORG, projectIds: [PRJ] }]),
+        denyProject(["auditLogs:read"], [{ orgId: ORG, projectIds: [PRJ] }]),
+      ]);
+      expect(authorize(c, "auditLogs:read", { orgId: ORG }).success).toBe(
+        false,
+      );
+    });
+    it("an org-wide materialized deny blocks every check in the org", () => {
+      const c = ctx([
+        allowProject(["auditLogs:read"], [{ orgId: ORG, projectIds: [PRJ] }]),
+        denyProject(
+          ["auditLogs:read"],
+          [{ orgId: ORG, projectIds: [PRJ, OTHER_PRJ] }],
+        ),
+      ]);
+      expect(authorize(c, "auditLogs:read", { projectId: PRJ }).success).toBe(
+        false,
+      );
+      expect(authorize(c, "auditLogs:read", { orgId: ORG }).success).toBe(
+        false,
+      );
     });
     it("a matching deny beats a matching allow", () => {
       const suspended = ctx([
-        allow(["traces:create"], [{ orgId: ORG, projectId: "*" }]),
-        deny(["traces:create"], [{ orgId: ORG, projectId: "*" }]),
+        allowProject(["traces:create"], [{ orgId: ORG, projectIds: [PRJ] }]),
+        denyProject(["traces:create"], [{ orgId: ORG, projectIds: [PRJ] }]),
       ]);
       expect(
-        authorize(suspended, "traces:create", {
-          orgId: ORG,
-          projectId: PRJ,
-        }).success,
+        authorize(suspended, "traces:create", { projectId: PRJ }).success,
       ).toBe(false);
     });
-    it("mustAuthorize throws on denial, returns on success", () => {
-      const c = ctx([allow(["prompts:read"], [{ orgId: ORG, projectId: PRJ }])]);
+    it("a deny of the checked project beats an allow that also covers other projects", () => {
+      const c = ctx([
+        allowProject(
+          ["prompts:read"],
+          [{ orgId: ORG, projectIds: [PRJ, OTHER_PRJ] }],
+        ),
+        denyProject(["prompts:read"], [{ orgId: ORG, projectIds: [PRJ] }]),
+      ]);
+      expect(authorize(c, "prompts:read", { projectId: PRJ }).success).toBe(
+        false,
+      );
+      expect(
+        authorize(c, "prompts:read", { projectId: OTHER_PRJ }).success,
+      ).toBe(true);
+    });
+    it("an ingestion_suspended deny carries the endpoint's 403 message", () => {
+      const suspended = ctx([
+        denyProject(["traces:create"], [{ orgId: ORG, projectIds: [PRJ] }]),
+      ]);
+      const decision = authorize(suspended, "traces:create", {
+        projectId: PRJ,
+      });
+      expect(decision.error?.message).toBe(
+        systemRuleMessages.ingestion_suspended,
+      );
+    });
+    it("a non-system deny carries the generic message", () => {
+      const roleDeny: Policy = {
+        kind: "project",
+        source: { kind: "role", id: "OWNER" },
+        actions: ["traces:create"],
+        resources: [{ orgId: ORG, projectIds: [PRJ] }],
+        effect: "deny",
+      };
+      const decision = authorize(ctx([roleDeny]), "traces:create", {
+        projectId: PRJ,
+      });
+      expect(decision.error?.message).toBe(new ForbiddenError().message);
+    });
+    it("mustAuthorize throws on denial, returns the covering grants", () => {
+      const c = ctx([
+        allowProject(
+          ["prompts:read"],
+          [{ orgId: ORG, projectIds: [PRJ, OTHER_PRJ] }],
+        ),
+      ]);
+      expect(
+        mustAuthorize(c, "prompts:read", { projectId: PRJ }).includes,
+      ).toEqual([{ orgId: ORG, projectIds: [PRJ, OTHER_PRJ] }]);
       expect(() =>
-        mustAuthorize(c, "prompts:read", { orgId: ORG, projectId: PRJ }),
-      ).not.toThrow();
-      expect(() =>
-        mustAuthorize(c, "traces:delete", { orgId: ORG, projectId: PRJ }),
+        mustAuthorize(c, "traces:delete", { projectId: PRJ }),
       ).toThrow();
     });
   });
 
   describe("scope-union overlap", () => {
-    it("auditLogs:read is the sole token in both vocabularies", () => {
+    it("auditLogs:read is the sole token in both real vocabularies", () => {
       const overlap = (projectScopes as readonly string[]).filter((s) =>
         (organizationScopes as readonly string[]).includes(s),
       );
       expect(overlap).toEqual(["auditLogs:read"]);
     });
-    it("the resource scope disambiguates the overlapping token", () => {
+    it("a project audit grant also satisfies its org's org-level check", () => {
       const projectAudit = ctx([
-        allow(["auditLogs:read"], [{ orgId: ORG, projectId: PRJ }]),
+        allowProject(["auditLogs:read"], [{ orgId: ORG, projectIds: [PRJ] }]),
       ]);
       expect(
-        authorize(projectAudit, "auditLogs:read", { orgId: ORG, projectId: PRJ })
-          .success,
+        authorize(projectAudit, "auditLogs:read", { projectId: PRJ }).success,
       ).toBe(true);
       expect(
         authorize(projectAudit, "auditLogs:read", { orgId: ORG }).success,
-      ).toBe(false);
+      ).toBe(true);
     });
-  });
-
-  describe("auth/me derivation", () => {
-    it("projects a resolve body from the policy types", () => {
-      const grants = resolveGrants(
-        ctx([
-          allow(["prompts:read", "scores:CUD"], [{ orgId: ORG, projectId: PRJ }]),
-          allow(["projects:create"], [{ orgId: ORG, projectId: "*" }]),
-        ]),
+    it("any project action is org-checkable, returning the residual for list filtering", () => {
+      const c = ctx([
+        allowProject(["projects:read"], [{ orgId: ORG, projectIds: [PRJ] }]),
+      ]);
+      expect(authorize(c, "projects:read", { projectId: PRJ }).success).toBe(
+        true,
       );
-      expect(grants).toHaveLength(1);
-      expect(grants[0].organizationId).toBe(ORG);
-      expect(grants[0].projectIds).toBe("*");
-      expect(grants[0].actions).toContain("prompts:read");
+      const list = authorize(c, "projects:read", { orgId: ORG });
+      expect(list.success && list.access).toEqual({
+        includes: [{ orgId: ORG, projectIds: [PRJ] }],
+        excludes: [],
+      });
     });
   });
 
-  describe("real role expansions are Action[]", () => {
-    it("every role's project and org scopes assign to Action[]", () => {
+  describe("real role expansions type-check against the kind vocabularies", () => {
+    it("every role's project and org scopes assign to their action unions", () => {
       const roles = Object.keys(
         projectRoleAccessRights,
       ) as (keyof typeof projectRoleAccessRights)[];
       for (const r of roles) {
-        const p: Action[] = projectRoleAccessRights[r];
-        const o: Action[] = organizationRoleAccessRights[r];
+        const p: ProjectAction[] = projectRoleAccessRights[r];
+        const o: OrganizationAction[] = organizationRoleAccessRights[r];
         expect(Array.isArray(p)).toBe(true);
         expect(Array.isArray(o)).toBe(true);
       }
@@ -341,6 +594,45 @@ if (import.meta.vitest) {
   });
 
   describe("type-level invariants", () => {
+    it("policy kind compile-enforces action/resource pairing", () => {
+      const org: OrganizationPolicy = {
+        kind: "organization",
+        source: { kind: "role", id: "OWNER" },
+        // @ts-expect-error prompts:read is a project action
+        actions: ["prompts:read"],
+        resources: [{ orgId: ORG }],
+        effect: "allow",
+      };
+      const project: ProjectPolicy = {
+        kind: "project",
+        source: { kind: "role", id: "OWNER" },
+        // @ts-expect-error projects:create is an org action
+        actions: ["projects:create"],
+        resources: [{ orgId: ORG, projectIds: [PRJ] }],
+        effect: "allow",
+      };
+      const orgResources: OrganizationPolicy = {
+        kind: "organization",
+        source: { kind: "role", id: "OWNER" },
+        actions: ["projects:create"],
+        // @ts-expect-error an org policy cannot carry a project list
+        resources: [{ orgId: ORG, projectIds: [PRJ] }],
+        effect: "allow",
+      };
+      const projectResources: ProjectPolicy = {
+        kind: "project",
+        source: { kind: "role", id: "OWNER" },
+        actions: ["prompts:read"],
+        // @ts-expect-error a project policy always materializes its projects
+        resources: [{ orgId: ORG }],
+        effect: "allow",
+      };
+      void org;
+      void project;
+      void orgResources;
+      void projectResources;
+      expect(true).toBe(true);
+    });
     it("Principal narrows on kind before organizations", () => {
       const p = { kind: "admin", userId: null } as Principal;
       // @ts-expect-error admin has no organizations without narrowing
@@ -348,8 +640,28 @@ if (import.meta.vitest) {
       if (p.kind === "apiKey") void p.organizations;
       expect(true).toBe(true);
     });
+    it("a legacy apiKey carries boundResource; a granular one omits it", () => {
+      const legacy = {
+        kind: "apiKey",
+        apiKeyId: "key_1",
+        userId: null,
+        organizations: [],
+        boundResource: { projectId: PRJ },
+      } satisfies Principal;
+      const granular = {
+        kind: "apiKey",
+        apiKeyId: "key_2",
+        userId: null,
+        organizations: [],
+      } satisfies Principal;
+      expect(legacy.boundResource).toEqual({ projectId: PRJ });
+      expect("boundResource" in granular).toBe(false);
+    });
     it("Success and ErrorResult discriminate under strict", () => {
-      const d = { success: true } as Decision;
+      const d = {
+        success: true,
+        access: { includes: [], excludes: [] },
+      } as Decision;
       const typecheckOnly = () => {
         if (d.success) {
           // @ts-expect-error no error on the success branch
