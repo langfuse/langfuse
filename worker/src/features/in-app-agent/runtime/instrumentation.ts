@@ -1283,8 +1283,7 @@ function getModelCallInput(options: unknown): unknown {
     return undefined;
   }
 
-  const input = {
-    messages: options.prompt,
+  const serializedOptions = toSerializableJson({
     maxOutputTokens: options.maxOutputTokens,
     temperature: options.temperature,
     stopSequences: options.stopSequences,
@@ -1297,9 +1296,14 @@ function getModelCallInput(options: unknown): unknown {
     tools: options.tools,
     toolChoice: options.toolChoice,
     providerOptions: options.providerOptions,
-  };
+  });
 
-  return toSerializableJson(input);
+  // The prompt is the exact provider-bound payload. Preserve it losslessly in
+  // tracing; this copy does not affect the options passed to the model.
+  return {
+    ...(options.prompt === undefined ? {} : { messages: options.prompt }),
+    ...(isRecord(serializedOptions) ? serializedOptions : {}),
+  };
 }
 
 function getModelUsageDetails(
