@@ -174,10 +174,12 @@ export function TraceLayoutDesktop({
   children,
   groupId,
   defaultNavigationCollapsed,
+  expandDetailOnMount,
 }: {
   children: ReactNode;
   groupId: string;
   defaultNavigationCollapsed: boolean;
+  expandDetailOnMount: boolean;
 }) {
   // Get current view mode from URL
   const [viewMode] = useQueryParam("view", StringParam);
@@ -392,14 +394,15 @@ export function TraceLayoutDesktop({
   };
 
   // Selecting another node (timeline/tree) while the detail panel is collapsed
-  // reopens it. This covers selection CHANGES (incl. the search list); re-
+  // reopens it. Annotation items also reopen it on mount so a collapsed layout
+  // cannot hide the trace overview on the next trace-level queue item. Re-
   // selecting the same node is handled at the row click via expandDetailPanel,
   // since the URL param — and thus this effect — doesn't change on re-click.
   const { selectedNodeId } = useSelection();
   useEffect(() => {
     // Guard on selectedNodeId so a deliberately-collapsed panel isn't reopened
     // on mount/refresh when there's no selection (effects always run once).
-    if (selectedNodeId) expandDetailPanel();
+    if (selectedNodeId || expandDetailOnMount) expandDetailPanel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNodeId]);
 

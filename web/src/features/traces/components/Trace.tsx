@@ -46,14 +46,17 @@ const DESKTOP_LAYOUT_BY_CONTEXT = {
   fullscreen: {
     groupId: "trace-layout-v3",
     defaultNavigationCollapsed: false,
+    expandDetailOnMount: false,
   },
   peek: {
     groupId: "trace-layout-peek-v1",
     defaultNavigationCollapsed: false,
+    expandDetailOnMount: false,
   },
   annotation: {
     groupId: "trace-layout-annotation-v1",
     defaultNavigationCollapsed: true,
+    expandDetailOnMount: true,
   },
 } as const;
 
@@ -213,7 +216,7 @@ function DesktopTraceContent({
   desktopLayout: DesktopLayout;
 }) {
   return (
-    <TraceLayoutDesktop {...desktopLayout}>
+    <TraceLayoutDesktop key={desktopLayout.groupId} {...desktopLayout}>
       <TraceLayoutDesktop.NavigationPanel>
         <TracePanelNavigationLayoutDesktop
           secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
