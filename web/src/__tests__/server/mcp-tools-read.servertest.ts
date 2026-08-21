@@ -812,9 +812,13 @@ describe("MCP Read Tools", () => {
       expect(result.columns.metadata).toEqual(
         expect.objectContaining({
           type: "stringObject",
+          operators: expect.arrayContaining(["matches"]),
           requiresKey: true,
         }),
       );
+      expect(result.columns.input.operators).toContain("matches");
+      expect(result.columns.output.operators).toContain("matches");
+      expect(result.columns.version.operators).not.toContain("matches");
       expect(result.columns.traceTags).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
@@ -1269,7 +1273,7 @@ describe("MCP Read Tools", () => {
             {
               type: "string",
               column: "input",
-              operator: "contains",
+              operator: "matches",
               value: needle,
             },
           ],
@@ -1308,7 +1312,7 @@ describe("MCP Read Tools", () => {
               {
                 type: "string",
                 column: "input",
-                operator: "contains",
+                operator: "matches",
                 value: "secret",
               },
             ],

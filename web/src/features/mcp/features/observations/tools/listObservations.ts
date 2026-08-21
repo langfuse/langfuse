@@ -2,14 +2,14 @@ import {
   InvalidRequestError,
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
   booleanFilter,
+  eventsTableSingleFilter,
+  eventsTableStringFilter,
+  eventsTableStringObjectFilter,
   eventsTableCols,
   filterOperators,
   numberFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
-  singleFilter,
-  stringFilter,
-  stringObjectFilter,
   stringOptionsFilter,
   timeFilter,
   type ColumnDefinition,
@@ -86,7 +86,7 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
       column: z.literal(column),
     }),
   string: (column: string, requireType = false) =>
-    stringFilter.omit({ type: true, column: true }).extend({
+    eventsTableStringFilter.omit({ type: true, column: true }).extend({
       type: requireType ? z.literal("string") : z.literal("string").optional(),
       column: z.literal(column),
     }),
@@ -112,7 +112,7 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
       column: z.literal(column),
     }),
   stringObject: (column: string, requireType = false) =>
-    stringObjectFilter.omit({ type: true, column: true }).extend({
+    eventsTableStringObjectFilter.omit({ type: true, column: true }).extend({
       type: requireType
         ? z.literal("stringObject")
         : z.literal("stringObject").optional(),
@@ -225,7 +225,7 @@ const ObservationMcpFilterSchema = z.preprocess(
       const type =
         filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
-      return singleFilter.parse(
+      return eventsTableSingleFilter.parse(
         filter.column === "tags"
           ? { ...filter, type, column: "traceTags" }
           : { ...filter, type },
@@ -369,36 +369,31 @@ export const [listObservationsTool, handleListObservations] = defineTool({
           "mcp.field_groups": fieldGroups.join(","),
         });
 
-        const items = await getObservationsV2FromEventsTableForPublicApi(
-          {
-            projectId: context.projectId,
-            page: 0,
-            limit: input.limit,
-            traceId: input.traceId,
-            userId: input.userId,
-            level: input.level,
-            name: input.name,
-            type: input.type,
-            environment: input.environment,
-            parentObservationId: input.parentObservationId,
-            isRootObservation: input.isRootObservation,
-            fromStartTime: input.fromStartTime,
-            toStartTime: input.toStartTime,
-            version: input.version,
-            advancedFilters: input.filter,
-            cursor: input.cursor
-              ? EncodedObservationsCursorV2.parse(input.cursor)
-              : undefined,
-            fields: fieldGroups,
-            expandMetadataKeys: getMetadataExpansionForProjection(
-              projectionFields,
-              input.expandMetadataKeys,
-            ),
-          },
-          // MCP keeps the legacy observation filter contract. Its separate
-          // selective-scope guard above limits expensive input/output filters.
-          { allowUnindexedIoFilters: true },
-        );
+        const items = await getObservationsV2FromEventsTableForPublicApi({
+          projectId: context.projectId,
+          page: 0,
+          limit: input.limit,
+          traceId: input.traceId,
+          userId: input.userId,
+          level: input.level,
+          name: input.name,
+          type: input.type,
+          environment: input.environment,
+          parentObservationId: input.parentObservationId,
+          isRootObservation: input.isRootObservation,
+          fromStartTime: input.fromStartTime,
+          toStartTime: input.toStartTime,
+          version: input.version,
+          advancedFilters: input.filter,
+          cursor: input.cursor
+            ? EncodedObservationsCursorV2.parse(input.cursor)
+            : undefined,
+          fields: fieldGroups,
+          expandMetadataKeys: getMetadataExpansionForProjection(
+            projectionFields,
+            input.expandMetadataKeys,
+          ),
+        });
 
         const hasMore = items.length > input.limit;
         const dataToReturn = hasMore ? items.slice(0, input.limit) : items;
