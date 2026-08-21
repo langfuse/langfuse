@@ -426,8 +426,6 @@ export const sessionRouter = createTRPCRouter({
       const scores = await getScoresForSessions({
         projectId: ctx.session.projectId,
         sessionIds: sessions.map((s) => s.session_id),
-        limit: 1000,
-        offset: 0,
       });
 
       const validatedScores = filterAndValidateDbScoreList({
@@ -495,8 +493,6 @@ export const sessionRouter = createTRPCRouter({
       const scores = await getScoresForSessions({
         projectId: ctx.session.projectId,
         sessionIds: sessions.map((s) => s.session_id),
-        limit: 1000,
-        offset: 0,
       });
 
       const validatedScores = filterAndValidateDbScoreList({
