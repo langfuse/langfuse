@@ -6,14 +6,16 @@
  * Run: `pnpm --filter web run test:in-source policy.prototype`.
  */
 
+import { z } from "zod";
+
 import {
   projectScopes,
   projectRoleAccessRights,
   BaseError,
   ForbiddenError,
+  CloudConfigRateLimit,
   type ProjectScope,
   type Plan,
-  type CloudConfigSchema,
 } from "@langfuse/shared";
 import {
   organizationScopes,
@@ -57,11 +59,11 @@ export type OrganizationAction = OrganizationScope | Wildcard;
 /** Action is any checkable action. */
 export type Action = ProjectAction | OrganizationAction;
 
-/** PrincipalOrganization carries the org+project config the PIP attaches to a non-admin principal. */
+/** PrincipalOrganization carries the org's static caps the entitlement and rate-limit seams read: the resolved plan and its rate-limit config, not the billing blob. */
 export type PrincipalOrganization = {
   orgId: string;
   plan: Plan;
-  config: CloudConfigSchema | null;
+  rateLimitConfig: z.infer<typeof CloudConfigRateLimit>;
   projectIds: string[];
 };
 
@@ -343,7 +345,12 @@ if (import.meta.vitest) {
       apiKeyId: "key_1",
       userId: null,
       organizations: [
-        { orgId: ORG, plan: "cloud:hobby", config: {}, projectIds: [PRJ] },
+        {
+          orgId: ORG,
+          plan: "cloud:hobby",
+          rateLimitConfig: [],
+          projectIds: [PRJ],
+        },
       ],
     },
     policies,
