@@ -253,7 +253,7 @@ export function createLambdaMicrovmSandboxProvider(params: {
         endpoint: existing.endpoint,
         toolCallFiles: session?.toolCallFiles ?? [],
       });
-      logger.info("[Lambda MicroVM Sandbox] reusing existing session", {
+      logger.debug("[Lambda MicroVM Sandbox] reusing existing session", {
         conversationId: request.conversationId,
         sessionId: request.sessionId,
         state: existing.state,

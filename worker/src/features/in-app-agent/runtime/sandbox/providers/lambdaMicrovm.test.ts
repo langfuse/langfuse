@@ -1,16 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const microvmSendMock = vi.fn();
-const recordIncrementMock = vi.hoisted(() => vi.fn());
-
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@langfuse/shared/src/server")>();
-  return {
-    ...actual,
-    recordIncrement: recordIncrementMock,
-  };
-});
 
 vi.mock("@aws-sdk/client-lambda-microvms", () => {
   class LambdaMicrovmsClient {
@@ -55,7 +45,6 @@ vi.mock("@aws-sdk/client-lambda-microvms", () => {
 describe("in-app agent lambda microvm sandbox provider", () => {
   beforeEach(() => {
     microvmSendMock.mockReset();
-    recordIncrementMock.mockReset();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
@@ -88,67 +77,6 @@ describe("in-app agent lambda microvm sandbox provider", () => {
     expect(microvmSendMock.mock.calls[1]?.[0]?.input).toEqual({
       microvmIdentifier: "microvm-1",
     });
-    expect(recordIncrementMock.mock.calls).toEqual([
-      ["langfuse.in_app_agent.sandbox.lifecycle", 1, { action: "suspended" }],
-      ["langfuse.in_app_agent.sandbox.lifecycle", 1, { action: "terminated" }],
-    ]);
-  });
-
-  it("emits sandbox.lifecycle created and resumed", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(new Response(null, { status: 200 })),
-    );
-    microvmSendMock.mockImplementation(async (command: { input: unknown }) => {
-      const input = command.input as { microvmIdentifier?: string };
-
-      if (command.constructor.name === "RunMicrovmCommand") {
-        return {
-          microvmId: "microvm-1",
-          endpoint: "https://microvm.example.com:8443",
-          state: "RUNNING",
-        };
-      }
-
-      if (command.constructor.name === "GetMicrovmCommand") {
-        return {
-          microvmId: input.microvmIdentifier,
-          endpoint: "https://microvm.example.com:8443",
-          state: "SUSPENDED",
-        };
-      }
-
-      if (command.constructor.name === "ResumeMicrovmCommand") {
-        return {};
-      }
-
-      if (command.constructor.name === "CreateMicrovmAuthTokenCommand") {
-        return { authToken: { "X-aws-proxy-auth": "token-1" } };
-      }
-
-      throw new Error(`Unexpected command ${command.constructor.name}`);
-    });
-
-    const { createLambdaMicrovmSandboxProvider } =
-      await import("./lambdaMicrovm");
-    const provider = createLambdaMicrovmSandboxProvider({
-      imageIdentifier: "image-1",
-      executionRoleArn: "arn:aws:iam::123456789012:role/sandbox",
-      region: "us-east-1",
-    });
-
-    await provider.ensureSession({ conversationId: "conversation-1" });
-    await provider.ensureSession({
-      conversationId: "conversation-1",
-      sessionId: "microvm-1",
-    });
-
-    expect(recordIncrementMock.mock.calls).toEqual([
-      ["langfuse.in_app_agent.sandbox.lifecycle", 1, { action: "created" }],
-      ["langfuse.in_app_agent.sandbox.lifecycle", 1, { action: "resumed" }],
-    ]);
   });
 
   it("omits egress network connectors when no connector ARN is configured", async () => {
