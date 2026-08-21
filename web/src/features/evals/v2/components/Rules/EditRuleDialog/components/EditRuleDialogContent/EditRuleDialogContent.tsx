@@ -1,4 +1,8 @@
-import { observationVariableMappingList, singleFilter } from "@langfuse/shared";
+import {
+  EvalTemplateType,
+  observationVariableMappingList,
+  singleFilter,
+} from "@langfuse/shared";
 import { useState } from "react";
 import { DialogBody } from "@/src/components/ui/dialog";
 import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
@@ -40,6 +44,7 @@ export function EditRuleDialogContent({
       assignments: rule.assignments.map((assignment) => {
         const preparedDefault = prepareModernRuleVariableMapping(
           assignment.evaluator.latestVersion?.variableMapping,
+          assignment.evaluator.type,
         );
         return {
           evaluatorId: assignment.evaluator.id,
@@ -47,6 +52,7 @@ export function EditRuleDialogContent({
           evaluatorType: assignment.evaluator.type,
           defaultVariableMapping: preparedDefault.defaultVariableMapping,
           variableMapping:
+            assignment.evaluator.type === EvalTemplateType.CODE ||
             assignment.variableMapping == null
               ? preparedDefault.initialVariableMapping
               : observationVariableMappingList

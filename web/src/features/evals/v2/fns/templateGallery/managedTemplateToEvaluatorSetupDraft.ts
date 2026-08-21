@@ -28,7 +28,6 @@ export function managedTemplateToEvaluatorSetupDraft(
           type: template.evaluator.type,
           sourceCode: template.evaluator.source,
           sourceCodeLanguage: template.evaluator.language,
-          variableMapping: null,
         };
 
   return {

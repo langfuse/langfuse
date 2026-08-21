@@ -18,6 +18,7 @@ import {
   variableMappingList,
   InternalServerError,
   CODE_EVAL_TEMPLATE_VARIABLES,
+  getCodeEvalVariableMapping,
 } from "@langfuse/shared";
 import { EvalTemplateType } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
@@ -39,7 +40,6 @@ import {
   type PublicEvaluatorOutputDefinitionType,
   type PublicEvaluatorTypeType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type {
   ApiEvaluatorRecord,
   ApiEvaluationRuleRecord,
@@ -677,7 +677,7 @@ export function toEvaluationRuleFields(input: {
   };
 }
 
-/** Stored mapping for one assignment. Code evaluators use the fixed runtime mapping. */
+/** Stored mapping for one assignment. Code evaluators inherit their fixed evaluator mapping. */
 export function toStoredAssignmentMapping(params: {
   target: PublicEvaluationRuleTargetType;
   mapping?: PublicEvaluationRuleMappingType[];
@@ -685,7 +685,7 @@ export function toStoredAssignmentMapping(params: {
   evaluatorType: PublicEvaluatorTypeType;
 }) {
   return params.evaluatorType === PUBLIC_EVALUATOR_TYPE_CODE
-    ? getCodeEvalVariableMapping()
+    ? null
     : toStoredVariableMappings({
         mappings: params.mapping ?? [],
         variables: params.evaluatorVariables,

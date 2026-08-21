@@ -14,7 +14,7 @@ export const [
   name: "attachEvaluatorToEvaluationRule",
   description: [
     "Attach a project evaluator to an observation evaluation rule using their stable IDs.",
-    "Omit variableMapping to inherit the evaluator version's mapping, or provide a rule-specific override.",
+    "For LLM evaluators, omit variableMapping to inherit the evaluator version's mapping or provide an override. Code evaluators must omit variableMapping.",
   ].join(" "),
   baseSchema: AttachEvaluatorToEvaluationRuleBaseSchema,
   inputSchema: AttachEvaluatorToEvaluationRuleBaseSchema,

@@ -17,6 +17,7 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
     evaluatorOptions: RuleEvaluatorOption[];
     initialAssignments: RuleDraft["assignments"];
     sampleObject: Record<string, unknown> | null;
+    unvalidatedSourceColumnIds?: string[];
     search: string;
     onSearchChange: (value: string) => void;
     onSaveAssignments: (assignments: RuleDraft["assignments"]) => Promise<void>;
@@ -28,6 +29,7 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
     evaluatorOptions,
     initialAssignments,
     sampleObject,
+    unvalidatedSourceColumnIds,
     search,
     onSearchChange,
     onSaveAssignments,
@@ -70,6 +72,7 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
         search={search}
         onSearchChange={onSearchChange}
         sampleObject={sampleObject}
+        unvalidatedSourceColumnIds={unvalidatedSourceColumnIds}
         costEstimates={[]}
         estimatingEvaluatorIds={[]}
         footerTrailing={null}

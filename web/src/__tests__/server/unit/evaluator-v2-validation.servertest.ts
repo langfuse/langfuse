@@ -59,7 +59,6 @@ describe("evaluator configuration validation", () => {
       type: EvalTemplateType.CODE,
       sourceCode: "return 1;",
       sourceCodeLanguage: "TYPESCRIPT" as const,
-      variableMapping: null,
     };
 
     mocks.isCodeEvalEnabled.mockReturnValueOnce(false);
@@ -106,6 +105,28 @@ describe("evaluator configuration validation", () => {
       mocks.getEvaluatorDefinitionConfigurationError,
     ).toHaveBeenCalledOnce();
   });
+
+  // The schema is the only boundary that can see a caller-supplied mapping:
+  // every consumer of `assertEvaluatorConfigurationValid` hands it a parsed
+  // definition, so a code evaluator can never carry one by the time it runs.
+  it.each([null, [{ templateVariable: "input", selectedColumnId: "input" }]])(
+    "rejects code evaluator definitions carrying a variable mapping (%j)",
+    (variableMapping) => {
+      expect(
+        CreateEvaluatorSchema.safeParse({
+          projectId: "project-id",
+          name: "Code evaluator",
+          description: null,
+          definition: {
+            type: EvalTemplateType.CODE,
+            sourceCode: "return 1;",
+            sourceCodeLanguage: "TYPESCRIPT" as const,
+            variableMapping,
+          },
+        }).success,
+      ).toBe(false);
+    },
+  );
 
   it("rejects evaluator variables that do not match the prompt", async () => {
     await expect(

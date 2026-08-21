@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/db";
 import type {
   CreateEvaluatorInput,
-  EvaluatorDefinition,
+  EvaluatorDefinitionForPersistence,
 } from "./evaluatorTypes";
 import { EvaluatorVersionConflictError } from "./evaluatorErrors";
 import { setRuleStatus } from "../rules/ruleRepository";
@@ -50,7 +50,7 @@ export const batchEligibleEvaluatorWhere = {
 } satisfies Prisma.EvaluatorWhereInput;
 
 function versionData(
-  definition: EvaluatorDefinition,
+  definition: EvaluatorDefinitionForPersistence,
   createdByUserId: string | null,
 ) {
   const commonVersionData = {
@@ -393,7 +393,9 @@ export function findEvaluatorsByName(params: {
 
 export function createEvaluator(params: {
   prisma: PrismaClient | PrismaTransaction;
-  input: CreateEvaluatorInput;
+  input: Omit<CreateEvaluatorInput, "definition"> & {
+    definition: EvaluatorDefinitionForPersistence;
+  };
   createdByUserId: string | null;
   block?: { reason: EvaluatorBlockReason; message: string } | null;
 }) {
@@ -489,7 +491,7 @@ export async function appendEvaluatorVersion(params: {
   tx: PrismaTransaction;
   evaluatorId: string;
   version: number;
-  definition: EvaluatorDefinition;
+  definition: EvaluatorDefinitionForPersistence;
   createdByUserId: string | null;
 }) {
   try {

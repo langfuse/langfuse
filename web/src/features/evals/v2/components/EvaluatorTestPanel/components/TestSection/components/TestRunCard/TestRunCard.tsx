@@ -7,10 +7,12 @@ import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluato
 export function TestRunCard({
   projectId,
   store,
+  hasValidModel,
   onRunTest,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
+  hasValidModel: boolean;
   onRunTest: () => void;
 }) {
   const selectedSampleLabel = useStore(store, (state) => {
@@ -19,7 +21,11 @@ export function TestRunCard({
       ? (observation.name ?? observation.traceName ?? observation.id)
       : null;
   });
-  const disabledReason = useEvaluatorTestAvailability({ projectId, store });
+  const disabledReason = useEvaluatorTestAvailability({
+    projectId,
+    store,
+    hasValidModel,
+  });
 
   return (
     <div className="bg-card text-card-foreground flex min-h-40 flex-col items-center justify-center gap-3 rounded-md border p-6 text-center">

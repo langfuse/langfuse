@@ -25,6 +25,7 @@ export function EvaluatorMappingRow({
   defaultVariableMapping,
   store,
   sampleObject,
+  unvalidatedSourceColumnIds = [],
   sourceUnavailableMessage = "No matching observation is available to validate JSON paths.",
   disabled = false,
   costEstimate,
@@ -35,6 +36,7 @@ export function EvaluatorMappingRow({
   defaultVariableMapping: ObservationVariableMapping[];
   store: RuleSetupStore;
   sampleObject: Record<string, unknown> | null;
+  unvalidatedSourceColumnIds?: string[];
   sourceUnavailableMessage?: string;
   disabled?: boolean;
   costEstimate: ReactNode;
@@ -67,6 +69,8 @@ export function EvaluatorMappingRow({
   }));
   const mappedVariableCount = mapping.filter((entry) => {
     if (!entry.selectedColumnId) return false;
+    if (unvalidatedSourceColumnIds.includes(entry.selectedColumnId))
+      return true;
     if (!sampleObject) return true;
 
     const extracted = extractVariableMappingValue(
@@ -166,6 +170,7 @@ export function EvaluatorMappingRow({
               onChangeField={updateMapping}
               sourceObject={sampleObject}
               hasMatchingObservations={Boolean(sampleObject)}
+              unvalidatedSourceColumnIds={unvalidatedSourceColumnIds}
               sourceUnavailableMessage={sourceUnavailableMessage}
             />
           )}

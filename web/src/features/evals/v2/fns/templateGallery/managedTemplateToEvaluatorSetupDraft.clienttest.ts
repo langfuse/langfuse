@@ -34,7 +34,6 @@ describe("managedTemplateToEvaluatorSetupDraft", () => {
       definition: {
         type: "CODE",
         sourceCodeLanguage: "TYPESCRIPT",
-        variableMapping: null,
       },
     });
   });

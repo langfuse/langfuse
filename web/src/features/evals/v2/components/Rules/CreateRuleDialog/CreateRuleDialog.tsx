@@ -54,6 +54,7 @@ export function CreateRuleDialog({
       createdByUser: evaluator.createdByUser,
       ...prepareModernRuleVariableMapping(
         evaluator.latestVersion?.variableMapping,
+        evaluator.type,
       ),
     }),
   );

@@ -7,6 +7,7 @@ import {
   jsonSchema,
   paginationLimitZod,
   singleFilter,
+  type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -55,10 +56,11 @@ export const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
   outputDefinition: PersistedEvalOutputDefinitionSchema,
 });
 
-export const CodeEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
+export const CodeEvaluatorDefinitionSchema = z.object({
   type: z.literal(EvalTemplateType.CODE),
   sourceCode: z.string().min(1).max(262_144),
   sourceCodeLanguage: z.enum(EvaluatorSourceCodeLanguage),
+  variableMapping: z.never().optional(),
 });
 
 export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
@@ -177,6 +179,11 @@ export const SuggestEvaluatorTextSchema = z.object({
 });
 
 export type EvaluatorDefinition = z.infer<typeof EvaluatorDefinitionSchema>;
+export type EvaluatorDefinitionForPersistence =
+  | Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
+  | (Omit<Extract<EvaluatorDefinition, { type: "CODE" }>, "variableMapping"> & {
+      variableMapping: ObservationVariableMapping[];
+    });
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;
 export type UpdateEvaluatorInput = z.infer<typeof UpdateEvaluatorSchema>;
 export type DeleteEvaluatorsInput = z.infer<typeof DeleteEvaluatorsSchema>;

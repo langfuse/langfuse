@@ -37,7 +37,6 @@ export default function EvaluatorDetailPage() {
           type: "CODE" as const,
           sourceCode: latest.sourceCode ?? "",
           sourceCodeLanguage: latest.sourceCodeLanguage ?? "TYPESCRIPT",
-          variableMapping: latest.variableMapping,
         };
 
   return (

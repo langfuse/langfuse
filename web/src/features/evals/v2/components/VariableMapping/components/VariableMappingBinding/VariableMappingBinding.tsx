@@ -36,13 +36,13 @@ export function VariableMappingBinding({
         <span
           key={index}
           className={cn(
-            "flex min-w-0 items-baseline gap-1 overflow-hidden",
+            "flex min-w-0 items-center gap-1 overflow-hidden",
             index === pathLabels.length - 1 && "shrink-0",
           )}
         >
           <ChevronRight className="text-muted-foreground h-3 w-3 shrink-0 self-center" />
           <span
-            className="max-w-40 truncate font-mono text-sm"
+            className="relative top-px max-w-40 truncate font-mono text-sm"
             title={label === "..." ? fullPath : label}
           >
             {label}
@@ -55,7 +55,7 @@ export function VariableMappingBinding({
   if (labels.length <= 2) {
     return (
       <span
-        className="flex min-w-0 items-baseline gap-1 overflow-hidden whitespace-nowrap"
+        className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap"
         title={fullPath}
       >
         {renderPath(labels)}
@@ -69,7 +69,7 @@ export function VariableMappingBinding({
       title={fullPath}
     >
       <span
-        className="flex min-w-0 items-baseline gap-1 @xs:hidden"
+        className="flex min-w-0 items-center gap-1 @xs:hidden"
         aria-hidden="true"
         title={fullPath}
       >
@@ -80,13 +80,13 @@ export function VariableMappingBinding({
         <span className="shrink-0">...</span>
       </span>
       <span
-        className="hidden min-w-0 items-baseline gap-1 overflow-hidden @xs:flex @md:hidden"
+        className="hidden min-w-0 items-center gap-1 overflow-hidden @xs:flex @md:hidden"
         aria-hidden="true"
       >
         {renderPath(["...", labels.at(-1)!])}
       </span>
       <span
-        className="hidden min-w-0 items-baseline gap-1 overflow-hidden @md:flex"
+        className="hidden min-w-0 items-center gap-1 overflow-hidden @md:flex"
         aria-hidden="true"
       >
         {renderPath(labels)}

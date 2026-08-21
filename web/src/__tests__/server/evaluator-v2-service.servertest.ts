@@ -1,4 +1,4 @@
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, getCodeEvalVariableMapping } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessageRole,
@@ -185,11 +185,11 @@ describe("EvaluatorService", () => {
     await Promise.all([
       prisma.evaluator.update({
         where: { id: older.id },
-        data: { createdAt: new Date("2026-01-01T00:00:00.000Z") },
+        data: { updatedAt: new Date("2026-01-01T00:00:00.000Z") },
       }),
       prisma.evaluator.update({
         where: { id: newer.id },
-        data: { createdAt: new Date("2026-01-02T00:00:00.000Z") },
+        data: { updatedAt: new Date("2026-01-02T00:00:00.000Z") },
       }),
     ]);
 
@@ -226,6 +226,26 @@ describe("EvaluatorService", () => {
     });
     await expect(service.get(otherProjectId, created.id)).rejects.toThrow(
       "Evaluator not found",
+    );
+  });
+
+  it("writes the canonical mapping when creating a code evaluator", async () => {
+    const created = await createService().create(
+      {
+        projectId,
+        name: "Code evaluator",
+        description: null,
+        definition: {
+          type: "CODE",
+          sourceCode: "return { score: 1 };",
+          sourceCodeLanguage: "TYPESCRIPT",
+        },
+      },
+      null,
+    );
+
+    expect(created.versions[0]?.variableMapping).toEqual(
+      getCodeEvalVariableMapping(),
     );
   });
 

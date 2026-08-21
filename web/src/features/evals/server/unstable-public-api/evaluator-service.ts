@@ -103,7 +103,6 @@ function toDefinition(
       type: EvalTemplateType.CODE,
       sourceCode: input.sourceCode,
       sourceCodeLanguage: input.sourceCodeLanguage,
-      variableMapping: null,
     };
   }
 

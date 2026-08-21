@@ -7,6 +7,7 @@ const queryMocks = vi.hoisted(() => ({
   datasetItem: vi.fn(),
   historicalEvents: vi.fn(),
   historicalEventDetails: vi.fn(),
+  assignmentsEditor: vi.fn(),
 }));
 
 vi.mock("@/src/utils/api", () => ({
@@ -27,7 +28,10 @@ vi.mock("@/src/features/evals", () => ({
 vi.mock(
   "@/src/features/experiments/components/ExperimentEvaluatorAssignments/components/ExperimentEvaluatorAssignmentsEditor/ExperimentEvaluatorAssignmentsEditor",
   () => ({
-    ExperimentEvaluatorAssignmentsEditor: () => <div>Assignments editor</div>,
+    ExperimentEvaluatorAssignmentsEditor: (props: unknown) => {
+      queryMocks.assignmentsEditor(props);
+      return <div>Assignments editor</div>;
+    },
   }),
 );
 
@@ -91,6 +95,9 @@ describe("ExperimentEvaluatorAssignments", () => {
       expect.any(Object),
       expect.objectContaining({ enabled: false }),
     );
+    expect(queryMocks.assignmentsEditor).toHaveBeenCalledWith(
+      expect.objectContaining({ unvalidatedSourceColumnIds: [] }),
+    );
     expect(screen.getByText("Assignments editor")).toBeInTheDocument();
   });
 
@@ -119,6 +126,9 @@ describe("ExperimentEvaluatorAssignments", () => {
     expect(queryMocks.datasetItem).toHaveBeenCalledWith(
       expect.any(Object),
       expect.objectContaining({ enabled: true }),
+    );
+    expect(queryMocks.assignmentsEditor).toHaveBeenCalledWith(
+      expect.objectContaining({ unvalidatedSourceColumnIds: ["output"] }),
     );
     expect(screen.getByText("Assignments editor")).toBeInTheDocument();
   });

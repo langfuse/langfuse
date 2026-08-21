@@ -1,4 +1,6 @@
 import {
+  EvalTemplateType,
+  getCodeEvalVariableMapping,
   observationVariableMappingList,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -20,7 +22,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 export function prepareModernRuleVariableMapping(
   value: unknown,
+  evaluatorType: EvalTemplateType,
 ): ModernRuleVariableMapping {
+  if (evaluatorType === EvalTemplateType.CODE) {
+    const mapping = getCodeEvalVariableMapping();
+    return {
+      defaultVariableMapping: mapping,
+      initialVariableMapping: null,
+    };
+  }
+
   const entries = Array.isArray(value) ? value : [];
   const isLegacyMapping = entries.some(
     (entry) =>

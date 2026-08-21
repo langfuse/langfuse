@@ -4,6 +4,7 @@ import {
   EvalTemplateType,
   type FilterState,
   getBlockReasonForInvalidModelConfig,
+  getCodeEvalVariableMapping,
   getEvaluatorBlockMetadata,
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -25,6 +26,7 @@ import {
   type CreateEvaluatorInput,
   type DeleteEvaluatorsInput,
   type EvaluatorDefinition,
+  type EvaluatorDefinitionForPersistence,
   type EvaluatorVersionCursor,
   type UpdateEvaluatorInput,
   encodeEvaluatorVersionCursor,
@@ -51,6 +53,14 @@ type SuggestEvaluatorTextParams = {
 
 const FALLBACK_EVALUATOR_NAME = "Custom Evaluator";
 const MAX_GENERATED_EVALUATOR_NAME_WORDS = 6;
+
+function prepareEvaluatorDefinitionForPersistence(
+  definition: EvaluatorDefinition,
+): EvaluatorDefinitionForPersistence {
+  return definition.type === EvalTemplateType.CODE
+    ? { ...definition, variableMapping: getCodeEvalVariableMapping() }
+    : definition;
+}
 
 type EvaluatorExecutionTrace = {
   id: string;
@@ -226,7 +236,12 @@ export class EvaluatorService {
       .$transaction((prisma) =>
         repository.createEvaluator({
           prisma,
-          input,
+          input: {
+            ...input,
+            definition: prepareEvaluatorDefinitionForPersistence(
+              input.definition,
+            ),
+          },
           createdByUserId,
           block,
         }),
@@ -278,7 +293,12 @@ export class EvaluatorService {
           action: "create" as const,
           evaluator: await repository.createEvaluator({
             prisma,
-            input,
+            input: {
+              ...input,
+              definition: prepareEvaluatorDefinitionForPersistence(
+                input.definition,
+              ),
+            },
             createdByUserId,
             block,
           }),
@@ -600,7 +620,7 @@ async function updateEvaluator(params: {
       tx,
       evaluatorId: input.evaluatorId,
       version: latest.version + 1,
-      definition: input.definition,
+      definition: prepareEvaluatorDefinitionForPersistence(input.definition),
       createdByUserId,
     });
   }
@@ -676,7 +696,6 @@ export function toEvaluatorDefinition(
           type,
           sourceCode: version.sourceCode ?? "",
           sourceCodeLanguage: version.sourceCodeLanguage ?? "PYTHON",
-          variableMapping: version.variableMapping,
         },
   );
 }

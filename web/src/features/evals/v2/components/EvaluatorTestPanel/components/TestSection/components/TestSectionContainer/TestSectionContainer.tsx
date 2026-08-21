@@ -11,6 +11,7 @@ import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluato
 export function TestSectionContainer({
   projectId,
   store,
+  hasValidModel,
   testResult,
   testPending,
   rawResultOpen,
@@ -20,6 +21,7 @@ export function TestSectionContainer({
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
+  hasValidModel: boolean;
   testResult: unknown;
   testPending: boolean;
   rawResultOpen: boolean;
@@ -45,6 +47,7 @@ export function TestSectionContainer({
           <TestRunCard
             projectId={projectId}
             store={store}
+            hasValidModel={hasValidModel}
             onRunTest={onRunTest}
           />
         ) : (
@@ -70,6 +73,7 @@ export function TestSectionContainer({
               <TestRerunAction
                 projectId={projectId}
                 store={store}
+                hasValidModel={hasValidModel}
                 isPending={testPending}
                 onRerun={onRunTest}
               />

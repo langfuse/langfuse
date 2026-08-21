@@ -104,6 +104,7 @@ export function EvaluatorRuleRelationshipsSheet({
   const router = useRouter();
   const preparedEvaluatorMapping = prepareModernRuleVariableMapping(
     evaluatorDefaultVariableMapping,
+    evaluatorType,
   );
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();

@@ -210,6 +210,55 @@ describe("MCP Write Tools", () => {
         expect.objectContaining({ version: 2 }),
       ]);
     });
+
+    it("rejects mappings when creating or updating code evaluators", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleCreateEvaluator(
+          {
+            name: `mcp-code-eval-${nanoid()}`,
+            type: "CODE",
+            sourceCode: "export function evaluate() { return { score: 1 }; }",
+            sourceCodeLanguage: "TYPESCRIPT",
+            variableMapping: [
+              { templateVariable: "input", selectedColumnId: "input" },
+            ],
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+      );
+
+      const evaluator = (await handleCreateEvaluator(
+        {
+          name: `mcp-code-eval-${nanoid()}`,
+          type: "CODE",
+          sourceCode: "export function evaluate() { return { score: 1 }; }",
+          sourceCodeLanguage: "TYPESCRIPT",
+        },
+        context,
+      )) as { id: string; name: string };
+
+      await expect(
+        handleUpdateEvaluator(
+          {
+            evaluatorId: evaluator.id,
+            name: evaluator.name,
+            type: "CODE",
+            sourceCode: "export function evaluate() { return { score: 0 }; }",
+            sourceCodeLanguage: "TYPESCRIPT",
+            variableMapping: [
+              { templateVariable: "output", selectedColumnId: "output" },
+            ],
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+      );
+    });
   });
 
   describe("createEvaluationRule tool", () => {
@@ -380,6 +429,49 @@ describe("MCP Write Tools", () => {
         context,
       )) as { id: string };
       expect(rule.id).toBeDefined();
+      await expect(
+        prisma.evaluationRuleEvaluatorAssignment.findFirst({
+          where: {
+            evaluationRuleId: rule.id,
+            evaluatorId: evaluator.id,
+          },
+        }),
+      ).resolves.toMatchObject({
+        variableMapping: null,
+      });
+    });
+
+    it("should reject mappings for code evaluation rules", async () => {
+      const { context } = await createMcpTestSetup();
+      const evaluator = (await handleCreateEvaluator(
+        {
+          name: `mcp-code-eval-${nanoid()}`,
+          type: "CODE",
+          sourceCode: "export function evaluate() { return { score: 1 }; }",
+          sourceCodeLanguage: "TYPESCRIPT",
+        },
+        context,
+      )) as { id: string };
+
+      await expect(
+        handleCreateEvaluationRule(
+          {
+            name: `mcp-code-rule-${nanoid()}`,
+            evaluatorAssignments: [
+              {
+                evaluatorId: evaluator.id,
+                variableMapping: [{ variable: "output", source: "output" }],
+              },
+            ],
+            enabled: true,
+            sampling: 1,
+            filter: [],
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+      );
     });
   });
 

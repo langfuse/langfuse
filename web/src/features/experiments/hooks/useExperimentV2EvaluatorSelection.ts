@@ -9,6 +9,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
+  EvalTemplateType,
   EvalTargetObject,
   isExperimentEvaluationRule,
   observationVariableMappingList,
@@ -87,6 +88,7 @@ export function useExperimentV2EvaluatorSelection({
         createdByUser: evaluator.createdByUser,
         ...prepareModernRuleVariableMapping(
           evaluator.latestVersion?.variableMapping,
+          evaluator.type,
         ),
       })),
     [evaluatorOptions.data],
@@ -113,6 +115,7 @@ export function useExperimentV2EvaluatorSelection({
 
         const prepared = prepareModernRuleVariableMapping(
           assignment.evaluator.latestVersion?.variableMapping,
+          assignment.evaluator.type,
         );
         assignments.set(assignment.evaluatorId, {
           evaluatorId: assignment.evaluatorId,
@@ -120,6 +123,7 @@ export function useExperimentV2EvaluatorSelection({
           evaluatorType: assignment.evaluator.type,
           defaultVariableMapping: prepared.defaultVariableMapping,
           variableMapping:
+            assignment.evaluator.type === EvalTemplateType.CODE ||
             assignment.variableMapping == null
               ? prepared.initialVariableMapping
               : observationVariableMappingList

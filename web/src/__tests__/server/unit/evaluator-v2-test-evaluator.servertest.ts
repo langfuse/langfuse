@@ -177,7 +177,6 @@ describe("testEvaluator", () => {
           type: "CODE",
           sourceCode: "return { score: 1 };",
           sourceCodeLanguage: "TYPESCRIPT",
-          variableMapping: null,
         },
       }),
     ).resolves.toMatchObject({ success: true, result: { score: 1 } });

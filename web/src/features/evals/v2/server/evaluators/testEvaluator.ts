@@ -1,5 +1,5 @@
 import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
+  getCodeEvalVariableMapping,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import {
@@ -41,11 +41,7 @@ export async function testEvaluator(params: {
   });
   const variableMapping =
     params.definition.type === "CODE"
-      ? CODE_EVAL_TEMPLATE_VARIABLES.map((variable) => ({
-          templateVariable: variable,
-          selectedColumnId: variable,
-          jsonSelector: null,
-        }))
+      ? getCodeEvalVariableMapping()
       : observationVariableMappingList.parse(params.definition.variableMapping);
   const variables = extractObservationVariables({
     observation,

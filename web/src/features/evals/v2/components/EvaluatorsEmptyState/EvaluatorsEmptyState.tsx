@@ -1,6 +1,6 @@
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  useCanUseInAppAgent,
+  useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { DETECT_TOPICS_ASSISTANT_PROMPT } from "@/src/features/evals/v2/constants/evaluatorEmptyState";
@@ -16,7 +16,10 @@ export function EvaluatorsEmptyState({
   onBrowseLibrary: () => void;
 }) {
   const capture = usePostHogClientCapture();
-  const canUseAssistant = useCanUseInAppAgent();
+  // Launcher visibility, not `useCanUseInAppAgent`: with org AI features off
+  // the action still shows and `openAssistant` opens the dialog that turns
+  // them on, exactly like every other assistant entry point.
+  const isAssistantLauncherVisible = useIsInAppAgentLauncherVisible();
   const { openAssistant, submit } = useInAppAiAgent();
   const emptyState = prepareEvaluatorEmptyState();
 
@@ -30,34 +33,21 @@ export function EvaluatorsEmptyState({
   };
 
   const handleDetectTopics = () => {
-    if (canUseAssistant) {
-      const openedAssistant = openAssistant("evaluators_empty_state");
-      capture("evaluators:empty_state_detect_topics", {
-        openedAssistant,
-      });
+    const openedAssistant = openAssistant("evaluators_empty_state");
+    capture("evaluators:empty_state_detect_topics", {
+      openedAssistant,
+    });
 
-      if (!openedAssistant) {
-        return;
-      }
-
-      submit(DETECT_TOPICS_ASSISTANT_PROMPT, {
-        newConversation: true,
-        entryPoint: "evaluators-empty-state",
-      }).catch(() => undefined);
+    // False means the enable-AI-features dialog took over; the prompt would be
+    // submitted into an assistant the user cannot reach yet.
+    if (!openedAssistant) {
       return;
     }
 
-    capture("evaluators:empty_state_detect_topics", {
-      openedAssistant: false,
-    });
-
-    const detectTopics = emptyState.startingPoints.find(
-      (startingPoint) => startingPoint.action === "detect-topics",
-    );
-
-    if (detectTopics) {
-      onSelectTemplate(detectTopics.template);
-    }
+    submit(DETECT_TOPICS_ASSISTANT_PROMPT, {
+      newConversation: true,
+      entryPoint: "evaluators-empty-state",
+    }).catch(() => undefined);
   };
 
   return (
@@ -67,7 +57,9 @@ export function EvaluatorsEmptyState({
         templateCount={emptyState.templateCount}
         docsHref={emptyState.docsHref}
         onSelectTemplate={handleSelectTemplate}
-        onDetectTopics={handleDetectTopics}
+        onDetectTopics={
+          isAssistantLauncherVisible ? handleDetectTopics : undefined
+        }
         onBrowseLibrary={() => {
           capture("evaluators:empty_state_browse_library");
           onBrowseLibrary();

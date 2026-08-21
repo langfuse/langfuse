@@ -20,6 +20,7 @@ type VariableMappingProps = {
       | "onDeleteVariable"
       | "sourceObject"
       | "hasMatchingObservations"
+      | "unvalidatedSourceColumnIds"
       | "sourceUnavailableMessage"
     >)
   | { mode: "read-only" }

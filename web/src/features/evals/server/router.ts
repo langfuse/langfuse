@@ -765,7 +765,6 @@ export const evalRouter = createTRPCRouter({
               type: EvalTemplateType.CODE,
               sourceCode: input.sourceCode,
               sourceCodeLanguage: input.sourceCodeLanguage,
-              variableMapping: null,
             }
           : {
               type: EvalTemplateType.LLM_AS_JUDGE,

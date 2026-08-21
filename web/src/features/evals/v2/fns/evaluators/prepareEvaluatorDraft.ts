@@ -56,7 +56,6 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
             type: params.type,
             sourceCode: params.sourceCode,
             sourceCodeLanguage: params.sourceCodeLanguage,
-            variableMapping: null,
           }
         : null;
 

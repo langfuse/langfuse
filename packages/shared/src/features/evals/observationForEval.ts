@@ -232,6 +232,14 @@ export const CODE_EVAL_TEMPLATE_VARIABLES = [
 export type CodeEvalTemplateVariable =
   (typeof CODE_EVAL_TEMPLATE_VARIABLES)[number];
 
+export function getCodeEvalVariableMapping() {
+  return CODE_EVAL_TEMPLATE_VARIABLES.map((variable) => ({
+    templateVariable: variable,
+    selectedColumnId: variable,
+    jsonSelector: null,
+  }));
+}
+
 export const eventTargetEvalVariableColumns: (ObservationEvalVariableColumn & {
   id: CodeEvalTemplateVariable;
 })[] = [

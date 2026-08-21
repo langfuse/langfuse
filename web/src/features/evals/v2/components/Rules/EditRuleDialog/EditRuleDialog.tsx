@@ -52,6 +52,7 @@ export function EditRuleDialog({
       createdByUser: evaluator.createdByUser,
       ...prepareModernRuleVariableMapping(
         evaluator.latestVersion?.variableMapping,
+        evaluator.type,
       ),
     }),
   );

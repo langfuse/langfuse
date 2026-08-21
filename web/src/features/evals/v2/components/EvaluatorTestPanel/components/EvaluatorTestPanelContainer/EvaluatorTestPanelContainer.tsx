@@ -8,6 +8,7 @@ import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluato
 export function EvaluatorTestPanelContainer({
   projectId,
   store,
+  hasValidModel,
   sampleSelector,
   testResult,
   testPending,
@@ -18,6 +19,7 @@ export function EvaluatorTestPanelContainer({
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
+  hasValidModel: boolean;
   sampleSelector: ReactNode;
   testResult: unknown;
   testPending: boolean;
@@ -38,6 +40,7 @@ export function EvaluatorTestPanelContainer({
         <TestSectionContainer
           projectId={projectId}
           store={store}
+          hasValidModel={hasValidModel}
           testResult={testResult}
           testPending={testPending}
           rawResultOpen={rawResultOpen}

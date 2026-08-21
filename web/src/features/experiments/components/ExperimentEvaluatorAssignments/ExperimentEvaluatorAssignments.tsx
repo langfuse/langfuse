@@ -120,6 +120,7 @@ export const ExperimentEvaluatorAssignments = forwardRef<
       key={JSON.stringify(props.initialAssignments)}
       {...props}
       sampleObject={sampleObject}
+      unvalidatedSourceColumnIds={historicalObservation ? [] : ["output"]}
     />
   );
 });

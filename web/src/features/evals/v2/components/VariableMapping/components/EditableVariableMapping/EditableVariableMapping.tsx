@@ -219,6 +219,7 @@ function VariableMappingRow({
   fieldState,
   sourceObject,
   hasMatchingObservations,
+  unvalidatedSourceColumnIds,
   sourceUnavailableMessage,
   onChange,
   onDelete,
@@ -232,6 +233,7 @@ function VariableMappingRow({
   fieldState: VariableFieldState;
   sourceObject: Record<string, unknown> | null;
   hasMatchingObservations: boolean;
+  unvalidatedSourceColumnIds: string[];
   sourceUnavailableMessage?: string;
   onChange: (next: VariableFieldState) => void;
   onDelete?: () => void;
@@ -246,9 +248,13 @@ function VariableMappingRow({
   );
 
   const columnLabel = evalVariableColumnLabel(fieldState.selectedColumnId);
+  const validationUnavailable = fieldState.selectedColumnId
+    ? unvalidatedSourceColumnIds.includes(fieldState.selectedColumnId)
+    : false;
 
   const extracted = useMemo(() => {
     if (unmapped || !fieldState.selectedColumnId) return null;
+    if (validationUnavailable) return null;
     if (!sourceObject) return null;
     const { value, error } = extractVariableMappingValue(
       sourceObject,
@@ -258,7 +264,7 @@ function VariableMappingRow({
     return error
       ? { value: null, error: error.message }
       : { value, error: null };
-  }, [unmapped, fieldState, sourceObject]);
+  }, [unmapped, fieldState, sourceObject, validationUnavailable]);
   const warningMessage =
     extracted?.error ??
     (sourceObject && extracted && !extracted.value
@@ -319,6 +325,10 @@ function VariableMappingRow({
           {sourceUnavailableMessage ??
             "Pick a sample in the right pane to preview the value this mapping pulls in."}
         </p>
+      ) : validationUnavailable ? (
+        <p className="text-muted-foreground p-3 text-sm">
+          No sample value is available to preview this mapping yet.
+        </p>
       ) : extracted?.error ? (
         <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -376,6 +386,8 @@ export type EditableVariableMappingProps = {
   sourceObject: Record<string, unknown> | null;
   /** False when the rule matches nothing — drives the empty state. */
   hasMatchingObservations: boolean;
+  /** Selected source columns that have no value in this sample and cannot be validated. */
+  unvalidatedSourceColumnIds?: string[];
   sourceUnavailableMessage?: string;
 };
 
@@ -387,6 +399,7 @@ export function EditableVariableMapping({
   onDeleteVariable,
   sourceObject,
   hasMatchingObservations,
+  unvalidatedSourceColumnIds = [],
   sourceUnavailableMessage,
 }: EditableVariableMappingProps) {
   return (
@@ -418,6 +431,7 @@ export function EditableVariableMapping({
           fieldState={item.fieldState}
           sourceObject={sourceObject}
           hasMatchingObservations={hasMatchingObservations}
+          unvalidatedSourceColumnIds={unvalidatedSourceColumnIds}
           sourceUnavailableMessage={sourceUnavailableMessage}
           onChange={(next) => onChangeField(item.variable, next)}
           onDelete={

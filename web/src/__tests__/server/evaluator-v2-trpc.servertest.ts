@@ -230,7 +230,6 @@ describe("evalsV2 tRPC", () => {
         type: "CODE",
         sourceCode: "return 1;",
         sourceCodeLanguage: "TYPESCRIPT",
-        variableMapping: null,
       },
     });
     await createEventsCh([

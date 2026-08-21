@@ -113,9 +113,9 @@ export const PublicEvaluationRuleEvaluatorReference = z.object({
 
 // PATCH intentionally omits `type`: an evaluation rule's evaluator type cannot
 // be changed. The service always inherits the rule's current type, so a code
-// rule is never retargeted to an LLM evaluator family (which would otherwise
-// inherit the synthesized code mapping and fail validation against the LLM
-// evaluator's variables). To use a different evaluator type, create a new rule.
+// rule is never retargeted to an LLM evaluator family, which stores its
+// mapping per assignment and would inherit none. To use a different evaluator
+// type, create a new rule.
 export const PublicEvaluationRuleEvaluatorReferencePatch = z.object({
   name: z.string().min(1),
 });

@@ -33,7 +33,7 @@ const EvaluationRuleEvaluatorInputBase = {
 const VariableMappingSchema = z
   .array(ObservationEvaluationRuleMapping)
   .describe(
-    "Optional rule-specific variable mapping. Omit to inherit the evaluator version's mapping.",
+    "Optional rule-specific variable mapping for LLM evaluators. Omit for code evaluators, whose mapping is managed by Langfuse.",
   );
 
 export const AttachEvaluatorToEvaluationRuleBaseSchema = z.object({

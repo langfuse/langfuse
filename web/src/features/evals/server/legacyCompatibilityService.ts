@@ -4,6 +4,7 @@ import {
   EvalTemplateType,
   ForbiddenError,
   InvalidRequestError,
+  getCodeEvalVariableMapping,
   JobConfigState,
   JobType,
   LangfuseConflictError,
@@ -183,16 +184,20 @@ function toLegacyConfig(rule: StoredRule) {
   };
 }
 
+type LlmEvaluatorVariableMapping = Extract<
+  EvaluatorDefinition,
+  { type: typeof EvalTemplateType.LLM_AS_JUDGE }
+>["variableMapping"];
+
 function definitionFromManagedTemplate(
   template: ManagedTemplate,
-  variableMapping: EvaluatorDefinition["variableMapping"],
+  variableMapping: LlmEvaluatorVariableMapping,
 ): EvaluatorDefinition {
   if (template.evaluator.type === EvalTemplateType.CODE) {
     return {
       type: EvalTemplateType.CODE,
       sourceCode: template.evaluator.source,
       sourceCodeLanguage: template.evaluator.language,
-      variableMapping,
     };
   }
 
@@ -210,7 +215,7 @@ function definitionFromManagedTemplate(
 
 function definitionFromEvaluator(
   evaluator: StableEvaluator,
-  variableMapping: EvaluatorDefinition["variableMapping"],
+  variableMapping: LlmEvaluatorVariableMapping,
 ): EvaluatorDefinition | null {
   const version = evaluator.versions[0];
   if (!version) return null;
@@ -220,7 +225,6 @@ function definitionFromEvaluator(
       type: EvalTemplateType.CODE,
       sourceCode: version.sourceCode,
       sourceCodeLanguage: version.sourceCodeLanguage,
-      variableMapping,
     };
   }
   if (!version.prompt || !version.outputDefinition) return null;
@@ -242,19 +246,20 @@ function evaluatorVersionData(
 ) {
   const common = {
     createdByUserId,
-    variableMapping:
-      definition.variableMapping === null
-        ? Prisma.DbNull
-        : (definition.variableMapping as Prisma.InputJsonValue),
   };
   return definition.type === EvalTemplateType.CODE
     ? {
         ...common,
+        variableMapping: getCodeEvalVariableMapping() as Prisma.InputJsonValue,
         sourceCode: definition.sourceCode,
         sourceCodeLanguage: definition.sourceCodeLanguage,
       }
     : {
         ...common,
+        variableMapping:
+          definition.variableMapping === null
+            ? Prisma.DbNull
+            : (definition.variableMapping as Prisma.InputJsonValue),
         prompt: definition.prompt,
         provider: definition.provider,
         model: definition.model,
@@ -915,7 +920,7 @@ export class LegacyEvalCompatibilityService {
       return template
         ? definitionFromManagedTemplate(
             template,
-            params.variableMapping as EvaluatorDefinition["variableMapping"],
+            params.variableMapping as LlmEvaluatorVariableMapping,
           )
         : null;
     }
@@ -931,8 +936,7 @@ export class LegacyEvalCompatibilityService {
     const currentVersion = version.evaluator.versions[0];
     if (!currentVersion) return null;
 
-    let variableMapping =
-      params.variableMapping as EvaluatorDefinition["variableMapping"];
+    let variableMapping = params.variableMapping as LlmEvaluatorVariableMapping;
     if (currentVersion.id !== version.id) {
       const preparedMapping = prepareVariableMappingForEvaluatorUpgrade({
         templateType: version.evaluator.type,

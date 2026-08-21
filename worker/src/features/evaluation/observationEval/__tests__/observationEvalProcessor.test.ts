@@ -310,12 +310,13 @@ describe("processObservationEval", () => {
       );
     });
 
-    it("passes the stable evaluator id to the code executor", async () => {
+    it("uses the canonical mapping for code evaluators without a stored mapping", async () => {
       setupV2Job();
       (
         prisma.evaluationRuleEvaluatorAssignment.findFirst as Mock
       ).mockResolvedValue({
         ...assignment,
+        variableMapping: null,
         evaluator: {
           ...evaluator,
           type: EvalTemplateType.CODE,
@@ -323,6 +324,7 @@ describe("processObservationEval", () => {
             {
               ...version,
               prompt: null,
+              variableMapping: null,
               sourceCode: "return true;",
               sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
             },
@@ -333,6 +335,7 @@ describe("processObservationEval", () => {
         span_id: "obs-xyz",
         trace_id: "trace-abc",
         project_id: projectId,
+        input: '{"question":"What is the capital of Germany?"}',
       });
       const deps = createMockProcessorDeps({
         downloadObservationFromS3: vi
@@ -350,6 +353,12 @@ describe("processObservationEval", () => {
         expect.objectContaining({
           evaluatorId: evaluator.id,
           template: expect.objectContaining({ id: version.id }),
+          extractedVariables: expect.arrayContaining([
+            expect.objectContaining({
+              var: "input",
+              value: { question: "What is the capital of Germany?" },
+            }),
+          ]),
         }),
       );
     });

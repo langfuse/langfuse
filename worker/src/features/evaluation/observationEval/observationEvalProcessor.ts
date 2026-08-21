@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
+  getCodeEvalVariableMapping,
   observationForEvalSchema,
   observationVariableMappingList,
   type EvalTemplateWithType,
@@ -467,7 +468,11 @@ function buildV2Execution(params: {
   }
   const organizationId = evaluator.project.orgId;
   const variableMapping =
-    assignment?.variableMapping ?? version.variableMapping ?? [];
+    assignment?.variableMapping ??
+    version.variableMapping ??
+    (evaluator.type === EvalTemplateType.CODE
+      ? getCodeEvalVariableMapping()
+      : []);
   const config = {
     id: rule?.id ?? evaluator.id,
     createdAt: rule?.createdAt ?? evaluator.createdAt,

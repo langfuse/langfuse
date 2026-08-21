@@ -1,10 +1,14 @@
 import { randomUUID } from "crypto";
+import { getCodeEvalVariableMapping } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { EvaluatorVersionConflictError } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
-import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import type {
+  EvaluatorDefinition,
+  EvaluatorDefinitionForPersistence,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 const orgIds: string[] = [];
 let projectId = "";
@@ -13,11 +17,11 @@ let creatorUserId = "";
 
 const codeDefinition = (
   sourceCode = "return 1;",
-): Extract<EvaluatorDefinition, { type: "CODE" }> => ({
+): Extract<EvaluatorDefinitionForPersistence, { type: "CODE" }> => ({
   type: "CODE",
   sourceCode,
   sourceCodeLanguage: "TYPESCRIPT",
-  variableMapping: null,
+  variableMapping: getCodeEvalVariableMapping(),
 });
 
 const llmDefinition = (
@@ -51,7 +55,7 @@ const createEvaluator = ({
   targetProjectId?: string;
   name?: string;
   description?: string | null;
-  definition?: EvaluatorDefinition;
+  definition?: EvaluatorDefinitionForPersistence;
   createdByUserId?: string | null;
 } = {}) =>
   evaluatorRepository.createEvaluator({
@@ -797,7 +801,7 @@ describe("evaluator v2 repository", () => {
             version: 1,
             sourceCode: "return input.value;",
             sourceCodeLanguage: "TYPESCRIPT",
-            variableMapping: null,
+            variableMapping: getCodeEvalVariableMapping(),
             prompt: null,
           },
         ],

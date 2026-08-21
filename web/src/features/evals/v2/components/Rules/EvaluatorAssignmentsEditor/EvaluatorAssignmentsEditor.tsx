@@ -34,6 +34,7 @@ export function EvaluatorAssignmentsEditor({
   search,
   onSearchChange,
   sampleObject,
+  unvalidatedSourceColumnIds,
   emptyDescription = "Attach an evaluator to run on matching observations.",
   sourceUnavailableMessage,
   disabled = false,
@@ -46,6 +47,7 @@ export function EvaluatorAssignmentsEditor({
   search: string;
   onSearchChange: (search: string) => void;
   sampleObject: Record<string, unknown> | null;
+  unvalidatedSourceColumnIds?: string[];
   emptyDescription?: string;
   sourceUnavailableMessage?: string;
   disabled?: boolean;
@@ -197,6 +199,7 @@ export function EvaluatorAssignmentsEditor({
                   }
                   store={store}
                   sampleObject={sampleObject}
+                  unvalidatedSourceColumnIds={unvalidatedSourceColumnIds}
                   sourceUnavailableMessage={sourceUnavailableMessage}
                   disabled={disabled}
                   costEstimate={

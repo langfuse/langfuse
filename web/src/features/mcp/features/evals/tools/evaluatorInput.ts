@@ -29,7 +29,8 @@ export const McpEvaluatorInputBase = z.object({
         jsonSelector: z.string().optional(),
       }),
     )
-    .optional(),
+    .optional()
+    .describe("Variable mappings for LLM-as-a-judge evaluators only."),
 });
 
 function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
@@ -57,7 +58,6 @@ function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
       type: input.type,
       sourceCode: input.sourceCode!,
       sourceCodeLanguage: input.sourceCodeLanguage!,
-      variableMapping: input.variableMapping ?? null,
     },
   };
 }
@@ -66,6 +66,18 @@ function validateEvaluatorInput(
   input: z.infer<typeof McpEvaluatorInputBase>,
   ctx: z.RefinementCtx,
 ) {
+  if (
+    input.type === EvalTemplateType.CODE &&
+    input.variableMapping !== undefined
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["variableMapping"],
+      message:
+        "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+    });
+  }
+
   const parsed = CreateEvaluatorWithoutProjectSchema.safeParse(
     toEvaluatorInput(input),
   );

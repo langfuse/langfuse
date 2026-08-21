@@ -8,9 +8,11 @@ import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluato
 export function useEvaluatorTestAvailability({
   projectId,
   store,
+  hasValidModel,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
+  hasValidModel: boolean;
 }) {
   const sampleObject = useEvaluatorSetupSample({ projectId, store });
   const selectedObservation = useStore(
@@ -25,14 +27,21 @@ export function useEvaluatorTestAvailability({
       ? getScoreOutputValidation(state.scoreOutput).reason
       : null,
   );
+  const modelReason = useStore(store, (state) =>
+    state.type === "LLM_AS_JUDGE" && !hasValidModel
+      ? "Select a model before running a test."
+      : null,
+  );
 
   return scoreOutputReason
     ? scoreOutputReason
-    : !definitionAvailable
-      ? "Complete the evaluator before running a test."
-      : !selectedObservation
-        ? "Select a sample observation first."
-        : !sampleObject
-          ? "Loading the selected sample."
-          : null;
+    : modelReason
+      ? modelReason
+      : !definitionAvailable
+        ? "Complete the evaluator before running a test."
+        : !selectedObservation
+          ? "Select a sample observation first."
+          : !sampleObject
+            ? "Loading the selected sample."
+            : null;
 }

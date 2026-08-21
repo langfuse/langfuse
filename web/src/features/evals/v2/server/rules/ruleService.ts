@@ -656,18 +656,28 @@ export class RuleService {
       if (!latestVersion) {
         throw new LangfuseNotFoundError("Evaluator version not found");
       }
+      if (evaluator.type === EvalTemplateType.CODE) {
+        if (assignment.variableMapping !== null) {
+          throw new InvalidRequestError(
+            "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+          );
+        }
+        return {
+          ...assignment,
+          variableMapping: null,
+        };
+      }
       const prepared = prepareModernRuleVariableMapping(
         latestVersion.variableMapping,
+        evaluator.type,
       );
       const storedVariableMapping =
         assignment.variableMapping ?? prepared.initialVariableMapping;
-      if (evaluator.type !== EvalTemplateType.CODE) {
-        assertCompleteEvaluatorVariableMapping({
-          prompt: latestVersion.prompt ?? "",
-          variableMapping:
-            storedVariableMapping ?? prepared.defaultVariableMapping,
-        });
-      }
+      assertCompleteEvaluatorVariableMapping({
+        prompt: latestVersion.prompt ?? "",
+        variableMapping:
+          storedVariableMapping ?? prepared.defaultVariableMapping,
+      });
       return {
         ...assignment,
         variableMapping: storedVariableMapping,

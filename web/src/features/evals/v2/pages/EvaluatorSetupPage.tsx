@@ -142,6 +142,14 @@ export function EvaluatorSetupPage(
     evaluatorSetupStore,
     (state) => state.testPanelOpen,
   );
+  const judgeModelSelection = useStore(
+    evaluatorSetupStore,
+    useShallow((state) => ({
+      type: state.type,
+      mode: state.modelMode,
+      selectedModel: state.selectedModel,
+    })),
+  );
   const [testResult, setTestResult] = useState<unknown>(null);
   const [hasCompletedTestCall, setHasCompletedTestCall] = useState(false);
   const [lastTestRunCostUsd, setLastTestRunCostUsd] = useState<number | null>(
@@ -215,6 +223,13 @@ export function EvaluatorSetupPage(
     projectId,
     source: "editor",
   });
+  const hasValidModel =
+    judgeModelSelection.type !== "LLM_AS_JUDGE" ||
+    Boolean(
+      judgeModelSelection.mode === "custom"
+        ? judgeModelSelection.selectedModel
+        : projectDefaultModel.defaultModel,
+    );
 
   const create = api.evalsV2.create.useMutation();
   const update = api.evalsV2.update.useMutation();
@@ -543,6 +558,7 @@ export function EvaluatorSetupPage(
     <EvaluatorTestPanelContainer
       projectId={projectId}
       store={evaluatorSetupStore}
+      hasValidModel={hasValidModel}
       sampleSelector={
         <SampleObservationSelectorContainer
           store={evaluatorSetupStore}

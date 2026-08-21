@@ -29,7 +29,6 @@ import {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 
 const numericOutputDefinition = createNumericEvalOutputDefinition({
   reasoningDescription: "Why the score was assigned",
@@ -803,7 +802,7 @@ describe("unstable public eval adapters", () => {
     );
   });
 
-  it("stores canonical mappings for code evaluation rule writes", () => {
+  it("inherits canonical evaluator mappings for code evaluation rule writes", () => {
     const writeModel = toEvaluationRuleInput({
       input: {
         name: "toxicity-code-live",
@@ -816,7 +815,7 @@ describe("unstable public eval adapters", () => {
       evaluatorType: PUBLIC_EVALUATOR_TYPE_CODE,
     });
 
-    expect(writeModel.variableMapping).toEqual(getCodeEvalVariableMapping());
+    expect(writeModel.variableMapping).toBeNull();
   });
 
   it("maps evaluator records to exact template versions", () => {

@@ -25,7 +25,7 @@ function DetectTopicsStartingPointCard({
     EvaluatorEmptyStateStartingPoint,
     { action: "detect-topics" }
   >;
-  onDetectTopics: () => void;
+  onDetectTopics?: () => void;
   onSelectTemplate: (template: GalleryTemplate) => void;
 }) {
   const { type } = getGalleryTemplatePresentation(startingPoint.template);
@@ -45,21 +45,23 @@ function DetectTopicsStartingPointCard({
           type={type}
           categoryKey={getGalleryTemplateCategoryKey(startingPoint.template)}
         />
-        <div className="mt-auto flex justify-end pt-3">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={onDetectTopics}
-            className={cn(
-              EVALUATOR_ACCENT_BUTTON_CLASSNAME,
-              "pointer-events-auto relative shrink-0 gap-1 px-2 text-xs",
-            )}
-          >
-            <BotMessageSquare className="h-3 w-3" />
-            Set up with AI
-          </Button>
-        </div>
+        {onDetectTopics ? (
+          <div className="mt-auto flex justify-end pt-3">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onDetectTopics}
+              className={cn(
+                EVALUATOR_ACCENT_BUTTON_CLASSNAME,
+                "pointer-events-auto relative shrink-0 gap-1 px-2 text-xs",
+              )}
+            >
+              <BotMessageSquare className="h-3 w-3" />
+              Set up with AI
+            </Button>
+          </div>
+        ) : null}
       </div>
     </EvaluatorRecommendedCardSurface>
   );
@@ -108,7 +110,7 @@ export function EvaluatorsEmptyStateView({
   templateCount: number;
   docsHref: string;
   onSelectTemplate: (template: GalleryTemplate) => void;
-  onDetectTopics: () => void;
+  onDetectTopics?: () => void;
   onBrowseLibrary: () => void;
 }) {
   return (

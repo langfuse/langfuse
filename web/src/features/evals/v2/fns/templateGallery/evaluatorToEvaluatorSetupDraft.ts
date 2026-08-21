@@ -23,7 +23,6 @@ export function evaluatorToEvaluatorSetupDraft(
           type: evaluator.type,
           sourceCode: latest.sourceCode ?? "",
           sourceCodeLanguage: latest.sourceCodeLanguage ?? "TYPESCRIPT",
-          variableMapping: latest.variableMapping,
         };
 
   return {
