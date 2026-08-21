@@ -271,7 +271,7 @@ export async function decideToolApproval(params: {
           status: InAppAgentRunStatus.AWAITING_APPROVAL,
         },
         data: {
-          status: InAppAgentRunStatus.EXPIRED,
+          status: InAppAgentRunStatus.FAILED,
           errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
           errorMessage: "The approval request expired",
         },
@@ -382,7 +382,7 @@ export async function decideToolApproval(params: {
   if (outcome.type === "expired") {
     if (outcome.expired) {
       recordRunTerminalOutcome({
-        status: InAppAgentRunStatus.EXPIRED,
+        status: InAppAgentRunStatus.FAILED,
         errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
       });
     }
@@ -618,7 +618,7 @@ export async function reconcileConversationRuns(params: {
 function recordReconciledOutcomes(reconciled: ReconciledRun[]): void {
   for (const run of reconciled) {
     recordRunTerminalOutcome({
-      status: staleRunSettledStatus(run.errorCode),
+      status: InAppAgentRunStatus.FAILED,
       errorCode: run.errorCode,
     });
   }
@@ -669,7 +669,7 @@ async function reconcileConversationRunsInTransaction(params: {
           : {}),
       },
       data: {
-        status: staleRunSettledStatus(failure.errorCode),
+        status: InAppAgentRunStatus.FAILED,
         finishedAt: new Date(),
         errorCode: failure.errorCode,
         errorMessage: failure.errorMessage,
@@ -684,15 +684,6 @@ async function reconcileConversationRunsInTransaction(params: {
   return reconciled;
 }
 
-/** Parked-approval TTL is EXPIRED; every other stale deadline is FAILED. */
-export function staleRunSettledStatus(
-  errorCode: InAppAgentRunErrorCode,
-): InAppAgentRunStatus.FAILED | InAppAgentRunStatus.EXPIRED {
-  return errorCode === InAppAgentRunErrorCode.APPROVAL_EXPIRED
-    ? InAppAgentRunStatus.EXPIRED
-    : InAppAgentRunStatus.FAILED;
-}
-
 /**
  * Decide whether a non-terminal run has already missed every deadline that
  * should have failed it. Pure: callers choose whether to act on the verdict.
@@ -701,9 +692,6 @@ export function staleRunSettledStatus(
  * may apply it without writing, so a dead worker does not leave a conversation
  * spinning until someone opens it (`reconcileConversationRuns` is the only
  * authority that persists the transition).
- *
- * `approval_expired` settles as EXPIRED so Failed Runs / success-rate tiles
- * do not treat a walked-away approval as an execution break.
  */
 export function classifyStaleRun(
   run: {

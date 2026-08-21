@@ -980,7 +980,7 @@ describe("in-app agent background runs", () => {
         where: { id: parkedRunId, projectId },
       }),
     ).resolves.toMatchObject({
-      status: InAppAgentRunStatus.EXPIRED,
+      status: InAppAgentRunStatus.FAILED,
       errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
     });
   });
@@ -1185,7 +1185,6 @@ describe("in-app agent background runs", () => {
     {
       name: "approval_expired",
       expected: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
-      expectedStatus: InAppAgentRunStatus.EXPIRED,
       data: {
         status: InAppAgentRunStatus.AWAITING_APPROVAL,
         finishedAt: new Date(Date.now() - 25 * 60 * 60_000),
@@ -1221,7 +1220,7 @@ describe("in-app agent background runs", () => {
 
     expect(result.latestRun).toMatchObject({
       id: runId,
-      status: testCase.expectedStatus ?? InAppAgentRunStatus.FAILED,
+      status: InAppAgentRunStatus.FAILED,
       errorCode: testCase.expected,
     });
   });

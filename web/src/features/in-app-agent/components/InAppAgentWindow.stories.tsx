@@ -1743,7 +1743,7 @@ export const FailedWorkerLost = meta.story({
 
 const expiredApprovalRun = {
   id: "run-1",
-  status: InAppAgentRunStatus.EXPIRED,
+  status: InAppAgentRunStatus.FAILED,
   errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
   cancelRequested: false,
 };
