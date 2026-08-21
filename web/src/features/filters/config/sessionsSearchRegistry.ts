@@ -103,6 +103,10 @@ function sessionsRegistry(config: FilterConfig, metadata: boolean) {
     // Sessions aggregate scores at session level; the backend has no
     // `trace_scores_*` columns, so the legacy trace namespace stays closed.
     traceScores: false,
+    // Sessions has no full-text lane. `id contains` is its most-applied filter
+    // by a wide margin, so a bare word means that rather than an error.
+    allowFreeText: false,
+    defaultTextField: "id",
     aiContextFields: AI_CONTEXT_FIELDS,
     fields: SESSION_FIELD_OVERLAY,
   });

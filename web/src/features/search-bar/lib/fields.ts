@@ -66,6 +66,10 @@ export type FieldRegistry = {
   /** Trace-level `traceScores.<name>` paths. Views whose backend has no
    *  trace-score columns (sessions) keep observation scores without them. */
   traceScores: boolean;
+  /** Field a bare word searches on a view with no full-text lane. Sessions has
+   *  no searchQuery, but `id contains` is its most-applied filter by far, so a
+   *  bare word means that instead of being rejected. Null = reject. */
+  defaultTextField: string | null;
   aiContextFields: readonly AIContextField[];
   resolveField: (name: string) => FieldRef | null;
   nullableFields: () => readonly FieldDef[];
@@ -99,6 +103,7 @@ export function fieldRegistryFromColumns(
     /** Defaults to `scores`. */
     traceScores?: boolean;
     allowFreeText?: boolean;
+    defaultTextField?: string;
     aiContextFields?: readonly AIContextField[];
   },
 ): FieldRegistry {
@@ -151,6 +156,7 @@ export function fieldRegistryFromColumns(
     scores,
     traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
+    defaultTextField: overlay.defaultTextField ?? null,
     aiContextFields: overlay.aiContextFields ?? [],
   });
 }
@@ -256,6 +262,7 @@ function createFieldRegistry({
   scores,
   traceScores,
   allowFreeText,
+  defaultTextField,
   aiContextFields,
 }: {
   id: FieldRegistry["id"];
@@ -265,6 +272,7 @@ function createFieldRegistry({
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
+  defaultTextField: string | null;
   aiContextFields: readonly AIContextField[];
 }): FieldRegistry {
   const byName = new Map<string, FieldDef>();
@@ -290,6 +298,7 @@ function createFieldRegistry({
     metadata,
     scores,
     traceScores,
+    defaultTextField,
     aiContextFields,
     resolveField: (name) => resolveFromRegistry(name, registry, byName),
     nullableFields: () => nullable,
@@ -315,6 +324,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   scores: true,
   traceScores: true,
   allowFreeText: true,
+  defaultTextField: null,
   aiContextFields: [
     { observedOptionsKey: "type", promptLabel: "type" },
     { observedOptionsKey: "level", promptLabel: "level" },

@@ -1275,6 +1275,26 @@ export function planInputCompletions(
       colon === -1 && !negated
         ? freeTextRun(ctx.currentQueryText, caret)
         : null;
+    // A view with no full-text lane offers the one rewrite it does support, so
+    // the bare-word canonicalization is visible BEFORE Enter, not after it.
+    const defaultTextRewrite: CompletionOption[] =
+      run !== null && !registry.allowFreeText && registry.defaultTextField
+        ? (() => {
+            const ref = registry.resolveField(registry.defaultTextField);
+            if (ref?.type !== "field") return [];
+            const insert = `${ref.field.id}:${serializeValue(run.text)}`;
+            return [
+              {
+                id: "scope:defaultTextField",
+                kind: "pattern" as const,
+                label: insert,
+                detail: `${ref.field.label.toLowerCase()} contains "${run.text}"`,
+                insert,
+                replaceSpan: { from: run.from, to: run.to },
+              },
+            ];
+          })()
+        : [];
     const searchScopes: CompletionOption[] =
       run !== null && registry.allowFreeText
         ? scopeSwitchOptions(
@@ -1305,7 +1325,8 @@ export function planInputCompletions(
         operators.length +
         patterns.length +
         matchingFilters.length +
-        searchScopes.length ===
+        searchScopes.length +
+        defaultTextRewrite.length ===
       0
     )
       return null;
@@ -1335,6 +1356,7 @@ export function planInputCompletions(
         ...section(SECTION_OPERATORS, operators),
         ...section(SECTION_PATTERNS, patterns),
         ...section(SECTION_SEARCH_IN, searchScopes),
+        ...section(SECTION_SEARCH_IN, defaultTextRewrite),
       ],
     };
   }
