@@ -16,10 +16,21 @@ export const Default = meta.story({
 });
 
 export const WithoutAiFeaturesChoice = meta.story({
+  name: "(Test) Without AI Features Choice",
   args: {
     state: "form",
     canConfigureAiFeatures: false,
     onSubmit: fn(async () => undefined),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.queryByRole("switch", { name: "Enable AI powered features" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("heading", { name: "Organizational settings" }),
+    ).not.toBeInTheDocument();
   },
 });
 
@@ -32,6 +43,28 @@ export const SettingUpProject = meta.story({
 export const Error = meta.story({
   args: {
     state: "error",
+  },
+});
+
+export const SubmitsAiFeaturesDefault = meta.story({
+  name: "(Test) Submits AI Features Default",
+  args: {
+    state: "form",
+    canConfigureAiFeatures: true,
+    onSubmit: fn(async () => undefined),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.getByRole("switch", { name: "Enable AI powered features" }),
+    ).toBeChecked();
+    await userEvent.click(canvas.getByRole("button", { name: "Skip" }));
+
+    await expect(args.onSubmit).toHaveBeenCalledWith({
+      referralSource: undefined,
+      aiFeaturesEnabled: true,
+    });
   },
 });
 
