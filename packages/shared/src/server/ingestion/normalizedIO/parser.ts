@@ -14,7 +14,6 @@ import type {
   NormalizedMessage,
   NormalizedMessagePart,
   NormalizedMessageRole,
-  PartProviderMetadata,
   ReasoningPart,
   SpanIO,
   ToolCallPart,
@@ -122,11 +121,9 @@ function parseArray(value: unknown): unknown[] | undefined {
 
 function toProviderMetadata(
   entries: Record<string, unknown>,
-): PartProviderMetadata | undefined {
+): JsonObject | undefined {
   const value = toJsonValue(entries);
-  return isRecord(value) && Object.keys(value).length > 0
-    ? (value as PartProviderMetadata)
-    : undefined;
+  return isRecord(value) && Object.keys(value).length > 0 ? value : undefined;
 }
 
 /** Strip undefined-valued keys so optional fields are absent, not undefined. */
@@ -887,7 +884,7 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
     case "reasoning-file": {
       // AI SDK reasoning-generated file (a FilePart nested under `file`;
       // older emissions used a flat `data`): a regular file part flagged as
-      // reasoning output (KnownPartFlags), not a separate part type — it is
+      // reasoning output (typed `reasoning` field), not a separate part type — it is
       // still a file to every consumer; its origin is provenance.
       const nested = asRecord(value.file);
       const part = aiSdkFilePart(nested?.data ?? nested?.url ?? value.data, {
@@ -895,10 +892,7 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
         filename: optionalString(nested?.filename ?? value.filename),
       });
       if (!part) break;
-      return {
-        ...part,
-        providerMetadata: { ...part.providerMetadata, reasoning: true },
-      };
+      return { ...part, reasoning: true };
     }
     case "tool_call":
     case "tool-call":
@@ -996,11 +990,7 @@ function normalizeMessagePart(value: unknown): NormalizedMessagePart | null {
       // refusal observations findable (e.g. eval filters on providerMetadata).
       const refusal = optionalString(value.refusal);
       if (!refusal) break;
-      return {
-        type: "text",
-        text: refusal,
-        providerMetadata: { refusal: true },
-      };
+      return { type: "text", refusal: true, text: refusal };
     }
     case "custom": {
       // OpenAI custom tool call: { id, type: "custom", custom: { name, input } }.
@@ -1101,8 +1091,8 @@ function appendParts(target: NormalizedMessagePart[], values: unknown[]): void {
     if (!part) continue;
     if (isRecord(value)) part = withProviderOptions(part, value);
     // Text parts frequently embed media reference tokens mid-string; split
-    // them out. Flagged text (refusal, thought) stays intact.
-    if (part.type === "text" && !part.providerMetadata) {
+    // them out. Refusals and annotated text stay intact.
+    if (part.type === "text" && !part.providerMetadata && !part.refusal) {
       target.push(...normalizePartsFromString(part.text));
       continue;
     }
@@ -1289,25 +1279,20 @@ function normalizeMessage(
   for (const invalidCall of parseArray(value.invalid_tool_calls) ?? []) {
     const part = normalizeToolCall(invalidCall);
     if (!part) continue;
-    parts.push({
-      ...part,
-      providerMetadata: toProviderMetadata(
-        compact({
-          invalid: true,
-          error: optionalString(asRecord(invalidCall)?.error),
-        }),
-      ),
-    });
+    const error = optionalString(asRecord(invalidCall)?.error);
+    parts.push(
+      compact<ToolCallPart>({
+        ...part,
+        invalid: true,
+        providerMetadata: error ? { error } : undefined,
+      }),
+    );
   }
 
   // OpenAI fields that live beside `content` on assistant/response messages.
   const refusal = optionalString(value.refusal);
   if (refusal) {
-    parts.push({
-      type: "text",
-      text: refusal,
-      providerMetadata: { refusal: true },
-    });
+    parts.push({ type: "text", refusal: true, text: refusal });
   }
 
   const audioPart = normalizeAudioOutput(asRecord(value.audio));

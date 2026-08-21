@@ -65,7 +65,11 @@ export const looseProviderMessageShapesFixture = {
       {
         role: "tool",
         parts: [
-          { type: "tool-result", toolCallId: null, output: "Sunny, 22 degrees" },
+          {
+            type: "tool-result",
+            toolCallId: null,
+            output: "Sunny, 22 degrees",
+          },
         ],
         source: "input",
       },

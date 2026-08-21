@@ -18,39 +18,22 @@ export type JsonObject = { [key: string]: JsonValue };
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 
 /**
- * Well-known semantic flags carried in part providerMetadata, typed for
- * discoverability and drift protection. Flags live here instead of dedicated
- * part types: the part type encodes what a consumer can do with a part
- * (render text, resolve media, count tool calls); these flags carry
- * provenance to render as metadata, without every consumer growing new
- * switch arms. Promote a flag to a real part type only when a product
- * surface treats it fundamentally differently — promotion is cheap,
- * demotion breaks consumers.
+ * Semantics the parser computes are typed fields on their parts (e.g.
+ * `refusal`, `reasoning`, `invalid`); `providerMetadata` carries verbatim
+ * provider payloads only (citations, transcripts, server labels, statuses).
+ * Part types encode what a consumer can do with a part; new provider
+ * concepts start as providerMetadata and get promoted to a typed field once
+ * they are cross-provider semantics we compute and consumers filter on.
  */
-export type KnownPartFlags = {
-  /** Text is a model refusal. */
-  refusal?: true;
-  /** Part was produced as reasoning output (e.g. AI SDK reasoning-file). */
-  reasoning?: true;
-  /**
-   * Tool call the model attempted but instrumentation could not parse
-   * (e.g. LangChain invalid_tool_calls: malformed JSON arguments). Excluded
-   * from the tool columns, which count executable calls only.
-   */
-  invalid?: true;
-};
-
-/** Known flags plus free-form provider values. */
-export type PartProviderMetadata = KnownPartFlags & {
-  [key: string]: JsonValue | undefined;
-};
-
 export type NormalizedPartBase = {
-  providerMetadata?: PartProviderMetadata;
+  providerMetadata?: JsonObject;
 };
 
 export type TextPart = NormalizedPartBase & {
   type: "text";
+  /** Model refusal text (OpenAI refusal parts / `message.refusal`) — stays
+   * in the conversation stream, filterable for evals. */
+  refusal?: true;
   text: string;
 };
 
@@ -83,6 +66,10 @@ export type ToolCallPart = NormalizedPartBase & {
   toolType?: string; // only set if it's not a "function" tool call.
   index?: number;
   providerExecuted?: boolean;
+  /** Attempt the model made whose arguments could not be parsed (e.g.
+   * LangChain invalid_tool_calls). Visible in the stream, filterable for
+   * evals; excluded from the tool columns, which count executable calls. */
+  invalid?: true;
 };
 
 export type ToolResultPart = NormalizedPartBase & {
@@ -103,6 +90,8 @@ export type FilePart = NormalizedPartBase & {
    */
   mediaType?: string;
   filename?: string;
+  /** File was produced as reasoning output (e.g. AI SDK reasoning-file). */
+  reasoning?: true;
   content:
     | { kind: "url"; url: string }
     | { kind: "base64"; data: string }

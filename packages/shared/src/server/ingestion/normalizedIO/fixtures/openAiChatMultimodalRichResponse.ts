@@ -14,7 +14,7 @@ import type { NormalizedIOFixture } from "./types";
  *   `audio/*`) when the part kind reveals the modality, and omit mediaType
  *   entirely when it does not (opaque file ids).
  * - Refusals stay findable: they normalize to text parts flagged with
- *   `providerMetadata.refusal: true` so evals can filter refusal observations.
+ *   `refusal: true` (typed field) so evals can filter refusal observations.
  */
 export const openAiChatMultimodalRichResponseFixture = {
   name: "normalizes OpenAI chat-completion multimodal content and rich response fields",
@@ -183,8 +183,8 @@ export const openAiChatMultimodalRichResponseFixture = {
         parts: [
           {
             type: "text",
+            refusal: true,
             text: "I cannot describe this image.",
-            providerMetadata: { refusal: true },
           },
         ],
         source: "input",

@@ -242,8 +242,8 @@ export const vercelAiSdkOutputToolCallFixture = {
             type: "file",
             mediaType: "image/png",
             content: { kind: "url", url: "https://example.com/scratchpad.png" },
-            // Reasoning provenance rides as a known flag, not a part type.
-            providerMetadata: { reasoning: true },
+            // Reasoning provenance is a typed field, not a part type.
+            reasoning: true,
           },
           {
             type: "file",

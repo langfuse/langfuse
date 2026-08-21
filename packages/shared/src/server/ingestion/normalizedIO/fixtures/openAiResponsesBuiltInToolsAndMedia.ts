@@ -226,8 +226,8 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
           },
           {
             type: "text",
+            refusal: true,
             text: "I cannot share the internal spec.",
-            providerMetadata: { refusal: true },
           },
         ],
         source: "output",

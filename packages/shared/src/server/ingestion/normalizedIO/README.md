@@ -42,10 +42,14 @@ semantics ride in part-level `providerMetadata`, never as extra part types.
 | `data`        | `value`                                                                                                                                 | structured non-message payloads (function-span args/results, loose records) — JSON-passthrough parity with the trace view                                                                   |
 | `custom`      | `kind`, `value`                                                                                                                         | recognized-but-unmapped typed blocks, verbatim (e.g. `source`, `document`)                                                                                                                  |
 
-Well-known `providerMetadata` flags are typed as `KnownPartFlags`:
-`refusal` (model refusals stay findable text), `reasoning`
-(reasoning-generated files), `invalid` (unparsable tool-call attempts —
-visible in the stream, excluded from tool columns).
+Parser-computed semantics are typed fields on their parts:
+`TextPart.refusal` (model refusals stay findable text), `FilePart.reasoning`
+(reasoning-generated files), `ToolCallPart.invalid` (unparsable tool-call
+attempts — visible in the stream, excluded from tool columns).
+`providerMetadata` carries verbatim provider payloads only (citations,
+transcripts, server labels, statuses); a provider concept graduates to a
+typed field once it is a cross-provider semantic we compute and consumers
+filter on.
 
 `finishReason` is `{ type, raw }`: provider vocabularies (OpenAI
 `finish_reason`, Anthropic `stop_reason`, Gemini `finishReason`, AI-SDK

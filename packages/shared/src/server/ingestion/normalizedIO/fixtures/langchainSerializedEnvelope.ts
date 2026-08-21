@@ -94,7 +94,8 @@ export const langchainSerializedEnvelopeFixture = {
             toolName: "get_weather",
             // Arguments stay the raw unparsable string.
             input: '{"city":',
-            providerMetadata: { invalid: true, error: "Malformed args." },
+            invalid: true,
+            providerMetadata: { error: "Malformed args." },
           },
         ],
         finishReason: { type: "tool-calls", raw: "tool_calls" },
