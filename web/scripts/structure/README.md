@@ -11,10 +11,12 @@ many small, boring PRs, each visibly dropping the count:
    from `--diff` ("rule 6: 104 → 63"). One item per PR; no baseline
    regeneration unless it is the point of the PR.
 
-# structure:stats — the RFC dashboard
+# structure:stats — the rules dashboard
 
-Counts violations of the [web project-structure RFC](https://linear.app/clickhouse/document/langfuse-web-project-code-structure-rfc-ecbc304915d6)
-(meta LFE-14748) per rule, so migration progress is one visible number.
+Counts violations of the project-structure rules per rule, so migration
+progress is one visible number. The rules themselves, with the reasoning and
+examples for each, live in
+[`.agents/skills/project-structure/`](../../../.agents/skills/project-structure/SKILL.md).
 
 ```sh
 pnpm structure:stats                          # per-rule counts (+ Δ vs baseline)
@@ -115,8 +117,7 @@ is instant, which is why the CLI is batch-shaped.
   `AdvancedJsonViewer` calibration move left three `vi.mock()` paths behind and
   six tests failed under a green typecheck.
 
-Splitting a file and directory renames are not part of the surface
-(follow-up LFE-14806).
+Splitting a file and renaming a directory are not part of the surface yet.
 
 ## Rule → mechanism
 
@@ -145,9 +146,8 @@ approximations under-count some nested-component cases — see its header).
 
 ## RFC amendments the detectors now encode
 
-Found by migrating `features/traces` and approved in-flight; the Linear RFC is
-the source of truth and carries the prose (handed over via the LFE-14804
-mailbox).
+Found by migrating `features/traces` and approved in-flight; the rules skill
+carries the prose.
 
 - **`constants/` and `types/` are kind folders.** A constant is not a function,
   so it does not belong in `fns/`, and a per-feature `config/` or `shared/`
@@ -173,8 +173,8 @@ mailbox).
   exactly once). Lowercase dirs (`components/ui`, `components/table`) are
   legacy containers, not boundaries.
 - Context modules: `FooContext.tsx` exporting `FooContext` + `FooProvider` +
-  `useFoo*` counts as one unit; anything beyond flags rule 3. The RFC has no
-  explicit contexts pattern yet — policy gap, see the audit in LFE-14781.
+  `useFoo*` counts as one unit; anything beyond flags rule 3. The rules have
+  no explicit contexts pattern yet — the detector's shape is the policy.
 - Cycles that a type-only edge breaks are not runtime hazards; they are
   reported as a survey metric, not rule 11.
 - Server code placed outside `server/` (e.g. `*Router.ts` beside components)
