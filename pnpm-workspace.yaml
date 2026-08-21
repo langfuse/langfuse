@@ -6,6 +6,7 @@ packages:
   - "ee"
 catalog:
   "@aws-sdk/client-cloudwatch": 3.1074.0
+  "@aws-sdk/client-eventbridge": 3.1074.0
   "@aws-sdk/client-lambda": 3.1074.0
   "@aws-sdk/client-lambda-microvms": 3.1074.0
   "@aws-sdk/client-s3": 3.1074.0
