@@ -1080,7 +1080,7 @@ export default function ObservationsEventsTable({
       id: ActionId.ObservationAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
-      description: `Add ${selectedObservationCount ?? "..."} selected observations to an annotation queue.`,
+      description: `Add ${itemCountDisplay} selected observations to an annotation queue.`,
       customDialog: true,
       accessCheck: {
         scope: "annotationQueues:CUD",
