@@ -19,16 +19,21 @@ export function ConnectedNewOrganizationForm({
   async function handleSubmit(values: z.infer<typeof organizationFormSchema>) {
     capture("organizations:new_form_submit");
 
-    try {
-      const organization = await createOrgMutation.mutateAsync(values);
+    const organization = await createOrgMutation
+      .mutateAsync(values)
+      .catch((error) => {
+        reportTrpcErrorWithoutToast(error, "organizations");
+        throw error;
+      });
 
-      // The next setup step resolves the current org from session state.
+    // Refreshing the session is best-effort once the organization exists.
+    try {
       await updateSession();
-      await onSuccess(organization.id);
     } catch (error) {
       reportTrpcErrorWithoutToast(error, "organizations");
-      throw error;
     }
+
+    await onSuccess(organization.id);
   }
 
   return (
