@@ -44,6 +44,7 @@ describe("structure path check", () => {
     const cases: [string, number | null, string | null][] = [
       // path, expected rule, expected verdict
       ["web/src/features/traces/utils/formatCost.ts", 5, "deny"],
+      ["web/src/features/traces/utils/helpers/formatCost.ts", 5, "deny"],
       ["web/src/features/traces/hooks/use-dialog.ts", 3, "deny"],
       ["web/src/features/traces/components/trace-badge.tsx", 1, "deny"],
       ["web/src/features/traces/fns/utils.ts", 4, "deny"],
@@ -76,7 +77,7 @@ describe("structure path check", () => {
     );
     const findings: {
       path: string;
-      findings: { rule: number; verdict: string }[];
+      findings: { rule: number; verdict: string; correctPath: string | null }[];
     }[] = JSON.parse(result.stdout);
 
     expect(
@@ -86,6 +87,27 @@ describe("structure path check", () => {
         r.findings[0]?.verdict ?? null,
       ]),
     ).toEqual(cases);
+
+    // Every suggested path must itself pass, or the agent just tries another
+    // denied path. Two nested bad folders collapse into one legal fix.
+    const suggested = findings
+      .flatMap((r) => r.findings)
+      .map((f) => f.correctPath)
+      .filter((path): path is string => Boolean(path));
+    const recheck = spawnSync("node", [CHECK, "--json", ...suggested], {
+      encoding: "utf8",
+      cwd: repoRoot,
+    });
+    expect(
+      JSON.parse(recheck.stdout)
+        .filter((r: { findings: unknown[] }) => r.findings.length)
+        .map((r: { path: string }) => r.path),
+    ).toEqual([]);
+    expect(
+      findings.find(
+        (r) => r.path === "web/src/features/traces/utils/helpers/formatCost.ts",
+      )?.findings[0].correctPath,
+    ).toBe("src/features/traces/fns/helpers/formatCost.ts");
   });
 
   it("returns each tool's documented response shape", () => {
@@ -140,23 +162,39 @@ describe("structure path check", () => {
       agent_message: expect.stringContaining("rule 18"),
     });
 
-    // Codex sends the target inside an apply_patch payload.
+    // Codex sends the target inside an apply_patch payload — as an added file,
+    // or as the destination of a rename, which lands at a new path just the
+    // same.
+    const patch = (body: string) =>
+      runHook("codex", {
+        cwd: repoRoot,
+        tool_name: "apply_patch",
+        tool_input: { input: `*** Begin Patch\n${body}\n*** End Patch` },
+      }).stdout;
+
     expect(
       JSON.parse(
-        runHook("codex", {
-          cwd: repoRoot,
-          tool_name: "apply_patch",
-          tool_input: {
-            input:
-              "*** Begin Patch\n*** Add File: web/src/features/traces/hooks/use-thing.ts\n+export const useThing = () => 1;\n*** End Patch",
-          },
-        }).stdout,
+        patch(
+          "*** Add File: web/src/features/traces/hooks/use-thing.ts\n+export const useThing = () => 1;",
+        ),
       ),
     ).toMatchObject({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
         permissionDecisionReason: expect.stringContaining("rule 3"),
+      },
+    });
+    expect(
+      JSON.parse(
+        patch(
+          "*** Update File: web/src/features/traces/scratch.ts\n*** Move to: web/src/features/traces/utils/scratch.ts\n@@\n-old\n+new",
+        ),
+      ),
+    ).toMatchObject({
+      hookSpecificOutput: {
+        permissionDecision: "deny",
+        permissionDecisionReason: expect.stringContaining("rule 5"),
       },
     });
   });

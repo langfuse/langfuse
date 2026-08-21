@@ -135,9 +135,9 @@ const finding = (rule, detail, correctPath) => ({
 
 // Rule 5 — reuse the detector so the hook and the dashboard cannot disagree
 // about what a kind folder is. It reads directories, so feed it the ancestors
-// of the new file.
-/** @type {(p: string) => Finding[]} */
-function checkKindFolders(p) {
+// of the new file, shallowest first.
+/** @type {(p: string) => { violation: { key: string, paths: string[] }, dir: string, name: string, replacement: string | null }[]} */
+function kindFolderViolations(p) {
   const segments = dirOf(p).replace(/\/$/, "").split("/");
   const dirs = segments
     .map((_, i) => segments.slice(0, i + 1).join("/"))
@@ -145,17 +145,40 @@ function checkKindFolders(p) {
   return d.rule5(dirs).map((violation) => {
     const dir = violation.paths[0];
     const name = base(dir);
-    const replacement = KIND_REPLACEMENTS[name.toLowerCase()];
-    return finding(
-      5,
-      violation.key.slice(dir.length + 2),
-      replacement
-        ? p.replace(`/${name}/`, `/${replacement}/`)
-        : PASCAL.test(name)
-          ? p.replace(`/${name}/`, `/components/${name}/`)
-          : null,
-    );
+    return {
+      violation,
+      dir,
+      name,
+      replacement:
+        KIND_REPLACEMENTS[name.toLowerCase()] ??
+        (PASCAL.test(name) ? `components/${name}` : null),
+    };
   });
+}
+
+// Fixing the outermost folder can dissolve the ones below it: a non-kind name
+// inside `fns/` is a legal module folder, so `utils/helpers/` becomes
+// `fns/helpers/` and not `fns/fns/`. So rename outside-in and re-check, rather
+// than composing every rename at once.
+/** @type {(p: string, depth?: number) => string | null} */
+function suggestKindFolderPath(p, depth = 0) {
+  const flagged = kindFolderViolations(p);
+  if (!flagged.length) return p;
+  if (depth >= flagged.length + 2 || !flagged[0].replacement) return null;
+  return suggestKindFolderPath(
+    p.replace(`/${flagged[0].name}/`, `/${flagged[0].replacement}/`),
+    depth + 1,
+  );
+}
+
+/** @type {(p: string) => Finding[]} */
+function checkKindFolders(p) {
+  const flagged = kindFolderViolations(p);
+  if (!flagged.length) return [];
+  const correctPath = suggestKindFolderPath(p);
+  return flagged.map(({ violation, dir }) =>
+    finding(5, violation.key.slice(dir.length + 2), correctPath),
+  );
 }
 
 // Rule 9 — mirrors the detector's location half; `export *` and stray

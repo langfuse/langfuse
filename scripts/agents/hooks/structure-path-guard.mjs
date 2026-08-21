@@ -106,10 +106,13 @@ const targetPaths = (payload) => {
       if (typeof input[key] === "string" && input[key]) found.add(input[key]);
   // A patch-shaped tool (Codex `apply_patch`) carries the target inside the
   // patch text. Only consulted when no explicit path field was present, so a
-  // file's *contents* can never be mistaken for a path.
+  // file's *contents* can never be mistaken for a path. `Move to` matters as
+  // much as `Add File`: a rename lands the file at a path that did not exist.
   if (!found.size)
     for (const text of stringValues(input))
-      for (const match of text.matchAll(/^\*\*\* Add File: (.+)$/gm))
+      for (const match of text.matchAll(
+        /^\*\*\* (?:Add File|Move to): (.+)$/gm,
+      ))
         found.add(match[1].trim());
   return [...found];
 };
