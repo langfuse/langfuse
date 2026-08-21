@@ -1,2 +1,5 @@
 # Currently inactive
 # * @langfuse/maintainers
+
+/web/src/components/design-system/ @bezbac
+/web/.storybook/ @bezbac
