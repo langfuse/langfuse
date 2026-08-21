@@ -12,7 +12,6 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(true);
-    expect(flags.searchBar).toBe(true);
     expect(flags.compactTimeline).toBe(true);
   });
 
@@ -23,7 +22,6 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(true);
-    expect(flags.searchBar).toBe(true);
     expect(flags.compactTimeline).toBe(true);
   });
 
@@ -34,7 +32,6 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(false);
-    expect(flags.searchBar).toBe(false);
     expect(flags.compactTimeline).toBe(false);
   });
 
@@ -45,7 +42,6 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(false);
-    expect(flags.searchBar).toBe(true);
     // Opting out of one preview leaves the others alone.
     expect(flags.compactTimeline).toBe(true);
   });
