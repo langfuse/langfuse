@@ -6,13 +6,12 @@ import "@/src/polyfills/crypto-random-uuid";
 import { type AppType } from "next/app";
 import Head from "next/head";
 import { type Session } from "next-auth";
-import { SessionProvider } from "next-auth/react";
+import { SessionProvider, useSession } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
 import {
   clearV4BetaEnabledSentryTag,
   setV4BetaEnabledSentryTag,
 } from "@/src/utils/sentryV4BetaTag";
-import { useSession } from "next-auth/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
 

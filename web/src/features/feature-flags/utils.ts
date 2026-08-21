@@ -2,10 +2,8 @@ import {
   availableFlags,
   featurePreviewFlags,
   isFeaturePreviewAvailable,
-} from "./available-flags";
-import type {
-  FeaturePreviewAvailabilityContext,
-  FeaturePreviewFlag,
+  type FeaturePreviewAvailabilityContext,
+  type FeaturePreviewFlag,
 } from "./available-flags";
 import { type Flags } from "./types";
 

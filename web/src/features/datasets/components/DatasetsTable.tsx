@@ -16,6 +16,9 @@ import {
   TableViewPresetTableName,
   type Prisma,
   type TableViewPresetState,
+  ActionId,
+  BatchActionType,
+  BatchExportTableName,
 } from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -37,11 +40,6 @@ import { useDatasetsTableSelectionSync } from "@/src/features/datasets/hooks/use
 import { useStore } from "zustand";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import {
-  ActionId,
-  BatchActionType,
-  BatchExportTableName,
-} from "@langfuse/shared";
 import { type TableAction } from "@/src/features/table/types";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { Pen, Trash } from "lucide-react";

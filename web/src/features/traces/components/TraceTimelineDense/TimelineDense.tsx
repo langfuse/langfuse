@@ -47,9 +47,8 @@
  * and absolutely-positioned rows are the wrong substrate. That is the next spike.
  */
 
-import { type CSSProperties } from "react";
-import { useTheme } from "next-themes";
 import {
+  type CSSProperties,
   useCallback,
   useMemo,
   useRef,
@@ -57,6 +56,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { useTheme } from "next-themes";
 import { Scan, Minus, Plus } from "lucide-react";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import {

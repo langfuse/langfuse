@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
-import type React from "react";
 import {
+  type default as React,
   createContext,
   useContext,
   useState,
@@ -49,6 +49,10 @@ import {
   Plus,
   UnfoldVertical,
   X,
+  X as IconX,
+  Search,
+  WandSparkles,
+  InfoIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -77,7 +81,6 @@ import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { X as IconX, Search, WandSparkles, InfoIcon } from "lucide-react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
