@@ -3,6 +3,7 @@ import { anthropicMessagesRawServerToolsAndMediaFixture } from "./anthropicMessa
 import { geminiEmbeddedToolDefinitionFixture } from "./geminiEmbeddedToolDefinition";
 import { geminiMediaAndCodeExecutionFixture } from "./geminiMediaAndCodeExecution";
 import { langchainSerializedEnvelopeFixture } from "./langchainSerializedEnvelope";
+import { looseProviderMessageShapesFixture } from "./looseProviderMessageShapes";
 import { langgraphProductionShapeFixture } from "./langgraphSynthetic";
 import { microsoftAgentProductionShapeFixture } from "./microsoftAgentSynthetic";
 import { openAiChatCompletionToolSequenceFixture } from "./openAiChatCompletionToolSequence";
@@ -32,6 +33,7 @@ export const normalizedIOFixtures = [
   openAiResponsesReasoningWithParallelCallsFixture,
   langchainSerializedEnvelopeFixture,
   langgraphProductionShapeFixture,
+  looseProviderMessageShapesFixture,
   microsoftAgentProductionShapeFixture,
   pydanticAiProductionShapeFixture,
   rawPassthroughToolCallsFixture,
@@ -46,6 +48,7 @@ export * from "./geminiEmbeddedToolDefinition";
 export * from "./geminiMediaAndCodeExecution";
 export * from "./langchainSerializedEnvelope";
 export * from "./langgraphSynthetic";
+export * from "./looseProviderMessageShapes";
 export * from "./microsoftAgentSynthetic";
 export * from "./openAiChatCompletionToolSequence";
 export * from "./openAiChatMultimodalRichResponse";

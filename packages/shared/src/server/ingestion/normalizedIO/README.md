@@ -150,7 +150,7 @@ or the fixture documents it.
   interleaved text/file parts so text consumers never see tokens.
 - **Citations are unified**: Anthropic `citations` and OpenAI `annotations`
   (part- and message-level) land under `providerMetadata.citations`,
-  payloads verbatim. Anchor-less references (AI-SDK `source` parts) stay
+  payloads verbatim. Anchor-less references (eg AI-SDK `source` parts) stay
   stream-positioned as `custom {kind: "source"}` — one vocabulary, two
   carriers, matching what the source actually provides.
 - **`SpanIO.metadata` may carry an `attributes` record with OTel keys**; the
