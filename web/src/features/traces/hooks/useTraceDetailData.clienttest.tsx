@@ -194,6 +194,21 @@ describe("useTraceDetailData endpoint routing", () => {
     );
   });
 
+  it("does not fetch while the trace id is missing (deep-link first render)", () => {
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+
+    renderHook(() =>
+      useTraceDetailData({ projectId: "p", traceId: undefined }),
+    );
+
+    expect(mockTracesQuery.mock.calls[0]?.[1]).toMatchObject({
+      enabled: false,
+    });
+    expect(mockUseEventsTraceData).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
   it("waits for authentication status before selecting endpoints", () => {
     mockUseSession.mockReturnValue({ status: "loading" });
 

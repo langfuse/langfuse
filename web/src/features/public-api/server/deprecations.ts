@@ -1,7 +1,7 @@
 import { type ApiDeprecationInfo } from "@langfuse/shared";
 import { OBSERVATIONS_API_V2_DOCS_URL } from "./rateLimitUpgradePaths";
 
-// LFE-10895. Family-level deprecation signals for legacy (v3) public API
+// Family-level deprecation signals for legacy (v3) public API
 // endpoints. Attach one via the `deprecation` route-config field; the response
 // gets a top-level `_deprecation` key.
 
@@ -13,7 +13,7 @@ export const V3_SUNSET_HUMAN = "November 16, 2026";
 
 // Shared deprecation reason — references the deprecated Langfuse v3 system
 // version (not an API version). Customer-facing wording lives here — edit once.
-const V3_NOTICE = `Langfuse v3 is deprecated; this endpoint will be removed on ${V3_SUNSET_HUMAN}.`;
+const V3_NOTICE = `On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}.`;
 
 // v4 replacement endpoints, referenced by both the message and `replacement`.
 // Placeholder style matches rateLimitUpgradePaths (<from>, <to>, filters).

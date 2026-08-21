@@ -16,30 +16,14 @@ import {
   getInAppAgentQuickActionContext,
 } from "@/src/features/in-app-agent/quickActions";
 import {
-  getBackgroundRunFailureMessage,
+  getBackgroundRunNotice,
+  getSettledActivityOutcome,
   isCancellableBackgroundRun,
-  type BackgroundExecutionRunView,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
-import { InAppAgentRunStatus } from "@langfuse/shared";
-import { isUnsettledInAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
-
-function getBackgroundRunNotice(
-  run: BackgroundExecutionRunView | null,
-): string | null {
-  if (!run) {
-    return null;
-  }
-
-  if (isCancellableBackgroundRun(run.status) && run.cancelRequested) {
-    return "Stopping the run…";
-  }
-
-  if (run.status === InAppAgentRunStatus.FAILED) {
-    return getBackgroundRunFailureMessage(run.errorCode ?? null);
-  }
-
-  return null;
-}
+import {
+  InAppAgentRunStatus,
+  isUnsettledInAppAgentRunStatus,
+} from "@langfuse/shared/in-app-agent";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -85,7 +69,6 @@ export function ControlledInAppAgentWindow(
     selectConversation,
     selectedConversationId,
     selectedConversationTitle,
-    selectedConversationIsWriteLocked,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
@@ -107,10 +90,8 @@ export function ControlledInAppAgentWindow(
     shouldFlush: error !== null || isCancellingRun || shouldFlushCancelledRun,
   });
   const windowExecutionUi: InAppAgentWindowExecutionUi = {
-    notice:
-      selectedConversationIsWriteLocked || error?.type === "write_lock"
-        ? null
-        : getBackgroundRunNotice(execution.run),
+    notice: getBackgroundRunNotice(execution.run),
+    activityOutcome: getSettledActivityOutcome(execution.run),
     stop:
       execution.run && isCancellableBackgroundRun(execution.run.status)
         ? {
@@ -122,14 +103,10 @@ export function ControlledInAppAgentWindow(
           }
         : null,
   };
-  // Only a read-only conversation disables the composer outright. An assistant
-  // turn -- including one paused on an approval -- blocks submission but leaves
-  // the draft editable. A server write-lock rejection is treated the same as
-  // the cached flag, so a stale conversation query cannot leave the composer open.
-  const isConversationInteractionDisabled =
-    selectedConversationIsWriteLocked ||
-    isSelectedConversationHydrating ||
-    error?.type === "write_lock";
+  // An assistant turn -- including one paused on an approval -- blocks
+  // submission but leaves the draft editable. Hydration is the only case that
+  // disables the composer outright so a stale snapshot cannot be submitted.
+  const isConversationInteractionDisabled = isSelectedConversationHydrating;
   const isAssistantTurnInProgress =
     isRunning ||
     isAnimating ||
@@ -156,9 +133,6 @@ export function ControlledInAppAgentWindow(
     execution.run?.status === InAppAgentRunStatus.AWAITING_APPROVAL &&
     (pendingToolApprovals.length > 0 ||
       displayedPendingToolApprovals.length > 0);
-  const displayError = selectedConversationIsWriteLocked
-    ? ({ type: "write_lock" } as const)
-    : error;
   const screenContextDescription = useMemo(
     () => getInAppAgentScreenContextDescription(router.asPath),
     [router.asPath],
@@ -197,7 +171,7 @@ export function ControlledInAppAgentWindow(
 
   return (
     <InAppAgentWindow
-      error={displayError}
+      error={error}
       isAssistantTurnInProgress={isAssistantTurnInProgress}
       isRunUnsettled={isRunUnsettled}
       isAwaitingApproval={isAwaitingApproval}
@@ -205,9 +179,6 @@ export function ControlledInAppAgentWindow(
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
       isSelectedConversationHydrating={isSelectedConversationHydrating}
-      disablePendingToolApprovalActions={
-        selectedConversationIsWriteLocked || error?.type === "write_lock"
-      }
       messages={drawerMessages}
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}

@@ -218,7 +218,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
 /**
  * Upserts a model with its pricing tiers in a transaction
  */
-async function upsertModelWithTiers(
+export async function upsertModelWithTiers(
   defaultModelPrice: DefaultModelPrice,
   existingModel:
     | {
@@ -279,6 +279,26 @@ async function upsertModelWithTiers(
         logger.debug(
           `Deleted ${tiersToDelete.length} obsolete tiers for model ${defaultModelPrice.modelName}`,
         );
+      }
+
+      // Vacate all persisted priorities before applying the desired layout.
+      // This avoids unique constraint conflicts when an existing tier moves to
+      // a priority that a newly inserted tier should take over.
+      const temporaryPriorityStart =
+        Math.max(
+          ...existingModel.tiers.map((tier) => tier.priority),
+          ...defaultModelPrice.pricingTiers.map((tier) => tier.priority),
+        ) + 1;
+
+      const retainedTiers = existingModel.tiers.filter((tier) =>
+        jsonTierIds.has(tier.id),
+      );
+
+      for (const [index, tier] of retainedTiers.entries()) {
+        await tx.pricingTier.update({
+          where: { id: tier.id },
+          data: { priority: temporaryPriorityStart + index },
+        });
       }
     }
 

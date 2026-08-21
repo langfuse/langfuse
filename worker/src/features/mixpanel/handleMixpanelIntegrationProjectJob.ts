@@ -9,6 +9,7 @@ import {
   getScoresForAnalyticsIntegrations,
   getEventsForAnalyticsIntegrations,
   getCurrentSpan,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
 import { MixpanelClient } from "./mixpanelClient";
@@ -21,6 +22,10 @@ import {
 } from "./transformers";
 import { env, v4WritesToLegacyTables } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
+import { classifyCustomerFault } from "../integrations/customerFaultClassification";
+
+export const MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC =
+  "langfuse.mixpanel.integration_customer_fault.count";
 
 const sleep = (ms: number) =>
   ms > 0
@@ -307,9 +312,22 @@ export const handleMixpanelIntegrationProjectJob = async (
       `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,
     );
   } catch (error) {
+    const mixpanelFaultReason = classifyCustomerFault(error);
+    if (mixpanelFaultReason !== undefined) {
+      recordIncrement(MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC, 1, {
+        reason: mixpanelFaultReason,
+        attempt: job.attemptsMade,
+      });
+    }
     logger.error(
       `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
-      error,
+      {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        mixpanelFaultReason,
+        attempt: job.attemptsMade,
+      },
     );
     throw error;
   }

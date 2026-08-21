@@ -1,6 +1,6 @@
 import preview from "../../../.storybook/preview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fn } from "storybook/test";
+import { expect, fn } from "storybook/test";
 import {
   type OnChangeFn,
   type PaginationState,
@@ -876,6 +876,16 @@ export const NoPagination = meta.story({
   render: () => <PaginationStory mode="none" />,
 });
 
+// Split-pane tables (trace/observation Scores) are often ~400px while the
+// viewport is still lg, which used to wrap nav buttons off the page label.
+export const NarrowPane = meta.story({
+  render: () => (
+    <div className="w-[400px] overflow-hidden rounded-md border">
+      <PaginationStory mode="offset" />
+    </div>
+  ),
+});
+
 // -----------------------------------------------------------------------------
 // 5. Density variants (faithful Traces columns)
 // -----------------------------------------------------------------------------
@@ -1509,4 +1519,36 @@ function InlineIconCellsStory() {
 
 export const WithInlineIconCells = meta.story({
   render: () => <InlineIconCellsStory />,
+});
+
+export const PaginationControlsStayGrouped = meta.story({
+  name: "(Test) Pagination Controls Stay Grouped",
+  render: () => (
+    <div className="w-[400px] overflow-hidden">
+      <PaginationStory mode="offset" />
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    const pageInput = await canvas.findByRole("spinbutton");
+    const next = canvas.getByRole("button", { name: "Go to next page" });
+    const prev = canvas.getByRole("button", { name: "Go to previous page" });
+
+    expect(
+      Math.abs(
+        pageInput.getBoundingClientRect().top -
+          next.getBoundingClientRect().top,
+      ),
+    ).toBeLessThan(8);
+    expect(
+      Math.abs(
+        prev.getBoundingClientRect().top - next.getBoundingClientRect().top,
+      ),
+    ).toBeLessThan(8);
+    expect(
+      canvas.queryByRole("button", { name: "Go to first page" }),
+    ).toBeNull();
+    expect(
+      canvas.queryByRole("button", { name: "Go to last page" }),
+    ).toBeNull();
+  },
 });

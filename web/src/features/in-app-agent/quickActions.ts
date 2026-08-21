@@ -1,4 +1,3 @@
-import type { InAppAgentMessageEntryPoint } from "@/src/features/in-app-agent/context";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 import {
   Activity,
@@ -65,24 +64,17 @@ export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS: Record<
   evaluation: Lightbulb,
 };
 
-export type InAppAgentQuickActionAttribution = {
-  key: string;
-  category: InAppAgentQuickActionContext;
-};
-
 export type InAppAgentSubmitOptions = {
-  quickAction?: InAppAgentQuickActionAttribution;
   /** Force a fresh conversation instead of appending to the selected one. */
   newConversation?: boolean;
-  /** Which surface sent the message; telemetry only (PostHog + trace
-   * metadata), never shown to the agent. Defaults to "chat". */
-  entryPoint?: InAppAgentMessageEntryPoint;
+  /** Which surface sent the message; PostHog only. Defaults to "chat". */
+  entryPoint?: "chat" | "add-widget-modal";
 };
 
 // Version 1 starter sets. Idea is that periodic curation replaces sets when usage
 // supports a stronger ranking. Prompts are somewhat product-generic and act on the
 // current page context without copying customer data.
-export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
+const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
   observability: [
     {
       id: "analyze-failure-patterns",
@@ -192,7 +184,7 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
   readonly InAppAgentQuickAction[]
 >;
 
-export const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
+const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
   trace: [
     {
       id: "analyze-this-trace",

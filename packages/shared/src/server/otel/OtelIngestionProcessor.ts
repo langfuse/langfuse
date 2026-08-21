@@ -2436,18 +2436,23 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     instrumentationScopeName: string,
   ): Record<string, unknown> {
+    let explicitModelParameters: Record<string, unknown> | undefined;
     if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS]) {
       try {
-        return this.sanitizeModelParams(
+        explicitModelParameters = this.sanitizeModelParams(
           JSON.parse(
             attributes[
               LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS
             ] as string,
           ),
-        );
+        ) as Record<string, unknown>;
       } catch {
         // Fallthrough
       }
+    }
+
+    if (explicitModelParameters && instrumentationScopeName !== "ai") {
+      return explicitModelParameters;
     }
 
     // Genkit
@@ -2463,6 +2468,11 @@ export class OtelIngestionProcessor {
 
     // Vercel AI SDK
     if (instrumentationScopeName === "ai") {
+      const providerMetadata = this.parseJsonPayload(
+        attributes["ai.response.providerMetadata"],
+      );
+      const responseServiceTier = providerMetadata?.openai?.serviceTier;
+
       return {
         maxSteps:
           "ai.settings.maxSteps" in attributes
@@ -2500,8 +2510,17 @@ export class OtelIngestionProcessor {
           "gen_ai.request.temperature" in attributes
             ? (attributes["gen_ai.request.temperature"]?.toString() ?? null)
             : null,
+        service_tier:
+          typeof responseServiceTier === "string"
+            ? responseServiceTier
+            : "gen_ai.request.service_tier" in attributes
+              ? (attributes["gen_ai.request.service_tier"]?.toString() ?? null)
+              : null,
+        ...explicitModelParameters,
       };
     }
+
+    if (explicitModelParameters) return explicitModelParameters;
 
     if (attributes["llm.invocation_parameters"]) {
       try {
@@ -2523,13 +2542,19 @@ export class OtelIngestionProcessor {
       }
     }
 
-    const modelParameters = Object.keys(attributes).filter((key) =>
-      key.startsWith("gen_ai.request."),
+    const modelParameterPrefixes = [
+      "gen_ai.request.",
+      "llm.invocation_parameters.",
+    ];
+    const modelParameters = modelParameterPrefixes.flatMap((prefix) =>
+      Object.keys(attributes)
+        .filter((key) => key.startsWith(prefix))
+        .map((key) => ({ key, prefix })),
     );
 
     return this.sanitizeModelParams(
-      modelParameters.reduce((acc: any, key) => {
-        const modelParamKey = key.replace("gen_ai.request.", "");
+      modelParameters.reduce((acc: any, { key, prefix }) => {
+        const modelParamKey = key.replace(prefix, "");
         if (modelParamKey !== "model") {
           acc[modelParamKey] = attributes[key];
         }
