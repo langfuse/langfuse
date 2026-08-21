@@ -17,6 +17,7 @@ const DESIGN_COMPONENT_STORIES = [
   "LangfuseIcon/LangfuseIcon",
   "LangfuseLogo/LangfuseLogo",
   "Progress/Progress",
+  "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",
 ] as const;

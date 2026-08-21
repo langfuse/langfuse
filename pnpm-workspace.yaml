@@ -31,6 +31,12 @@ packageExtensions:
   "@storybook/nextjs-vite@10.3.6":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2
+  # dependency-cruiser reads the JS compiler API to follow TypeScript imports.
+  # Resolved against web's `typescript` (7.x) it finds no API, silently stops
+  # parsing .ts/.tsx, and reports an empty import graph instead of an error.
+  "dependency-cruiser@18.1.0":
+    dependencies:
+      typescript: npm:@typescript/typescript6@^6.0.2
   "eslint-plugin-storybook@10.3.6":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2

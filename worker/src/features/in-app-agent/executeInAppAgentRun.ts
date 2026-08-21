@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   createAndAddApiKeysToDb,
-  deleteApiKeyFromDb,
+  deleteInAppAgentMcpApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   InAppAgentRunErrorCode,
@@ -84,11 +84,10 @@ async function deleteInAppAgentMcpApiKey(params: {
   apiKeyId: string;
 }): Promise<void> {
   try {
-    await deleteApiKeyFromDb({
+    await deleteInAppAgentMcpApiKeyFromDb({
       prisma,
       id: params.apiKeyId,
-      entityId: params.projectId,
-      scope: "PROJECT",
+      projectId: params.projectId,
       redis,
     });
   } catch (error) {
@@ -547,6 +546,10 @@ export async function executeInAppAgentRun(params: {
           });
         },
         onError: async (error) => {
+          // The loop may close the stream after this callback instead of
+          // erroring it. Mark the job span now so Datadog APM status:error
+          // still has @error.message after we ACK the BullMQ job.
+          traceException(error);
           await flushPersistedRunEvents({
             status: InAppAgentRunStatus.FAILED,
             ...(failureCode() ?? {

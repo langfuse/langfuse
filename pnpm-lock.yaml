@@ -64,7 +64,7 @@ overrides:
   '@ai-sdk/ui-utils>@ai-sdk/provider-utils': 2.2.8
   next-auth>nodemailer: ^9.0.3
 
-packageExtensionsChecksum: sha256-TX3lncad7qrcByckp22QdODd24iQTrIF/YrQJqHk2W8=
+packageExtensionsChecksum: sha256-QG4c9KJXY/TKGmHnbwxEePs/bdv0Wj8pLpBLp8HZH0Y=
 
 patchedDependencies:
   '@radix-ui/react-roving-focus@1.1.11': fb2bc2e96ad2c31dcb5860e509374a512fa08b1fade5805e3ae2dc72dcd68a0b
@@ -17338,6 +17338,7 @@ snapshots:
       safe-regex: 2.1.1
       semver: 7.8.5
       tsconfig-paths-webpack-plugin: 4.2.0
+      typescript: '@typescript/typescript6@6.0.2'
       watskeburt: 6.0.0
 
   dequal@2.0.3: {}
