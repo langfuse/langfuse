@@ -93,6 +93,16 @@ const SESSION_OBSERVATIONS_PER_TRACE_LIMIT = 50;
  * unbounded response.
  */
 const SESSION_TRACE_TOTAL_IO_CHAR_BUDGET = 2_000_000;
+/**
+ * Session-detail loads fetch every trace in the session (no server-side
+ * pagination for this view), then fan out score/cost lookups over that list
+ * in chunks of 500. Without a cap, a session with a very large number of
+ * traces makes both the per-trace score lookup and the chunked ClickHouse
+ * fan-out scale unboundedly with session size. This caps the traces
+ * fetched/processed per load; `tracesTruncated` in the response signals when
+ * more traces exist than were returned.
+ */
+const SESSION_TRACES_LIMIT = 2_000;
 
 const handleGetSessionById = async (input: {
   sessionId: string;
@@ -116,10 +126,15 @@ const handleGetSessionById = async (input: {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-deprecated
-  const clickhouseTraces = await getTracesIdentifierForSession(
+  const allClickhouseTraces = await getTracesIdentifierForSession(
     input.projectId,
     input.sessionId,
   );
+
+  const tracesTruncated = allClickhouseTraces.length > SESSION_TRACES_LIMIT;
+  const clickhouseTraces = tracesTruncated
+    ? allClickhouseTraces.slice(0, SESSION_TRACES_LIMIT)
+    : allClickhouseTraces;
 
   const chunks = chunk(clickhouseTraces, 500);
 
@@ -158,12 +173,23 @@ const handleGetSessionById = async (input: {
     onParseError: traceException,
   });
 
+  // Score lookup keyed by traceId: one pass over the scores instead of an
+  // O(scores) filter per trace, mirroring the scoresByNodeId pattern in
+  // web/src/features/traces/components/TraceTimeline/TraceTimeline.tsx.
+  const scoresByTraceId = new Map<string, typeof validatedScores>();
+  for (const score of validatedScores) {
+    if (!score.traceId) continue;
+    const arr = scoresByTraceId.get(score.traceId);
+    if (arr) arr.push(score);
+    else scoresByTraceId.set(score.traceId, [score]);
+  }
+
   return {
     ...postgresSession,
     traces: clickhouseTraces.map((t) => ({
       ...t,
       scores: toDomainArrayWithStringifiedMetadata(
-        validatedScores.filter((s) => s.traceId === t.id),
+        scoresByTraceId.get(t.id) ?? [],
       ),
     })),
     totalCost: costData ?? 0,
@@ -172,6 +198,7 @@ const handleGetSessionById = async (input: {
         clickhouseTraces.map((t) => t.userId).filter((t) => t !== null),
       ),
     ],
+    tracesTruncated,
   };
 };
 
