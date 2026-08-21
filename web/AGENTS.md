@@ -58,6 +58,9 @@
 
 ## Package-Local Skills
 
+- Project structure — where a file goes, what it is named, and how imports
+  cross boundaries (26 rules, one file each):
+  [`../.agents/skills/project-structure/SKILL.md`](../.agents/skills/project-structure/SKILL.md)
 - Shared browser-review workflow for user-visible frontend changes:
   [`../.agents/skills/frontend-browser-review/SKILL.md`](../.agents/skills/frontend-browser-review/SKILL.md)
 - Large frontend feature, virtualized-list, local state, and React
@@ -105,8 +108,13 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - When fixing an isolated styling issue in an individual component, create or
   update a component story first, following
   `../.agents/skills/storybook/SKILL.md`.
-- Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
-  components under `src/components/*`.
+- **Before creating, moving or renaming a file under `src/`, read
+  `../.agents/skills/project-structure/SKILL.md`.** It owns the 26 structure
+  rules: placement (used by one feature → inside that feature, two or more →
+  the top-level shared folders), the closed list of kind folders, naming, and
+  the feature-surface import contract. Existing code is grandfathered — the one
+  obligation is not to add a new violation, and
+  `pnpm --filter web run structure:stats --diff` is what says whether you did.
 - We use tRPC for full-stack web features; register routers in
   `src/server/api/root.ts`.
 - RBAC lives in `src/features/rbac`: role definitions in
