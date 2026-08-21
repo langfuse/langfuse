@@ -260,6 +260,10 @@ export async function appendRunEvents(params: {
     recordRunTerminalOutcome({
       status: params.finish.status,
       errorCode: params.finish.errorCode ?? null,
+      projectId: params.projectId,
+      runId: params.runId,
+      conversationId: params.conversationId,
+      errorMessage: params.finish.errorMessage ?? null,
     });
   }
 

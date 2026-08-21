@@ -197,12 +197,20 @@ describe("in-app agent run lifecycle races", () => {
         conversationId: "conversation-1",
       }),
     ).resolves.toEqual([
-      { runId: "run-1", errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT },
+      {
+        runId: "run-1",
+        errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
+        errorMessage: "No worker picked this run up",
+      },
     ]);
     expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledTimes(1);
     expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledWith({
       status: InAppAgentRunStatus.FAILED,
       errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
+      projectId: "project-1",
+      runId: "run-1",
+      conversationId: "conversation-1",
+      errorMessage: "No worker picked this run up",
     });
   });
 
@@ -294,6 +302,10 @@ describe("in-app agent run lifecycle races", () => {
     expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledWith({
       status: InAppAgentRunStatus.FAILED,
       errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
+      projectId: "project-1",
+      runId: "run-old",
+      conversationId: "conversation-1",
+      errorMessage: "No worker picked this run up",
     });
   });
 

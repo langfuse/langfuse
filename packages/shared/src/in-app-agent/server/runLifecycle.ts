@@ -117,6 +117,9 @@ export async function finishClaimedRun(params: {
     recordRunTerminalOutcome({
       status: params.status,
       errorCode: params.errorCode ?? null,
+      projectId: params.projectId,
+      runId: params.runId,
+      errorMessage: params.errorMessage ?? null,
     });
   }
 
@@ -207,7 +210,11 @@ export async function createQueuedRun(params: {
     },
   );
 
-  recordReconciledOutcomes(reconciled);
+  recordReconciledOutcomes({
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    reconciled,
+  });
   for (let i = 0; i < supersededCount; i++) {
     recordRunTerminalOutcome({
       status: InAppAgentRunStatus.CANCELLED,
@@ -384,6 +391,10 @@ export async function decideToolApproval(params: {
       recordRunTerminalOutcome({
         status: InAppAgentRunStatus.FAILED,
         errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+        projectId: params.projectId,
+        runId: params.parentRunId,
+        conversationId: params.conversationId,
+        errorMessage: "The approval request expired",
       });
     }
     throw new LangfuseConflictError("The approval request expired.");
@@ -594,6 +605,7 @@ async function cancelRunInTransaction(params: {
 export type ReconciledRun = {
   runId: string;
   errorCode: InAppAgentRunErrorCode;
+  errorMessage: string;
 };
 
 /** Reconcile stale lifecycle states on conversation reads (dispatch option C). */
@@ -610,16 +622,28 @@ export async function reconcileConversationRuns(params: {
     }),
   );
 
-  recordReconciledOutcomes(reconciled);
+  recordReconciledOutcomes({
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    reconciled,
+  });
 
   return reconciled;
 }
 
-function recordReconciledOutcomes(reconciled: ReconciledRun[]): void {
-  for (const run of reconciled) {
+function recordReconciledOutcomes(params: {
+  projectId: string;
+  conversationId: string;
+  reconciled: ReconciledRun[];
+}): void {
+  for (const run of params.reconciled) {
     recordRunTerminalOutcome({
       status: InAppAgentRunStatus.FAILED,
       errorCode: run.errorCode,
+      projectId: params.projectId,
+      runId: run.runId,
+      conversationId: params.conversationId,
+      errorMessage: run.errorMessage,
     });
   }
 }
@@ -677,7 +701,11 @@ async function reconcileConversationRunsInTransaction(params: {
     });
 
     if (count > 0) {
-      reconciled.push({ runId: run.id, errorCode: failure.errorCode });
+      reconciled.push({
+        runId: run.id,
+        errorCode: failure.errorCode,
+        errorMessage: failure.errorMessage,
+      });
     }
   }
 
