@@ -258,6 +258,28 @@ Always fetch pricing from the provider's official docs before editing.
   alone. Do not add a second pricing entry for this SKU; it would create an unresolvable
   matchPattern collision with the existing entry. Leave as a documented, confirmed
   limitation rather than an open question in future audits.
+- **Gemini specialized-modality model wave (found August 21 2026, out of scope)** — The
+  official Gemini models page (`ai.google.dev/gemini-api/docs/models`) now lists several
+  new model IDs beyond `gemini-3.7-flash`: `gemini-omni-flash` ("Fast, conversational video
+  generation and editing... turn text and images into video"), `gemini-3.1-flash-live-preview`
+  ("Live API model for real-time dialogue and voice-first AI applications"),
+  `gemini-3.1-flash-tts-preview` ("Powerful, low-latency speech generation"),
+  `gemini-3.5-live-translate-preview` ("real-time speech to speech translation"), plus
+  `veo-3.1-generate-preview`/`veo-3.1-lite-generate-preview` (video), `lyria-3-pro-preview`/
+  `lyria-3-clip-preview`/`lyria-realtime-exp` (music), and `gemini-robotics-er-2-preview`
+  (robotics). A targeted fetch of each model's description confirmed none is a
+  general-purpose text/chat model with standard per-token text pricing — they are video
+  generation, live/voice-only, text-to-speech, speech-to-speech translation, music
+  generation, and robotics endpoints. Per the automated-audit skip rule for
+  modality-specific endpoints, none were added to the pricing file or `types.ts`. Future
+  audits do not need to re-investigate this family unless one of them gains a standard
+  text-generation mode with its own per-token text pricing.
+- **gpt-5-chat-latest confirmed again (August 21 2026)** — Re-fetched
+  `https://developers.openai.com/api/docs/models/gpt-5-chat-latest` directly (it is absent
+  from the aggregate standard-pricing-table dump, consistent with every prior audit).
+  Confirmed unchanged: $1.25/MTok input, $0.125/MTok cached input, $10/MTok output, 128,000
+  token context window, no large-context tier. Matches the file exactly
+  (id `8ba72ee3-ebe8-4110-a614-bf81094447e5`).
 - **OpenAI base-model vs. fine-tuning-legacy price mixups (fixed August 7 2026)** — The
   OpenAI pricing page lists some base model names in two different tables: the "Standard"
   table (bare inference pricing, what a `matchPattern` with no `ft:` prefix should use) and
