@@ -29,6 +29,26 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
+vi.mock("@/src/components/design-system/Switch/Switch", () => ({
+  Switch: ({
+    checked,
+    onCheckedChange,
+    "aria-label": ariaLabel,
+  }: {
+    checked: boolean;
+    onCheckedChange: (checked: boolean) => void;
+    "aria-label"?: string;
+  }) => (
+    <button
+      type="button"
+      role="switch"
+      aria-label={ariaLabel}
+      aria-checked={checked}
+      onClick={() => onCheckedChange(!checked)}
+    />
+  ),
+}));
+
 vi.mock("@/src/features/notifications/showErrorToast", () => ({
   showErrorToast: () => undefined,
 }));
@@ -57,13 +77,16 @@ vi.mock("@/src/utils/api", () => ({
 
 describe("OnboardingSurvey", () => {
   let onboardingStatus:
-    | { completed: false }
+    | { completed: false; canConfigureAiFeatures: boolean }
     | { completed: true; redirectTo: string };
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    onboardingStatus = { completed: false };
+    onboardingStatus = {
+      completed: false,
+      canConfigureAiFeatures: false,
+    };
     mocks.statusUseQueryMock.mockImplementation(() => ({
       data: onboardingStatus,
       isError: false,
@@ -108,5 +131,54 @@ describe("OnboardingSurvey", () => {
 
     expect(screen.getByText("Setting up your project")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("enables AI features by default for a configurable starter organization", async () => {
+    onboardingStatus = {
+      completed: false,
+      canConfigureAiFeatures: true,
+    };
+
+    render(<OnboardingSurvey />);
+
+    expect(
+      screen.getByRole("switch", { name: "Enable AI powered features" }),
+    ).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    await waitFor(() => {
+      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith({
+        aiFeaturesEnabled: true,
+      });
+    });
+  });
+
+  it("submits an explicit AI features opt-out", async () => {
+    onboardingStatus = {
+      completed: false,
+      canConfigureAiFeatures: true,
+    };
+
+    render(<OnboardingSurvey />);
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Enable AI powered features" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    await waitFor(() => {
+      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith({
+        aiFeaturesEnabled: false,
+      });
+    });
+  });
+
+  it("hides the AI features choice without a configurable starter organization", () => {
+    render(<OnboardingSurvey />);
+
+    expect(
+      screen.queryByRole("switch", { name: "Enable AI powered features" }),
+    ).not.toBeInTheDocument();
   });
 });
