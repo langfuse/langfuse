@@ -4,6 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import { EVENTS_FIELD_REGISTRY } from "./fields";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import {
+  SESSIONS_FIELD_REGISTRY,
+  SESSIONS_V3_FIELD_REGISTRY,
+} from "@/src/features/filters/config/sessionsSearchRegistry";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
 import { planInputCompletions } from "./completions";
@@ -276,5 +280,148 @@ describe("search bar invariants — evaluation rules registry", () => {
 
   it("holds commit parity and FilterState round-trips", () => {
     expect(runSearchBarInvariants(evaluationRulesView)).toEqual([]);
+  });
+});
+
+const sessionsView: RegistryUnderTest = {
+  name: "sessions v4",
+  registry: SESSIONS_FIELD_REGISTRY,
+  extraKeys: [
+    "metadata.region",
+    'metadata."my key"',
+    "scores.accuracy",
+    'scores."Rouge Score"',
+    "has:environment",
+    "has:userIds",
+  ],
+  scoreContexts: [
+    {
+      numericScoreNames: new Set(["accuracy"]),
+      categoricalScoreNames: new Set(),
+    },
+    {
+      numericScoreNames: new Set(),
+      categoricalScoreNames: new Set(["accuracy"]),
+    },
+    {
+      numericScoreNames: new Set(),
+      categoricalScoreNames: new Set(),
+      booleanScoreNames: new Set(["accuracy"]),
+    },
+  ],
+  fieldValues: ["x", "default", "5", "0.8", "true", "a b", "user-1"],
+  freeTextValues: [],
+};
+
+describe("search bar invariants — sessions registry", () => {
+  it("holds all three invariants (parity, round-trip, serialize symmetry)", () => {
+    const failures = runSearchBarInvariants(sessionsView);
+    expect(
+      failures,
+      failures.length === 0
+        ? "ok"
+        : `\n${failures
+            .slice(0, 25)
+            .map((f) => `  [${f.invariant}] ${f.case} — ${f.detail}`)
+            .join(
+              "\n",
+            )}${failures.length > 25 ? `\n  …and ${failures.length - 25} more` : ""}`,
+    ).toEqual([]);
+  });
+
+  it("exposes the sidebar's facets and nothing else", () => {
+    expect(SESSIONS_FIELD_REGISTRY.fields.map((f) => f.id).sort()).toEqual([
+      "commentContent",
+      "commentCount",
+      "countTraces",
+      "environment",
+      "id",
+      "inputCost",
+      "inputTokens",
+      "outputCost",
+      "outputTokens",
+      "sessionDuration",
+      "tags",
+      "totalCost",
+      "totalTokens",
+      "userIds",
+    ]);
+    // Events-only fields and columns the sidebar never offers stay unresolvable,
+    // so a stray token is a diagnostic rather than a filter the sidebar cannot
+    // show or remove.
+    for (const key of ["latency", "createdAt", "usage", "bookmarked"]) {
+      expect(SESSIONS_FIELD_REGISTRY.resolveField(key)).toBeNull();
+    }
+  });
+
+  it("keeps the trace-score namespace closed but observation scores open", () => {
+    expect(SESSIONS_FIELD_REGISTRY.resolveField("scores.accuracy")).toEqual({
+      type: "scores",
+      key: "accuracy",
+      level: "observation",
+    });
+    expect(
+      SESSIONS_FIELD_REGISTRY.resolveField("traceScores.accuracy"),
+    ).toBeNull();
+  });
+
+  it("round-trips the all-of array filters sessions users actually apply", () => {
+    // `tags all of` (1.2k applies/56d) and `userIds all of` are the two shapes
+    // the sessions sidebar produces that no other bar surface exercises.
+    for (const column of ["tags", "userIds"]) {
+      expect(
+        planCommit(`${column}:(a AND b)`, undefined, SESSIONS_FIELD_REGISTRY),
+      ).toMatchObject({
+        status: "committed",
+        filters: [
+          {
+            column,
+            type: "arrayOptions",
+            operator: "all of",
+            value: ["a", "b"],
+          },
+        ],
+      });
+    }
+  });
+
+  it("lowers metadata and session id the way the sidebar does", () => {
+    expect(
+      planCommit("metadata.region:eu", undefined, SESSIONS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "metadata",
+          type: "stringObject",
+          key: "region",
+          value: "eu",
+        },
+      ],
+    });
+    // `id contains` is how every one of the 13.6k session-id filters is applied.
+    expect(
+      planCommit("id:checkout", undefined, SESSIONS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "id",
+          type: "string",
+          operator: "contains",
+          value: "checkout",
+        },
+      ],
+    });
+  });
+
+  it("drops metadata on the v3 registry, which has no metadata column", () => {
+    expect(
+      SESSIONS_V3_FIELD_REGISTRY.resolveField("metadata.region"),
+    ).toBeNull();
+    expect(SESSIONS_FIELD_REGISTRY.resolveField("metadata.region")).toEqual({
+      type: "metadata",
+      key: "region",
+    });
   });
 });
