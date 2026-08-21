@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { env } from "@/src/env.mjs";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -1039,6 +1040,19 @@ export function V4MigrationIntegrationsSection({
   );
 }
 
+/**
+ * Whether this deployment is bound by the dated v3 sunset.
+ *
+ * `V4_MIGRATION_DEADLINE` is a Langfuse Cloud commitment. On a self-hosted
+ * deployment nothing happens on that date — the legacy surfaces keep working
+ * until the operator moves the write mode off `dual`, so quoting a date would
+ * be plainly wrong. The Fern deprecation messages scope the same date to Cloud
+ * for the same reason (see `deprecations.ts`).
+ */
+export function useHasV4MigrationDeadline(): boolean {
+  return useLangfuseCloudRegion().isLangfuseCloud;
+}
+
 // Docs link and deadline note are shared by the panel/modal header and the
 // account-level status page so both surfaces read the same.
 export function V4MigrationDocsLink() {
@@ -1053,6 +1067,17 @@ export function V4MigrationDocsLink() {
 }
 
 export function V4MigrationDeadlineNote() {
+  const hasDeadline = useHasV4MigrationDeadline();
+
+  if (!hasDeadline) {
+    return (
+      <p>
+        Some features may stop working without an upgrade once your
+        administrator disables the legacy mode.
+      </p>
+    );
+  }
+
   return (
     <p>
       After{" "}

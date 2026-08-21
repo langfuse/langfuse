@@ -20,7 +20,6 @@ type ControlledFeaturePreviewModalProps = {
 const PREVIEW_LABEL: Record<PreviewFlag, string> = {
   modernSession: "Compact Session View",
   searchBar: "Filter Search Bar",
-  v4UpgradeUi: "V4 Migration",
   compactTimeline: "Compact Timeline",
 };
 
@@ -68,11 +67,6 @@ export function ControlledFeaturePreviewModal({
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
       onToggle: onToggle("modernSession"),
-      isToggling: setFeaturePreviewEnabled.isPending,
-    },
-    v4UpgradeUi: {
-      enabled: authSession.data?.user?.featureFlags.v4UpgradeUi === true,
-      onToggle: onToggle("v4UpgradeUi"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
     compactTimeline: {
