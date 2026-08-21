@@ -653,9 +653,7 @@ export function EvaluatorSetupPage(
           projectId={projectId}
           evaluator={savedEvaluator}
           onFinish={async () => {
-            await router.push(
-              `/project/${projectId}/evals/${savedEvaluator.id}`,
-            );
+            await router.push(`/project/${projectId}/evals`);
           }}
         />
       ) : null}

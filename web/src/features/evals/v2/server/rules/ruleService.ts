@@ -235,11 +235,13 @@ export class RuleService {
       input.filter,
     );
     const attachToMatch = async () => {
-      const matchingRule = await repository.findActiveRuleWithMatchingFilter({
-        prisma: this.prisma,
-        projectId: input.projectId,
-        filter,
-      });
+      const matchingRule =
+        await repository.findActiveRuleWithMatchingFilterAndSampling({
+          prisma: this.prisma,
+          projectId: input.projectId,
+          filter,
+          sampling: input.sampling,
+        });
       if (!matchingRule) return null;
 
       if (

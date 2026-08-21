@@ -2,8 +2,13 @@ import { type EvalTargetObject, type FilterState } from "@langfuse/shared";
 import { useState } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { CreateRuleDialogContent } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/CreateRuleDialogContent/CreateRuleDialogContent";
-import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import type {
+  RuleDraft,
+  RuleEvaluatorOption,
+  RuleTableRow,
+} from "@/src/features/evals/v2/types/rules";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
+import { prepareRuleCloneDraft } from "@/src/features/evals/v2/fns/rules/prepareRuleCloneDraft";
 import { api } from "@/src/utils/api";
 
 export function CreateRuleDialog({
@@ -11,6 +16,7 @@ export function CreateRuleDialog({
   open,
   onOpenChange,
   initialEvaluator,
+  initialRule,
   initialFilter,
   targetObject,
 }: {
@@ -18,6 +24,7 @@ export function CreateRuleDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialEvaluator?: RuleEvaluatorOption;
+  initialRule?: RuleTableRow;
   initialFilter?: FilterState;
   targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
 }) {
@@ -53,19 +60,37 @@ export function CreateRuleDialog({
   );
   const resolvedInitialEvaluator =
     initialEvaluatorFromOptions ?? initialEvaluator;
+  const initialDraft: RuleDraft | undefined = initialRule
+    ? prepareRuleCloneDraft(initialRule)
+    : undefined;
+  const missingInitialRuleEvaluators = (initialDraft?.assignments ?? [])
+    .filter(
+      (assignment) =>
+        !options.some((option) => option.id === assignment.evaluatorId),
+    )
+    .map((assignment) => ({
+      id: assignment.evaluatorId,
+      name: assignment.evaluatorName,
+      type: assignment.evaluatorType,
+      defaultVariableMapping: assignment.defaultVariableMapping,
+      initialVariableMapping: assignment.variableMapping,
+    }));
 
   return (
     <CreateRuleDialogContent
-      key={initialEvaluator?.id ?? "empty"}
+      key={initialRule?.id ?? initialEvaluator?.id ?? "empty"}
       projectId={projectId}
       open={open}
       onOpenChange={onOpenChange}
-      evaluatorOptions={
-        resolvedInitialEvaluator && !initialEvaluatorFromOptions
-          ? [resolvedInitialEvaluator, ...options]
-          : options
-      }
+      evaluatorOptions={[
+        ...missingInitialRuleEvaluators,
+        ...(resolvedInitialEvaluator && !initialEvaluatorFromOptions
+          ? [resolvedInitialEvaluator]
+          : []),
+        ...options,
+      ]}
       initialEvaluator={resolvedInitialEvaluator}
+      initialDraft={initialDraft}
       initialFilter={initialFilter}
       targetObject={targetObject}
       evaluatorSearch={evaluatorSearch}

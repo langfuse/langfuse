@@ -466,6 +466,11 @@ export default function EvaluatorsPage() {
               onEdit={() =>
                 router.push(`/project/${projectId}/evals/${row.original.id}`)
               }
+              onClone={() =>
+                router.push(
+                  `/project/${projectId}/evals/new?evaluatorId=${encodeURIComponent(row.original.id)}`,
+                )
+              }
               onDelete={() => setDeleteIds([row.original.id])}
             />
           </div>

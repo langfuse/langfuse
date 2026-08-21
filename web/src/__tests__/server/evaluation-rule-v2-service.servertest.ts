@@ -187,7 +187,7 @@ describe("RuleService", () => {
               value: ["production", "staging"],
             },
           ],
-          sampling: 1,
+          sampling: 0.25,
         },
         null,
       );
@@ -209,6 +209,42 @@ describe("RuleService", () => {
           },
         }),
       ).resolves.not.toBeNull();
+    });
+
+    it("creates a new rule when the filters match but sampling differs", async () => {
+      const [existingEvaluator, newEvaluator] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+      ]);
+      const service = createService();
+      const existing = await service.create(
+        createInput(existingEvaluator.id),
+        null,
+      );
+
+      const result = await service.createOrAttachFromEvaluatorFilters(
+        {
+          projectId,
+          evaluatorId: newEvaluator.id,
+          filter: createInput().filter,
+          sampling: 0.5,
+        },
+        null,
+      );
+
+      expect(result).toMatchObject({
+        action: "created",
+        rule: {
+          sampling: 0.5,
+          assignments: [
+            expect.objectContaining({ evaluatorId: newEvaluator.id }),
+          ],
+        },
+      });
+      expect(result.rule.id).not.toBe(existing.id);
+      await expect(
+        prisma.evaluationRule.count({ where: { projectId } }),
+      ).resolves.toBe(2);
     });
 
     it("creates a rule with a filter-based fallback name when no rule matches", async () => {

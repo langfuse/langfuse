@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
-import { ExternalLink, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DataTable } from "@/src/components/table/data-table";
@@ -14,11 +14,17 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EditRuleDialog } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/EditRuleDialog";
 import { RulesOverviewSelectionBar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesOverviewSelectionBar/RulesOverviewSelectionBar";
 import { RuleActiveSwitchCell } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RuleActiveSwitchCell/RuleActiveSwitchCell";
@@ -158,6 +164,7 @@ export function RulesTable({
   });
   const filterState = queryFilter.filterState;
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
+  const [cloneRule, setCloneRule] = useState<RuleTableRow | null>(null);
   // Query param so other surfaces can deep-link straight to a rule.
   const [editRuleId, setEditRuleId] = useQueryParam(
     "rule",
@@ -380,35 +387,63 @@ export function RulesTable({
         isFixedPosition: true,
         enableSorting: false,
         enableResizing: false,
-        cell: ({ row }) => (
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={(event) => {
-                event.stopPropagation();
-                router.push(ruleExecutionsUrl(projectId, row.original.id));
-              }}
+        cell: ({ row }) => {
+          const navigationAction = getRuleNavigationAction(row.original);
+          return (
+            <div
+              className="flex items-center gap-1"
+              onClick={(event) => event.stopPropagation()}
             >
-              View traces <ExternalLink className="ml-1 h-3 w-3" />
-            </Button>
-            <IconOnlyButton
-              icon={<Trash2 className="h-4 w-4" />}
-              label="Delete"
-              aria-label={`Delete ${row.original.name}`}
-              disabledReason={
-                hasWriteAccess
-                  ? undefined
-                  : "You don't have permission to delete this rule."
-              }
-              onClick={(event) => {
-                event.stopPropagation();
-                setDeleteIds([row.original.id]);
-              }}
-            />
-          </div>
-        ),
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  router.push(ruleExecutionsUrl(projectId, row.original.id));
+                }}
+              >
+                View traces <ExternalLink className="ml-1 h-3 w-3" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Actions for ${row.original.name}`}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {navigationAction === "edit" ? (
+                    <DropdownMenuItem
+                      onClick={() => setEditRuleId(row.original.id)}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    disabled={!hasWriteAccess || navigationAction !== "edit"}
+                    onClick={() => setCloneRule(row.original)}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Clone
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!hasWriteAccess}
+                    onClick={() => setDeleteIds([row.original.id])}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        },
       },
     ],
     [
@@ -421,6 +456,7 @@ export function RulesTable({
       router,
       capture,
       selectActionColumn,
+      setEditRuleId,
     ],
   );
   const [columnVisibility, setColumnVisibility] =
@@ -595,6 +631,14 @@ export function RulesTable({
             ruleId={editRuleId}
             hasWriteAccess={hasWriteAccess}
             onOpenChange={(open) => !open && setEditRuleId(null)}
+          />
+        ) : null}
+        {cloneRule ? (
+          <CreateRuleDialog
+            projectId={projectId}
+            open
+            initialRule={cloneRule}
+            onOpenChange={(open) => !open && setCloneRule(null)}
           />
         ) : null}
       </div>

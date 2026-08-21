@@ -22,6 +22,7 @@ export const ActiveEvaluator = meta.story({
     onViewExecutions: fn(),
     onManageRules: fn(),
     onEdit: fn(),
+    onClone: fn(),
     onDelete: fn(),
   },
 });
@@ -34,6 +35,7 @@ export const InactiveEvaluator = meta.story({
     onViewExecutions: fn(),
     onManageRules: fn(),
     onEdit: fn(),
+    onClone: fn(),
     onDelete: fn(),
   },
 });
@@ -47,6 +49,7 @@ export const OpenMenu = meta.story({
     onViewExecutions: fn(),
     onManageRules: fn(),
     onEdit: fn(),
+    onClone: fn(),
     onDelete: fn(),
   },
   play: async ({ canvas, canvasElement }) => {
@@ -63,6 +66,9 @@ export const OpenMenu = meta.story({
     ).toBeInTheDocument();
     await expect(
       menu.getByRole("menuitem", { name: "Edit" }),
+    ).toBeInTheDocument();
+    await expect(
+      menu.getByRole("menuitem", { name: "Clone" }),
     ).toBeInTheDocument();
     await expect(
       menu.getByRole("menuitem", { name: "Delete" }),

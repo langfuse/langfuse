@@ -11,7 +11,10 @@ import {
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
 import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
-import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import type {
+  RuleDraft,
+  RuleEvaluatorOption,
+} from "@/src/features/evals/v2/types/rules";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
@@ -31,6 +34,7 @@ export function CreateRuleDialogContent({
   onOpenChange,
   evaluatorOptions,
   initialEvaluator,
+  initialDraft,
   initialFilter,
   targetObject,
   evaluatorSearch,
@@ -41,6 +45,7 @@ export function CreateRuleDialogContent({
   onOpenChange: (open: boolean) => void;
   evaluatorOptions: RuleEvaluatorOption[];
   initialEvaluator: RuleEvaluatorOption | undefined;
+  initialDraft: RuleDraft | undefined;
   initialFilter: FilterState | undefined;
   targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
   evaluatorSearch: string;
@@ -54,20 +59,22 @@ export function CreateRuleDialogContent({
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
   const [ruleSetupStore] = useState(() =>
     createRuleSetupStore({
-      name: "",
-      filter: resolveInitialRuleFilters(initialFilter),
-      sampling: 1,
-      assignments: initialEvaluator
-        ? [
-            {
-              evaluatorId: initialEvaluator.id,
-              evaluatorName: initialEvaluator.name,
-              evaluatorType: initialEvaluator.type,
-              defaultVariableMapping: initialEvaluator.defaultVariableMapping,
-              variableMapping: initialEvaluator.initialVariableMapping,
-            },
-          ]
-        : [],
+      name: initialDraft?.name ?? "",
+      filter: initialDraft?.filter ?? resolveInitialRuleFilters(initialFilter),
+      sampling: initialDraft?.sampling ?? 1,
+      assignments:
+        initialDraft?.assignments ??
+        (initialEvaluator
+          ? [
+              {
+                evaluatorId: initialEvaluator.id,
+                evaluatorName: initialEvaluator.name,
+                evaluatorType: initialEvaluator.type,
+                defaultVariableMapping: initialEvaluator.defaultVariableMapping,
+                variableMapping: initialEvaluator.initialVariableMapping,
+              },
+            ]
+          : []),
     }),
   );
   const hasRequestedName = useRef(false);

@@ -1,4 +1,5 @@
 import {
+  Copy,
   Link2,
   ListTree,
   MoreVertical,
@@ -22,6 +23,7 @@ export function EvaluatorActionsCell({
   onViewScores,
   onViewExecutions,
   onManageRules,
+  onClone,
   onEdit,
   onDelete,
 }: {
@@ -30,6 +32,7 @@ export function EvaluatorActionsCell({
   onViewScores: () => void;
   onViewExecutions: () => void;
   onManageRules: () => void;
+  onClone: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -89,6 +92,10 @@ export function EvaluatorActionsCell({
           <DropdownMenuItem onClick={onEdit}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onClone}>
+            <Copy className="mr-2 h-4 w-4" />
+            Clone
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onDelete}>
             <Trash2 className="mr-2 h-4 w-4" />
