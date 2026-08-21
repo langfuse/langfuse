@@ -322,7 +322,9 @@ describe("default-model-prices.json", () => {
       expect(model!.pricingTiers.map((tier) => tier.name)).toEqual([
         "Standard",
         "Fast mode · Large context (>272K)",
+        "Flex · Large context (>272K)",
         "Fast mode",
+        "Flex",
         "Large Context (>272K)",
       ]);
 
@@ -406,6 +408,22 @@ describe("default-model-prices.json", () => {
         { modelParameters: { service_tier: "fast" } },
       )?.pricingTierName,
     ).toBe("Fast mode");
+
+    expect(
+      matchPricingTier(
+        tiers,
+        { input: 1000 },
+        { modelParameters: { service_tier: "flex" } },
+      )?.pricingTierName,
+    ).toBe("Flex");
+
+    expect(
+      matchPricingTier(
+        tiers,
+        { cache_write_tokens: 272001 },
+        { modelParameters: { service_tier: "flex" } },
+      )?.pricingTierName,
+    ).toBe("Flex · Large context (>272K)");
   });
 
   it.each(["fast", "priority"])(
@@ -435,6 +453,159 @@ describe("default-model-prices.json", () => {
           tiers,
           { input: 1000 },
           { modelParameters: { service_tier: serviceTier } },
+        )?.pricingTierName,
+      ).toBe("Fast mode");
+    },
+  );
+
+  it.each([
+    ["gpt-5.4", 5, 30],
+    ["gpt-5.4-2026-03-05", 5, 30],
+    ["gpt-5.4-mini", 1.5, 9],
+    ["gpt-5.4-mini-2026-03-17", 1.5, 9],
+    ["gpt-5.2", 3.5, 28],
+    ["gpt-5.2-2025-12-11", 3.5, 28],
+    ["gpt-5.1", 2.5, 20],
+    ["gpt-5.1-2025-11-13", 2.5, 20],
+    ["gpt-5", 2.5, 20],
+    ["gpt-5-2025-08-07", 2.5, 20],
+    ["gpt-5-mini", 0.45, 3.6],
+    ["gpt-5-mini-2025-08-07", 0.45, 3.6],
+    ["gpt-4.1", 3.5, 14],
+    ["gpt-4.1-2025-04-14", 3.5, 14],
+    ["gpt-4.1-mini", 0.7, 2.8],
+    ["gpt-4.1-mini-2025-04-14", 0.7, 2.8],
+    ["gpt-4.1-nano", 0.2, 0.8],
+    ["gpt-4.1-nano-2025-04-14", 0.2, 0.8],
+    ["gpt-4o", 4.25, 17],
+    ["gpt-4o-2024-05-13", 8.75, 26.25],
+    ["gpt-4o-2024-08-06", 4.25, 17],
+    ["gpt-4o-2024-11-20", 4.25, 17],
+    ["gpt-4o-mini", 0.25, 1],
+    ["gpt-4o-mini-2024-07-18", 0.25, 1],
+    ["o3", 3.5, 14],
+    ["o3-2025-04-16", 3.5, 14],
+    ["o4-mini", 2, 8],
+    ["o4-mini-2025-04-16", 2, 8],
+  ])(
+    "should price %s Fast mode",
+    (modelName, inputPerMillion, outputPerMillion) => {
+      const model = defaultModelPrices.find(
+        (candidate) => candidate.modelName === modelName,
+      );
+      const tier = model?.pricingTiers.find(
+        (candidate) => candidate.name === "Fast mode",
+      );
+
+      expect(tier, modelName).toBeDefined();
+      expect(tier?.conditions).toContainEqual({
+        source: "model_parameters",
+        key: "service_tier",
+        operator: "in",
+        values: ["fast", "priority"],
+      });
+      expect(tier?.prices.input).toBeCloseTo(inputPerMillion * 1e-6, 15);
+      expect(tier?.prices.output).toBeCloseTo(outputPerMillion * 1e-6, 15);
+    },
+  );
+
+  it.each([
+    ["gpt-5.6-sol", 2.5, 15],
+    ["gpt-5.6-terra", 1, 6],
+    ["gpt-5.6-luna", 0.1, 0.6],
+    ["gpt-5.5-2026-04-23", 2.5, 15],
+    ["gpt-5.5-pro-2026-04-23", 15, 90],
+    ["gpt-5.4", 1.25, 7.5],
+    ["gpt-5.4-2026-03-05", 1.25, 7.5],
+    ["gpt-5.4-pro", 15, 90],
+    ["gpt-5.4-pro-2026-03-05", 15, 90],
+    ["gpt-5.4-mini", 0.375, 2.25],
+    ["gpt-5.4-mini-2026-03-17", 0.375, 2.25],
+    ["gpt-5.4-nano", 0.1, 0.625],
+    ["gpt-5.4-nano-2026-03-17", 0.1, 0.625],
+    ["gpt-5.2", 0.875, 7],
+    ["gpt-5.2-2025-12-11", 0.875, 7],
+    ["gpt-5.1", 0.625, 5],
+    ["gpt-5.1-2025-11-13", 0.625, 5],
+    ["gpt-5", 0.625, 5],
+    ["gpt-5-2025-08-07", 0.625, 5],
+    ["gpt-5-mini", 0.125, 1],
+    ["gpt-5-mini-2025-08-07", 0.125, 1],
+    ["gpt-5-nano", 0.025, 0.2],
+    ["gpt-5-nano-2025-08-07", 0.025, 0.2],
+    ["o3", 1, 4],
+    ["o3-2025-04-16", 1, 4],
+    ["o4-mini", 0.55, 2.2],
+    ["o4-mini-2025-04-16", 0.55, 2.2],
+  ])(
+    "should price %s Flex processing",
+    (modelName, inputPerMillion, outputPerMillion) => {
+      const model = defaultModelPrices.find(
+        (candidate) => candidate.modelName === modelName,
+      );
+      const tier = model?.pricingTiers.find(
+        (candidate) => candidate.name === "Flex",
+      );
+
+      expect(tier, modelName).toBeDefined();
+      expect(tier?.conditions).toEqual([
+        {
+          source: "model_parameters",
+          key: "service_tier",
+          operator: "in",
+          values: ["flex"],
+        },
+      ]);
+      expect(tier?.prices.input).toBeCloseTo(inputPerMillion * 1e-6, 15);
+      expect(tier?.prices.output).toBeCloseTo(outputPerMillion * 1e-6, 15);
+    },
+  );
+
+  it.each(["claude-opus-5", "claude-opus-4-8"])(
+    "should price %s Fast mode using Anthropic's speed parameter",
+    (modelName) => {
+      const model = defaultModelPrices.find(
+        (candidate) => candidate.modelName === modelName,
+      );
+      const tier = model?.pricingTiers.find(
+        (candidate) => candidate.name === "Fast mode",
+      );
+
+      expect(tier, modelName).toBeDefined();
+      expect(tier?.conditions).toEqual([
+        {
+          source: "model_parameters",
+          key: "speed",
+          operator: "in",
+          values: ["fast"],
+        },
+      ]);
+      expect(tier?.prices.input).toBe(10e-6);
+      expect(tier?.prices.output).toBe(50e-6);
+      expect(tier?.prices.input_cache_creation_5m).toBe(12.5e-6);
+      expect(tier?.prices.input_cache_creation_1h).toBe(20e-6);
+      expect(tier?.prices.input_cache_read).toBe(1e-6);
+
+      const tiers: PricingTierWithPrices[] = model!.pricingTiers.map(
+        (candidate) => ({
+          id: candidate.id,
+          name: candidate.name,
+          isDefault: candidate.isDefault,
+          priority: candidate.priority,
+          conditions: candidate.conditions,
+          prices: Object.entries(candidate.prices).map(
+            ([usageType, price]) => ({
+              usageType,
+              price: new Decimal(price),
+            }),
+          ),
+        }),
+      );
+      expect(
+        matchPricingTier(
+          tiers,
+          { input: 1000 },
+          { modelParameters: { speed: "fast" } },
         )?.pricingTierName,
       ).toBe("Fast mode");
     },

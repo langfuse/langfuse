@@ -6,6 +6,7 @@ packages:
   - "ee"
 catalog:
   "@aws-sdk/client-cloudwatch": 3.1074.0
+  "@aws-sdk/client-eventbridge": 3.1074.0
   "@aws-sdk/client-lambda": 3.1074.0
   "@aws-sdk/client-lambda-microvms": 3.1074.0
   "@aws-sdk/client-s3": 3.1074.0
@@ -28,6 +29,12 @@ packageExtensions:
   # TypeScript 7 has no JavaScript compiler API yet. Keep Storybook's toolchain
   # on the TypeScript 6 compatibility package while Next builds with 7.
   "@storybook/nextjs-vite@10.3.6":
+    dependencies:
+      typescript: npm:@typescript/typescript6@^6.0.2
+  # dependency-cruiser reads the JS compiler API to follow TypeScript imports.
+  # Resolved against web's `typescript` (7.x) it finds no API, silently stops
+  # parsing .ts/.tsx, and reports an empty import graph instead of an error.
+  "dependency-cruiser@18.1.0":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2
   "eslint-plugin-storybook@10.3.6":

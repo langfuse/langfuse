@@ -558,7 +558,9 @@ export const ExperimentGridCell = ({
             accessorKey: "startTime",
             cell: ({ data }) => (
               <MetadataItem label="Start Time">
-                <LocalIsoDate date={data.startTime} className="text-xs" />
+                <span className="text-xs">
+                  <LocalIsoDate date={data.startTime} />
+                </span>
               </MetadataItem>
             ),
           },

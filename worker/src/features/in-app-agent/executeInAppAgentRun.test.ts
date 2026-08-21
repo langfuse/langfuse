@@ -170,14 +170,14 @@ vi.mock("@langfuse/shared/src/server/auth/apiKeys", async (importOriginal) => {
 
   return {
     ...actual,
-    deleteApiKeyFromDb: async (
-      ...args: Parameters<typeof actual.deleteApiKeyFromDb>
+    deleteInAppAgentMcpApiKeyFromDb: async (
+      ...args: Parameters<typeof actual.deleteInAppAgentMcpApiKeyFromDb>
     ) => {
       scenarioRef.apiKeyDeleteCalls += 1;
       if (scenarioRef.failApiKeyDelete) {
         throw new Error("simulated api key delete failure");
       }
-      return actual.deleteApiKeyFromDb(...args);
+      return actual.deleteInAppAgentMcpApiKeyFromDb(...args);
     },
   };
 });
@@ -912,6 +912,47 @@ describe("executeInAppAgentRun", () => {
         ),
       ),
     ).toHaveLength(0);
+  });
+
+  it("leaves a user project key intact when mcpApiKeyId points at it", async () => {
+    const { projectId, run, user } = await seedBackgroundRun({
+      status: "RUNNING",
+    });
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
+    const userKey = await createAndAddApiKeysToDb({
+      prisma,
+      entityId: projectId,
+      scope: "PROJECT",
+      note: "user project key",
+      isInAppAgentKey: false,
+      createdByUserId: user.id,
+    });
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: run.id, projectId } },
+      data: {
+        claimedAt: twoMinutesAgo,
+        heartbeatAt: twoMinutesAgo,
+        mcpApiKeyId: userKey.id,
+      },
+    });
+
+    scenarioRef.current = async () => {
+      throw new Error(
+        "agent loop must not start on stale unclaimable delivery",
+      );
+    };
+
+    await expect(
+      executeInAppAgentRun({ projectId, runId: run.id }),
+    ).resolves.toBeUndefined();
+
+    const failed = await getRun(projectId, run.id);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.errorCode).toBe("worker_lost");
+    expect(failed.mcpApiKeyId).toBeNull();
+    expect(
+      await prisma.apiKey.findUnique({ where: { id: userKey.id } }),
+    ).not.toBeNull();
   });
 
   it("acknowledges delivery against an already-FAILED run without changing it", async () => {

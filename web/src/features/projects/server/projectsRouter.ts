@@ -20,6 +20,7 @@ import {
 import { randomUUID } from "crypto";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -64,6 +65,13 @@ export const projectsRouter = createTRPCRouter({
         resourceId: project.id,
         action: "create",
         after: project,
+      });
+
+      // Best-effort CHB metering signal; no-op unless the org is CHB-billed
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_CREATED",
+        orgId: input.orgId,
+        projectId: project.id,
       });
 
       return {
@@ -210,6 +218,14 @@ export const projectsRouter = createTRPCRouter({
         action: "delete",
       });
 
+      // Soft-delete is the billing-relevant moment: the customer stops being
+      // billable now, not when the async hard-delete worker finishes.
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_DELETED",
+        orgId: ctx.session.orgId,
+        projectId: input.projectId,
+      });
+
       const projectDeleteQueue = ProjectDeleteQueue.getInstance();
       if (!projectDeleteQueue) {
         throw new TRPCError({
@@ -298,6 +314,23 @@ export const projectsRouter = createTRPCRouter({
         ctx.prisma,
         redis,
       ).invalidateCachedProjectApiKeys(input.projectId);
+
+      // A transfer is a delete for the source org and a create for the
+      // destination one. CHB's registry is keyed by (organizationId,
+      // projectId), so emitting only one side leaves the source org billed for
+      // usage it no longer owns, or the destination org unmetered. Each emit
+      // no-ops unless that org is CHB-billed, so a Stripe-to-Stripe transfer
+      // sends nothing.
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_DELETED",
+        orgId: ctx.session.orgId,
+        projectId: input.projectId,
+      });
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_CREATED",
+        orgId: input.targetOrgId,
+        projectId: input.projectId,
+      });
     }),
 
   environmentFilterOptions: protectedProjectProcedure

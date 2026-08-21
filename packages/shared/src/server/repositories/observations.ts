@@ -597,7 +597,9 @@ export const getObservationsTableWithModelData = async (
             OR: [{ projectId: opts.projectId }, { projectId: null }],
           },
           include: {
-            Price: true,
+            Price: {
+              where: { pricingTier: { isDefault: true } },
+            },
           },
         })
       : [],

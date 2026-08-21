@@ -1602,7 +1602,10 @@ export const Failed = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("status")).toHaveTextContent(
-      "The run exceeded the maximum duration.",
+      "The run hit the time limit.",
+    );
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Send another message",
     );
     await expect(
       canvas.getByRole("button", { name: "Failed after 51s" }),
@@ -1672,7 +1675,10 @@ export const FailedBeforeFirstToken = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("status")).toHaveTextContent(
-      "No worker picked this up",
+      "The assistant failed.",
+    );
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Send another message",
     );
     await expect(
       canvas.getByRole("button", { name: "Worked for 12s" }),
@@ -1680,6 +1686,126 @@ export const FailedBeforeFirstToken = meta.story({
     await expect(
       canvas.queryByRole("button", { name: /Failed after/ }),
     ).not.toBeInTheDocument();
+  },
+});
+
+const failedWorkerLostRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.FAILED,
+  errorCode: InAppAgentRunErrorCode.WORKER_LOST,
+  cancelRequested: false,
+};
+
+export const FailedWorkerLost = meta.story({
+  name: "(Test) Assistant failed",
+  args: {
+    selectedConversationId: "conversation-1",
+    executionUi: {
+      notice: getBackgroundRunNotice(failedWorkerLostRun),
+      activityOutcome: getSettledActivityOutcome(failedWorkerLostRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate latency",
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Still inspecting the remaining traces.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "The assistant failed.",
+    );
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Send another message",
+    );
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+  },
+});
+
+const expiredApprovalRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.FAILED,
+  errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+  cancelRequested: false,
+};
+
+export const ApprovalExpired = meta.story({
+  name: "(Test) Approval expired",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAwaitingApproval: false,
+    isAssistantTurnInProgress: false,
+    executionUi: {
+      notice: getBackgroundRunNotice(expiredApprovalRun),
+      activityOutcome: getSettledActivityOutcome(expiredApprovalRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Create a dataset for regression examples.",
+        },
+      },
+      {
+        id: "assistant-tool-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_upsertDataset",
+              status: "running",
+              args: JSON.stringify({
+                name: "regression-examples",
+                description: "Examples used for release regression tests",
+              }),
+            },
+          ],
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "The approval request expired. The action was not run. Send another message if you still want it.",
+    );
+    await expect(
+      canvas.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Decline" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Waiting for your approval…" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
   },
 });
 

@@ -239,12 +239,8 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       {/* Metadata badges */}
       <div className="flex flex-col gap-2">
         {/* Timestamp */}
-        <div className="flex flex-wrap items-center gap-1">
-          <LocalIsoDate
-            date={trace.timestamp}
-            accuracy="millisecond"
-            className="text-sm"
-          />
+        <div className="flex flex-wrap items-center gap-1 text-sm">
+          <LocalIsoDate date={trace.timestamp} accuracy="millisecond" />
         </div>
 
         {/* Other badges */}

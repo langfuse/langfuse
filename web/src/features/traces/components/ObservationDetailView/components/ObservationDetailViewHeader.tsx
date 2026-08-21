@@ -375,12 +375,8 @@ export const ObservationDetailViewHeader = memo(
 
         <div className="flex flex-col gap-2">
           {/* Timestamp */}
-          <div className="flex flex-wrap items-center gap-1">
-            <LocalIsoDate
-              date={observation.startTime}
-              accuracy="millisecond"
-              className="text-sm"
-            />
+          <div className="flex flex-wrap items-center gap-1 text-sm">
+            <LocalIsoDate date={observation.startTime} accuracy="millisecond" />
           </div>
 
           {/* Other badges */}
