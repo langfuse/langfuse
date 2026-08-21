@@ -4,16 +4,23 @@ import { cn } from "@/src/utils/tailwind";
 interface TimelineProps {
   children: React.ReactNode;
   className?: string;
+  // Passed through to the items container. Callers that virtualize their
+  // children (absolutely positioned rows) use this to set an explicit
+  // height equal to the virtualizer's total content size, since absolutely
+  // positioned children no longer contribute to normal-flow height.
+  style?: React.CSSProperties;
 }
 
-export function Timeline({ children, className }: TimelineProps) {
+export function Timeline({ children, className, style }: TimelineProps) {
   return (
     <div className={cn("relative w-full", className)}>
       {/* Timeline line */}
       <div className="bg-border-contrast absolute left-2 mt-4 h-[calc(100%-16px)] w-px" />
 
       {/* Timeline items container */}
-      <div className="pl-4">{children}</div>
+      <div className="relative pl-4" style={style}>
+        {children}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialog";
 import {
   Timeline,
@@ -14,8 +15,13 @@ import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPro
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { FileDiffIcon } from "lucide-react";
 
+// Fallback row height used before a row has been measured. Actual rows vary
+// (commit message, wrapped labels), so the virtualizer re-measures each row
+// via `measureElement` once mounted.
+const ESTIMATED_ROW_HEIGHT = 76;
+
 const PromptHistoryTraceNode = (props: {
-  index: number;
+  isLatest: boolean;
   prompt: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
   currentPrompt?: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
   currentPromptVersion: number | undefined;
@@ -74,7 +80,7 @@ const PromptHistoryTraceNode = (props: {
             return;
           }
 
-          props.index === 0
+          props.isLatest
             ? props.setCurrentPromptVersion(undefined)
             : props.setCurrentPromptVersion(prompt.version);
         }}
@@ -91,7 +97,7 @@ const PromptHistoryTraceNode = (props: {
                 <Badge
                   onClick={(e) => {
                     e.stopPropagation();
-                    props.index === 0
+                    props.isLatest
                       ? props.setCurrentPromptVersion(undefined)
                       : props.setCurrentPromptVersion(prompt.version);
                   }}
@@ -201,26 +207,76 @@ export const PromptHistoryNode = (props: {
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (id: number | undefined) => void;
   commentCounts?: Map<string, number>;
+  // Free-text search term (from the sidebar's CommandInput). Filtering is
+  // applied here, rather than delegated to cmdk's built-in filter, so that
+  // only matching rows are virtualized/mounted.
+  searchValue?: string;
+  // The scrollable ancestor element the virtualizer should measure against.
+  // Prompts with many versions can no longer mount every row into the DOM
+  // (that froze the sidebar), so rows are virtualized and only need to be
+  // measured against the actual scroll container.
+  scrollElement: HTMLDivElement | null;
 }) => {
   const router = useRouter();
+  // The unfiltered list stays ordered by version desc (server-side), so the
+  // first element is always the latest version regardless of the current
+  // search term.
+  const latestVersion = props.prompts[0]?.version;
   const currentPrompt = props.prompts.find(
     (p) => p.version === props.currentPromptVersion,
   );
 
+  const filteredPrompts = useMemo(() => {
+    const term = props.searchValue?.trim().toLowerCase();
+    if (!term) return props.prompts;
+    return props.prompts.filter((prompt) => {
+      const haystack =
+        `# ${prompt.version};${prompt.commitMessage ?? ""};${prompt.labels.join(",")}`.toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [props.prompts, props.searchValue]);
+
+  const virtualizer = useVirtualizer({
+    count: filteredPrompts.length,
+    getScrollElement: () => props.scrollElement,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    getItemKey: (index) => filteredPrompts[index]!.id,
+    overscan: 10,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+
   return (
-    <Timeline>
-      {props.prompts.map((prompt, index) => (
-        <PromptHistoryTraceNode
-          key={prompt.id}
-          index={index}
-          prompt={prompt}
-          currentPrompt={currentPrompt}
-          currentPromptVersion={props.currentPromptVersion}
-          setCurrentPromptVersion={props.setCurrentPromptVersion}
-          router={router}
-          commentCounts={props.commentCounts}
-        />
-      ))}
+    <Timeline
+      style={{ position: "relative", height: virtualizer.getTotalSize() }}
+    >
+      {virtualItems.map((virtualRow) => {
+        const prompt = filteredPrompts[virtualRow.index]!;
+        return (
+          <div
+            key={prompt.id}
+            data-index={virtualRow.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${virtualRow.start}px)`,
+            }}
+          >
+            <PromptHistoryTraceNode
+              isLatest={prompt.version === latestVersion}
+              prompt={prompt}
+              currentPrompt={currentPrompt}
+              currentPromptVersion={props.currentPromptVersion}
+              setCurrentPromptVersion={props.setCurrentPromptVersion}
+              router={router}
+              commentCounts={props.commentCounts}
+            />
+          </div>
+        );
+      })}
     </Timeline>
   );
 };
