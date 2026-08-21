@@ -1,238 +1,188 @@
-# [DEV DRAFT] Normalized I/O parser
+# Normalized I/O parser
 
-One parser owns observation I/O interpretation. `normalizeIO(source)` takes a
-discriminated source — a ClickHouse event row, a plain
-`{input, output, metadata}`, or (stubbed) a raw OTel span — and returns
-`NormalizedIO`: an ordered message stream (`messages`, each with a role, a
-`parts` union of text/reasoning/tool-call/tool-result/file/data/custom, an
-optional `finishReason`, and its input/output `source`), the merged
-`toolDefinitions`, and the raw pre-normalization values (`span`). Recognition
-is shape-based, never dispatched on a provider label; provider extras ride in
-part-level `providerMetadata` with well-known flags typed as
-`KnownPartFlags` (`refusal`, `reasoning`, `invalid`). Projections derive
-consumer shapes (ClickHouse tool columns, eval records) from `NormalizedIO` —
-never from the raw formats.
+One parser owns observation I/O interpretation. `normalizeIO(source)` turns
+raw observation input/output/metadata into a canonical, provider-independent
+representation; downstream consumers (ClickHouse tool columns, eval records,
+rendering) derive their shapes from that representation.
 
-Covered formats: OpenAI Chat Completions + Responses API, Anthropic Messages,
-Vercel AI SDK, Gemini/Vertex, LangChain/LangGraph (incl. the `lc`
-serialization envelope), plus fixture-locked Microsoft Agent Framework,
-Pydantic AI, Semantic Kernel, agno/koog-style loose shapes, and raw
-passthrough. Bedrock/Mistral/Cohere ride the generic shape-sniffing paths.
+## Interface
 
-## Validation status
+```ts
+normalizeIO(source: NormalizeIOSource): NormalizedIO
 
-- Fixture registry (`fixtures/`): one locked parser output per fixture
-  (`parser.test.ts` runs the registry); the tool-column projection is
-  asserted against the same locked outputs (`projections/toolCallColumns.test.ts`).
-- ChatML corpus cross-check: `worker/src/__tests__/chatml/normalizedIO.crosscheck.test.ts`
-  (temporary harness) replays the 20 real framework traces the trace-IO
-  ChatML parser is locked against and compares text/tool-call/tool-definition
-  projections; survey mode dumps side-by-side review files. Divergences are
-  triaged into parser fixes or an explicit allowlist.
-- Legacy compatibility: with the (temporary) hookup of
-  `toToolColumns(normalizeIO(...))` into `normalizeToolsForObservation`,
-  53/54 of the legacy `extractToolsBackend` worker tests pass. The one
-  divergence (unnamed provider tools, see questions) is under review.
-- Prod replay: sampled prod OTel batches replayed through the read-only
-  consistency harness; the parser's tool columns diffed against the
-  actually-ingested ClickHouse baseline
-  (`scripts/compareToolColumnsAgainstManifest.ts`). Known win: spans whose
-  tool calls live in `parts[].type: "tool_call"` containers are missed by
-  the live pipeline and correctly extracted here — internal example from langfuse emo trace:
-  https://cloud.langfuse.com/project/clkpwwm0m000gmm094odg11gi/traces/5f9b96b2d186c0cd172bc93272bf6f68?observation=a661aa3c1be83d6a
+type NormalizeIOSource =
+  | { kind: "event-record"; record } // ClickHouse event row (metadata as name/value column arrays)
+  | { kind: "io"; io }               // { input, output, metadata }
+  | { kind: "otel"; span; context }; // raw OTel span
+```
 
-## What's left
+`NormalizedIO` contains:
 
-1. **OTel → SpanIO adapter**: extract the raw input/output/metadata
-   discovery out of `OtelIngestionProcessor.extractInputAndOutput` /
-   `extractMetadata` into `adapters/otel.ts`, with the processor calling in.
-2. **How to deal with empty strings**: Proposal implementation: messages whose only
-   content is an empty string are dropped. TBD how to handle non-string `text` values
-   — align with the trace IO view, which renders both.
-3. **Projection coverage**: tests for `toEvalRecord`. Other projects have been tested.
-4. **Rollout**: across product surfaces. Start with ingestion, continue with evals.
-5. **LangChain tool_call_chunks**: deliberately ignored — they are streaming
-   deltas (partial JSON fragments per index) and redundant with the parsed
-   `tool_calls` on final messages. Later: merge and parse them only when
-   `tool_calls` is absent (mid-stream captures).
-6. **Provenance / provider labeling (pinned)**: NormalizedIO deliberately has
-   no single "system"/adapter identity — parsing is shape-based and real
-   payloads are mixed-dialect (AI SDK + Anthropic blocks in one message,
-   LangChain wrapping OpenAI), so one label per observation would lie. The
-   provider label UIs want is metadata, not parse output. Options when a
-   consumer materializes:
-   (a) observation-level echo `NormalizedIO.provenance?: { provider?, scope? }`
-   filled by a dumb lookup over `gen_ai.system` / `ls_provider` / scope name —
-   honest at span altitude, zero parse coupling;
-   (b) per-message `provenance?.dialect` set only when a distinctly-dialected
-   path fired (langchain-envelope, responses-item, ...) — needs branch
-   bookkeeping, mostly undefined;
-   (c) per-part provenance, which already exists implicitly via `toolType`
-   raw item types and providerMetadata keys. Lean: (a) when needed, (c) is
-   free, (b) only on demonstrated demand. Parsing must never _depend_ on the
-   label (that is ChatML's adapter-dispatch fragility).
-7. **providerMetadata persistence**: several semantics now ride on part-level
-   `providerMetadata` (refusal flags, audio transcripts, citations,
-   media-token `source`). We need a good story for saving and querying it —
-   e.g. eval filters like "all observations that contained a refusal" depend
-   on `providerMetadata.refusal` being reachable.
+- `messages` — one ordered stream: input messages, then output messages,
+  original order preserved within each. Every message carries `role`,
+  ordered `parts`, an optional `finishReason`, and `source: "input" | "output"`
+  (the observation boundary, recoverable by projections).
+- `toolDefinitions` — the tools available to the model, merged across
+  input, output, and metadata.
+- `span` — the raw pre-normalization `{ input, output, metadata }`, always
+  returned.
 
-## Questions for review
+## The part union
 
-1. **Unnamed provider tools**: the parser admits provider tools without a
-   `name` (e.g. `web_search_preview`) into `tool_definitions`; the legacy
-   extractor excludes them. Keep (available-tool filtering covers provider
-   tools too) or match legacy?
-2. **File parts baked in text**: Think about if it should be: "Compare <tok1> with <tok2> please." → [text "Compare ", file, text " with ", file, text " please."]. Each token becomes a FilePart {content: {kind:"reference", id}, mediaType: token.type}. Or if we should have a simpler implementation.
+Parts encode _what a consumer can do with the content_; provider-specific
+semantics ride in part-level `providerMetadata`, never as extra part types.
 
-## Assumptions
+| Part          | Content                                                                                                                                 | Notes                                                                                                                                                                                       |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`        | `text`                                                                                                                                  | citations/annotations land in `providerMetadata.citations`                                                                                                                                  |
+| `reasoning`   | `content` union: `{kind:"text", text, signature?}` \| `{kind:"redacted", data}` \| `{kind:"encrypted", data}` \| `{kind:"data", value}` | visible CoT/summaries; provider-withheld blobs; replayable encrypted blobs; structured payloads                                                                                             |
+| `tool-call`   | `toolCallId` (nullable), `toolName`, `input`, `toolType?`, `providerExecuted?`, `index?`                                                | `toolType` set only for non-function kinds (`custom`, raw built-in item types); `providerExecuted` for server-side tools                                                                    |
+| `tool-result` | `toolCallId` (nullable), `toolName?`, `output`, `isError?`                                                                              | AI-SDK `{type, value}` output wrappers are unwrapped                                                                                                                                        |
+| `file`        | `content` union: `{kind:"url"}` \| `{kind:"base64"}` \| `{kind:"reference", id}`, `mediaType?`, `filename?`                             | all media, incl. `@@@langfuseMedia:…@@@` tokens → references; `mediaType` is exact when declared, a modality wildcard (`image/*`) when only the part kind reveals it, absent for opaque ids |
+| `data`        | `value`                                                                                                                                 | structured non-message payloads (function-span args/results, loose records) — JSON-passthrough parity with the trace view                                                                   |
+| `custom`      | `kind`, `value`                                                                                                                         | recognized-but-unmapped typed blocks, verbatim (e.g. `source`, `document`)                                                                                                                  |
 
-Each entry states the assumption, why it holds, and how to challenge it.
-Challenge by fixture: add a failing case to the test suite, then either the
-assumption falls or the fixture documents it.
+Well-known `providerMetadata` flags are typed as `KnownPartFlags`:
+`refusal` (model refusals stay findable text), `reasoning`
+(reasoning-generated files), `invalid` (unparsable tool-call attempts —
+visible in the stream, excluded from tool columns).
 
-### 1. Tool-call dedup is scoped to one side; a call in output always counts
+`finishReason` is `{ type, raw }`: provider vocabularies (OpenAI
+`finish_reason`, Anthropic `stop_reason`, Gemini `finishReason`, AI-SDK
+variants) canonicalize to
+`stop | length | tool-calls | content-filter | error | other | unknown`,
+with the provider's verbatim value kept in `raw`.
 
-Tool-call parts are deduplicated by `toolCallId` (fallback: name + input)
-within input and within output separately — never across the boundary. A
-call appearing in this observation's output is always kept there (and so
-always reaches the tool columns), even when the input echoes the same id.
+## How parsing works
 
-- **Why:** instrumentation frequently reports the same call twice on one
-  side (in a message's `tool_calls` field and again as a content part), so
-  per-side dedup is needed. Across sides, this matches the trace IO view —
-  `combineInputOutputMessages` concatenates without dedup — and the legacy
-  column extractor, which scans only output.
-- **Known consequence (accepted):** outputs that echo the full message
-  history (full-state outputs) attribute historical calls to this
-  observation. The trace view and the legacy extractor share this behavior;
-  changing it would be a deliberate, separate semantics change.
-- **Challenge with:** a fixture where the same call id appears in both input
-  and output — output must retain it.
+Recognition is **shape-based** — the parser never dispatches on a provider
+label, because real payloads are mixed-dialect (AI-SDK and Anthropic blocks
+in one message, LangChain wrapping OpenAI). The pipeline:
 
-### 2. Tool columns count only output-side calls
+1. **Source → raw values.** Event rows zip their metadata name/value column
+   arrays; plain IO passes through; OTel extraction is a stub pending the
+   processor extraction. Every value crosses **at most
+   one JSON-string boundary per owner** — nested encoded strings are decoded
+   by whichever step consumes them, never eagerly (double-encoded payloads
+   are common; eager deep-parsing corrupts legitimate strings).
+2. **Container discovery.** Top-level shapes are unwrapped: `messages`
+   arrays, bare item arrays (OpenAI Responses style — standalone tool-call
+   items batch into synthetic assistant messages; `mcp_list_tools` feeds
+   `toolDefinitions` side-band), `choices[]` / `candidates[]` response
+   envelopes (choice-level finish reasons attach to their message), Gemini
+   `contents` + `system_instruction`, or a single record.
+3. **Message normalization.** Envelope unwraps first (Semantic Kernel
+   `gen_ai.event.content`, the LangChain `lc`/`kwargs` serialization
+   envelope with the role derived from the class path, GenAI choice events
+   `{index, message, finish_reason}`), then Python-repr message strings
+   (agno). Roles normalize to
+   `system | developer | user | assistant | tool | unknown` with deliberate
+   coercions: `model → assistant`, deprecated `function → tool` (name becomes
+   the tool name), role-less Responses reasoning items → `assistant` (model
+   output even in replayed input history), user messages consisting solely of
+   tool results → `tool`, tool-labeled turns without a `tool_call_id` →
+   assistant call batches or tool-results (the content _is_ the tool's
+   response), unrecognized declared roles → `unknown` with the raw string
+   preserved as `name`.
+4. **Part normalization.** Per message: content arrays/parts run through the
+   part parser; string content splits into interleaved text and file parts
+   around embedded media tokens; JSON-string arrays of tool shapes parse into
+   tool parts. Sibling fields fold in: `tool_calls` (+
+   `additional_kwargs.tool_calls`), `invalid_tool_calls` (flagged), Anthropic
+   `thinking` arrays, OpenAI `refusal`/`audio`/`annotations`, Responses
+   reasoning `summary`/`encrypted_content`, `finish_reason` (message-level,
+   envelope-level, or `response_metadata`). The part parser itself
+   recognizes, in order: provider-executed built-in items, Gemini keyed
+   parts (`functionCall`, `inlineData`, `executableCode`, bare `{text}` with
+   `thought`/`thoughtSignature`), the typed-block switch (OpenAI, Anthropic,
+   AI-SDK block types), shape-sniffed tool calls without a recognized type,
+   and finally the `data`/`custom` fallback. Messages that produce no parts
+   but have no message keys become single `data`-part messages (JSON
+   passthrough) rather than being dropped.
+5. **Accumulation.** Tool-call parts dedup by `toolCallId` (fallback:
+   name + input) **within each side only** — a call echoed across the
+   input/output boundary is kept on both sides. Tool definitions merge by
+   name with first-seen-wins per field across input → output → metadata, so
+   request-time declarations win and later echoes only fill gaps.
 
-`toToolColumns` (and the eval record's `toolCalls`) include only calls from
-`source: "output"` messages: "calls this observation made", not history it
-was shown. Matches the legacy extractor, which never scans input for calls.
+## Semantics and invariants
 
-- **Why:** the columns power called-tool-name filters and per-observation
-  call counts; a call in input was made by an earlier observation.
-- **Challenge with:** any consumer that needs history calls — that consumer
-  should read `NormalizedIO.messages`, not the columns.
+Each entry states the behavior, why, and how to challenge it. Challenge by
+fixture: add a failing case to the test suite, then either the behavior falls
+or the fixture documents it.
 
-### 3. `source` preserves the input/output boundary in one ordered stream
+### Tool calls
 
-Messages carry `source: "input" | "output"` instead of living in two arrays;
-input messages precede output messages, original order preserved within each.
+- **Dedup is scoped to one side; a call in output always counts.**
+  Instrumentation frequently reports the same call twice on one side (in
+  `tool_calls` and again as a content part). Across sides, no dedup — the
+  trace view concatenates without dedup, and outputs echoing full history
+  attribute historical calls to this observation (accepted, shared with the
+  trace view and legacy extractor).
+- **Id-less identical calls collapse** (key: name + input). The dedup's
+  primary job is killing the common echo, which appears at different
+  positions — positional disambiguation would rescue the rare genuine
+  id-less parallel duplicate by double-counting the common echo. Legacy
+  collapses identically; providers that care emit ids.
+- **Absent ids are `null`;** the column projection maps `null` to `""` for
+  byte-compatibility with the legacy ClickHouse format.
+- **Tool columns count executable output-side calls only**: input-side calls
+  are history from earlier turns; `invalid`-flagged attempts are excluded.
+  Consumers that need history calls read `messages`, not the columns.
+- **Unnamed provider tools are admitted** into `toolDefinitions` (name
+  derived from the tool type, e.g. `web_search_preview`) — available-tool
+  filtering covers provider built-ins; the legacy extractor's exclusion was
+  accidental.
 
-- **Why:** rendering wants one conversation stream; projections (eval
-  records, tool columns) need the boundary back.
-- **Note:** not yet part of the canonical normalized-IO format; proposed
-  extension.
+### Messages and content
 
-### 4. The trace-UI ChatML parser is the recognition oracle; placement is the column arbiter
+- **`source` preserves the input/output boundary in one ordered stream** —
+  rendering wants one conversation; projections need the boundary back.
+- **Messages whose only content is an empty string are dropped.** Non-string
+  payloads are never coerced to text — structured values become `data`.
+- **Media normalizes to file parts.** Reference tokens (the dominant stored
+  shape after ingestion uploads payloads) map to `{kind: "reference", id}`
+  with `mediaType` from the token — exactly what `LangfuseMediaView`
+  resolves. Raw base64 data-URIs (only present when upstream media
+  processing skipped or failed) stay `url` content; the parser reads the
+  declared prefix type but never decodes payloads — that is
+  `MediaPayloadProcessor`'s job. Text with embedded media tokens splits into
+  interleaved text/file parts so text consumers never see tokens.
+- **Citations are unified**: Anthropic `citations` and OpenAI `annotations`
+  (part- and message-level) land under `providerMetadata.citations`,
+  payloads verbatim. Anchor-less references (AI-SDK `source` parts) stay
+  stream-positioned as `custom {kind: "source"}` — one vocabulary, two
+  carriers, matching what the source actually provides.
+- **`SpanIO.metadata` may carry an `attributes` record with OTel keys**; the
+  parser mines known tool-definition attribute keys from it
+  (`ai.prompt.tools`, `gen_ai.tool.definitions`, `llm.tools.N.…`,
+  `model_request_parameters.function_tools`). Open tension: these are
+  OTel-format names inside the transport-independent core.
 
-If the trace IO view (ChatML parser + framework-trace corpus) recognizes a
-shape as a tool call, it is one — recognition gaps in the legacy extractor
-(e.g. `parts[].type: "tool_call"` containers) are treated as legacy bugs,
-and diverging from legacy there is intentional. Whether a recognized call
-belongs in the tool _columns_ is decided solely by where it sits (input vs
-output), per assumption 2.
+### Intentional losses
 
-- **Challenge with:** a shape the ChatML corpus renders as a tool call that
-  the parser misses, or vice versa.
+- Anthropic `cache_control` (request caching hint).
+- LangChain `tool_call_chunks` (streaming deltas, redundant with parsed
+  `tool_calls` on final messages).
+- Response-envelope metadata (Gemini `usageMetadata`/`modelVersion`, OpenAI
+  Responses envelope `status`) — usage and model info have their own
+  pipeline columns; the raw envelope survives in `span`.
+- Anthropic text/structured-content documents become
+  `custom {kind: "document"}` — semantic content, not resolvable files.
 
-### 5. Tool definitions merge by name, first-seen wins per field
+## Format coverage
 
-Definitions from input, output, and metadata are merged by tool name;
-earlier occurrences keep their fields, later ones only fill gaps.
+OpenAI Chat Completions + Responses API, Anthropic Messages, Vercel AI SDK,
+Gemini/Vertex, LangChain/LangGraph (incl. the `lc` serialization envelope),
+Microsoft Agent Framework, Pydantic AI, Semantic Kernel, agno/koog-style
+loose shapes, GenAI event streams, and raw passthrough. Providers without
+dedicated handling (Bedrock, Mistral, Cohere, …) ride the generic
+shape-sniffing paths; targeted handling is added only when validation
+produces a concrete miss.
 
-- **Why:** the same tool is frequently declared in multiple places with
-  varying completeness (name-only in a message, full schema in metadata).
+## Projections
 
-### 6. JSON strings are parsed once, by their owner
-
-Every value crosses at most one JSON-string boundary per owner; nested
-encoded strings are decoded by whichever step consumes them, not eagerly.
-
-- **Why:** double-encoded payloads are common; eager deep-parsing corrupts
-  values that are legitimately strings.
-
-### 7. Absent tool-call ids are `null`; columns map them to `""`
-
-The parser emits `toolCallId: null` when instrumentation provides no id; the
-column projection converts `null` to `""` for byte-compatibility with the
-legacy ClickHouse format.
-
-### 8. `SpanIO.metadata` may carry an `attributes` record with OTel keys
-
-The parser mines known tool-definition attribute keys from
-`metadata.attributes` (`ai.prompt.tools`, `gen_ai.tool.definitions`,
-`llm.tools.N.tool.json_schema`, `model_request_parameters.function_tools`).
-
-- **Why:** both adapters (OTel ingestion, ClickHouse event record) store
-  span attributes under `metadata.attributes`, so the parser can treat that
-  shape as part of the `SpanIO` contract rather than transport knowledge.
-- **Tension (open):** these are OTel-format key names inside the
-  "transport-independent" core. Alternative: move attribute mining into the
-  adapters and have them surface definitions explicitly.
-
-### 9. Id-less identical parallel calls collapse
-
-Two distinct calls to the same tool with identical arguments and no ids
-dedup to one (key: name + input). The legacy extractor behaves the same
-(`id || name-arguments`), so parity holds — but real parallel duplicate
-calls are undercounted by both.
-
-### 10. Refusals are text parts flagged in providerMetadata
-
-OpenAI refusals (the `{type: "refusal"}` content part and the top-level
-`message.refusal` string) normalize to text parts with
-`providerMetadata: { refusal: true }`.
-
-- **Why:** the refusal text stays in the conversation stream (trace-view
-  parity, eval/search visibility), while the flag keeps refusal observations
-  findable — evals can filter on `providerMetadata.refusal` to collect all
-  observations where the model refused and investigate why.
-- **Challenge with:** a consumer that needs refusals excluded from plain text
-  — it should filter on the flag, not on a separate part type.
-
-### 11. Media normalizes to file parts; mediaType is best-effort
-
-All media (multimodal content parts, audio output, Langfuse
-`@@@langfuseMedia:type=X|id=Y|source=Z@@@` reference tokens) becomes
-`file` parts. Reference tokens — the dominant stored shape after ingestion
-uploads raw payloads — map to `content: { kind: "reference", id }` with
-`mediaType` from the token, which is exactly what `LangfuseMediaView`
-resolves and renders (images inline, audio playable). `mediaType` is
-optional: exact when the source declares it (token `type`,
-`input_audio.format`, a data-URI prefix), a modality wildcard (`image/*`,
-`audio/*`) when only the part kind reveals it, absent for opaque ids. Raw
-base64 data-URIs (rare — only when upstream media processing skipped or
-failed) stay as `url` content; the parser reads the type their prefix
-declares but never decodes payloads — that is `MediaPayloadProcessor`'s job. Sidecar semantics ride in
-`providerMetadata` (e.g. audio `transcript`, token `source`, image `detail`)
-rather than dedicated fields.
-
-- **Challenge with:** a media shape whose type is derivable but lands as a
-  wildcard, or a consumer that needs a sidecar field promoted to the schema.
-
-### Provider notes and intentional losses
-
-- Citations are unified: Anthropic text-block `citations`, OpenAI
-  `annotations` (message- and part-level) all land under
-  `providerMetadata.citations`, payloads verbatim. Anchor-less references
-  (AI SDK `source` parts) stay stream-positioned as
-  `CustomPart { kind: "source" }` — one vocabulary, two carriers.
-- Anthropic text or structured-content documents normalize to
-  `CustomPart { kind: "document" }`; they are semantic content, not resolvable
-  file references.
-- Intentionally dropped: Anthropic `cache_control` (request caching hint),
-  LangChain `tool_call_chunks` (streaming deltas, see what's-left), and
-  response-envelope metadata such as Gemini `usageMetadata`/`modelVersion`
-  and OpenAI Responses envelope `status` — usage and model info have their
-  own pipeline columns, and the raw envelope survives in `span`.
-- Non-message payloads (function-span args/results, `{text}` items, loose
-  records) become `data`/text parts rather than being dropped — parity with
-  the trace view's JSON passthrough rendering.
+- `projections/toolCallColumns.ts` — `NormalizedIO` → the legacy ClickHouse
+  `tool_definitions`/`tool_calls`/`tool_call_names` column format.
+- `projections/evalRecord.ts` — `NormalizedIO` + observation → eval-ready
+  record (input/output message split, output-side tool calls).
