@@ -799,9 +799,10 @@ describe("MCP Read Tools", () => {
     });
 
     it("should return public-compatible observation filter schema", async () => {
-      const { context } = await createMcpTestSetup();
-
-      const result = (await handleGetObservationFilterSchema({}, context)) as {
+      const result = (await handleGetObservationFilterSchema(
+        {},
+        mockServerContext(),
+      )) as {
         resource: string;
         columns: Record<string, { type: string; operators: string[] }>;
       };
