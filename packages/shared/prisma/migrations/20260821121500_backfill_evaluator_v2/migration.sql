@@ -1,7 +1,7 @@
 -- Prisma does not automatically wrap PostgreSQL migrations in a transaction.
 BEGIN;
 
--- Backfills the tables created by 20260807121000_add_evaluator_v2 from the legacy
+-- Backfills the tables created by 20260821121000_add_evaluator_v2 from the legacy
 -- job_configurations/eval_templates rows. It is deliberately separate from that migration: the
 -- foreign keys there lock `projects` and `users` against writes for as long as their transaction
 -- is open, and this backfill is the slow part. Split, the lock window is the DDL only.
@@ -25,7 +25,7 @@ SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 -- (P3009), which crash-loops every container because the entrypoint runs `migrate deploy` before
 -- starting the app. Every insert below is `ON CONFLICT DO NOTHING` on a deterministic id, so the
 -- migration is safe to re-run once such a failure has been cleared with
--- `prisma migrate resolve --rolled-back 20260807121500_backfill_evaluator_v2`.
+-- `prisma migrate resolve --rolled-back 20260821121500_backfill_evaluator_v2`.
 --
 -- No lock_timeout either, for the same reason: the only lock this transaction can wait on is the
 -- KEY SHARE its RI triggers take on a `projects`/`users` row, and timing out there would abort a

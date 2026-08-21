@@ -1,7 +1,7 @@
 # Evaluator v2 migration suite
 
-The rollout is two migrations: `20260807121000_add_evaluator_v2` creates the tables, and
-`20260807121500_backfill_evaluator_v2` copies the legacy `job_configurations` / `eval_templates`
+The rollout is two migrations: `20260821121000_add_evaluator_v2` creates the tables, and
+`20260821121500_backfill_evaluator_v2` copies the legacy `job_configurations` / `eval_templates`
 rows into them. They are split because adding the new foreign keys locks `projects` and `users`
 against writes for as long as that transaction stays open, and the backfill is the slow part. This
 suite exercises both, since it applies every migration from the preparatory one onwards.

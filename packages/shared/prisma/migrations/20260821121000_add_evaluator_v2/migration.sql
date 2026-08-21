@@ -2,7 +2,7 @@
 BEGIN;
 
 -- DDL only. The backfill that copies job_configurations/eval_templates into these tables lives in
--- the follow-up migration 20260807121500_backfill_evaluator_v2 and must stay there.
+-- the follow-up migration 20260821121500_backfill_evaluator_v2 and must stay there.
 --
 -- Adding a foreign key takes SHARE ROW EXCLUSIVE on the *referenced* table, which conflicts with
 -- the ROW EXCLUSIVE that every INSERT/UPDATE/DELETE takes. The FKs below reference `projects` and

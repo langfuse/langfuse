@@ -36,13 +36,13 @@ const preparatoryMigration = join(
 const ddlMigration = join(
   prismaDirectory,
   "migrations",
-  "20260807121000_add_evaluator_v2",
+  "20260821121000_add_evaluator_v2",
   "migration.sql",
 );
 const backfillMigration = join(
   prismaDirectory,
   "migrations",
-  "20260807121500_backfill_evaluator_v2",
+  "20260821121500_backfill_evaluator_v2",
   "migration.sql",
 );
 const preparatoryMigrationName = basename(dirname(preparatoryMigration));
