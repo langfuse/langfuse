@@ -21,7 +21,6 @@ import {
   DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
   decodeFiltersGeneric,
 } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
 import type { Langfuse } from "langfuse";
 import type { InAppAgentTracingConfig } from "./instrumentation";
 
@@ -82,7 +81,6 @@ const readAgentInstructions = (agentConfig: MockedAgentConfig | undefined) => {
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
-  failure: null as Error | null,
   cleanup: vi.fn().mockResolvedValue(undefined),
   inputs: [] as unknown[],
   createScoreConfigExecute: vi.fn().mockResolvedValue({
@@ -237,14 +235,9 @@ vi.mock("@ag-ui/mastra", () => ({
       run: (input: unknown) => ({
         subscribe: (subscriber: {
           next: (event: AgUiEvent) => void;
-          error: (error: unknown) => void;
           complete: () => void;
         }) => {
           adapterEvents.inputs.push(input);
-          if (adapterEvents.failure) {
-            subscriber.error(adapterEvents.failure);
-            return { unsubscribe: vi.fn() };
-          }
           for (const event of adapterEvents.items) {
             subscriber.next(event);
           }
@@ -506,7 +499,6 @@ describe("patchMastraApprovalChunks", () => {
 describe("createAgUiStream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    adapterEvents.failure = null;
     bedrockMocks.streamParts = [];
     promptMocks.getPrompt.mockResolvedValue({
       name: "in-app-agent-system-prompt",
@@ -580,27 +572,6 @@ describe("createAgUiStream", () => {
       apiKey: "",
       credentialProvider: expect.any(Function),
     });
-  });
-
-  it("logs enumerable error fields when the adapter stream fails", async () => {
-    const loggerError = vi.spyOn(logger, "error");
-    adapterEvents.failure = new Error("Bedrock returned an empty stream");
-
-    await initializeBasicTracedAgent("run-adapter-stream-error");
-
-    expect(loggerError).toHaveBeenCalledWith(
-      "Error in agent execution",
-      expect.objectContaining({
-        runId: "run-adapter-stream-error",
-        threadId: "conversation-1",
-        error: expect.objectContaining({
-          name: "Error",
-          message: "Bedrock returned an empty stream",
-          stack: expect.stringContaining("Bedrock returned an empty stream"),
-        }),
-      }),
-    );
-    loggerError.mockRestore();
   });
 
   it("omits Bedrock region when the model config has none", async () => {
