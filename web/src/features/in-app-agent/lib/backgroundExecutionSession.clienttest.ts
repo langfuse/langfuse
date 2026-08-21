@@ -1373,19 +1373,19 @@ describe("getBackgroundRunNotice", () => {
     cancelRequested: false,
   });
 
-  const failedToFinishContinue =
-    "The assistant failed to finish. Send another message to continue.";
-  const failedToFinishTryAgain =
-    "The assistant failed to finish. Send another message to try again.";
+  const assistantFailedContinue =
+    "The assistant failed. Send another message to continue.";
+  const assistantFailedTryAgain =
+    "The assistant failed. Send another message to try again.";
 
   it.each([
-    [InAppAgentRunErrorCode.WORKER_LOST, failedToFinishContinue],
-    [InAppAgentRunErrorCode.STALE, failedToFinishContinue],
-    [InAppAgentRunErrorCode.QUEUE_TIMEOUT, failedToFinishContinue],
-    [InAppAgentRunErrorCode.WORKER_SHUTDOWN, failedToFinishContinue],
-    [InAppAgentRunErrorCode.INIT_FAILED, failedToFinishTryAgain],
-    [InAppAgentRunErrorCode.OUTCOME_UNKNOWN, failedToFinishTryAgain],
-    [InAppAgentRunErrorCode.ENQUEUE_FAILED, failedToFinishTryAgain],
+    [InAppAgentRunErrorCode.WORKER_LOST, assistantFailedContinue],
+    [InAppAgentRunErrorCode.STALE, assistantFailedContinue],
+    [InAppAgentRunErrorCode.QUEUE_TIMEOUT, assistantFailedContinue],
+    [InAppAgentRunErrorCode.WORKER_SHUTDOWN, assistantFailedContinue],
+    [InAppAgentRunErrorCode.INIT_FAILED, assistantFailedTryAgain],
+    [InAppAgentRunErrorCode.OUTCOME_UNKNOWN, assistantFailedTryAgain],
+    [InAppAgentRunErrorCode.ENQUEUE_FAILED, assistantFailedTryAgain],
     [
       InAppAgentRunErrorCode.APPROVAL_EXPIRED,
       "The approval request expired. The action was not run. Send another message if you still want it.",

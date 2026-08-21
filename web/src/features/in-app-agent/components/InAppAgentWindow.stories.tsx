@@ -1675,7 +1675,7 @@ export const FailedBeforeFirstToken = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("status")).toHaveTextContent(
-      "failed to finish",
+      "The assistant failed.",
     );
     await expect(canvas.getByRole("status")).toHaveTextContent(
       "Send another message",
@@ -1697,7 +1697,7 @@ const failedWorkerLostRun = {
 };
 
 export const FailedWorkerLost = meta.story({
-  name: "(Test) Failed to finish",
+  name: "(Test) Assistant failed",
   args: {
     selectedConversationId: "conversation-1",
     executionUi: {
@@ -1730,7 +1730,7 @@ export const FailedWorkerLost = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("status")).toHaveTextContent(
-      "failed to finish",
+      "The assistant failed.",
     );
     await expect(canvas.getByRole("status")).toHaveTextContent(
       "Send another message",

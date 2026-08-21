@@ -567,19 +567,19 @@ export function isCancellableBackgroundRun(
   );
 }
 
-const FAILED_TO_FINISH_CONTINUE =
-  "The assistant failed to finish. Send another message to continue.";
-const FAILED_TO_FINISH_TRY_AGAIN =
-  "The assistant failed to finish. Send another message to try again.";
+const ASSISTANT_FAILED_CONTINUE =
+  "The assistant failed. Send another message to continue.";
+const ASSISTANT_FAILED_TRY_AGAIN =
+  "The assistant failed. Send another message to try again.";
 
 const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
-  [InAppAgentRunErrorCode.WORKER_LOST]: FAILED_TO_FINISH_CONTINUE,
-  [InAppAgentRunErrorCode.STALE]: FAILED_TO_FINISH_CONTINUE,
-  [InAppAgentRunErrorCode.QUEUE_TIMEOUT]: FAILED_TO_FINISH_CONTINUE,
-  [InAppAgentRunErrorCode.WORKER_SHUTDOWN]: FAILED_TO_FINISH_CONTINUE,
-  [InAppAgentRunErrorCode.INIT_FAILED]: FAILED_TO_FINISH_TRY_AGAIN,
-  [InAppAgentRunErrorCode.OUTCOME_UNKNOWN]: FAILED_TO_FINISH_TRY_AGAIN,
-  [InAppAgentRunErrorCode.ENQUEUE_FAILED]: FAILED_TO_FINISH_TRY_AGAIN,
+  [InAppAgentRunErrorCode.WORKER_LOST]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.STALE]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.QUEUE_TIMEOUT]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.WORKER_SHUTDOWN]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.INIT_FAILED]: ASSISTANT_FAILED_TRY_AGAIN,
+  [InAppAgentRunErrorCode.OUTCOME_UNKNOWN]: ASSISTANT_FAILED_TRY_AGAIN,
+  [InAppAgentRunErrorCode.ENQUEUE_FAILED]: ASSISTANT_FAILED_TRY_AGAIN,
   [InAppAgentRunErrorCode.APPROVAL_EXPIRED]:
     "The approval request expired. The action was not run. Send another message if you still want it.",
   [InAppAgentRunErrorCode.RUN_TIMEOUT]:
