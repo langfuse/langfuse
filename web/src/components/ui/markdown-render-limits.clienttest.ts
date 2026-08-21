@@ -1,9 +1,10 @@
 import {
   MARKDOWN_MAX_NESTING_DEPTH,
-  MARKDOWN_MAX_RENDER_BYTES,
   estimateMarkdownNestingDepth,
   exceedsMarkdownRenderLimits,
 } from "@/src/components/ui/markdown-render-limits";
+
+const DEFAULT_CHARACTER_LIMIT = 150_000;
 
 describe("estimateMarkdownNestingDepth", () => {
   it("returns 0 for plain text", () => {
@@ -70,54 +71,59 @@ describe("estimateMarkdownNestingDepth", () => {
   });
 });
 
-describe("MARKDOWN_MAX_RENDER_BYTES derivation", () => {
-  const importWithCharacterLimit = async (limit: number) => {
-    vi.resetModules();
-    vi.doMock("@/src/env.mjs", () => ({
-      env: { NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: limit },
-    }));
-    return await import("@/src/components/ui/markdown-render-limits");
-  };
-
-  afterEach(() => {
-    vi.doUnmock("@/src/env.mjs");
-    vi.resetModules();
-  });
-
-  it("follows a raised character limit", async () => {
-    const mod = await importWithCharacterLimit(300_000);
-    expect(mod.MARKDOWN_MAX_RENDER_BYTES).toBe(300_000);
-    expect(mod.exceedsMarkdownRenderLimits("a".repeat(200_000))).toBe(false);
-    expect(mod.exceedsMarkdownRenderLimits("a".repeat(300_001))).toBe(true);
-  });
-
-  it("never drops below the 150k default", async () => {
-    const mod = await importWithCharacterLimit(10);
-    expect(mod.MARKDOWN_MAX_RENDER_BYTES).toBe(150_000);
-  });
-});
-
 describe("exceedsMarkdownRenderLimits", () => {
   it("allows normal content", () => {
-    expect(exceedsMarkdownRenderLimits("Hello **world**")).toBe(false);
-    expect(exceedsMarkdownRenderLimits("- a\n  - b\n    - c")).toBe(false);
+    expect(
+      exceedsMarkdownRenderLimits("Hello **world**", DEFAULT_CHARACTER_LIMIT),
+    ).toBe(false);
+    expect(
+      exceedsMarkdownRenderLimits(
+        "- a\n  - b\n    - c",
+        DEFAULT_CHARACTER_LIMIT,
+      ),
+    ).toBe(false);
   });
 
   it("flags content over the size preempt", () => {
     expect(
-      exceedsMarkdownRenderLimits("a".repeat(MARKDOWN_MAX_RENDER_BYTES + 1)),
+      exceedsMarkdownRenderLimits(
+        "a".repeat(DEFAULT_CHARACTER_LIMIT + 1),
+        DEFAULT_CHARACTER_LIMIT,
+      ),
     ).toBe(true);
+  });
+
+  it("follows a raised character limit", () => {
+    expect(exceedsMarkdownRenderLimits("a".repeat(200_000), 300_000)).toBe(
+      false,
+    );
+    expect(exceedsMarkdownRenderLimits("a".repeat(300_001), 300_000)).toBe(
+      true,
+    );
+  });
+
+  it("never drops the size preempt below the 150k default", () => {
+    expect(exceedsMarkdownRenderLimits("a".repeat(100_000), 10)).toBe(false);
   });
 
   it("flags deeply nested content even when small", () => {
     // A few KB of nested blockquotes overflows the parser/renderer in Firefox.
-    expect(exceedsMarkdownRenderLimits("> ".repeat(2000) + "boom")).toBe(true);
-    expect(exceedsMarkdownRenderLimits("*".repeat(2000))).toBe(true);
+    expect(
+      exceedsMarkdownRenderLimits(
+        "> ".repeat(2000) + "boom",
+        DEFAULT_CHARACTER_LIMIT,
+      ),
+    ).toBe(true);
+    expect(
+      exceedsMarkdownRenderLimits("*".repeat(2000), DEFAULT_CHARACTER_LIMIT),
+    ).toBe(true);
   });
 
   it("does not flag large-but-shallow markdown under the size cap", () => {
     const shallow = "word ".repeat(10_000); // ~50KB, depth 0
-    expect(shallow.length).toBeLessThan(MARKDOWN_MAX_RENDER_BYTES);
-    expect(exceedsMarkdownRenderLimits(shallow)).toBe(false);
+    expect(shallow.length).toBeLessThan(DEFAULT_CHARACTER_LIMIT);
+    expect(exceedsMarkdownRenderLimits(shallow, DEFAULT_CHARACTER_LIMIT)).toBe(
+      false,
+    );
   });
 });

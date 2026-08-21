@@ -1,5 +1,3 @@
-import { env } from "@/src/env.mjs";
-
 // Safety limits for rendering user/model content as GFM markdown.
 //
 // react-markdown parses content to an mdast tree and then walks it recursively
@@ -16,19 +14,6 @@ import { env } from "@/src/env.mjs";
 // input to *measure* its depth is unsafe — micromark's parser recurses too and
 // overflows on the same pathological input. So the depth check below is a single
 // pass, non-recursive scan that can never itself overflow.
-
-// Cheap preempt: individual strings larger than this are rendered as plain text
-// instead of markdown. Follows the configurable
-// NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT (the caller-side
-// input+output+messages gate), floored at its 150_000 default, so raising the
-// limit also raises this per-string backstop for surfaces that do not apply
-// that gate (e.g. comments). Raising it is safe: flat byte size never
-// overflows the stack (see above); the fixed depth check below is the
-// overflow guard.
-export const MARKDOWN_MAX_RENDER_BYTES = Math.max(
-  150_000,
-  env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
-);
 
 // Content whose estimated markdown nesting depth exceeds this is rendered as
 // plain text. Legitimate markdown nests <20-30 levels deep; a stack-overflowing
@@ -132,11 +117,20 @@ export function estimateMarkdownNestingDepth(content: string): number {
 }
 
 /**
- * Whether `content` should be rendered as plain text rather than parsed as GFM
- * markdown, to avoid stack-overflow crashes on pathologically large or deeply
- * nested payloads. See the module header for the mechanism.
+ * Whether `content` should be rendered as plain text rather than parsed as
+ * GFM markdown, to avoid stack-overflow crashes on pathologically large or
+ * deeply nested payloads (see the module header).
+ *
+ * The byte preempt follows `characterLimit` (the configured markdown render
+ * limit, see `useMarkdownRenderCharacterLimit`) floored at its 150_000
+ * default, so raising the limit also raises this backstop for surfaces
+ * without a caller-side gate (e.g. comments). Raising is safe: flat byte size
+ * never overflows; the depth check is the overflow guard.
  */
-export function exceedsMarkdownRenderLimits(content: string): boolean {
-  if (content.length > MARKDOWN_MAX_RENDER_BYTES) return true;
+export function exceedsMarkdownRenderLimits(
+  content: string,
+  characterLimit: number,
+): boolean {
+  if (content.length > Math.max(150_000, characterLimit)) return true;
   return estimateMarkdownNestingDepth(content) > MARKDOWN_MAX_NESTING_DEPTH;
 }

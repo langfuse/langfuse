@@ -56,6 +56,7 @@ import {
   getStandaloneMediaReferenceStrings,
 } from "@/src/components/ui/markdown-media.utils";
 import { exceedsMarkdownRenderLimits } from "@/src/components/ui/markdown-render-limits";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -397,14 +398,15 @@ function MarkdownRenderer({
   className?: string;
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
+  const characterLimit = useMarkdownRenderCharacterLimit();
 
   // Guard against payloads that would overflow the JS call stack while
   // react-markdown recursively walks the parsed tree (crashes Firefox, whose
   // stack is much smaller than Chrome's). Rendered as plain text instead.
   // See markdown-render-limits.ts for the mechanism.
   const tooLargeOrDeep = useMemo(
-    () => exceedsMarkdownRenderLimits(markdown),
-    [markdown],
+    () => exceedsMarkdownRenderLimits(markdown, characterLimit),
+    [markdown, characterLimit],
   );
 
   if (tooLargeOrDeep) {
