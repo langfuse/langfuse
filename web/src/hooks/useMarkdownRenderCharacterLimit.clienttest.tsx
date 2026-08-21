@@ -16,8 +16,7 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     public: {
       markdownRenderConfig: {
-        useQuery: (input: unknown, options: unknown) =>
-          mockMarkdownRenderConfigQuery(input, options),
+        useQuery: mockMarkdownRenderConfigQuery,
       },
     },
   },
@@ -36,17 +35,19 @@ describe("useMarkdownRenderCharacterLimit", () => {
   it("returns the server-configured limit once the provider fetched it", () => {
     mockMarkdownRenderConfigQuery.mockReturnValue({
       data: { characterLimit: 500_000 },
-      isLoading: false,
     });
     expect(renderWithProvider()).toBe(500_000);
   });
 
-  it("uses the default while the query has no data", () => {
+  it("uses the default while the query has no data and disables retries", () => {
     mockMarkdownRenderConfigQuery.mockReturnValue({
       data: undefined,
-      isLoading: true,
     });
     expect(renderWithProvider()).toBe(DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT);
+    expect(mockMarkdownRenderConfigQuery).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ retry: false }),
+    );
   });
 
   it("uses the default without a provider (stories, tests)", () => {

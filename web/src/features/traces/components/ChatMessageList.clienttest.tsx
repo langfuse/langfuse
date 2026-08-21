@@ -6,7 +6,7 @@ import { vi } from "vitest";
 vi.mock(
   "@/src/features/traces/components/IOPreview/components/ChatMessage",
   () => ({
-    ChatMessage: () => <div data-testid="chat-message" />,
+    ChatMessage: () => null,
   }),
 );
 vi.mock(
@@ -34,14 +34,12 @@ vi.mock("@/src/hooks/useMarkdownRenderCharacterLimit", () => ({
 const MEDIA_REF = "@@@langfuseMedia:type=image/png|id=media-1|source=base64@@@";
 const AUDIO_REF = "@@@langfuseMedia:type=audio/wav|id=audio-1|source=base64@@@";
 
-const media = [{ mediaId: "media-1" } as MediaReturnType];
-
-const renderList = (content: string) =>
+const renderList = (message: ChatMlMessage, mediaIds: string[]) =>
   render(
     <ChatMessageList
-      messages={[{ role: "user", content } as ChatMlMessage]}
+      messages={[message]}
       shouldRenderMarkdown={true}
-      media={media}
+      media={mediaIds.map((mediaId) => ({ mediaId }) as MediaReturnType)}
       currentView="pretty"
       messageToToolCallNumbers={new Map()}
     />,
@@ -49,52 +47,35 @@ const renderList = (content: string) =>
 
 describe("ChatMessageList media dedup", () => {
   it("filters media that the markdown path renders inline", () => {
-    renderList(MEDIA_REF);
+    renderList({ role: "user", content: MEDIA_REF } as ChatMlMessage, [
+      "media-1",
+    ]);
 
     expect(screen.queryByTestId("section-media")).not.toBeInTheDocument();
   });
 
-  it("keeps media in the strip when over-limit content falls back to JSON", () => {
-    // Over the limit, the renderer falls back to a JSON view with no inline media.
-    const overLimit = MEDIA_REF.repeat(
-      Math.ceil((TEST_LIMIT + 1) / MEDIA_REF.length),
-    );
-
-    renderList(overLimit);
-
-    expect(screen.getByTestId("section-media")).toHaveAttribute(
-      "data-media-ids",
-      "media-1",
-    );
-  });
-
-  it("keeps output audio in the strip when over-limit content falls back to JSON", () => {
-    render(
-      <ChatMessageList
-        messages={[
-          {
-            role: "assistant",
-            content: "x".repeat(TEST_LIMIT + 1),
-            audio: {
-              data: {
-                type: "base64",
-                id: "audio-1",
-                source: "",
-                referenceString: AUDIO_REF,
-              },
-            },
-          } as ChatMlMessage,
-        ]}
-        shouldRenderMarkdown={true}
-        media={[{ mediaId: "audio-1" } as MediaReturnType]}
-        currentView="pretty"
-        messageToToolCallNumbers={new Map()}
-      />,
+  it("keeps referenced media and audio when over-limit content falls back to JSON", () => {
+    renderList(
+      {
+        role: "assistant",
+        content: MEDIA_REF.repeat(
+          Math.ceil((TEST_LIMIT + 1) / MEDIA_REF.length),
+        ),
+        audio: {
+          data: {
+            type: "base64",
+            id: "audio-1",
+            source: "",
+            referenceString: AUDIO_REF,
+          },
+        },
+      } as ChatMlMessage,
+      ["media-1", "audio-1"],
     );
 
     expect(screen.getByTestId("section-media")).toHaveAttribute(
       "data-media-ids",
-      "audio-1",
+      "media-1,audio-1",
     );
   });
 });

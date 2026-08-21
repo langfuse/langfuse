@@ -5,6 +5,8 @@ import {
 } from "@/src/components/ui/markdown-render-limits";
 
 const DEFAULT_CHARACTER_LIMIT = 150_000;
+const exceedsDefaultLimits = (content: string) =>
+  exceedsMarkdownRenderLimits(content, DEFAULT_CHARACTER_LIMIT);
 
 describe("estimateMarkdownNestingDepth", () => {
   it("returns 0 for plain text", () => {
@@ -73,24 +75,14 @@ describe("estimateMarkdownNestingDepth", () => {
 
 describe("exceedsMarkdownRenderLimits", () => {
   it("allows normal content", () => {
-    expect(
-      exceedsMarkdownRenderLimits("Hello **world**", DEFAULT_CHARACTER_LIMIT),
-    ).toBe(false);
-    expect(
-      exceedsMarkdownRenderLimits(
-        "- a\n  - b\n    - c",
-        DEFAULT_CHARACTER_LIMIT,
-      ),
-    ).toBe(false);
+    expect(exceedsDefaultLimits("Hello **world**")).toBe(false);
+    expect(exceedsDefaultLimits("- a\n  - b\n    - c")).toBe(false);
   });
 
   it("flags content over the size preempt", () => {
-    expect(
-      exceedsMarkdownRenderLimits(
-        "a".repeat(DEFAULT_CHARACTER_LIMIT + 1),
-        DEFAULT_CHARACTER_LIMIT,
-      ),
-    ).toBe(true);
+    expect(exceedsDefaultLimits("a".repeat(DEFAULT_CHARACTER_LIMIT + 1))).toBe(
+      true,
+    );
   });
 
   it("follows a raised character limit", () => {
@@ -108,22 +100,13 @@ describe("exceedsMarkdownRenderLimits", () => {
 
   it("flags deeply nested content even when small", () => {
     // A few KB of nested blockquotes overflows the parser/renderer in Firefox.
-    expect(
-      exceedsMarkdownRenderLimits(
-        "> ".repeat(2000) + "boom",
-        DEFAULT_CHARACTER_LIMIT,
-      ),
-    ).toBe(true);
-    expect(
-      exceedsMarkdownRenderLimits("*".repeat(2000), DEFAULT_CHARACTER_LIMIT),
-    ).toBe(true);
+    expect(exceedsDefaultLimits("> ".repeat(2000) + "boom")).toBe(true);
+    expect(exceedsDefaultLimits("*".repeat(2000))).toBe(true);
   });
 
   it("does not flag large-but-shallow markdown under the size cap", () => {
     const shallow = "word ".repeat(10_000); // ~50KB, depth 0
     expect(shallow.length).toBeLessThan(DEFAULT_CHARACTER_LIMIT);
-    expect(exceedsMarkdownRenderLimits(shallow, DEFAULT_CHARACTER_LIMIT)).toBe(
-      false,
-    );
+    expect(exceedsDefaultLimits(shallow)).toBe(false);
   });
 });
