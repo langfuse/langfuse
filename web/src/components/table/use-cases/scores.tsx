@@ -54,7 +54,7 @@ import type { RouterOutput } from "@/src/utils/types";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -590,7 +590,9 @@ export default function ScoresTable({
       size: 150,
       cell: ({ row }) => {
         const value: ScoresTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? <LocalIsoDate date={value} /> : undefined;
+        if (!value) return undefined;
+        const date = prepareLocalIsoDate({ date: value });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {

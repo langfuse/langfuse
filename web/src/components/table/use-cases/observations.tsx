@@ -75,7 +75,7 @@ import {
 } from "@/src/features/traces";
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -709,7 +709,8 @@ export default function ObservationsTable({
       enableSorting,
       cell: ({ row }) => {
         const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
+        const date = prepareLocalIsoDate({ date: value });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {
@@ -1088,7 +1089,9 @@ export default function ObservationsTable({
       defaultHidden: true,
       cell: ({ row }) => {
         const value: Date | undefined = row.getValue("endTime");
-        return value ? <LocalIsoDate date={value} /> : undefined;
+        if (!value) return undefined;
+        const date = prepareLocalIsoDate({ date: value });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {

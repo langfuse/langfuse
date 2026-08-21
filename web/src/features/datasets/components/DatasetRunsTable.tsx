@@ -43,7 +43,7 @@ import {
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import {
   Dialog,
   DialogContent,
@@ -515,7 +515,8 @@ export function DatasetRunsTable(props: {
       enableHiding: true,
       cell: ({ row }) => {
         const value: DatasetRunRowData["createdAt"] = row.getValue("createdAt");
-        return <LocalIsoDate date={value} />;
+        const date = prepareLocalIsoDate({ date: value });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {

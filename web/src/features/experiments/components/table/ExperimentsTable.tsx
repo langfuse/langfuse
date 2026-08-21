@@ -31,7 +31,7 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
@@ -517,7 +517,8 @@ export default function ExperimentsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
+        const date = prepareLocalIsoDate({ date: value });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {

@@ -22,7 +22,7 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
@@ -47,6 +47,9 @@ function DatasetRunLegacy() {
     datasetId,
     dataset.data?.name,
   );
+  const datasetVersion = run.data?.datasetVersion
+    ? prepareLocalIsoDate({ date: run.data.datasetVersion })
+    : null;
 
   return (
     <Page
@@ -129,7 +132,11 @@ function DatasetRunLegacy() {
                       href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
                       className="text-link hover:text-link-hover text-sm"
                     >
-                      <LocalIsoDate date={run.data.datasetVersion} />
+                      {datasetVersion ? (
+                        <span title={datasetVersion.title}>
+                          {datasetVersion.display}
+                        </span>
+                      ) : null}
                     </Link>
                   </div>
                 )}

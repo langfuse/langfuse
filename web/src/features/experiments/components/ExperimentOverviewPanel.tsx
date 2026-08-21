@@ -1,4 +1,4 @@
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
@@ -50,6 +50,7 @@ export function ExperimentOverviewPanel({
   const safeGithubJobUrl = isSafeHttpUrl(githubJobUrl)
     ? githubJobUrl
     : undefined;
+  const startTime = prepareLocalIsoDate({ date: experiment.startTime });
   const additionalMetadata = { ...metadata };
   if (provider || model) {
     delete additionalMetadata.provider;
@@ -141,7 +142,9 @@ export function ExperimentOverviewPanel({
               )}
 
               <ExperimentOverviewField label="Start Time">
-                <LocalIsoDate date={experiment.startTime} />
+                {startTime ? (
+                  <span title={startTime.title}>{startTime.display}</span>
+                ) : null}
               </ExperimentOverviewField>
 
               {safePullRequestUrl && (

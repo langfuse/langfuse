@@ -23,7 +23,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { buildFullPath } from "@/src/features/folders/utils";
@@ -322,7 +322,9 @@ export function PromptTable() {
       cell: ({ getValue, row }) => {
         if (row.original.type === "folder") return null;
         const createdAt = getValue<Date | undefined>();
-        return createdAt ? <LocalIsoDate date={createdAt} /> : null;
+        if (!createdAt) return null;
+        const date = prepareLocalIsoDate({ date: createdAt });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {

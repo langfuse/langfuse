@@ -73,7 +73,7 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -1131,7 +1131,8 @@ export default function ObservationsEventsTable({
       enableSorting,
       cell: ({ row }) => {
         const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
+        const date = prepareLocalIsoDate({ date: value });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {
@@ -1663,7 +1664,9 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
       cell: ({ row }) => {
         const value: Date | undefined = row.getValue("endTime");
-        return value ? <LocalIsoDate date={value} /> : undefined;
+        if (!value) return undefined;
+        const date = prepareLocalIsoDate({ date: value });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {

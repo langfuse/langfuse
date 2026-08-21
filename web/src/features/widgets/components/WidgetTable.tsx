@@ -7,7 +7,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
 import TableLink from "@/src/components/table/table-link";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import startCase from "lodash/startCase";
 import { Button } from "@/src/components/ui/button";
@@ -321,7 +321,8 @@ export function DashboardWidgetTable() {
       size: 150,
       cell: (row) => {
         const createdAt = row.getValue();
-        return <LocalIsoDate date={createdAt} />;
+        const date = prepareLocalIsoDate({ date: createdAt });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     }),
     columnHelper.accessor("updatedAt", {
@@ -331,7 +332,8 @@ export function DashboardWidgetTable() {
       size: 150,
       cell: (row) => {
         const updatedAt = row.getValue();
-        return <LocalIsoDate date={updatedAt} />;
+        const date = prepareLocalIsoDate({ date: updatedAt });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     }),
     columnHelper.display({

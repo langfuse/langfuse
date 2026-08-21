@@ -18,7 +18,7 @@ import {
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
@@ -129,6 +129,10 @@ export const ObservationDetailViewHeader = memo(
     const totalUsage = observation.totalUsage;
     const inputUsage = observation.inputUsage;
     const outputUsage = observation.outputUsage;
+    const startTime = prepareLocalIsoDate({
+      date: observation.startTime,
+      accuracy: "millisecond",
+    });
 
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -376,11 +380,11 @@ export const ObservationDetailViewHeader = memo(
         <div className="flex flex-col gap-2">
           {/* Timestamp */}
           <div className="flex flex-wrap items-center gap-1">
-            <LocalIsoDate
-              date={observation.startTime}
-              accuracy="millisecond"
-              className="text-sm"
-            />
+            {startTime ? (
+              <span title={startTime.title} className="text-sm">
+                {startTime.display}
+              </span>
+            ) : null}
           </div>
 
           {/* Other badges */}

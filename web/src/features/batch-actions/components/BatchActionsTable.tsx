@@ -12,7 +12,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 
 type BatchActionRow = {
   id: string;
@@ -112,7 +112,8 @@ export function BatchActionsTable(props: { projectId: string }) {
       size: 150,
       cell: ({ row }) => {
         const createdAt = row.getValue("createdAt") as Date;
-        return <LocalIsoDate date={createdAt} />;
+        const date = prepareLocalIsoDate({ date: createdAt });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {
@@ -122,11 +123,11 @@ export function BatchActionsTable(props: { projectId: string }) {
       size: 150,
       cell: ({ row }) => {
         const finishedAt = row.getValue("finishedAt") as Date | null;
-        return finishedAt ? (
-          <LocalIsoDate date={finishedAt} />
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        );
+        if (!finishedAt) {
+          return <span className="text-muted-foreground">-</span>;
+        }
+        const date = prepareLocalIsoDate({ date: finishedAt });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {

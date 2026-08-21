@@ -53,7 +53,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { Badge } from "@/src/components/ui/badge";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -485,7 +485,9 @@ export default function SessionsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: SessionTableRow["createdAt"] = row.getValue("createdAt");
-        return value ? <LocalIsoDate date={value} /> : undefined;
+        if (!value) return undefined;
+        const date = prepareLocalIsoDate({ date: value });
+        return date ? <span title={date.title}>{date.display}</span> : null;
       },
     },
     {
