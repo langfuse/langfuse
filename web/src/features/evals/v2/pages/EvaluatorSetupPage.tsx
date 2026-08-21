@@ -49,6 +49,10 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/prepareEvaluatorMetadataForSave";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
+import {
+  getEvaluatorCreationAnalyticsProperties,
+  type EvaluatorCreationSource,
+} from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 
 type InitialEvaluator = {
   id: string;
@@ -61,34 +65,6 @@ type InitialEvaluator = {
   blockMessage: string | null;
   sampleFilter?: FilterState;
 };
-
-export type EvaluatorCreationSource =
-  | { type: "managed"; templateKey: string }
-  | { type: "custom" }
-  | { type: "scratch" };
-
-export function getEvaluatorCreateAnalyticsProperties({
-  evaluatorType,
-  creationSource,
-}: {
-  evaluatorType: EvalTemplateType;
-  creationSource: EvaluatorCreationSource;
-}) {
-  if (creationSource.type === "managed") {
-    return {
-      evaluatorType,
-      managedTemplateKey: creationSource.templateKey,
-      isCustomTemplate: false,
-      isFromScratch: false,
-    };
-  }
-
-  return {
-    evaluatorType,
-    isCustomTemplate: creationSource.type === "custom",
-    isFromScratch: creationSource.type === "scratch",
-  };
-}
 
 export function shouldOfferRuleAttachment(evaluator: {
   blockedAt: Date | null;
@@ -479,7 +455,7 @@ export function EvaluatorSetupPage(
       });
       capture(
         "evaluators:create",
-        getEvaluatorCreateAnalyticsProperties({
+        getEvaluatorCreationAnalyticsProperties({
           evaluatorType: state.type,
           creationSource: props.creationSource,
         }),

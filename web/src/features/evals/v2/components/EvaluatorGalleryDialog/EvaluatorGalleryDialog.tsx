@@ -17,6 +17,8 @@ import {
   EVALUATOR_GALLERY_PREVIEW_SIZE,
   EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { api } from "@/src/utils/api";
 
 export function EvaluatorGalleryDialog({
@@ -32,6 +34,7 @@ export function EvaluatorGalleryDialog({
   onSelectTemplate: (template: GalleryTemplate) => void;
   onCreateFromScratch: (type: EvalTemplateType) => void;
 }) {
+  const capture = usePostHogClientCapture();
   const [search, setSearch] = useState("");
   const [activeSection, setActiveSection] = useState<string>(
     EVALUATOR_GALLERY_ALL_SECTION_KEY,
@@ -93,6 +96,32 @@ export function EvaluatorGalleryDialog({
       return next;
     });
   };
+  const handleSelectTemplate = (template: GalleryTemplate) => {
+    const evaluatorType =
+      template.source === "managed" ? template.evaluator.type : template.type;
+    const creationSource =
+      template.source === "managed"
+        ? { type: "managed" as const, templateKey: template.key }
+        : { type: "custom" as const };
+    capture(
+      "evaluators:gallery_creation_source_select",
+      getEvaluatorCreationAnalyticsProperties({
+        evaluatorType,
+        creationSource,
+      }),
+    );
+    onSelectTemplate(template);
+  };
+  const handleCreateFromScratch = (evaluatorType: EvalTemplateType) => {
+    capture(
+      "evaluators:gallery_creation_source_select",
+      getEvaluatorCreationAnalyticsProperties({
+        evaluatorType,
+        creationSource: { type: "scratch" },
+      }),
+    );
+    onCreateFromScratch(evaluatorType);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -121,8 +150,8 @@ export function EvaluatorGalleryDialog({
           sections={sections}
           expandedSections={expandedSections}
           onExpandedChange={handleExpandedChange}
-          onSelectTemplate={onSelectTemplate}
-          onCreateFromScratch={onCreateFromScratch}
+          onSelectTemplate={handleSelectTemplate}
+          onCreateFromScratch={handleCreateFromScratch}
           scrollContainerRef={scrollContainerRef}
           isLoading={projectEvaluators.isPending}
           errorMessage={

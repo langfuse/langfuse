@@ -179,6 +179,7 @@ export const events = {
     "version_history_interaction",
     "default_model_update",
     "reactivate",
+    "gallery_creation_source_select",
     "empty_state_template_select",
     "empty_state_browse_library",
     "empty_state_detect_topics",
