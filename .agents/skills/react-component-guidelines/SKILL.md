@@ -14,7 +14,7 @@ Components are useful because they act as an encapsulated unit and therefore pro
 
 ## Composition
 
-- Extract components only when they own meaningful presentation. When most logic is JSX-independent preparation, use a pure function and keep trivial JSX at each call site; use a hook instead only when React lifecycle or state is required.
+- Shared components should own meaningful presentation or complex logic. There must be a reason for code to be a component over a pure function or hook. When most logic is JSX-independent, use a pure function and keep trivial JSX at each call site. Use a hook over a pure function only when React lifecycle or state is required.
 - Avoid polymorphic components:
   - **Presentation:** A component should own one concrete presentation. When an action needs different presentations across contexts (e.g. sometimes a button, sometimes an icon), keep them separate rather than selecting between them with mode props or flags.
   - **Behavior:** A component should own one cohesive workflow. When a prop selects fundamentally different workflows, split them into separate behavior-owning components. For example, prefer dedicated create, update, and delete dialog controllers over one action component whose `mode` changes the entire interaction.
