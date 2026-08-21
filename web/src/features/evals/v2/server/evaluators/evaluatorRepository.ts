@@ -157,7 +157,7 @@ export async function listEvaluators(params: {
   const [evaluators, totalItems] = await Promise.all([
     params.prisma.evaluator.findMany({
       where,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       skip: (params.page - 1) * params.limit,
       take: params.limit,
       include: {

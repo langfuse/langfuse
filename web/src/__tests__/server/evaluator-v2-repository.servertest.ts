@@ -224,20 +224,26 @@ describe("evaluator v2 repository", () => {
       });
     });
 
-    it("paginates evaluators in descending creation order", async () => {
-      const [older, newer] = await Promise.all([
+    it("paginates evaluators in descending update order", async () => {
+      const [recentlyUpdated, newerButUnchanged] = await Promise.all([
         createEvaluator(),
         createEvaluator(),
       ]);
 
       await Promise.all([
         prisma.evaluator.update({
-          where: { id: older.id },
-          data: { createdAt: new Date("2026-01-01T00:00:00.000Z") },
+          where: { id: recentlyUpdated.id },
+          data: {
+            createdAt: new Date("2026-01-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-01-03T00:00:00.000Z"),
+          },
         }),
         prisma.evaluator.update({
-          where: { id: newer.id },
-          data: { createdAt: new Date("2026-01-02T00:00:00.000Z") },
+          where: { id: newerButUnchanged.id },
+          data: {
+            createdAt: new Date("2026-01-02T00:00:00.000Z"),
+            updatedAt: new Date("2026-01-02T00:00:00.000Z"),
+          },
         }),
       ]);
 
@@ -249,7 +255,7 @@ describe("evaluator v2 repository", () => {
           limit: 1,
         }),
       ).resolves.toEqual({
-        evaluators: [expect.objectContaining({ id: newer.id })],
+        evaluators: [expect.objectContaining({ id: recentlyUpdated.id })],
         totalItems: 2,
       });
 
@@ -261,7 +267,7 @@ describe("evaluator v2 repository", () => {
           limit: 1,
         }),
       ).resolves.toEqual({
-        evaluators: [expect.objectContaining({ id: older.id })],
+        evaluators: [expect.objectContaining({ id: newerButUnchanged.id })],
         totalItems: 2,
       });
     });
