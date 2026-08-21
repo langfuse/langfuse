@@ -4,8 +4,7 @@ import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
   type InAppAgentLangfuseMcpToolName,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
-import "@/src/features/mcp/server/bootstrap";
-import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
+import { type McpToolName } from "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 
 describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {

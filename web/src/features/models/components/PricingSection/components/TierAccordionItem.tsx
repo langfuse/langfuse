@@ -14,9 +14,12 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { useWatch } from "react-hook-form";
+import {
+  useWatch,
+  type UseFormReturn,
+  type FieldArrayWithId,
+} from "react-hook-form";
 import { TierConditionsEditor } from "./TierConditionsEditor";
-import type { UseFormReturn, FieldArrayWithId } from "react-hook-form";
 import type { FormUpsertModel } from "@/src/features/models/validation";
 
 type TierAccordionItemProps = {

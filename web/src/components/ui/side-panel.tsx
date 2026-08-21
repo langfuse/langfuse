@@ -1,10 +1,14 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
-import { useState, useCallback, type ReactNode } from "react";
+import {
+  type default as React,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
 import { Button } from "@/src/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { SubHeader } from "@/src/components/layouts/header";
 import { cn } from "@/src/utils/tailwind";
-import React from "react";
 import {
   Sheet,
   SheetContent,
