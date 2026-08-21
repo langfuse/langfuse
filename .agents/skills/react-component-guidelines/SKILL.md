@@ -36,6 +36,13 @@ Components are useful because they act as an encapsulated unit and therefore pro
 - Margin should be applied by the parent component, not contained in a component. The child component should only define the inner spacing of itself and its contents.
 - It's bad practice to have a component that returns `null` or `undefined`. Most of the time this suggests that the condition that leads to this state should be handled by the parent component instead, often this can be done in a way close to the current component by using a hook or a HOC.
 
+## Overlays
+
+- Compose overlays with `DropdownMenuController`, `PopoverController`, or `DialogController`. Trigger presentation should remain in the caller and not be abstracted. If additional behavior is needed, add a feature-specific wrapper that handles things such as permissions, analytics, mutations, or other workflow behavior that should be shared.
+- Keep the controller components outside transient overlays that can trigger it. A popover or dialog opened from a dropdown item must not be owned by `DropdownMenuContent`, which unmounts when the dropdown closes.
+- Consume the controller's render-prop controls instead of duplicating their shape. Do not move the passed `Trigger` into components. Abstract trigger presentation through a ref-forwarding component with explicit variants, while keeping `<Trigger asChild>` at each call site.
+- Compose `<Trigger asChild>` in the caller around a semantic child that forwards its ref and injected props. For example, use `DropdownMenuItem` directly rather than nesting a `Button` inside it.
+
 ## Deterministic Styling
 
 - Avoid conflicting style names in CSS definitions, even though they might be removed by tailwind-merge or the likes. Make the variants explicit instead by using cva, conditions or lookup tables.

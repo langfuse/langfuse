@@ -171,6 +171,41 @@ const DialogContent = React.forwardRef<
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+/**
+ * Owns dialog open state while callers retain trigger and content presentation.
+ * Use the supplied Trigger to preserve Radix behavior.
+ */
+type DialogControllerProps = {
+  children: (control: {
+    isOpen: boolean;
+    Trigger: typeof DialogTrigger;
+  }) => React.ReactNode;
+  closeOnInteractionOutside: boolean;
+  renderContent: (control: { closeDialog: () => void }) => React.ReactNode;
+  size: React.ComponentProps<typeof DialogContent>["size"];
+};
+
+const DialogController = ({
+  children,
+  closeOnInteractionOutside,
+  renderContent,
+  size,
+}: DialogControllerProps) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      {children({ isOpen, Trigger: DialogTrigger })}
+      <DialogContent
+        size={size}
+        closeOnInteractionOutside={closeOnInteractionOutside}
+      >
+        {renderContent({ closeDialog: () => setIsOpen(false) })}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const dialogHeaderVariants = cva(
   "bg-modal sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
   {
@@ -287,6 +322,7 @@ DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 export {
   Dialog,
+  DialogController,
   DialogPortal,
   DialogOverlay,
   DialogClose,

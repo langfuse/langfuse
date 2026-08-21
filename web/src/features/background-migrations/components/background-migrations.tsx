@@ -3,9 +3,11 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { type BackgroundMigration } from "@langfuse/shared";
-import { RetryBackgroundMigration } from "@/src/features/background-migrations/components/retry-background-migration";
+import { RetryBackgroundMigrationPopoverController } from "@/src/features/background-migrations/components/retry-background-migration";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import Page from "@/src/components/layouts/page";
+import { Button } from "@/src/components/ui/button";
+import { RotateCcw } from "lucide-react";
 
 export default function BackgroundMigrationsTable() {
   const backgroundMigrations = api.backgroundMigrations.all.useQuery();
@@ -73,10 +75,18 @@ export default function BackgroundMigrationsTable() {
         const name = row.row.original.name;
         const isRetryable = row.row.original.failedAt !== null;
         return (
-          <RetryBackgroundMigration
+          <RetryBackgroundMigrationPopoverController
             backgroundMigrationName={name}
             isRetryable={isRetryable}
-          />
+          >
+            {({ disabled, Trigger }) => (
+              <Trigger asChild>
+                <Button variant="ghost" size="xs" disabled={disabled}>
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </Trigger>
+            )}
+          </RetryBackgroundMigrationPopoverController>
         );
       },
     },
