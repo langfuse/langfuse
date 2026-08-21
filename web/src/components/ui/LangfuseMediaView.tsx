@@ -3,7 +3,14 @@ import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 
-import { ImageOff } from "lucide-react";
+import {
+  ImageOff,
+  ExternalLink,
+  File,
+  Image as ImageIcon,
+  Video,
+  Volume2,
+} from "lucide-react";
 import {
   MediaReferenceStringSchema,
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
@@ -18,13 +25,6 @@ import {
   type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media/validation";
-import {
-  ExternalLink,
-  File,
-  Image as ImageIcon,
-  Video,
-  Volume2,
-} from "lucide-react";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
