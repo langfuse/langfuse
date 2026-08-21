@@ -142,6 +142,15 @@ or the fixture documents it.
 
 - **`source` preserves the input/output boundary in one ordered stream** —
   rendering wants one conversation; projections need the boundary back.
+- **No provider label on the result.** One span routinely mixes dialects, so
+  an observation-level label would either echo span metadata (redundant —
+  consumers already have `gen_ai.system`/`ls_provider`/model columns) or make
+  a wrong claim about mixed content. Labels come from span metadata; per-part
+  dialect traces exist via `toolType` and providerMetadata keys;
+  round-tripping uses the raw `span`.
+- **`tool` stays a role.** Turns carry the protocol rhythm; the `tool-result`
+  part carries the semantics — tool messages are not collapsed into the
+  preceding assistant turn.
 - **Messages whose only content is an empty string are dropped.** Non-string
   payloads are never coerced to text — structured values become `data`.
 - **Media normalizes to file parts.** Reference tokens (the dominant stored
