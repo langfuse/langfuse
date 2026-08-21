@@ -15,10 +15,13 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { api } from "@/src/utils/api";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import {
+  ScoreMetadataJsonView,
+  useStringifiedMetadata,
+} from "@/src/features/scores/components/ScoreMetadataJsonView";
 
 const resolveScoreValue = (aggregate: AggregatedScoreData): string => {
   if (aggregate.type === "NUMERIC") {
@@ -107,6 +110,10 @@ export const ScoreRow = ({
       staleTime: Infinity,
     },
   );
+  // Stringify once and reuse for both the single-line preview below and the
+  // JSONView size gate, instead of calling JSON.stringify(metadata) inline on
+  // every render regardless of payload size.
+  const stringifiedMetadata = useStringifiedMetadata(metadata);
 
   if (!aggregate) {
     return (
@@ -174,22 +181,17 @@ export const ScoreRow = ({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="line-clamp-1 cursor-help">
-                        {(() => {
-                          try {
-                            return metadata && Object.keys(metadata).length > 0
-                              ? JSON.stringify(metadata)
-                              : "Loading...";
-                          } catch {
-                            return "Invalid JSON";
-                          }
-                        })()}
+                        {metadata && Object.keys(metadata).length > 0
+                          ? (stringifiedMetadata ?? "Invalid JSON")
+                          : "Loading..."}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent className="w-[400px] text-xs wrap-break-word">
                       {metadata && Object.keys(metadata).length > 0 ? (
-                        <JSONView
+                        <ScoreMetadataJsonView
                           codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
-                          json={metadata}
+                          metadata={metadata}
+                          stringified={stringifiedMetadata}
                         />
                       ) : (
                         <Skeleton className="h-12 w-full" />
