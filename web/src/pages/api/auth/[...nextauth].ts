@@ -1,5 +1,5 @@
 import { getAuthOptions } from "@/src/server/auth";
-import { getGclidFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { isValidCallbackUrl } from "@/src/server/utils/nextAuthCallbackUrl";
 import { env } from "@/src/env.mjs";
@@ -138,7 +138,7 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // Pass Google Ads click attribution from first-party cookies so that new
   // SSO signups can be attributed to ad clicks (cloud_signup_complete event).
   const authOptions = await getAuthOptions({
-    gclid: getGclidFromRequest(req),
+    adClickIds: getAdClickIdsFromRequest(req),
   });
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself

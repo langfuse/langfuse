@@ -1,14 +1,7 @@
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 
-import {
-  BaseError,
-  InAppAgentRunErrorCode,
-  InAppAgentRunStatus,
-  InAppAgentRunStatusSchema,
-  LangfuseNotFoundError,
-  type Plan,
-} from "@langfuse/shared";
+import { BaseError, LangfuseNotFoundError, type Plan } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   InAppAgentRunQueue,
@@ -18,13 +11,15 @@ import {
 } from "@langfuse/shared/src/server";
 import { deleteApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
-  createInAppAgentMessageId,
-  createInAppAgentRunId,
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  InAppAgentRunStatusSchema,
   parseInAppAgentApprovalDecisionEvent,
-  type AgUiRunAgentInput,
+  parseInAppAgentInterruptEvent,
+  type AgUiContext,
 } from "@langfuse/shared/in-app-agent";
-import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
-import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/tools";
+import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import { createInAppAgentMessageId, createInAppAgentRunId } from "../ids";
 import {
   ensureOwnedConversation,
   getConversationEvents,
@@ -40,6 +35,7 @@ import {
   createQueuedRun,
   decideToolApproval,
   reconcileConversationRuns,
+  recordImmediateCancelOutcomes,
   requestRunCancellation,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 
@@ -192,7 +188,7 @@ export async function startBackgroundRun(params: {
   conversationId: string;
   userId: string;
   message: string;
-  context: AgUiRunAgentInput["context"];
+  context: AgUiContext;
   isV4Enabled: boolean;
   model: string | undefined;
   aiTelemetryEnabled: boolean;
@@ -296,7 +292,7 @@ export async function deleteBackgroundConversation(params: {
     userId: params.userId,
   });
 
-  const cancelledRunIds = await params.prisma.$transaction(async (tx) => {
+  const cancelledRuns = await params.prisma.$transaction(async (tx) => {
     const cancelledImmediately = await cancelConversationRunsInTransaction({
       tx,
       projectId: params.projectId,
@@ -319,8 +315,12 @@ export async function deleteBackgroundConversation(params: {
     return cancelledImmediately;
   });
 
+  recordImmediateCancelOutcomes(cancelledRuns);
+
   // Avoid spending a worker slot on jobs whose runs are already cancelled.
-  await Promise.all(cancelledRunIds.map(removeInAppAgentRunJob));
+  await Promise.all(
+    cancelledRuns.map((run) => removeInAppAgentRunJob(run.runId)),
+  );
 
   return { success: true };
 }

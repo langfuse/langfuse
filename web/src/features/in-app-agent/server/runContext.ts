@@ -3,9 +3,9 @@ import {
   LangfuseNotFoundError,
   TableViewPresetTableName,
 } from "@langfuse/shared";
-import type { AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
+import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 
-type InAppAgentContext = AgUiRunAgentInput["context"];
+type InAppAgentContext = AgUiContext;
 import {
   logger,
   parseSavedViewFromURL,

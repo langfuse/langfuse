@@ -22,7 +22,7 @@ const RAIL = 7; // x of a level's vertical rail within its indent step
 const ICON_GAP = 6; // gap from a node's rail to its icon
 
 export function TimelineGutterRow({
-  item,
+  row,
   isSelected,
   isHovered,
   onSelect,
@@ -32,7 +32,7 @@ export function TimelineGutterRow({
   isCollapsed,
   maxVisualDepth = Infinity,
 }: TimelineGutterRowProps) {
-  const { node, depth, treeLines, isLastSibling } = item;
+  const { node, depth, treeLines, isLastSibling } = row;
 
   // Visual depth: real depth capped to the gutter width (see visual-depth.ts)
   // so extremely deep traces keep names readable — rows past the cap render

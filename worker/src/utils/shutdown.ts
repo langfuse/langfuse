@@ -19,9 +19,11 @@ import {
   batchProjectBlobCleaner,
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
+  inAppAgentIntegrityRunner,
   deletedMaskCleaner,
   queueMetricsRunner,
   monitorRunners,
+  inAppAgentDlqRetryRunner,
 } from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
@@ -57,6 +59,8 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   // Stop durable trace-delete batch action runner
   traceDeleteBatchActionRunner?.stop();
 
+  inAppAgentIntegrityRunner?.stop();
+
   // Stop deleted-mask cleaner
   deletedMaskCleaner?.stop();
 
@@ -67,6 +71,8 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   for (const runner of monitorRunners) {
     runner.stop();
   }
+
+  inAppAgentDlqRetryRunner?.stop();
 
   // Before closeWorkers(), while the registry is still populated (LFE-10388).
   logInFlightBlobExportsOnShutdown();

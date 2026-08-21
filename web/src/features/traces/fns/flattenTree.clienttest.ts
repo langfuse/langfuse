@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * Tests for tree-flattening utilities.
  *

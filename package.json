@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "4.12.0",
+  "version": "4.16.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -105,5 +105,5 @@
       }
     }
   },
-  "packageManager": "pnpm@11.10.0"
+  "packageManager": "pnpm@11.22.0"
 }

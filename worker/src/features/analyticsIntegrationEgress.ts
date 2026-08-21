@@ -1,11 +1,15 @@
 import {
   logger,
+  redactUrlCredentials,
   validateWebhookURL,
   whitelistFromEnv,
   type RedirectOptions,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
-import { findOutboundUrlValidationError } from "../errors/findOutboundUrlValidationError";
+import {
+  describeOutboundFailure,
+  findOutboundUrlValidationError,
+} from "../errors/findOutboundUrlValidationError";
 
 /**
  * Redirect budget for the analytics integration exporters. Both senders
@@ -31,13 +35,6 @@ export const buildAnalyticsRedirectOptions = (
   },
 });
 
-// A rejected redirect target is reported with its URL embedded verbatim, and a
-// Location header may carry userinfo, so the message can hold a password.
-const URL_CREDENTIALS = /([a-z][a-z0-9+.-]*:\/\/)[^/?#\s@]*@/gi;
-
-const redactUrlCredentials = (text: string): string =>
-  text.replace(URL_CREDENTIALS, "$1***@");
-
 /**
  * A serialization-safe stand-in for the validation error. The original holds the
  * offending URL three times over — in its message, in its stack, and, for a
@@ -55,9 +52,10 @@ const sanitizedCause = (validationError: Error): Error => {
 };
 
 /**
- * Rethrow a connect-time SSRF block as terminal, so BullMQ stops re-attempting
- * a send that cannot succeed; no-op for anything else, which the caller keeps
- * handling as retryable.
+ * Rethrow a permanent outbound-URL failure — a connect-time SSRF block, or a
+ * redirect chain that exhausted its budget or looped — as terminal, so BullMQ
+ * stops re-attempting a send that cannot succeed; no-op for anything else,
+ * which the caller keeps handling as retryable.
  *
  * Nothing the thrown error carries may hold a credential: the message, the
  * retained cause and that cause's own stack all outlive the job, via the log
@@ -71,12 +69,13 @@ export function rethrowIfOutboundValidationFailure(
   if (!validationError) return;
 
   const reason = redactUrlCredentials(validationError.message);
-  logger.error(`${labels.logSubject} blocked by SSRF protection: ${reason}`, {
+  const description = describeOutboundFailure(validationError);
+  logger.error(`${labels.logSubject} ${description}: ${reason}`, {
     errorName: validationError.name,
   });
 
   const unrecoverable = new UnrecoverableError(
-    `${labels.jobSubject} blocked by SSRF protection: ${reason}`,
+    `${labels.jobSubject} ${description}: ${reason}`,
   );
   // Non-enumerable, because a structured logger handed this error copies every
   // enumerable field into the log line — which is how the raw URL escaped a

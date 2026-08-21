@@ -69,6 +69,39 @@ describe("MarkdownView ordered lists", () => {
   });
 });
 
+describe("MarkdownView code blocks", () => {
+  // A random React key (and an inline `code` renderer, which is a new
+  // component type every parent render) remounted CodeBlock and dropped
+  // local state such as the copy-button checkmark and scroll position.
+  it("reuses the same code block instance across re-renders", () => {
+    const markdown = "```js\nconst x = 1;\n```";
+    const { container, rerender } = render(
+      <MarkdownContextProvider>
+        <MarkdownView markdown={markdown} />
+      </MarkdownContextProvider>,
+    );
+
+    const codeblock = container.querySelector(".codeblock");
+    expect(codeblock).not.toBeNull();
+
+    rerender(
+      <MarkdownContextProvider>
+        <MarkdownView markdown={markdown} />
+      </MarkdownContextProvider>,
+    );
+
+    expect(container.querySelector(".codeblock")).toBe(codeblock);
+  });
+
+  it("renders two identical fenced blocks as distinct instances", () => {
+    const { container } = renderMarkdown(
+      "```js\nconst x = 1;\n```\n\n```js\nconst x = 1;\n```",
+    );
+
+    expect(container.querySelectorAll(".codeblock")).toHaveLength(2);
+  });
+});
+
 describe("prependBasePathToInternalHref", () => {
   // A native <a> loses the NEXT_PUBLIC_BASE_PATH that <Link> used to prepend to
   // root-relative internal hrefs; this helper restores it for subpath deploys.

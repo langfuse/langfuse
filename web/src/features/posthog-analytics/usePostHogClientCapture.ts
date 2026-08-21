@@ -42,6 +42,13 @@ export const events = {
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
+    // Trace playhead transport in the navigation header (and the overflow
+    // menu on a narrow panel). Distinguishes play vs pause vs stop; `viewMode`
+    // is tree vs timeline at click time; `observationCount` is the loaded
+    // trace size. Metadata only — never a trace/observation id.
+    "playback_play",
+    "playback_pause",
+    "playback_stop",
     // Download from the large-string IO fallback (LFE-10991): a top-level
     // string over the render limit is shown as a bounded preview + download
     // instead of the full Pretty/JSON viewer. Measures how often users hit it.
@@ -325,6 +332,11 @@ export const events = {
   v4_migration: [
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
+    // Discoverability pair for the table delay badge: `shown` is the
+    // exposure denominator (badge actually rendered), `hovered` counts
+    // noticed-but-not-clicked (pill expanded long enough to read).
+    "delay_badge_shown",
+    "delay_badge_hovered",
     "project_chip_clicked",
     "contact_book_call_clicked",
     "contact_support_clicked",

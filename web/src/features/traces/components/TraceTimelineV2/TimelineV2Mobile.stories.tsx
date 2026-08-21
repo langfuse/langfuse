@@ -1,6 +1,6 @@
 import preview from "../../../../../.storybook/preview";
 import { TimelineV2, type TimelineComposition } from "./TimelineV2";
-import { reporterTrace } from "./__tests__/timelineV2.fixtures";
+import { reporterTrace } from "../../fns/timeline/__tests__/timelineV2.fixtures";
 
 const meta = preview.meta({
   component: TimelineV2,
