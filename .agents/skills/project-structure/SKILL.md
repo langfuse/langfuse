@@ -51,8 +51,10 @@ Full reasoning and examples in `rules/`, one file per rule.
 
 `mechanism` is how a rule is decided: **census** from the files themselves,
 **graph** from the import graph, **review** by a human, **process** by how the
-commit is made. Counts are a snapshot of `web/src` on 2026-08-21 (total
-**2,710**) — they move, so re-read them from the sensor rather than from here.
+commit is made, **ratchet** by a committed count that may only shrink, and
+**not yet counted** by nobody — see below. Counts are a snapshot of `web/src`
+on 2026-08-21 (total **2,710**) — they move, so re-read them from the sensor
+rather than from here.
 
 | # | Rule | Mechanism | Count |
 | --- | --- | --- | --- |
